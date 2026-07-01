@@ -105,7 +105,8 @@ function SaleDetail() {
 
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
-  const saveResumo = useCallback(async (): Promise<boolean> => {
+  const saveResumo = async (): Promise<boolean> => {
+    if (!sale) return false;
     const fields = [
       "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes",
       "corretor_captador","corretor_vendedor","indicador",
@@ -127,7 +128,7 @@ function SaleDetail() {
     toast.success("Alterações salvas");
     await load();
     return true;
-  }, [formSale, sale, id, load]);
+  };
 
   const notifyRoles = async (rolesToNotify: string[], titulo: string, mensagem?: string) => {
     const { data: users } = await supabase.from("user_roles").select("user_id").in("role", rolesToNotify as any);
