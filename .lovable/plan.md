@@ -1,27 +1,17 @@
 ## Problema
-Hoje cada campo dispara salvamento automático (autosave por onChange/onBlur), causando "salvando…" o tempo todo.
+`src/routes/_authenticated/vendas.$id.tsx` faz `return` cedo na linha 87 (`if (loading || !sale) return ...`) e depois disso ainda declara vários `useCallback` (linhas 108 `saveResumo`, 133 `reload parties`, etc.). Isso viola as Regras dos Hooks — no primeiro render menos hooks são chamados; quando `loading` vira `false`, mais hooks aparecem e o React quebra com "Rendered more hooks than during the previous render", mostrando a tela "This page didn't load".
 
-## Objetivo
-Salvar apenas ao avançar de etapa no wizard (ou ao clicar em "Salvar" explicitamente). Digitar campos não deve mais disparar requisição.
+## Correção
+Mover o `if (loading || !sale) return ...` para **depois** de todas as declarações de hooks do componente `SaleDetail`. Ou seja:
 
-## Mudanças
-
-1. **`src/routes/_authenticated/vendas.$id.tsx`**
-   - Remover qualquer autosave por campo (onChange/onBlur/`useEffect` com debounce que faz `update`).
-   - Manter estado local (`formState`) por etapa, sem persistir no banco a cada tecla.
-   - Adicionar função `salvarEtapaAtual()` que faz o `update` no Supabase apenas dos campos daquela etapa.
-   - Marcar etapa como "dirty" quando o usuário edita algo; se dirty, ao clicar **Próximo** chama `salvarEtapaAtual()` antes de avançar. Se falhar, não avança e mostra erro.
-   - Botão **Voltar** não salva (só navega); se houver alterações não salvas, pergunta "Descartar alterações?".
-   - Manter botão **Salvar** visível na etapa para salvar sem avançar.
-   - Indicador de status: trocar "Salvando…" contínuo por badge discreto ("Alterações não salvas" / "Salvo") atualizado só nesses eventos.
-
-2. **`src/components/Wizard.tsx`**
-   - Aceitar prop opcional `onBeforeNext?: (fromStep, toStep) => Promise<boolean>`; se retornar `false`, cancela a navegação.
-   - Sem mudanças visuais.
+1. Manter todos os `useState`, `useCallback`, `useMemo`, `useEffect` no topo, sem returns antes deles.
+2. Só depois de declarar tudo, renderizar condicionalmente:
+   ```tsx
+   if (loading || !sale) return <div>Carregando...</div>;
+   return <>...conteúdo normal...</>;
+   ```
+3. Ajustar os `useCallback` que usam `sale` para lidar com `sale` possivelmente nulo (guard interno `if (!sale) return false;`) — já que agora rodam mesmo antes do sale carregar.
 
 ## Fora do escopo
-- Não altero schema, RLS, comissões, parcerias, dashboards nem lógica de status.
-- Uploads de documento continuam salvando na hora (é ação explícita, não digitação).
-- Comentários continuam com envio explícito.
-
-Confirma que é isso?
+- Não mexo em lógica de salvamento, wizard, ocorrência, RLS, comissões, dashboards.
+- Só reordenação de hooks + guards mínimos para o TS/runtime.
