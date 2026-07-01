@@ -42,7 +42,13 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   cancelada: "bg-destructive/15 text-destructive",
 };
 
-export const DOC_TYPES: { key: string; label: string; grupo: "pessoal" | "imovel"; obrigatorio?: boolean }[] = [
+export type DocGrupo = "pessoal" | "imovel" | "outros";
+export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
+  pessoal: "Documentos pessoais",
+  imovel: "Documentos do imóvel",
+  outros: "Outros documentos",
+};
+export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean }[] = [
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
   { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true },
   { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal" },
@@ -50,7 +56,26 @@ export const DOC_TYPES: { key: string; label: string; grupo: "pessoal" | "imovel
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
   { key: "iptu", label: "IPTU", grupo: "imovel" },
   { key: "cnd_condominio", label: "CND do condomínio (se aplicável)", grupo: "imovel" },
+  { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
+
+/** Retorna o rótulo do responsável pela próxima ação de acordo com o status. */
+export function proximoResponsavel(status: SaleStatus): { titulo: string; papel: string } {
+  switch (status) {
+    case "rascunho": return { titulo: "Aguardando envio do corretor", papel: "Corretor" };
+    case "devolvida_ajuste": return { titulo: "Aguardando correção do corretor", papel: "Corretor" };
+    case "enviada_revisao": return { titulo: "Aguardando revisão do gestor", papel: "Gestor / Coordenador" };
+    case "aprovada_gestor":
+    case "enviada_juridico": return { titulo: "Aguardando elaboração do jurídico", papel: "Jurídico" };
+    case "em_elaboracao_contrato": return { titulo: "Contrato em elaboração", papel: "Jurídico" };
+    case "aguardando_assinatura": return { titulo: "Aguardando assinatura das partes", papel: "Jurídico / Partes" };
+    case "contrato_assinado":
+    case "ocorrencia_pendente": return { titulo: "Contrato assinado — ocorrência pendente", papel: "Financeiro" };
+    case "ocorrencia_concluida": return { titulo: "Ocorrência concluída", papel: "—" };
+    case "arquivada": return { titulo: "Venda arquivada", papel: "—" };
+    case "cancelada": return { titulo: "Venda cancelada", papel: "—" };
+  }
+}
 
 export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
   { key: "corretor_captador", label: "Corretor captador" },
