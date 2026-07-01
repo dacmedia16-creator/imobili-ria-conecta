@@ -22,9 +22,11 @@ type Props = {
   steps: WizardStep[];
   current: string;
   onChange: (key: string) => void;
+  onBeforeLeave?: (fromKey: string, toKey: string) => Promise<boolean> | boolean;
+  dirty?: boolean;
 };
 
-export function Wizard({ steps, current, onChange }: Props) {
+export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -34,10 +36,19 @@ export function Wizard({ steps, current, onChange }: Props) {
   const active = enabled[idx] ?? enabled[0];
   const progress = enabled.length > 1 ? Math.round((idx / (enabled.length - 1)) * 100) : 100;
 
+  const requestChange = async (toKey: string) => {
+    if (!toKey || toKey === activeKey) return;
+    if (onBeforeLeave) {
+      const ok = await onBeforeLeave(activeKey, toKey);
+      if (!ok) return;
+    }
+    onChange(toKey);
+  };
   const go = (i: number) => {
     const step = enabled[i];
-    if (step) onChange(step.key);
+    if (step) requestChange(step.key);
   };
+
 
   return (
     <div className="space-y-4">
@@ -91,7 +102,7 @@ export function Wizard({ steps, current, onChange }: Props) {
           </span>
           <span className="text-xs text-muted-foreground">{progress}%</span>
         </div>
-        <Select value={activeKey} onValueChange={onChange}>
+        <Select value={activeKey} onValueChange={requestChange}>
           <SelectTrigger className="mt-1">
             <SelectValue />
           </SelectTrigger>
@@ -106,6 +117,7 @@ export function Wizard({ steps, current, onChange }: Props) {
         <Progress value={progress} className="mt-2 h-1" />
       </div>
 
+
       {/* Step content */}
       <div className="pt-2">{active?.content}</div>
 
@@ -115,12 +127,13 @@ export function Wizard({ steps, current, onChange }: Props) {
           <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
         </Button>
         <span className="text-xs text-muted-foreground">
-          {idx + 1} / {enabled.length}
+          {dirty ? "Alterações não salvas" : `${idx + 1} / ${enabled.length}`}
         </span>
         <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
-          Próximo <ChevronRight className="ml-1 h-4 w-4" />
+          {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
+
     </div>
   );
 }
