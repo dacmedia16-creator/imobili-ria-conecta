@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, validarProntaParaRevisao, type SaleStatus } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, DOC_GRUPO_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocGrupo } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save } from "lucide-react";
 
@@ -364,7 +364,19 @@ function SaleDetail() {
       </div>
 
       <Card>
-        <CardContent className="space-y-2 p-4">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary/5 p-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Próxima etapa</div>
+              <div className="font-medium">{proximoResponsavel(status).titulo}</div>
+            </div>
+            <div className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></div>
+          </div>
+          {!editable && isOwner && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              Esta venda está travada para edição enquanto está em <b>{STATUS_LABEL[status]}</b>.
+            </div>
+          )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Progresso do checklist</span>
             <span className="font-medium">{progress}% • Documentos aprovados: {docsApproved}/{requiredTypes.length}</span>
