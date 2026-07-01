@@ -635,7 +635,11 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
       sale_id: saleId, tipo, storage_path: path, file_name: file.name,
       uploaded_by: user!.id, status: "enviado",
     });
-    if (insErr) toast.error(insErr.message); else { toast.success("Documento enviado"); onChange(); }
+    if (insErr) toast.error(insErr.message);
+    else {
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo } });
+      toast.success("Documento enviado"); onChange();
+    }
   };
   const download = async (doc: any) => {
     const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 60);
@@ -644,56 +648,85 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   };
   const approve = async (doc: any) => {
     const { error } = await supabase.from("sale_documents").update({ status: "aprovado", motivo_recusa: null }).eq("id", doc.id);
-    if (error) toast.error(error.message); else onChange();
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_approved", payload: { doc_id: doc.id, tipo: doc.tipo } });
+    onChange();
   };
   const reject = async (doc: any) => {
     const motivo = prompt("Motivo da recusa (obrigatório):");
     if (!motivo?.trim()) return;
     const { error } = await supabase.from("sale_documents").update({ status: "recusado", motivo_recusa: motivo }).eq("id", doc.id);
-    if (error) toast.error(error.message);
-    else { await supabase.from("sale_comments").insert({ sale_id: saleId, autor_id: user!.id, escopo: "revisao", texto: `Documento recusado: ${motivo}`, doc_id: doc.id }); onChange(); }
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("sale_comments").insert({ sale_id: saleId, autor_id: user!.id, escopo: "revisao", texto: `Documento recusado: ${motivo}`, doc_id: doc.id });
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_rejected", payload: { doc_id: doc.id, tipo: doc.tipo, motivo } });
+    // Notificar o corretor da venda
+    const { data: sale } = await supabase.from("sales").select("corretor_id, imovel_id, codigo_interno").eq("id", saleId).maybeSingle();
+    if (sale?.corretor_id) {
+      await supabase.from("notifications").insert({
+        user_id: sale.corretor_id, sale_id: saleId,
+        tipo: "document_rejected",
+        titulo: `Documento recusado: ${doc.tipo}`,
+        mensagem: motivo,
+      });
+    }
+    onChange();
   };
+
+  const grupos: DocGrupo[] = ["pessoal", "imovel", "outros"];
   return (
-    <div className="space-y-3">
-      {DOC_TYPES.map((t) => {
-        const list = docs.filter(d => d.tipo === t.key);
-        const latest = list[list.length - 1];
+    <div className="space-y-6">
+      {grupos.map((g) => {
+        const tipos = DOC_TYPES.filter(t => t.grupo === g);
+        if (tipos.length === 0) return null;
         return (
-          <Card key={t.key}>
-            <CardContent className="space-y-3 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium">{t.label}{t.obrigatorio && <span className="ml-1 text-destructive">*</span>}</div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.grupo === "pessoal" ? "Pessoal" : "Imóvel"}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {latest && <DocStatusBadge status={latest.status} />}
-                  {editable && (
-                    <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-                      <Upload className="h-4 w-4" />
-                      <span>Enviar</span>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && upload(t.key, e.target.files[0])} />
-                    </label>
-                  )}
-                </div>
-              </div>
-              {list.map((d) => (
-                <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm">
-                  <button className="truncate text-left hover:underline" onClick={() => download(d)}>{d.file_name}</button>
-                  <div className="flex items-center gap-2">
-                    <DocStatusBadge status={d.status} />
-                    {d.motivo_recusa && <span className="text-xs text-destructive">({d.motivo_recusa})</span>}
-                    {canModerate && d.status !== "aprovado" && (
-                      <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
+          <section key={g} className="space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_GRUPO_LABEL[g]}</h3>
+            {tipos.map((t) => {
+              const list = docs.filter(d => d.tipo === t.key);
+              const latest = list[list.length - 1];
+              return (
+                <Card key={t.key}>
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-medium">{t.label}{t.obrigatorio && <span className="ml-1 text-destructive">*</span>}</div>
+                        {t.obrigatorio && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {latest && <DocStatusBadge status={latest.status} />}
+                        {editable && (
+                          <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
+                            <Upload className="h-4 w-4" />
+                            <span>{latest?.status === "recusado" ? "Reenviar" : "Enviar"}</span>
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && upload(t.key, e.target.files[0])} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    {latest?.status === "recusado" && latest.motivo_recusa && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                        <b>Motivo da recusa:</b> {latest.motivo_recusa}
+                      </div>
                     )}
-                    {canModerate && d.status !== "recusado" && (
-                      <Button size="sm" variant="ghost" onClick={() => reject(d)}><FileX className="h-4 w-4" /></Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                    {list.map((d) => (
+                      <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm">
+                        <button className="truncate text-left hover:underline" onClick={() => download(d)}>{d.file_name}</button>
+                        <div className="flex items-center gap-2">
+                          <DocStatusBadge status={d.status} />
+                          {canModerate && d.status !== "aprovado" && (
+                            <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
+                          )}
+                          {canModerate && d.status !== "recusado" && (
+                            <Button size="sm" variant="ghost" onClick={() => reject(d)}><FileX className="h-4 w-4" /></Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </section>
         );
       })}
     </div>
