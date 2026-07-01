@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({ meta: [{ title: "Entrar — Portal Imobiliária" }] }),
   component: AuthPage,
 });
