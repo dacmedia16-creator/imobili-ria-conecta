@@ -102,7 +102,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props
           </span>
           <span className="text-xs text-muted-foreground">{progress}%</span>
         </div>
-        <Select value={activeKey} onValueChange={onChange}>
+        <Select value={activeKey} onValueChange={requestChange}>
           <SelectTrigger className="mt-1">
             <SelectValue />
           </SelectTrigger>
@@ -116,6 +116,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props
         </Select>
         <Progress value={progress} className="mt-2 h-1" />
       </div>
+
 
       {/* Step content */}
       <div className="pt-2">{active?.content}</div>
