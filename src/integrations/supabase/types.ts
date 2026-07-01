@@ -193,6 +193,9 @@ export type Database = {
           prev_recebimento_data: string | null
           prev_recebimento_forma: string | null
           prev_recebimento_valor: number | null
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
           sale_id: string
           status: string
           tempo_venda: string | null
@@ -218,6 +221,9 @@ export type Database = {
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_valor?: number | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
           sale_id: string
           status?: string
           tempo_venda?: string | null
@@ -243,6 +249,9 @@ export type Database = {
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_valor?: number | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
           sale_id?: string
           status?: string
           tempo_venda?: string | null

@@ -15,10 +15,10 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
 const ROLES: AppRole[] = ["corretor", "coordenador", "gestor", "juridico", "financeiro", "admin"];
 
 function AdminUsers() {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
-  const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({}); // membro -> lideres
+  const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({});
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo");
@@ -37,12 +37,22 @@ function AdminUsers() {
   if (!hasRole("admin")) return <p className="text-sm text-muted-foreground">Apenas administradores acessam esta página.</p>;
 
   const toggleRole = async (userId: string, role: AppRole, has: boolean) => {
+    if (userId === user?.id) { toast.error("Você não pode alterar o próprio perfil"); return; }
     if (has) {
-      await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+      if (error) toast.error(error.message);
     } else {
-      await supabase.from("user_roles").insert({ user_id: userId, role });
+      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+      if (error) toast.error(error.message);
     }
     load();
+  };
+
+  const toggleAtivo = async (userId: string, ativo: boolean) => {
+    if (userId === user?.id) { toast.error("Você não pode desativar o próprio usuário"); return; }
+    const { error } = await supabase.from("profiles").update({ ativo: !ativo }).eq("id", userId);
+    if (error) toast.error(error.message);
+    else { toast.success(ativo ? "Usuário desativado" : "Usuário ativado"); load(); }
   };
 
   const setLead = async (membroId: string, liderId: string) => {
@@ -67,18 +77,30 @@ function AdminUsers() {
           {users.map((u) => {
             const userRoles = rolesByUser[u.id] ?? [];
             return (
-              <div key={u.id} className="rounded-md border p-3">
-                <div className="mb-2 flex items-center justify-between">
+              <div key={u.id} className={`rounded-md border p-3 ${u.ativo === false ? "opacity-60" : ""}`}>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium">{u.nome || u.email}</div>
+                    <div className="text-sm font-medium">
+                      {u.nome || u.email}
+                      {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+                      {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
+                    </div>
                     <div className="text-xs text-muted-foreground">{u.email}</div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant={u.ativo === false ? "default" : "outline"}
+                    onClick={() => toggleAtivo(u.id, u.ativo !== false)}
+                    disabled={u.id === user?.id}
+                  >
+                    {u.ativo === false ? "Ativar" : "Desativar"}
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {ROLES.map((r) => {
                     const has = userRoles.includes(r);
                     return (
-                      <Button key={r} size="sm" variant={has ? "default" : "outline"} onClick={() => toggleRole(u.id, r, has)}>
+                      <Button key={r} size="sm" variant={has ? "default" : "outline"} onClick={() => toggleRole(u.id, r, has)} disabled={u.id === user?.id}>
                         {ROLE_LABEL[r]}
                       </Button>
                     );
