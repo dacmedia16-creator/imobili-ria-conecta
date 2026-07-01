@@ -667,7 +667,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange }: 
     await supabase.from("occurrence_commissions").insert(
       COMISSAO_PAPEIS.map(p => ({ occurrence_id: data.id, papel: p.key }))
     );
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, tipo: "occurrence_created", dados: { occurrence_id: data.id } });
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
     onChange();
     load();
@@ -727,7 +727,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange }: 
     const { error } = await supabase.from("sales").update({ status: "ocorrencia_concluida" }).eq("id", saleId);
     if (error) { toast.error(error.message); return; }
     await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo: "Ocorrência finalizada" });
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, tipo: "occurrence_concluded", dados: { valor_total: total } });
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total } });
     toast.success("Ocorrência finalizada");
     onChange();
   };
@@ -738,7 +738,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange }: 
     await updateOcc({ status: "pendente" });
     await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", saleId);
     await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, tipo: "occurrence_reopened", dados: { motivo } });
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
     toast.success("Ocorrência reaberta");
     onChange();
   };
