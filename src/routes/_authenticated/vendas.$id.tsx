@@ -38,6 +38,7 @@ function SaleDetail() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
+  const [step, setStep] = useState<string>("resumo");
 
   const load = useCallback(async () => {
     setLoading(true);
