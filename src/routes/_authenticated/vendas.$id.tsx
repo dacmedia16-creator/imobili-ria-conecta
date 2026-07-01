@@ -955,12 +955,27 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
   };
 
   const reopen = async () => {
+    if (!hasAny(["financeiro", "admin"])) { toast.error("Somente financeiro/admin podem reabrir"); return; }
     const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
     if (!motivo?.trim()) return;
-    await supabase.from("occurrences").update({ status: "pendente" }).eq("id", occ.id);
+    await supabase.from("occurrences").update({
+      status: "pendente",
+      reopen_reason: motivo,
+      reopened_at: new Date().toISOString(),
+      reopened_by: user!.id,
+    }).eq("id", occ.id);
     await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", saleId);
     await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+    const { data: s } = await supabase.from("sales").select("corretor_id").eq("id", saleId).maybeSingle();
+    if (s?.corretor_id) {
+      await supabase.from("notifications").insert({
+        user_id: s.corretor_id, sale_id: saleId,
+        tipo: "occurrence_reopened",
+        titulo: "Ocorrência reaberta",
+        mensagem: motivo,
+      });
+    }
     toast.success("Ocorrência reaberta");
     onChange();
   };
