@@ -100,7 +100,7 @@ function AdminUsers() {
                   {ROLES.map((r) => {
                     const has = userRoles.includes(r);
                     return (
-                      <Button key={r} size="sm" variant={has ? "default" : "outline"} onClick={() => toggleRole(u.id, r, has)}>
+                      <Button key={r} size="sm" variant={has ? "default" : "outline"} onClick={() => toggleRole(u.id, r, has)} disabled={u.id === user?.id}>
                         {ROLE_LABEL[r]}
                       </Button>
                     );
