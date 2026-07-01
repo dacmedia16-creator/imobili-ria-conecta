@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Wizard, type WizardStep } from "@/components/Wizard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
@@ -38,6 +38,7 @@ function SaleDetail() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
+  const [step, setStep] = useState<string>("resumo");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -248,104 +249,114 @@ function SaleDetail() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="dados">
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="dados">Dados</TabsTrigger>
-          <TabsTrigger value="partes">Vendedores/Compradores</TabsTrigger>
-          <TabsTrigger value="pagamento">Pagamento</TabsTrigger>
-          <TabsTrigger value="bancario">Bancário</TabsTrigger>
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          <TabsTrigger value="comentarios">Comentários</TabsTrigger>
-          <TabsTrigger value="historico">Histórico</TabsTrigger>
-          <TabsTrigger value="ocorrencia" disabled={!(status === "contrato_assinado" || status === "ocorrencia_pendente" || status === "ocorrencia_concluida")}>Ocorrência</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="dados" className="space-y-4 pt-4">
-          <SaleSection title="Imóvel">
-            <FieldGrid>
-              <Field label="ID do imóvel"><Input defaultValue={sale.imovel_id ?? ""} disabled={!editable} onBlur={(e) => e.target.value !== (sale.imovel_id ?? "") && saveSale({ imovel_id: e.target.value || null })} /></Field>
-              <Field label="Matrícula"><Input defaultValue={sale.matricula ?? ""} disabled={!editable} onBlur={(e) => saveSale({ matricula: e.target.value || null })} /></Field>
-              <Field label="IPTU"><Input defaultValue={sale.iptu ?? ""} disabled={!editable} onBlur={(e) => saveSale({ iptu: e.target.value || null })} /></Field>
-              <Field label="Código interno"><Input defaultValue={sale.codigo_interno ?? ""} disabled={!editable} onBlur={(e) => saveSale({ codigo_interno: e.target.value || null })} /></Field>
-              <Field label="Observações do imóvel" colSpan={2}><Textarea defaultValue={sale.imovel_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ imovel_observacoes: e.target.value || null })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-
-          <SaleSection title="Equipe">
-            <FieldGrid>
-              <Field label="Corretor captador"><Input defaultValue={sale.corretor_captador ?? ""} disabled={!editable} onBlur={(e) => saveSale({ corretor_captador: e.target.value || null })} /></Field>
-              <Field label="Corretor vendedor"><Input defaultValue={sale.corretor_vendedor ?? ""} disabled={!editable} onBlur={(e) => saveSale({ corretor_vendedor: e.target.value || null })} /></Field>
-              <Field label="Indicador"><Input defaultValue={sale.indicador ?? ""} disabled={!editable} onBlur={(e) => saveSale({ indicador: e.target.value || null })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-
-          <SaleSection title="Valores e negociação">
-            <FieldGrid>
-              <Field label="Valor anunciado (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_anunciado ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_anunciado: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Valor negociado (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_negociado ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_negociado: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="% Comissão"><Input type="number" step="0.001" defaultValue={sale.percentual_comissao ?? ""} disabled={!editable} onBlur={(e) => saveSale({ percentual_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Valor total da comissão (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_total_comissao ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_total_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Forma de pagamento" colSpan={2}><Input defaultValue={sale.forma_pagamento ?? ""} disabled={!editable} onBlur={(e) => saveSale({ forma_pagamento: e.target.value || null })} /></Field>
-              <Field label="Observações" colSpan={2}><Textarea defaultValue={sale.negociacao_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ negociacao_observacoes: e.target.value || null })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-
-          <SaleSection title="Posse">
-            <FieldGrid>
-              <Field label="Data de entrega da posse"><Input type="date" defaultValue={sale.posse_data ?? ""} disabled={!editable} onBlur={(e) => saveSale({ posse_data: e.target.value || null })} /></Field>
-              <Field label="Observações" colSpan={2}><Textarea defaultValue={sale.posse_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ posse_observacoes: e.target.value || null })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-        </TabsContent>
-
-        <TabsContent value="partes" className="space-y-4 pt-4">
-          {["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"].map((p) => (
-            <PartyEditor key={p} papel={p} data={parties[p] ?? {}} editable={editable} onSave={(d) => saveParty(p, d)} />
-          ))}
-        </TabsContent>
-
-        <TabsContent value="pagamento" className="space-y-4 pt-4">
-          <PaymentEditor data={payment ?? {}} editable={editable} onSave={savePayment} />
-        </TabsContent>
-
-        <TabsContent value="bancario" className="space-y-4 pt-4">
-          <BankEditor data={bank ?? {}} editable={editable} onSave={saveBank} />
-        </TabsContent>
-
-        <TabsContent value="documentos" className="space-y-4 pt-4">
-          <DocumentsPanel saleId={id} docs={docs} editable={editable} canModerate={isGestor || isJuridico} onChange={load} />
-        </TabsContent>
-
-        <TabsContent value="comentarios" className="space-y-4 pt-4">
-          <CommentsPanel saleId={id} comments={comments} onAdd={load} />
-        </TabsContent>
-
-        <TabsContent value="historico" className="space-y-4 pt-4">
-          <Card>
-            <CardHeader><CardTitle>Histórico de status</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
-              {history.map((h) => (
-                <div key={h.id} className="rounded-md border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-muted-foreground">{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}</span>
-                      {" → "}
-                      <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
+      {(() => {
+        const canOccurrence = status === "contrato_assinado" || status === "ocorrencia_pendente" || status === "ocorrencia_concluida";
+        const steps: WizardStep[] = [
+          {
+            key: "resumo",
+            label: "Resumo",
+            content: (
+              <div className="space-y-4">
+                <SaleSection title="Imóvel">
+                  <FieldGrid>
+                    <Field label="ID do imóvel"><Input defaultValue={sale.imovel_id ?? ""} disabled={!editable} onBlur={(e) => e.target.value !== (sale.imovel_id ?? "") && saveSale({ imovel_id: e.target.value || null })} /></Field>
+                    <Field label="Matrícula"><Input defaultValue={sale.matricula ?? ""} disabled={!editable} onBlur={(e) => saveSale({ matricula: e.target.value || null })} /></Field>
+                    <Field label="IPTU"><Input defaultValue={sale.iptu ?? ""} disabled={!editable} onBlur={(e) => saveSale({ iptu: e.target.value || null })} /></Field>
+                    <Field label="Código interno"><Input defaultValue={sale.codigo_interno ?? ""} disabled={!editable} onBlur={(e) => saveSale({ codigo_interno: e.target.value || null })} /></Field>
+                    <Field label="Observações do imóvel" colSpan={2}><Textarea defaultValue={sale.imovel_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ imovel_observacoes: e.target.value || null })} /></Field>
+                  </FieldGrid>
+                </SaleSection>
+                <SaleSection title="Equipe">
+                  <FieldGrid>
+                    <Field label="Corretor captador"><Input defaultValue={sale.corretor_captador ?? ""} disabled={!editable} onBlur={(e) => saveSale({ corretor_captador: e.target.value || null })} /></Field>
+                    <Field label="Corretor vendedor"><Input defaultValue={sale.corretor_vendedor ?? ""} disabled={!editable} onBlur={(e) => saveSale({ corretor_vendedor: e.target.value || null })} /></Field>
+                    <Field label="Indicador"><Input defaultValue={sale.indicador ?? ""} disabled={!editable} onBlur={(e) => saveSale({ indicador: e.target.value || null })} /></Field>
+                  </FieldGrid>
+                </SaleSection>
+                <SaleSection title="Valores e negociação">
+                  <FieldGrid>
+                    <Field label="Valor anunciado (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_anunciado ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_anunciado: e.target.value ? Number(e.target.value) : null })} /></Field>
+                    <Field label="Valor negociado (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_negociado ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_negociado: e.target.value ? Number(e.target.value) : null })} /></Field>
+                    <Field label="% Comissão"><Input type="number" step="0.001" defaultValue={sale.percentual_comissao ?? ""} disabled={!editable} onBlur={(e) => saveSale({ percentual_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
+                    <Field label="Valor total da comissão (R$)"><Input type="number" step="0.01" defaultValue={sale.valor_total_comissao ?? ""} disabled={!editable} onBlur={(e) => saveSale({ valor_total_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
+                    <Field label="Forma de pagamento" colSpan={2}><Input defaultValue={sale.forma_pagamento ?? ""} disabled={!editable} onBlur={(e) => saveSale({ forma_pagamento: e.target.value || null })} /></Field>
+                    <Field label="Observações" colSpan={2}><Textarea defaultValue={sale.negociacao_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ negociacao_observacoes: e.target.value || null })} /></Field>
+                  </FieldGrid>
+                </SaleSection>
+                <SaleSection title="Posse">
+                  <FieldGrid>
+                    <Field label="Data de entrega da posse"><Input type="date" defaultValue={sale.posse_data ?? ""} disabled={!editable} onBlur={(e) => saveSale({ posse_data: e.target.value || null })} /></Field>
+                    <Field label="Observações" colSpan={2}><Textarea defaultValue={sale.posse_observacoes ?? ""} disabled={!editable} onBlur={(e) => saveSale({ posse_observacoes: e.target.value || null })} /></Field>
+                  </FieldGrid>
+                </SaleSection>
+              </div>
+            ),
+          },
+          {
+            key: "partes",
+            label: "Partes",
+            content: (
+              <div className="space-y-4">
+                {["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"].map((p) => (
+                  <PartyEditor key={p} papel={p} data={parties[p] ?? {}} editable={editable} onSave={(d) => saveParty(p, d)} />
+                ))}
+              </div>
+            ),
+          },
+          {
+            key: "pagamento",
+            label: "Pagamento",
+            content: (
+              <div className="space-y-4">
+                <PaymentEditor data={payment ?? {}} editable={editable} onSave={savePayment} />
+                <BankEditor data={bank ?? {}} editable={editable} onSave={saveBank} />
+              </div>
+            ),
+          },
+          {
+            key: "documentos",
+            label: "Documentos",
+            content: <DocumentsPanel saleId={id} docs={docs} editable={editable} canModerate={isGestor || isJuridico} onChange={load} />,
+          },
+          {
+            key: "ocorrencia",
+            label: "Ocorrência",
+            disabled: !canOccurrence,
+            content: <OccurrencePanel saleId={id} sale={sale} payment={payment} parties={parties} canEdit={isFinanceiro || isGestor} onChange={load} />,
+          },
+          {
+            key: "historico",
+            label: "Histórico",
+            content: (
+              <Card>
+                <CardHeader><CardTitle>Histórico de status</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+                  {history.map((h) => (
+                    <div key={h.id} className="rounded-md border p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-muted-foreground">{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}</span>
+                          {" → "}
+                          <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+                      </div>
+                      {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
                     </div>
-                    <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
-                  </div>
-                  {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="ocorrencia" className="space-y-4 pt-4">
-          <OccurrencePanel saleId={id} sale={sale} payment={payment} parties={parties} canEdit={isFinanceiro || isGestor} onChange={load} />
-        </TabsContent>
-      </Tabs>
+                  ))}
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            key: "comentarios",
+            label: "Comentários",
+            content: <CommentsPanel saleId={id} comments={comments} onAdd={load} />,
+          },
+        ];
+        return <Wizard steps={steps} current={step} onChange={setStep} />;
+      })()}
 
       {saving && <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">Salvando...</p>}
 
