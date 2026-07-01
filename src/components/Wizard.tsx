@@ -22,9 +22,11 @@ type Props = {
   steps: WizardStep[];
   current: string;
   onChange: (key: string) => void;
+  onBeforeLeave?: (fromKey: string, toKey: string) => Promise<boolean> | boolean;
+  dirty?: boolean;
 };
 
-export function Wizard({ steps, current, onChange }: Props) {
+export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -34,10 +36,19 @@ export function Wizard({ steps, current, onChange }: Props) {
   const active = enabled[idx] ?? enabled[0];
   const progress = enabled.length > 1 ? Math.round((idx / (enabled.length - 1)) * 100) : 100;
 
+  const requestChange = async (toKey: string) => {
+    if (!toKey || toKey === activeKey) return;
+    if (onBeforeLeave) {
+      const ok = await onBeforeLeave(activeKey, toKey);
+      if (!ok) return;
+    }
+    onChange(toKey);
+  };
   const go = (i: number) => {
     const step = enabled[i];
-    if (step) onChange(step.key);
+    if (step) requestChange(step.key);
   };
+
 
   return (
     <div className="space-y-4">
