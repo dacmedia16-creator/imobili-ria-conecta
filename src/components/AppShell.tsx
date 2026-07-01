@@ -1,7 +1,8 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Building2, Home, FileText, Users, LogOut } from "lucide-react";
+import { Building2, Home, FileText, Users, LogOut, Bell } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 import type { ReactNode } from "react";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -16,6 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = [
     { to: "/", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
+    { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
     { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin"]) },
   ];
 
@@ -49,7 +51,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <main className="md:pl-60">
-        <div className="mx-auto max-w-6xl p-4 md:p-8">{children}</div>
+        <div className="mx-auto max-w-6xl p-4 md:p-8">
+          <div className="mb-2 flex justify-end md:hidden"><NotificationBell /></div>
+          <div className="mb-4 hidden justify-end md:flex"><NotificationBell /></div>
+          {children}
+        </div>
       </main>
     </div>
   );
