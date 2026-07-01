@@ -1,17 +1,20 @@
 ## Problema
 
-A tela `/auth` está mostrando "This page didn't load" por causa de uma **hydration mismatch** (o HTML gerado no servidor não bate com o do cliente — o React reporta `<div>` vs `<Suspense>` no lugar do `<Tabs>`). Quando o React falha em hidratar, o `errorComponent` do root vira a tela cinza que você viu.
+O erro na tela agora não é mais do `/auth` — é do sino de notificações (`NotificationBell`). O log diz:
 
-Nas outras rotas isso não acontece porque `_authenticated/route.tsx` já usa `ssr: false`. A rota `/auth` não tem essa opção — então roda SSR e quebra na hidratação.
+> cannot add `postgres_changes` callbacks for realtime:notif-<user-id> after `subscribe()`.
+
+Isso acontece porque `supabase.channel("notif-<user-id>")` reaproveita o canal já existente quando o efeito roda de novo (React Strict Mode roda o `useEffect` duas vezes em dev, e o TanStack Router remonta o layout ao trocar de rota). Na segunda execução, o canal antigo ainda existe com `subscribe()` chamado, e ao encadear `.on(...)` de novo o Realtime rejeita — jogando o erro para o error boundary do root, que mostra "This page didn't load".
 
 ## Correção
 
-Editar **apenas** `src/routes/auth.tsx`:
+Editar **apenas** `src/components/NotificationBell.tsx`:
 
-- Adicionar `ssr: false` no `createFileRoute("/auth")({...})`, igual ao padrão já usado em `_authenticated/route.tsx`.
+1. Gerar um nome de canal único por montagem (ex.: `notif-${user.id}-${crypto.randomUUID()}`) para não colidir com um canal ainda não removido.
+2. Manter a mesma ordem `channel().on(...).subscribe()` e continuar removendo com `supabase.removeChannel(ch)` no cleanup.
 
-Isso faz `/auth` renderizar só no cliente, elimina o mismatch e a tela de login volta a aparecer normalmente. Não mexo em mais nada (nem no fluxo de login, nem no wizard, nem no cadastro).
+Sem mexer em nenhum outro arquivo, sem tocar em RLS, tabela de notificações ou no `/auth`.
 
 ## Verificação
 
-Depois da mudança: recarregar `/auth` no preview e confirmar que o formulário Entrar/Criar conta aparece sem a tela de erro.
+Depois da mudança: abrir `/dashboard`, confirmar que o sino aparece sem quebrar a página e que o console não mostra mais o erro `cannot add postgres_changes callbacks after subscribe()`.
