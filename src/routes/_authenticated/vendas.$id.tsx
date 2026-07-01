@@ -80,8 +80,8 @@ function SaleDetail() {
   const requiredTypes = DOC_TYPES.map(d => d.key);
   const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
 
-  const logActivity = async (tipo: string, dados?: any) => {
-    await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, tipo, dados: dados ?? null });
+  const logActivity = async (acao: string, payload?: any) => {
+    await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao, payload: payload ?? null });
   };
 
   const saveSale = async (patch: any) => {
