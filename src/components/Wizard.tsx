@@ -127,12 +127,13 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props
           <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
         </Button>
         <span className="text-xs text-muted-foreground">
-          {idx + 1} / {enabled.length}
+          {dirty ? "Alterações não salvas" : `${idx + 1} / ${enabled.length}`}
         </span>
         <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
-          Próximo <ChevronRight className="ml-1 h-4 w-4" />
+          {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
+
     </div>
   );
 }
