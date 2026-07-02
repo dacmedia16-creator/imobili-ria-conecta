@@ -204,7 +204,8 @@ function SaleDetail() {
 
   const currentDirty = step === "resumo" ? dirtyResumo : !!dirtyMap[step];
 
-  const canOccurrence = status === "contrato_assinado" || status === "ocorrencia_pendente" || status === "ocorrencia_concluida";
+  const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
+  const canEditOcorrencia = (isGestor && ["contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status)) || isFinanceiro || isAdminLike;
   const steps: WizardStep[] = [
     {
       key: "resumo",
