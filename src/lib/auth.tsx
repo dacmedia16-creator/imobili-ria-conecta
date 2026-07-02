@@ -61,9 +61,9 @@ export function useAuth() {
 
 export const ROLE_LABEL: Record<AppRole, string> = {
   corretor: "Corretor",
-  coordenador: "Coordenador",
   gestor: "Gestor",
   juridico: "Jurídico",
   financeiro: "Financeiro",
   admin: "Administrador",
+  super_admin: "Super Admin",
 };
