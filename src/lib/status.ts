@@ -64,7 +64,7 @@ export function proximoResponsavel(status: SaleStatus): { titulo: string; papel:
   switch (status) {
     case "rascunho": return { titulo: "Aguardando envio do corretor", papel: "Corretor" };
     case "devolvida_ajuste": return { titulo: "Aguardando correção do corretor", papel: "Corretor" };
-    case "enviada_revisao": return { titulo: "Aguardando revisão do gestor", papel: "Gestor / Coordenador" };
+    case "enviada_revisao": return { titulo: "Aguardando revisão do gestor", papel: "Gestor" };
     case "aprovada_gestor":
     case "enviada_juridico": return { titulo: "Aguardando elaboração do jurídico", papel: "Jurídico" };
     case "em_elaboracao_contrato": return { titulo: "Contrato em elaboração", papel: "Jurídico" };
