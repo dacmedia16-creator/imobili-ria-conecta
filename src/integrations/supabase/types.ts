@@ -773,6 +773,11 @@ export type Database = {
         | "ocorrencia_concluida"
         | "arquivada"
         | "cancelada"
+        | "contrato_conferencia_gestor"
+        | "contrato_conferencia_corretor"
+        | "contrato_ok_corretor"
+        | "ocorrencia_analise_financeiro"
+        | "ocorrencia_devolvida_gestor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -923,6 +928,11 @@ export const Constants = {
         "ocorrencia_concluida",
         "arquivada",
         "cancelada",
+        "contrato_conferencia_gestor",
+        "contrato_conferencia_corretor",
+        "contrato_ok_corretor",
+        "ocorrencia_analise_financeiro",
+        "ocorrencia_devolvida_gestor",
       ],
     },
   },
