@@ -39,7 +39,9 @@ function Dashboard() {
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
   const count = (fn: (s: any) => boolean) => sales.filter(fn).length;
-  const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "aguardando_assinatura"];
+  const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"];
+  const contratoParaConferirCorretor = (uid?: string) => (s: any) => s.corretor_id === uid && s.status === "contrato_conferencia_corretor";
+  const contratoParaConferirGestor = (s: any) => s.status === "contrato_conferencia_gestor" || s.status === "contrato_ok_corretor";
 
   const totalComissaoPrevista = occs
     .filter(o => o.status !== "concluida")
