@@ -1,77 +1,41 @@
-## Objetivo
-Reorganizar os papéis do sistema conforme a nova regra: **corretor, gestor, jurídico, financeiro, admin, super_admin** — removendo `coordenador`, adicionando `super_admin`, e implementando a **trava do financeiro** após aceite.
+# Acesso por perfil — confirmação e pequenos ajustes
 
----
+Mantemos o isolamento atual (que já é o que você quer). Este plano só adiciona **visibilidade e auditoria** para você conseguir verificar que ninguém vê o que não deve.
 
-## 1. Papéis (banco de dados)
+## Como fica cada papel
 
-Migração no enum `app_role`:
-- Adicionar `super_admin`.
-- Remover `coordenador` (após migrar quem tiver esse papel para `gestor`).
+| Papel | Vê | Edita |
+|---|---|---|
+| Corretor | Só as vendas onde é o `corretor_id` | Só rascunho/devolvida das próprias |
+| Gestor | Só vendas de corretores vinculados em `team_members` | Idem, respeitando trava do financeiro |
+| Jurídico | Todas as vendas a partir de "aprovada pelo gestor" | Campos jurídicos, respeitando trava |
+| Financeiro | Todas as vendas, qualquer status | Tudo; é quem trava/libera |
+| Admin | Tudo | Tudo, exceto conceder papel Admin/Super Admin |
+| Super Admin | Tudo | Tudo, inclusive papéis Admin/Super Admin |
 
-Reescrever funções que citam `coordenador`:
-- `can_view_sale` — trocar `['coordenador','gestor']` por `['gestor']`.
-- Manter `is_lead_of` (gestor vincula corretores em `team_members`).
+Regra transversal: **quando o financeiro clica "Aceitar e travar", corretor/gestor/jurídico ficam em modo leitura** até o financeiro (ou admin/super admin) liberar.
 
-Promover `dacmedia16@gmail.com` a `super_admin` (você já é admin).
+## O que este plano faz
 
-## 2. Regras por papel
+1. **Tela "Meu acesso"** (em `/perfil` ou aba no dashboard): mostra ao usuário logado seus papéis, sua equipe (líderes/liderados) e uma frase clara do tipo *"Você vê apenas as vendas onde é o corretor responsável"*. Serve de auto-checagem.
 
-| Papel | Cria vendas | Edita venda de outros | Aprova/devolve | Contrato | Ocorrência/comissão | Cria usuários |
-|---|---|---|---|---|---|---|
-| Corretor | ✅ (própria) | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Gestor | ❌ | ✅ (do time) | ✅ | ❌ | ❌ | ❌ |
-| Jurídico | ❌ | ✅ (após gestor aprovar) | — | ✅ | ❌ | ❌ |
-| Financeiro | ❌ | ✅ | — | — | ✅ (aceita/trava) | ❌ |
-| Admin | ✅ (todas) | ✅ | ✅ | ✅ | ✅ (pode reabrir) | ✅ (corretor/gestor/jurídico/financeiro) |
-| Super Admin | ✅ | ✅ | ✅ | ✅ | ✅ (pode reabrir) | ✅ **inclusive Admin e Super Admin** |
+2. **Aviso no topo da lista de vendas** quando o filtro aplicado pelo RLS reduz o resultado (ex.: gestor sem membros vinculados vê "Nenhum corretor vinculado a você — peça ao admin para associar sua equipe").
 
-## 3. Trava do financeiro
+3. **Log de acesso a vendas sensíveis**: registrar em `activity_logs` toda vez que um usuário **abre** uma venda que não é dele (útil para auditoria futura). Ação `sale_viewed` com `sale_id` + `autor_id`.
 
-Nova função `is_sale_locked(sale_id)`:
-- Retorna `true` quando `sales.status = 'ocorrencia_concluida'` **ou** `occurrences.aceita_financeiro = true` (novo campo boolean).
+4. **Checklist de teste de isolamento** em `docs/TESTE_ACESSO.md`: 8 cenários prontos (corretor A não vê venda do corretor B; gestor sem vínculo não vê nada; jurídico não vê rascunho; financeiro trava e corretor perde edição; admin não consegue se auto-promover; etc.) para você rodar antes de liberar para a equipe.
 
-Efeitos:
-- Policies UPDATE de `sales`, `sale_parties`, `sale_payment`, `sale_documents`, `occurrences`, `occurrence_commissions`, `occurrence_partners` ganham a cláusula:
-  `AND (NOT is_sale_locked(sale_id) OR has_any_role(auth.uid(), ['financeiro','admin','super_admin']))`.
-- Corretor/gestor/jurídico ficam em **modo leitura** após aceite.
-- Botão **Aceitar (financeiro)** grava `aceita_financeiro = true` + status `ocorrencia_concluida`.
-- Botão **Reabrir** exige justificativa e é visível para **financeiro, admin e super_admin** (já existe `reopen_reason`).
+5. **Não muda nenhuma policy** — o isolamento já está correto conforme suas respostas.
 
-## 4. Tela de Usuários (`/admin/usuarios`)
+## Fora do escopo
 
-- Rota deixa de exigir só `admin`: passa a exigir `admin OU super_admin`.
-- Botão do papel **Admin** só aparece se o logado for `super_admin`.
-- Botão do papel **Super Admin** só aparece para outro `super_admin` (nunca no próprio usuário — RLS `user_roles` já bloqueia auto-edição).
-- Admin vê e cria: corretor, gestor, jurídico, financeiro.
-- Super Admin vê e cria tudo, inclusive outros admins/super_admins.
-- Remove seções/labels que citam “Coordenador” do formulário e da lista de líderes (fica só “Gestor”).
+- Não vamos afrouxar visibilidade de corretor/gestor.
+- Não vamos criar "modo espectador" entre corretores.
+- Não mexemos em papéis nem em trava do financeiro (já feito na rodada anterior).
 
-## 5. Frontend — ajustes pontuais
+## Detalhes técnicos
 
-- `src/lib/auth.tsx` → tipo `AppRole` sem `coordenador`, com `super_admin`; `ROLE_LABEL` atualizado.
-- `src/lib/status.ts` → `proximoResponsavel` e `validarProntaParaRevisao` sem menções a coordenador.
-- `src/routes/_authenticated/vendas.$id.tsx`:
-  - Banner “Venda travada pelo financeiro — somente leitura” quando `is_sale_locked` for verdadeiro e o usuário não puder destravar.
-  - Desabilitar inputs/botões de salvar nas etapas quando travada.
-  - Botão **Aceitar ocorrência** (financeiro/admin/super_admin) que dispara a trava.
-- `src/routes/_authenticated/dashboard.tsx` → remover KPIs específicos de coordenador; agregar cards do super_admin junto com admin.
-- `src/components/AppShell.tsx` → item “Usuários” visível para `admin` **ou** `super_admin`.
-
-## 6. Testes manuais (adicionar a `docs/TESTE_MANUAL.md`)
-
-- Corretor tenta editar após aceite → bloqueado com banner.
-- Financeiro aceita → outros veem “somente leitura”.
-- Admin tenta se auto-rebaixar → bloqueado.
-- Admin tenta criar outro Admin → botão oculto.
-- Super Admin cria Admin e outro Super Admin → ok.
-- Usuário antigo com papel `coordenador` foi migrado para `gestor` sem perder vínculos de time.
-
----
-
-## Detalhes técnicos (para referência)
-
-- Enum change em Postgres exige recriar/renomear valores: a migração cria `app_role_new`, converte colunas, apaga o antigo e renomeia.
-- Nenhum dado é apagado; `team_members` e `user_roles` são atualizados linha a linha.
-- Todas as tabelas afetadas mantêm RLS e GRANTs atuais.
-- Nenhum arquivo auto-gerado é editado (`types.ts`, `client.ts`, `.env`).
+- Frontend: nova rota `/perfil` (ou seção no dashboard) lendo `user_roles` + `team_members` do próprio usuário.
+- Frontend: em `/vendas` (lista), quando `sales.length === 0`, mostrar mensagem contextual conforme o papel.
+- Frontend: em `/vendas/:id`, no `load()`, disparar `insert` em `activity_logs` com `acao='sale_viewed'` apenas quando `sale.corretor_id !== user.id` (evita ruído).
+- Doc: `docs/TESTE_ACESSO.md` com passos manuais numerados.

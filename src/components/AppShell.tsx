@@ -1,7 +1,7 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Building2, Home, FileText, Users, LogOut, Bell } from "lucide-react";
+import { Building2, Home, FileText, Users, LogOut, Bell, ShieldCheck } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import type { ReactNode } from "react";
 
@@ -18,7 +18,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
-    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin"]) },
+    { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
+    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin"]) },
   ];
 
   return (

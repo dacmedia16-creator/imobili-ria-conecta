@@ -60,7 +60,20 @@ function SalesList() {
         </CardHeader>
         <CardContent className="space-y-2">
           {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
-          {!loading && sales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda encontrada.</p>}
+          {!loading && sales.length === 0 && (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              {hasAny(["corretor"]) && !hasAny(["gestor","juridico","financeiro","admin","super_admin"]) && (
+                <>Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.</>
+              )}
+              {hasAny(["gestor"]) && !hasAny(["financeiro","admin","super_admin"]) && (
+                <>Nenhuma venda visível. Peça ao administrador para vincular corretores à sua equipe.</>
+              )}
+              {hasAny(["juridico"]) && !hasAny(["financeiro","admin","super_admin"]) && (
+                <>Nenhuma venda aprovada pelo gestor ainda. Você só enxerga vendas a partir dessa etapa.</>
+              )}
+              {hasAny(["financeiro","admin","super_admin"]) && (<>Nenhuma venda encontrada com o filtro atual.</>)}
+            </div>
+          )}
           {sales.map((s) => (
             <Link key={s.id} to="/vendas/$id" params={{ id: s.id }} className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50">
               <div>
