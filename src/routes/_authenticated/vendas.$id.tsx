@@ -377,6 +377,11 @@ function SaleDetail() {
             </div>
             <div className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></div>
           </div>
+          {locked && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
+            </div>
+          )}
           {!editable && isOwner && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               Esta venda está travada para edição enquanto está em <b>{STATUS_LABEL[status]}</b>.
