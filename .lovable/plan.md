@@ -1,37 +1,44 @@
-## Objetivo
-Aplicar a identidade visual da RE/MAX (vermelho, azul e branco do balão) em todo o sistema, sem quebrar componentes shadcn nem o dark mode.
+## Regras de criação de usuários
 
-## Paleta RE/MAX oficial
-- Vermelho RE/MAX: `#DC1C2E` (primário — botões, ações principais, destaques)
-- Azul RE/MAX: `#003DA5` (secundário — cabeçalhos, links, badges de status)
-- Branco: `#FFFFFF` (fundo claro)
-- Cinza texto: `#1F2937` (foreground) e `#6B7280` (muted)
-- Vermelho hover/glow: `#B8151F`
-- Azul hover: `#002E7A`
+| Quem cria | Papéis que pode conceder |
+|---|---|
+| **Super Admin** | qualquer papel (corretor, gestor, jurídico, financeiro, admin, super_admin) |
+| **Admin** | corretor, gestor, jurídico, financeiro (não pode criar admin nem super_admin) |
+| **Gestor** | apenas corretor (e o novo corretor entra automaticamente como membro da sua equipe) |
+| Qualquer outro | não pode criar |
 
-## Onde aplicar (só tokens, sem tocar em lógica)
-1. **`src/styles.css`** — atualizar tokens semânticos em `:root` e `.dark`:
-   - `--primary` → vermelho RE/MAX + `--primary-foreground` branco
-   - `--secondary` → azul RE/MAX + `--secondary-foreground` branco
-   - `--accent` → azul claro para hover suave
-   - `--ring` → vermelho (foco visível)
-   - `--sidebar-primary` → azul RE/MAX (barra lateral com identidade)
-   - `--destructive` mantém vermelho, mas afinado para não conflitar com o primário (tom mais escuro)
-   - Gradiente da marca: `--gradient-remax: linear-gradient(135deg, #DC1C2E 0%, #003DA5 100%)`
-   - Sombra da marca: `--shadow-remax` com tint vermelho
-2. **`AppShell` / cabeçalho** — usar `bg-secondary` (azul) no topo com texto branco, faixa vermelha fina abaixo (opcional, 3px) para reforçar a marca.
-3. **Badges de status** (`src/lib/status.ts`) — revisar tons para casarem com a paleta (aprovado = azul, ação urgente = vermelho, concluído = verde neutro).
-4. **Botões primários** já herdarão o vermelho automaticamente via `--primary`.
-5. **Dashboard KPIs** — ícones em azul, valores destacados em vermelho quando pendentes.
+Cadastro público em `/auth` fica **desativado** — só login.
+
+## Mudanças
+
+### 1. Backend
+- `supabase--configure_auth` → `disable_signup: true` (mantém login por senha).
+- Nova server function `createUser` em `src/lib/admin-users.functions.ts`:
+  - `.middleware([requireSupabaseAuth])`
+  - Valida com Zod: `nome`, `email`, `password (≥8)`, `role` (enum).
+  - Lê papéis do chamador via `context.supabase.rpc("has_role", ...)`.
+  - Aplica matriz acima; nega com mensagem clara se violar.
+  - `await import("@/integrations/supabase/client.server")` → `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome } })`.
+  - Trigger `handle_new_user` já cria profile + role `corretor`. A função então:
+    - Se `role !== "corretor"`: remove role `corretor` e insere a role pedida.
+    - Se chamador for **gestor** criando corretor: insere em `team_members (lider_id = caller, membro_id = novo)`.
+  - Retorna `{ id }` ou erro. Trata "email já existe" com mensagem amigável.
+
+### 2. Frontend
+- `src/routes/auth.tsx`: remover aba/toggle de cadastro; mostrar só login. Um aviso pequeno: "Cadastro apenas por convite do administrador."
+- `src/routes/_authenticated/admin.usuarios.tsx`:
+  - Permitir a rota também para `gestor` (hoje só admin/super_admin).
+  - Se for **gestor**: mostra somente o botão "Novo corretor" e esconde a matriz de edição de papéis dos outros (mantém apenas visualização dos corretores da própria equipe).
+  - Se for **admin/super_admin**: comportamento atual + botão "Novo usuário" (dialog com select de papel filtrado pelas regras acima).
+  - Dialog: Nome, E-mail, Senha (com botão "gerar 12 chars"), Papel (select filtrado). Ao confirmar chama `useServerFn(createUser)`, mostra toast com senha copiável e recarrega a lista.
+- Novo item no menu para gestor não é necessário — link "Usuários" na sidebar passa a aparecer também para `gestor` (via `hasAny(["admin","super_admin","gestor"])`).
+
+### 3. RLS
+- Não muda RLS de `user_roles`/`profiles`/`team_members`. A função roda como service role para inserir; a autorização é feita no handler pela matriz acima. Isso é seguro porque `requireSupabaseAuth` garante identidade e o handler valida papel antes de tocar em `supabaseAdmin`.
 
 ## O que NÃO muda
-- Nenhum componente, rota, fluxo, RLS ou lógica de negócio.
-- Nenhuma classe hardcoded (`bg-red-500` etc.) — tudo via tokens.
-- Estrutura de dark mode preservada (versão escura com vermelho um pouco mais claro para contraste).
+- Nenhuma tabela, trigger ou política existente.
+- Fluxo de vendas, ocorrência, notificações, dashboards.
+- `super_admin` já promovido continua o mesmo.
 
-## Entregáveis
-- `src/styles.css` atualizado com paleta RE/MAX.
-- Pequeno ajuste no `AppShell` para faixa/cabeçalho da marca.
-- Ajuste fino nos tons de badge em `src/lib/status.ts` se necessário.
-
-Quer que eu inclua também o **logo/balão RE/MAX** no cabeçalho, ou mantenho só as cores por enquanto?
+Confirma que posso implementar assim?
