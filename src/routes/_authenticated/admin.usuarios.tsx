@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   component: AdminUsers,
 });
 
-const ROLES: AppRole[] = ["corretor", "coordenador", "gestor", "juridico", "financeiro", "admin"];
+const ROLES: AppRole[] = ["corretor", "gestor", "juridico", "financeiro", "admin", "super_admin"];
 
 function AdminUsers() {
   const { hasRole, user } = useAuth();
