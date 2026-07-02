@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { AppRole } from "@/lib/auth";
 
 export type DeletableSale = { id: string; corretor_id: string | null };
 
