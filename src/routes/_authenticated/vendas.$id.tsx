@@ -118,6 +118,21 @@ function SaleDetail() {
   const isGestor = hasAny(["gestor"]);
   const isJuridico = hasRole("juridico");
   const locked = aceitaFin || status === "ocorrencia_concluida";
+  const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
+
+  const onConfirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteSaleCascade(sale.id);
+      toast.success("Venda excluída");
+      setDeleteOpen(false);
+      router.navigate({ to: "/vendas" });
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao excluir venda");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = isOwner && (status === "rascunho" || status === "devolvida_ajuste");
