@@ -79,8 +79,8 @@ function Dashboard() {
           <KpiGrid>
             <KpiCard icon={FileText} label="Minhas vendas" value={count(s => s.corretor_id === user?.id)} to="/vendas" />
             <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={count(s => s.corretor_id === user?.id && (s.status === "rascunho" || s.status === "devolvida_ajuste"))} to="/vendas" />
-            <KpiCard icon={Gavel} label="Em jurídico" value={count(s => s.corretor_id === user?.id && juridicoStatuses.includes(s.status))} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && (s.status === "contrato_assinado" || s.status === "ocorrencia_pendente" || s.status === "ocorrencia_concluida"))} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirCorretor(user?.id))} to="/vendas" />
+            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(s.status))} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
