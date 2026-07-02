@@ -15,7 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { StatusBadge } from "@/components/StatusBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_GRUPO_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocGrupo } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { useRouter } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
