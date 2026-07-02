@@ -83,7 +83,10 @@ function SaleDetail() {
     setHistory(h.data ?? []);
     setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
     setLoading(false);
-  }, [id]);
+    if (s.data && user && s.data.corretor_id !== user.id) {
+      supabase.from("activity_logs").insert({ sale_id: id, autor_id: user.id, acao: "sale_viewed" }).then(() => {});
+    }
+  }, [id, user]);
 
   useEffect(() => { load(); }, [load]);
 
