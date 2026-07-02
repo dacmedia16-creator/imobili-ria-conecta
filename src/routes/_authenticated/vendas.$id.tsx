@@ -15,7 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { StatusBadge } from "@/components/StatusBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_GRUPO_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocGrupo } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { useRouter } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -58,6 +61,22 @@ function SaleDetail() {
     setDirtyMap((m) => (m[key] === v ? m : { ...m, [key]: v }));
   }, []);
 
+  const router = useRouter();
+  const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("team_members")
+        .select("membro_id")
+        .eq("lider_id", user.id);
+      setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
+    })();
+  }, [user]);
+
   const load = useCallback(async () => {
     setLoading(true);
     const [s, p, pay, ba, d, c, h, oc] = await Promise.all([
@@ -99,6 +118,21 @@ function SaleDetail() {
   const isGestor = hasAny(["gestor"]);
   const isJuridico = hasRole("juridico");
   const locked = aceitaFin || status === "ocorrencia_concluida";
+  const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
+
+  const onConfirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteSaleCascade(sale.id);
+      toast.success("Venda excluída");
+      setDeleteOpen(false);
+      router.navigate({ to: "/vendas" });
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao excluir venda");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = isOwner && (status === "rascunho" || status === "devolvida_ajuste");
@@ -422,8 +456,36 @@ function SaleDetail() {
               <XCircle className="mr-2 h-4 w-4" />Devolver ao gestor
             </Button>
           )}
+
+          {canDelete && (
+            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />Excluir venda
+            </Button>
+          )}
         </div>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta venda?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <b>{sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}</b>
+              {" "}será excluída permanentemente. Todos os documentos, partes, pagamentos, comentários e ocorrências relacionados serão removidos. Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={onConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Excluindo..." : "Excluir venda"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
       <Card>

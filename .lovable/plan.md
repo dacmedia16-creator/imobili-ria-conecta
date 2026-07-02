@@ -1,44 +1,47 @@
-## Regras de criação de usuários
+## Excluir venda
 
-| Quem cria | Papéis que pode conceder |
+Adicionar exclusão de venda com regras por papel.
+
+### Matriz de permissão
+| Papel | Pode excluir |
 |---|---|
-| **Super Admin** | qualquer papel (corretor, gestor, jurídico, financeiro, admin, super_admin) |
-| **Admin** | corretor, gestor, jurídico, financeiro (não pode criar admin nem super_admin) |
-| **Gestor** | apenas corretor (e o novo corretor entra automaticamente como membro da sua equipe) |
-| Qualquer outro | não pode criar |
+| Super Admin | qualquer venda |
+| Financeiro | qualquer venda |
+| Admin | qualquer venda (mesmo nível operacional dos acima) |
+| Gestor | vendas cujo `corretor_id` seja membro da sua equipe (`team_members.lider_id = auth.uid()`) ou dele próprio |
+| Corretor | apenas vendas onde `corretor_id = auth.uid()` |
+| Jurídico | não pode excluir |
 
-Cadastro público em `/auth` fica **desativado** — só login.
+Observação: incluo **admin** junto de super_admin/financeiro porque hoje admin já tem visão total. Se preferir que admin NÃO exclua, me avisa antes de aprovar.
 
-## Mudanças
+### Backend
 
-### 1. Backend
-- `supabase--configure_auth` → `disable_signup: true` (mantém login por senha).
-- Nova server function `createUser` em `src/lib/admin-users.functions.ts`:
-  - `.middleware([requireSupabaseAuth])`
-  - Valida com Zod: `nome`, `email`, `password (≥8)`, `role` (enum).
-  - Lê papéis do chamador via `context.supabase.rpc("has_role", ...)`.
-  - Aplica matriz acima; nega com mensagem clara se violar.
-  - `await import("@/integrations/supabase/client.server")` → `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome } })`.
-  - Trigger `handle_new_user` já cria profile + role `corretor`. A função então:
-    - Se `role !== "corretor"`: remove role `corretor` e insere a role pedida.
-    - Se chamador for **gestor** criando corretor: insere em `team_members (lider_id = caller, membro_id = novo)`.
-  - Retorna `{ id }` ou erro. Trata "email já existe" com mensagem amigável.
+1. **Migração** — política RLS de DELETE em `public.sales`:
+   ```sql
+   CREATE POLICY "delete_sales_por_papel" ON public.sales
+   FOR DELETE TO authenticated
+   USING (
+     has_any_role(auth.uid(), ARRAY['super_admin','admin','financeiro']::app_role[])
+     OR corretor_id = auth.uid()
+     OR (has_role(auth.uid(),'gestor') AND is_lead_of(auth.uid(), corretor_id))
+   );
+   ```
+   As tabelas filhas (`sale_parties`, `sale_payment`, `sale_documents`, `sale_comments`, `sale_status_history`, `sale_bank_accounts`, `occurrences` + filhos, `notifications`, `activity_logs`) precisam de `ON DELETE CASCADE` no FK para `sales(id)`. Vou revisar cada FK e adicionar `CASCADE` onde faltar (drop + recreate constraint).
+   - Documentos no storage bucket `sale-documents`: registro em `sale_documents` some via cascade, mas o arquivo físico fica. Vou remover os arquivos do bucket **antes** do delete no client (listar `sale_documents.storage_path` da venda e chamar `supabase.storage.from('sale-documents').remove([...])`).
 
-### 2. Frontend
-- `src/routes/auth.tsx`: remover aba/toggle de cadastro; mostrar só login. Um aviso pequeno: "Cadastro apenas por convite do administrador."
-- `src/routes/_authenticated/admin.usuarios.tsx`:
-  - Permitir a rota também para `gestor` (hoje só admin/super_admin).
-  - Se for **gestor**: mostra somente o botão "Novo corretor" e esconde a matriz de edição de papéis dos outros (mantém apenas visualização dos corretores da própria equipe).
-  - Se for **admin/super_admin**: comportamento atual + botão "Novo usuário" (dialog com select de papel filtrado pelas regras acima).
-  - Dialog: Nome, E-mail, Senha (com botão "gerar 12 chars"), Papel (select filtrado). Ao confirmar chama `useServerFn(createUser)`, mostra toast com senha copiável e recarrega a lista.
-- Novo item no menu para gestor não é necessário — link "Usuários" na sidebar passa a aparecer também para `gestor` (via `hasAny(["admin","super_admin","gestor"])`).
+2. **Nada de nova server function** — o delete vai direto pelo client Supabase (RLS garante a regra). Se algum cascade não puder ser adicionado por dependência de negócio, aí sim faço um `deleteSale` server fn.
 
-### 3. RLS
-- Não muda RLS de `user_roles`/`profiles`/`team_members`. A função roda como service role para inserir; a autorização é feita no handler pela matriz acima. Isso é seguro porque `requireSupabaseAuth` garante identidade e o handler valida papel antes de tocar em `supabaseAdmin`.
+### Frontend
 
-## O que NÃO muda
-- Nenhuma tabela, trigger ou política existente.
-- Fluxo de vendas, ocorrência, notificações, dashboards.
-- `super_admin` já promovido continua o mesmo.
+1. **`src/routes/_authenticated/vendas.$id.tsx`**: botão "Excluir venda" (variante `destructive`, ícone lixeira) no cabeçalho, ao lado das ações existentes. Só aparece se o usuário tem permissão (checagem client-side espelhando a matriz — a autoridade final é a RLS).
+   - Abre `AlertDialog` de confirmação mostrando código/matrícula da venda e aviso "Esta ação não pode ser desfeita. Todos os documentos, partes, pagamentos, comentários e ocorrências serão removidos."
+   - Ao confirmar: lista storage_paths → `storage.remove(...)` → `delete().eq('id', saleId)` → toast → `router.navigate({ to: "/vendas" })`.
 
-Confirma que posso implementar assim?
+2. **`src/routes/_authenticated/vendas.index.tsx`**: ícone de lixeira em cada linha da lista (mesma checagem de permissão), com o mesmo `AlertDialog`. Após excluir, refetch da lista.
+
+3. Helper `canDeleteSale(user, roles, sale, teamMemberIds)` em `src/lib/status.ts` (ou novo `src/lib/permissions.ts`) para não duplicar a lógica entre as duas telas.
+
+### O que NÃO muda
+- Fluxo de status, ocorrências, notificações, dashboards.
+- Políticas de SELECT/INSERT/UPDATE existentes.
+- Nenhuma outra tabela ou role.
