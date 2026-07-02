@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
     { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
-    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin"]) },
+    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin","gestor"]) },
   ];
 
   return (
