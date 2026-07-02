@@ -106,6 +106,12 @@ function SaleDetail() {
   const juridicoEdits = isJuridico && ["aprovada_gestor","enviada_juridico","em_elaboracao_contrato"].includes(status);
   const editable = (corretorEdits || gestorEdits || juridicoEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
 
+  const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
+  const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
+  const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
+  const requiredTypes = DOC_TYPES.map(d => d.key);
+  const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
+
 
   const logActivity = async (acao: string, payload?: any) => {
     await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao, payload: payload ?? null });
