@@ -34,6 +34,7 @@ function SaleDetail() {
   const [docs, setDocs] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [aceitaFin, setAceitaFin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
