@@ -170,7 +170,7 @@ function SaleDetail() {
       const { error: e2 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", id);
       if (!e2) {
         await supabase.from("sale_status_history").insert({ sale_id: id, de: "contrato_assinado", para: "ocorrencia_pendente", autor_id: user!.id, motivo: "Automático: contrato assinado" });
-        await notifyRoles(["financeiro", "admin"], `Ocorrência pendente na venda ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`, "Contrato assinado — gerar ocorrência");
+        await notifyRoles(["gestor"], `Contrato assinado — preencher ocorrência: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
       }
     }
     toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
