@@ -67,7 +67,7 @@ function AdminUsers() {
     load();
   };
 
-  const leads = users.filter(u => (rolesByUser[u.id] ?? []).some(r => r === "gestor" || r === "coordenador"));
+  const leads = users.filter(u => (rolesByUser[u.id] ?? []).some(r => r === "gestor"));
 
   return (
     <div className="space-y-6">
