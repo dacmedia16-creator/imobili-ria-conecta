@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   component: AdminUsers,
 });
 
-const ROLES: AppRole[] = ["corretor", "coordenador", "gestor", "juridico", "financeiro", "admin"];
+const ROLES: AppRole[] = ["corretor", "gestor", "juridico", "financeiro", "admin", "super_admin"];
 
 function AdminUsers() {
   const { hasRole, user } = useAuth();
@@ -34,7 +34,8 @@ function AdminUsers() {
   };
   useEffect(() => { load(); }, []);
 
-  if (!hasRole("admin")) return <p className="text-sm text-muted-foreground">Apenas administradores acessam esta página.</p>;
+  if (!hasRole("admin") && !hasRole("super_admin")) return <p className="text-sm text-muted-foreground">Apenas administradores acessam esta página.</p>;
+  const isSuper = hasRole("super_admin");
 
   const toggleRole = async (userId: string, role: AppRole, has: boolean) => {
     if (userId === user?.id) { toast.error("Você não pode alterar o próprio perfil"); return; }
@@ -66,7 +67,7 @@ function AdminUsers() {
     load();
   };
 
-  const leads = users.filter(u => (rolesByUser[u.id] ?? []).some(r => r === "gestor" || r === "coordenador"));
+  const leads = users.filter(u => (rolesByUser[u.id] ?? []).some(r => r === "gestor"));
 
   return (
     <div className="space-y-6">

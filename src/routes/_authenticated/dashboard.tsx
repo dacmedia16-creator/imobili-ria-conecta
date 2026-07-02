@@ -33,10 +33,10 @@ function Dashboard() {
     })();
   }, [user]);
 
-  const isCorretor = hasAny(["corretor"]) && !hasAny(["gestor", "coordenador", "juridico", "financeiro", "admin"]);
-  const isGestor = hasAny(["gestor", "coordenador"]);
+  const isCorretor = hasAny(["corretor"]) && !hasAny(["gestor", "juridico", "financeiro", "admin", "super_admin"]);
+  const isGestor = hasAny(["gestor"]);
   const isJuridico = hasAny(["juridico"]);
-  const isFinanceiro = hasAny(["financeiro", "admin"]);
+  const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
   const count = (fn: (s: any) => boolean) => sales.filter(fn).length;
   const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "aguardando_assinatura"];

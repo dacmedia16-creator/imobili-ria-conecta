@@ -177,6 +177,9 @@ export type Database = {
       }
       occurrences: {
         Row: {
+          aceita_financeiro: boolean
+          aceita_financeiro_em: string | null
+          aceita_financeiro_por: string | null
           codigo_imovel: string | null
           created_at: string
           data_assinatura: string | null
@@ -205,6 +208,9 @@ export type Database = {
           valor_negociado: number | null
         }
         Insert: {
+          aceita_financeiro?: boolean
+          aceita_financeiro_em?: string | null
+          aceita_financeiro_por?: string | null
           codigo_imovel?: string | null
           created_at?: string
           data_assinatura?: string | null
@@ -233,6 +239,9 @@ export type Database = {
           valor_negociado?: number | null
         }
         Update: {
+          aceita_financeiro?: boolean
+          aceita_financeiro_em?: string | null
+          aceita_financeiro_por?: string | null
           codigo_imovel?: string | null
           created_at?: string
           data_assinatura?: string | null
@@ -739,6 +748,7 @@ export type Database = {
         Args: { _lider: string; _membro: string }
         Returns: boolean
       }
+      is_sale_locked: { Args: { _sale_id: string }; Returns: boolean }
     }
     Enums: {
       app_role:
@@ -748,6 +758,7 @@ export type Database = {
         | "juridico"
         | "financeiro"
         | "admin"
+        | "super_admin"
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado"
       sale_status:
         | "rascunho"
@@ -896,6 +907,7 @@ export const Constants = {
         "juridico",
         "financeiro",
         "admin",
+        "super_admin",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [

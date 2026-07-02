@@ -34,6 +34,7 @@ function SaleDetail() {
   const [docs, setDocs] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [aceitaFin, setAceitaFin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -59,7 +60,7 @@ function SaleDetail() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, p, pay, ba, d, c, h] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -67,6 +68,7 @@ function SaleDetail() {
       supabase.from("sale_documents").select("*").eq("sale_id", id).order("created_at"),
       supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
+      supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
     ]);
     setSale(s.data);
     setFormSale(s.data ?? {});
@@ -79,6 +81,7 @@ function SaleDetail() {
     setDocs(d.data ?? []);
     setComments(c.data ?? []);
     setHistory(h.data ?? []);
+    setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
     setLoading(false);
   }, [id]);
 
@@ -88,10 +91,12 @@ function SaleDetail() {
 
   const status = sale.status as SaleStatus;
   const isOwner = sale.corretor_id === user?.id;
-  const editable = (isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || hasAny(["admin"]);
-  const isGestor = hasAny(["gestor", "coordenador"]);
+  const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
+  const isAdminLike = hasAny(["admin", "super_admin"]);
+  const locked = aceitaFin || status === "ocorrencia_concluida";
+  const editable = ((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || isAdminLike || isFinanceiro) && (!locked || isFinanceiro || isAdminLike);
+  const isGestor = hasAny(["gestor"]);
   const isJuridico = hasRole("juridico");
-  const isFinanceiro = hasAny(["financeiro", "admin"]);
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
   const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
@@ -372,6 +377,11 @@ function SaleDetail() {
             </div>
             <div className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></div>
           </div>
+          {locked && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
+            </div>
+          )}
           {!editable && isOwner && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               Esta venda está travada para edição enquanto está em <b>{STATUS_LABEL[status]}</b>.
@@ -954,12 +964,30 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
     onChange();
   };
 
+  const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
+
+  const toggleAceite = async () => {
+    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin"); return; }
+    const novo = !occ.aceita_financeiro;
+    const patch: any = novo
+      ? { aceita_financeiro: true, aceita_financeiro_em: new Date().toISOString(), aceita_financeiro_por: user!.id }
+      : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
+    const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: novo ? "occurrence_locked" : "occurrence_unlocked" });
+    toast.success(novo ? "Ocorrência travada para edição" : "Edição liberada");
+    onChange();
+  };
+
   const reopen = async () => {
-    if (!hasAny(["financeiro", "admin"])) { toast.error("Somente financeiro/admin podem reabrir"); return; }
+    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin podem reabrir"); return; }
     const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
     if (!motivo?.trim()) return;
     await supabase.from("occurrences").update({
       status: "pendente",
+      aceita_financeiro: false,
+      aceita_financeiro_em: null,
+      aceita_financeiro_por: null,
       reopen_reason: motivo,
       reopened_at: new Date().toISOString(),
       reopened_by: user!.id,
@@ -1131,7 +1159,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
         {canEdit && !concluida && (
           <Button onClick={conclude}><CheckCircle2 className="mr-2 h-4 w-4" />Finalizar ocorrência</Button>
         )}
-        {hasAny(["financeiro", "admin"]) && concluida && (
+        {canFinLock && (
+          <Button variant={occ.aceita_financeiro ? "outline" : "default"} onClick={toggleAceite}>
+            {occ.aceita_financeiro ? "Liberar edições" : "Aceitar e travar (Financeiro)"}
+          </Button>
+        )}
+        {canFinLock && concluida && (
           <Button variant="outline" onClick={reopen}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
         )}
       </div>
