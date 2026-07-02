@@ -39,7 +39,9 @@ function Dashboard() {
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
   const count = (fn: (s: any) => boolean) => sales.filter(fn).length;
-  const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "aguardando_assinatura"];
+  const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"];
+  const contratoParaConferirCorretor = (uid?: string) => (s: any) => s.corretor_id === uid && s.status === "contrato_conferencia_corretor";
+  const contratoParaConferirGestor = (s: any) => s.status === "contrato_conferencia_gestor" || s.status === "contrato_ok_corretor";
 
   const totalComissaoPrevista = occs
     .filter(o => o.status !== "concluida")
@@ -77,8 +79,8 @@ function Dashboard() {
           <KpiGrid>
             <KpiCard icon={FileText} label="Minhas vendas" value={count(s => s.corretor_id === user?.id)} to="/vendas" />
             <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={count(s => s.corretor_id === user?.id && (s.status === "rascunho" || s.status === "devolvida_ajuste"))} to="/vendas" />
-            <KpiCard icon={Gavel} label="Em jurídico" value={count(s => s.corretor_id === user?.id && juridicoStatuses.includes(s.status))} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && (s.status === "contrato_assinado" || s.status === "ocorrencia_pendente" || s.status === "ocorrencia_concluida"))} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirCorretor(user?.id))} to="/vendas" />
+            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(s.status))} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
@@ -88,9 +90,9 @@ function Dashboard() {
         <DashSection title="Painel do gestor">
           <KpiGrid>
             <KpiCard icon={ClipboardCheck} label="Aguardando revisão" value={count(s => s.status === "enviada_revisao")} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas" value={count(s => s.status === "devolvida_ajuste")} to="/vendas" />
-            <KpiCard icon={Gavel} label="No jurídico" value={count(s => juridicoStatuses.includes(s.status))} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Ocorrências pendentes" value={count(s => s.status === "ocorrencia_pendente")} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirGestor)} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={count(s => s.status === "ocorrencia_pendente" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas" value={count(s => s.status === "devolvida_ajuste" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
@@ -111,7 +113,9 @@ function Dashboard() {
       {isFinanceiro && (
         <DashSection title="Painel financeiro">
           <KpiGrid>
-            <KpiCard icon={DollarSign} label="Ocorrências pendentes" value={occs.filter(o => o.status !== "concluida").length} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Ocorrências em análise" value={count(s => s.status === "ocorrencia_analise_financeiro")} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas por mim" value={count(s => s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Pendentes (total)" value={occs.filter(o => o.status !== "concluida").length} to="/vendas" />
             <KpiCard icon={CheckCircle2} label="Ocorrências concluídas" value={occs.filter(o => o.status === "concluida").length} to="/vendas" />
             <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${totalComissaoPrevista.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
             <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${totalComissaoConcluida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
