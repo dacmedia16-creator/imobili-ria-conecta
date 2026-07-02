@@ -5,7 +5,7 @@ export type DeletableSale = { id: string; corretor_id: string | null };
 
 export function canDeleteSale(
   userId: string | null | undefined,
-  hasAny: (roles: string[]) => boolean,
+  hasAny: (roles: AppRole[]) => boolean,
   sale: DeletableSale,
   teamMemberIds: Set<string>,
 ): boolean {
