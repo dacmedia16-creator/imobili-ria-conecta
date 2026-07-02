@@ -350,32 +350,80 @@ function SaleDetail() {
           <p className="mt-1 text-sm text-muted-foreground">Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Corretor: envio inicial ou reenvio após devolução */}
           {isOwner && (status === "rascunho" || status === "devolvida_ajuste") && (
-            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />Enviar para revisão</Button>
+            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />Enviar ao gestor</Button>
           )}
+
+          {/* Gestor: revisão inicial */}
           {isGestor && status === "enviada_revisao" && (
             <>
               <Button onClick={() => changeStatus("aprovada_gestor")}><CheckCircle2 className="mr-2 h-4 w-4" />Aprovar p/ jurídico</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
           )}
+
+          {/* Jurídico: aceitar e elaborar */}
           {isJuridico && (status === "aprovada_gestor" || status === "enviada_juridico") && (
             <>
               <Button onClick={() => changeStatus("em_elaboracao_contrato")}><Gavel className="mr-2 h-4 w-4" />Iniciar contrato</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
             </>
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
-            <Button onClick={() => changeStatus("aguardando_assinatura")}>Aguardando assinatura</Button>
+            <>
+              <Button onClick={() => changeStatus("contrato_conferencia_gestor")}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
+            </>
           )}
-          {isJuridico && status === "aguardando_assinatura" && (
-            <Button onClick={() => changeStatus("contrato_assinado")}>Marcar contrato assinado</Button>
+
+          {/* Gestor: conferência do contrato */}
+          {isGestor && status === "contrato_conferencia_gestor" && (
+            <>
+              <Button onClick={() => changeStatus("contrato_conferencia_corretor")}><Send className="mr-2 h-4 w-4" />Enviar ao corretor conferir</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
+            </>
           )}
-          {isFinanceiro && status === "contrato_assinado" && (
-            <Button onClick={() => changeStatus("ocorrencia_pendente")}><DollarSign className="mr-2 h-4 w-4" />Abrir ocorrência</Button>
+
+          {/* Corretor: conferência do contrato */}
+          {isOwner && status === "contrato_conferencia_corretor" && (
+            <>
+              <Button onClick={() => changeStatus("contrato_ok_corretor")}><CheckCircle2 className="mr-2 h-4 w-4" />Dar OK no contrato</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("contrato_conferencia_gestor")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
+            </>
+          )}
+
+          {/* Gestor: liberar para assinatura */}
+          {isGestor && status === "contrato_ok_corretor" && (
+            <>
+              <Button onClick={() => changeStatus("aguardando_assinatura")}><Send className="mr-2 h-4 w-4" />Enviar para assinatura</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("contrato_conferencia_corretor")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
+            </>
+          )}
+
+          {/* Gestor: subir contrato assinado (após assinatura) */}
+          {isGestor && status === "aguardando_assinatura" && (
+            <Button onClick={() => changeStatus("contrato_assinado")}>
+              <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
+            </Button>
+          )}
+
+          {/* Gestor: enviar ocorrência ao financeiro */}
+          {isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
+            <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
+              <DollarSign className="mr-2 h-4 w-4" />Enviar ocorrência ao financeiro
+            </Button>
+          )}
+
+          {/* Financeiro: devolver ocorrência (aceite é feito dentro do painel de Ocorrência) */}
+          {isFinanceiro && status === "ocorrencia_analise_financeiro" && (
+            <Button variant="outline" onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}>
+              <XCircle className="mr-2 h-4 w-4" />Devolver ao gestor
+            </Button>
           )}
         </div>
       </div>
+
 
       <Card>
         <CardContent className="space-y-3 p-4">
