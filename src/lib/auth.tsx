@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "corretor" | "coordenador" | "gestor" | "juridico" | "financeiro" | "admin";
+export type AppRole = "corretor" | "gestor" | "juridico" | "financeiro" | "admin" | "super_admin";
 
 type AuthCtx = {
   session: Session | null;
