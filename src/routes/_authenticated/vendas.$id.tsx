@@ -61,6 +61,22 @@ function SaleDetail() {
     setDirtyMap((m) => (m[key] === v ? m : { ...m, [key]: v }));
   }, []);
 
+  const router = useRouter();
+  const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("team_members")
+        .select("membro_id")
+        .eq("lider_id", user.id);
+      setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
+    })();
+  }, [user]);
+
   const load = useCallback(async () => {
     setLoading(true);
     const [s, p, pay, ba, d, c, h, oc] = await Promise.all([
