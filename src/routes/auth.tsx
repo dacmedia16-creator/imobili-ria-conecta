@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 
@@ -17,10 +16,8 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [nome, setNome] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,20 +30,9 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (tab === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        router.navigate({ to: "/", replace: true });
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin, data: { nome } },
-        });
-        if (error) throw error;
-        toast.success("Cadastro criado. Você já pode entrar.");
-        setTab("signin");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      router.navigate({ to: "/", replace: true });
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao autenticar");
     } finally {
@@ -65,33 +51,21 @@ function AuthPage() {
           <CardDescription>Acesse com sua conta corporativa</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Entrar</TabsTrigger>
-              <TabsTrigger value="signup">Criar conta</TabsTrigger>
-            </TabsList>
-            <form onSubmit={onSubmit} className="mt-4 space-y-4">
-              <TabsContent value="signup" className="space-y-4">
-                <div>
-                  <Label htmlFor="nome">Nome completo</Label>
-                  <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required={tab === "signup"} />
-                </div>
-              </TabsContent>
-              <div>
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div>
-                <Label htmlFor="password">Senha</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Aguarde..." : tab === "signin" ? "Entrar" : "Criar conta"}
-              </Button>
-            </form>
-          </Tabs>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email">E-mail</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div>
+              <Label htmlFor="password">Senha</Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Aguarde..." : "Entrar"}
+            </Button>
+          </form>
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            Novos cadastros entram como corretor. Um administrador pode alterar seu perfil.
+            Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
           </p>
         </CardContent>
       </Card>
