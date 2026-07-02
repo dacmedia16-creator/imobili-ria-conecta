@@ -34,7 +34,8 @@ function AdminUsers() {
   };
   useEffect(() => { load(); }, []);
 
-  if (!hasRole("admin")) return <p className="text-sm text-muted-foreground">Apenas administradores acessam esta página.</p>;
+  if (!hasRole("admin") && !hasRole("super_admin")) return <p className="text-sm text-muted-foreground">Apenas administradores acessam esta página.</p>;
+  const isSuper = hasRole("super_admin");
 
   const toggleRole = async (userId: string, role: AppRole, has: boolean) => {
     if (userId === user?.id) { toast.error("Você não pode alterar o próprio perfil"); return; }
