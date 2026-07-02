@@ -96,16 +96,16 @@ function SaleDetail() {
   const isOwner = sale.corretor_id === user?.id;
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
   const isAdminLike = hasAny(["admin", "super_admin"]);
-  const locked = aceitaFin || status === "ocorrencia_concluida";
-  const editable = ((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || isAdminLike || isFinanceiro) && (!locked || isFinanceiro || isAdminLike);
   const isGestor = hasAny(["gestor"]);
   const isJuridico = hasRole("juridico");
+  const locked = aceitaFin || status === "ocorrencia_concluida";
 
-  const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
-  const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
-  const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
-  const requiredTypes = DOC_TYPES.map(d => d.key);
-  const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
+  // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
+  const corretorEdits = isOwner && (status === "rascunho" || status === "devolvida_ajuste");
+  const gestorEdits = isGestor && ["enviada_revisao","contrato_conferencia_gestor","contrato_ok_corretor","aguardando_assinatura","contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status);
+  const juridicoEdits = isJuridico && ["aprovada_gestor","enviada_juridico","em_elaboracao_contrato"].includes(status);
+  const editable = (corretorEdits || gestorEdits || juridicoEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
+
 
   const logActivity = async (acao: string, payload?: any) => {
     await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao, payload: payload ?? null });
