@@ -964,12 +964,30 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
     onChange();
   };
 
+  const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
+
+  const toggleAceite = async () => {
+    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin"); return; }
+    const novo = !occ.aceita_financeiro;
+    const patch: any = novo
+      ? { aceita_financeiro: true, aceita_financeiro_em: new Date().toISOString(), aceita_financeiro_por: user!.id }
+      : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
+    const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: novo ? "occurrence_locked" : "occurrence_unlocked" });
+    toast.success(novo ? "Ocorrência travada para edição" : "Edição liberada");
+    onChange();
+  };
+
   const reopen = async () => {
-    if (!hasAny(["financeiro", "admin"])) { toast.error("Somente financeiro/admin podem reabrir"); return; }
+    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin podem reabrir"); return; }
     const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
     if (!motivo?.trim()) return;
     await supabase.from("occurrences").update({
       status: "pendente",
+      aceita_financeiro: false,
+      aceita_financeiro_em: null,
+      aceita_financeiro_por: null,
       reopen_reason: motivo,
       reopened_at: new Date().toISOString(),
       reopened_by: user!.id,
