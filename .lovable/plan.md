@@ -1,47 +1,53 @@
-## Excluir venda
+## Documentos primeiro + auto-preenchimento via IA
 
-Adicionar exclusão de venda com regras por papel.
+Reordenar o fluxo de nova venda para começar pelos documentos, extrair dados com IA (Lovable AI Gateway) e pré-preencher as próximas etapas.
 
-### Matriz de permissão
-| Papel | Pode excluir |
-|---|---|
-| Super Admin | qualquer venda |
-| Financeiro | qualquer venda |
-| Admin | qualquer venda (mesmo nível operacional dos acima) |
-| Gestor | vendas cujo `corretor_id` seja membro da sua equipe (`team_members.lider_id = auth.uid()`) ou dele próprio |
-| Corretor | apenas vendas onde `corretor_id = auth.uid()` |
-| Jurídico | não pode excluir |
-
-Observação: incluo **admin** junto de super_admin/financeiro porque hoje admin já tem visão total. Se preferir que admin NÃO exclua, me avisa antes de aprovar.
+### Escolhas do usuário
+- Documentos obrigatórios na etapa 0: **RG/CNH do comprador**, **Comprovante de estado civil**, **Matrícula do imóvel**, **Contrato social (PJ)**.
+- Resultado: **auto-preencher** os campos e destacar visualmente que vieram do documento.
+- Momento: **botão "Extrair dados"** ao final da etapa de documentos (1 chamada consolidada).
+- Escopo: **apenas novas vendas**. Sem reextrair vendas antigas nesta iteração.
 
 ### Backend
 
-1. **Migração** — política RLS de DELETE em `public.sales`:
-   ```sql
-   CREATE POLICY "delete_sales_por_papel" ON public.sales
-   FOR DELETE TO authenticated
-   USING (
-     has_any_role(auth.uid(), ARRAY['super_admin','admin','financeiro']::app_role[])
-     OR corretor_id = auth.uid()
-     OR (has_role(auth.uid(),'gestor') AND is_lead_of(auth.uid(), corretor_id))
-   );
-   ```
-   As tabelas filhas (`sale_parties`, `sale_payment`, `sale_documents`, `sale_comments`, `sale_status_history`, `sale_bank_accounts`, `occurrences` + filhos, `notifications`, `activity_logs`) precisam de `ON DELETE CASCADE` no FK para `sales(id)`. Vou revisar cada FK e adicionar `CASCADE` onde faltar (drop + recreate constraint).
-   - Documentos no storage bucket `sale-documents`: registro em `sale_documents` some via cascade, mas o arquivo físico fica. Vou remover os arquivos do bucket **antes** do delete no client (listar `sale_documents.storage_path` da venda e chamar `supabase.storage.from('sale-documents').remove([...])`).
+1. **Migração**
+   - Adicionar coluna `public.sale_documents.tipo text` (nullable) com CHECK em `('rg_cnh','estado_civil','matricula','contrato_social','outros')`.
+   - Adicionar `public.sales.extraction_data jsonb` para guardar o payload bruto extraído (auditoria + badge "extraído de X").
 
-2. **Nada de nova server function** — o delete vai direto pelo client Supabase (RLS garante a regra). Se algum cascade não puder ser adicionado por dependência de negócio, aí sim faço um `deleteSale` server fn.
+2. **Server function `extractSaleData`** em `src/lib/sale-extraction.functions.ts`
+   - Middleware: `requireSupabaseAuth`.
+   - Input: `{ saleId: string }`.
+   - Passos:
+     a. Buscar `sale_documents` da venda (RLS já garante acesso).
+     b. Para cada doc, gerar signed URL do bucket `sale-documents` (~1h).
+     c. Montar uma chamada `generateText` + `Output.object` no Lovable AI Gateway usando `google/gemini-3-flash-preview` (aceita PDF e imagem via `image_url`/`file`). Um único prompt consolidado com todos os anexos, retornando JSON com:
+        - `comprador`: nome, cpf, rg, data_nascimento, estado_civil, regime_bens, nome_conjuge, cpf_conjuge, endereco.
+        - `imovel`: matricula, cartorio, endereco, area_util, proprietario_atual.
+        - `empresa` (PJ): razao_social, cnpj, socios[].
+        - `_confidence` por campo (0-1) + `_source` (qual `tipo` de doc).
+     d. Salvar em `sales.extraction_data` e devolver ao cliente.
+   - Erros do gateway (429/402) devolvidos com mensagem para o toast.
+
+3. **Sem novas policies** — RLS de `sales`/`sale_documents` já cobre.
 
 ### Frontend
 
-1. **`src/routes/_authenticated/vendas.$id.tsx`**: botão "Excluir venda" (variante `destructive`, ícone lixeira) no cabeçalho, ao lado das ações existentes. Só aparece se o usuário tem permissão (checagem client-side espelhando a matriz — a autoridade final é a RLS).
-   - Abre `AlertDialog` de confirmação mostrando código/matrícula da venda e aviso "Esta ação não pode ser desfeita. Todos os documentos, partes, pagamentos, comentários e ocorrências serão removidos."
-   - Ao confirmar: lista storage_paths → `storage.remove(...)` → `delete().eq('id', saleId)` → toast → `router.navigate({ to: "/vendas" })`.
+1. **`src/routes/_authenticated/vendas.nova.tsx`** vira wizard de 2 etapas:
+   - **Etapa 1 — Documentos**: upload direto no bucket `sale-documents` com seletor de `tipo` (dropdown com os 4 tipos + "outros"). Mostra lista dos anexados, permite remover. Ao ter pelo menos 1 doc, habilita botão **"Extrair dados e continuar"**.
+   - **Etapa 2 — Confirmação**: chama `extractSaleData`, mostra spinner ("Lendo documentos..."), então exibe cards com os campos extraídos agrupados (Comprador / Imóvel / Empresa), cada campo editável e com badge `📄 extraído de RG.pdf`. Botão "Criar venda" persiste em `sales`, `sale_parties`, `sale_payment` (o que couber) já preenchidos e navega para `/vendas/$id`.
+   - Como a venda ainda não existe no passo 1, upload usa um `draftId = crypto.randomUUID()` como prefixo no storage; ao criar a venda, os documentos são movidos/registrados em `sale_documents` com o `sale_id` real. (Alternativa mais simples: criar `sales` como rascunho já no passo 1 — decido pela simples se você preferir menos código.)
 
-2. **`src/routes/_authenticated/vendas.index.tsx`**: ícone de lixeira em cada linha da lista (mesma checagem de permissão), com o mesmo `AlertDialog`. Após excluir, refetch da lista.
+2. **Componente `ExtractedField`** reutilizável em `src/components/ExtractedField.tsx`: input + badge de origem + tooltip com o valor original bruto.
 
-3. Helper `canDeleteSale(user, roles, sale, teamMemberIds)` em `src/lib/status.ts` (ou novo `src/lib/permissions.ts`) para não duplicar a lógica entre as duas telas.
+3. **`src/lib/status.ts`**: helper `mapExtractionToForms(extraction)` que traduz o JSON da IA para os shapes de `sale_parties` e `sale_payment`.
 
 ### O que NÃO muda
-- Fluxo de status, ocorrências, notificações, dashboards.
-- Políticas de SELECT/INSERT/UPDATE existentes.
-- Nenhuma outra tabela ou role.
+- Wizard de edição da venda (`vendas.$id.tsx`) continua igual — os documentos permanecem editáveis lá, só que já vêm anexados.
+- Regras de status, RLS, ocorrências, permissões.
+- Vendas antigas não ganham botão de reextração agora.
+
+### Custo/latência
+- 1 chamada Gemini Flash por venda nova (~5–15s dependendo do tamanho dos PDFs). Sem custo fixo além do consumo normal do Lovable AI Gateway.
+
+### Pergunta antes de codar
+- **Rascunho vs draftId**: prefere que eu já crie a venda como `rascunho` no passo 1 (mais simples, menos código, mas gera vendas "vazias" se o corretor desistir) ou usar `draftId` só em memória e só criar a venda ao confirmar (mais limpo no banco, mais código)?
