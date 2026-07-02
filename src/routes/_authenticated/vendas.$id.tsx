@@ -60,7 +60,7 @@ function SaleDetail() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, p, pay, ba, d, c, h] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -68,6 +68,7 @@ function SaleDetail() {
       supabase.from("sale_documents").select("*").eq("sale_id", id).order("created_at"),
       supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
+      supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
     ]);
     setSale(s.data);
     setFormSale(s.data ?? {});
@@ -80,6 +81,7 @@ function SaleDetail() {
     setDocs(d.data ?? []);
     setComments(c.data ?? []);
     setHistory(h.data ?? []);
+    setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
     setLoading(false);
   }, [id]);
 
