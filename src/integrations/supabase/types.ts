@@ -748,6 +748,7 @@ export type Database = {
         | "juridico"
         | "financeiro"
         | "admin"
+        | "super_admin"
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado"
       sale_status:
         | "rascunho"
@@ -896,6 +897,7 @@ export const Constants = {
         "juridico",
         "financeiro",
         "admin",
+        "super_admin",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [
