@@ -91,10 +91,12 @@ function SaleDetail() {
 
   const status = sale.status as SaleStatus;
   const isOwner = sale.corretor_id === user?.id;
-  const editable = (isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || hasAny(["admin"]);
-  const isGestor = hasAny(["gestor", "coordenador"]);
+  const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
+  const isAdminLike = hasAny(["admin", "super_admin"]);
+  const locked = aceitaFin || status === "ocorrencia_concluida";
+  const editable = ((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || isAdminLike || isFinanceiro) && (!locked || isFinanceiro || isAdminLike);
+  const isGestor = hasAny(["gestor"]);
   const isJuridico = hasRole("juridico");
-  const isFinanceiro = hasAny(["financeiro", "admin"]);
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
   const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
