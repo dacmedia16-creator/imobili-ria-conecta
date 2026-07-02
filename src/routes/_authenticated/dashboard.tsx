@@ -113,7 +113,9 @@ function Dashboard() {
       {isFinanceiro && (
         <DashSection title="Painel financeiro">
           <KpiGrid>
-            <KpiCard icon={DollarSign} label="Ocorrências pendentes" value={occs.filter(o => o.status !== "concluida").length} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Ocorrências em análise" value={count(s => s.status === "ocorrencia_analise_financeiro")} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas por mim" value={count(s => s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Pendentes (total)" value={occs.filter(o => o.status !== "concluida").length} to="/vendas" />
             <KpiCard icon={CheckCircle2} label="Ocorrências concluídas" value={occs.filter(o => o.status === "concluida").length} to="/vendas" />
             <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${totalComissaoPrevista.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
             <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${totalComissaoConcluida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
