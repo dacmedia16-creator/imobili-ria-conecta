@@ -297,7 +297,7 @@ function SaleDetail() {
           sale={sale}
           payment={payment}
           parties={parties}
-          canEdit={isFinanceiro || isGestor}
+          canEdit={canEditOcorrencia}
           onChange={load}
           registerSaver={(fn) => registerSaver("ocorrencia", fn)}
           onDirtyChange={(d) => setStepDirty("ocorrencia", d)}
