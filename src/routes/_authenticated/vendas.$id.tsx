@@ -1159,7 +1159,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
         {canEdit && !concluida && (
           <Button onClick={conclude}><CheckCircle2 className="mr-2 h-4 w-4" />Finalizar ocorrência</Button>
         )}
-        {hasAny(["financeiro", "admin"]) && concluida && (
+        {canFinLock && (
+          <Button variant={occ.aceita_financeiro ? "outline" : "default"} onClick={toggleAceite}>
+            {occ.aceita_financeiro ? "Liberar edições" : "Aceitar e travar (Financeiro)"}
+          </Button>
+        )}
+        {canFinLock && concluida && (
           <Button variant="outline" onClick={reopen}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
         )}
       </div>
