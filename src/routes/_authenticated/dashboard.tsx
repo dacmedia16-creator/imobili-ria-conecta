@@ -90,9 +90,9 @@ function Dashboard() {
         <DashSection title="Painel do gestor">
           <KpiGrid>
             <KpiCard icon={ClipboardCheck} label="Aguardando revisão" value={count(s => s.status === "enviada_revisao")} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas" value={count(s => s.status === "devolvida_ajuste")} to="/vendas" />
-            <KpiCard icon={Gavel} label="No jurídico" value={count(s => juridicoStatuses.includes(s.status))} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Ocorrências pendentes" value={count(s => s.status === "ocorrencia_pendente")} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirGestor)} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={count(s => s.status === "ocorrencia_pendente" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas" value={count(s => s.status === "devolvida_ajuste" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
