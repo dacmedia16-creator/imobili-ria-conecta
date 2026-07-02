@@ -5,9 +5,14 @@ export type SaleStatus =
   | "aprovada_gestor"
   | "enviada_juridico"
   | "em_elaboracao_contrato"
+  | "contrato_conferencia_gestor"
+  | "contrato_conferencia_corretor"
+  | "contrato_ok_corretor"
   | "aguardando_assinatura"
   | "contrato_assinado"
   | "ocorrencia_pendente"
+  | "ocorrencia_analise_financeiro"
+  | "ocorrencia_devolvida_gestor"
   | "ocorrencia_concluida"
   | "arquivada"
   | "cancelada";
@@ -19,9 +24,14 @@ export const STATUS_LABEL: Record<SaleStatus, string> = {
   aprovada_gestor: "Aprovada pelo gestor",
   enviada_juridico: "Enviada ao jurídico",
   em_elaboracao_contrato: "Em elaboração de contrato",
+  contrato_conferencia_gestor: "Contrato — conferência do gestor",
+  contrato_conferencia_corretor: "Contrato — conferência do corretor",
+  contrato_ok_corretor: "Contrato aprovado pelo corretor",
   aguardando_assinatura: "Aguardando assinatura",
   contrato_assinado: "Contrato assinado",
   ocorrencia_pendente: "Ocorrência pendente",
+  ocorrencia_analise_financeiro: "Ocorrência em análise (Financeiro)",
+  ocorrencia_devolvida_gestor: "Ocorrência devolvida ao gestor",
   ocorrencia_concluida: "Ocorrência concluída",
   arquivada: "Arquivada",
   cancelada: "Cancelada",
@@ -34,9 +44,14 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   aprovada_gestor: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   enviada_juridico: "bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200",
   em_elaboracao_contrato: "bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200",
+  contrato_conferencia_gestor: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  contrato_conferencia_corretor: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  contrato_ok_corretor: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   aguardando_assinatura: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
   contrato_assinado: "bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
   ocorrencia_pendente: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  ocorrencia_analise_financeiro: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  ocorrencia_devolvida_gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   ocorrencia_concluida: "bg-green-200 text-green-900 dark:bg-green-900 dark:text-green-100",
   arquivada: "bg-muted text-muted-foreground",
   cancelada: "bg-destructive/15 text-destructive",
@@ -56,6 +71,8 @@ export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigator
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
   { key: "iptu", label: "IPTU", grupo: "imovel" },
   { key: "cnd_condominio", label: "CND do condomínio (se aplicável)", grupo: "imovel" },
+  { key: "contrato", label: "Contrato (versão para revisão)", grupo: "outros" },
+  { key: "contrato_assinado", label: "Contrato assinado", grupo: "outros" },
   { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
 
@@ -68,9 +85,14 @@ export function proximoResponsavel(status: SaleStatus): { titulo: string; papel:
     case "aprovada_gestor":
     case "enviada_juridico": return { titulo: "Aguardando elaboração do jurídico", papel: "Jurídico" };
     case "em_elaboracao_contrato": return { titulo: "Contrato em elaboração", papel: "Jurídico" };
-    case "aguardando_assinatura": return { titulo: "Aguardando assinatura das partes", papel: "Jurídico / Partes" };
-    case "contrato_assinado":
-    case "ocorrencia_pendente": return { titulo: "Contrato assinado — ocorrência pendente", papel: "Financeiro" };
+    case "contrato_conferencia_gestor": return { titulo: "Gestor conferindo o contrato", papel: "Gestor" };
+    case "contrato_conferencia_corretor": return { titulo: "Corretor conferindo o contrato", papel: "Corretor" };
+    case "contrato_ok_corretor": return { titulo: "Aguardando gestor liberar assinatura", papel: "Gestor" };
+    case "aguardando_assinatura": return { titulo: "Aguardando assinatura e upload do contrato assinado", papel: "Gestor / Partes" };
+    case "contrato_assinado": return { titulo: "Contrato assinado — gestor deve preencher a ocorrência", papel: "Gestor" };
+    case "ocorrencia_pendente": return { titulo: "Ocorrência pendente de envio ao financeiro", papel: "Gestor" };
+    case "ocorrencia_analise_financeiro": return { titulo: "Ocorrência em análise do financeiro", papel: "Financeiro" };
+    case "ocorrencia_devolvida_gestor": return { titulo: "Ocorrência devolvida — ajustar e reenviar", papel: "Gestor" };
     case "ocorrencia_concluida": return { titulo: "Ocorrência concluída", papel: "—" };
     case "arquivada": return { titulo: "Venda arquivada", papel: "—" };
     case "cancelada": return { titulo: "Venda cancelada", papel: "—" };
