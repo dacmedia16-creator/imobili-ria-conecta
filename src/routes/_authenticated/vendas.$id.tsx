@@ -996,9 +996,24 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
           </section>
         );
       })}
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir este documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.file_name} será removido permanentemente. Depois disso você pode enviar um novo arquivo — a IA fará a leitura novamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={deleting} onClick={(e) => { e.preventDefault(); if (pendingDelete) removeDoc(pendingDelete); }}>
+              {deleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-
-
   );
 }
 
