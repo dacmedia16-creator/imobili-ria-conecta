@@ -618,6 +618,55 @@ function SaleDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={contratoDialogOpen} onOpenChange={(o) => { if (!contratoUploading) setContratoDialogOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Anexar contrato</DialogTitle>
+            <DialogDescription>
+              Envie o arquivo do contrato (PDF, DOC ou DOCX). Após anexar, a venda vai para conferência do gestor.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contratoDocs.length > 0 && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <div className="mb-1 font-medium">Contrato(s) já anexado(s):</div>
+              <ul className="space-y-1 text-muted-foreground">
+                {contratoDocs.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="truncate">{d.file_name}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 text-xs">Você pode enviar uma nova versão abaixo ou apenas prosseguir com a atual.</div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Arquivo do contrato {contratoDocs.length === 0 && <span className="text-destructive">*</span>}</Label>
+            <Input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => setContratoFile(e.target.files?.[0] ?? null)}
+              disabled={contratoUploading}
+            />
+            {contratoFile && (
+              <div className="text-xs text-muted-foreground">Selecionado: {contratoFile.name}</div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setContratoDialogOpen(false)} disabled={contratoUploading}>Cancelar</Button>
+            <Button
+              onClick={uploadContratoAndSend}
+              disabled={contratoUploading || (!contratoFile && contratoDocs.length === 0)}
+            >
+              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Send className="mr-2 h-4 w-4" />Anexar e enviar ao gestor</>)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
