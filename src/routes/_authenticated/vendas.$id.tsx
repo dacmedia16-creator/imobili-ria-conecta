@@ -766,20 +766,38 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
 
 function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; onChange: () => void }) {
   const { user } = useAuth();
+  const [applying, setApplying] = useState(false);
+  const [extracting, setExtracting] = useState<Record<string, boolean>>({});
+
+  const runExtraction = useCallback(async (documentId: string) => {
+    setExtracting((m) => ({ ...m, [documentId]: true }));
+    try {
+      const res = await extractDocument({ data: { documentId } });
+      if (!res.ok) toast.error(`Falha ao ler documento: ${res.error}`);
+      else toast.success("Documento lido pela IA");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao extrair dados");
+    } finally {
+      setExtracting((m) => ({ ...m, [documentId]: false }));
+      onChange();
+    }
+  }, [onChange]);
+
   const upload = async (tipo: string, file: File) => {
     const ext = file.name.split(".").pop();
     const path = `${saleId}/${tipo}/${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from("sale-documents").upload(path, file, { upsert: false });
     if (error) { toast.error(error.message); return; }
-    const { error: insErr } = await supabase.from("sale_documents").insert({
+    const { data: inserted, error: insErr } = await supabase.from("sale_documents").insert({
       sale_id: saleId, tipo, storage_path: path, file_name: file.name,
       uploaded_by: user!.id, status: "enviado",
-    });
-    if (insErr) toast.error(insErr.message);
-    else {
-      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo } });
-      toast.success("Documento enviado"); onChange();
-    }
+    }).select("id").single();
+    if (insErr) { toast.error(insErr.message); return; }
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo } });
+    toast.success("Documento enviado — iniciando leitura pela IA...");
+    onChange();
+    // Dispara extração automaticamente
+    if (inserted?.id) void runExtraction(inserted.id);
   };
   const download = async (doc: any) => {
     const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 60);
@@ -812,9 +830,48 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     onChange();
   };
 
+  const applyAll = async () => {
+    setApplying(true);
+    try {
+      const res = await applySaleExtractions({ data: { saleId } });
+      if (res.filled.length === 0) toast.info("Nenhum campo novo para preencher (ou os campos já estão preenchidos)");
+      else toast.success(`${res.filled.length} campo(s) preenchido(s) automaticamente. Confira nas próximas etapas.`);
+      onChange();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao aplicar dados");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const anyExtracted = docs.some((d) => d.extraction_status === "done");
+  const anyPending = docs.some((d) => d.extraction_status === "pending") || Object.values(extracting).some(Boolean);
+
   const grupos: DocGrupo[] = ["pessoal", "imovel", "outros"];
   return (
     <div className="space-y-6">
+      <Card className="border-primary/40 bg-primary/5">
+        <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
+            <div className="text-sm">
+              <div className="font-medium">Leitura automática por IA</div>
+              <p className="text-muted-foreground">
+                Anexe os documentos primeiro. Assim que forem enviados, a IA lê e sugere os dados das próximas etapas (partes, valores, matrícula). Você confere e edita antes de enviar ao gestor.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={applyAll} disabled={!anyExtracted || applying || !editable}>
+            {applying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aplicando...</> : <><Sparkles className="mr-2 h-4 w-4" />Aplicar dados aos campos</>}
+          </Button>
+        </CardContent>
+        {anyPending && (
+          <CardContent className="pt-0 text-xs text-muted-foreground">
+            <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Lendo documento(s)...
+          </CardContent>
+        )}
+      </Card>
+
       {grupos.map((g) => {
         const tipos = DOC_TYPES.filter(t => t.grupo === g);
         if (tipos.length === 0) return null;
@@ -852,6 +909,12 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                       <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm">
                         <button className="truncate text-left hover:underline" onClick={() => download(d)}>{d.file_name}</button>
                         <div className="flex items-center gap-2">
+                          <ExtractionBadge status={d.extraction_status} loading={!!extracting[d.id]} />
+                          {editable && d.extraction_status !== "pending" && !extracting[d.id] && (
+                            <Button size="sm" variant="ghost" title="Ler novamente com IA" onClick={() => runExtraction(d.id)}>
+                              <Sparkles className="h-4 w-4" />
+                            </Button>
+                          )}
                           <DocStatusBadge status={d.status} />
                           {canModerate && d.status !== "aprovado" && (
                             <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
@@ -871,6 +934,13 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
       })}
     </div>
   );
+}
+
+function ExtractionBadge({ status, loading }: { status?: string; loading?: boolean }) {
+  if (loading || status === "pending") return <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-900"><Loader2 className="h-3 w-3 animate-spin" />IA lendo</span>;
+  if (status === "done") return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900"><Sparkles className="h-3 w-3" />IA ok</span>;
+  if (status === "failed") return <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs text-destructive">IA falhou</span>;
+  return null;
 }
 
 function DocStatusBadge({ status }: { status: string }) {
