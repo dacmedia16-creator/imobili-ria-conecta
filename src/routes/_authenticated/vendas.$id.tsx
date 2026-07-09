@@ -19,6 +19,8 @@ import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
+import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
+import { Sparkles, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
