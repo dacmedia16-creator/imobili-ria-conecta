@@ -848,12 +848,25 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   const anyExtracted = docs.some((d) => d.extraction_status === "done");
   const anyPending = docs.some((d) => d.extraction_status === "pending") || Object.values(extracting).some(Boolean);
 
-  // Blocos por parte da venda. Documentos pessoais (RG/CPF/certidão/endereço)
-  // aparecem 2x — uma vez para o comprador e outra para o vendedor —
-  // para que a IA saiba a quem atribuir os dados extraídos.
+  // Blocos por parte da venda. Compradores/vendedores extras aparecem sob demanda
+  // (a IA usa a parte declarada em cada upload para rotear os dados extraídos).
+  const [showComprador2, setShowComprador2] = React.useState<boolean>(
+    docs.some(d => d.parte === "comprador_2")
+  );
+  const [showVendedor2, setShowVendedor2] = React.useState<boolean>(
+    docs.some(d => d.parte === "vendedor_2")
+  );
+  React.useEffect(() => {
+    if (docs.some(d => d.parte === "comprador_2")) setShowComprador2(true);
+    if (docs.some(d => d.parte === "vendedor_2")) setShowVendedor2(true);
+  }, [docs]);
+
+  const pessoalTipos = DOC_TYPES.filter(t => t.grupo === "pessoal");
   const blocos: { parte: DocParte; tipos: typeof DOC_TYPES }[] = [
-    { parte: "comprador", tipos: DOC_TYPES.filter(t => t.grupo === "pessoal") },
-    { parte: "vendedor", tipos: DOC_TYPES.filter(t => t.grupo === "pessoal") },
+    { parte: "comprador_1", tipos: pessoalTipos },
+    ...(showComprador2 ? [{ parte: "comprador_2" as DocParte, tipos: pessoalTipos }] : []),
+    { parte: "vendedor_1", tipos: pessoalTipos },
+    ...(showVendedor2 ? [{ parte: "vendedor_2" as DocParte, tipos: pessoalTipos }] : []),
     { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
   ];
@@ -867,7 +880,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
             <div className="text-sm">
               <div className="font-medium">Leitura automática por IA</div>
               <p className="text-muted-foreground">
-                Envie os documentos de cada parte no bloco correspondente (Comprador ou Vendedor). A IA lê cada arquivo e sugere os dados nas próximas etapas — você confere e edita antes de enviar ao gestor.
+                Envie os documentos de cada pessoa no bloco correspondente. Até 2 compradores e 2 vendedores. A IA lê cada arquivo e roteia os dados para a pessoa certa nas próximas etapas.
               </p>
             </div>
           </div>
@@ -885,12 +898,20 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
       {blocos.map(({ parte, tipos }) => {
         if (tipos.length === 0) return null;
         const parteAccent =
-          parte === "comprador" ? "border-l-4 border-l-blue-500" :
-          parte === "vendedor" ? "border-l-4 border-l-amber-500" :
+          parte === "comprador_1" || parte === "comprador_2" ? "border-l-4 border-l-blue-500" :
+          parte === "vendedor_1" || parte === "vendedor_2" ? "border-l-4 border-l-amber-500" :
           parte === "imovel" ? "border-l-4 border-l-emerald-500" : "";
         return (
           <section key={parte} className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_PARTE_LABEL[parte]}</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_PARTE_LABEL[parte]}</h3>
+              {editable && parte === "comprador_2" && (
+                <Button size="sm" variant="ghost" onClick={() => setShowComprador2(false)} disabled={docs.some(d => d.parte === "comprador_2")}>Remover 2º comprador</Button>
+              )}
+              {editable && parte === "vendedor_2" && (
+                <Button size="sm" variant="ghost" onClick={() => setShowVendedor2(false)} disabled={docs.some(d => d.parte === "vendedor_2")}>Remover 2º vendedor</Button>
+              )}
+            </div>
             {tipos.map((t) => {
               const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
@@ -899,8 +920,8 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                   <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-medium">{t.label}{t.obrigatorio && <span className="ml-1 text-destructive">*</span>}</div>
-                        {t.obrigatorio && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+                        <div className="text-sm font-medium">{t.label}{t.obrigatorio && parte === "comprador_1" || (t.obrigatorio && parte === "vendedor_1") ? <span className="ml-1 text-destructive">*</span> : null}</div>
+                        {t.obrigatorio && (parte === "comprador_1" || parte === "vendedor_1") && <div className="text-xs text-muted-foreground">Obrigatório</div>}
                       </div>
                       <div className="flex items-center gap-2">
                         {latest && <DocStatusBadge status={latest.status} />}
@@ -942,10 +963,17 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                 </Card>
               );
             })}
+            {editable && parte === "comprador_1" && !showComprador2 && (
+              <Button size="sm" variant="outline" onClick={() => setShowComprador2(true)}>+ Adicionar 2º comprador</Button>
+            )}
+            {editable && parte === "vendedor_1" && !showVendedor2 && (
+              <Button size="sm" variant="outline" onClick={() => setShowVendedor2(true)}>+ Adicionar 2º vendedor</Button>
+            )}
           </section>
         );
       })}
     </div>
+
 
   );
 }
