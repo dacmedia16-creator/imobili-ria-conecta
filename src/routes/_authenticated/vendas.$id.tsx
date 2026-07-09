@@ -975,6 +975,11 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                           {canModerate && d.status !== "recusado" && (
                             <Button size="sm" variant="ghost" onClick={() => reject(d)}><FileX className="h-4 w-4" /></Button>
                           )}
+                          {editable && (d.uploaded_by === user?.id || canModerate) && (
+                            <Button size="sm" variant="ghost" title="Excluir documento" onClick={() => setPendingDelete(d)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
