@@ -216,6 +216,35 @@ function SaleDetail() {
     load();
   };
 
+  const contratoDocs = docs.filter((d) => d.tipo === "contrato");
+
+  const uploadContratoAndSend = async () => {
+    if (!contratoFile && contratoDocs.length === 0) {
+      toast.error("Anexe o arquivo do contrato antes de enviar.");
+      return;
+    }
+    setContratoUploading(true);
+    try {
+      if (contratoFile) {
+        const ext = contratoFile.name.split(".").pop();
+        const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
+        if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+        const { error: insErr } = await supabase.from("sale_documents").insert({
+          sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
+          file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
+        } as any);
+        if (insErr) { toast.error(insErr.message); return; }
+        await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
+      }
+      setContratoDialogOpen(false);
+      setContratoFile(null);
+      await changeStatus("contrato_conferencia_gestor");
+    } finally {
+      setContratoUploading(false);
+    }
+  };
+
   const openReturnDialog = (target: SaleStatus) => { setReturnTarget(target); setReturnMotivo(""); setReturnOpen(true); };
   const submitReturn = async () => {
     if (!returnMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
