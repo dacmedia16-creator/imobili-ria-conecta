@@ -242,8 +242,21 @@ function SaleDetail() {
   const canEditOcorrencia = (isGestor && ["contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status)) || isFinanceiro || isAdminLike;
   const steps: WizardStep[] = [
     {
+      key: "documentos",
+      label: "1. Documentos",
+      content: (
+        <DocumentsPanel
+          saleId={id}
+          docs={docs}
+          editable={editable}
+          canModerate={isGestor || isJuridico}
+          onChange={load}
+        />
+      ),
+    },
+    {
       key: "resumo",
-      label: "Resumo",
+      label: "2. Resumo",
       content: (
         <div className="space-y-4">
           {editable && dirtyResumo && (
@@ -289,7 +302,7 @@ function SaleDetail() {
     },
     {
       key: "partes",
-      label: "Partes",
+      label: "3. Partes",
       content: (
         <PartiesStep
           saleId={id}
@@ -303,7 +316,7 @@ function SaleDetail() {
     },
     {
       key: "pagamento",
-      label: "Pagamento",
+      label: "4. Pagamento",
       content: (
         <PaymentStep
           saleId={id}
@@ -315,11 +328,6 @@ function SaleDetail() {
           onDirtyChange={(d) => setStepDirty("pagamento", d)}
         />
       ),
-    },
-    {
-      key: "documentos",
-      label: "Documentos",
-      content: <DocumentsPanel saleId={id} docs={docs} editable={editable} canModerate={isGestor || isJuridico} onChange={load} />,
     },
     {
       key: "ocorrencia",
