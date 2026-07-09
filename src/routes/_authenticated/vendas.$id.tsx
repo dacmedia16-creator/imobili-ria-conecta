@@ -768,6 +768,25 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const removeDoc = async (doc: any) => {
+    setDeleting(true);
+    try {
+      const { error: stErr } = await supabase.storage.from("sale-documents").remove([doc.storage_path]);
+      if (stErr) console.warn("storage remove", stErr.message);
+      await supabase.from("document_extractions").delete().eq("document_id", doc.id);
+      const { error } = await supabase.from("sale_documents").delete().eq("id", doc.id);
+      if (error) { toast.error(error.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_deleted", payload: { doc_id: doc.id, tipo: doc.tipo, parte: doc.parte, file_name: doc.file_name } });
+      toast.success("Documento excluído");
+      setPendingDelete(null);
+      onChange();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const runExtraction = useCallback(async (documentId: string) => {
     setExtracting((m) => ({ ...m, [documentId]: true }));
@@ -956,6 +975,11 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                           {canModerate && d.status !== "recusado" && (
                             <Button size="sm" variant="ghost" onClick={() => reject(d)}><FileX className="h-4 w-4" /></Button>
                           )}
+                          {editable && (d.uploaded_by === user?.id || canModerate) && (
+                            <Button size="sm" variant="ghost" title="Excluir documento" onClick={() => setPendingDelete(d)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -972,9 +996,24 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
           </section>
         );
       })}
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir este documento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.file_name} será removido permanentemente. Depois disso você pode enviar um novo arquivo — a IA fará a leitura novamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={deleting} onClick={(e) => { e.preventDefault(); if (pendingDelete) removeDoc(pendingDelete); }}>
+              {deleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-
-
   );
 }
 
