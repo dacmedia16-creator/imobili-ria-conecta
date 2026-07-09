@@ -1,48 +1,28 @@
-## Objetivo
-Permitir até **2 compradores** e **2 vendedores** na etapa de Documentos, com a IA roteando os dados extraídos para a pessoa certa (comprador_1, comprador_2, vendedor_1, vendedor_2).
+## Excluir documento e reenviar
 
-## Mudanças
+Hoje em `DocumentsPanel` (`src/routes/_authenticated/vendas.$id.tsx`) cada arquivo listado mostra apenas download, badge de IA, aprovar/recusar. Não há como remover um arquivo errado — só dá para enviar outro por cima. O botão de re-leitura da IA (ícone Sparkles) já existe e continua funcionando.
 
-### 1. Banco (`sale_documents.parte`)
-Ampliar o check constraint da coluna `parte` para aceitar:
-- `comprador_1`, `comprador_2`
-- `vendedor_1`, `vendedor_2`
-- `imovel`, `outros`
+### O que fazer
 
-Migração de dados: `comprador` → `comprador_1`, `vendedor` → `vendedor_1`.
+1. **Botão excluir por arquivo** (linha ~942, dentro do `list.map((d) => ...)`):
+   - Novo `Button` ícone `Trash2`, variant `ghost`, com `title="Excluir documento"`.
+   - Aparece somente quando `editable` for true e (o dono do upload `d.uploaded_by === user.id` OU `canModerate`) — evita corretor apagar doc de outro.
+   - Ao clicar, abre `AlertDialog` de confirmação (usar o padrão shadcn já presente no arquivo para exclusão de venda) com o nome do arquivo.
 
-### 2. Tipos e labels (`src/lib/status.ts`)
-Atualizar `DocParte` e `docParteLabel` com as 4 variações de pessoa + imóvel + outros. Cores:
-- Comprador 1: azul / Comprador 2: azul claro
-- Vendedor 1: âmbar / Vendedor 2: âmbar claro
-- Imóvel: esmeralda / Outros: cinza
+2. **Handler `remove(doc)`** dentro de `DocumentsPanel`:
+   - `supabase.storage.from("sale-documents").remove([doc.storage_path])` (ignora erro se o arquivo já sumiu, mas loga).
+   - `supabase.from("document_extractions").delete().eq("document_id", doc.id)` para não deixar dados órfãos que a IA aplicaria depois.
+   - `supabase.from("sale_documents").delete().eq("id", doc.id)`.
+   - `activity_logs` com `acao: "document_deleted"`, payload `{ doc_id, tipo, parte, file_name }`.
+   - `toast.success("Documento excluído")` + `onChange()`.
 
-### 3. UI — etapa Documentos (`src/routes/_authenticated/vendas.$id.tsx`)
-Reorganizar em 6 blocos ao invés de 4:
-- Cliente Comprador 1
-- Cliente Comprador 2 *(colapsável, botão "+ Adicionar 2º comprador")*
-- Cliente Vendedor 1
-- Cliente Vendedor 2 *(colapsável, botão "+ Adicionar 2º vendedor")*
-- Documentos do Imóvel
-- Outros
+3. **Reupload + re-leitura** já funcionam: o input file existente insere novo `sale_documents` e chama `runExtraction`. Depois de excluir, o mesmo botão "Enviar" volta a aparecer naturalmente. Nenhum ajuste extra.
 
-Cada bloco grava a `parte` correta no upload.
+### Segurança / RLS
 
-### 4. IA — extração e aplicação (`src/lib/documents.functions.ts`)
-- Prompt informa qual pessoa (ex.: "documento do 2º comprador").
-- `applySaleExtractions` roteia:
-  - `comprador_1` → campos `comprador_1_*`
-  - `comprador_2` → campos `comprador_2_*`
-  - `vendedor_1` → campos `vendedor_1_*`
-  - `vendedor_2` → campos `vendedor_2_*`
-- Mantém regra de só preencher campos vazios.
+A policy DELETE em `public.sale_documents` precisa permitir dono do upload, gestor da equipe, jurídico, financeiro, admin, super_admin. Verificar via `supabase--read_query` antes de implementar; se estiver restrita demais, adicionar migração com policy `USING (uploaded_by = auth.uid() OR public.has_any_role(auth.uid(), ARRAY['gestor','juridico','financeiro','admin','super_admin']::app_role[]))` (gestor limitado a `is_lead_of`). Igualmente checar policy DELETE em `storage.objects` para o bucket `sale-documents`.
 
-### 5. Etapa Partes
-Garantir que os inputs de `comprador_2` e `vendedor_2` já existem no formulário; se estiverem ocultos, adicionar toggle "+ Adicionar 2ª pessoa" espelhando o comportamento da etapa Documentos.
+### Fora de escopo
 
-## Detalhes técnicos
-- Migração idempotente: `DROP CONSTRAINT ... IF EXISTS`, `UPDATE` dos valores antigos, `ADD CONSTRAINT` novo.
-- Sem mudança em RLS (a policy já é por `sale_id`).
-- Sem breaking change para vendas antigas: dados migrados automaticamente.
-
-Confirma que posso implementar?
+- Não mexer no fluxo do Wizard, extração da IA, ou outras etapas.
+- Não adicionar undo/lixeira — exclusão é definitiva.
