@@ -1,53 +1,52 @@
-## Documentos primeiro + auto-preenchimento via IA
 
-Reordenar o fluxo de nova venda para começar pelos documentos, extrair dados com IA (Lovable AI Gateway) e pré-preencher as próximas etapas.
+# Documentos como primeira etapa + autopreenchimento por IA
 
-### Escolhas do usuário
-- Documentos obrigatórios na etapa 0: **RG/CNH do comprador**, **Comprovante de estado civil**, **Matrícula do imóvel**, **Contrato social (PJ)**.
-- Resultado: **auto-preencher** os campos e destacar visualmente que vieram do documento.
-- Momento: **botão "Extrair dados"** ao final da etapa de documentos (1 chamada consolidada).
-- Escopo: **apenas novas vendas**. Sem reextrair vendas antigas nesta iteração.
+## Fluxo novo
 
-### Backend
+1. **Etapa 1 — Documentos** (nova primeira etapa do wizard)
+   - Ao abrir `/vendas/nova`, a venda é criada imediatamente como `rascunho` (necessário porque os arquivos precisam ficar ligados à venda no banco — o jurídico usa depois para imprimir).
+   - Corretor sobe cada documento nos grupos já existentes (Pessoais / Imóvel / Outros — tipos definidos em `DOC_TYPES` em `src/lib/status.ts`).
+   - A cada upload concluído, dispara **extração por IA** (Lovable AI / Gemini multimodal) em background; o corretor vê "Lendo documento..." e depois um badge "Campos extraídos".
+2. **Etapas seguintes** (Partes, Pagamento, Ocorrência, etc.) já abrem com os campos **pré-preenchidos** pela IA — corretor só confere e corrige.
+   - Cada campo autopreenchido mostra um selo discreto "sugerido pela IA" que some ao editar.
 
-1. **Migração**
-   - Adicionar coluna `public.sale_documents.tipo text` (nullable) com CHECK em `('rg_cnh','estado_civil','matricula','contrato_social','outros')`.
-   - Adicionar `public.sales.extraction_data jsonb` para guardar o payload bruto extraído (auditoria + badge "extraído de X").
+## O que a IA extrai (por tipo de documento)
 
-2. **Server function `extractSaleData`** em `src/lib/sale-extraction.functions.ts`
-   - Middleware: `requireSupabaseAuth`.
-   - Input: `{ saleId: string }`.
-   - Passos:
-     a. Buscar `sale_documents` da venda (RLS já garante acesso).
-     b. Para cada doc, gerar signed URL do bucket `sale-documents` (~1h).
-     c. Montar uma chamada `generateText` + `Output.object` no Lovable AI Gateway usando `google/gemini-3-flash-preview` (aceita PDF e imagem via `image_url`/`file`). Um único prompt consolidado com todos os anexos, retornando JSON com:
-        - `comprador`: nome, cpf, rg, data_nascimento, estado_civil, regime_bens, nome_conjuge, cpf_conjuge, endereco.
-        - `imovel`: matricula, cartorio, endereco, area_util, proprietario_atual.
-        - `empresa` (PJ): razao_social, cnpj, socios[].
-        - `_confidence` por campo (0-1) + `_source` (qual `tipo` de doc).
-     d. Salvar em `sales.extraction_data` e devolver ao cliente.
-   - Erros do gateway (429/402) devolvidos com mensagem para o toast.
+- **RG / CNH** → nome completo, CPF, RG, data de nascimento, filiação, estado civil → grava em `sale_parties` (comprador/vendedor).
+- **Certidão de casamento** → estado civil, regime de bens, cônjuge → `sale_parties`.
+- **Contrato social / CNPJ** → razão social, CNPJ, sócio administrador → `sale_parties` (PJ).
+- **Matrícula do imóvel** → endereço, matrícula, área, cartório, proprietários atuais, ônus → `sales` (endereco, matricula) + observações.
+- **Comprovante de residência** → endereço → `sale_parties`.
+- **Contracheque / IR** → renda declarada → `sale_payment` (quando financiamento).
 
-3. **Sem novas policies** — RLS de `sales`/`sale_documents` já cobre.
+Campos não reconhecidos ficam vazios, sem erro.
+
+## Implementação
+
+### Banco (migração)
+- Nova tabela `document_extractions` (por documento): `document_id`, `sale_id`, `status` (pending/done/failed), `raw_json`, `error`, timestamps. RLS: mesma regra de `sale_documents` (quem pode ver a venda vê a extração).
+- Coluna nova em `sale_documents`: `extraction_status` (para o badge na UI).
+
+### Server function (`src/lib/documents.functions.ts`, novo)
+- `extractDocument({ documentId })`: middleware `requireSupabaseAuth`, carrega o arquivo via signed URL, chama Lovable AI Gateway (`google/gemini-2.5-flash`, multimodal image/PDF) com prompt específico por `tipo` do documento e um schema Zod pequeno para saída estruturada (guardado com `NoObjectGeneratedError`). Grava resultado em `document_extractions` e atualiza `sale_documents.extraction_status`.
+- `applyExtractionsToSale({ saleId })`: consolida todas as extrações done da venda e devolve um patch sugerido `{ parties, payment, sale }` para o front (não grava — o corretor confirma nas próximas etapas).
 
 ### Frontend
+- `src/components/Wizard.tsx`: sem mudança estrutural — só reordenar as etapas no chamador.
+- `src/routes/_authenticated/vendas.$id.tsx`:
+  - Mover **Documentos** para a posição 1 do array `steps`.
+  - Painel de Documentos: após upload, chama `extractDocument` e mostra estado (Lendo → Pronto/Falhou + botão "Tentar de novo").
+  - Ao mudar de etapa, se houver extrações novas, chamar `applyExtractionsToSale` e mesclar no estado local do wizard (buffered, só salva ao avançar — mantém o comportamento atual).
+  - Campos vindos da IA renderizam selo "IA" (some ao editar).
+- `src/routes/_authenticated/vendas.nova.tsx`: cria a venda como `rascunho` e já redireciona para a etapa Documentos.
 
-1. **`src/routes/_authenticated/vendas.nova.tsx`** vira wizard de 2 etapas:
-   - **Etapa 1 — Documentos**: upload direto no bucket `sale-documents` com seletor de `tipo` (dropdown com os 4 tipos + "outros"). Mostra lista dos anexados, permite remover. Ao ter pelo menos 1 doc, habilita botão **"Extrair dados e continuar"**.
-   - **Etapa 2 — Confirmação**: chama `extractSaleData`, mostra spinner ("Lendo documentos..."), então exibe cards com os campos extraídos agrupados (Comprador / Imóvel / Empresa), cada campo editável e com badge `📄 extraído de RG.pdf`. Botão "Criar venda" persiste em `sales`, `sale_parties`, `sale_payment` (o que couber) já preenchidos e navega para `/vendas/$id`.
-   - Como a venda ainda não existe no passo 1, upload usa um `draftId = crypto.randomUUID()` como prefixo no storage; ao criar a venda, os documentos são movidos/registrados em `sale_documents` com o `sale_id` real. (Alternativa mais simples: criar `sales` como rascunho já no passo 1 — decido pela simples se você preferir menos código.)
+### Segurança / permissões
+- Sem mudança na matriz existente — só corretor dono / gestor / jurídico / financeiro / admin veem os documentos e as extrações (RLS de `sale_documents` já cobre).
+- Chamada da IA sempre server-side; `LOVABLE_API_KEY` fica no servidor.
 
-2. **Componente `ExtractedField`** reutilizável em `src/components/ExtractedField.tsx`: input + badge de origem + tooltip com o valor original bruto.
+## Fora do escopo desta rodada
+- Reprocessar documentos antigos em massa.
+- Extração de assinaturas / reconhecimento facial.
+- Validação cruzada (ex.: CPF do RG bate com CPF digitado) — fica para próxima.
 
-3. **`src/lib/status.ts`**: helper `mapExtractionToForms(extraction)` que traduz o JSON da IA para os shapes de `sale_parties` e `sale_payment`.
-
-### O que NÃO muda
-- Wizard de edição da venda (`vendas.$id.tsx`) continua igual — os documentos permanecem editáveis lá, só que já vêm anexados.
-- Regras de status, RLS, ocorrências, permissões.
-- Vendas antigas não ganham botão de reextração agora.
-
-### Custo/latência
-- 1 chamada Gemini Flash por venda nova (~5–15s dependendo do tamanho dos PDFs). Sem custo fixo além do consumo normal do Lovable AI Gateway.
-
-### Pergunta antes de codar
-- **Rascunho vs draftId**: prefere que eu já crie a venda como `rascunho` no passo 1 (mais simples, menos código, mas gera vendas "vazias" se o corretor desistir) ou usar `draftId` só em memória e só criar a venda ao confirmar (mais limpo no banco, mais código)?
+Se aprovar, implemento nessa ordem: migração → server functions → reorganização do wizard → selo IA nos campos.
