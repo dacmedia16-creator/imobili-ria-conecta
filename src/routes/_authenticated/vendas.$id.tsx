@@ -813,10 +813,10 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     } as any).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo, parte } });
-    toast.success("Documento enviado — iniciando leitura pela IA...");
+    toast.success("Documento enviado");
     onChange();
-    // Dispara extração automaticamente
-    if (inserted?.id) void runExtraction(inserted.id);
+    // IA só roda quando o usuário clicar em "Aplicar dados aos campos".
+    void inserted;
   };
 
   const download = async (doc: any) => {
