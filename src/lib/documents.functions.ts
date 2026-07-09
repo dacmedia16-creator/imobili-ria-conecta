@@ -152,12 +152,13 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         if (r.forma_pagamento) assign(salePatch, "forma_pagamento", r.forma_pagamento);
       }
 
-      // Partes — a "parte" do documento decide o papel (comprador_1 ou vendedor_1).
-      // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor).
+      // Partes — a "parte" do documento decide o papel (comprador_1/2 ou vendedor_1/2).
+      // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor_1).
       let papel: string | null = null;
-      if (parte === "comprador") papel = "comprador_1";
-      else if (parte === "vendedor") papel = "vendedor_1";
-      else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
+      if (parte === "comprador_1" || parte === "comprador_2" || parte === "vendedor_1" || parte === "vendedor_2") {
+        papel = parte;
+      } else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
+
 
       if (papel) {
         const nome = r.nome ?? r.nome_completo ?? (papel === "vendedor_1" ? r.nome_proprietario : null);
@@ -254,21 +255,24 @@ function safeParseJson(text: string): any | null {
 }
 
 function buildPromptForType(tipo: string, filename: string, parte: string): string {
+  const pessoaLabel =
+    parte === "comprador_1" ? "1º CLIENTE COMPRADOR" :
+    parte === "comprador_2" ? "2º CLIENTE COMPRADOR" :
+    parte === "vendedor_1" ? "1º CLIENTE VENDEDOR" :
+    parte === "vendedor_2" ? "2º CLIENTE VENDEDOR" : null;
   const parteHint =
-    parte === "comprador"
-      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE COMPRADOR da venda. Os dados pessoais extraídos devem ser atribuídos ao comprador."
-      : parte === "vendedor"
-      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE VENDEDOR da venda. Os dados pessoais extraídos devem ser atribuídos ao vendedor."
+    pessoaLabel
+      ? `\n\nATENÇÃO: Este documento pertence ao ${pessoaLabel} da venda. Os dados pessoais extraídos devem ser atribuídos a essa pessoa.`
       : parte === "imovel"
       ? "\n\nATENÇÃO: Este documento é do IMÓVEL (não é documento pessoal)."
       : "";
   const base = `Documento: ${filename} (tipo declarado: ${tipo}).${parteHint}\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
   const commonPessoal = `\n\nCampos pessoais possíveis:
 {
-  "nome": string|null,           // nome completo
-  "cpf": string|null,            // apenas dígitos ou formatado
+  "nome": string|null,
+  "cpf": string|null,
   "rg": string|null,
-  "data_nascimento": string|null,// YYYY-MM-DD se possível
+  "data_nascimento": string|null,
   "estado_civil": string|null,
   "profissao": string|null,
   "endereco": string|null,
@@ -289,10 +293,11 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
-  if (parte === "comprador" || parte === "vendedor") return base + commonPessoal;
+  if (pessoaLabel) return base + commonPessoal;
   if (parte === "imovel") return base + commonImovel;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
   if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
   return base + commonPessoal + commonImovel;
 }
+
 

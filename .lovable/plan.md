@@ -1,43 +1,48 @@
 ## Objetivo
-Na etapa **Documentos**, separar os documentos pessoais por **Cliente Comprador** e **Cliente Vendedor** (documentos do imóvel e outros continuam como estão). A IA deve preencher automaticamente os campos da parte correta — o que vier do RG/CPF do comprador entra em `comprador_1`, o do vendedor em `vendedor_1`.
+Permitir até **2 compradores** e **2 vendedores** na etapa de Documentos, com a IA roteando os dados extraídos para a pessoa certa (comprador_1, comprador_2, vendedor_1, vendedor_2).
 
 ## Mudanças
 
-### 1. Banco — nova coluna `parte` em `sale_documents`
-- Migração adicionando `parte text` com valores permitidos: `comprador` | `vendedor` | `imovel` | `outros`.
-- Default `outros` para não quebrar registros antigos.
-- Sem mudança de RLS (já é por `sale_id`).
+### 1. Banco (`sale_documents.parte`)
+Ampliar o check constraint da coluna `parte` para aceitar:
+- `comprador_1`, `comprador_2`
+- `vendedor_1`, `vendedor_2`
+- `imovel`, `outros`
 
-### 2. UI da etapa Documentos (`src/routes/_authenticated/vendas.$id.tsx`)
-Reorganizar o painel em 4 blocos visuais:
+Migração de dados: `comprador` → `comprador_1`, `vendedor` → `vendedor_1`.
 
-```text
-┌─ Cliente Comprador ─────────────┐
-│ RG · CPF · Certidão · Endereço  │  (upload com tipo)
-├─ Cliente Vendedor ──────────────┤
-│ RG · CPF · Certidão · Endereço  │
-├─ Documentos do Imóvel ──────────┤
-│ Matrícula · IPTU · CND          │
-├─ Outros ────────────────────────┤
-│ Contrato · Contrato assinado    │
-└─────────────────────────────────┘
-```
+### 2. Tipos e labels (`src/lib/status.ts`)
+Atualizar `DocParte` e `docParteLabel` com as 4 variações de pessoa + imóvel + outros. Cores:
+- Comprador 1: azul / Comprador 2: azul claro
+- Vendedor 1: âmbar / Vendedor 2: âmbar claro
+- Imóvel: esmeralda / Outros: cinza
 
-- Ao clicar em "Enviar" num bloco pessoal, o upload já grava `parte = 'comprador'` (ou `vendedor`) automaticamente.
-- Documentos do imóvel gravam `parte = 'imovel'`, contrato/outros gravam `parte = 'outros'`.
-- Documentos antigos sem `parte` aparecem em "Outros" com badge para o usuário reclassificar (dropdown inline).
+### 3. UI — etapa Documentos (`src/routes/_authenticated/vendas.$id.tsx`)
+Reorganizar em 6 blocos ao invés de 4:
+- Cliente Comprador 1
+- Cliente Comprador 2 *(colapsável, botão "+ Adicionar 2º comprador")*
+- Cliente Vendedor 1
+- Cliente Vendedor 2 *(colapsável, botão "+ Adicionar 2º vendedor")*
+- Documentos do Imóvel
+- Outros
 
-### 3. Extração da IA (`src/lib/documents.functions.ts`)
-- `extractDocument`: passa `parte` no prompt para o modelo saber que aquele documento é do comprador/vendedor (evita ambiguidade quando o próprio documento não diz).
-- `applySaleExtractions`: usa `sale_documents.parte` como fonte de verdade para decidir `comprador_1` vs `vendedor_1`. Remove o fallback "assume vendedor" que hoje pode misturar dados.
-- Documentos do imóvel continuam alimentando `salePatch` (matrícula, IPTU, etc.).
-- Regra mantida: só preenche campos vazios, nunca sobrescreve.
+Cada bloco grava a `parte` correta no upload.
 
-## Arquivos afetados
-- `supabase/migrations/<nova>.sql` — adiciona `parte` em `sale_documents`.
-- `src/routes/_authenticated/vendas.$id.tsx` — reescreve `DocumentsPanel` com 4 blocos e passa `parte` no insert.
-- `src/lib/documents.functions.ts` — usa `parte` no prompt e no roteamento do `applySaleExtractions`.
+### 4. IA — extração e aplicação (`src/lib/documents.functions.ts`)
+- Prompt informa qual pessoa (ex.: "documento do 2º comprador").
+- `applySaleExtractions` roteia:
+  - `comprador_1` → campos `comprador_1_*`
+  - `comprador_2` → campos `comprador_2_*`
+  - `vendedor_1` → campos `vendedor_1_*`
+  - `vendedor_2` → campos `vendedor_2_*`
+- Mantém regra de só preencher campos vazios.
 
-## Fora de escopo
-- Suportar múltiplos compradores/vendedores (`comprador_2`, `vendedor_2`). Fica pendente para uma próxima rodada — hoje o schema já tem `papel` livre, então dá para estender depois sem migração.
-- Mudanças no fluxo de status ou nos outros passos do wizard.
+### 5. Etapa Partes
+Garantir que os inputs de `comprador_2` e `vendedor_2` já existem no formulário; se estiverem ocultos, adicionar toggle "+ Adicionar 2ª pessoa" espelhando o comportamento da etapa Documentos.
+
+## Detalhes técnicos
+- Migração idempotente: `DROP CONSTRAINT ... IF EXISTS`, `UPDATE` dos valores antigos, `ADD CONSTRAINT` novo.
+- Sem mudança em RLS (a policy já é por `sale_id`).
+- Sem breaking change para vendas antigas: dados migrados automaticamente.
+
+Confirma que posso implementar?

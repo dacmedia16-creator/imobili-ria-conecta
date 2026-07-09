@@ -64,13 +64,16 @@ export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
   outros: "Outros documentos",
 };
 
-export type DocParte = "comprador" | "vendedor" | "imovel" | "outros";
+export type DocParte = "comprador_1" | "comprador_2" | "vendedor_1" | "vendedor_2" | "imovel" | "outros";
 export const DOC_PARTE_LABEL: Record<DocParte, string> = {
-  comprador: "Cliente Comprador",
-  vendedor: "Cliente Vendedor",
+  comprador_1: "Cliente Comprador 1",
+  comprador_2: "Cliente Comprador 2",
+  vendedor_1: "Cliente Vendedor 1",
+  vendedor_2: "Cliente Vendedor 2",
   imovel: "Documentos do Imóvel",
   outros: "Outros",
 };
+
 
 export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean }[] = [
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
