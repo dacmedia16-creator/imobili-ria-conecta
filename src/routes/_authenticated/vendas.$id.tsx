@@ -783,22 +783,23 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     }
   }, [onChange]);
 
-  const upload = async (tipo: string, file: File) => {
+  const upload = async (tipo: string, parte: DocParte, file: File) => {
     const ext = file.name.split(".").pop();
-    const path = `${saleId}/${tipo}/${crypto.randomUUID()}.${ext}`;
+    const path = `${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from("sale-documents").upload(path, file, { upsert: false });
     if (error) { toast.error(error.message); return; }
     const { data: inserted, error: insErr } = await supabase.from("sale_documents").insert({
-      sale_id: saleId, tipo, storage_path: path, file_name: file.name,
+      sale_id: saleId, tipo, parte, storage_path: path, file_name: file.name,
       uploaded_by: user!.id, status: "enviado",
-    }).select("id").single();
+    } as any).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo } });
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo, parte } });
     toast.success("Documento enviado — iniciando leitura pela IA...");
     onChange();
     // Dispara extração automaticamente
     if (inserted?.id) void runExtraction(inserted.id);
   };
+
   const download = async (doc: any) => {
     const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 60);
     if (error || !data) { toast.error("Falha ao gerar link"); return; }
