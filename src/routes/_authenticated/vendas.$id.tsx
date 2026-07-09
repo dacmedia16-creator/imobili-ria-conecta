@@ -331,7 +331,7 @@ function SaleDetail() {
     },
     {
       key: "ocorrencia",
-      label: "Ocorrência",
+      label: "5. Ocorrência",
       disabled: !canOccurrence,
       content: (
         <OccurrencePanel
@@ -348,7 +348,7 @@ function SaleDetail() {
     },
     {
       key: "historico",
-      label: "Histórico",
+      label: "6. Histórico",
       content: (
         <Card>
           <CardHeader><CardTitle>Histórico de status</CardTitle></CardHeader>
@@ -373,7 +373,7 @@ function SaleDetail() {
     },
     {
       key: "comentarios",
-      label: "Comentários",
+      label: "7. Comentários",
       content: <CommentsPanel saleId={id} comments={comments} onAdd={load} />,
     },
   ];
