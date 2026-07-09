@@ -768,6 +768,25 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const removeDoc = async (doc: any) => {
+    setDeleting(true);
+    try {
+      const { error: stErr } = await supabase.storage.from("sale-documents").remove([doc.storage_path]);
+      if (stErr) console.warn("storage remove", stErr.message);
+      await supabase.from("document_extractions").delete().eq("document_id", doc.id);
+      const { error } = await supabase.from("sale_documents").delete().eq("id", doc.id);
+      if (error) { toast.error(error.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_deleted", payload: { doc_id: doc.id, tipo: doc.tipo, parte: doc.parte, file_name: doc.file_name } });
+      toast.success("Documento excluído");
+      setPendingDelete(null);
+      onChange();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const runExtraction = useCallback(async (documentId: string) => {
     setExtracting((m) => ({ ...m, [documentId]: true }));
