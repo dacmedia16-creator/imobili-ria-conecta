@@ -813,10 +813,10 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     } as any).select("id").single();
     if (insErr) { toast.error(insErr.message); return; }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo, parte } });
-    toast.success("Documento enviado — iniciando leitura pela IA...");
+    toast.success("Documento enviado");
     onChange();
-    // Dispara extração automaticamente
-    if (inserted?.id) void runExtraction(inserted.id);
+    // IA só roda quando o usuário clicar em "Aplicar dados aos campos".
+    void inserted;
   };
 
   const download = async (doc: any) => {
@@ -850,22 +850,61 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     onChange();
   };
 
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
   const applyAll = async () => {
     setApplying(true);
+    setProgress(null);
     try {
+      // 1) Lê todos os docs que ainda não foram extraídos com sucesso
+      const pendentes = docs.filter((d) => d.extraction_status !== "done");
+      let lidos = 0;
+      let falhas = 0;
+      if (pendentes.length > 0) {
+        setProgress({ done: 0, total: pendentes.length });
+        // marca todos como "IA lendo" no UI
+        setExtracting((m) => {
+          const next = { ...m };
+          for (const d of pendentes) next[d.id] = true;
+          return next;
+        });
+        const results = await Promise.allSettled(
+          pendentes.map(async (d) => {
+            try {
+              const res = await extractDocument({ data: { documentId: d.id } });
+              return res.ok;
+            } finally {
+              setExtracting((m) => ({ ...m, [d.id]: false }));
+              setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+            }
+          }),
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value) lidos++;
+          else falhas++;
+        }
+        onChange();
+      }
+
+      // 2) Aplica os dados extraídos aos campos
       const res = await applySaleExtractions({ data: { saleId } });
-      if (res.filled.length === 0) toast.info("Nenhum campo novo para preencher (ou os campos já estão preenchidos)");
-      else toast.success(`${res.filled.length} campo(s) preenchido(s) automaticamente. Confira nas próximas etapas.`);
+      const partes = [];
+      if (lidos) partes.push(`${lidos} doc(s) lido(s) pela IA`);
+      if (falhas) partes.push(`${falhas} falha(s) na leitura`);
+      if (res.filled.length) partes.push(`${res.filled.length} campo(s) preenchido(s)`);
+      if (partes.length === 0) toast.info("Nenhum campo novo para preencher");
+      else if (falhas) toast.warning(partes.join(" • "));
+      else toast.success(partes.join(" • "));
       onChange();
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao aplicar dados");
     } finally {
       setApplying(false);
+      setProgress(null);
     }
   };
 
-  const anyExtracted = docs.some((d) => d.extraction_status === "done");
-  const anyPending = docs.some((d) => d.extraction_status === "pending") || Object.values(extracting).some(Boolean);
+  const anyPending = Object.values(extracting).some(Boolean);
 
   // Blocos por parte da venda. Compradores/vendedores extras aparecem sob demanda
   // (a IA usa a parte declarada em cada upload para rotear os dados extraídos).
@@ -903,11 +942,17 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={applyAll} disabled={!anyExtracted || applying || !editable}>
-            {applying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aplicando...</> : <><Sparkles className="mr-2 h-4 w-4" />Aplicar dados aos campos</>}
+          <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
+            {applying ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
+              </>
+            ) : (
+              <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
+            )}
           </Button>
         </CardContent>
-        {anyPending && (
+        {anyPending && !applying && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
             <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Lendo documento(s)...
           </CardContent>
@@ -1021,7 +1066,7 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
   if (loading || status === "pending") return <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-900"><Loader2 className="h-3 w-3 animate-spin" />IA lendo</span>;
   if (status === "done") return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900"><Sparkles className="h-3 w-3" />IA ok</span>;
   if (status === "failed") return <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs text-destructive">IA falhou</span>;
-  return null;
+  return <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Aguardando IA</span>;
 }
 
 function DocStatusBadge({ status }: { status: string }) {
