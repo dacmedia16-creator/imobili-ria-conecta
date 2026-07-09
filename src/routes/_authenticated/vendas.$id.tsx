@@ -848,7 +848,16 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   const anyExtracted = docs.some((d) => d.extraction_status === "done");
   const anyPending = docs.some((d) => d.extraction_status === "pending") || Object.values(extracting).some(Boolean);
 
-  const grupos: DocGrupo[] = ["pessoal", "imovel", "outros"];
+  // Blocos por parte da venda. Documentos pessoais (RG/CPF/certidão/endereço)
+  // aparecem 2x — uma vez para o comprador e outra para o vendedor —
+  // para que a IA saiba a quem atribuir os dados extraídos.
+  const blocos: { parte: DocParte; tipos: typeof DOC_TYPES }[] = [
+    { parte: "comprador", tipos: DOC_TYPES.filter(t => t.grupo === "pessoal") },
+    { parte: "vendedor", tipos: DOC_TYPES.filter(t => t.grupo === "pessoal") },
+    { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
+    { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
+  ];
+
   return (
     <div className="space-y-6">
       <Card className="border-primary/40 bg-primary/5">
@@ -858,7 +867,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
             <div className="text-sm">
               <div className="font-medium">Leitura automática por IA</div>
               <p className="text-muted-foreground">
-                Anexe os documentos primeiro. Assim que forem enviados, a IA lê e sugere os dados das próximas etapas (partes, valores, matrícula). Você confere e edita antes de enviar ao gestor.
+                Envie os documentos de cada parte no bloco correspondente (Comprador ou Vendedor). A IA lê cada arquivo e sugere os dados nas próximas etapas — você confere e edita antes de enviar ao gestor.
               </p>
             </div>
           </div>
@@ -873,17 +882,20 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
         )}
       </Card>
 
-      {grupos.map((g) => {
-        const tipos = DOC_TYPES.filter(t => t.grupo === g);
+      {blocos.map(({ parte, tipos }) => {
         if (tipos.length === 0) return null;
+        const parteAccent =
+          parte === "comprador" ? "border-l-4 border-l-blue-500" :
+          parte === "vendedor" ? "border-l-4 border-l-amber-500" :
+          parte === "imovel" ? "border-l-4 border-l-emerald-500" : "";
         return (
-          <section key={g} className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_GRUPO_LABEL[g]}</h3>
+          <section key={parte} className="space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_PARTE_LABEL[parte]}</h3>
             {tipos.map((t) => {
-              const list = docs.filter(d => d.tipo === t.key);
+              const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
               return (
-                <Card key={t.key}>
+                <Card key={`${parte}-${t.key}`} className={parteAccent}>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
@@ -896,7 +908,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                           <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
                             <Upload className="h-4 w-4" />
                             <span>{latest?.status === "recusado" ? "Reenviar" : "Enviar"}</span>
-                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && upload(t.key, e.target.files[0])} />
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && upload(t.key, parte, e.target.files[0])} />
                           </label>
                         )}
                       </div>
@@ -934,6 +946,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
         );
       })}
     </div>
+
   );
 }
 
