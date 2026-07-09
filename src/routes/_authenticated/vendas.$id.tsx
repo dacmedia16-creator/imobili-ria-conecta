@@ -942,11 +942,17 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={applyAll} disabled={!anyExtracted || applying || !editable}>
-            {applying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Aplicando...</> : <><Sparkles className="mr-2 h-4 w-4" />Aplicar dados aos campos</>}
+          <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
+            {applying ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
+              </>
+            ) : (
+              <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
+            )}
           </Button>
         </CardContent>
-        {anyPending && (
+        {anyPending && !applying && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
             <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Lendo documento(s)...
           </CardContent>
