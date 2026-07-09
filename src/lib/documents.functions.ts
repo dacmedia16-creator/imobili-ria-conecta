@@ -23,7 +23,7 @@ export const extractDocument = createServerFn({ method: "POST" })
 
     const { data: doc, error: docErr } = await supabase
       .from("sale_documents")
-      .select("id, sale_id, storage_path, file_name, tipo")
+      .select("id, sale_id, storage_path, file_name, tipo, parte")
       .eq("id", data.documentId)
       .maybeSingle();
     if (docErr || !doc) throw new Error(docErr?.message ?? "Documento não encontrado");
@@ -47,7 +47,7 @@ export const extractDocument = createServerFn({ method: "POST" })
     const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
     const isPdf = mime === "application/pdf";
 
-    const prompt = buildPromptForType(doc.tipo, doc.file_name);
+    const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
     const contentBlocks: any[] = [{ type: "text", text: prompt }];
     if (isPdf) {
       contentBlocks.push({
@@ -60,6 +60,7 @@ export const extractDocument = createServerFn({ method: "POST" })
         image_url: { url: `data:${mime};base64,${b64}` },
       });
     }
+
 
     let raw: any = null;
     try {
