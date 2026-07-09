@@ -1,35 +1,27 @@
-## Erro ao anexar contrato (usuário Jurídico) — correção
+## Objetivo
+Quando o Jurídico clica em **"Anexar contrato e enviar ao gestor"**, hoje só muda o status. Vou trocar por um fluxo em 2 passos: primeiro anexa o arquivo do contrato, depois envia para o gestor conferir.
 
-### Causa
-A política de leitura `sales_select` do Jurídico só inclui alguns status (`aprovada_gestor`, `enviada_juridico`, `em_elaboracao_contrato`, `aguardando_assinatura`, `contrato_assinado`, `ocorrencia_pendente`, `ocorrencia_concluida`). Faltam os intermediários que o próprio fluxo criou:
+## Mudanças (só em `src/routes/_authenticated/vendas.$id.tsx`)
 
-- `contrato_conferencia_gestor`
-- `contrato_conferencia_corretor`
-- `contrato_ok_corretor`
-- `ocorrencia_analise_financeiro`
-- `ocorrencia_devolvida_gestor`
+1. Substituir o botão único por um **diálogo de anexo** que:
+   - Aceita PDF/DOC/DOCX (input file).
+   - Faz upload no bucket `sale-documents` com `categoria = "contrato"` e `parte = "outros"` (mesmo padrão dos outros documentos).
+   - Grava a linha em `sale_documents`.
+   - Só depois muda o status para `contrato_conferencia_gestor` e registra em `sale_status_history`.
 
-Quando o Jurídico clica em **"Anexar contrato e enviar ao gestor"**, o front faz `UPDATE sales SET status='contrato_conferencia_gestor'`. Com `return=representation` (padrão do Supabase JS), o PostgREST relê a linha já com o novo status — que o Jurídico não pode mais ver — e devolve `42501 / new row violates row-level security policy`. O mesmo problema derruba as demais transições intermediárias (voltar do gestor para o jurídico, etc.).
+2. Se já existir um contrato anexado, o diálogo mostra o(s) arquivo(s) já enviados e permite:
+   - **Substituir** (subir nova versão — o anterior fica no histórico, marcado como versão antiga).
+   - **Enviar assim mesmo** (usar o contrato já anexado).
 
-Como bônus, `sales_select` e `sales_update_owner_draft` ainda referenciam a role `coordenador` (removida) e não incluem `super_admin` no bypass.
+3. Bloqueio: o botão de enviar ao gestor fica **desabilitado** enquanto nenhum arquivo de categoria `contrato` estiver anexado.
 
-### O que vou fazer
+4. Mensagens de erro claras (falha de upload, falha de RLS, arquivo grande demais).
 
-**1. Migração em `public.sales` (uma migração só):**
-- Recriar `sales_select` para Jurídico com a lista completa de status do fluxo de contrato + ocorrência.
-- Adicionar `super_admin` ao bypass admin/financeiro em `sales_select`.
-- Remover referências à role `coordenador` em `sales_select` e `sales_update_owner_draft`.
-- Atualizar `public.can_view_sale` incluindo `super_admin` e removendo `coordenador`.
-- Manter `sales_update_owner_draft` com a mesma semântica (USING + WITH CHECK via `can_view_sale` + trava do financeiro), agora coerente com a SELECT expandida.
+## Não muda
+- Fluxo de status, RLS, papéis.
+- Etapa "Documentos" do wizard continua igual (o contrato também aparecerá lá, na seção "Outros", categoria Contrato).
+- Botões dos outros perfis (gestor, corretor, financeiro).
 
-**2. Frontend — `src/routes/_authenticated/vendas.$id.tsx`:**
-- Trocar `.update({ status }).eq('id', id)` por `.update(...).eq('id', id).select('id').maybeSingle()` (projeção mínima) para reduzir sensibilidade a policies de leitura e melhorar a mensagem de erro exibida.
-- Renderizar os botões de ação apenas quando `!loading` do `useAuth`, evitando cliques com papéis ainda não carregados.
-
-### Verificação
-- Como **Jurídico**, avançar `em_elaboracao_contrato` → `contrato_conferencia_gestor` deve funcionar e a venda continua visível na lista do Jurídico.
-- Como **Gestor**, devolver ao jurídico e mandar ao corretor devem funcionar.
-- Como **Corretor** puro, botões de Jurídico/Gestor/Financeiro não aparecem.
-- Rodar `supabase--linter` depois da migração.
-
-Confirma que aplico?
+## Fora de escopo
+- Assinatura eletrônica.
+- Versionamento formal (por ora, cada upload é uma linha nova em `sale_documents`).

@@ -67,6 +67,9 @@ function SaleDetail() {
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
+  const [contratoFile, setContratoFile] = useState<File | null>(null);
+  const [contratoUploading, setContratoUploading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -211,6 +214,35 @@ function SaleDetail() {
     }
     toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
     load();
+  };
+
+  const contratoDocs = docs.filter((d) => d.tipo === "contrato");
+
+  const uploadContratoAndSend = async () => {
+    if (!contratoFile && contratoDocs.length === 0) {
+      toast.error("Anexe o arquivo do contrato antes de enviar.");
+      return;
+    }
+    setContratoUploading(true);
+    try {
+      if (contratoFile) {
+        const ext = contratoFile.name.split(".").pop();
+        const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
+        if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+        const { error: insErr } = await supabase.from("sale_documents").insert({
+          sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
+          file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
+        } as any);
+        if (insErr) { toast.error(insErr.message); return; }
+        await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
+      }
+      setContratoDialogOpen(false);
+      setContratoFile(null);
+      await changeStatus("contrato_conferencia_gestor");
+    } finally {
+      setContratoUploading(false);
+    }
   };
 
   const openReturnDialog = (target: SaleStatus) => { setReturnTarget(target); setReturnMotivo(""); setReturnOpen(true); };
@@ -417,7 +449,7 @@ function SaleDetail() {
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
-              <Button onClick={() => changeStatus("contrato_conferencia_gestor")}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
+              <Button onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
             </>
           )}
@@ -583,6 +615,55 @@ function SaleDetail() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReturnOpen(false)}>Cancelar</Button>
             <Button onClick={submitReturn} disabled={!returnMotivo.trim()}>Devolver</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contratoDialogOpen} onOpenChange={(o) => { if (!contratoUploading) setContratoDialogOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Anexar contrato</DialogTitle>
+            <DialogDescription>
+              Envie o arquivo do contrato (PDF, DOC ou DOCX). Após anexar, a venda vai para conferência do gestor.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contratoDocs.length > 0 && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <div className="mb-1 font-medium">Contrato(s) já anexado(s):</div>
+              <ul className="space-y-1 text-muted-foreground">
+                {contratoDocs.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="truncate">{d.file_name}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 text-xs">Você pode enviar uma nova versão abaixo ou apenas prosseguir com a atual.</div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Arquivo do contrato {contratoDocs.length === 0 && <span className="text-destructive">*</span>}</Label>
+            <Input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => setContratoFile(e.target.files?.[0] ?? null)}
+              disabled={contratoUploading}
+            />
+            {contratoFile && (
+              <div className="text-xs text-muted-foreground">Selecionado: {contratoFile.name}</div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setContratoDialogOpen(false)} disabled={contratoUploading}>Cancelar</Button>
+            <Button
+              onClick={uploadContratoAndSend}
+              disabled={contratoUploading || (!contratoFile && contratoDocs.length === 0)}
+            >
+              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Send className="mr-2 h-4 w-4" />Anexar e enviar ao gestor</>)}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
