@@ -255,21 +255,24 @@ function safeParseJson(text: string): any | null {
 }
 
 function buildPromptForType(tipo: string, filename: string, parte: string): string {
+  const pessoaLabel =
+    parte === "comprador_1" ? "1º CLIENTE COMPRADOR" :
+    parte === "comprador_2" ? "2º CLIENTE COMPRADOR" :
+    parte === "vendedor_1" ? "1º CLIENTE VENDEDOR" :
+    parte === "vendedor_2" ? "2º CLIENTE VENDEDOR" : null;
   const parteHint =
-    parte === "comprador"
-      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE COMPRADOR da venda. Os dados pessoais extraídos devem ser atribuídos ao comprador."
-      : parte === "vendedor"
-      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE VENDEDOR da venda. Os dados pessoais extraídos devem ser atribuídos ao vendedor."
+    pessoaLabel
+      ? `\n\nATENÇÃO: Este documento pertence ao ${pessoaLabel} da venda. Os dados pessoais extraídos devem ser atribuídos a essa pessoa.`
       : parte === "imovel"
       ? "\n\nATENÇÃO: Este documento é do IMÓVEL (não é documento pessoal)."
       : "";
   const base = `Documento: ${filename} (tipo declarado: ${tipo}).${parteHint}\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
   const commonPessoal = `\n\nCampos pessoais possíveis:
 {
-  "nome": string|null,           // nome completo
-  "cpf": string|null,            // apenas dígitos ou formatado
+  "nome": string|null,
+  "cpf": string|null,
   "rg": string|null,
-  "data_nascimento": string|null,// YYYY-MM-DD se possível
+  "data_nascimento": string|null,
   "estado_civil": string|null,
   "profissao": string|null,
   "endereco": string|null,
@@ -290,10 +293,11 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
-  if (parte === "comprador" || parte === "vendedor") return base + commonPessoal;
+  if (pessoaLabel) return base + commonPessoal;
   if (parte === "imovel") return base + commonImovel;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
   if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
   return base + commonPessoal + commonImovel;
 }
+
 
