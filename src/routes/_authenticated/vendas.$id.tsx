@@ -850,13 +850,13 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
 
   // Blocos por parte da venda. Compradores/vendedores extras aparecem sob demanda
   // (a IA usa a parte declarada em cada upload para rotear os dados extraídos).
-  const [showComprador2, setShowComprador2] = React.useState<boolean>(
+  const [showComprador2, setShowComprador2] = useState<boolean>(
     docs.some(d => d.parte === "comprador_2")
   );
-  const [showVendedor2, setShowVendedor2] = React.useState<boolean>(
+  const [showVendedor2, setShowVendedor2] = useState<boolean>(
     docs.some(d => d.parte === "vendedor_2")
   );
-  React.useEffect(() => {
+  useEffect(() => {
     if (docs.some(d => d.parte === "comprador_2")) setShowComprador2(true);
     if (docs.some(d => d.parte === "vendedor_2")) setShowVendedor2(true);
   }, [docs]);
