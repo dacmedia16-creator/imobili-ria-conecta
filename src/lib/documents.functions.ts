@@ -152,12 +152,13 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         if (r.forma_pagamento) assign(salePatch, "forma_pagamento", r.forma_pagamento);
       }
 
-      // Partes — a "parte" do documento decide o papel (comprador_1 ou vendedor_1).
-      // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor).
+      // Partes — a "parte" do documento decide o papel (comprador_1/2 ou vendedor_1/2).
+      // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor_1).
       let papel: string | null = null;
-      if (parte === "comprador") papel = "comprador_1";
-      else if (parte === "vendedor") papel = "vendedor_1";
-      else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
+      if (parte === "comprador_1" || parte === "comprador_2" || parte === "vendedor_1" || parte === "vendedor_2") {
+        papel = parte;
+      } else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
+
 
       if (papel) {
         const nome = r.nome ?? r.nome_completo ?? (papel === "vendedor_1" ? r.nome_proprietario : null);
