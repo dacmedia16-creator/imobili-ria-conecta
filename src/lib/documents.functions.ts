@@ -112,7 +112,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ApplyInput.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const supabase = context.supabase as any;
     const filled: string[] = [];
 
     const { data: extractions } = await supabase
