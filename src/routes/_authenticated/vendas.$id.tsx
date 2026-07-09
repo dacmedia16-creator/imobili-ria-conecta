@@ -44,7 +44,7 @@ function SaleDetail() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
-  const [step, setStep] = useState<string>("resumo");
+  const [step, setStep] = useState<string>("documentos");
 
   // Buffered Resumo form
   const [formSale, setFormSale] = useState<any>({});
