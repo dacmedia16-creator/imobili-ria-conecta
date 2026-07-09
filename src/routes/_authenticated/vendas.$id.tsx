@@ -850,22 +850,61 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     onChange();
   };
 
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
   const applyAll = async () => {
     setApplying(true);
+    setProgress(null);
     try {
+      // 1) Lê todos os docs que ainda não foram extraídos com sucesso
+      const pendentes = docs.filter((d) => d.extraction_status !== "done");
+      let lidos = 0;
+      let falhas = 0;
+      if (pendentes.length > 0) {
+        setProgress({ done: 0, total: pendentes.length });
+        // marca todos como "IA lendo" no UI
+        setExtracting((m) => {
+          const next = { ...m };
+          for (const d of pendentes) next[d.id] = true;
+          return next;
+        });
+        const results = await Promise.allSettled(
+          pendentes.map(async (d) => {
+            try {
+              const res = await extractDocument({ data: { documentId: d.id } });
+              return res.ok;
+            } finally {
+              setExtracting((m) => ({ ...m, [d.id]: false }));
+              setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+            }
+          }),
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value) lidos++;
+          else falhas++;
+        }
+        onChange();
+      }
+
+      // 2) Aplica os dados extraídos aos campos
       const res = await applySaleExtractions({ data: { saleId } });
-      if (res.filled.length === 0) toast.info("Nenhum campo novo para preencher (ou os campos já estão preenchidos)");
-      else toast.success(`${res.filled.length} campo(s) preenchido(s) automaticamente. Confira nas próximas etapas.`);
+      const partes = [];
+      if (lidos) partes.push(`${lidos} doc(s) lido(s) pela IA`);
+      if (falhas) partes.push(`${falhas} falha(s) na leitura`);
+      if (res.filled.length) partes.push(`${res.filled.length} campo(s) preenchido(s)`);
+      if (partes.length === 0) toast.info("Nenhum campo novo para preencher");
+      else if (falhas) toast.warning(partes.join(" • "));
+      else toast.success(partes.join(" • "));
       onChange();
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao aplicar dados");
     } finally {
       setApplying(false);
+      setProgress(null);
     }
   };
 
-  const anyExtracted = docs.some((d) => d.extraction_status === "done");
-  const anyPending = docs.some((d) => d.extraction_status === "pending") || Object.values(extracting).some(Boolean);
+  const anyPending = Object.values(extracting).some(Boolean);
 
   // Blocos por parte da venda. Compradores/vendedores extras aparecem sob demanda
   // (a IA usa a parte declarada em cada upload para rotear os dados extraídos).
