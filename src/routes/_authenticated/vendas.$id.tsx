@@ -420,7 +420,7 @@ function SaleDetail() {
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
-              <Button onClick={() => changeStatus("contrato_conferencia_gestor")}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
+              <Button onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
             </>
           )}
