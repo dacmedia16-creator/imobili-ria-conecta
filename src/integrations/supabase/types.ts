@@ -450,6 +450,7 @@ export type Database = {
           file_name: string | null
           id: string
           motivo_recusa: string | null
+          parte: string
           sale_id: string
           status: Database["public"]["Enums"]["doc_status"]
           storage_path: string | null
@@ -464,6 +465,7 @@ export type Database = {
           file_name?: string | null
           id?: string
           motivo_recusa?: string | null
+          parte?: string
           sale_id: string
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null
@@ -478,6 +480,7 @@ export type Database = {
           file_name?: string | null
           id?: string
           motivo_recusa?: string | null
+          parte?: string
           sale_id?: string
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null

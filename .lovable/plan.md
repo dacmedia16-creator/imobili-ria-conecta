@@ -1,52 +1,43 @@
+## Objetivo
+Na etapa **Documentos**, separar os documentos pessoais por **Cliente Comprador** e **Cliente Vendedor** (documentos do imóvel e outros continuam como estão). A IA deve preencher automaticamente os campos da parte correta — o que vier do RG/CPF do comprador entra em `comprador_1`, o do vendedor em `vendedor_1`.
 
-# Documentos como primeira etapa + autopreenchimento por IA
+## Mudanças
 
-## Fluxo novo
+### 1. Banco — nova coluna `parte` em `sale_documents`
+- Migração adicionando `parte text` com valores permitidos: `comprador` | `vendedor` | `imovel` | `outros`.
+- Default `outros` para não quebrar registros antigos.
+- Sem mudança de RLS (já é por `sale_id`).
 
-1. **Etapa 1 — Documentos** (nova primeira etapa do wizard)
-   - Ao abrir `/vendas/nova`, a venda é criada imediatamente como `rascunho` (necessário porque os arquivos precisam ficar ligados à venda no banco — o jurídico usa depois para imprimir).
-   - Corretor sobe cada documento nos grupos já existentes (Pessoais / Imóvel / Outros — tipos definidos em `DOC_TYPES` em `src/lib/status.ts`).
-   - A cada upload concluído, dispara **extração por IA** (Lovable AI / Gemini multimodal) em background; o corretor vê "Lendo documento..." e depois um badge "Campos extraídos".
-2. **Etapas seguintes** (Partes, Pagamento, Ocorrência, etc.) já abrem com os campos **pré-preenchidos** pela IA — corretor só confere e corrige.
-   - Cada campo autopreenchido mostra um selo discreto "sugerido pela IA" que some ao editar.
+### 2. UI da etapa Documentos (`src/routes/_authenticated/vendas.$id.tsx`)
+Reorganizar o painel em 4 blocos visuais:
 
-## O que a IA extrai (por tipo de documento)
+```text
+┌─ Cliente Comprador ─────────────┐
+│ RG · CPF · Certidão · Endereço  │  (upload com tipo)
+├─ Cliente Vendedor ──────────────┤
+│ RG · CPF · Certidão · Endereço  │
+├─ Documentos do Imóvel ──────────┤
+│ Matrícula · IPTU · CND          │
+├─ Outros ────────────────────────┤
+│ Contrato · Contrato assinado    │
+└─────────────────────────────────┘
+```
 
-- **RG / CNH** → nome completo, CPF, RG, data de nascimento, filiação, estado civil → grava em `sale_parties` (comprador/vendedor).
-- **Certidão de casamento** → estado civil, regime de bens, cônjuge → `sale_parties`.
-- **Contrato social / CNPJ** → razão social, CNPJ, sócio administrador → `sale_parties` (PJ).
-- **Matrícula do imóvel** → endereço, matrícula, área, cartório, proprietários atuais, ônus → `sales` (endereco, matricula) + observações.
-- **Comprovante de residência** → endereço → `sale_parties`.
-- **Contracheque / IR** → renda declarada → `sale_payment` (quando financiamento).
+- Ao clicar em "Enviar" num bloco pessoal, o upload já grava `parte = 'comprador'` (ou `vendedor`) automaticamente.
+- Documentos do imóvel gravam `parte = 'imovel'`, contrato/outros gravam `parte = 'outros'`.
+- Documentos antigos sem `parte` aparecem em "Outros" com badge para o usuário reclassificar (dropdown inline).
 
-Campos não reconhecidos ficam vazios, sem erro.
+### 3. Extração da IA (`src/lib/documents.functions.ts`)
+- `extractDocument`: passa `parte` no prompt para o modelo saber que aquele documento é do comprador/vendedor (evita ambiguidade quando o próprio documento não diz).
+- `applySaleExtractions`: usa `sale_documents.parte` como fonte de verdade para decidir `comprador_1` vs `vendedor_1`. Remove o fallback "assume vendedor" que hoje pode misturar dados.
+- Documentos do imóvel continuam alimentando `salePatch` (matrícula, IPTU, etc.).
+- Regra mantida: só preenche campos vazios, nunca sobrescreve.
 
-## Implementação
+## Arquivos afetados
+- `supabase/migrations/<nova>.sql` — adiciona `parte` em `sale_documents`.
+- `src/routes/_authenticated/vendas.$id.tsx` — reescreve `DocumentsPanel` com 4 blocos e passa `parte` no insert.
+- `src/lib/documents.functions.ts` — usa `parte` no prompt e no roteamento do `applySaleExtractions`.
 
-### Banco (migração)
-- Nova tabela `document_extractions` (por documento): `document_id`, `sale_id`, `status` (pending/done/failed), `raw_json`, `error`, timestamps. RLS: mesma regra de `sale_documents` (quem pode ver a venda vê a extração).
-- Coluna nova em `sale_documents`: `extraction_status` (para o badge na UI).
-
-### Server function (`src/lib/documents.functions.ts`, novo)
-- `extractDocument({ documentId })`: middleware `requireSupabaseAuth`, carrega o arquivo via signed URL, chama Lovable AI Gateway (`google/gemini-2.5-flash`, multimodal image/PDF) com prompt específico por `tipo` do documento e um schema Zod pequeno para saída estruturada (guardado com `NoObjectGeneratedError`). Grava resultado em `document_extractions` e atualiza `sale_documents.extraction_status`.
-- `applyExtractionsToSale({ saleId })`: consolida todas as extrações done da venda e devolve um patch sugerido `{ parties, payment, sale }` para o front (não grava — o corretor confirma nas próximas etapas).
-
-### Frontend
-- `src/components/Wizard.tsx`: sem mudança estrutural — só reordenar as etapas no chamador.
-- `src/routes/_authenticated/vendas.$id.tsx`:
-  - Mover **Documentos** para a posição 1 do array `steps`.
-  - Painel de Documentos: após upload, chama `extractDocument` e mostra estado (Lendo → Pronto/Falhou + botão "Tentar de novo").
-  - Ao mudar de etapa, se houver extrações novas, chamar `applyExtractionsToSale` e mesclar no estado local do wizard (buffered, só salva ao avançar — mantém o comportamento atual).
-  - Campos vindos da IA renderizam selo "IA" (some ao editar).
-- `src/routes/_authenticated/vendas.nova.tsx`: cria a venda como `rascunho` e já redireciona para a etapa Documentos.
-
-### Segurança / permissões
-- Sem mudança na matriz existente — só corretor dono / gestor / jurídico / financeiro / admin veem os documentos e as extrações (RLS de `sale_documents` já cobre).
-- Chamada da IA sempre server-side; `LOVABLE_API_KEY` fica no servidor.
-
-## Fora do escopo desta rodada
-- Reprocessar documentos antigos em massa.
-- Extração de assinaturas / reconhecimento facial.
-- Validação cruzada (ex.: CPF do RG bate com CPF digitado) — fica para próxima.
-
-Se aprovar, implemento nessa ordem: migração → server functions → reorganização do wizard → selo IA nos campos.
+## Fora de escopo
+- Suportar múltiplos compradores/vendedores (`comprador_2`, `vendedor_2`). Fica pendente para uma próxima rodada — hoje o schema já tem `papel` livre, então dá para estender depois sem migração.
+- Mudanças no fluxo de status ou nos outros passos do wizard.

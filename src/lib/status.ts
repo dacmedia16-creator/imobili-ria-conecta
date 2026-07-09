@@ -63,6 +63,15 @@ export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
   imovel: "Documentos do imóvel",
   outros: "Outros documentos",
 };
+
+export type DocParte = "comprador" | "vendedor" | "imovel" | "outros";
+export const DOC_PARTE_LABEL: Record<DocParte, string> = {
+  comprador: "Cliente Comprador",
+  vendedor: "Cliente Vendedor",
+  imovel: "Documentos do Imóvel",
+  outros: "Outros",
+};
+
 export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean }[] = [
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
   { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true },
@@ -75,6 +84,7 @@ export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigator
   { key: "contrato_assinado", label: "Contrato assinado", grupo: "outros" },
   { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
+
 
 /** Retorna o rótulo do responsável pela próxima ação de acordo com o status. */
 export function proximoResponsavel(status: SaleStatus): { titulo: string; papel: string } {

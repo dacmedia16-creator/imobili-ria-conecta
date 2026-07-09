@@ -23,7 +23,7 @@ export const extractDocument = createServerFn({ method: "POST" })
 
     const { data: doc, error: docErr } = await supabase
       .from("sale_documents")
-      .select("id, sale_id, storage_path, file_name, tipo")
+      .select("id, sale_id, storage_path, file_name, tipo, parte")
       .eq("id", data.documentId)
       .maybeSingle();
     if (docErr || !doc) throw new Error(docErr?.message ?? "Documento não encontrado");
@@ -47,7 +47,7 @@ export const extractDocument = createServerFn({ method: "POST" })
     const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
     const isPdf = mime === "application/pdf";
 
-    const prompt = buildPromptForType(doc.tipo, doc.file_name);
+    const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
     const contentBlocks: any[] = [{ type: "text", text: prompt }];
     if (isPdf) {
       contentBlocks.push({
@@ -60,6 +60,7 @@ export const extractDocument = createServerFn({ method: "POST" })
         image_url: { url: `data:${mime};base64,${b64}` },
       });
     }
+
 
     let raw: any = null;
     try {
@@ -117,7 +118,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
 
     const { data: extractions } = await supabase
       .from("document_extractions")
-      .select("raw_json, sale_documents(tipo)")
+      .select("raw_json, sale_documents(tipo, parte)")
       .eq("sale_id", data.saleId)
       .eq("status", "done");
 
@@ -131,44 +132,52 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
     for (const ext of extractions as any[]) {
       const r = ext.raw_json ?? {};
       const tipo: string = ext.sale_documents?.tipo ?? "outros";
+      const parte: string = ext.sale_documents?.parte ?? "outros";
 
-      // Campos do imóvel (matrícula, IPTU)
-      assign(salePatch, "matricula", r.matricula ?? r.numero_matricula);
-      assign(salePatch, "imovel_id", r.codigo_imovel);
-      assign(salePatch, "iptu", r.iptu ?? r.numero_iptu ?? r.inscricao_iptu);
-      if (r.valor_venal) assign(salePatch, "valor_anunciado", num(r.valor_venal));
-      if (r.valor_negociado) assign(salePatch, "valor_negociado", num(r.valor_negociado));
-      if (r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
+      // Campos do imóvel (matrícula, IPTU) — só se documento é do imóvel/outros
+      if (parte === "imovel" || parte === "outros") {
+        assign(salePatch, "matricula", r.matricula ?? r.numero_matricula);
+        assign(salePatch, "imovel_id", r.codigo_imovel);
+        assign(salePatch, "iptu", r.iptu ?? r.numero_iptu ?? r.inscricao_iptu);
+        if (r.valor_venal) assign(salePatch, "valor_anunciado", num(r.valor_venal));
+        if (r.valor_negociado) assign(salePatch, "valor_negociado", num(r.valor_negociado));
+        if (r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
 
-      // Pagamento
-      if (r.entrada_valor) assign(paymentPatch, "entrada_valor", num(r.entrada_valor));
-      if (r.financiamento_valor) {
-        assign(paymentPatch, "financiamento", true);
-        assign(paymentPatch, "financiamento_valor", num(r.financiamento_valor));
+        // Pagamento (só de docs do imóvel/contrato/outros)
+        if (r.entrada_valor) assign(paymentPatch, "entrada_valor", num(r.entrada_valor));
+        if (r.financiamento_valor) {
+          assign(paymentPatch, "financiamento", true);
+          assign(paymentPatch, "financiamento_valor", num(r.financiamento_valor));
+        }
+        if (r.forma_pagamento) assign(salePatch, "forma_pagamento", r.forma_pagamento);
       }
-      if (r.forma_pagamento) assign(salePatch, "forma_pagamento", r.forma_pagamento);
 
-      // Partes (RG / CPF / certidões trazem dados pessoais)
-      const isVendedor = tipo.includes("vendedor") || r.papel === "vendedor" || r.eh_vendedor === true;
-      const isComprador = tipo.includes("comprador") || r.papel === "comprador" || r.eh_comprador === true;
-      // Sem indicação: assume vendedor por padrão para RG/CPF pessoal
-      const papel = isComprador ? "comprador_1" : isVendedor ? "vendedor_1" : (r.nome_proprietario ? "vendedor_1" : "vendedor_1");
-      const nome = r.nome ?? r.nome_completo ?? r.nome_proprietario;
-      const rg = r.rg ?? r.numero_rg;
-      const cpf = r.cpf ?? r.cpf_cnpj ?? r.cnpj;
-      const prof = r.profissao;
-      const email = r.email;
-      const tel = r.telefone ?? r.celular;
-      if (nome || rg || cpf || prof || email || tel) {
-        const p = (partiesPatch[papel] ??= {});
-        assign(p, "nome", nome);
-        assign(p, "rg", rg);
-        assign(p, "cpf_cnpj", cpf);
-        assign(p, "profissao", prof);
-        assign(p, "email", email);
-        assign(p, "telefone", tel);
+      // Partes — a "parte" do documento decide o papel (comprador_1 ou vendedor_1).
+      // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor).
+      let papel: string | null = null;
+      if (parte === "comprador") papel = "comprador_1";
+      else if (parte === "vendedor") papel = "vendedor_1";
+      else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
+
+      if (papel) {
+        const nome = r.nome ?? r.nome_completo ?? (papel === "vendedor_1" ? r.nome_proprietario : null);
+        const rg = r.rg ?? r.numero_rg;
+        const cpf = r.cpf ?? r.cpf_cnpj ?? r.cnpj ?? (papel === "vendedor_1" ? r.cpf_proprietario : null);
+        const prof = r.profissao;
+        const email = r.email;
+        const tel = r.telefone ?? r.celular;
+        if (nome || rg || cpf || prof || email || tel) {
+          const p = (partiesPatch[papel] ??= {});
+          assign(p, "nome", nome);
+          assign(p, "rg", rg);
+          assign(p, "cpf_cnpj", cpf);
+          assign(p, "profissao", prof);
+          assign(p, "email", email);
+          assign(p, "telefone", tel);
+        }
       }
     }
+
 
     // Aplica na venda (só campos vazios)
     if (Object.keys(salePatch).length) {
@@ -244,8 +253,16 @@ function safeParseJson(text: string): any | null {
   return null;
 }
 
-function buildPromptForType(tipo: string, filename: string): string {
-  const base = `Documento: ${filename} (tipo declarado: ${tipo}).\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
+function buildPromptForType(tipo: string, filename: string, parte: string): string {
+  const parteHint =
+    parte === "comprador"
+      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE COMPRADOR da venda. Os dados pessoais extraídos devem ser atribuídos ao comprador."
+      : parte === "vendedor"
+      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE VENDEDOR da venda. Os dados pessoais extraídos devem ser atribuídos ao vendedor."
+      : parte === "imovel"
+      ? "\n\nATENÇÃO: Este documento é do IMÓVEL (não é documento pessoal)."
+      : "";
+  const base = `Documento: ${filename} (tipo declarado: ${tipo}).${parteHint}\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
   const commonPessoal = `\n\nCampos pessoais possíveis:
 {
   "nome": string|null,           // nome completo
@@ -256,9 +273,7 @@ function buildPromptForType(tipo: string, filename: string): string {
   "profissao": string|null,
   "endereco": string|null,
   "email": string|null,
-  "telefone": string|null,
-  "eh_vendedor": boolean|null,
-  "eh_comprador": boolean|null
+  "telefone": string|null
 }`;
   const commonImovel = `\n\nCampos do imóvel possíveis:
 {
@@ -274,7 +289,10 @@ function buildPromptForType(tipo: string, filename: string): string {
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
+  if (parte === "comprador" || parte === "vendedor") return base + commonPessoal;
+  if (parte === "imovel") return base + commonImovel;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
   if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
   return base + commonPessoal + commonImovel;
 }
+
