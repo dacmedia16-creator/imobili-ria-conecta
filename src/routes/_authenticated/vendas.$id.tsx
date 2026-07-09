@@ -1066,7 +1066,7 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
   if (loading || status === "pending") return <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-900"><Loader2 className="h-3 w-3 animate-spin" />IA lendo</span>;
   if (status === "done") return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900"><Sparkles className="h-3 w-3" />IA ok</span>;
   if (status === "failed") return <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs text-destructive">IA falhou</span>;
-  return null;
+  return <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Aguardando IA</span>;
 }
 
 function DocStatusBadge({ status }: { status: string }) {
