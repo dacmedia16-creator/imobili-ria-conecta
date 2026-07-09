@@ -19,7 +19,7 @@ export const extractDocument = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY não configurada");
 
-    const { supabase } = context;
+    const supabase = context.supabase as any;
 
     const { data: doc, error: docErr } = await supabase
       .from("sale_documents")
@@ -27,6 +27,7 @@ export const extractDocument = createServerFn({ method: "POST" })
       .eq("id", data.documentId)
       .maybeSingle();
     if (docErr || !doc) throw new Error(docErr?.message ?? "Documento não encontrado");
+    if (!doc.storage_path || !doc.file_name) throw new Error("Documento sem arquivo associado");
 
     await supabase.from("sale_documents").update({ extraction_status: "pending" }).eq("id", doc.id);
     await supabase
