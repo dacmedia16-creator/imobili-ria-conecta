@@ -253,8 +253,16 @@ function safeParseJson(text: string): any | null {
   return null;
 }
 
-function buildPromptForType(tipo: string, filename: string): string {
-  const base = `Documento: ${filename} (tipo declarado: ${tipo}).\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
+function buildPromptForType(tipo: string, filename: string, parte: string): string {
+  const parteHint =
+    parte === "comprador"
+      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE COMPRADOR da venda. Os dados pessoais extraídos devem ser atribuídos ao comprador."
+      : parte === "vendedor"
+      ? "\n\nATENÇÃO: Este documento pertence ao CLIENTE VENDEDOR da venda. Os dados pessoais extraídos devem ser atribuídos ao vendedor."
+      : parte === "imovel"
+      ? "\n\nATENÇÃO: Este documento é do IMÓVEL (não é documento pessoal)."
+      : "";
+  const base = `Documento: ${filename} (tipo declarado: ${tipo}).${parteHint}\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
   const commonPessoal = `\n\nCampos pessoais possíveis:
 {
   "nome": string|null,           // nome completo
@@ -265,9 +273,7 @@ function buildPromptForType(tipo: string, filename: string): string {
   "profissao": string|null,
   "endereco": string|null,
   "email": string|null,
-  "telefone": string|null,
-  "eh_vendedor": boolean|null,
-  "eh_comprador": boolean|null
+  "telefone": string|null
 }`;
   const commonImovel = `\n\nCampos do imóvel possíveis:
 {
@@ -283,7 +289,10 @@ function buildPromptForType(tipo: string, filename: string): string {
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
+  if (parte === "comprador" || parte === "vendedor") return base + commonPessoal;
+  if (parte === "imovel") return base + commonImovel;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
   if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
   return base + commonPessoal + commonImovel;
 }
+
