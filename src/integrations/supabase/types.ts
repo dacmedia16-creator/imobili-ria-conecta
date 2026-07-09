@@ -49,6 +49,54 @@ export type Database = {
           },
         ]
       }
+      document_extractions: {
+        Row: {
+          created_at: string
+          document_id: string
+          error: string | null
+          id: string
+          raw_json: Json | null
+          sale_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          error?: string | null
+          id?: string
+          raw_json?: Json | null
+          sale_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          error?: string | null
+          id?: string
+          raw_json?: Json | null
+          sale_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_extractions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: true
+            referencedRelation: "sale_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_extractions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -398,6 +446,7 @@ export type Database = {
       sale_documents: {
         Row: {
           created_at: string
+          extraction_status: string
           file_name: string | null
           id: string
           motivo_recusa: string | null
@@ -411,6 +460,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          extraction_status?: string
           file_name?: string | null
           id?: string
           motivo_recusa?: string | null
@@ -424,6 +474,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          extraction_status?: string
           file_name?: string | null
           id?: string
           motivo_recusa?: string | null
