@@ -67,6 +67,9 @@ function SaleDetail() {
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
+  const [contratoFile, setContratoFile] = useState<File | null>(null);
+  const [contratoUploading, setContratoUploading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
