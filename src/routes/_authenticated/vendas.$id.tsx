@@ -497,9 +497,16 @@ function SaleDetail() {
             </FieldGrid>
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
-                Indicador{formSale.indicador ? ` — ${formSale.indicador}` : ""}: a comissão dele sai de dentro da fatia do captador ou do vendedor (não é descontada do total nem da imobiliária).
+                A comissão do indicador sai de dentro da fatia do captador ou do vendedor (não é descontada do total nem da imobiliária).
               </p>
+              {formSale.indicador_lado && !formSale.indicador && (
+                <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <AlertTriangle className="mr-2 inline h-4 w-4" />
+                  Falta o nome do indicador — preencha abaixo.
+                </div>
+              )}
               <FieldGrid>
+                <Field label="Nome do indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
                 <Field label="Indicador de">
                   <Select
                     value={formSale.indicador_lado ?? "none"}
@@ -2295,9 +2302,20 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
       status: "pendente",
     }).select("*").single();
     if (error) { toast.error(error.message); return; }
-    await supabase.from("occurrence_commissions").insert(
-      COMISSAO_PAPEIS.map(p => ({ occurrence_id: data.id, papel: p.key }))
-    );
+    // Pré-preenche captador/vendedor/indicador com o que já foi definido na revisão do gestor
+    // (aba Resumo) — sem isso a tabela de comissões nasce zerada e duplica trabalho já feito.
+    const totalComissao = Number(sale.valor_total_comissao ?? 0);
+    const pctOfTotal = (v: any) => (v != null && totalComissao > 0 ? Number(((Number(v) / totalComissao) * 100).toFixed(3)) : null);
+    const commRows = COMISSAO_PAPEIS.map((p) => {
+      let nome: string | null = null;
+      let valor: number | null = null;
+      if (p.key === "corretor_captador") { nome = sale.corretor_captador ?? null; valor = sale.valor_comissao_captador ?? null; }
+      else if (p.key === "corretor_vendedor") { nome = sale.corretor_vendedor ?? null; valor = sale.valor_comissao_vendedor ?? null; }
+      else if (p.key === "indicador_captador" && sale.indicador_lado === "captador") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
+      else if (p.key === "indicador_vendedor" && sale.indicador_lado === "vendedor") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
+      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor };
+    });
+    await supabase.from("occurrence_commissions").insert(commRows);
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
     onChange();
@@ -2326,9 +2344,31 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
     setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, _new: true }]);
     setDirtyComms(true);
   };
+  // Traz captador/vendedor/indicador com os valores já definidos na revisão do gestor (aba Resumo),
+  // útil para ocorrências criadas antes desse pré-preenchimento existir ou quando a revisão mudou depois.
+  const pullFromSaleSplit = () => {
+    const total = Number(formOcc?.valor_comissao ?? 0);
+    const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
+    setFormComms((rows) => rows.map((r) => {
+      if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual };
+      if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual };
+      if (r.papel === "indicador_captador" && sale.indicador_lado === "captador") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
+      if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
+      return r;
+    }));
+    setDirtyComms(true);
+    toast.success("Valores da revisão do gestor aplicados — confira e salve.");
+  };
   const delCommission = (id: string) => {
     setFormComms(rows => rows.filter(r => r.id !== id));
     setDirtyComms(true);
+  };
+
+  // Traz financiamento/valor já preenchidos pelo corretor na etapa "Forma de pagamento",
+  // útil quando esses dados mudaram depois da criação da ocorrência.
+  const pullFinanciamento = () => {
+    updOcc({ financiamento: payment?.financiamento ?? false, financiamento_valor: payment?.financiamento_valor ?? null });
+    toast.success("Financiamento e valor puxados do pagamento — confira e salve.");
   };
 
   const updPartner = (id: string, patch: any) => {
@@ -2489,7 +2529,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Financiamento</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Financiamento</CardTitle>
+          {canWrite && (
+            <Button size="sm" variant="outline" onClick={pullFinanciamento}>Puxar do pagamento</Button>
+          )}
+        </CardHeader>
         <CardContent>
           <FieldGrid>
             <Field label="Tem financiamento?"><div className="flex items-center gap-2"><Switch checked={!!formOcc.financiamento} onCheckedChange={(v) => updOcc({ financiamento: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.financiamento ? "Sim" : "Não"}</span></div></Field>
@@ -2531,7 +2576,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
             <CardTitle className="text-base">Divisão de comissão</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído: R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
           </div>
-          {canWrite && <Button size="sm" variant="outline" onClick={addCommission}><Plus className="mr-1 h-4 w-4" />Adicionar</Button>}
+          {canWrite && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={pullFromSaleSplit}>Puxar da revisão do gestor</Button>
+              <Button size="sm" variant="outline" onClick={addCommission}><Plus className="mr-1 h-4 w-4" />Adicionar</Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
           {excedido && (
