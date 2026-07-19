@@ -727,12 +727,22 @@ function SaleDetail() {
               <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
             </ReviewGroup>
 
-            <ReviewGroup title="Partes">
+            <ReviewGroup title="Partes (qualificação para o contrato)">
               {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
                 .filter((papel) => parties[papel]?.nome)
-                .map((papel) => (
-                  <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={`${parties[papel]?.nome}${parties[papel]?.cpf_cnpj ? ` • ${parties[papel].cpf_cnpj}` : ""}`} />
-                ))}
+                .map((papel, i, arr) => {
+                  const p = parties[papel];
+                  return (
+                    <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
+                      <div className="mb-1 font-medium">{DOC_PARTE_LABEL[papel]} — {p.nome}</div>
+                      <ReviewItem label="CPF/CNPJ" value={p.cpf_cnpj} />
+                      <ReviewItem label="RG" value={p.rg} />
+                      <ReviewItem label="Profissão" value={p.profissao} />
+                      <ReviewItem label="E-mail" value={p.email} />
+                      <ReviewItem label="Telefone" value={p.telefone} />
+                    </div>
+                  );
+                })}
               {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const).every((papel) => !parties[papel]?.nome) && (
                 <ReviewItem label="Nenhuma parte preenchida" value={null} />
               )}
@@ -744,6 +754,14 @@ function SaleDetail() {
               <ReviewItem label="Parcela 2" value={money(payment?.parcela2_valor)} />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
               <ReviewItem label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Dados bancários do vendedor">
+              <ReviewItem label="Titular" value={bank?.titular} />
+              <ReviewItem label="Banco" value={bank?.banco} />
+              <ReviewItem label="Agência" value={bank?.agencia} />
+              <ReviewItem label="Conta" value={bank?.conta} />
+              <ReviewItem label="PIX" value={bank?.pix} />
             </ReviewGroup>
 
             <ReviewGroup title="Documentos">
