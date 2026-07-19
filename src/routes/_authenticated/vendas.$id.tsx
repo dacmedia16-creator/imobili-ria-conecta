@@ -18,7 +18,7 @@ import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
@@ -46,6 +46,7 @@ function SaleDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
@@ -170,6 +171,62 @@ function SaleDetail() {
     const vendedor = Number(patch.valor_comissao_vendedor ?? formSale.valor_comissao_vendedor ?? 0);
     return Number((total - captador - vendedor).toFixed(2));
   };
+  // A comissão do captador + vendedor nunca pode passar do valor total da comissão —
+  // cada mudança é limitada (clamp) ao que ainda resta disponível.
+  const applyCaptadorPercentual = (raw: string) => {
+    let p = raw ? Number(raw) : null;
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const vendedor = Number(formSale.valor_comissao_vendedor ?? 0);
+    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale.valor_comissao_captador ?? null);
+    if (total > 0 && valor != null) {
+      const max = Math.max(0, Number((total - vendedor).toFixed(2)));
+      if (valor > max) { valor = max; p = Number(((max / total) * 100).toFixed(3)); }
+    }
+    const patch: any = { percentual_comissao_captador: p, valor_comissao_captador: valor };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
+  };
+  const applyCaptadorValor = (v: number | null) => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const vendedor = Number(formSale.valor_comissao_vendedor ?? 0);
+    let valor = v;
+    let p = formSale.percentual_comissao_captador ?? null;
+    if (total > 0 && valor != null) {
+      const max = Math.max(0, Number((total - vendedor).toFixed(2)));
+      if (valor > max) valor = max;
+      p = Number(((valor / total) * 100).toFixed(3));
+    }
+    const patch: any = { valor_comissao_captador: valor, percentual_comissao_captador: p };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
+  };
+  const applyVendedorPercentual = (raw: string) => {
+    let p = raw ? Number(raw) : null;
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const captador = Number(formSale.valor_comissao_captador ?? 0);
+    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale.valor_comissao_vendedor ?? null);
+    if (total > 0 && valor != null) {
+      const max = Math.max(0, Number((total - captador).toFixed(2)));
+      if (valor > max) { valor = max; p = Number(((max / total) * 100).toFixed(3)); }
+    }
+    const patch: any = { percentual_comissao_vendedor: p, valor_comissao_vendedor: valor };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
+  };
+  const applyVendedorValor = (v: number | null) => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const captador = Number(formSale.valor_comissao_captador ?? 0);
+    let valor = v;
+    let p = formSale.percentual_comissao_vendedor ?? null;
+    if (total > 0 && valor != null) {
+      const max = Math.max(0, Number((total - captador).toFixed(2)));
+      if (valor > max) valor = max;
+      p = Number(((valor / total) * 100).toFixed(3));
+    }
+    const patch: any = { valor_comissao_vendedor: valor, percentual_comissao_vendedor: p };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
+  };
   const saveResumo = async (): Promise<boolean> => {
     if (!sale) return false;
     const fields = [
@@ -177,6 +234,7 @@ function SaleDetail() {
       "corretor_captador","corretor_vendedor","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
+      "percentual_comissao_captador","percentual_comissao_vendedor",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
     ];
     const patch: any = {};
@@ -295,6 +353,7 @@ function SaleDetail() {
   const currentDirty = step === "resumo" ? dirtyResumo : !!dirtyMap[step];
 
   const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
+  const canOverview = !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
   const canEditOcorrencia = (isGestor && ["contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status)) || isFinanceiro || isAdminLike;
   const steps: WizardStep[] = [
     {
@@ -361,18 +420,23 @@ function SaleDetail() {
             </FieldGrid>
           </SaleSection>
           <SaleSection title="Divisão da comissão (revisão do gestor)">
+            {(() => {
+              const total = Number(formSale.valor_total_comissao ?? 0);
+              const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
+              const excedido = total > 0 && soma > total + 0.01;
+              return excedido ? (
+                <div className="mb-4 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+                  <AlertTriangle className="mr-2 inline h-4 w-4" />
+                  A soma das comissões (R$ {soma.toFixed(2)}) ultrapassa o valor total da comissão (R$ {total.toFixed(2)}).
+                </div>
+              ) : null;
+            })()}
             <FieldGrid>
-              <Field label="Comissão corretor captador (R$)"><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={(v) => {
-                const patch: any = { valor_comissao_captador: v };
-                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-                updResumo(patch);
-              }} /></Field>
-              <Field label="Comissão corretor vendedor (R$)"><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={(v) => {
-                const patch: any = { valor_comissao_vendedor: v };
-                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-                updResumo(patch);
-              }} /></Field>
-              <Field label="Valor para a imobiliária (R$)"><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
+              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!gestorEdits} onChange={(e) => applyCaptadorPercentual(e.target.value)} /></Field>
+              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={applyCaptadorValor} /></Field>
+              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!gestorEdits} onChange={(e) => applyVendedorPercentual(e.target.value)} /></Field>
+              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={applyVendedorValor} /></Field>
+              <Field label="Valor para a imobiliária (R$)" colSpan={2}><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
             </FieldGrid>
           </SaleSection>
           <SaleSection title="Posse">
@@ -445,6 +509,20 @@ function SaleDetail() {
       ),
     },
   ];
+
+  // Ação de avançar a venda para o próximo responsável — mesma ação do topo da página, só que
+  // repetida no rodapé da última etapa do wizard, no lugar do "Próximo" (que ali não faz nada).
+  // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
+  const primaryAction: { label: string; icon: typeof Send; onClick: () => void } | null =
+    isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
+    isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: () => changeStatus("aprovada_gestor") } :
+    isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
+    isJuridico && status === "em_elaboracao_contrato" ? { label: "Anexar contrato e enviar ao gestor", icon: Send, onClick: () => { setContratoFile(null); setContratoDialogOpen(true); } } :
+    isOwner && status === "contrato_conferencia_corretor" ? { label: "Dar OK no contrato", icon: CheckCircle2, onClick: () => changeStatus("contrato_ok_corretor") } :
+    isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura") } :
+    isGestor && status === "aguardando_assinatura" ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
+    isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") ? { label: "Enviar ocorrência ao financeiro", icon: DollarSign, onClick: () => changeStatus("ocorrencia_analise_financeiro") } :
+    null;
 
   return (
     <div className="space-y-6">
@@ -568,6 +646,11 @@ function SaleDetail() {
 
 
       <div className="flex flex-wrap justify-end gap-2 print:hidden">
+        {canOverview && (
+          <Button variant="outline" size="sm" onClick={() => setOverviewOpen(true)}>
+            <FileText className="mr-2 h-4 w-4" />Visão geral completa
+          </Button>
+        )}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="sm"><History className="mr-2 h-4 w-4" />Histórico</Button>
@@ -608,6 +691,87 @@ function SaleDetail() {
           </SheetContent>
         </Sheet>
       </div>
+
+      <Dialog open={overviewOpen} onOpenChange={setOverviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Visão geral da venda</DialogTitle>
+            <DialogDescription>
+              {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`} • {STATUS_LABEL[status]}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <ReviewGroup title="Imóvel">
+              <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
+              <ReviewItem label="Matrícula" value={sale.matricula} />
+              <ReviewItem label="IPTU" value={sale.iptu} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Equipe">
+              <ReviewItem label="Corretor captador" value={sale.corretor_captador} />
+              <ReviewItem label="Corretor vendedor" value={sale.corretor_vendedor} />
+              <ReviewItem label="Indicador" value={sale.indicador} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Valores e negociação">
+              <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
+              <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
+              <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
+              <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+              <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Divisão de comissão">
+              <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
+              <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
+              <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Partes">
+              {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
+                .filter((papel) => parties[papel]?.nome)
+                .map((papel) => (
+                  <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={`${parties[papel]?.nome}${parties[papel]?.cpf_cnpj ? ` • ${parties[papel].cpf_cnpj}` : ""}`} />
+                ))}
+              {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const).every((papel) => !parties[papel]?.nome) && (
+                <ReviewItem label="Nenhuma parte preenchida" value={null} />
+              )}
+            </ReviewGroup>
+
+            <ReviewGroup title="Pagamento">
+              <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
+              <ReviewItem label="Parcela 1" value={money(payment?.parcela1_valor)} />
+              <ReviewItem label="Parcela 2" value={money(payment?.parcela2_valor)} />
+              <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
+              <ReviewItem label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+            </ReviewGroup>
+
+            <ReviewGroup title="Documentos">
+              {docs.length === 0 && <ReviewItem label="Nenhum documento enviado" value={null} />}
+              {docs.map((d) => (
+                <ReviewItem key={d.id} label={d.file_name} value={<DocStatusBadge status={d.status} />} />
+              ))}
+            </ReviewGroup>
+
+            <ReviewGroup title="Histórico">
+              {history.length === 0 && <ReviewItem label="Sem alterações registradas" value={null} />}
+              {history.map((h) => (
+                <ReviewItem
+                  key={h.id}
+                  label={`${h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → ${STATUS_LABEL[h.para as SaleStatus]}`}
+                  value={new Date(h.created_at).toLocaleString("pt-BR")}
+                />
+              ))}
+            </ReviewGroup>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />Imprimir
+            </Button>
+            <Button onClick={() => setOverviewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card className="print:hidden">
         <CardContent className="space-y-3 p-4">
@@ -658,6 +822,11 @@ function SaleDetail() {
           onChange={setStep}
           dirty={currentDirty}
           onBeforeLeave={onBeforeLeave}
+          lastStepAction={primaryAction && (
+            <Button onClick={primaryAction.onClick}>
+              <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}
+            </Button>
+          )}
         />
       )}
 

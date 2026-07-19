@@ -24,9 +24,11 @@ type Props = {
   onChange: (key: string) => void;
   onBeforeLeave?: (fromKey: string, toKey: string) => Promise<boolean> | boolean;
   dirty?: boolean;
+  /** Renderizado no lugar do "Próximo" (que fica sem função) quando o usuário está na última etapa. */
+  lastStepAction?: React.ReactNode;
 };
 
-export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props) {
+export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction }: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -129,9 +131,13 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty }: Props
         <span className="text-xs text-muted-foreground">
           {dirty ? "Alterações não salvas" : `${idx + 1} / ${enabled.length}`}
         </span>
-        <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
-          {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
-        </Button>
+        {idx >= enabled.length - 1 && lastStepAction ? (
+          lastStepAction
+        ) : (
+          <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
+            {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        )}
       </div>
 
     </div>

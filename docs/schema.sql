@@ -288,6 +288,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
   valor_comissao_captador numeric(14,2),
   valor_comissao_vendedor numeric(14,2),
   valor_comissao_imobiliaria numeric(14,2),
+  percentual_comissao_captador numeric(6,3),
+  percentual_comissao_vendedor numeric(6,3),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT sales_pkey PRIMARY KEY (id),
