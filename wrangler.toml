@@ -1,0 +1,8 @@
+name = "imobili-ria-conecta"
+compatibility_date = "2026-07-19"
+
+# Esse arquivo só define identidade/config de alto nível. O Nitro (preset
+# "cloudflare-module", configurado em vite.config.ts via @lovable.dev/vite-tanstack-config)
+# lê este arquivo no build e mescla automaticamente `main`, `assets` (binding ASSETS
+# apontando pro client) e `compatibility_flags: ["nodejs_compat"]` — não defina esses
+# campos aqui manualmente, o Nitro os sobrescreve e avisa no log se detectar conflito.
