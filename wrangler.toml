@@ -11,3 +11,15 @@ compatibility_date = "2026-07-19"
 # configurados manualmente no dashboard da Cloudflare (o wrangler trata o
 # wrangler.json gerado como fonte da verdade e remove o que não está nele).
 keep_vars = true
+
+# As variáveis salvas no painel "Build > Variáveis e segredos" do dashboard
+# não viraram bindings de runtime do Worker (o erro "Missing Supabase
+# environment variable(s)" continuou mesmo depois de configuradas lá e
+# mesmo com keep_vars). Declarando aqui garantimos que entram como binding
+# real em todo deploy. URL e publishable key não são segredo — já ficam
+# expostas no bundle do client mesmo (equivalentes à anon key pública).
+# NUNCA coloque SUPABASE_SERVICE_ROLE_KEY ou LOVABLE_API_KEY aqui — essas
+# são segredos reais e precisam ser configuradas via `wrangler secret put`.
+[vars]
+SUPABASE_URL = "https://xvvymgurpchhlmbpjbgc.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-I6he0fFecr_ObJZTKiP_g_O6Arz8xJ"
