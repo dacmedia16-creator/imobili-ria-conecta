@@ -390,6 +390,7 @@ function SaleDetail() {
           docs={docs}
           editable={editable}
           canModerate={isGestor || isJuridico}
+          canUseAi={isOwner}
           onChange={load}
         />
       ),
@@ -1643,7 +1644,7 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
   );
 }
 
-function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; onChange: () => void }) {
+function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; onChange: () => void }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
@@ -1769,7 +1770,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     setProgress(null);
     try {
       // 1) Lê todos os docs que ainda não foram extraídos com sucesso
-      const pendentes = docs.filter((d) => d.extraction_status !== "done");
+      const pendentes = docs.filter((d) => d.extraction_status !== "done" && d.tipo !== "contrato" && d.tipo !== "contrato_assinado");
       let lidos = 0;
       let falhas = 0;
       if (pendentes.length > 0) {
@@ -1895,34 +1896,38 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
 
   return (
     <div className="space-y-6">
-      <Card className="border-primary/40 bg-primary/5">
+      <Card className={canUseAi ? "border-primary/40 bg-primary/5" : ""}>
         <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
-            <div className="text-sm">
-              <div className="font-medium">Leitura automática por IA</div>
-              <p className="text-muted-foreground">
-                Envie os documentos de cada pessoa no bloco correspondente. Até 2 compradores e 2 vendedores. A IA lê cada arquivo e roteia os dados para a pessoa certa nas próximas etapas.
-              </p>
+          {canUseAi ? (
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
+              <div className="text-sm">
+                <div className="font-medium">Leitura automática por IA</div>
+                <p className="text-muted-foreground">
+                  Envie os documentos de cada pessoa no bloco correspondente. Até 2 compradores e 2 vendedores. A IA lê cada arquivo e roteia os dados para a pessoa certa nas próximas etapas.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : <div />}
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={printAllDocs} disabled={docs.length === 0 || printingAll}>
               {printingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
               Imprimir todos
             </Button>
-            <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
-              {applying ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
-                </>
-              ) : (
-                <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
-              )}
-            </Button>
+            {canUseAi && (
+              <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
+                {applying ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
+                  </>
+                ) : (
+                  <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
+                )}
+              </Button>
+            )}
           </div>
         </CardContent>
-        {anyPending && !applying && (
+        {canUseAi && anyPending && !applying && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
             <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Lendo documento(s)...
           </CardContent>
@@ -1977,14 +1982,16 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                       <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm">
                         <button className="truncate text-left hover:underline" onClick={() => viewDoc(d)}>{d.file_name}</button>
                         <div className="flex items-center gap-2">
-                          <ExtractionBadge status={d.extraction_status} loading={!!extracting[d.id]} />
+                          {canUseAi && d.tipo !== "contrato" && d.tipo !== "contrato_assinado" && (
+                            <ExtractionBadge status={d.extraction_status} loading={!!extracting[d.id]} />
+                          )}
                           <Button size="sm" variant="ghost" title="Visualizar" onClick={() => viewDoc(d)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="ghost" title="Imprimir" onClick={() => printDoc(d)}>
                             <Printer className="h-4 w-4" />
                           </Button>
-                          {editable && d.extraction_status !== "pending" && !extracting[d.id] && (
+                          {canUseAi && editable && d.tipo !== "contrato" && d.tipo !== "contrato_assinado" && d.extraction_status !== "pending" && !extracting[d.id] && (
                             <Button size="sm" variant="ghost" title="Ler novamente com IA" onClick={() => runExtraction(d.id)}>
                               <Sparkles className="h-4 w-4" />
                             </Button>
