@@ -14,7 +14,7 @@ import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCi
 const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
   { key: "inicio", label: "Rascunho / devolvida", statuses: ["rascunho", "devolvida_ajuste", "ocorrencia_devolvida_gestor"] },
   { key: "aprovacao", label: "Em aprovação", statuses: ["enviada_revisao", "aprovada_gestor"] },
-  { key: "juridico", label: "Jurídico / contrato", statuses: ["enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
+  { key: "juridico", label: "Jurídico / contrato", statuses: ["em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
   { key: "concluida", label: "Concluída", statuses: ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_concluida"] },
   { key: "encerrada", label: "Cancelada / arquivada", statuses: ["cancelada", "arquivada"] },
 ];
@@ -57,7 +57,7 @@ function Dashboard() {
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
   const count = (fn: (s: any) => boolean) => sales.filter(fn).length;
-  const juridicoStatuses = ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"];
+  const juridicoStatuses = ["aprovada_gestor", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"];
   const contratoParaConferirCorretor = (uid?: string) => (s: any) => s.corretor_id === uid && s.status === "contrato_conferencia_corretor";
   const contratoParaConferirGestor = (s: any) => s.status === "contrato_conferencia_gestor" || s.status === "contrato_ok_corretor";
 
@@ -141,7 +141,7 @@ function Dashboard() {
       {isJuridico && (
         <DashSection title="Painel do jurídico">
           <KpiGrid>
-            <KpiCard icon={ClipboardCheck} label="Aprovadas pelo gestor" value={count(s => s.status === "aprovada_gestor" || s.status === "enviada_juridico")} to="/vendas" />
+            <KpiCard icon={ClipboardCheck} label="Aprovadas pelo gestor" value={count(s => s.status === "aprovada_gestor")} to="/vendas" />
             <KpiCard icon={Gavel} label="Em elaboração" value={count(s => s.status === "em_elaboracao_contrato")} to="/vendas" />
             <KpiCard icon={FileText} label="Aguardando assinatura" value={count(s => s.status === "aguardando_assinatura")} to="/vendas" />
             <KpiCard icon={CheckCircle2} label="Assinados" value={count(s => s.status === "contrato_assinado")} to="/vendas" />

@@ -142,7 +142,7 @@ function SaleDetail() {
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = isOwner && (status === "rascunho" || status === "devolvida_ajuste");
   const gestorEdits = isGestor && ["enviada_revisao","contrato_conferencia_gestor","contrato_ok_corretor","aguardando_assinatura","contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status);
-  const juridicoEdits = isJuridico && ["aprovada_gestor","enviada_juridico","em_elaboracao_contrato"].includes(status);
+  const juridicoEdits = isJuridico && ["aprovada_gestor","em_elaboracao_contrato"].includes(status);
   const editable = (corretorEdits || gestorEdits || juridicoEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
@@ -217,6 +217,15 @@ function SaleDetail() {
   };
 
   const contratoDocs = docs.filter((d) => d.tipo === "contrato");
+  const contratoAssinadoDocs = docs.filter((d) => d.tipo === "contrato_assinado");
+
+  const marcarContratoAssinado = async () => {
+    if (contratoAssinadoDocs.length === 0) {
+      toast.error("Anexe o contrato assinado (aba Documentos) antes de marcar como assinado.");
+      return;
+    }
+    await changeStatus("contrato_assinado");
+  };
 
   const uploadContratoAndSend = async () => {
     if (!contratoFile && contratoDocs.length === 0) {
@@ -441,16 +450,18 @@ function SaleDetail() {
           )}
 
           {/* Jurídico: aceitar e elaborar */}
-          {isJuridico && (status === "aprovada_gestor" || status === "enviada_juridico") && (
+          {isJuridico && status === "aprovada_gestor" && (
             <>
               <Button onClick={() => changeStatus("em_elaboracao_contrato")}><Gavel className="mr-2 h-4 w-4" />Iniciar contrato</Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
               <Button onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
           )}
 
@@ -458,6 +469,7 @@ function SaleDetail() {
           {isGestor && status === "contrato_conferencia_gestor" && (
             <>
               <Button onClick={() => changeStatus("contrato_conferencia_corretor")}><Send className="mr-2 h-4 w-4" />Enviar ao corretor conferir</Button>
+              <Button onClick={() => changeStatus("aguardando_assinatura")}><Send className="mr-2 h-4 w-4" />Enviar direto para assinatura</Button>
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
             </>
           )}
@@ -480,7 +492,7 @@ function SaleDetail() {
 
           {/* Gestor: subir contrato assinado (após assinatura) */}
           {isGestor && status === "aguardando_assinatura" && (
-            <Button onClick={() => changeStatus("contrato_assinado")}>
+            <Button onClick={marcarContratoAssinado}>
               <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
             </Button>
           )}
