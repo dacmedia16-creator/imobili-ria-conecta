@@ -1,23 +1,23 @@
 import { createServerFn } from "@tanstack/react-start";
+import Anthropic from "@anthropic-ai/sdk";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MODEL = "claude-opus-4-8";
 
 const ExtractInput = z.object({ documentId: z.string().uuid() });
 const ApplyInput = z.object({ saleId: z.string().uuid() });
 
 /**
- * Extrai dados estruturados de um documento anexado usando a API do Google Gemini.
+ * Extrai dados estruturados de um documento anexado usando a API da Anthropic (Claude).
  * Salva o resultado em `document_extractions` para uso posterior no preenchimento.
  */
 export const extractDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ExtractInput.parse(input))
   .handler(async ({ data, context }) => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY não configurada");
 
     const supabase = context.supabase as any;
 
@@ -44,37 +44,32 @@ export const extractDocument = createServerFn({ method: "POST" })
     const buf = Buffer.from(await blob.arrayBuffer());
     const b64 = buf.toString("base64");
     const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase();
-    const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+    const isPdf = ext === "pdf";
+    const mime = isPdf ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
 
     const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
 
     let raw: any = null;
     try {
-      const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários." }],
-          },
-          contents: [{
-            role: "user",
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mime, data: b64 } },
-            ],
-          }],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
+      const client = new Anthropic({ apiKey });
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 4096,
+        system: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários.",
+        messages: [{
+          role: "user",
+          content: [
+            isPdf
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
+              : { type: "image", source: { type: "base64", media_type: mime as "image/png" | "image/jpeg", data: b64 } },
+            { type: "text", text: prompt },
+          ],
+        }],
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
-      }
-      const json = await res.json();
-      const text: string = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      raw = safeParseJson(text);
+      if (response.stop_reason === "refusal") throw new Error("Extração recusada pelo modelo");
+      const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
+      raw = safeParseJson(textBlock?.text ?? "");
       if (!raw) throw new Error("Resposta não é JSON válido");
     } catch (err: any) {
       await markFailed(supabase, doc.id, err?.message ?? "Falha na extração");
