@@ -74,6 +74,9 @@ function SaleDetail() {
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
   const [contratoFile, setContratoFile] = useState<File | null>(null);
   const [contratoUploading, setContratoUploading] = useState(false);
+  const [contratoAssinadoDialogOpen, setContratoAssinadoDialogOpen] = useState(false);
+  const [contratoAssinadoFile, setContratoAssinadoFile] = useState<File | null>(null);
+  const [contratoAssinadoUploading, setContratoAssinadoUploading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -309,7 +312,7 @@ function SaleDetail() {
 
   const marcarContratoAssinado = async () => {
     if (contratoAssinadoDocs.length === 0) {
-      toast.error("Anexe o contrato assinado (aba Documentos) antes de marcar como assinado.");
+      toast.error("Suba o contrato assinado antes de marcar como assinado.");
       return;
     }
     await changeStatus("contrato_assinado");
@@ -348,6 +351,34 @@ function SaleDetail() {
       return;
     }
     await changeStatus("contrato_conferencia_gestor");
+  };
+
+  // Subir o contrato assinado NÃO conclui a etapa sozinho — o gestor confere o arquivo
+  // e só então clica em "Marcar contrato assinado" (botão separado, fora deste dialog).
+  const uploadContratoAssinado = async () => {
+    if (!contratoAssinadoFile) {
+      toast.error("Selecione o arquivo do contrato assinado.");
+      return;
+    }
+    setContratoAssinadoUploading(true);
+    try {
+      const ext = contratoAssinadoFile.name.split(".").pop();
+      const path = `${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoAssinadoFile, { upsert: false });
+      if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from("sale_documents").insert({
+        sale_id: id, tipo: "contrato_assinado", parte: "outros", storage_path: path,
+        file_name: contratoAssinadoFile.name, uploaded_by: user!.id, status: "enviado",
+      } as any);
+      if (insErr) { toast.error(insErr.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato_assinado", parte: "outros" } });
+      toast.success("Contrato assinado anexado");
+      setContratoAssinadoDialogOpen(false);
+      setContratoAssinadoFile(null);
+      load();
+    } finally {
+      setContratoAssinadoUploading(false);
+    }
   };
 
   const openReturnDialog = (target: SaleStatus) => { setReturnTarget(target); setReturnMotivo(""); setReturnOpen(true); };
@@ -573,7 +604,8 @@ function SaleDetail() {
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0 ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor } :
     isOwner && status === "contrato_conferencia_corretor" ? { label: "Dar OK no contrato", icon: CheckCircle2, onClick: () => changeStatus("contrato_ok_corretor") } :
     isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura") } :
-    isGestor && status === "aguardando_assinatura" ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
+    isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length === 0 ? { label: "Subir contrato assinado", icon: Upload, onClick: () => { setContratoAssinadoFile(null); setContratoAssinadoDialogOpen(true); } } :
+    isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length > 0 ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
     isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") ? { label: "Enviar ocorrência ao financeiro", icon: DollarSign, onClick: () => changeStatus("ocorrencia_analise_financeiro") } :
     null;
 
@@ -653,9 +685,14 @@ function SaleDetail() {
 
           {/* Gestor: subir contrato assinado (após assinatura) */}
           {isGestor && status === "aguardando_assinatura" && (
-            <Button onClick={marcarContratoAssinado}>
-              <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => { setContratoAssinadoFile(null); setContratoAssinadoDialogOpen(true); }}>
+                <Upload className="mr-2 h-4 w-4" />{contratoAssinadoDocs.length > 0 ? "Substituir contrato assinado" : "Subir contrato assinado"}
+              </Button>
+              <Button onClick={marcarContratoAssinado} disabled={contratoAssinadoDocs.length === 0}>
+                <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
+              </Button>
+            </>
           )}
 
           {/* Gestor: enviar ocorrência ao financeiro */}
@@ -1044,6 +1081,55 @@ function SaleDetail() {
               disabled={contratoUploading || !contratoFile}
             >
               {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />Anexar contrato</>)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contratoAssinadoDialogOpen} onOpenChange={(o) => { if (!contratoAssinadoUploading) setContratoAssinadoDialogOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Subir contrato assinado</DialogTitle>
+            <DialogDescription>
+              Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.
+            </DialogDescription>
+          </DialogHeader>
+
+          {contratoAssinadoDocs.length > 0 && (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <div className="mb-1 font-medium">Contrato(s) assinado(s) já anexado(s):</div>
+              <ul className="space-y-1 text-muted-foreground">
+                {contratoAssinadoDocs.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="truncate">{d.file_name}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 text-xs">Selecionar um novo arquivo abaixo substitui a versão atual.</div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Arquivo do contrato assinado {contratoAssinadoDocs.length === 0 && <span className="text-destructive">*</span>}</Label>
+            <Input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => setContratoAssinadoFile(e.target.files?.[0] ?? null)}
+              disabled={contratoAssinadoUploading}
+            />
+            {contratoAssinadoFile && (
+              <div className="text-xs text-muted-foreground">Selecionado: {contratoAssinadoFile.name}</div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setContratoAssinadoDialogOpen(false)} disabled={contratoAssinadoUploading}>Cancelar</Button>
+            <Button
+              onClick={uploadContratoAssinado}
+              disabled={contratoAssinadoUploading || !contratoAssinadoFile}
+            >
+              {contratoAssinadoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />Subir contrato assinado</>)}
             </Button>
           </DialogFooter>
         </DialogContent>
