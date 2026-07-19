@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -97,7 +98,7 @@ function SalesList() {
             </SelectContent>
           </Select>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent>
           {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
           {!loading && sales.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
@@ -113,34 +114,47 @@ function SalesList() {
               {hasAny(["financeiro","admin","super_admin"]) && (<>Nenhuma venda encontrada com o filtro atual.</>)}
             </div>
           )}
-          {sales.map((s) => {
-            const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
-            return (
-              <div key={s.id} className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50">
-                <Link to="/vendas/$id" params={{ id: s.id }} className="flex-1">
-                  <div className="text-sm font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"} ·
-                    {" "}atualizado em {new Date(s.updated_at).toLocaleDateString("pt-BR")}
-                  </div>
-                </Link>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={s.status as SaleStatus} />
-                  {canDelete && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
-                      aria-label="Excluir venda"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {!loading && sales.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Imóvel / código</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Atualizado em</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sales.map((s) => {
+                  const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
+                  return (
+                    <TableRow key={s.id} className="cursor-pointer" onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
+                      <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
+                      </TableCell>
+                      <TableCell><StatusBadge status={s.status as SaleStatus} /></TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
+                      <TableCell>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
+                            aria-label="Excluir venda"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 

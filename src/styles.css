@@ -84,11 +84,15 @@
   --border: oklch(0.92 0.01 260);
   --input: oklch(0.92 0.01 260);
   --ring: oklch(0.396 0.184 264);
-  --chart-1: oklch(0.396 0.184 264);
-  --chart-2: oklch(0.575 0.222 25);
-  --chart-3: oklch(0.7 0.15 40);
-  --chart-4: oklch(0.55 0.15 200);
-  --chart-5: oklch(0.65 0.18 300);
+  /* Categorical chart palette — validated with the dataviz color validator
+     against this app's light surface (#ffffff): lightness band, chroma
+     floor, CVD separation and normal-vision floor all pass. Kept as hex
+     (not oklch) because these exact steps are what was validated. */
+  --chart-1: #2a78d6;
+  --chart-2: #008300;
+  --chart-3: #e87ba4;
+  --chart-4: #eda100;
+  --chart-5: #1baf7a;
   --sidebar: oklch(0.396 0.184 264);
   --sidebar-foreground: oklch(1 0 0);
   --sidebar-primary: oklch(0.396 0.184 264);
@@ -122,11 +126,13 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.5 0.18 264);
-  --chart-1: oklch(0.55 0.2 264);
-  --chart-2: oklch(0.65 0.22 25);
-  --chart-3: oklch(0.75 0.17 40);
-  --chart-4: oklch(0.65 0.15 200);
-  --chart-5: oklch(0.7 0.2 300);
+  /* Same categorical palette, dark steps — validated against this app's
+     dark surface (#0a1018). */
+  --chart-1: #3987e5;
+  --chart-2: #008300;
+  --chart-3: #d55181;
+  --chart-4: #c98500;
+  --chart-5: #199e70;
   --sidebar: oklch(0.22 0.08 264);
   --sidebar-foreground: oklch(0.98 0.003 247);
   --sidebar-primary: oklch(0.5 0.18 264);

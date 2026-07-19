@@ -41,34 +41,55 @@ function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Building2 className="h-5 w-5" />
+    <div className="flex min-h-screen">
+      <div
+        className="hidden w-1/2 flex-col justify-between p-10 text-primary-foreground lg:flex"
+        style={{ background: "var(--gradient-remax)" }}
+      >
+        <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
+            <Building2 className="h-4 w-4" />
           </div>
-          <CardTitle>Portal Interno</CardTitle>
-          <CardDescription>Acesse com sua conta corporativa</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-            <div>
-              <Label htmlFor="password">Senha</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Aguarde..." : "Entrar"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
+          RE/MAX Portal
+        </div>
+        <div className="max-w-sm space-y-3">
+          <h1 className="text-3xl font-semibold leading-tight">Da captação ao contrato assinado, em um só lugar.</h1>
+          <p className="text-sm text-primary-foreground/80">
+            Gerencie vendas, contratos e comissões com o fluxo de aprovação completo — corretor, gestor, jurídico e financeiro.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+        <p className="text-xs text-primary-foreground/60">© {new Date().getFullYear()} RE/MAX Portal</p>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
+        <Card className="w-full max-w-md border-0 shadow-lg lg:border lg:shadow-sm">
+          <CardHeader className="space-y-2 text-center">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground lg:hidden">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <CardTitle>Portal Interno</CardTitle>
+            <CardDescription>Acesse com sua conta corporativa</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="email">E-mail</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="password">Senha</Label>
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Aguarde..." : "Entrar"}
+              </Button>
+            </form>
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

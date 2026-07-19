@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { UserPlus, Copy, RefreshCcw } from "lucide-react";
 
@@ -25,6 +26,13 @@ function allowedRolesFor(roles: AppRole[]): AppRole[] {
   if (roles.includes("admin")) return ["corretor", "gestor", "juridico", "financeiro"];
   if (roles.includes("gestor")) return ["corretor"];
   return [];
+}
+
+function initials(nameOrEmail: string) {
+  const base = nameOrEmail.split("@")[0].trim();
+  const parts = base.split(/\s+/).filter(Boolean);
+  const chars = parts.length > 1 ? [parts[0][0], parts[parts.length - 1][0]] : [base.slice(0, 2)];
+  return chars.join("").toUpperCase();
 }
 
 function genPassword() {
@@ -129,18 +137,25 @@ function AdminUsers() {
             const userRoles = rolesByUser[u.id] ?? [];
             const canEditThis = isAdminLike && u.id !== user?.id;
             return (
-              <div key={u.id} className={`rounded-md border p-3 ${u.ativo === false ? "opacity-60" : ""}`}>
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-medium">
-                      {u.nome || u.email}
-                      {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
-                      {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
+              <div key={u.id} className={`rounded-lg border p-4 transition-shadow hover:shadow-sm ${u.ativo === false ? "opacity-60" : ""}`}>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+                        {initials(u.nome || u.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="text-sm font-medium">
+                        {u.nome || u.email}
+                        {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+                        {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{u.email}</div>
+                      {!isAdminLike && (
+                        <div className="mt-1 text-xs text-muted-foreground">Papéis: {userRoles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</div>
+                      )}
                     </div>
-                    <div className="text-xs text-muted-foreground">{u.email}</div>
-                    {!isAdminLike && (
-                      <div className="mt-1 text-xs text-muted-foreground">Papéis: {userRoles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</div>
-                    )}
                   </div>
                   {isAdminLike && (
                     <Button
@@ -155,7 +170,7 @@ function AdminUsers() {
                 </div>
                 {isAdminLike && (
                   <>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5 border-t pt-3">
                       {ROLES.map((r) => {
                         const has = userRoles.includes(r);
                         const restrict = (r === "admin" || r === "super_admin") && !isSuper;

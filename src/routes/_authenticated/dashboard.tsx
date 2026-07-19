@@ -1,12 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { type SaleStatus } from "@/lib/status";
 import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
+
+/** Agrupa os status granulares de venda em etapas macro, só para leitura visual no funil do dashboard. */
+const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
+  { key: "inicio", label: "Rascunho / devolvida", statuses: ["rascunho", "devolvida_ajuste", "ocorrencia_devolvida_gestor"] },
+  { key: "aprovacao", label: "Em aprovação", statuses: ["enviada_revisao", "aprovada_gestor"] },
+  { key: "juridico", label: "Jurídico / contrato", statuses: ["enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
+  { key: "concluida", label: "Concluída", statuses: ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_concluida"] },
+  { key: "encerrada", label: "Cancelada / arquivada", statuses: ["cancelada", "arquivada"] },
+];
+
+const funilChartConfig = { total: { label: "Vendas", color: "var(--color-chart-1)" } } satisfies ChartConfig;
+
+const comissaoChartConfig = {
+  prevista: { label: "Prevista", color: "var(--color-chart-4)" },
+  concluida: { label: "Concluída", color: "var(--color-chart-2)" },
+} satisfies ChartConfig;
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -57,6 +75,11 @@ function Dashboard() {
     comissaoPorCorretor[sale.corretor_id] = (comissaoPorCorretor[sale.corretor_id] ?? 0) + Number(o.valor_comissao ?? 0);
   });
 
+  const funilData = FUNIL_STAGES.map(({ key, label, statuses }) => ({
+    key, label, total: sales.filter(s => statuses.includes(s.status)).length,
+  }));
+  const comissaoData = [{ prevista: totalComissaoPrevista, concluida: totalComissaoConcluida }];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -72,6 +95,23 @@ function Dashboard() {
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+
+      {!loading && sales.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
+          <CardContent>
+            <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
+              <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
+                <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={140} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Corretor */}
       {(hasAny(["corretor"]) || isCorretor) && (
@@ -120,6 +160,24 @@ function Dashboard() {
             <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${totalComissaoPrevista.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
             <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${totalComissaoConcluida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
           </KpiGrid>
+          {(totalComissaoPrevista > 0 || totalComissaoConcluida > 0) && (
+            <Card className="mt-3">
+              <CardHeader><CardTitle className="text-base">Comissão: prevista x concluída</CardTitle></CardHeader>
+              <CardContent>
+                <ChartContainer config={comissaoChartConfig} className="aspect-auto h-[140px] w-full">
+                  <BarChart data={comissaoData} layout="vertical" margin={{ left: 12 }}>
+                    <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                    <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${Number(v).toLocaleString("pt-BR")}`} />
+                    <YAxis type="category" hide />
+                    <ChartTooltip content={<ChartTooltipContent formatter={(value) => `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="prevista" fill="var(--color-prevista)" radius={4} />
+                    <Bar dataKey="concluida" fill="var(--color-concluida)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
           {Object.keys(comissaoPorCorretor).length > 0 && (
             <Card className="mt-3">
               <CardHeader><CardTitle className="text-base">Comissão por corretor</CardTitle></CardHeader>
