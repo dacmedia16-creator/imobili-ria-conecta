@@ -165,67 +165,83 @@ function SaleDetail() {
 
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
+  const COMISSAO_ROLES = ["captador", "vendedor"] as const;
+  type ComissaoRole = (typeof COMISSAO_ROLES)[number];
+  // Imobiliária = total menos captador e vendedor. O indicador NÃO desconta daqui — a comissão dele
+  // sai de dentro da fatia do captador ou do vendedor (indicador_lado), não é uma 3ª fatia do total.
   const recalcImobiliaria = (patch: any) => {
     const total = Number(patch.valor_total_comissao ?? formSale.valor_total_comissao ?? 0);
-    const captador = Number(patch.valor_comissao_captador ?? formSale.valor_comissao_captador ?? 0);
-    const vendedor = Number(patch.valor_comissao_vendedor ?? formSale.valor_comissao_vendedor ?? 0);
-    return Number((total - captador - vendedor).toFixed(2));
+    const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(patch[`valor_comissao_${r}`] ?? formSale[`valor_comissao_${r}`] ?? 0), 0);
+    return Number((total - soma).toFixed(2));
   };
-  // A comissão do captador + vendedor nunca pode passar do valor total da comissão —
-  // cada mudança é limitada (clamp) ao que ainda resta disponível.
-  const applyCaptadorPercentual = (raw: string) => {
+  // Recalcula a comissão do indicador (em R$) a partir do % já definido, sempre que a fatia do
+  // lado ao qual ele está vinculado (captador/vendedor) mudar de valor.
+  const recalcIndicadorFromLado = (patch: any) => {
+    const lado = patch.indicador_lado ?? formSale.indicador_lado;
+    if (!lado) return { valor_comissao_indicador: null };
+    const ladoValor = Number(patch[`valor_comissao_${lado}`] ?? formSale[`valor_comissao_${lado}`] ?? 0);
+    const p = formSale.percentual_comissao_indicador ?? 25;
+    return { valor_comissao_indicador: ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null };
+  };
+  // A soma das comissões de captador + vendedor nunca pode passar do valor total da comissão —
+  // cada mudança é limitada (clamp) ao que ainda resta disponível para o outro lado.
+  const applyComissaoPercentual = (role: ComissaoRole, raw: string) => {
     let p = raw ? Number(raw) : null;
     const total = Number(formSale.valor_total_comissao ?? 0);
-    const vendedor = Number(formSale.valor_comissao_vendedor ?? 0);
-    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale.valor_comissao_captador ?? null);
+    const outro = COMISSAO_ROLES.filter((r) => r !== role).reduce((s, r) => s + Number(formSale[`valor_comissao_${r}`] ?? 0), 0);
+    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale[`valor_comissao_${role}`] ?? null);
     if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - vendedor).toFixed(2)));
+      const max = Math.max(0, Number((total - outro).toFixed(2)));
       if (valor > max) { valor = max; p = Number(((max / total) * 100).toFixed(3)); }
     }
-    const patch: any = { percentual_comissao_captador: p, valor_comissao_captador: valor };
+    const patch: any = { [`percentual_comissao_${role}`]: p, [`valor_comissao_${role}`]: valor };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    Object.assign(patch, recalcIndicadorFromLado(patch));
     updResumo(patch);
   };
-  const applyCaptadorValor = (v: number | null) => {
+  const applyComissaoValor = (role: ComissaoRole, v: number | null) => {
     const total = Number(formSale.valor_total_comissao ?? 0);
-    const vendedor = Number(formSale.valor_comissao_vendedor ?? 0);
+    const outro = COMISSAO_ROLES.filter((r) => r !== role).reduce((s, r) => s + Number(formSale[`valor_comissao_${r}`] ?? 0), 0);
     let valor = v;
-    let p = formSale.percentual_comissao_captador ?? null;
+    let p = formSale[`percentual_comissao_${role}`] ?? null;
     if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - vendedor).toFixed(2)));
+      const max = Math.max(0, Number((total - outro).toFixed(2)));
       if (valor > max) valor = max;
       p = Number(((valor / total) * 100).toFixed(3));
     }
-    const patch: any = { valor_comissao_captador: valor, percentual_comissao_captador: p };
+    const patch: any = { [`valor_comissao_${role}`]: valor, [`percentual_comissao_${role}`]: p };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    Object.assign(patch, recalcIndicadorFromLado(patch));
     updResumo(patch);
   };
-  const applyVendedorPercentual = (raw: string) => {
+  // Indicador: comissão calculada sobre a fatia do lado escolhido (captador/vendedor), não sobre o total.
+  const indicadorLadoValor = () => {
+    const lado = formSale.indicador_lado;
+    if (lado === "captador" || lado === "vendedor") return Number(formSale[`valor_comissao_${lado}`] ?? 0);
+    return 0;
+  };
+  const applyIndicadorLado = (lado: "captador" | "vendedor" | null) => {
+    const ladoValor = lado === "captador" ? Number(formSale.valor_comissao_captador ?? 0) : lado === "vendedor" ? Number(formSale.valor_comissao_vendedor ?? 0) : 0;
+    const p = formSale.percentual_comissao_indicador ?? 25;
+    const valor = lado && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
+    updResumo({ indicador_lado: lado, percentual_comissao_indicador: lado ? p : null, valor_comissao_indicador: valor });
+  };
+  const applyIndicadorPercentual = (raw: string) => {
     let p = raw ? Number(raw) : null;
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const captador = Number(formSale.valor_comissao_captador ?? 0);
-    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale.valor_comissao_vendedor ?? null);
-    if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - captador).toFixed(2)));
-      if (valor > max) { valor = max; p = Number(((max / total) * 100).toFixed(3)); }
+    const ladoValor = indicadorLadoValor();
+    let valor = p != null && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
+    if (valor != null && ladoValor > 0) {
+      valor = Math.min(valor, ladoValor);
+      p = Number(((valor / ladoValor) * 100).toFixed(3));
     }
-    const patch: any = { percentual_comissao_vendedor: p, valor_comissao_vendedor: valor };
-    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    updResumo(patch);
+    updResumo({ percentual_comissao_indicador: p, valor_comissao_indicador: valor });
   };
-  const applyVendedorValor = (v: number | null) => {
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const captador = Number(formSale.valor_comissao_captador ?? 0);
+  const applyIndicadorValor = (v: number | null) => {
+    const ladoValor = indicadorLadoValor();
     let valor = v;
-    let p = formSale.percentual_comissao_vendedor ?? null;
-    if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - captador).toFixed(2)));
-      if (valor > max) valor = max;
-      p = Number(((valor / total) * 100).toFixed(3));
-    }
-    const patch: any = { valor_comissao_vendedor: valor, percentual_comissao_vendedor: p };
-    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    updResumo(patch);
+    if (valor != null) valor = Math.max(0, Math.min(valor, ladoValor));
+    const p = valor != null && ladoValor > 0 ? Number(((valor / ladoValor) * 100).toFixed(3)) : formSale.percentual_comissao_indicador ?? null;
+    updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
   const saveResumo = async (): Promise<boolean> => {
     if (!sale) return false;
@@ -235,6 +251,7 @@ function SaleDetail() {
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
+      "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
     ];
     const patch: any = {};
@@ -432,12 +449,38 @@ function SaleDetail() {
               ) : null;
             })()}
             <FieldGrid>
-              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!gestorEdits} onChange={(e) => applyCaptadorPercentual(e.target.value)} /></Field>
-              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={applyCaptadorValor} /></Field>
-              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!gestorEdits} onChange={(e) => applyVendedorPercentual(e.target.value)} /></Field>
-              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={applyVendedorValor} /></Field>
+              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!gestorEdits} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
+              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
+              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!gestorEdits} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
+              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
             </FieldGrid>
+            <div className="mt-4 border-t pt-4">
+              <p className="mb-3 text-xs text-muted-foreground">
+                Indicador{formSale.indicador ? ` — ${formSale.indicador}` : ""}: a comissão dele sai de dentro da fatia do captador ou do vendedor (não é descontada do total nem da imobiliária).
+              </p>
+              <FieldGrid>
+                <Field label="Indicador de">
+                  <Select
+                    value={formSale.indicador_lado ?? "none"}
+                    onValueChange={(v) => applyIndicadorLado(v === "none" ? null : (v as "captador" | "vendedor"))}
+                    disabled={!gestorEdits}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem indicação</SelectItem>
+                      <SelectItem value="captador">Captador{formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}</SelectItem>
+                      <SelectItem value="vendedor">Vendedor{formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="% Indicador (sobre a comissão do lado)"><Input type="number" step="0.001" value={formSale.percentual_comissao_indicador ?? ""} disabled={!gestorEdits || !formSale.indicador_lado} onChange={(e) => applyIndicadorPercentual(e.target.value)} /></Field>
+                <Field label="Comissão indicador (R$)"><CurrencyInput value={formSale.valor_comissao_indicador} disabled={!gestorEdits || !formSale.indicador_lado} onChange={applyIndicadorValor} /></Field>
+                <Field label={`Líquido do ${formSale.indicador_lado === "vendedor" ? "vendedor" : "captador"} após indicador (R$)`}>
+                  <CurrencyInput value={formSale.indicador_lado ? Number((indicadorLadoValor() - Number(formSale.valor_comissao_indicador ?? 0)).toFixed(2)) : null} disabled onChange={() => {}} />
+                </Field>
+              </FieldGrid>
+            </div>
           </SaleSection>
           <SaleSection title="Posse">
             <FieldGrid>
@@ -725,6 +768,18 @@ function SaleDetail() {
               <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
               <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
               <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
+              {sale.indicador_lado && (
+                <>
+                  <ReviewItem
+                    label={`Indicador${sale.indicador ? ` — ${sale.indicador}` : ""} (${sale.indicador_lado === "captador" ? "sai do captador" : "sai do vendedor"})`}
+                    value={money(sale.valor_comissao_indicador)}
+                  />
+                  <ReviewItem
+                    label={`Líquido do ${sale.indicador_lado === "captador" ? "captador" : "vendedor"} após indicador`}
+                    value={money(Number(sale[`valor_comissao_${sale.indicador_lado}`] ?? 0) - Number(sale.valor_comissao_indicador ?? 0))}
+                  />
+                </>
+              )}
             </ReviewGroup>
 
             <ReviewGroup title="Posse">
