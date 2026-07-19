@@ -48,8 +48,7 @@ export const extractDocument = createServerFn({ method: "POST" })
 
     const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
 
-    let raw: any = null;
-    try {
+    const callGemini = async (): Promise<any> => {
       const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,18 +63,41 @@ export const extractDocument = createServerFn({ method: "POST" })
               { inline_data: { mime_type: mime, data: b64 } },
             ],
           }],
-          generationConfig: { responseMimeType: "application/json" },
+          generationConfig: { responseMimeType: "application/json", maxOutputTokens: 8192 },
         }),
       });
 
       if (!res.ok) {
         const txt = await res.text();
-        throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
+        const err: any = new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
+        // 429 (cota) não adianta tentar de novo na hora; erro 5xx costuma ser transiente do servidor.
+        err.retryable = res.status >= 500;
+        throw err;
       }
       const json = await res.json();
+      const finishReason = json.candidates?.[0]?.finishReason;
       const text: string = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      raw = safeParseJson(text);
-      if (!raw) throw new Error("Resposta não é JSON válido");
+      const parsed = safeParseJson(text);
+      if (!parsed) {
+        const err: any = new Error(
+          finishReason && finishReason !== "STOP"
+            ? `Resposta incompleta da IA (${finishReason})`
+            : "Resposta não é JSON válido",
+        );
+        err.retryable = true;
+        throw err;
+      }
+      return parsed;
+    };
+
+    let raw: any = null;
+    try {
+      try {
+        raw = await callGemini();
+      } catch (err: any) {
+        if (!err?.retryable) throw err;
+        raw = await callGemini(); // uma segunda tentativa: falhas de parse/corte costumam ser passageiras
+      }
     } catch (err: any) {
       await markFailed(supabase, doc.id, err?.message ?? "Falha na extração");
       return { ok: false as const, error: err?.message ?? "Falha na extração" };
