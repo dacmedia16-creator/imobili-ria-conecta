@@ -461,6 +461,44 @@ export type Database = {
           },
         ]
       }
+      sale_commission_extras: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string | null
+          origem: string
+          percentual: number | null
+          sale_id: string
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome?: string | null
+          origem?: string
+          percentual?: number | null
+          sale_id: string
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string | null
+          origem?: string
+          percentual?: number | null
+          sale_id?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_commission_extras_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_documents: {
         Row: {
           created_at: string
@@ -677,16 +715,24 @@ export type Database = {
           imovel_id: string | null
           imovel_observacoes: string | null
           indicador: string | null
+          indicador_lado: string | null
           iptu: string | null
           matricula: string | null
           negociacao_observacoes: string | null
           percentual_comissao: number | null
+          percentual_comissao_captador: number | null
+          percentual_comissao_indicador: number | null
+          percentual_comissao_vendedor: number | null
           posse_data: string | null
           posse_observacoes: string | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
           updated_at: string
           valor_anunciado: number | null
+          valor_comissao_captador: number | null
+          valor_comissao_imobiliaria: number | null
+          valor_comissao_indicador: number | null
+          valor_comissao_vendedor: number | null
           valor_negociado: number | null
           valor_total_comissao: number | null
         }
@@ -705,16 +751,24 @@ export type Database = {
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
+          indicador_lado?: string | null
           iptu?: string | null
           matricula?: string | null
           negociacao_observacoes?: string | null
           percentual_comissao?: number | null
+          percentual_comissao_captador?: number | null
+          percentual_comissao_indicador?: number | null
+          percentual_comissao_vendedor?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           updated_at?: string
           valor_anunciado?: number | null
+          valor_comissao_captador?: number | null
+          valor_comissao_imobiliaria?: number | null
+          valor_comissao_indicador?: number | null
+          valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
           valor_total_comissao?: number | null
         }
@@ -733,16 +787,24 @@ export type Database = {
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
+          indicador_lado?: string | null
           iptu?: string | null
           matricula?: string | null
           negociacao_observacoes?: string | null
           percentual_comissao?: number | null
+          percentual_comissao_captador?: number | null
+          percentual_comissao_indicador?: number | null
+          percentual_comissao_vendedor?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           updated_at?: string
           valor_anunciado?: number | null
+          valor_comissao_captador?: number | null
+          valor_comissao_imobiliaria?: number | null
+          valor_comissao_indicador?: number | null
+          valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
           valor_total_comissao?: number | null
         }

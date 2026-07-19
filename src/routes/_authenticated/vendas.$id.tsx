@@ -55,6 +55,9 @@ function SaleDetail() {
   // Buffered Resumo form
   const [formSale, setFormSale] = useState<any>({});
   const [dirtyResumo, setDirtyResumo] = useState(false);
+  const [commissionExtras, setCommissionExtras] = useState<any[]>([]);
+  const [formExtras, setFormExtras] = useState<any[]>([]);
+  const [dirtyExtras, setDirtyExtras] = useState(false);
 
   // Per-step savers registered by child editors
   const saversRef = useRef<Record<string, Saver>>({});
@@ -91,7 +94,7 @@ function SaleDetail() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, p, pay, ba, d, c, h, oc] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc, ce] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -100,10 +103,14 @@ function SaleDetail() {
       supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
+      supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
     ]);
     setSale(s.data);
     setFormSale(s.data ?? {});
     setDirtyResumo(false);
+    setCommissionExtras(ce.data ?? []);
+    setFormExtras(ce.data ?? []);
+    setDirtyExtras(false);
     const partyMap: Record<string, any> = {};
     (p.data ?? []).forEach((row: any) => { partyMap[row.papel] = row; });
     setParties(partyMap);
@@ -246,6 +253,43 @@ function SaleDetail() {
     const p = valor != null && ladoValor > 0 ? Number(((valor / ladoValor) * 100).toFixed(3)) : formSale.percentual_comissao_indicador ?? null;
     updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
+  // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
+  // o valor sai — é só um registro informativo, igual ao indicador, não desconta automaticamente das fatias fixas.
+  const baseParaOrigem = (origem: string) => {
+    if (origem === "captador") return Number(formSale.valor_comissao_captador ?? 0);
+    if (origem === "vendedor") return Number(formSale.valor_comissao_vendedor ?? 0);
+    return Number(formSale.valor_comissao_imobiliaria ?? 0);
+  };
+  const updExtra = (rowId: string, patch: any) => {
+    setFormExtras(rows => rows.map(r => {
+      if (r.id !== rowId) return r;
+      const merged = { ...r, ...patch };
+      const base = baseParaOrigem(merged.origem);
+      if ("percentual" in patch) {
+        let p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
+        let valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
+        if (valor != null && base > 0) { valor = Math.min(valor, base); p = Number(((valor / base) * 100).toFixed(3)); }
+        merged.percentual = p; merged.valor = valor;
+      } else if ("valor" in patch) {
+        let valor = patch.valor;
+        if (valor != null && base > 0) valor = Math.max(0, Math.min(valor, base));
+        const p = valor != null && base > 0 ? Number(((valor / base) * 100).toFixed(3)) : merged.percentual ?? null;
+        merged.valor = valor; merged.percentual = p;
+      } else if ("origem" in patch) {
+        merged.valor = merged.percentual != null && base > 0 ? Number(((Number(merged.percentual) / 100) * base).toFixed(2)) : (base > 0 ? merged.valor : null);
+      }
+      return merged;
+    }));
+    setDirtyExtras(true);
+  };
+  const addExtra = () => {
+    setFormExtras(rows => [...rows, { id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "", origem: "imobiliaria", percentual: null, valor: null, _new: true }]);
+    setDirtyExtras(true);
+  };
+  const delExtra = (rowId: string) => {
+    setFormExtras(rows => rows.filter(r => r.id !== rowId));
+    setDirtyExtras(true);
+  };
   const saveResumo = async (): Promise<boolean> => {
     if (!sale) return false;
     const fields = [
@@ -263,12 +307,30 @@ function SaleDetail() {
       const orig = sale?.[k];
       if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
     }
-    if (Object.keys(patch).length === 0) { setDirtyResumo(false); return true; }
-    setSaving(true);
-    const { error } = await supabase.from("sales").update(patch).eq("id", id);
-    setSaving(false);
-    if (error) { toast.error(error.message); return false; }
+    if (Object.keys(patch).length > 0) {
+      setSaving(true);
+      const { error } = await supabase.from("sales").update(patch).eq("id", id);
+      setSaving(false);
+      if (error) { toast.error(error.message); return false; }
+    }
+    if (dirtyExtras) {
+      const currentIds = new Set(formExtras.filter(r => !r._new).map(r => r.id));
+      const removed = commissionExtras.filter(r => !currentIds.has(r.id));
+      for (const r of removed) {
+        const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
+        if (error) { toast.error(error.message); return false; }
+      }
+      for (const r of formExtras) {
+        const data = { nome: r.nome || null, origem: r.origem, percentual: r.percentual ?? null, valor: r.valor ?? null };
+        const { error } = r._new
+          ? await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data })
+          : await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
+        if (error) { toast.error(error.message); return false; }
+      }
+    }
+    if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
     setDirtyResumo(false);
+    setDirtyExtras(false);
     toast.success("Alterações salvas");
     await load();
     return true;
@@ -406,7 +468,7 @@ function SaleDetail() {
     return true;
   };
 
-  const currentDirty = step === "resumo" ? dirtyResumo : !!dirtyMap[step];
+  const currentDirty = step === "resumo" ? (dirtyResumo || dirtyExtras) : !!dirtyMap[step];
 
   const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
   const canOverview = !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
@@ -431,7 +493,7 @@ function SaleDetail() {
       label: "2. Resumo",
       content: (
         <div className="space-y-4">
-          {editable && dirtyResumo && (
+          {editable && (dirtyResumo || dirtyExtras) && (
             <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               <span>Você tem alterações não salvas nesta etapa.</span>
               <Button size="sm" onClick={saveResumo}><Save className="mr-1 h-4 w-4" />Salvar</Button>
@@ -489,10 +551,10 @@ function SaleDetail() {
               ) : null;
             })()}
             <FieldGrid>
-              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!gestorEdits} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
-              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!gestorEdits} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
-              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
+              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!editable} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
+              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
+              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!editable} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
+              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
             </FieldGrid>
             <div className="mt-4 border-t pt-4">
@@ -511,7 +573,7 @@ function SaleDetail() {
                   <Select
                     value={formSale.indicador_lado ?? "none"}
                     onValueChange={(v) => applyIndicadorLado(v === "none" ? null : (v as "captador" | "vendedor"))}
-                    disabled={!gestorEdits}
+                    disabled={!editable}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -521,12 +583,43 @@ function SaleDetail() {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="% Indicador (sobre a comissão do lado)"><Input type="number" step="0.001" value={formSale.percentual_comissao_indicador ?? ""} disabled={!gestorEdits || !formSale.indicador_lado} onChange={(e) => applyIndicadorPercentual(e.target.value)} /></Field>
-                <Field label="Comissão indicador (R$)"><CurrencyInput value={formSale.valor_comissao_indicador} disabled={!gestorEdits || !formSale.indicador_lado} onChange={applyIndicadorValor} /></Field>
+                <Field label="% Indicador (sobre a comissão do lado)"><Input type="number" step="0.001" value={formSale.percentual_comissao_indicador ?? ""} disabled={!editable || !formSale.indicador_lado} onChange={(e) => applyIndicadorPercentual(e.target.value)} /></Field>
+                <Field label="Comissão indicador (R$)"><CurrencyInput value={formSale.valor_comissao_indicador} disabled={!editable || !formSale.indicador_lado} onChange={applyIndicadorValor} /></Field>
                 <Field label={`Líquido do ${formSale.indicador_lado === "vendedor" ? "vendedor" : "captador"} após indicador (R$)`}>
                   <CurrencyInput value={formSale.indicador_lado ? Number((indicadorLadoValor() - Number(formSale.valor_comissao_indicador ?? 0)).toFixed(2)) : null} disabled onChange={() => {}} />
                 </Field>
               </FieldGrid>
+            </div>
+            <div className="mt-4 border-t pt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Partes extras da divisão — escolha de qual fatia (imobiliária, captador ou vendedor) cada uma sai.
+                </p>
+                {editable && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
+              </div>
+              {formExtras.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
+              <div className="space-y-2">
+                {formExtras.map((r) => (
+                  <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-5">
+                    <Field label="Nome"><Input value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} /></Field>
+                    <Field label="Origem">
+                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editable}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="imobiliaria">Imobiliária</SelectItem>
+                          <SelectItem value="captador">Captador</SelectItem>
+                          <SelectItem value="vendedor">Vendedor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="% (sobre a origem)"><Input type="number" step="0.001" value={r.percentual ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { percentual: e.target.value })} /></Field>
+                    <Field label="Valor (R$)"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></Field>
+                    {editable && (
+                      <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button></div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </SaleSection>
           <SaleSection title="Posse">
@@ -1341,6 +1434,7 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
+  const [confirmExcedidoOpen, setConfirmExcedidoOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1363,9 +1457,7 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   const total = Number(occ?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
 
-  const finalizar = async () => {
-    if (!occ) return;
-    if (excedido && !confirm(`Soma das comissões (R$ ${somaComissoes.toFixed(2)}) excede a comissão total (R$ ${total.toFixed(2)}). Continuar mesmo assim?`)) return;
+  const doFinalizar = async () => {
     setFinalizing(true);
     try {
       const { error: e0 } = await supabase.from("occurrences").update({ status: "concluida" }).eq("id", occ.id);
@@ -1380,6 +1472,11 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
     } finally {
       setFinalizing(false);
     }
+  };
+  const finalizar = async () => {
+    if (!occ) return;
+    if (excedido) { setConfirmExcedidoOpen(true); return; }
+    await doFinalizar();
   };
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando revisão...</p>;
@@ -1414,6 +1511,23 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
           <Button onClick={finalizar} disabled={finalizing}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar e finalizar ocorrência</Button>
         ) : null}
       </div>
+
+      <AlertDialog open={confirmExcedidoOpen} onOpenChange={setConfirmExcedidoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Comissões excedem o total?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}). Continuar mesmo assim?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={finalizing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={finalizing} onClick={(e) => { e.preventDefault(); setConfirmExcedidoOpen(false); doFinalizar(); }}>
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1429,14 +1543,17 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
   const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reopening, setReopening] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenMotivo, setReopenMotivo] = useState("");
 
+  const openReopenDialog = () => { setReopenMotivo(""); setReopenOpen(true); };
   const reopen = async () => {
     if (!occ) return;
-    const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
-    if (!motivo?.trim()) return;
+    const motivo = reopenMotivo.trim();
+    if (!motivo) { toast.error("Justificativa é obrigatória"); return; }
     setReopening(true);
     try {
-      await supabase.from("occurrences").update({
+      const { error: e0 } = await supabase.from("occurrences").update({
         status: "pendente",
         aceita_financeiro: false,
         aceita_financeiro_em: null,
@@ -1445,7 +1562,9 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
         reopened_at: new Date().toISOString(),
         reopened_by: user!.id,
       }).eq("id", occ.id);
-      await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", sale.id);
+      if (e0) { toast.error(e0.message); return; }
+      const { error: e1 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", sale.id);
+      if (e1) { toast.error(e1.message); return; }
       await supabase.from("sale_status_history").insert({ sale_id: sale.id, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
       await supabase.from("activity_logs").insert({ sale_id: sale.id, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
       if (sale.corretor_id) {
@@ -1457,7 +1576,10 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
         });
       }
       toast.success("Ocorrência reaberta");
+      setReopenOpen(false);
       onReopened();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao reabrir ocorrência");
     } finally {
       setReopening(false);
     }
@@ -1491,7 +1613,7 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           </div>
           <div className="flex gap-2 print:hidden">
             {canReopen && occ && (
-              <Button variant="outline" size="sm" onClick={reopen} disabled={reopening}>
+              <Button variant="outline" size="sm" onClick={openReopenDialog} disabled={reopening}>
                 <RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência
               </Button>
             )}
@@ -1532,6 +1654,20 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           </div>
         </SaleSection>
       </div>
+
+      <Dialog open={reopenOpen} onOpenChange={(o) => { if (!reopening) setReopenOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir ocorrência</DialogTitle>
+            <DialogDescription>Descreva a justificativa. O corretor será notificado.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Justificativa (obrigatória)" value={reopenMotivo} onChange={(e) => setReopenMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>Cancelar</Button>
+            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>Reabrir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1746,6 +1882,9 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
   const [preview, setPreview] = useState<{ file_name: string; url: string } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [printingAll, setPrintingAll] = useState(false);
+  const [pendingReject, setPendingReject] = useState<any | null>(null);
+  const [rejectMotivo, setRejectMotivo] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   const zoomIn = () => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)));
   const zoomOut = () => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
@@ -1836,24 +1975,32 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_approved", payload: { doc_id: doc.id, tipo: doc.tipo } });
     onChange();
   };
-  const reject = async (doc: any) => {
-    const motivo = prompt("Motivo da recusa (obrigatório):");
-    if (!motivo?.trim()) return;
-    const { error } = await supabase.from("sale_documents").update({ status: "recusado", motivo_recusa: motivo }).eq("id", doc.id);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("sale_comments").insert({ sale_id: saleId, autor_id: user!.id, escopo: "revisao", texto: `Documento recusado: ${motivo}`, doc_id: doc.id });
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_rejected", payload: { doc_id: doc.id, tipo: doc.tipo, motivo } });
-    // Notificar o corretor da venda
-    const { data: sale } = await supabase.from("sales").select("corretor_id, imovel_id, codigo_interno").eq("id", saleId).maybeSingle();
-    if (sale?.corretor_id) {
-      await supabase.from("notifications").insert({
-        user_id: sale.corretor_id, sale_id: saleId,
-        tipo: "document_rejected",
-        titulo: `Documento recusado: ${doc.tipo}`,
-        mensagem: motivo,
-      });
+  const openRejectDialog = (doc: any) => { setRejectMotivo(""); setPendingReject(doc); };
+  const reject = async () => {
+    const doc = pendingReject;
+    const motivo = rejectMotivo.trim();
+    if (!doc || !motivo) { toast.error("Motivo é obrigatório"); return; }
+    setRejecting(true);
+    try {
+      const { error } = await supabase.from("sale_documents").update({ status: "recusado", motivo_recusa: motivo }).eq("id", doc.id);
+      if (error) { toast.error(error.message); return; }
+      await supabase.from("sale_comments").insert({ sale_id: saleId, autor_id: user!.id, escopo: "revisao", texto: `Documento recusado: ${motivo}`, doc_id: doc.id });
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_rejected", payload: { doc_id: doc.id, tipo: doc.tipo, motivo } });
+      // Notificar o corretor da venda
+      const { data: sale } = await supabase.from("sales").select("corretor_id, imovel_id, codigo_interno").eq("id", saleId).maybeSingle();
+      if (sale?.corretor_id) {
+        await supabase.from("notifications").insert({
+          user_id: sale.corretor_id, sale_id: saleId,
+          tipo: "document_rejected",
+          titulo: `Documento recusado: ${doc.tipo}`,
+          mensagem: motivo,
+        });
+      }
+      setPendingReject(null);
+      onChange();
+    } finally {
+      setRejecting(false);
     }
-    onChange();
   };
 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -2094,7 +2241,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
                             <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
                           )}
                           {canModerate && d.status !== "recusado" && (
-                            <Button size="sm" variant="ghost" onClick={() => reject(d)}><FileX className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => openRejectDialog(d)}><FileX className="h-4 w-4" /></Button>
                           )}
                           {editable && (d.uploaded_by === user?.id || canModerate) && (
                             <Button size="sm" variant="ghost" title="Excluir documento" onClick={() => setPendingDelete(d)}>
@@ -2134,6 +2281,20 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!pendingReject} onOpenChange={(o) => { if (!rejecting && !o) setPendingReject(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recusar documento</DialogTitle>
+            <DialogDescription>Descreva o motivo da recusa. O corretor será notificado.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Motivo da recusa (obrigatório)" value={rejectMotivo} onChange={(e) => setRejectMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingReject(null)} disabled={rejecting}>Cancelar</Button>
+            <Button onClick={reject} disabled={rejecting || !rejectMotivo.trim()}>Recusar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl">
@@ -2260,6 +2421,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
   const [formPartners, setFormPartners] = useState<any[]>([]);
   const [dirtyPartners, setDirtyPartners] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenMotivo, setReopenMotivo] = useState("");
+  const [reopening, setReopening] = useState(false);
 
   const anyDirty = dirtyOcc || dirtyComms || dirtyPartners;
   useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
@@ -2445,33 +2609,48 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
     onChange();
   };
 
-  const reopen = async () => {
+  const openReopenDialog = () => {
     if (!canFinLock) { toast.error("Somente financeiro/admin/super admin podem reabrir"); return; }
-    const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
-    if (!motivo?.trim()) return;
-    await supabase.from("occurrences").update({
-      status: "pendente",
-      aceita_financeiro: false,
-      aceita_financeiro_em: null,
-      aceita_financeiro_por: null,
-      reopen_reason: motivo,
-      reopened_at: new Date().toISOString(),
-      reopened_by: user!.id,
-    }).eq("id", occ.id);
-    await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", saleId);
-    await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
-    const { data: s } = await supabase.from("sales").select("corretor_id").eq("id", saleId).maybeSingle();
-    if (s?.corretor_id) {
-      await supabase.from("notifications").insert({
-        user_id: s.corretor_id, sale_id: saleId,
-        tipo: "occurrence_reopened",
-        titulo: "Ocorrência reaberta",
-        mensagem: motivo,
-      });
+    setReopenMotivo("");
+    setReopenOpen(true);
+  };
+  const reopen = async () => {
+    const motivo = reopenMotivo.trim();
+    if (!motivo) { toast.error("Justificativa é obrigatória"); return; }
+    setReopening(true);
+    try {
+      const { error: e0 } = await supabase.from("occurrences").update({
+        status: "pendente",
+        aceita_financeiro: false,
+        aceita_financeiro_em: null,
+        aceita_financeiro_por: null,
+        reopen_reason: motivo,
+        reopened_at: new Date().toISOString(),
+        reopened_by: user!.id,
+      }).eq("id", occ.id);
+      if (e0) { toast.error(e0.message); return; }
+      const { error: e1 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", saleId);
+      if (e1) { toast.error(e1.message); return; }
+      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+      const { data: s } = await supabase.from("sales").select("corretor_id").eq("id", saleId).maybeSingle();
+      if (s?.corretor_id) {
+        await supabase.from("notifications").insert({
+          user_id: s.corretor_id, sale_id: saleId,
+          tipo: "occurrence_reopened",
+          titulo: "Ocorrência reaberta",
+          mensagem: motivo,
+        });
+      }
+      toast.success("Ocorrência reaberta");
+      setReopenOpen(false);
+      onChange();
+      load();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao reabrir ocorrência");
+    } finally {
+      setReopening(false);
     }
-    toast.success("Ocorrência reaberta");
-    onChange();
   };
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
@@ -2655,9 +2834,23 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
           </Button>
         )}
         {canFinLock && concluida && (
-          <Button variant="outline" onClick={reopen}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
+          <Button variant="outline" onClick={openReopenDialog}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
         )}
       </div>
+
+      <Dialog open={reopenOpen} onOpenChange={(o) => { if (!reopening) setReopenOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir ocorrência</DialogTitle>
+            <DialogDescription>Descreva a justificativa. O corretor será notificado.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Justificativa (obrigatória)" value={reopenMotivo} onChange={(e) => setReopenMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>Cancelar</Button>
+            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>Reabrir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

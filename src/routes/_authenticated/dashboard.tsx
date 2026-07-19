@@ -78,6 +78,7 @@ function Dashboard() {
   const funilData = FUNIL_STAGES.map(({ key, label, statuses }) => ({
     key, label, total: sales.filter(s => statuses.includes(s.status)).length,
   }));
+  const totalFunil = funilData.reduce((sum, f) => sum + f.total, 0);
   const comissaoData = [{ prevista: totalComissaoPrevista, concluida: totalComissaoConcluida }];
 
   return (
@@ -99,16 +100,38 @@ function Dashboard() {
       {!loading && sales.length > 0 && (
         <Card>
           <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
               <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
                 <CartesianGrid horizontal={false} strokeDasharray="3 3" />
                 <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
                 <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={140} />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) => {
+                        const pct = totalFunil > 0 ? Math.round((Number(value) / totalFunil) * 100) : 0;
+                        return (
+                          <span className="font-medium text-foreground">{Number(value)} vendas ({pct}%)</span>
+                        );
+                      }}
+                    />
+                  }
+                />
                 <Bar dataKey="total" fill="var(--color-total)" radius={4} />
               </BarChart>
             </ChartContainer>
+            <div className="flex flex-col justify-center gap-1.5">
+              {funilData.map(({ key, label, total }) => {
+                const pct = totalFunil > 0 ? Math.round((total / totalFunil) * 100) : 0;
+                return (
+                  <div key={key} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-medium">{total} <span className="text-xs text-muted-foreground">({pct}%)</span></span>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
