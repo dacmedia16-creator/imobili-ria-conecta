@@ -57,6 +57,34 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   cancelada: "bg-destructive/15 text-destructive",
 };
 
+/** Agrupa os status granulares nas 6 macro-etapas do fluxo, para exibir um stepper visual. */
+export type FlowStageKey = "corretor" | "gestor" | "juridico" | "contrato" | "financeiro" | "concluida";
+export const FLOW_STAGES: { key: FlowStageKey; label: string; statuses: SaleStatus[] }[] = [
+  { key: "corretor", label: "Corretor", statuses: ["rascunho", "devolvida_ajuste"] },
+  { key: "gestor", label: "Gestor", statuses: ["enviada_revisao"] },
+  { key: "juridico", label: "Jurídico", statuses: ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato"] },
+  { key: "contrato", label: "Contrato / assinatura", statuses: ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura", "contrato_assinado"] },
+  { key: "financeiro", label: "Financeiro", statuses: ["ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor"] },
+  { key: "concluida", label: "Concluída", statuses: ["ocorrencia_concluida"] },
+];
+
+/** true quando o status atual representa uma devolução (algo precisa ser corrigido antes de seguir) */
+export function isReturnStatus(status: SaleStatus): boolean {
+  return status === "devolvida_ajuste" || status === "ocorrencia_devolvida_gestor";
+}
+
+export function flowStageIndex(status: SaleStatus): number {
+  return FLOW_STAGES.findIndex((s) => s.statuses.includes(status));
+}
+
+/** Quantos dias faz desde `sinceIso`, e um rótulo/tom prontos para exibir como indicador de "tempo parado". */
+export function agingInfo(sinceIso: string): { dias: number; label: string; tone: "muted" | "amber" | "destructive" } {
+  const dias = Math.max(0, Math.floor((Date.now() - new Date(sinceIso).getTime()) / (1000 * 60 * 60 * 24)));
+  const label = dias === 0 ? "hoje" : dias === 1 ? "há 1 dia" : `há ${dias} dias`;
+  const tone = dias > 5 ? "destructive" : dias >= 3 ? "amber" : "muted";
+  return { dias, label, tone };
+}
+
 export type DocGrupo = "pessoal" | "imovel" | "outros";
 export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
   pessoal: "Documentos pessoais",

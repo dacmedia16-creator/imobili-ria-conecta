@@ -13,6 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
+import { SaleFlowStepper } from "@/components/SaleFlowStepper";
+import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2 } from "lucide-react";
@@ -144,6 +146,9 @@ function SaleDetail() {
   const gestorEdits = isGestor && ["enviada_revisao","contrato_conferencia_gestor","contrato_ok_corretor","aguardando_assinatura","contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status);
   const juridicoEdits = isJuridico && ["aprovada_gestor","em_elaboracao_contrato"].includes(status);
   const editable = (corretorEdits || gestorEdits || juridicoEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
+
+  // history vem ordenado por created_at desc (ver load()); o primeiro item é a transição que colocou a venda no status atual
+  const stageChangedAt = history[0]?.created_at ?? sale.created_at;
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
   const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
@@ -544,12 +549,16 @@ function SaleDetail() {
 
       <Card className="print:hidden">
         <CardContent className="space-y-3 p-4">
+          <SaleFlowStepper status={status} />
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary/5 p-3 text-sm">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Próxima etapa</div>
               <div className="font-medium">{proximoResponsavel(status).titulo}</div>
             </div>
-            <div className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></div>
+            <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+              <span>Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></span>
+              <AgingBadge since={stageChangedAt} />
+            </div>
           </div>
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">

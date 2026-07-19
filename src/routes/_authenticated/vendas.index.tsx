@@ -11,6 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
+import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { Plus, Trash2 } from "lucide-react";
@@ -26,6 +27,7 @@ function SalesList() {
   const { user, hasAny } = useAuth();
   const router = useRouter();
   const [sales, setSales] = useState<any[]>([]);
+  const [stageSince, setStageSince] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>("todas");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ function SalesList() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      let query = supabase.from("sales").select("id, status, valor_negociado, imovel_id, codigo_interno, updated_at, corretor_id").order("updated_at", { ascending: false });
+      let query = supabase.from("sales").select("id, status, valor_negociado, imovel_id, codigo_interno, updated_at, created_at, corretor_id").order("updated_at", { ascending: false });
       if (statusFilter !== "todas") query = query.eq("status", statusFilter as any);
       const { data } = await query;
       const filtered = (data ?? []).filter((s: any) => {
@@ -58,6 +60,21 @@ function SalesList() {
         return hay.includes(q.toLowerCase());
       });
       setSales(filtered);
+
+      // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
+      const ids = filtered.map((s: any) => s.id);
+      const since: Record<string, string> = {};
+      if (ids.length) {
+        const { data: hist } = await supabase
+          .from("sale_status_history")
+          .select("sale_id, created_at")
+          .in("sale_id", ids)
+          .order("created_at", { ascending: false });
+        for (const h of hist ?? []) {
+          if (!since[h.sale_id]) since[h.sale_id] = h.created_at;
+        }
+      }
+      setStageSince(since);
       setLoading(false);
     })();
   }, [statusFilter, q, refreshKey]);
@@ -121,6 +138,7 @@ function SalesList() {
                   <TableHead>Imóvel / código</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Nesta etapa</TableHead>
                   <TableHead>Atualizado em</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -135,6 +153,7 @@ function SalesList() {
                         {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
                       </TableCell>
                       <TableCell><StatusBadge status={s.status as SaleStatus} /></TableCell>
+                      <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
                       <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
                       <TableCell>
                         {canDelete && (
