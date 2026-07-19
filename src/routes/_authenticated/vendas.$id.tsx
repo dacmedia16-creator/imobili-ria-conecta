@@ -588,7 +588,7 @@ function SaleDetail() {
       </Card>
 
       {status === "ocorrencia_concluida" ? (
-        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} />
+        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} canReopen={isFinanceiro} onReopened={load} />
       ) : (
         <Wizard
           steps={steps}
@@ -742,13 +742,49 @@ function Checkbox({ checked, label }: { checked: boolean; label: string }) {
 }
 
 /** Relatório oficial "Ocorrência de compra e venda" — réplica digital do formulário em papel usado pela imobiliária, exibido em vez do wizard de etapas quando a venda está concluída. */
-function SaleReport({ sale, parties, payment, docs, history }: {
+function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopened }: {
   sale: any; parties: Record<string, any>; payment: any; docs: any[]; history: any[];
+  canReopen: boolean; onReopened: () => void;
 }) {
+  const { user } = useAuth();
   const [occ, setOcc] = useState<any>(null);
   const [commissions, setCommissions] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reopening, setReopening] = useState(false);
+
+  const reopen = async () => {
+    if (!occ) return;
+    const motivo = prompt("Justificativa para reabrir a ocorrência (obrigatório):");
+    if (!motivo?.trim()) return;
+    setReopening(true);
+    try {
+      await supabase.from("occurrences").update({
+        status: "pendente",
+        aceita_financeiro: false,
+        aceita_financeiro_em: null,
+        aceita_financeiro_por: null,
+        reopen_reason: motivo,
+        reopened_at: new Date().toISOString(),
+        reopened_by: user!.id,
+      }).eq("id", occ.id);
+      await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", sale.id);
+      await supabase.from("sale_status_history").insert({ sale_id: sale.id, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
+      await supabase.from("activity_logs").insert({ sale_id: sale.id, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+      if (sale.corretor_id) {
+        await supabase.from("notifications").insert({
+          user_id: sale.corretor_id, sale_id: sale.id,
+          tipo: "occurrence_reopened",
+          titulo: "Ocorrência reaberta",
+          mensagem: motivo,
+        });
+      }
+      toast.success("Ocorrência reaberta");
+      onReopened();
+    } finally {
+      setReopening(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -782,9 +818,16 @@ function SaleReport({ sale, parties, payment, docs, history }: {
             <div className="text-sm font-bold">{AGENCY_NAME}</div>
             <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
           </div>
-          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
-            Imprimir
-          </Button>
+          <div className="flex gap-2 print:hidden">
+            {canReopen && occ && (
+              <Button variant="outline" size="sm" onClick={reopen} disabled={reopening}>
+                <RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              Imprimir
+            </Button>
+          </div>
         </div>
 
         <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
