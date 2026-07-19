@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
@@ -163,12 +164,19 @@ function SaleDetail() {
 
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
+  const recalcImobiliaria = (patch: any) => {
+    const total = Number(patch.valor_total_comissao ?? formSale.valor_total_comissao ?? 0);
+    const captador = Number(patch.valor_comissao_captador ?? formSale.valor_comissao_captador ?? 0);
+    const vendedor = Number(patch.valor_comissao_vendedor ?? formSale.valor_comissao_vendedor ?? 0);
+    return Number((total - captador - vendedor).toFixed(2));
+  };
   const saveResumo = async (): Promise<boolean> => {
     if (!sale) return false;
     const fields = [
       "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes",
       "corretor_captador","corretor_vendedor","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
+      "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
     ];
     const patch: any = {};
@@ -338,16 +346,33 @@ function SaleDetail() {
                 const neg = Number(formSale.valor_negociado ?? 0);
                 const patch: any = { percentual_comissao: p };
                 if (p != null && neg > 0) patch.valor_total_comissao = Number(((p / 100) * neg).toFixed(2));
+                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
                 updResumo(patch);
               }} /></Field>
               <Field label="Valor total da comissão (R$)"><CurrencyInput value={formSale.valor_total_comissao} disabled={!editable} onChange={(v) => {
                 const neg = Number(formSale.valor_negociado ?? 0);
                 const patch: any = { valor_total_comissao: v };
                 if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(3));
+                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
                 updResumo(patch);
               }} /></Field>
               <Field label="Forma de pagamento" colSpan={2}><Input value={formSale.forma_pagamento ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento: e.target.value })} /></Field>
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
+            </FieldGrid>
+          </SaleSection>
+          <SaleSection title="Divisão da comissão (revisão do gestor)">
+            <FieldGrid>
+              <Field label="Comissão corretor captador (R$)"><CurrencyInput value={formSale.valor_comissao_captador} disabled={!gestorEdits} onChange={(v) => {
+                const patch: any = { valor_comissao_captador: v };
+                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+                updResumo(patch);
+              }} /></Field>
+              <Field label="Comissão corretor vendedor (R$)"><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!gestorEdits} onChange={(v) => {
+                const patch: any = { valor_comissao_vendedor: v };
+                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+                updResumo(patch);
+              }} /></Field>
+              <Field label="Valor para a imobiliária (R$)"><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
             </FieldGrid>
           </SaleSection>
           <SaleSection title="Posse">
@@ -406,34 +431,18 @@ function SaleDetail() {
       ),
     },
     {
-      key: "historico",
-      label: "6. Histórico",
+      key: "revisao",
+      label: "6. Revisão",
+      disabled: !canOccurrence,
       content: (
-        <Card>
-          <CardHeader><CardTitle>Histórico de status</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
-            {history.map((h) => (
-              <div key={h.id} className="rounded-md border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-muted-foreground">{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}</span>
-                    {" → "}
-                    <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
-                </div>
-                {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <OccurrenceReviewPanel
+          saleId={id}
+          sale={sale}
+          parties={parties}
+          canEdit={canEditOcorrencia}
+          onChange={load}
+        />
       ),
-    },
-    {
-      key: "comentarios",
-      label: "7. Comentários",
-      content: <CommentsPanel saleId={id} comments={comments} onAdd={load} />,
     },
   ];
 
@@ -558,6 +567,48 @@ function SaleDetail() {
       </AlertDialog>
 
 
+      <div className="flex flex-wrap justify-end gap-2 print:hidden">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="sm"><History className="mr-2 h-4 w-4" />Histórico</Button>
+          </SheetTrigger>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Histórico de status</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-2">
+              {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+              {history.map((h) => (
+                <div key={h.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-muted-foreground">{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}</span>
+                      {" → "}
+                      <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+                  </div>
+                  {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
+                </div>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="sm"><MessageSquare className="mr-2 h-4 w-4" />Comentários{comments.length > 0 ? ` (${comments.length})` : ""}</Button>
+          </SheetTrigger>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Comentários</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <CommentsPanel saleId={id} comments={comments} onAdd={load} />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
       <Card className="print:hidden">
         <CardContent className="space-y-3 p-4">
           <SaleFlowStepper status={status} />
@@ -613,26 +664,58 @@ function SaleDetail() {
       {saving && <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">Salvando...</p>}
 
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Conferência antes de enviar</DialogTitle>
-            <DialogDescription>Confira os itens abaixo antes de enviar para o gestor.</DialogDescription>
+            <DialogDescription>Revise o que foi preenchido antes de enviar para o gestor.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-80 space-y-2 overflow-y-auto text-sm">
+          <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
             {pendencias.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
                 <CheckCircle2 className="mr-2 inline h-4 w-4" />Venda pronta para revisão.
               </div>
             ) : (
-              <>
-                <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  <AlertTriangle className="mr-2 inline h-4 w-4" />{pendencias.length} pendência(s). Corrija antes de enviar.
-                </div>
-                <ul className="space-y-1 pl-2">
+              <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />{pendencias.length} pendência(s). Corrija antes de enviar.
+                <ul className="mt-2 space-y-1 pl-2">
                   {pendencias.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
                 </ul>
-              </>
+              </div>
             )}
+
+            <div className="space-y-3">
+              <ReviewGroup title="Imóvel">
+                <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
+                <ReviewItem label="Matrícula" value={sale.matricula} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Valores e negociação">
+                <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
+                <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
+                <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
+                <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Partes">
+                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
+                  .filter((papel) => parties[papel]?.nome)
+                  .map((papel) => (
+                    <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={parties[papel]?.nome} />
+                  ))}
+                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const).every((papel) => !parties[papel]?.nome) && (
+                  <ReviewItem label="Nenhuma parte preenchida" value={null} />
+                )}
+              </ReviewGroup>
+
+              <ReviewGroup title="Pagamento">
+                <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
+                <ReviewItem label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Documentos">
+                <ReviewItem label="Anexados" value={`${docs.length}`} />
+              </ReviewGroup>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReviewOpen(false)}>Cancelar</Button>
@@ -711,6 +794,36 @@ function SaleDetail() {
 const AGENCY_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
 const AGENCY_CRECI = "CRECI: 29.886-J";
 
+const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
+const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : null);
+
+const isImageFile = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+/** Abre uma janela com um documento (ou vários) por página e dispara a impressão do navegador assim que tudo carrega. */
+function printDocumentUrls(list: { file_name: string; url: string }[]) {
+  const w = window.open("", "_blank", "noopener,noreferrer");
+  if (!w) { toast.error("Permita pop-ups para imprimir"); return; }
+  const body = list.map((d) => `
+    <section class="page">
+      <h2>${escapeHtml(d.file_name)}</h2>
+      ${isImageFile(d.file_name)
+        ? `<img src="${d.url}" alt="${escapeHtml(d.file_name)}" />`
+        : `<iframe src="${d.url}" title="${escapeHtml(d.file_name)}"></iframe>`}
+    </section>
+  `).join("");
+  w.document.write(`<!doctype html><html><head><title>Imprimir documentos</title><style>
+    body { margin: 0; font-family: sans-serif; }
+    .page { page-break-after: always; padding: 16px; box-sizing: border-box; min-height: 100vh; }
+    .page:last-child { page-break-after: auto; }
+    .page h2 { font-size: 13px; margin: 0 0 8px; color: #333; }
+    .page img { max-width: 100%; max-height: 92vh; display: block; margin: 0 auto; object-fit: contain; }
+    .page iframe { width: 100%; height: 92vh; border: 0; }
+  </style></head><body>${body}</body></html>`);
+  w.document.close();
+  w.onload = () => { w.focus(); setTimeout(() => w.print(), 400); };
+}
+
 function FormTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between border border-b-0 border-foreground/30 bg-muted/60 px-3 py-1.5 text-xs font-bold uppercase tracking-wide">
@@ -750,6 +863,204 @@ function FormValueRow({ cols }: { cols: React.ReactNode[] }) {
 }
 function Checkbox({ checked, label }: { checked: boolean; label: string }) {
   return <span className="font-mono">({checked ? "X" : " "}) {label}</span>;
+}
+
+function ReviewGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <div className="space-y-1 rounded-md border p-2">{children}</div>
+    </div>
+  );
+}
+function ReviewItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value ?? <span className="text-muted-foreground">—</span>}</span>
+    </div>
+  );
+}
+
+/** Tabelas do formulário "Ocorrência de compra e venda", compartilhadas entre a revisão (pré-finalização) e o relatório final. */
+function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
+  sale: any; occ: any; commissions: any[]; partners: any[]; parties: Record<string, any>;
+}) {
+  const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor")).map(([, p]) => p);
+  const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
+  const commByPapel = (papel: string) => commissions.find((c) => c.papel === papel);
+
+  return (
+    <>
+      <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
+        Ocorrência de compra e venda
+      </div>
+
+      <FormTable>
+        <FormHeadRow cols={["Código do imóvel", "Tempo de venda", "Data de assinatura", "Nota fiscal obrigatória", "Mídia"]} />
+        <FormValueRow cols={[
+          sale.imovel_id || sale.codigo_interno,
+          occ?.tempo_venda,
+          dateBR(occ?.data_assinatura),
+          <Checkbox checked={!!occ?.nota_fiscal_obrigatoria} label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"} />,
+          occ?.midia,
+        ]} />
+      </FormTable>
+
+      {vendedores.map((v: any, i: number) => (
+        <FormTable key={v.id ?? i}>
+          <FormValueRow cols={[<span><b>Nome do vendedor:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
+          <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {v.cpf_cnpj}</span>, <span><b>RG:</b> {v.rg}</span>, <span><b>Celular:</b> {v.telefone}</span>]} />
+        </FormTable>
+      ))}
+      {compradores.map((c: any, i: number) => (
+        <FormTable key={c.id ?? i}>
+          <FormValueRow cols={[<span><b>Nome do comprador:</b> {c.nome}</span>, <span><b>E-mail:</b> {c.email}</span>]} />
+          <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {c.cpf_cnpj}</span>, <span><b>RG:</b> {c.rg}</span>, <span><b>Celular:</b> {c.telefone}</span>]} />
+        </FormTable>
+      ))}
+
+      <FormTitle>Resumo da transação</FormTitle>
+      <FormTable>
+        <FormHeadRow cols={["Valor anunciado", "Valor negociado", "Percentual", "Valor da comissão"]} />
+        <FormValueRow cols={[money(occ?.valor_anunciado ?? sale.valor_anunciado), money(occ?.valor_negociado ?? sale.valor_negociado), occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null, money(occ?.valor_comissao ?? sale.valor_total_comissao)]} />
+      </FormTable>
+
+      <FormTable>
+        <FormHeadRow cols={["Papel", "Nome", "Comissão %", "Comissão R$"]} />
+        {COMISSAO_PAPEIS.map((p) => {
+          const c = commByPapel(p.key);
+          return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
+        })}
+      </FormTable>
+
+      <FormTitle right={<Checkbox checked={!!occ?.financiamento} label={occ?.financiamento ? "Sim" : "Não"} />}>
+        Dados de financiamento — financiamento
+      </FormTitle>
+      <FormTable>
+        <FormHeadRow cols={["Financiamento R$", "Banco", "Correspondente bancário", "Previsão da liberação do crédito"]} />
+        <FormValueRow cols={[money(occ?.financiamento_valor), occ?.financiamento_banco, occ?.financiamento_correspondente, dateBR(occ?.financiamento_previsao)]} />
+      </FormTable>
+
+      <FormTitle>Previsão de recebimento da comissão</FormTitle>
+      <FormTable>
+        <FormHeadRow cols={["1ª parcela", "Data", "Forma de pagamento"]} />
+        <FormValueRow cols={[money(occ?.prev_recebimento_valor), dateBR(occ?.prev_recebimento_data), occ?.prev_recebimento_forma]} />
+        <FormHeadRow cols={["2ª parcela", "Data", "Forma de pagamento"]} />
+        <FormValueRow cols={[money(occ?.prev_recebimento2_valor), dateBR(occ?.prev_recebimento2_data), occ?.prev_recebimento2_forma]} />
+        <FormHeadRow cols={["3ª parcela", "Data", "Forma de pagamento"]} />
+        <FormValueRow cols={[money(occ?.prev_recebimento3_valor), dateBR(occ?.prev_recebimento3_data), occ?.prev_recebimento3_forma]} />
+      </FormTable>
+
+      <FormTitle>Parceria</FormTitle>
+      <FormTable>
+        <FormHeadRow cols={["Corretor(a) / Imobiliária", "CPF/CNPJ", "Percentual", "Valor da comissão"]} />
+        {partners.length === 0 && <FormValueRow cols={["Não possui", null, "0%", "R$ 0,00"]} />}
+        {partners.map((p) => (
+          <FormValueRow key={p.id} cols={[p.nome, p.cpf_cnpj, p.percentual != null ? `${p.percentual}%` : "0%", money(p.valor) ?? "R$ 0,00"]} />
+        ))}
+        <FormHeadRow cols={["Dados bancários", "Banco", "Agência", "Conta"]} />
+        {partners.length === 0 && <FormValueRow cols={[null, null, null, null]} />}
+        {partners.map((p) => (
+          <FormValueRow key={`${p.id}-bank`} cols={[null, p.banco, p.agencia, p.conta]} />
+        ))}
+      </FormTable>
+
+      {occ?.observacoes && (
+        <FormTable>
+          <FormHeadRow cols={["Observações"]} />
+          <FormValueRow cols={[occ.observacoes]} />
+        </FormTable>
+      )}
+    </>
+  );
+}
+
+/** Tela de revisão da ocorrência (pré-finalização) — mesmo layout de relatório do SaleReport, com ação para confirmar e finalizar. */
+function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
+  saleId: string; sale: any; parties: Record<string, any>; canEdit: boolean; onChange: () => void;
+}) {
+  const { user } = useAuth();
+  const [occ, setOcc] = useState<any>(null);
+  const [commissions, setCommissions] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [finalizing, setFinalizing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle();
+    setOcc(o);
+    if (o) {
+      const [c, p] = await Promise.all([
+        supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
+        supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
+      ]);
+      setCommissions(c.data ?? []);
+      setPartners(p.data ?? []);
+    }
+    setLoading(false);
+  }, [saleId]);
+  useEffect(() => { load(); }, [load]);
+
+  const concluida = occ?.status === "concluida";
+  const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
+  const total = Number(occ?.valor_comissao ?? 0);
+  const excedido = total > 0 && somaComissoes > total + 0.01;
+
+  const finalizar = async () => {
+    if (!occ) return;
+    if (excedido && !confirm(`Soma das comissões (R$ ${somaComissoes.toFixed(2)}) excede a comissão total (R$ ${total.toFixed(2)}). Continuar mesmo assim?`)) return;
+    setFinalizing(true);
+    try {
+      const { error: e0 } = await supabase.from("occurrences").update({ status: "concluida" }).eq("id", occ.id);
+      if (e0) { toast.error(e0.message); return; }
+      const { error } = await supabase.from("sales").update({ status: "ocorrencia_concluida" }).eq("id", saleId);
+      if (error) { toast.error(error.message); return; }
+      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo: "Ocorrência finalizada" });
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total } });
+      toast.success("Ocorrência finalizada");
+      onChange();
+      await load();
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando revisão...</p>;
+  if (!occ) return <p className="text-sm text-muted-foreground">Preencha e salve a etapa "Ocorrência" antes de revisar.</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="print:border print:border-foreground/30 print:p-4">
+        <div className="mb-3 flex items-center justify-between border-b pb-2">
+          <div>
+            <div className="text-sm font-bold">{AGENCY_NAME}</div>
+            <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+          </div>
+          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
+            Imprimir
+          </Button>
+        </div>
+
+        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} />
+      </div>
+
+      {excedido && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200 print:hidden">
+          Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}).
+        </div>
+      )}
+
+      <div className="flex justify-end print:hidden">
+        {concluida ? (
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Ocorrência finalizada.</p>
+        ) : canEdit ? (
+          <Button onClick={finalizar} disabled={finalizing}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar e finalizar ocorrência</Button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 /** Relatório oficial "Ocorrência de compra e venda" — réplica digital do formulário em papel usado pela imobiliária, exibido em vez do wizard de etapas quando a venda está concluída. */
@@ -815,12 +1126,6 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando relatório...</p>;
 
-  const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
-  const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : null);
-  const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor")).map(([, p]) => p);
-  const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
-  const commByPapel = (papel: string) => commissions.find((c) => c.papel === papel);
-
   return (
     <div className="space-y-6">
       <div className="print:border print:border-foreground/30 print:p-4">
@@ -841,86 +1146,7 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           </div>
         </div>
 
-        <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
-          Ocorrência de compra e venda
-        </div>
-
-        <FormTable>
-          <FormHeadRow cols={["Código do imóvel", "Tempo de venda", "Data de assinatura", "Nota fiscal obrigatória", "Mídia"]} />
-          <FormValueRow cols={[
-            sale.imovel_id || sale.codigo_interno,
-            occ?.tempo_venda,
-            dateBR(occ?.data_assinatura),
-            <Checkbox checked={!!occ?.nota_fiscal_obrigatoria} label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"} />,
-            occ?.midia,
-          ]} />
-        </FormTable>
-
-        {vendedores.map((v: any, i: number) => (
-          <FormTable key={v.id ?? i}>
-            <FormValueRow cols={[<span><b>Nome do vendedor:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
-            <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {v.cpf_cnpj}</span>, <span><b>RG:</b> {v.rg}</span>, <span><b>Celular:</b> {v.telefone}</span>]} />
-          </FormTable>
-        ))}
-        {compradores.map((c: any, i: number) => (
-          <FormTable key={c.id ?? i}>
-            <FormValueRow cols={[<span><b>Nome do comprador:</b> {c.nome}</span>, <span><b>E-mail:</b> {c.email}</span>]} />
-            <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {c.cpf_cnpj}</span>, <span><b>RG:</b> {c.rg}</span>, <span><b>Celular:</b> {c.telefone}</span>]} />
-          </FormTable>
-        ))}
-
-        <FormTitle>Resumo da transação</FormTitle>
-        <FormTable>
-          <FormHeadRow cols={["Valor anunciado", "Valor negociado", "Percentual", "Valor da comissão"]} />
-          <FormValueRow cols={[money(occ?.valor_anunciado ?? sale.valor_anunciado), money(occ?.valor_negociado ?? sale.valor_negociado), occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null, money(occ?.valor_comissao ?? sale.valor_total_comissao)]} />
-        </FormTable>
-
-        <FormTable>
-          <FormHeadRow cols={["Papel", "Nome", "Comissão %", "Comissão R$"]} />
-          {COMISSAO_PAPEIS.map((p) => {
-            const c = commByPapel(p.key);
-            return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
-          })}
-        </FormTable>
-
-        <FormTitle right={<Checkbox checked={!!occ?.financiamento} label={occ?.financiamento ? "Sim" : "Não"} />}>
-          Dados de financiamento — financiamento
-        </FormTitle>
-        <FormTable>
-          <FormHeadRow cols={["Financiamento R$", "Banco", "Correspondente bancário", "Previsão da liberação do crédito"]} />
-          <FormValueRow cols={[money(occ?.financiamento_valor), occ?.financiamento_banco, occ?.financiamento_correspondente, dateBR(occ?.financiamento_previsao)]} />
-        </FormTable>
-
-        <FormTitle>Previsão de recebimento da comissão</FormTitle>
-        <FormTable>
-          <FormHeadRow cols={["1ª parcela", "Data", "Forma de pagamento"]} />
-          <FormValueRow cols={[money(occ?.prev_recebimento_valor), dateBR(occ?.prev_recebimento_data), occ?.prev_recebimento_forma]} />
-          <FormHeadRow cols={["2ª parcela", "Data", "Forma de pagamento"]} />
-          <FormValueRow cols={[money(occ?.prev_recebimento2_valor), dateBR(occ?.prev_recebimento2_data), occ?.prev_recebimento2_forma]} />
-          <FormHeadRow cols={["3ª parcela", "Data", "Forma de pagamento"]} />
-          <FormValueRow cols={[money(occ?.prev_recebimento3_valor), dateBR(occ?.prev_recebimento3_data), occ?.prev_recebimento3_forma]} />
-        </FormTable>
-
-        <FormTitle>Parceria</FormTitle>
-        <FormTable>
-          <FormHeadRow cols={["Corretor(a) / Imobiliária", "CPF/CNPJ", "Percentual", "Valor da comissão"]} />
-          {partners.length === 0 && <FormValueRow cols={["Não possui", null, "0%", "R$ 0,00"]} />}
-          {partners.map((p) => (
-            <FormValueRow key={p.id} cols={[p.nome, p.cpf_cnpj, p.percentual != null ? `${p.percentual}%` : "0%", money(p.valor) ?? "R$ 0,00"]} />
-          ))}
-          <FormHeadRow cols={["Dados bancários", "Banco", "Agência", "Conta"]} />
-          {partners.length === 0 && <FormValueRow cols={[null, null, null, null]} />}
-          {partners.map((p) => (
-            <FormValueRow key={`${p.id}-bank`} cols={[null, p.banco, p.agencia, p.conta]} />
-          ))}
-        </FormTable>
-
-        {occ?.observacoes && (
-          <FormTable>
-            <FormHeadRow cols={["Observações"]} />
-            <FormValueRow cols={[occ.observacoes]} />
-          </FormTable>
-        )}
+        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} />
       </div>
 
       <div className="space-y-4 print:hidden">
@@ -1162,6 +1388,41 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [preview, setPreview] = useState<{ file_name: string; url: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [printingAll, setPrintingAll] = useState(false);
+
+  const zoomIn = () => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)));
+  const zoomOut = () => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
+
+  const viewDoc = async (doc: any) => {
+    const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 300);
+    if (error || !data) { toast.error("Falha ao gerar link"); return; }
+    setZoom(1);
+    setPreview({ file_name: doc.file_name, url: data.signedUrl });
+  };
+
+  const printDoc = async (doc: any) => {
+    const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 300);
+    if (error || !data) { toast.error("Falha ao gerar link"); return; }
+    printDocumentUrls([{ file_name: doc.file_name, url: data.signedUrl }]);
+  };
+
+  const printAllDocs = async () => {
+    if (docs.length === 0) return;
+    setPrintingAll(true);
+    try {
+      const { data, error } = await supabase.storage.from("sale-documents").createSignedUrls(docs.map((d) => d.storage_path), 300);
+      if (error || !data) { toast.error("Falha ao gerar links"); return; }
+      const list = data
+        .map((r, i) => (r.signedUrl ? { file_name: docs[i].file_name, url: r.signedUrl } : null))
+        .filter((x): x is { file_name: string; url: string } => !!x);
+      if (list.length === 0) { toast.error("Nenhum documento disponível para impressão"); return; }
+      printDocumentUrls(list);
+    } finally {
+      setPrintingAll(false);
+    }
+  };
 
   const removeDoc = async (doc: any) => {
     setDeleting(true);
@@ -1214,11 +1475,6 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     void inserted;
   };
 
-  const download = async (doc: any) => {
-    const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 60);
-    if (error || !data) { toast.error("Falha ao gerar link"); return; }
-    window.open(data.signedUrl, "_blank");
-  };
   const approve = async (doc: any) => {
     const { error } = await supabase.from("sale_documents").update({ status: "aprovado", motivo_recusa: null }).eq("id", doc.id);
     if (error) { toast.error(error.message); return; }
@@ -1389,15 +1645,21 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
-            {applying ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
-              </>
-            ) : (
-              <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
-            )}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={printAllDocs} disabled={docs.length === 0 || printingAll}>
+              {printingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+              Imprimir todos
+            </Button>
+            <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
+              {applying ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
+                </>
+              ) : (
+                <><Sparkles className="mr-2 h-4 w-4" />Ler documentos e aplicar dados</>
+              )}
+            </Button>
+          </div>
         </CardContent>
         {anyPending && !applying && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
@@ -1452,9 +1714,15 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
                     )}
                     {list.map((d) => (
                       <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm">
-                        <button className="truncate text-left hover:underline" onClick={() => download(d)}>{d.file_name}</button>
+                        <button className="truncate text-left hover:underline" onClick={() => viewDoc(d)}>{d.file_name}</button>
                         <div className="flex items-center gap-2">
                           <ExtractionBadge status={d.extraction_status} loading={!!extracting[d.id]} />
+                          <Button size="sm" variant="ghost" title="Visualizar" onClick={() => viewDoc(d)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" title="Imprimir" onClick={() => printDoc(d)}>
+                            <Printer className="h-4 w-4" />
+                          </Button>
                           {editable && d.extraction_status !== "pending" && !extracting[d.id] && (
                             <Button size="sm" variant="ghost" title="Ler novamente com IA" onClick={() => runExtraction(d.id)}>
                               <Sparkles className="h-4 w-4" />
@@ -1505,6 +1773,52 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{preview?.file_name}</DialogTitle>
+          </DialogHeader>
+          {preview && isImageFile(preview.file_name) && (
+            <div className="flex items-center justify-end gap-1">
+              <Button size="sm" variant="outline" onClick={zoomOut} disabled={zoom <= 0.5}>
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <span className="w-12 text-center text-xs text-muted-foreground">{Math.round(zoom * 100)}%</span>
+              <Button size="sm" variant="outline" onClick={zoomIn} disabled={zoom >= 3}>
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              {zoom !== 1 && (
+                <Button size="sm" variant="outline" onClick={() => setZoom(1)}>Redefinir</Button>
+              )}
+            </div>
+          )}
+          {preview && (
+            <div className="max-h-[70vh] overflow-auto rounded-md border bg-muted/30">
+              {isImageFile(preview.file_name) ? (
+                <img
+                  src={preview.url}
+                  alt={preview.file_name}
+                  className="mx-auto cursor-zoom-in select-none"
+                  style={zoom === 1 ? { maxHeight: "70vh", maxWidth: "100%", width: "auto" } : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }}
+                  onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}
+                />
+              ) : (
+                <iframe src={preview.url} title={preview.file_name} className="h-[70vh] w-full" />
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => preview && printDocumentUrls([preview])}>
+              <Printer className="mr-2 h-4 w-4" />Imprimir
+            </Button>
+            <Button variant="outline" onClick={() => preview && window.open(preview.url, "_blank")}>
+              <Download className="mr-2 h-4 w-4" />Baixar
+            </Button>
+            <Button onClick={() => setPreview(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1722,21 +2036,6 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
   const total = Number(formOcc?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
 
-  const conclude = async () => {
-    if (anyDirty) { const ok = await save(); if (!ok) return; }
-    if (excedido) {
-      if (!confirm(`Soma das comissões (R$ ${somaComissoes.toFixed(2)}) excede a comissão total (R$ ${total.toFixed(2)}). Continuar mesmo assim?`)) return;
-    }
-    const { error: e0 } = await supabase.from("occurrences").update({ status: "concluida" }).eq("id", occ.id);
-    if (e0) { toast.error(e0.message); return; }
-    const { error } = await supabase.from("sales").update({ status: "ocorrencia_concluida" }).eq("id", saleId);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo: "Ocorrência finalizada" });
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total } });
-    toast.success("Ocorrência finalizada");
-    onChange();
-  };
-
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
 
   const toggleAceite = async () => {
@@ -1946,9 +2245,6 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
       </Card>
 
       <div className="flex flex-wrap justify-end gap-2">
-        {canEdit && !concluida && (
-          <Button onClick={conclude}><CheckCircle2 className="mr-2 h-4 w-4" />Finalizar ocorrência</Button>
-        )}
         {canFinLock && (
           <Button variant={occ.aceita_financeiro ? "outline" : "default"} onClick={toggleAceite}>
             {occ.aceita_financeiro ? "Liberar edições" : "Aceitar e travar (Financeiro)"}
