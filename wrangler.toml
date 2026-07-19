@@ -6,3 +6,8 @@ compatibility_date = "2026-07-19"
 # lê este arquivo no build e mescla automaticamente `main`, `assets` (binding ASSETS
 # apontando pro client) e `compatibility_flags: ["nodejs_compat"]` — não defina esses
 # campos aqui manualmente, o Nitro os sobrescreve e avisa no log se detectar conflito.
+
+# Sem isso, cada deploy via `wrangler deploy` apaga as variáveis/segredos
+# configurados manualmente no dashboard da Cloudflare (o wrangler trata o
+# wrangler.json gerado como fonte da verdade e remove o que não está nele).
+keep_vars = true
