@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -47,9 +46,7 @@ function AuthPage() {
         style={{ background: "var(--gradient-remax)" }}
       >
         <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
-            <Building2 className="h-4 w-4" />
-          </div>
+          <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
           RE/MAX Portal
         </div>
         <div className="max-w-sm space-y-3">
@@ -64,9 +61,7 @@ function AuthPage() {
       <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
         <Card className="w-full max-w-md border-0 shadow-lg lg:border lg:shadow-sm">
           <CardHeader className="space-y-2 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground lg:hidden">
-              <Building2 className="h-5 w-5" />
-            </div>
+            <img src="/remax-logo.png" alt="RE/MAX Imóveis — Única Escolha" className="mx-auto h-12 w-auto lg:hidden" />
             <CardTitle>Portal Interno</CardTitle>
             <CardDescription>Acesse com sua conta corporativa</CardDescription>
           </CardHeader>

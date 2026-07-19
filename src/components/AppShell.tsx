@@ -1,7 +1,7 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Building2, Home, FileText, Users, LogOut, Bell, ShieldCheck } from "lucide-react";
+import { Home, FileText, Users, LogOut, Bell, ShieldCheck } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import type { ReactNode } from "react";
 
@@ -26,9 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar text-sidebar-foreground md:flex print:hidden">
         <div className="flex items-center gap-2 border-b border-sidebar-border px-5 py-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground">
-            <Building2 className="h-4 w-4" />
-          </div>
+          <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
           <span className="font-semibold tracking-tight">RE/MAX Portal</span>
         </div>
         <div className="h-1 bg-primary" />
