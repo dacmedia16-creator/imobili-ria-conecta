@@ -2,22 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const ExtractInput = z.object({ documentId: z.string().uuid() });
 const ApplyInput = z.object({ saleId: z.string().uuid() });
 
 /**
- * Extrai dados estruturados de um documento anexado usando o Lovable AI Gateway.
+ * Extrai dados estruturados de um documento anexado usando a API do Google Gemini.
  * Salva o resultado em `document_extractions` para uso posterior no preenchimento.
  */
 export const extractDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ExtractInput.parse(input))
   .handler(async ({ data, context }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY não configurada");
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
     const supabase = context.supabase as any;
 
@@ -45,47 +45,35 @@ export const extractDocument = createServerFn({ method: "POST" })
     const b64 = buf.toString("base64");
     const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase();
     const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
-    const isPdf = mime === "application/pdf";
 
     const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
-    const contentBlocks: any[] = [{ type: "text", text: prompt }];
-    if (isPdf) {
-      contentBlocks.push({
-        type: "file",
-        file: { filename: doc.file_name, file_data: `data:${mime};base64,${b64}` },
-      });
-    } else {
-      contentBlocks.push({
-        type: "image_url",
-        image_url: { url: `data:${mime};base64,${b64}` },
-      });
-    }
-
 
     let raw: any = null;
     try {
-      const res = await fetch(GATEWAY_URL, {
+      const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": apiKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: "system", content: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários." },
-            { role: "user", content: contentBlocks },
-          ],
-          response_format: { type: "json_object" },
+          systemInstruction: {
+            parts: [{ text: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários." }],
+          },
+          contents: [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mime, data: b64 } },
+            ],
+          }],
+          generationConfig: { responseMimeType: "application/json" },
         }),
       });
 
       if (!res.ok) {
         const txt = await res.text();
-        throw new Error(`Gateway ${res.status}: ${txt.slice(0, 300)}`);
+        throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
       }
       const json = await res.json();
-      const text: string = json.choices?.[0]?.message?.content ?? "";
+      const text: string = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       raw = safeParseJson(text);
       if (!raw) throw new Error("Resposta não é JSON válido");
     } catch (err: any) {
