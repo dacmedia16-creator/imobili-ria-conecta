@@ -1146,15 +1146,18 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
     setExtracting((m) => ({ ...m, [documentId]: true }));
     try {
       const res = await extractDocument({ data: { documentId } });
-      if (!res.ok) toast.error(`Falha ao ler documento: ${res.error}`);
-      else toast.success("Documento lido pela IA");
+      if (!res.ok) { toast.error(`Falha ao ler documento: ${res.error}`); return; }
+      // Uma leitura bem-sucedida só vira dado visível se for aplicada aos campos —
+      // sem isso o usuário vê "IA ok" no documento mas o formulário continua vazio.
+      const applied = await applySaleExtractions({ data: { saleId } });
+      toast.success(applied.filled.length ? `Documento lido pela IA • ${applied.filled.length} campo(s) preenchido(s)` : "Documento lido pela IA");
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao extrair dados");
     } finally {
       setExtracting((m) => ({ ...m, [documentId]: false }));
       onChange();
     }
-  }, [onChange]);
+  }, [onChange, saleId]);
 
   const upload = async (tipo: string, parte: DocParte, file: File) => {
     const ext = file.name.split(".").pop();
@@ -1299,20 +1302,16 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, onChange }: { sal
       while (autoJobQueueRef.current.length > 0) {
         const job = autoJobQueueRef.current.shift()!;
         for (let i = 0; i < job.ids.length; i++) {
+          // runExtraction já aplica os dados extraídos aos campos a cada documento lido.
           await runExtraction(job.ids[i]);
           const isLast = i === job.ids.length - 1 && autoJobQueueRef.current.length === 0;
           if (!isLast) await new Promise((r) => setTimeout(r, AUTO_EXTRACT_DELAY_MS));
         }
-        const res = await applySaleExtractions({ data: { saleId } });
-        if (res.filled.length) {
-          toast.success(`${DOC_PARTE_LABEL[job.parte]}: ${res.filled.length} campo(s) preenchido(s) automaticamente pela IA`);
-        }
-        onChange();
       }
     } finally {
       autoProcessingRef.current = false;
     }
-  }, [runExtraction, saleId, onChange]);
+  }, [runExtraction]);
 
   useEffect(() => {
     if (!editable) return;
