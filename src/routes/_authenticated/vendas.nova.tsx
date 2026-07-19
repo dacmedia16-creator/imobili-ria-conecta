@@ -17,7 +17,6 @@ function NewSale() {
   const { user } = useAuth();
   const router = useRouter();
   const [imovelId, setImovelId] = useState("");
-  const [matricula, setMatricula] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onCreate = async (e: React.FormEvent) => {
@@ -27,7 +26,7 @@ function NewSale() {
     try {
       const { data, error } = await supabase
         .from("sales")
-        .insert({ corretor_id: user.id, imovel_id: imovelId || null, matricula: matricula || null, status: "rascunho" })
+        .insert({ corretor_id: user.id, imovel_id: imovelId || null, status: "rascunho" })
         .select("id")
         .single();
       if (error) throw error;
@@ -53,10 +52,6 @@ function NewSale() {
             <div>
               <Label htmlFor="imovel">ID do imóvel</Label>
               <Input id="imovel" value={imovelId} onChange={(e) => setImovelId(e.target.value)} placeholder="Ex: APT-001" />
-            </div>
-            <div>
-              <Label htmlFor="mat">Matrícula</Label>
-              <Input id="mat" value={matricula} onChange={(e) => setMatricula(e.target.value)} />
             </div>
             <Button type="submit" disabled={loading}>{loading ? "Criando..." : "Criar rascunho"}</Button>
           </form>
