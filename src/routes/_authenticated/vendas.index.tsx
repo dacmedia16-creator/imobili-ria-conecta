@@ -51,12 +51,28 @@ function SalesList() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      let query = supabase.from("sales").select("id, status, valor_negociado, imovel_id, codigo_interno, updated_at, created_at, corretor_id").order("updated_at", { ascending: false });
+      let query = supabase.from("sales").select("id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id").order("updated_at", { ascending: false });
       if (statusFilter !== "todas") query = query.eq("status", statusFilter as any);
       const { data } = await query;
-      const filtered = (data ?? []).filter((s: any) => {
+      const all = data ?? [];
+
+      // Nomes de comprador/vendedor (sale_parties) só são buscados quando há termo de busca —
+      // evita um segundo round-trip toda vez que a lista carrega sem filtro nenhum.
+      let partyNames: Record<string, string> = {};
+      if (q && all.length) {
+        const { data: sp } = await supabase
+          .from("sale_parties")
+          .select("sale_id, nome")
+          .in("sale_id", all.map((s: any) => s.id));
+        for (const row of sp ?? []) {
+          if (!row.nome) continue;
+          partyNames[row.sale_id] = `${partyNames[row.sale_id] ?? ""} ${row.nome}`;
+        }
+      }
+
+      const filtered = all.filter((s: any) => {
         if (!q) return true;
-        const hay = `${s.imovel_id ?? ""} ${s.codigo_interno ?? ""} ${s.id}`.toLowerCase();
+        const hay = `${s.imovel_id ?? ""} ${s.codigo_interno ?? ""} ${s.id} ${s.corretor_captador ?? ""} ${s.corretor_vendedor ?? ""} ${partyNames[s.id] ?? ""}`.toLowerCase();
         return hay.includes(q.toLowerCase());
       });
       setSales(filtered);
@@ -106,7 +122,7 @@ function SalesList() {
 
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input placeholder="Buscar por código ou ID do imóvel" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-xs" />
+          <Input placeholder="Buscar por código, imóvel, comprador, vendedor ou corretor" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-xs" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
