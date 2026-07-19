@@ -331,10 +331,21 @@ function SaleDetail() {
           </SaleSection>
           <SaleSection title="Valores e negociação">
             <FieldGrid>
-              <Field label="Valor anunciado (R$)"><Input type="number" step="0.01" value={formSale.valor_anunciado ?? ""} disabled={!editable} onChange={(e) => updResumo({ valor_anunciado: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Valor negociado (R$)"><Input type="number" step="0.01" value={formSale.valor_negociado ?? ""} disabled={!editable} onChange={(e) => updResumo({ valor_negociado: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.percentual_comissao ?? ""} disabled={!editable} onChange={(e) => updResumo({ percentual_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
-              <Field label="Valor total da comissão (R$)"><Input type="number" step="0.01" value={formSale.valor_total_comissao ?? ""} disabled={!editable} onChange={(e) => updResumo({ valor_total_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
+              <Field label="Valor anunciado (R$)"><CurrencyInput value={formSale.valor_anunciado} disabled={!editable} onChange={(v) => updResumo({ valor_anunciado: v })} /></Field>
+              <Field label="Valor negociado (R$)"><CurrencyInput value={formSale.valor_negociado} disabled={!editable} onChange={(v) => updResumo({ valor_negociado: v })} /></Field>
+              <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.percentual_comissao ?? ""} disabled={!editable} onChange={(e) => {
+                const p = e.target.value ? Number(e.target.value) : null;
+                const neg = Number(formSale.valor_negociado ?? 0);
+                const patch: any = { percentual_comissao: p };
+                if (p != null && neg > 0) patch.valor_total_comissao = Number(((p / 100) * neg).toFixed(2));
+                updResumo(patch);
+              }} /></Field>
+              <Field label="Valor total da comissão (R$)"><CurrencyInput value={formSale.valor_total_comissao} disabled={!editable} onChange={(v) => {
+                const neg = Number(formSale.valor_negociado ?? 0);
+                const patch: any = { valor_total_comissao: v };
+                if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(3));
+                updResumo(patch);
+              }} /></Field>
               <Field label="Forma de pagamento" colSpan={2}><Input value={formSale.forma_pagamento ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento: e.target.value })} /></Field>
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
             </FieldGrid>
@@ -964,6 +975,33 @@ function Field({ label, children, colSpan }: { label: string; children: React.Re
   );
 }
 
+const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Campo de valor em reais: digita-se em centavos (estilo maquininha) e formata como "R$ 1.234,56". */
+function CurrencyInput({ value, onChange, disabled }: { value: number | null | undefined; onChange: (v: number | null) => void; disabled?: boolean }) {
+  const [display, setDisplay] = useState(() => (value != null ? brl(Math.round(value * 100)) : ""));
+
+  useEffect(() => {
+    setDisplay(value != null ? brl(Math.round(value * 100)) : "");
+  }, [value]);
+
+  return (
+    <Input
+      inputMode="decimal"
+      placeholder="R$ 0,00"
+      disabled={disabled}
+      value={display}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        if (!digits) { setDisplay(""); onChange(null); return; }
+        const cents = parseInt(digits, 10);
+        setDisplay(brl(cents));
+        onChange(cents / 100);
+      }}
+    />
+  );
+}
+
 // -------- Partes step (buffered) --------
 function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirtyChange }: {
   saleId: string; parties: Record<string, any>; editable: boolean; onSaved: () => void;
@@ -1088,16 +1126,16 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
         <CardHeader><CardTitle className="text-base">Forma de pagamento</CardTitle></CardHeader>
         <CardContent>
           <FieldGrid>
-            <Field label="Entrada — valor"><Input type="number" step="0.01" value={p.entrada_valor ?? ""} onChange={(e) => updP("entrada_valor", e.target.value ? Number(e.target.value) : null)} disabled={!editable} /></Field>
+            <Field label="Entrada — valor"><CurrencyInput value={p.entrada_valor} onChange={(v) => updP("entrada_valor", v)} disabled={!editable} /></Field>
             <Field label="Entrada — data"><Input type="date" value={p.entrada_data ?? ""} onChange={(e) => updP("entrada_data", e.target.value || null)} disabled={!editable} /></Field>
-            <Field label="Parcela 1 — valor"><Input type="number" step="0.01" value={p.parcela1_valor ?? ""} onChange={(e) => updP("parcela1_valor", e.target.value ? Number(e.target.value) : null)} disabled={!editable} /></Field>
+            <Field label="Parcela 1 — valor"><CurrencyInput value={p.parcela1_valor} onChange={(v) => updP("parcela1_valor", v)} disabled={!editable} /></Field>
             <Field label="Parcela 1 — data"><Input type="date" value={p.parcela1_data ?? ""} onChange={(e) => updP("parcela1_data", e.target.value || null)} disabled={!editable} /></Field>
-            <Field label="Parcela 2 — valor"><Input type="number" step="0.01" value={p.parcela2_valor ?? ""} onChange={(e) => updP("parcela2_valor", e.target.value ? Number(e.target.value) : null)} disabled={!editable} /></Field>
+            <Field label="Parcela 2 — valor"><CurrencyInput value={p.parcela2_valor} onChange={(v) => updP("parcela2_valor", v)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — data"><Input type="date" value={p.parcela2_data ?? ""} onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
-            <Field label="FGTS — valor"><Input type="number" step="0.01" value={p.fgts_valor ?? ""} onChange={(e) => updP("fgts_valor", e.target.value ? Number(e.target.value) : null)} disabled={!editable} /></Field>
+            <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
             <Field label="Financiamento"><div className="flex items-center gap-2"><Switch checked={!!p.financiamento} onCheckedChange={(v) => updP("financiamento", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
-            <Field label="Financiamento — valor"><Input type="number" step="0.01" value={p.financiamento_valor ?? ""} onChange={(e) => updP("financiamento_valor", e.target.value ? Number(e.target.value) : null)} disabled={!editable} /></Field>
+            <Field label="Financiamento — valor"><CurrencyInput value={p.financiamento_valor} onChange={(v) => updP("financiamento_valor", v)} disabled={!editable} /></Field>
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
         </CardContent>
@@ -1778,8 +1816,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
             <Field label="Data de assinatura"><Input type="date" value={formOcc.data_assinatura ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ data_assinatura: e.target.value || null })} /></Field>
             <Field label="Mídia"><Input value={formOcc.midia ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ midia: e.target.value })} placeholder="Instagram, Portal, Placa..." /></Field>
             <Field label="Nota fiscal obrigatória"><div className="flex items-center gap-2"><Switch checked={!!formOcc.nota_fiscal_obrigatoria} onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}</span></div></Field>
-            <Field label="Valor anunciado"><Input type="number" step="0.01" value={formOcc.valor_anunciado ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ valor_anunciado: e.target.value ? Number(e.target.value) : null })} /></Field>
-            <Field label="Valor negociado"><Input type="number" step="0.01" value={formOcc.valor_negociado ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ valor_negociado: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="Valor anunciado"><CurrencyInput value={formOcc.valor_anunciado} disabled={!canWrite} onChange={(v) => updOcc({ valor_anunciado: v })} /></Field>
+            <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={(v) => updOcc({ valor_negociado: v })} /></Field>
             <Field label="% Comissão"><Input type="number" step="0.001" value={formOcc.percentual_comissao ?? ""} disabled={!canWrite} onChange={(e) => {
               const p = e.target.value ? Number(e.target.value) : null;
               const neg = Number(formOcc.valor_negociado ?? 0);
@@ -1787,7 +1825,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
               if (p != null && neg > 0) patch.valor_comissao = Number(((p / 100) * neg).toFixed(2));
               updOcc(patch);
             }} /></Field>
-            <Field label="Valor da comissão (total)"><Input type="number" step="0.01" value={formOcc.valor_comissao ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ valor_comissao: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="Valor da comissão (total)"><CurrencyInput value={formOcc.valor_comissao} disabled={!canWrite} onChange={(v) => {
+              const neg = Number(formOcc.valor_negociado ?? 0);
+              const patch: any = { valor_comissao: v };
+              if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(3));
+              updOcc(patch);
+            }} /></Field>
           </FieldGrid>
         </CardContent>
       </Card>
@@ -1797,7 +1840,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
         <CardContent>
           <FieldGrid>
             <Field label="Tem financiamento?"><div className="flex items-center gap-2"><Switch checked={!!formOcc.financiamento} onCheckedChange={(v) => updOcc({ financiamento: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.financiamento ? "Sim" : "Não"}</span></div></Field>
-            <Field label="Valor financiado"><Input type="number" step="0.01" value={formOcc.financiamento_valor ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="Valor financiado"><CurrencyInput value={formOcc.financiamento_valor} disabled={!canWrite || !formOcc.financiamento} onChange={(v) => updOcc({ financiamento_valor: v })} /></Field>
             <Field label="Banco"><Input value={formOcc.financiamento_banco ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_banco: e.target.value })} /></Field>
             <Field label="Correspondente bancário"><Input value={formOcc.financiamento_correspondente ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_correspondente: e.target.value })} /></Field>
             <Field label="Previsão de liberação"><Input type="date" value={formOcc.financiamento_previsao ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_previsao: e.target.value || null })} /></Field>
@@ -1809,17 +1852,17 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
         <CardHeader><CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <FieldGrid>
-            <Field label="1ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="1ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento_valor: v })} /></Field>
             <Field label="1ª parcela — data"><Input type="date" value={formOcc.prev_recebimento_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })} /></Field>
             <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="2ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento2_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="2ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento2_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento2_valor: v })} /></Field>
             <Field label="2ª parcela — data"><Input type="date" value={formOcc.prev_recebimento2_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_data: e.target.value || null })} /></Field>
             <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento2_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="3ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento3_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="3ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento3_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento3_valor: v })} /></Field>
             <Field label="3ª parcela — data"><Input type="date" value={formOcc.prev_recebimento3_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_data: e.target.value || null })} /></Field>
             <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento3_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
           </FieldGrid>
@@ -1866,7 +1909,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">Valor (R$)</Label>
-                <Input type="number" step="0.01" value={c.valor ?? ""} onChange={(e) => updComm(c.id, { valor: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} />
+                <CurrencyInput value={c.valor} onChange={(v) => updComm(c.id, { valor: v })} disabled={!canWrite} />
               </div>
               {canWrite && (
                 <div className="md:col-span-1">
@@ -1890,7 +1933,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
               <Field label="Corretor/Imobiliária"><Input value={p.nome ?? ""} onChange={(e) => updPartner(p.id, { nome: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="CPF/CNPJ"><Input value={p.cpf_cnpj ?? ""} onChange={(e) => updPartner(p.id, { cpf_cnpj: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="%"><Input type="number" step="0.001" value={p.percentual ?? ""} onChange={(e) => updPartner(p.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} /></Field>
-              <Field label="Valor"><Input type="number" step="0.01" value={p.valor ?? ""} onChange={(e) => updPartner(p.id, { valor: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} /></Field>
+              <Field label="Valor"><CurrencyInput value={p.valor} onChange={(v) => updPartner(p.id, { valor: v })} disabled={!canWrite} /></Field>
               <Field label="Banco"><Input value={p.banco ?? ""} onChange={(e) => updPartner(p.id, { banco: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="Agência"><Input value={p.agencia ?? ""} onChange={(e) => updPartner(p.id, { agencia: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="Conta"><Input value={p.conta ?? ""} onChange={(e) => updPartner(p.id, { conta: e.target.value })} disabled={!canWrite} /></Field>
