@@ -315,31 +315,39 @@ function SaleDetail() {
     await changeStatus("contrato_assinado");
   };
 
-  const uploadContratoAndSend = async () => {
-    if (!contratoFile && contratoDocs.length === 0) {
-      toast.error("Anexe o arquivo do contrato antes de enviar.");
+  // Anexar o contrato NÃO envia a venda ao gestor sozinho — o jurídico confere o arquivo
+  // e só então clica em "Enviar ao gestor" (botão separado, fora deste dialog).
+  const uploadContrato = async () => {
+    if (!contratoFile) {
+      toast.error("Selecione o arquivo do contrato.");
       return;
     }
     setContratoUploading(true);
     try {
-      if (contratoFile) {
-        const ext = contratoFile.name.split(".").pop();
-        const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
-        if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
-        const { error: insErr } = await supabase.from("sale_documents").insert({
-          sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
-          file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
-        } as any);
-        if (insErr) { toast.error(insErr.message); return; }
-        await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
-      }
+      const ext = contratoFile.name.split(".").pop();
+      const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
+      if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+      const { error: insErr } = await supabase.from("sale_documents").insert({
+        sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
+        file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
+      } as any);
+      if (insErr) { toast.error(insErr.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
+      toast.success("Contrato anexado");
       setContratoDialogOpen(false);
       setContratoFile(null);
-      await changeStatus("contrato_conferencia_gestor");
+      load();
     } finally {
       setContratoUploading(false);
     }
+  };
+  const enviarContratoAoGestor = async () => {
+    if (contratoDocs.length === 0) {
+      toast.error("Anexe o contrato antes de enviar ao gestor.");
+      return;
+    }
+    await changeStatus("contrato_conferencia_gestor");
   };
 
   const openReturnDialog = (target: SaleStatus) => { setReturnTarget(target); setReturnMotivo(""); setReturnOpen(true); };
@@ -560,7 +568,8 @@ function SaleDetail() {
     isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
     isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: () => changeStatus("aprovada_gestor") } :
     isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
-    isJuridico && status === "em_elaboracao_contrato" ? { label: "Anexar contrato e enviar ao gestor", icon: Send, onClick: () => { setContratoFile(null); setContratoDialogOpen(true); } } :
+    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: () => { setContratoFile(null); setContratoDialogOpen(true); } } :
+    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0 ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor } :
     isOwner && status === "contrato_conferencia_corretor" ? { label: "Dar OK no contrato", icon: CheckCircle2, onClick: () => changeStatus("contrato_ok_corretor") } :
     isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura") } :
     isGestor && status === "aguardando_assinatura" ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
@@ -605,7 +614,12 @@ function SaleDetail() {
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
-              <Button onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Anexar contrato e enviar ao gestor</Button>
+              <Button variant="outline" onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}>
+                <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
+              </Button>
+              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0}>
+                <Send className="mr-2 h-4 w-4" />Enviar ao gestor
+              </Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
               <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
@@ -990,7 +1004,7 @@ function SaleDetail() {
           <DialogHeader>
             <DialogTitle>Anexar contrato</DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato (PDF, DOC ou DOCX). Após anexar, a venda vai para conferência do gestor.
+              Envie o arquivo do contrato (PDF, DOC ou DOCX). Depois de anexar, confira o arquivo e use o botão "Enviar ao gestor" quando estiver pronto.
             </DialogDescription>
           </DialogHeader>
 
@@ -1005,7 +1019,7 @@ function SaleDetail() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-2 text-xs">Você pode enviar uma nova versão abaixo ou apenas prosseguir com a atual.</div>
+              <div className="mt-2 text-xs">Selecionar um novo arquivo abaixo substitui a versão atual.</div>
             </div>
           )}
 
@@ -1025,10 +1039,10 @@ function SaleDetail() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setContratoDialogOpen(false)} disabled={contratoUploading}>Cancelar</Button>
             <Button
-              onClick={uploadContratoAndSend}
-              disabled={contratoUploading || (!contratoFile && contratoDocs.length === 0)}
+              onClick={uploadContrato}
+              disabled={contratoUploading || !contratoFile}
             >
-              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Send className="mr-2 h-4 w-4" />Anexar e enviar ao gestor</>)}
+              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />Anexar contrato</>)}
             </Button>
           </DialogFooter>
         </DialogContent>
