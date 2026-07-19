@@ -727,6 +727,11 @@ function SaleDetail() {
               <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
             </ReviewGroup>
 
+            <ReviewGroup title="Posse">
+              <ReviewItem label="Data de entrega da posse" value={dateBR(sale.posse_data)} />
+              <ReviewItem label="Observações" value={sale.posse_observacoes} />
+            </ReviewGroup>
+
             <ReviewGroup title="Partes (qualificação para o contrato)">
               {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
                 .filter((papel) => parties[papel]?.nome)
