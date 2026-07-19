@@ -566,13 +566,17 @@ function SaleDetail() {
         </CardContent>
       </Card>
 
-      <Wizard
-        steps={steps}
-        current={step}
-        onChange={setStep}
-        dirty={currentDirty}
-        onBeforeLeave={onBeforeLeave}
-      />
+      {status === "ocorrencia_concluida" ? (
+        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} />
+      ) : (
+        <Wizard
+          steps={steps}
+          current={step}
+          onChange={setStep}
+          dirty={currentDirty}
+          onBeforeLeave={onBeforeLeave}
+        />
+      )}
 
       {saving && <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">Salvando...</p>}
 
@@ -667,6 +671,163 @@ function SaleDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ReportField({ label, value, colSpan }: { label: string; value: React.ReactNode; colSpan?: number }) {
+  return (
+    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium">{value || "—"}</div>
+    </div>
+  );
+}
+
+/** Relatório somativo, somente leitura, exibido no lugar do wizard de etapas quando a venda está concluída. */
+function SaleReport({ sale, parties, payment, docs, history }: {
+  sale: any; parties: Record<string, any>; payment: any; docs: any[]; history: any[];
+}) {
+  const [occ, setOcc] = useState<any>(null);
+  const [commissions, setCommissions] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", sale.id).maybeSingle();
+      setOcc(o);
+      if (o) {
+        const [c, p] = await Promise.all([
+          supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
+          supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
+        ]);
+        setCommissions(c.data ?? []);
+        setPartners(p.data ?? []);
+      }
+      setLoading(false);
+    })();
+  }, [sale.id]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando relatório...</p>;
+
+  const partiesList = Object.values(parties).filter(Boolean) as any[];
+  const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
+
+  return (
+    <div className="space-y-4">
+      <SaleSection title="Resumo do imóvel e negociação">
+        <FieldGrid>
+          <ReportField label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
+          <ReportField label="Matrícula" value={sale.matricula} />
+          <ReportField label="IPTU" value={sale.iptu} />
+          <ReportField label="Valor negociado" value={money(sale.valor_negociado)} />
+          <ReportField label="% Comissão" value={sale.percentual_comissao ? `${sale.percentual_comissao}%` : null} />
+          <ReportField label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+          <ReportField label="Forma de pagamento" value={sale.forma_pagamento} />
+          <ReportField label="Corretor captador" value={sale.corretor_captador} />
+          <ReportField label="Corretor vendedor" value={sale.corretor_vendedor} />
+          <ReportField label="Data de entrega da posse" value={sale.posse_data ? new Date(sale.posse_data).toLocaleDateString("pt-BR") : null} />
+          {sale.imovel_observacoes && <ReportField label="Observações do imóvel" value={sale.imovel_observacoes} colSpan={2} />}
+        </FieldGrid>
+      </SaleSection>
+
+      <SaleSection title="Partes">
+        <div className="space-y-2">
+          {partiesList.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte cadastrada.</p>}
+          {partiesList.map((p) => (
+            <div key={p.id} className="rounded-md border p-3 text-sm">
+              <div className="font-medium">{DOC_PARTE_LABEL[p.papel as DocParte] ?? p.papel} — {p.nome || "—"}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                CPF/CNPJ: {p.cpf_cnpj || "—"} · Tel: {p.telefone || "—"} · E-mail: {p.email || "—"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </SaleSection>
+
+      <SaleSection title="Pagamento">
+        <FieldGrid>
+          <ReportField label="Entrada" value={money(payment?.entrada_valor)} />
+          <ReportField label="Data da entrada" value={payment?.entrada_data ? new Date(payment.entrada_data).toLocaleDateString("pt-BR") : null} />
+          <ReportField label="1ª parcela" value={money(payment?.parcela1_valor)} />
+          <ReportField label="2ª parcela" value={money(payment?.parcela2_valor)} />
+          <ReportField label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
+          <ReportField label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+        </FieldGrid>
+      </SaleSection>
+
+      <SaleSection title="Documentos">
+        <div className="space-y-1">
+          {docs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>}
+          {docs.map((d) => (
+            <div key={d.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+              <span>{d.file_name}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                {d.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </SaleSection>
+
+      {occ && (
+        <>
+          <SaleSection title="Ocorrência financeira">
+            <FieldGrid>
+              <ReportField label="Tempo de venda" value={occ.tempo_venda} />
+              <ReportField label="Mídia" value={occ.midia} />
+              <ReportField label="Data de assinatura" value={occ.data_assinatura ? new Date(occ.data_assinatura).toLocaleDateString("pt-BR") : null} />
+              <ReportField label="Financiamento" value={occ.financiamento ? `${money(occ.financiamento_valor)} — ${occ.financiamento_banco ?? "—"}` : "Não"} />
+              <ReportField
+                label="Recebimento 1ª parcela"
+                value={occ.prev_recebimento_valor ? `${money(occ.prev_recebimento_valor)} em ${occ.prev_recebimento_data ? new Date(occ.prev_recebimento_data).toLocaleDateString("pt-BR") : "—"} (${occ.prev_recebimento_forma ?? "—"})` : null}
+              />
+              {occ.observacoes && <ReportField label="Observações" value={occ.observacoes} colSpan={2} />}
+            </FieldGrid>
+          </SaleSection>
+
+          <SaleSection title="Divisão de comissão">
+            <div className="space-y-2">
+              {commissions.filter((c) => c.nome).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma divisão registrada.</p>}
+              {commissions.filter((c) => c.nome).map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                  <span>{COMISSAO_PAPEIS.find((p) => p.key === c.papel)?.label ?? c.papel} — {c.nome}</span>
+                  <span className="font-medium">{c.percentual ? `${c.percentual}% · ` : ""}{money(c.valor)}</span>
+                </div>
+              ))}
+            </div>
+          </SaleSection>
+
+          {partners.length > 0 && (
+            <SaleSection title="Parcerias">
+              <div className="space-y-2">
+                {partners.map((p) => (
+                  <div key={p.id} className="rounded-md border p-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{p.nome}</span>
+                      <span>{p.percentual ? `${p.percentual}% · ` : ""}{money(p.valor)}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">{p.cpf_cnpj} · {p.banco} ag. {p.agencia} cc. {p.conta}</div>
+                  </div>
+                ))}
+              </div>
+            </SaleSection>
+          )}
+        </>
+      )}
+
+      <SaleSection title="Histórico">
+        <div className="space-y-2">
+          {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+          {history.map((h) => (
+            <div key={h.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+              <span>{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span></span>
+              <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+            </div>
+          ))}
+        </div>
+      </SaleSection>
     </div>
   );
 }
