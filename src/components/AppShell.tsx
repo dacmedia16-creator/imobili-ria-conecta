@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar text-sidebar-foreground md:flex print:hidden">
         <div className="flex items-center gap-2 border-b border-sidebar-border px-5 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground">
             <Building2 className="h-4 w-4" />
@@ -54,10 +54,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </aside>
-      <main className="md:pl-60">
-        <div className="mx-auto max-w-6xl p-4 md:p-8">
-          <div className="mb-2 flex justify-end md:hidden"><NotificationBell /></div>
-          <div className="mb-4 hidden justify-end md:flex"><NotificationBell /></div>
+      <main className="md:pl-60 print:pl-0">
+        <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
+          <div className="mb-2 flex justify-end md:hidden print:hidden"><NotificationBell /></div>
+          <div className="mb-4 hidden justify-end md:flex print:hidden"><NotificationBell /></div>
           {children}
         </div>
       </main>

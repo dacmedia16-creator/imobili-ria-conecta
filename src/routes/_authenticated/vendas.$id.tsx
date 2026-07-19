@@ -414,11 +414,11 @@ function SaleDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         <Button asChild variant="ghost" size="sm"><Link to="/vendas"><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Link></Button>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}</h1>
@@ -530,7 +530,7 @@ function SaleDetail() {
       </AlertDialog>
 
 
-      <Card>
+      <Card className="print:hidden">
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary/5 p-3 text-sm">
             <div>
@@ -675,16 +675,52 @@ function SaleDetail() {
   );
 }
 
-function ReportField({ label, value, colSpan }: { label: string; value: React.ReactNode; colSpan?: number }) {
+// Cabeçalho impresso na "Ocorrência de compra e venda" — dados da imobiliária (letterhead).
+const AGENCY_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
+const AGENCY_CRECI = "CRECI: 29.886-J";
+
+function FormTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium">{value || "—"}</div>
+    <div className="flex items-center justify-between border border-b-0 border-foreground/30 bg-muted/60 px-3 py-1.5 text-xs font-bold uppercase tracking-wide">
+      <span>{children}</span>
+      {right && <span className="font-medium normal-case tracking-normal">{right}</span>}
     </div>
   );
 }
+function FormTable({ children }: { children: React.ReactNode }) {
+  return (
+    <table className="mb-4 w-full border-collapse border border-foreground/30 text-sm">
+      <tbody>{children}</tbody>
+    </table>
+  );
+}
+function FormHeadRow({ cols }: { cols: string[] }) {
+  return (
+    <tr>
+      {cols.map((c, i) => (
+        <th key={i} className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {c}
+        </th>
+      ))}
+    </tr>
+  );
+}
+function FormValueRow({ cols }: { cols: React.ReactNode[] }) {
+  return (
+    <tr>
+      {cols.map((c, i) => (
+        <td key={i} className="border border-foreground/30 px-2 py-1.5 align-top">
+          {c ?? <span className="text-muted-foreground">—</span>}
+        </td>
+      ))}
+    </tr>
+  );
+}
+function Checkbox({ checked, label }: { checked: boolean; label: string }) {
+  return <span className="font-mono">({checked ? "X" : " "}) {label}</span>;
+}
 
-/** Relatório somativo, somente leitura, exibido no lugar do wizard de etapas quando a venda está concluída. */
+/** Relatório oficial "Ocorrência de compra e venda" — réplica digital do formulário em papel usado pela imobiliária, exibido em vez do wizard de etapas quando a venda está concluída. */
 function SaleReport({ sale, parties, payment, docs, history }: {
   sale: any; parties: Record<string, any>; payment: any; docs: any[]; history: any[];
 }) {
@@ -711,123 +747,135 @@ function SaleReport({ sale, parties, payment, docs, history }: {
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando relatório...</p>;
 
-  const partiesList = Object.values(parties).filter(Boolean) as any[];
   const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
+  const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : null);
+  const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor")).map(([, p]) => p);
+  const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
+  const commByPapel = (papel: string) => commissions.find((c) => c.papel === papel);
 
   return (
-    <div className="space-y-4">
-      <SaleSection title="Resumo do imóvel e negociação">
-        <FieldGrid>
-          <ReportField label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
-          <ReportField label="Matrícula" value={sale.matricula} />
-          <ReportField label="IPTU" value={sale.iptu} />
-          <ReportField label="Valor negociado" value={money(sale.valor_negociado)} />
-          <ReportField label="% Comissão" value={sale.percentual_comissao ? `${sale.percentual_comissao}%` : null} />
-          <ReportField label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
-          <ReportField label="Forma de pagamento" value={sale.forma_pagamento} />
-          <ReportField label="Corretor captador" value={sale.corretor_captador} />
-          <ReportField label="Corretor vendedor" value={sale.corretor_vendedor} />
-          <ReportField label="Data de entrega da posse" value={sale.posse_data ? new Date(sale.posse_data).toLocaleDateString("pt-BR") : null} />
-          {sale.imovel_observacoes && <ReportField label="Observações do imóvel" value={sale.imovel_observacoes} colSpan={2} />}
-        </FieldGrid>
-      </SaleSection>
+    <div className="space-y-6">
+      <div className="print:border print:border-foreground/30 print:p-4">
+        <div className="mb-3 flex items-center justify-between border-b pb-2">
+          <div>
+            <div className="text-sm font-bold">{AGENCY_NAME}</div>
+            <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+          </div>
+          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
+            Imprimir
+          </Button>
+        </div>
 
-      <SaleSection title="Partes">
-        <div className="space-y-2">
-          {partiesList.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte cadastrada.</p>}
-          {partiesList.map((p) => (
-            <div key={p.id} className="rounded-md border p-3 text-sm">
-              <div className="font-medium">{DOC_PARTE_LABEL[p.papel as DocParte] ?? p.papel} — {p.nome || "—"}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                CPF/CNPJ: {p.cpf_cnpj || "—"} · Tel: {p.telefone || "—"} · E-mail: {p.email || "—"}
+        <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
+          Ocorrência de compra e venda
+        </div>
+
+        <FormTable>
+          <FormHeadRow cols={["Código do imóvel", "Tempo de venda", "Data de assinatura", "Nota fiscal obrigatória", "Mídia"]} />
+          <FormValueRow cols={[
+            sale.imovel_id || sale.codigo_interno,
+            occ?.tempo_venda,
+            dateBR(occ?.data_assinatura),
+            <Checkbox checked={!!occ?.nota_fiscal_obrigatoria} label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"} />,
+            occ?.midia,
+          ]} />
+        </FormTable>
+
+        {vendedores.map((v: any, i: number) => (
+          <FormTable key={v.id ?? i}>
+            <FormValueRow cols={[<span><b>Nome do vendedor:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
+            <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {v.cpf_cnpj}</span>, <span><b>RG:</b> {v.rg}</span>, <span><b>Celular:</b> {v.telefone}</span>]} />
+          </FormTable>
+        ))}
+        {compradores.map((c: any, i: number) => (
+          <FormTable key={c.id ?? i}>
+            <FormValueRow cols={[<span><b>Nome do comprador:</b> {c.nome}</span>, <span><b>E-mail:</b> {c.email}</span>]} />
+            <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {c.cpf_cnpj}</span>, <span><b>RG:</b> {c.rg}</span>, <span><b>Celular:</b> {c.telefone}</span>]} />
+          </FormTable>
+        ))}
+
+        <FormTitle>Resumo da transação</FormTitle>
+        <FormTable>
+          <FormHeadRow cols={["Valor anunciado", "Valor negociado", "Percentual", "Valor da comissão"]} />
+          <FormValueRow cols={[money(occ?.valor_anunciado ?? sale.valor_anunciado), money(occ?.valor_negociado ?? sale.valor_negociado), occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null, money(occ?.valor_comissao ?? sale.valor_total_comissao)]} />
+        </FormTable>
+
+        <FormTable>
+          <FormHeadRow cols={["Papel", "Nome", "Comissão %", "Comissão R$"]} />
+          {COMISSAO_PAPEIS.map((p) => {
+            const c = commByPapel(p.key);
+            return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
+          })}
+        </FormTable>
+
+        <FormTitle right={<Checkbox checked={!!occ?.financiamento} label={occ?.financiamento ? "Sim" : "Não"} />}>
+          Dados de financiamento — financiamento
+        </FormTitle>
+        <FormTable>
+          <FormHeadRow cols={["Financiamento R$", "Banco", "Correspondente bancário", "Previsão da liberação do crédito"]} />
+          <FormValueRow cols={[money(occ?.financiamento_valor), occ?.financiamento_banco, occ?.financiamento_correspondente, dateBR(occ?.financiamento_previsao)]} />
+        </FormTable>
+
+        <FormTitle>Previsão de recebimento da comissão</FormTitle>
+        <FormTable>
+          <FormHeadRow cols={["1ª parcela", "Data", "Forma de pagamento"]} />
+          <FormValueRow cols={[money(occ?.prev_recebimento_valor), dateBR(occ?.prev_recebimento_data), occ?.prev_recebimento_forma]} />
+          <FormHeadRow cols={["2ª parcela", "Data", "Forma de pagamento"]} />
+          <FormValueRow cols={[money(occ?.prev_recebimento2_valor), dateBR(occ?.prev_recebimento2_data), occ?.prev_recebimento2_forma]} />
+          <FormHeadRow cols={["3ª parcela", "Data", "Forma de pagamento"]} />
+          <FormValueRow cols={[money(occ?.prev_recebimento3_valor), dateBR(occ?.prev_recebimento3_data), occ?.prev_recebimento3_forma]} />
+        </FormTable>
+
+        <FormTitle>Parceria</FormTitle>
+        <FormTable>
+          <FormHeadRow cols={["Corretor(a) / Imobiliária", "CPF/CNPJ", "Percentual", "Valor da comissão"]} />
+          {partners.length === 0 && <FormValueRow cols={["Não possui", null, "0%", "R$ 0,00"]} />}
+          {partners.map((p) => (
+            <FormValueRow key={p.id} cols={[p.nome, p.cpf_cnpj, p.percentual != null ? `${p.percentual}%` : "0%", money(p.valor) ?? "R$ 0,00"]} />
+          ))}
+          <FormHeadRow cols={["Dados bancários", "Banco", "Agência", "Conta"]} />
+          {partners.length === 0 && <FormValueRow cols={[null, null, null, null]} />}
+          {partners.map((p) => (
+            <FormValueRow key={`${p.id}-bank`} cols={[null, p.banco, p.agencia, p.conta]} />
+          ))}
+        </FormTable>
+
+        {occ?.observacoes && (
+          <FormTable>
+            <FormHeadRow cols={["Observações"]} />
+            <FormValueRow cols={[occ.observacoes]} />
+          </FormTable>
+        )}
+      </div>
+
+      <div className="space-y-4 print:hidden">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informações internas (não impressas)</h2>
+        <SaleSection title="Documentos">
+          <div className="space-y-1">
+            {docs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>}
+            {docs.map((d) => (
+              <div key={d.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                <span>{d.file_name}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                  {d.status}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-      </SaleSection>
+            ))}
+          </div>
+        </SaleSection>
 
-      <SaleSection title="Pagamento">
-        <FieldGrid>
-          <ReportField label="Entrada" value={money(payment?.entrada_valor)} />
-          <ReportField label="Data da entrada" value={payment?.entrada_data ? new Date(payment.entrada_data).toLocaleDateString("pt-BR") : null} />
-          <ReportField label="1ª parcela" value={money(payment?.parcela1_valor)} />
-          <ReportField label="2ª parcela" value={money(payment?.parcela2_valor)} />
-          <ReportField label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
-          <ReportField label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
-        </FieldGrid>
-      </SaleSection>
-
-      <SaleSection title="Documentos">
-        <div className="space-y-1">
-          {docs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>}
-          {docs.map((d) => (
-            <div key={d.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-              <span>{d.file_name}</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                {d.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </SaleSection>
-
-      {occ && (
-        <>
-          <SaleSection title="Ocorrência financeira">
-            <FieldGrid>
-              <ReportField label="Tempo de venda" value={occ.tempo_venda} />
-              <ReportField label="Mídia" value={occ.midia} />
-              <ReportField label="Data de assinatura" value={occ.data_assinatura ? new Date(occ.data_assinatura).toLocaleDateString("pt-BR") : null} />
-              <ReportField label="Financiamento" value={occ.financiamento ? `${money(occ.financiamento_valor)} — ${occ.financiamento_banco ?? "—"}` : "Não"} />
-              <ReportField
-                label="Recebimento 1ª parcela"
-                value={occ.prev_recebimento_valor ? `${money(occ.prev_recebimento_valor)} em ${occ.prev_recebimento_data ? new Date(occ.prev_recebimento_data).toLocaleDateString("pt-BR") : "—"} (${occ.prev_recebimento_forma ?? "—"})` : null}
-              />
-              {occ.observacoes && <ReportField label="Observações" value={occ.observacoes} colSpan={2} />}
-            </FieldGrid>
-          </SaleSection>
-
-          <SaleSection title="Divisão de comissão">
-            <div className="space-y-2">
-              {commissions.filter((c) => c.nome).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma divisão registrada.</p>}
-              {commissions.filter((c) => c.nome).map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-                  <span>{COMISSAO_PAPEIS.find((p) => p.key === c.papel)?.label ?? c.papel} — {c.nome}</span>
-                  <span className="font-medium">{c.percentual ? `${c.percentual}% · ` : ""}{money(c.valor)}</span>
-                </div>
-              ))}
-            </div>
-          </SaleSection>
-
-          {partners.length > 0 && (
-            <SaleSection title="Parcerias">
-              <div className="space-y-2">
-                {partners.map((p) => (
-                  <div key={p.id} className="rounded-md border p-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{p.nome}</span>
-                      <span>{p.percentual ? `${p.percentual}% · ` : ""}{money(p.valor)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">{p.cpf_cnpj} · {p.banco} ag. {p.agencia} cc. {p.conta}</div>
-                  </div>
-                ))}
+        <SaleSection title="Histórico">
+          <div className="space-y-2">
+            {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+            {history.map((h) => (
+              <div key={h.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                <span>{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span></span>
+                <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
               </div>
-            </SaleSection>
-          )}
-        </>
-      )}
-
-      <SaleSection title="Histórico">
-        <div className="space-y-2">
-          {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
-          {history.map((h) => (
-            <div key={h.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-              <span>{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span></span>
-              <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
-            </div>
-          ))}
-        </div>
-      </SaleSection>
+            ))}
+          </div>
+        </SaleSection>
+      </div>
     </div>
   );
 }
@@ -1474,7 +1522,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
   const save = useCallback(async (): Promise<boolean> => {
     if (!occ) return true;
     if (dirtyOcc) {
-      const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","observacoes"];
+      const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
       const patch: any = {};
       for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
       if (Object.keys(patch).length) {
@@ -1639,12 +1687,24 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Recebimento da 1ª parcela</CardTitle></CardHeader>
-        <CardContent>
+        <CardHeader><CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
           <FieldGrid>
-            <Field label="Valor da primeira parcela"><Input type="number" step="0.01" value={formOcc.prev_recebimento_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
-            <Field label="Data prevista"><Input type="date" value={formOcc.prev_recebimento_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })} /></Field>
-            <Field label="Forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+            <Field label="1ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="1ª parcela — data"><Input type="date" value={formOcc.prev_recebimento_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })} /></Field>
+            <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+          </FieldGrid>
+          <FieldGrid>
+            <Field label="2ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento2_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="2ª parcela — data"><Input type="date" value={formOcc.prev_recebimento2_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_data: e.target.value || null })} /></Field>
+            <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento2_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+          </FieldGrid>
+          <FieldGrid>
+            <Field label="3ª parcela — valor"><Input type="number" step="0.01" value={formOcc.prev_recebimento3_valor ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_valor: e.target.value ? Number(e.target.value) : null })} /></Field>
+            <Field label="3ª parcela — data"><Input type="date" value={formOcc.prev_recebimento3_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_data: e.target.value || null })} /></Field>
+            <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento3_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+          </FieldGrid>
+          <FieldGrid>
             <Field label="Observações" colSpan={2}><Textarea value={formOcc.observacoes ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ observacoes: e.target.value })} /></Field>
           </FieldGrid>
         </CardContent>

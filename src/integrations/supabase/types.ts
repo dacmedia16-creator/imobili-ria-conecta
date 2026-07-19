@@ -244,6 +244,12 @@ export type Database = {
           prev_recebimento_data: string | null
           prev_recebimento_forma: string | null
           prev_recebimento_valor: number | null
+          prev_recebimento2_data: string | null
+          prev_recebimento2_forma: string | null
+          prev_recebimento2_valor: number | null
+          prev_recebimento3_data: string | null
+          prev_recebimento3_forma: string | null
+          prev_recebimento3_valor: number | null
           reopen_reason: string | null
           reopened_at: string | null
           reopened_by: string | null
@@ -275,6 +281,12 @@ export type Database = {
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_valor?: number | null
+          prev_recebimento2_data?: string | null
+          prev_recebimento2_forma?: string | null
+          prev_recebimento2_valor?: number | null
+          prev_recebimento3_data?: string | null
+          prev_recebimento3_forma?: string | null
+          prev_recebimento3_valor?: number | null
           reopen_reason?: string | null
           reopened_at?: string | null
           reopened_by?: string | null
@@ -306,6 +318,12 @@ export type Database = {
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_valor?: number | null
+          prev_recebimento2_data?: string | null
+          prev_recebimento2_forma?: string | null
+          prev_recebimento2_valor?: number | null
+          prev_recebimento3_data?: string | null
+          prev_recebimento3_forma?: string | null
+          prev_recebimento3_valor?: number | null
           reopen_reason?: string | null
           reopened_at?: string | null
           reopened_by?: string | null
