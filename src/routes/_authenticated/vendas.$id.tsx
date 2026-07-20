@@ -484,6 +484,7 @@ function SaleDetail() {
           editable={editable}
           canModerate={isGestor || isJuridico}
           canUseAi={isOwner}
+          canManageContratos={isGestor || isJuridico || isFinanceiro}
           onChange={load}
         />
       ),
@@ -1873,7 +1874,13 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
   );
 }
 
-function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; onChange: () => void }) {
+// Tipos de documento que costumam ser o mesmo arquivo para o casal (certidão de casamento conjunta,
+// comprovante de endereço compartilhado) — só esses ganham a opção "Mesmo do 1º" no 2º comprador/vendedor.
+const REUSABLE_DOC_TYPES = new Set(["certidao", "comprovante_endereco"]);
+const PARTE_BASE: Partial<Record<DocParte, DocParte>> = { comprador_2: "comprador_1", vendedor_2: "vendedor_1" };
+const PARTE_BASE_LABEL: Partial<Record<DocParte, string>> = { comprador_2: "Comprador 1", vendedor_2: "Vendedor 1" };
+
+function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canManageContratos, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; onChange: () => void }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
@@ -1921,8 +1928,13 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
   const removeDoc = async (doc: any) => {
     setDeleting(true);
     try {
-      const { error: stErr } = await supabase.storage.from("sale-documents").remove([doc.storage_path]);
-      if (stErr) console.warn("storage remove", stErr.message);
+      // Documentos "Mesmo do 1º" apontam para o mesmo arquivo no storage — só apaga o arquivo
+      // de fato se nenhum outro registro (o original ou outra cópia) ainda depender dele.
+      const sharedWithOthers = docs.some(d => d.id !== doc.id && d.storage_path === doc.storage_path);
+      if (!sharedWithOthers) {
+        const { error: stErr } = await supabase.storage.from("sale-documents").remove([doc.storage_path]);
+        if (stErr) console.warn("storage remove", stErr.message);
+      }
       await supabase.from("document_extractions").delete().eq("document_id", doc.id);
       const { error } = await supabase.from("sale_documents").delete().eq("id", doc.id);
       if (error) { toast.error(error.message); return; }
@@ -1967,6 +1979,24 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
     onChange();
     // IA só roda quando o usuário clicar em "Aplicar dados aos campos".
     void inserted;
+  };
+
+  // Certidão de casamento e comprovante de endereço costumam ser o mesmo documento para o casal —
+  // em vez de reenviar, o 2º comprador/vendedor reaproveita o arquivo já enviado pelo 1º.
+  const copyFromBase = async (tipo: string, parte: DocParte) => {
+    const baseParte = PARTE_BASE[parte];
+    if (!baseParte) return;
+    const baseDocs = docs.filter(d => d.tipo === tipo && (d.parte ?? "outros") === baseParte && d.status !== "recusado");
+    const baseDoc = baseDocs[baseDocs.length - 1];
+    if (!baseDoc) { toast.error(`Envie primeiro o documento de ${PARTE_BASE_LABEL[parte]}`); return; }
+    const { error } = await supabase.from("sale_documents").insert({
+      sale_id: saleId, tipo, parte, storage_path: baseDoc.storage_path, file_name: baseDoc.file_name,
+      uploaded_by: user!.id, status: baseDoc.status, extraction_status: "done",
+    } as any);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_reused_from_other_party", payload: { tipo, parte, de: baseParte } });
+    toast.success(`Documento reaproveitado de ${PARTE_BASE_LABEL[parte]}`);
+    onChange();
   };
 
   const approve = async (doc: any) => {
@@ -2205,6 +2235,10 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
               // CNH enviada para essa parte dispensa o RG e o CPF, já que ela contém as duas informações.
               const dispensadoPorCnh = (t.key === "rg" || t.key === "cpf") && docs.some(d => d.tipo === "cnh" && (d.parte ?? "outros") === parte && d.status !== "recusado");
               const obrigatorioEfetivo = t.obrigatorio && !dispensadoPorCnh;
+              // "Contrato" e "Contrato assinado" já têm fluxo dedicado (jurídico anexa, gestor sobe o assinado) —
+              // o corretor não deve enviar esses dois tipos por aqui, pra não pular a conferência.
+              const isContratoTipo = t.key === "contrato" || t.key === "contrato_assinado";
+              const podeEnviarAqui = editable && (!isContratoTipo || canManageContratos);
               return (
                 <Card key={`${parte}-${t.key}`} className={parteAccent}>
                   <CardContent className="space-y-3 p-4">
@@ -2216,7 +2250,12 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
                       </div>
                       <div className="flex items-center gap-2">
                         {latest && <DocStatusBadge status={latest.status} />}
-                        {editable && (
+                        {editable && list.length === 0 && PARTE_BASE[parte] && REUSABLE_DOC_TYPES.has(t.key) && (
+                          <Button size="sm" variant="ghost" onClick={() => copyFromBase(t.key, parte)}>
+                            Mesmo do {PARTE_BASE_LABEL[parte]}
+                          </Button>
+                        )}
+                        {podeEnviarAqui && (
                           <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
                             <Upload className="h-4 w-4" />
                             <span>{latest?.status === "recusado" ? "Reenviar" : "Enviar"}</span>
