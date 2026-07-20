@@ -57,6 +57,17 @@ function SaleDetail() {
   const [step, setStep] = useState<string>("documentos");
   const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
 
+  // Assim que a venda carrega, se ela já estiver na fase de ocorrência/financeiro, abre direto
+  // na aba "Ocorrência" em vez de "Documentos" — nessa altura os outros passos já foram
+  // preenchidos e não é o que quem está revisando (gestor/financeiro) precisa ver primeiro.
+  const initialStepSetRef = useRef(false);
+  useEffect(() => {
+    if (initialStepSetRef.current || !sale) return;
+    initialStepSetRef.current = true;
+    const statusEsperandoOcorrencia = ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor", "ocorrencia_concluida"];
+    if (statusEsperandoOcorrencia.includes(sale.status)) setStep("ocorrencia");
+  }, [sale]);
+
   // Buffered Resumo form
   const [formSale, setFormSale] = useState<any>({});
   const [dirtyResumo, setDirtyResumo] = useState(false);
