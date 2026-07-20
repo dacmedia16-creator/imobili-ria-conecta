@@ -178,10 +178,8 @@ export function proximoResponsavelRoles(status: SaleStatus): ResponsavelRole[] {
 export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
   { key: "corretor_captador", label: "Corretor captador" },
   { key: "indicador_captador", label: "Indicador do captador" },
-  { key: "coordenador_captador", label: "Coordenador captador" },
   { key: "corretor_vendedor", label: "Corretor vendedor" },
   { key: "indicador_vendedor", label: "Indicador do vendedor" },
-  { key: "coordenador_vendedor", label: "Coordenador vendedor" },
   { key: "gestor", label: "Gestor" },
   { key: "team_leader", label: "Team Leader" },
   { key: "outro", label: "Outro" },
