@@ -26,9 +26,12 @@ type Props = {
   dirty?: boolean;
   /** Renderizado no lugar do "Próximo" (que fica sem função) quando o usuário está na última etapa. */
   lastStepAction?: React.ReactNode;
+  /** Esconde a barra "Voltar/Próximo" — para wizards aninhados, onde só a navegação por clique no
+   * stepper faz sentido (evita duas barras de navegação empilhadas na tela). */
+  hideNav?: boolean;
 };
 
-export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction }: Props) {
+export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction, hideNav }: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -124,21 +127,23 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
       <div className="pt-2">{active?.content}</div>
 
       {/* Nav */}
-      <div className="flex items-center justify-between border-t pt-4">
-        <Button variant="ghost" onClick={() => go(idx - 1)} disabled={idx === 0}>
-          <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          {dirty ? "Alterações não salvas" : `${idx + 1} / ${enabled.length}`}
-        </span>
-        {idx >= enabled.length - 1 && lastStepAction ? (
-          lastStepAction
-        ) : (
-          <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
-            {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
+      {!hideNav && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <Button variant="ghost" onClick={() => go(idx - 1)} disabled={idx === 0}>
+            <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
           </Button>
-        )}
-      </div>
+          <span className="text-xs text-muted-foreground">
+            {dirty ? "Alterações não salvas" : `${idx + 1} / ${enabled.length}`}
+          </span>
+          {idx >= enabled.length - 1 && lastStepAction ? (
+            lastStepAction
+          ) : (
+            <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
+              {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
 
     </div>
   );

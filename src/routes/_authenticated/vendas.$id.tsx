@@ -18,7 +18,7 @@ import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
@@ -2169,6 +2169,15 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
     { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
   ];
+  // Navegação entre os blocos em modo wizard (um de cada vez, com Voltar/Próximo) —
+  // mesma linguagem visual do wizard principal da venda.
+  const [activeParte, setActiveParte] = useState<DocParte>("comprador_1");
+  const enabledBlocos = blocos.filter(b => b.tipos.length > 0);
+  const goToNextBlock = (parte: DocParte) => {
+    const idx = enabledBlocos.findIndex(b => b.parte === parte);
+    const next = enabledBlocos[idx + 1];
+    if (next) setActiveParte(next.parte);
+  };
 
   // Leitura automática: assim que todos os documentos de um bloco (cliente ou imóvel) forem
   // enviados, a IA lê esse bloco sozinha — sem precisar clicar em "Ler documentos e aplicar
@@ -2270,23 +2279,29 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
         )}
       </Card>
 
-      {blocos.map(({ parte, tipos }) => {
-        if (tipos.length === 0) return null;
+      <Wizard
+        steps={enabledBlocos.map(({ parte, tipos }) => {
         const parteAccent =
           parte === "comprador_1" || parte === "comprador_2" ? "border-l-4 border-l-blue-500" :
           parte === "vendedor_1" || parte === "vendedor_2" ? "border-l-4 border-l-amber-500" :
           parte === "imovel" ? "border-l-4 border-l-emerald-500" : "";
-        return (
-          <section key={parte} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{DOC_PARTE_LABEL[parte]}</h3>
-              {editable && parte === "comprador_2" && (
-                <Button size="sm" variant="ghost" onClick={() => setShowComprador2(false)} disabled={docs.some(d => d.parte === "comprador_2")}>Remover 2º comprador</Button>
-              )}
-              {editable && parte === "vendedor_2" && (
-                <Button size="sm" variant="ghost" onClick={() => setShowVendedor2(false)} disabled={docs.some(d => d.parte === "vendedor_2")}>Remover 2º vendedor</Button>
-              )}
-            </div>
+        return {
+          key: parte,
+          label: DOC_PARTE_LABEL[parte],
+          content: (
+          <section className="space-y-3">
+            {editable && (parte === "comprador_2" || parte === "vendedor_2") && (
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => (parte === "comprador_2" ? setShowComprador2(false) : setShowVendedor2(false))}
+                  disabled={docs.some(d => d.parte === parte)}
+                >
+                  Remover {parte === "comprador_2" ? "2º comprador" : "2º vendedor"}
+                </Button>
+              </div>
+            )}
             {tipos.map((t) => {
               const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
@@ -2364,15 +2379,29 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
                 </Card>
               );
             })}
-            {editable && parte === "comprador_1" && !showComprador2 && (
-              <Button size="sm" variant="outline" onClick={() => setShowComprador2(true)}>+ Adicionar 2º comprador</Button>
-            )}
-            {editable && parte === "vendedor_1" && !showVendedor2 && (
-              <Button size="sm" variant="outline" onClick={() => setShowVendedor2(true)}>+ Adicionar 2º vendedor</Button>
-            )}
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                {editable && parte === "comprador_1" && !showComprador2 && (
+                  <Button size="sm" variant="outline" onClick={() => setShowComprador2(true)}>+ Adicionar 2º comprador</Button>
+                )}
+                {editable && parte === "vendedor_1" && !showVendedor2 && (
+                  <Button size="sm" variant="outline" onClick={() => setShowVendedor2(true)}>+ Adicionar 2º vendedor</Button>
+                )}
+              </div>
+              {enabledBlocos.findIndex(b => b.parte === parte) < enabledBlocos.length - 1 && (
+                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => goToNextBlock(parte)}>
+                  Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </section>
-        );
-      })}
+          ),
+        };
+        })}
+        current={activeParte}
+        onChange={(k) => setActiveParte(k as DocParte)}
+        hideNav
+      />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
