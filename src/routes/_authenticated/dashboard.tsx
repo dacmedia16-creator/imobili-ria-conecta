@@ -14,7 +14,7 @@ import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCi
 const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
   { key: "inicio", label: "Rascunho / devolvida", statuses: ["rascunho", "devolvida_ajuste", "ocorrencia_devolvida_gestor"] },
   { key: "aprovacao", label: "Em aprovação", statuses: ["enviada_revisao", "aprovada_gestor"] },
-  { key: "juridico", label: "Jurídico / contrato", statuses: ["em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
+  { key: "juridico", label: "Jurídico / contrato", statuses: ["enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
   { key: "concluida", label: "Concluída", statuses: ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_concluida"] },
   { key: "encerrada", label: "Cancelada / arquivada", statuses: ["cancelada", "arquivada"] },
 ];
@@ -35,18 +35,23 @@ function Dashboard() {
   const { user, roles, hasAny } = useAuth();
   const [sales, setSales] = useState<any[]>([]);
   const [occs, setOccs] = useState<any[]>([]);
+  const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       setLoading(true);
-      const [s, o] = await Promise.all([
+      const [s, o, prof] = await Promise.all([
         supabase.from("sales").select("id, status, corretor_id, valor_negociado, valor_total_comissao, imovel_id, codigo_interno, updated_at, created_at").order("updated_at", { ascending: false }),
         supabase.from("occurrences").select("id, sale_id, valor_comissao, status, created_at"),
+        supabase.from("profiles").select("id, nome"),
       ]);
       setSales(s.data ?? []);
       setOccs(o.data ?? []);
+      const names: Record<string, string> = {};
+      for (const p of prof.data ?? []) names[p.id] = p.nome ?? p.id;
+      setProfileName(names);
       setLoading(false);
     })();
   }, [user]);
@@ -207,7 +212,7 @@ function Dashboard() {
               <CardContent className="space-y-1 text-sm">
                 {Object.entries(comissaoPorCorretor).map(([cid, valor]) => (
                   <div key={cid} className="flex items-center justify-between rounded-md border p-2">
-                    <span className="font-mono text-xs">{cid.slice(0, 8)}…</span>
+                    <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
                     <span className="font-medium">R$ {valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}

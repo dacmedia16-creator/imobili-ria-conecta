@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -50,6 +50,9 @@ function SaleDetail() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveMotivo, setArchiveMotivo] = useState("");
+  const [archiveTarget, setArchiveTarget] = useState<"arquivada" | "cancelada">("arquivada");
   const [step, setStep] = useState<string>("documentos");
   const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
 
@@ -92,6 +95,18 @@ function SaleDetail() {
       setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
     })();
   }, [user]);
+
+  const [lideres, setLideres] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    if (!sale?.corretor_id) return;
+    (async () => {
+      const { data: tm } = await supabase.from("team_members").select("lider_id").eq("membro_id", sale.corretor_id);
+      const liderIds = Array.from(new Set((tm ?? []).map((r: any) => r.lider_id)));
+      if (liderIds.length === 0) { setLideres([]); return; }
+      const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", liderIds);
+      setLideres((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
+    })();
+  }, [sale?.corretor_id]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,7 +179,7 @@ function SaleDetail() {
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
-  const totalChecks = 8 + DOC_TYPES.filter(t => t.obrigatorio).length;
+  const totalChecks = CHECKS_NAO_DOCUMENTAIS.length + DOC_TYPES.filter(t => t.obrigatorio).length;
   const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
   const requiredTypes = DOC_TYPES.map(d => d.key);
   const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
@@ -303,6 +318,7 @@ function SaleDetail() {
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
+      "coordenador_id","team_leader_id",
     ];
     const patch: any = {};
     for (const k of fields) {
@@ -452,6 +468,13 @@ function SaleDetail() {
     await changeStatus(returnTarget, returnMotivo);
     await supabase.from("sale_comments").insert({ sale_id: id, autor_id: user!.id, escopo: "revisao", texto: returnMotivo });
     setReturnOpen(false);
+  };
+
+  const openArchiveDialog = (target: "arquivada" | "cancelada") => { setArchiveTarget(target); setArchiveMotivo(""); setArchiveOpen(true); };
+  const submitArchive = async () => {
+    if (!archiveMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
+    await changeStatus(archiveTarget, archiveMotivo);
+    setArchiveOpen(false);
   };
   const attemptSendForReview = () => setReviewOpen(true);
   const confirmSendForReview = async () => {
@@ -633,9 +656,35 @@ function SaleDetail() {
               </div>
               {formExtras.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
               <div className="space-y-2">
-                {formExtras.map((r) => (
+                {formExtras.map((r) => {
+                  const vinculavel = (r.papel === "gestor" || r.papel === "team_leader") && lideres.length > 0;
+                  const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : r.papel === "team_leader" ? (formSale.team_leader_id ?? "") : "";
+                  const onSelectLider = (liderId: string) => {
+                    const lider = lideres.find((l) => l.id === liderId);
+                    updExtra(r.id, { nome: lider ? lider.nome : r.nome });
+                    if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
+                    if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
+                  };
+                  return (
                   <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-6">
-                    <Field label="Nome"><Input value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} /></Field>
+                    <Field label="Nome">
+                      {vinculavel ? (
+                        <Select value={liderAtualId || "manual"} onValueChange={(v) => onSelectLider(v === "manual" ? "" : v)} disabled={!editable}>
+                          <SelectTrigger><SelectValue placeholder="Selecione o líder" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manual">Digitar nome manualmente</SelectItem>
+                            {lideres.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                      <Input
+                        className={vinculavel ? "mt-2" : undefined}
+                        value={r.nome ?? ""}
+                        disabled={!editable || (vinculavel && !!liderAtualId)}
+                        onChange={(e) => updExtra(r.id, { nome: e.target.value })}
+                        placeholder={vinculavel ? "Nome (se não estiver na lista acima)" : undefined}
+                      />
+                    </Field>
                     <Field label="Papel">
                       <Select value={r.papel ?? "none"} onValueChange={(v) => updExtra(r.id, { papel: v === "none" ? null : v })} disabled={!editable}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -663,7 +712,8 @@ function SaleDetail() {
                       <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button></div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </SaleSection>
@@ -869,6 +919,13 @@ function SaleDetail() {
             <Button variant="outline" onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}>
               <XCircle className="mr-2 h-4 w-4" />Devolver ao gestor
             </Button>
+          )}
+
+          {isAdminLike && status !== "arquivada" && status !== "cancelada" && (
+            <>
+              <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>Arquivar</Button>
+              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => openArchiveDialog("cancelada")}>Cancelar venda</Button>
+            </>
           )}
 
           {canDelete && (
@@ -1200,6 +1257,22 @@ function SaleDetail() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{archiveTarget === "arquivada" ? "Arquivar venda" : "Cancelar venda"}</DialogTitle>
+            <DialogDescription>Descreva o motivo. Isso fica registrado no histórico da venda.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Motivo (obrigatório)" value={archiveMotivo} onChange={(e) => setArchiveMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setArchiveOpen(false)}>Voltar</Button>
+            <Button variant={archiveTarget === "cancelada" ? "destructive" : "default"} onClick={submitArchive} disabled={!archiveMotivo.trim()}>
+              {archiveTarget === "arquivada" ? "Arquivar" : "Cancelar venda"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={contratoDialogOpen} onOpenChange={(o) => { if (!contratoUploading) setContratoDialogOpen(o); }}>
         <DialogContent>
           <DialogHeader>
@@ -1500,6 +1573,7 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
   const [confirmExcedidoOpen, setConfirmExcedidoOpen] = useState(false);
+  const [excedidoMotivo, setExcedidoMotivo] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1522,15 +1596,16 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   const total = Number(occ?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
 
-  const doFinalizar = async () => {
+  const doFinalizar = async (motivoExcedido?: string) => {
     setFinalizing(true);
     try {
       const { error: e0 } = await supabase.from("occurrences").update({ status: "concluida" }).eq("id", occ.id);
       if (e0) { toast.error(e0.message); return; }
       const { error } = await supabase.from("sales").update({ status: "ocorrencia_concluida" }).eq("id", saleId);
       if (error) { toast.error(error.message); return; }
-      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo: "Ocorrência finalizada" });
-      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total } });
+      const motivo = motivoExcedido ? `Ocorrência finalizada com comissão excedente — justificativa: ${motivoExcedido}` : "Ocorrência finalizada";
+      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo });
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total, ...(motivoExcedido ? { comissao_excedida: true, justificativa: motivoExcedido, soma_comissoes: somaComissoes } : {}) } });
       toast.success("Ocorrência finalizada");
       onChange();
       await load();
@@ -1540,7 +1615,7 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   };
   const finalizar = async () => {
     if (!occ) return;
-    if (excedido) { setConfirmExcedidoOpen(true); return; }
+    if (excedido) { setExcedidoMotivo(""); setConfirmExcedidoOpen(true); return; }
     await doFinalizar();
   };
 
@@ -1582,12 +1657,16 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
           <AlertDialogHeader>
             <AlertDialogTitle>Comissões excedem o total?</AlertDialogTitle>
             <AlertDialogDescription>
-              Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}). Continuar mesmo assim?
+              Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}). Para finalizar mesmo assim, explique o motivo — isso fica registrado no histórico da venda.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="excedido-motivo">Justificativa (obrigatória)</Label>
+            <Textarea id="excedido-motivo" value={excedidoMotivo} onChange={(e) => setExcedidoMotivo(e.target.value)} placeholder="Ex.: bônus extra combinado com o gestor, ajuste retroativo, etc." />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={finalizing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction disabled={finalizing} onClick={(e) => { e.preventDefault(); setConfirmExcedidoOpen(false); doFinalizar(); }}>
+            <AlertDialogAction disabled={finalizing || !excedidoMotivo.trim()} onClick={(e) => { e.preventDefault(); setConfirmExcedidoOpen(false); doFinalizar(excedidoMotivo.trim()); }}>
               Continuar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -2308,15 +2387,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
       if (parte === "outros") continue;
       // A CNH é alternativa a RG+CPF (não um requisito extra): se enviada, dispensa os dois,
       // e não entra sozinha como pendência do bloco.
-      const completo = tipos.every((t) => {
-        if (t.key === "cnh") return true;
-        const temEspecifico = docs.some((d) => d.tipo === t.key && (d.parte ?? "outros") === parte && d.status !== "recusado");
-        if (t.key === "rg" || t.key === "cpf") {
-          const temCnh = docs.some((d) => d.tipo === "cnh" && (d.parte ?? "outros") === parte && d.status !== "recusado");
-          return temEspecifico || temCnh;
-        }
-        return temEspecifico;
-      });
+      const completo = tipos.every((t) => t.key === "cnh" || temDocDoTipo(docs, t.key, parte));
       if (!completo) continue;
       // Só documentos NUNCA lidos (extraction_status null) entram na fila automática — um que já
       // falhou (quota do Gemini, etc.) não é retentado sozinho a cada reload da página; fica "IA
@@ -2402,7 +2473,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
               const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
               // CNH enviada para essa parte dispensa o RG e o CPF, já que ela contém as duas informações.
-              const dispensadoPorCnh = (t.key === "rg" || t.key === "cpf") && docs.some(d => d.tipo === "cnh" && (d.parte ?? "outros") === parte && d.status !== "recusado");
+              const dispensadoPorCnh = (t.key === "rg" || t.key === "cpf") && temDocDoTipo(docs, "cnh", parte);
               const obrigatorioEfetivo = t.obrigatorio && !dispensadoPorCnh;
               // "Contrato" e "Contrato assinado" já têm fluxo dedicado (jurídico anexa, gestor sobe o assinado) —
               // o corretor não deve enviar esses dois tipos por aqui, pra não pular a conferência.
@@ -2809,6 +2880,34 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     toast.success("Financiamento e valor puxados do pagamento — confira e salve.");
   };
 
+  // Compara o que está salvo na ocorrência com os dados atuais da Resumo/Pagamento — se algo
+  // mudou depois da última vez que alguém clicou em "Puxar", a ocorrência ficou desatualizada.
+  const comissoesDesatualizadas = useMemo(() => {
+    if (!occ) return false;
+    const checks: { papel: string; valorAtual: any }[] = [
+      { papel: "corretor_captador", valorAtual: sale.valor_comissao_captador },
+      { papel: "corretor_vendedor", valorAtual: sale.valor_comissao_vendedor },
+    ];
+    if (sale.indicador_lado === "captador") checks.push({ papel: "indicador_captador", valorAtual: sale.valor_comissao_indicador });
+    if (sale.indicador_lado === "vendedor") checks.push({ papel: "indicador_vendedor", valorAtual: sale.valor_comissao_indicador });
+    const divergeValor = checks.some(({ papel, valorAtual }) => {
+      if (valorAtual == null) return false;
+      const row = commissions.find((r) => r.papel === papel);
+      return !row || Math.abs(Number(row.valor ?? 0) - Number(valorAtual)) > 0.01;
+    });
+    const divergeExtra = commissionExtras.some((extra) => {
+      const papel = papelDaExtra(extra.papel);
+      const row = commissions.find((r) => r.papel === papel && r.nome === extra.nome);
+      return !row || Math.abs(Number(row.valor ?? 0) - Number(extra.valor ?? 0)) > 0.01;
+    });
+    return divergeValor || divergeExtra;
+  }, [occ, sale, commissions, commissionExtras]);
+
+  const financiamentoDesatualizado = !!occ && (
+    Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||
+    Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0)
+  );
+
   const updPartner = (id: string, patch: any) => {
     setFormPartners(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
     setDirtyPartners(true);
@@ -2989,6 +3088,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
           )}
         </CardHeader>
         <CardContent>
+          {financiamentoDesatualizado && (
+            <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+              O financiamento mudou na etapa Pagamento depois da última sincronização. Clique em "Puxar do pagamento" para atualizar.
+            </div>
+          )}
           <FieldGrid>
             <Field label="Tem financiamento?"><div className="flex items-center gap-2"><Switch checked={!!formOcc.financiamento} onCheckedChange={(v) => updOcc({ financiamento: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.financiamento ? "Sim" : "Não"}</span></div></Field>
             <Field label="Valor financiado"><CurrencyInput value={formOcc.financiamento_valor} disabled={!canWrite || !formOcc.financiamento} onChange={(v) => updOcc({ financiamento_valor: v })} /></Field>
@@ -3037,6 +3142,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
           )}
         </CardHeader>
         <CardContent className="space-y-2">
+          {comissoesDesatualizadas && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+              A divisão de comissão mudou na Resumo depois da última sincronização. Clique em "Puxar da revisão do gestor" para atualizar.
+            </div>
+          )}
           {excedido && (
             <div className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">
               <AlertTriangle className="mr-2 inline h-4 w-4" />

@@ -35,6 +35,7 @@ function SalesList() {
   const [toDelete, setToDelete] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [profileName, setProfileName] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -47,6 +48,15 @@ function SalesList() {
       setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
     })();
   }, [user, hasAny]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("profiles").select("id, nome");
+      const names: Record<string, string> = {};
+      for (const p of data ?? []) names[p.id] = p.nome ?? p.id;
+      setProfileName(names);
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -152,6 +162,7 @@ function SalesList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Imóvel / código</TableHead>
+                  <TableHead>Corretor</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Nesta etapa</TableHead>
@@ -165,6 +176,7 @@ function SalesList() {
                   return (
                     <TableRow key={s.id} className="cursor-pointer" onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
                       <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
+                      <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
                       </TableCell>

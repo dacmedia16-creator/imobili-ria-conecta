@@ -155,6 +155,9 @@ export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
 
 export type Pendencia = { campo: string; mensagem: string };
 
+/** Toda checagem não-documental feita por validarProntaParaRevisao — mantém o total de checks em sincronia com a função. */
+export const CHECKS_NAO_DOCUMENTAIS = ["imovel", "matricula", "vendedor", "comprador", "valor_negociado", "comissao", "pagamento"] as const;
+
 /**
  * Valida se a venda está pronta para ser enviada para revisão do gestor.
  * Retorna lista de pendências em português simples para o corretor.
@@ -188,9 +191,31 @@ export function validarProntaParaRevisao(
   const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
   for (const t of obrigatorios) {
     const substituiPorCnh = t.key === "rg" || t.key === "cpf";
-    const tem = docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && d.status !== "recusado");
-    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+    const tem = docs.some(d => docSatisfazObrigatorio(d, t.key));
+    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
   }
 
   return pend;
+}
+
+/** Um documento obrigatório só conta como resolvido quando está de fato aprovado (não basta ter sido enviado). */
+export function docSatisfazObrigatorio(doc: { tipo: string; status: string }, tipoObrigatorio: string): boolean {
+  const substituiPorCnh = tipoObrigatorio === "rg" || tipoObrigatorio === "cpf";
+  return (doc.tipo === tipoObrigatorio || (substituiPorCnh && doc.tipo === "cnh")) && doc.status === "aprovado";
+}
+
+/**
+ * Existe um documento do tipo `tipoAlvo` (ou uma CNH, quando `tipoAlvo` for "rg"/"cpf" — a CNH
+ * dispensa os dois) para a `parte` informada, cujo status passe em `aceitaStatus`.
+ * Ponto único da regra "CNH substitui RG/CPF", reaproveitado tanto pelo indicador de bloco
+ * completo quanto pelo badge "Dispensado" da tela de Documentos.
+ */
+export function temDocDoTipo(
+  docs: { tipo: string; parte?: string | null; status: string }[],
+  tipoAlvo: string,
+  parte: string,
+  aceitaStatus: (status: string) => boolean = (s) => s !== "recusado",
+): boolean {
+  const substituiPorCnh = tipoAlvo === "rg" || tipoAlvo === "cpf";
+  return docs.some(d => (d.tipo === tipoAlvo || (substituiPorCnh && d.tipo === "cnh")) && (d.parte ?? "outros") === parte && aceitaStatus(d.status));
 }
