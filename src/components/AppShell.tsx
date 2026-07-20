@@ -28,7 +28,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar text-sidebar-foreground md:flex print:hidden">
         <div className="flex items-center gap-2 border-b border-sidebar-border px-5 py-4">
           <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
-          <span className="font-semibold tracking-tight">RE/MAX Portal</span>
+          <div className="leading-tight">
+            <span className="block font-semibold tracking-tight">RE/MAX Portal</span>
+            <span className="block text-xs text-sidebar-foreground/70">Única Escolha</span>
+          </div>
         </div>
         <div className="h-1 bg-primary" />
         <nav className="flex-1 space-y-1 p-3">
