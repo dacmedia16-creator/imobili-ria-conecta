@@ -46,6 +46,7 @@ function SaleDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
@@ -489,6 +490,12 @@ function SaleDetail() {
     await notifyRoles(["gestor", "coordenador"], `Nova venda para revisão: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
   };
 
+  const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
+  const confirmApproveJuridico = async () => {
+    setApproveJuridicoOpen(false);
+    await changeStatus("aprovada_gestor");
+  };
+
   // Wizard: on leaving a step, run its saver if dirty
   const onBeforeLeave = async (from: string): Promise<boolean> => {
     if (from === "resumo" && dirtyResumo) return await saveResumo();
@@ -815,7 +822,7 @@ function SaleDetail() {
   // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
   const primaryAction: { label: string; icon: typeof Send; onClick: () => void } | null =
     isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
-    isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: () => changeStatus("aprovada_gestor") } :
+    isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico } :
     isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: () => { setContratoFile(null); setContratoDialogOpen(true); } } :
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0 ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor } :
@@ -849,7 +856,7 @@ function SaleDetail() {
           {/* Gestor: revisão inicial */}
           {isGestor && status === "enviada_revisao" && (
             <>
-              <Button onClick={() => changeStatus("aprovada_gestor")}><CheckCircle2 className="mr-2 h-4 w-4" />Aprovar p/ jurídico</Button>
+              <Button onClick={attemptApproveJuridico}><CheckCircle2 className="mr-2 h-4 w-4" />Aprovar p/ jurídico</Button>
               <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
           )}
@@ -1244,6 +1251,51 @@ function SaleDetail() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReviewOpen(false)}>Cancelar</Button>
             <Button onClick={confirmSendForReview} disabled={pendencias.length > 0}>Confirmar envio</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approveJuridicoOpen} onOpenChange={setApproveJuridicoOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Conferência antes de enviar ao jurídico</DialogTitle>
+            <DialogDescription>Revise o que o corretor preencheu antes de aprovar e mandar pro jurídico.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
+            <div className="space-y-3">
+              <ReviewGroup title="Imóvel">
+                <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
+                <ReviewItem label="Matrícula" value={sale.matricula} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Valores e negociação">
+                <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
+                <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
+                <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
+                <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Partes">
+                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
+                  .filter((papel) => parties[papel]?.nome)
+                  .map((papel) => (
+                    <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={parties[papel]?.nome} />
+                  ))}
+              </ReviewGroup>
+
+              <ReviewGroup title="Pagamento">
+                <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
+                <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Documentos">
+                <ReviewItem label="Aprovados" value={`${docsApproved}/${requiredTypes.length}`} />
+              </ReviewGroup>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmApproveJuridico}>Confirmar e enviar ao jurídico</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
