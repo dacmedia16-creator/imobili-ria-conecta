@@ -192,16 +192,20 @@ export function validarProntaParaRevisao(
   for (const t of obrigatorios) {
     const substituiPorCnh = t.key === "rg" || t.key === "cpf";
     const tem = docs.some(d => docSatisfazObrigatorio(d, t.key));
-    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
   }
 
   return pend;
 }
 
-/** Um documento obrigatório só conta como resolvido quando está de fato aprovado (não basta ter sido enviado). */
+/**
+ * Um documento obrigatório conta como resolvido assim que enviado (não pode estar recusado).
+ * A aprovação em si acontece depois, já com o gestor/jurídico revisando — exigir aprovação
+ * aqui travaria o envio, já que só quem aprova é quem só entra na venda depois do envio.
+ */
 export function docSatisfazObrigatorio(doc: { tipo: string; status: string }, tipoObrigatorio: string): boolean {
   const substituiPorCnh = tipoObrigatorio === "rg" || tipoObrigatorio === "cpf";
-  return (doc.tipo === tipoObrigatorio || (substituiPorCnh && doc.tipo === "cnh")) && doc.status === "aprovado";
+  return (doc.tipo === tipoObrigatorio || (substituiPorCnh && doc.tipo === "cnh")) && doc.status !== "recusado";
 }
 
 /**
