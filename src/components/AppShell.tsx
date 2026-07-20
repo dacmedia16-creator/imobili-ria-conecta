@@ -33,8 +33,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="block text-xs text-sidebar-foreground/70">Única Escolha</span>
           </div>
         </div>
-        <div className="h-1 bg-primary" />
-        <nav className="flex-1 space-y-1 p-3">
+        <div className="h-1" style={{ background: "var(--gradient-remax)" }} />
+        <nav className="relative flex-1 space-y-1 p-3">
           {nav.filter(n => n.show).map((n) => (
             <Link
               key={n.to}
@@ -47,6 +47,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               {n.label}
             </Link>
           ))}
+          <img
+            src="/remax-icon.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-6 left-1/2 h-28 w-28 -translate-x-1/2 opacity-[0.06]"
+          />
         </nav>
         <div className="border-t border-sidebar-border p-3 text-xs">
           <div className="mb-1 truncate font-medium text-sidebar-foreground">{user?.email}</div>

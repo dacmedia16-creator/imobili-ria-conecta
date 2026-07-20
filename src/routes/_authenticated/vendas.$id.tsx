@@ -929,7 +929,7 @@ function SaleDetail() {
           )}
 
           {canDelete && (
-            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+            <Button variant="outline" className="text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="mr-2 h-4 w-4" />Excluir venda
             </Button>
           )}
@@ -1485,7 +1485,7 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
         <FormValueRow cols={[
           sale.imovel_id || sale.codigo_interno,
           occ?.tempo_venda,
-          dateBR(occ?.data_assinatura),
+          <span className="font-semibold">{dateBR(occ?.data_assinatura)}</span>,
           <Checkbox checked={!!occ?.nota_fiscal_obrigatoria} label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"} />,
           occ?.midia,
         ]} />
@@ -1509,7 +1509,12 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
       <FormTitle>Resumo da transação</FormTitle>
       <FormTable>
         <FormHeadRow cols={["Valor anunciado", "Valor negociado", "Percentual", "Valor da comissão"]} />
-        <FormValueRow cols={[money(occ?.valor_anunciado ?? sale.valor_anunciado), money(occ?.valor_negociado ?? sale.valor_negociado), occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null, money(occ?.valor_comissao ?? sale.valor_total_comissao)]} />
+        <FormValueRow cols={[
+          money(occ?.valor_anunciado ?? sale.valor_anunciado),
+          money(occ?.valor_negociado ?? sale.valor_negociado),
+          occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null,
+          <span className="text-base font-bold text-primary">{money(occ?.valor_comissao ?? sale.valor_total_comissao)}</span>,
+        ]} />
       </FormTable>
 
       <FormTable>

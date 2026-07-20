@@ -260,12 +260,14 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
 }
 
 function KpiCard({ icon: Icon, label, value, to }: { icon: any; label: string; value: number | string; to?: string }) {
+  const numeric = typeof value === "number" ? value : Number(String(value).replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", "."));
+  const isZero = !Number.isNaN(numeric) && numeric === 0;
   const inner = (
     <Card className={to ? "transition hover:shadow-md" : ""}>
       <CardContent className="flex items-center gap-3 p-4">
-        <div className="rounded-md bg-primary/10 p-2 text-primary"><Icon className="h-5 w-5" /></div>
+        <div className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}><Icon className="h-5 w-5" /></div>
         <div>
-          <div className="text-xl font-semibold leading-none">{value}</div>
+          <div className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}>{value}</div>
           <div className="mt-1 text-xs text-muted-foreground">{label}</div>
         </div>
       </CardContent>

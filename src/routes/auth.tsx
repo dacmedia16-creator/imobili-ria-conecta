@@ -64,14 +64,14 @@ function AuthPage() {
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
-        <Card className="w-full max-w-md border-0 shadow-lg lg:border lg:shadow-sm">
-          <CardHeader className="space-y-2 text-center">
+        <Card className="w-full max-w-lg border-0 shadow-lg lg:border lg:shadow-sm">
+          <CardHeader className="space-y-3 px-8 pt-8 text-center">
             <img src="/remax-logo.png" alt="RE/MAX Imóveis — Única Escolha" className="mx-auto h-12 w-auto lg:hidden" />
-            <CardTitle>Portal Interno</CardTitle>
+            <CardTitle className="text-xl">Portal Interno</CardTitle>
             <CardDescription>Acesse com sua conta corporativa</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={onSubmit} className="space-y-4">
+          <CardContent className="px-8 pb-8">
+            <form onSubmit={onSubmit} className="space-y-5">
               <div>
                 <Label htmlFor="email">E-mail</Label>
                 <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />

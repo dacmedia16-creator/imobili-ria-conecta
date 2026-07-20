@@ -132,7 +132,7 @@ function SalesList() {
 
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input placeholder="Buscar por código, imóvel, comprador, vendedor ou corretor" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-xs" />
+          <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-sm" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
@@ -188,7 +188,7 @@ function SalesList() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
                             aria-label="Excluir venda"
                           >
