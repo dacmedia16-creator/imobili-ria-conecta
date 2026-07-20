@@ -108,8 +108,12 @@ function SaleDetail() {
     })();
   }, [sale?.corretor_id]);
 
+  const hasLoadedOnceRef = useRef(false);
   const load = useCallback(async () => {
-    setLoading(true);
+    // Só mostra a tela cheia de "Carregando..." na primeira vez — em recargas depois de uma ação
+    // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
+    // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
+    if (!hasLoadedOnceRef.current) setLoading(true);
     const [s, p, pay, ba, d, c, h, oc, ce] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
@@ -137,6 +141,7 @@ function SaleDetail() {
     setHistory(h.data ?? []);
     setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
     setLoading(false);
+    hasLoadedOnceRef.current = true;
     if (s.data && user && s.data.corretor_id !== user.id) {
       supabase.from("activity_logs").insert({ sale_id: id, autor_id: user.id, acao: "sale_viewed" }).then(() => {});
     }
