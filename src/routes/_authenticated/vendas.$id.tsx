@@ -2113,9 +2113,17 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
     if (!editable) return;
     for (const { parte, tipos } of blocos) {
       if (parte === "outros") continue;
-      const completo = tipos.every((t) =>
-        docs.some((d) => d.tipo === t.key && (d.parte ?? "outros") === parte && d.status !== "recusado"),
-      );
+      // A CNH é alternativa a RG+CPF (não um requisito extra): se enviada, dispensa os dois,
+      // e não entra sozinha como pendência do bloco.
+      const completo = tipos.every((t) => {
+        if (t.key === "cnh") return true;
+        const temEspecifico = docs.some((d) => d.tipo === t.key && (d.parte ?? "outros") === parte && d.status !== "recusado");
+        if (t.key === "rg" || t.key === "cpf") {
+          const temCnh = docs.some((d) => d.tipo === "cnh" && (d.parte ?? "outros") === parte && d.status !== "recusado");
+          return temEspecifico || temCnh;
+        }
+        return temEspecifico;
+      });
       if (!completo) continue;
       // Só documentos NUNCA lidos (extraction_status null) entram na fila automática — um que já
       // falhou (quota do Gemini, etc.) não é retentado sozinho a cada reload da página; fica "IA
@@ -2194,13 +2202,17 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, onChang
             {tipos.map((t) => {
               const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
+              // CNH enviada para essa parte dispensa o RG e o CPF, já que ela contém as duas informações.
+              const dispensadoPorCnh = (t.key === "rg" || t.key === "cpf") && docs.some(d => d.tipo === "cnh" && (d.parte ?? "outros") === parte && d.status !== "recusado");
+              const obrigatorioEfetivo = t.obrigatorio && !dispensadoPorCnh;
               return (
                 <Card key={`${parte}-${t.key}`} className={parteAccent}>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-medium">{t.label}{t.obrigatorio && parte === "comprador_1" || (t.obrigatorio && parte === "vendedor_1") ? <span className="ml-1 text-destructive">*</span> : null}</div>
-                        {t.obrigatorio && (parte === "comprador_1" || parte === "vendedor_1") && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+                        <div className="text-sm font-medium">{t.label}{obrigatorioEfetivo && (parte === "comprador_1" || parte === "vendedor_1") ? <span className="ml-1 text-destructive">*</span> : null}</div>
+                        {obrigatorioEfetivo && (parte === "comprador_1" || parte === "vendedor_1") && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+                        {dispensadoPorCnh && <div className="text-xs text-emerald-700 dark:text-emerald-400">Dispensado — CNH enviada</div>}
                       </div>
                       <div className="flex items-center gap-2">
                         {latest && <DocStatusBadge status={latest.status} />}

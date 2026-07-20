@@ -106,6 +106,7 @@ export const DOC_PARTE_LABEL: Record<DocParte, string> = {
 export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean }[] = [
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
   { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true },
+  { key: "cnh", label: "CNH (dispensa RG e CPF)", grupo: "pessoal" },
   { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal" },
   { key: "comprovante_endereco", label: "Comprovante de endereço", grupo: "pessoal" },
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
@@ -180,11 +181,12 @@ export function validarProntaParaRevisao(
     pend.push({ campo: "pagamento", mensagem: "Falta informar a forma de pagamento" });
   }
 
-  // Docs obrigatórios
+  // Docs obrigatórios — a CNH dispensa RG e CPF, já que contém as duas informações.
   const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
   for (const t of obrigatorios) {
-    const tem = docs.some(d => d.tipo === t.key && d.status !== "recusado");
-    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}` });
+    const substituiPorCnh = t.key === "rg" || t.key === "cpf";
+    const tem = docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && d.status !== "recusado");
+    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
   }
 
   return pend;
