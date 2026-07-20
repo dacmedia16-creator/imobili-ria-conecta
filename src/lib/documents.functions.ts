@@ -175,6 +175,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // sobrescrever/atribuir dados de identidade à parte errada.
       const isIdentidade = tipo === "rg" || tipo === "cpf" || tipo === "cnh";
       const viaMatricula = papel === "vendedor_1" && (parte === "imovel" || parte === "outros");
+      // Endereço só vem do comprovante de endereço — é o único documento com esse propósito.
+      const endereco = tipo === "comprovante_endereco" ? r.endereco : null;
       if (papel) {
         const nome = isIdentidade ? (r.nome ?? r.nome_completo) : (viaMatricula ? r.nome_proprietario : null);
         const rg = isIdentidade ? (r.rg ?? r.numero_rg) : null;
@@ -182,7 +184,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         const prof = isIdentidade ? r.profissao : null;
         const email = isIdentidade ? r.email : null;
         const tel = isIdentidade ? (r.telefone ?? r.celular) : null;
-        if (nome || rg || cpf || prof || email || tel) {
+        if (nome || rg || cpf || prof || email || tel || endereco) {
           const p = (partiesPatch[papel] ??= {});
           assign(p, "nome", nome);
           assign(p, "rg", rg);
@@ -190,6 +192,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           assign(p, "profissao", prof);
           assign(p, "email", email);
           assign(p, "telefone", tel);
+          assign(p, "endereco", endereco);
         }
       }
     }

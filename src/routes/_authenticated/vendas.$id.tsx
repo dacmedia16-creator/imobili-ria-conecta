@@ -254,7 +254,9 @@ function SaleDetail() {
     updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
   // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
-  // o valor sai — é só um registro informativo, igual ao indicador, não desconta automaticamente das fatias fixas.
+  // o valor sai. O valor líquido de cada fatia (mostrado nos campos "Líquido...") já desconta a soma
+  // das partes extras vinculadas a ela, pra bater com o que de fato sobra pra cada um.
+  const somaExtrasPorOrigem = (origem: string) => formExtras.reduce((s, e) => s + (e.origem === origem ? Number(e.valor ?? 0) : 0), 0);
   const baseParaOrigem = (origem: string) => {
     if (origem === "captador") return Number(formSale.valor_comissao_captador ?? 0);
     if (origem === "vendedor") return Number(formSale.valor_comissao_vendedor ?? 0);
@@ -283,7 +285,7 @@ function SaleDetail() {
     setDirtyExtras(true);
   };
   const addExtra = () => {
-    setFormExtras(rows => [...rows, { id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "", origem: "imobiliaria", percentual: null, valor: null, _new: true }]);
+    setFormExtras(rows => [...rows, { id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "", papel: null, origem: "imobiliaria", percentual: null, valor: null, _new: true }]);
     setDirtyExtras(true);
   };
   const delExtra = (rowId: string) => {
@@ -299,7 +301,7 @@ function SaleDetail() {
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
-      "forma_pagamento","forma_pagamento_banco","negociacao_observacoes","posse_data","posse_observacoes",
+      "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
     ];
     const patch: any = {};
     for (const k of fields) {
@@ -321,7 +323,7 @@ function SaleDetail() {
         if (error) { toast.error(error.message); return false; }
       }
       for (const r of formExtras) {
-        const data = { nome: r.nome || null, origem: r.origem, percentual: r.percentual ?? null, valor: r.valor ?? null };
+        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null };
         const { error } = r._new
           ? await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data })
           : await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
@@ -535,24 +537,9 @@ function SaleDetail() {
                 patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
                 updResumo(patch);
               }} /></Field>
-              <Field label="Forma de pagamento">
-                <Select
-                  value={formSale.forma_pagamento ?? ""}
-                  onValueChange={(v) => updResumo({ forma_pagamento: v, ...(v !== "Financiamento" ? { forma_pagamento_banco: null } : {}) })}
-                  disabled={!editable}
-                >
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Vista">Vista</SelectItem>
-                    <SelectItem value="Financiamento">Financiamento</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Field label="Forma de pagamento" colSpan={2}>
+                <Input placeholder="Como o proprietário vai pagar a comissão" value={formSale.forma_pagamento ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento: e.target.value })} />
               </Field>
-              {formSale.forma_pagamento === "Financiamento" && (
-                <Field label="Banco financiador">
-                  <Input value={formSale.forma_pagamento_banco ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento_banco: e.target.value })} />
-                </Field>
-              )}
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
@@ -573,7 +560,15 @@ function SaleDetail() {
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
               <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!editable} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
-              <Field label="Valor para a imobiliária (R$)" colSpan={2}><CurrencyInput value={formSale.valor_comissao_imobiliaria} disabled onChange={() => {}} /></Field>
+              <Field label="Líquido do captador (R$)">
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
+              </Field>
+              <Field label="Líquido do vendedor (R$)">
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - (formSale.indicador_lado === "vendedor" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
+              </Field>
+              <Field label="Valor para a imobiliária (R$)" colSpan={2}>
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
+              </Field>
             </FieldGrid>
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
@@ -603,23 +598,34 @@ function SaleDetail() {
                 </Field>
                 <Field label="% Indicador (sobre a comissão do lado)"><Input type="number" step="0.001" value={formSale.percentual_comissao_indicador ?? ""} disabled={!editable || !formSale.indicador_lado} onChange={(e) => applyIndicadorPercentual(e.target.value)} /></Field>
                 <Field label="Comissão indicador (R$)"><CurrencyInput value={formSale.valor_comissao_indicador} disabled={!editable || !formSale.indicador_lado} onChange={applyIndicadorValor} /></Field>
-                <Field label={`Líquido do ${formSale.indicador_lado === "vendedor" ? "vendedor" : "captador"} após indicador (R$)`}>
-                  <CurrencyInput value={formSale.indicador_lado ? Number((indicadorLadoValor() - Number(formSale.valor_comissao_indicador ?? 0)).toFixed(2)) : null} disabled onChange={() => {}} />
-                </Field>
               </FieldGrid>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Veja o "Líquido do captador/vendedor" acima — já descontam indicador e partes extras dessa fatia.
+              </p>
             </div>
             <div className="mt-4 border-t pt-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Partes extras da divisão — escolha de qual fatia (imobiliária, captador ou vendedor) cada uma sai.
+                  Partes extras da divisão — classifique quem é a pessoa e de qual fatia (imobiliária, captador ou vendedor) o valor sai.
                 </p>
                 {editable && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
               </div>
               {formExtras.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
               <div className="space-y-2">
                 {formExtras.map((r) => (
-                  <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-5">
+                  <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-6">
                     <Field label="Nome"><Input value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} /></Field>
+                    <Field label="Papel">
+                      <Select value={r.papel ?? "none"} onValueChange={(v) => updExtra(r.id, { papel: v === "none" ? null : v })} disabled={!editable}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="gestor">Gestor</SelectItem>
+                          <SelectItem value="team_leader">Team Leader</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
                     <Field label="Origem">
                       <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editable}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
@@ -688,6 +694,7 @@ function SaleDetail() {
           sale={sale}
           payment={payment}
           parties={parties}
+          commissionExtras={commissionExtras}
           canEdit={canEditOcorrencia}
           onChange={load}
           registerSaver={(fn) => registerSaver("ocorrencia", fn)}
@@ -931,7 +938,7 @@ function SaleDetail() {
               <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
               <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
               <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
-              <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento === "Financiamento" && sale.forma_pagamento_banco ? `Financiamento — ${sale.forma_pagamento_banco}` : sale.forma_pagamento} />
+              <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento} />
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">
@@ -970,6 +977,7 @@ function SaleDetail() {
                       <ReviewItem label="Profissão" value={p.profissao} />
                       <ReviewItem label="E-mail" value={p.email} />
                       <ReviewItem label="Telefone" value={p.telefone} />
+                      <ReviewItem label="Endereço" value={p.endereco} />
                     </div>
                   );
                 })}
@@ -983,7 +991,7 @@ function SaleDetail() {
               <ReviewItem label="Parcela 1" value={money(payment?.parcela1_valor)} />
               <ReviewItem label="Parcela 2" value={money(payment?.parcela2_valor)} />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
-              <ReviewItem label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+              <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
             </ReviewGroup>
 
             <ReviewGroup title="Dados bancários do vendedor">
@@ -1126,7 +1134,7 @@ function SaleDetail() {
 
               <ReviewGroup title="Pagamento">
                 <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
-                <ReviewItem label="Financiamento" value={payment?.financiamento ? money(payment?.financiamento_valor) : "Não"} />
+                <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
@@ -1377,12 +1385,14 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
         <FormTable key={v.id ?? i}>
           <FormValueRow cols={[<span><b>Nome do vendedor:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
           <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {v.cpf_cnpj}</span>, <span><b>RG:</b> {v.rg}</span>, <span><b>Celular:</b> {v.telefone}</span>]} />
+          <FormValueRow cols={[<span><b>Endereço:</b> {v.endereco}</span>]} />
         </FormTable>
       ))}
       {compradores.map((c: any, i: number) => (
         <FormTable key={c.id ?? i}>
           <FormValueRow cols={[<span><b>Nome do comprador:</b> {c.nome}</span>, <span><b>E-mail:</b> {c.email}</span>]} />
           <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {c.cpf_cnpj}</span>, <span><b>RG:</b> {c.rg}</span>, <span><b>Celular:</b> {c.telefone}</span>]} />
+          <FormValueRow cols={[<span><b>Endereço:</b> {c.endereco}</span>]} />
         </FormTable>
       ))}
 
@@ -1769,7 +1779,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
     for (const papel of papeis) {
       if (!dirty[papel]) continue;
       const existing = parties[papel];
-      const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null };
+      const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null };
       const { error } = existing
         ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
         : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
@@ -1803,6 +1813,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
               <Field label="E-mail"><Input type="email" value={forms[p].email ?? ""} onChange={(e) => update(p, "email", e.target.value)} disabled={!editable} /></Field>
               <Field label="Telefone"><Input value={forms[p].telefone ?? ""} onChange={(e) => update(p, "telefone", e.target.value)} disabled={!editable} /></Field>
+              <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
         </Card>
@@ -1869,7 +1880,24 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
             <Field label="Parcela 2 — data"><Input type="date" value={p.parcela2_data ?? ""} onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
-            <Field label="Financiamento"><div className="flex items-center gap-2"><Switch checked={!!p.financiamento} onCheckedChange={(v) => updP("financiamento", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
+            <Field label="Financiamento">
+              <Select
+                value={p.financiamento ? "Financiamento" : "Vista"}
+                onValueChange={(v) => { updP("financiamento", v === "Financiamento"); if (v !== "Financiamento") updP("financiamento_banco", null); }}
+                disabled={!editable}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Vista">Vista</SelectItem>
+                  <SelectItem value="Financiamento">Financiamento</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {p.financiamento && (
+              <Field label="Banco financiador">
+                <Input value={p.financiamento_banco ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_banco", e.target.value)} />
+              </Field>
+            )}
             <Field label="Financiamento — valor"><CurrencyInput value={p.financiamento_valor} onChange={(v) => updP("financiamento_valor", v)} disabled={!editable} /></Field>
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
@@ -1903,7 +1931,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [preview, setPreview] = useState<{ file_name: string; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ doc: any; url: string } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [printingAll, setPrintingAll] = useState(false);
   const [pendingReject, setPendingReject] = useState<any | null>(null);
@@ -1917,7 +1945,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
     const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 300);
     if (error || !data) { toast.error("Falha ao gerar link"); return; }
     setZoom(1);
-    setPreview({ file_name: doc.file_name, url: data.signedUrl });
+    setPreview({ doc, url: data.signedUrl });
   };
 
   const printDoc = async (doc: any) => {
@@ -2367,9 +2395,9 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="truncate">{preview?.file_name}</DialogTitle>
+            <DialogTitle className="truncate">{preview?.doc.file_name}</DialogTitle>
           </DialogHeader>
-          {preview && isImageFile(preview.file_name) && (
+          {preview && isImageFile(preview.doc.file_name) && (
             <div className="flex items-center justify-end gap-1">
               <Button size="sm" variant="outline" onClick={zoomOut} disabled={zoom <= 0.5}>
                 <ZoomOut className="h-4 w-4" />
@@ -2385,21 +2413,31 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
           )}
           {preview && (
             <div className="max-h-[70vh] overflow-auto rounded-md border bg-muted/30">
-              {isImageFile(preview.file_name) ? (
+              {isImageFile(preview.doc.file_name) ? (
                 <img
                   src={preview.url}
-                  alt={preview.file_name}
+                  alt={preview.doc.file_name}
                   className="mx-auto cursor-zoom-in select-none"
                   style={zoom === 1 ? { maxHeight: "70vh", maxWidth: "100%", width: "auto" } : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }}
                   onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}
                 />
               ) : (
-                <iframe src={preview.url} title={preview.file_name} className="h-[70vh] w-full" />
+                <iframe src={preview.url} title={preview.doc.file_name} className="h-[70vh] w-full" />
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => preview && printDocumentUrls([preview])}>
+            {canModerate && preview?.doc.status !== "aprovado" && (
+              <Button variant="outline" onClick={() => { approve(preview!.doc); setPreview(null); }}>
+                <FileCheck className="mr-2 h-4 w-4" />Aprovar
+              </Button>
+            )}
+            {canModerate && preview?.doc.status !== "recusado" && (
+              <Button variant="outline" onClick={() => { openRejectDialog(preview!.doc); setPreview(null); }}>
+                <FileX className="mr-2 h-4 w-4" />Recusar
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => preview && printDocumentUrls([{ file_name: preview.doc.file_name, url: preview.url }])}>
               <Printer className="mr-2 h-4 w-4" />Imprimir
             </Button>
             <Button variant="outline" onClick={() => preview && window.open(preview.url, "_blank")}>
@@ -2473,9 +2511,14 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
   );
 }
 
+// Partes extras da divisão (Resumo) viram comissões na ocorrência usando o "papel" que a pessoa
+// recebeu lá (Gestor/Team Leader/Outro) — sem papel definido, cai em "outro".
+const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro"]);
+const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
+
 // -------- Occurrence step (buffered) --------
-function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, registerSaver, onDirtyChange }: {
-  saleId: string; sale: any; payment: any; parties: Record<string, any>; canEdit: boolean; onChange: () => void;
+function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, canEdit, onChange, registerSaver, onDirtyChange }: {
+  saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; canEdit: boolean; onChange: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const { user, hasAny } = useAuth();
@@ -2538,7 +2581,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
     // (aba Resumo) — sem isso a tabela de comissões nasce zerada e duplica trabalho já feito.
     const totalComissao = Number(sale.valor_total_comissao ?? 0);
     const pctOfTotal = (v: any) => (v != null && totalComissao > 0 ? Number(((Number(v) / totalComissao) * 100).toFixed(3)) : null);
-    const commRows = COMISSAO_PAPEIS.map((p) => {
+    const commRows = COMISSAO_PAPEIS.filter((p) => !EXTRA_ORIGEM_PAPEIS.has(p.key)).map((p) => {
       let nome: string | null = null;
       let valor: number | null = null;
       if (p.key === "corretor_captador") { nome = sale.corretor_captador ?? null; valor = sale.valor_comissao_captador ?? null; }
@@ -2547,7 +2590,11 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
       else if (p.key === "indicador_vendedor" && sale.indicador_lado === "vendedor") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
       return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor };
     });
-    await supabase.from("occurrence_commissions").insert(commRows);
+    // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
+    const extraRows = commissionExtras.map((e) => ({
+      occurrence_id: data.id, papel: papelDaExtra(e.papel), nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
+    }));
+    await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
     onChange();
@@ -2581,13 +2628,27 @@ function OccurrencePanel({ saleId, sale, payment, parties, canEdit, onChange, re
   const pullFromSaleSplit = () => {
     const total = Number(formOcc?.valor_comissao ?? 0);
     const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
-    setFormComms((rows) => rows.map((r) => {
-      if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual };
-      if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual };
-      if (r.papel === "indicador_captador" && sale.indicador_lado === "captador") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
-      if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
-      return r;
-    }));
+    setFormComms((rows) => {
+      let next = rows.map((r) => {
+        if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual };
+        if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual };
+        if (r.papel === "indicador_captador" && sale.indicador_lado === "captador") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
+        if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
+        return r;
+      });
+      // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes
+      // (mesmo papel + nome) ou adiciona uma nova, sem duplicar a cada clique.
+      for (const extra of commissionExtras) {
+        const papel = papelDaExtra(extra.papel);
+        const idx = next.findIndex((r) => r.papel === papel && r.nome === extra.nome);
+        if (idx >= 0) {
+          next = next.map((r, i) => i === idx ? { ...r, valor: extra.valor, percentual: pctOfTotal(extra.valor) } : r);
+        } else {
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, _new: true }];
+        }
+      }
+      return next;
+    });
     setDirtyComms(true);
     toast.success("Valores da revisão do gestor aplicados — confira e salve.");
   };

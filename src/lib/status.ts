@@ -148,6 +148,9 @@ export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
   { key: "corretor_vendedor", label: "Corretor vendedor" },
   { key: "indicador_vendedor", label: "Indicador do vendedor" },
   { key: "coordenador_vendedor", label: "Coordenador vendedor" },
+  { key: "gestor", label: "Gestor" },
+  { key: "team_leader", label: "Team Leader" },
+  { key: "outro", label: "Outro" },
 ];
 
 export type Pendencia = { campo: string; mensagem: string };

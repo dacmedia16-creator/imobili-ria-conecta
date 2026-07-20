@@ -467,6 +467,7 @@ export type Database = {
           id: string
           nome: string | null
           origem: string
+          papel: string | null
           percentual: number | null
           sale_id: string
           valor: number | null
@@ -476,6 +477,7 @@ export type Database = {
           id?: string
           nome?: string | null
           origem?: string
+          papel?: string | null
           percentual?: number | null
           sale_id: string
           valor?: number | null
@@ -485,6 +487,7 @@ export type Database = {
           id?: string
           nome?: string | null
           origem?: string
+          papel?: string | null
           percentual?: number | null
           sale_id?: string
           valor?: number | null
@@ -560,6 +563,7 @@ export type Database = {
           cpf_cnpj: string | null
           created_at: string
           email: string | null
+          endereco: string | null
           id: string
           nome: string | null
           papel: string
@@ -572,6 +576,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null
+          endereco?: string | null
           id?: string
           nome?: string | null
           papel: string
@@ -584,6 +589,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null
+          endereco?: string | null
           id?: string
           nome?: string | null
           papel?: string
@@ -610,6 +616,7 @@ export type Database = {
           fgts_observacao: string | null
           fgts_valor: number | null
           financiamento: boolean | null
+          financiamento_banco: string | null
           financiamento_observacao: string | null
           financiamento_valor: number | null
           observacoes: string | null
@@ -626,6 +633,7 @@ export type Database = {
           fgts_observacao?: string | null
           fgts_valor?: number | null
           financiamento?: boolean | null
+          financiamento_banco?: string | null
           financiamento_observacao?: string | null
           financiamento_valor?: number | null
           observacoes?: string | null
@@ -642,6 +650,7 @@ export type Database = {
           fgts_observacao?: string | null
           fgts_valor?: number | null
           financiamento?: boolean | null
+          financiamento_banco?: string | null
           financiamento_observacao?: string | null
           financiamento_valor?: number | null
           observacoes?: string | null
@@ -711,7 +720,6 @@ export type Database = {
           corretor_vendedor: string | null
           created_at: string
           forma_pagamento: string | null
-          forma_pagamento_banco: string | null
           id: string
           imovel_id: string | null
           imovel_observacoes: string | null
@@ -748,7 +756,6 @@ export type Database = {
           corretor_vendedor?: string | null
           created_at?: string
           forma_pagamento?: string | null
-          forma_pagamento_banco?: string | null
           id?: string
           imovel_id?: string | null
           imovel_observacoes?: string | null
@@ -785,7 +792,6 @@ export type Database = {
           corretor_vendedor?: string | null
           created_at?: string
           forma_pagamento?: string | null
-          forma_pagamento_banco?: string | null
           id?: string
           imovel_id?: string | null
           imovel_observacoes?: string | null
