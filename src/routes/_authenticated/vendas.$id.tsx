@@ -299,7 +299,7 @@ function SaleDetail() {
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
-      "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
+      "forma_pagamento","forma_pagamento_banco","negociacao_observacoes","posse_data","posse_observacoes",
     ];
     const patch: any = {};
     for (const k of fields) {
@@ -535,7 +535,24 @@ function SaleDetail() {
                 patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
                 updResumo(patch);
               }} /></Field>
-              <Field label="Forma de pagamento" colSpan={2}><Input value={formSale.forma_pagamento ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento: e.target.value })} /></Field>
+              <Field label="Forma de pagamento">
+                <Select
+                  value={formSale.forma_pagamento ?? ""}
+                  onValueChange={(v) => updResumo({ forma_pagamento: v, ...(v !== "Financiamento" ? { forma_pagamento_banco: null } : {}) })}
+                  disabled={!editable}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Vista">Vista</SelectItem>
+                    <SelectItem value="Financiamento">Financiamento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {formSale.forma_pagamento === "Financiamento" && (
+                <Field label="Banco financiador">
+                  <Input value={formSale.forma_pagamento_banco ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento_banco: e.target.value })} />
+                </Field>
+              )}
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
@@ -914,7 +931,7 @@ function SaleDetail() {
               <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
               <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
               <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
-              <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento} />
+              <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento === "Financiamento" && sale.forma_pagamento_banco ? `Financiamento — ${sale.forma_pagamento_banco}` : sale.forma_pagamento} />
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">

@@ -170,13 +170,18 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       } else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
 
 
+      // Nome/RG/CPF/profissão/e-mail/telefone só valem de documento de identidade (RG, CPF ou CNH) —
+      // certidão e comprovante de endereço podem ser de outra pessoa (cônjuge, terceiro) e não devem
+      // sobrescrever/atribuir dados de identidade à parte errada.
+      const isIdentidade = tipo === "rg" || tipo === "cpf" || tipo === "cnh";
+      const viaMatricula = papel === "vendedor_1" && (parte === "imovel" || parte === "outros");
       if (papel) {
-        const nome = r.nome ?? r.nome_completo ?? (papel === "vendedor_1" ? r.nome_proprietario : null);
-        const rg = r.rg ?? r.numero_rg;
-        const cpf = r.cpf ?? r.cpf_cnpj ?? r.cnpj ?? (papel === "vendedor_1" ? r.cpf_proprietario : null);
-        const prof = r.profissao;
-        const email = r.email;
-        const tel = r.telefone ?? r.celular;
+        const nome = isIdentidade ? (r.nome ?? r.nome_completo) : (viaMatricula ? r.nome_proprietario : null);
+        const rg = isIdentidade ? (r.rg ?? r.numero_rg) : null;
+        const cpf = isIdentidade ? (r.cpf ?? r.cpf_cnpj ?? r.cnpj) : (viaMatricula ? r.cpf_proprietario : null);
+        const prof = isIdentidade ? r.profissao : null;
+        const email = isIdentidade ? r.email : null;
+        const tel = isIdentidade ? (r.telefone ?? r.celular) : null;
         if (nome || rg || cpf || prof || email || tel) {
           const p = (partiesPatch[papel] ??= {});
           assign(p, "nome", nome);

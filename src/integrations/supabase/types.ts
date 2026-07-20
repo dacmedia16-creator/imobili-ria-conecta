@@ -711,6 +711,7 @@ export type Database = {
           corretor_vendedor: string | null
           created_at: string
           forma_pagamento: string | null
+          forma_pagamento_banco: string | null
           id: string
           imovel_id: string | null
           imovel_observacoes: string | null
@@ -747,6 +748,7 @@ export type Database = {
           corretor_vendedor?: string | null
           created_at?: string
           forma_pagamento?: string | null
+          forma_pagamento_banco?: string | null
           id?: string
           imovel_id?: string | null
           imovel_observacoes?: string | null
@@ -783,6 +785,7 @@ export type Database = {
           corretor_vendedor?: string | null
           created_at?: string
           forma_pagamento?: string | null
+          forma_pagamento_banco?: string | null
           id?: string
           imovel_id?: string | null
           imovel_observacoes?: string | null
