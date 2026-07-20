@@ -18,7 +18,7 @@ import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
@@ -527,7 +527,8 @@ function SaleDetail() {
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("imovel")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
@@ -557,7 +558,8 @@ function SaleDetail() {
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("equipe")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
@@ -665,7 +667,8 @@ function SaleDetail() {
               </div>
             </div>
           </SaleSection>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("posse")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
@@ -676,6 +679,9 @@ function SaleDetail() {
               <Field label="Observações" colSpan={2}><Textarea value={formSale.posse_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ posse_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
+          </div>
               </>) },
             ]}
             current={activeResumoBlock}
@@ -1852,11 +1858,18 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
-          {i < papeis.length - 1 && (
-            <CardContent className="flex justify-end pt-0">
-              <Button size="sm" variant="ghost" onClick={() => setActivePapel(papeis[i + 1])}>
-                Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
+          {(i > 0 || i < papeis.length - 1) && (
+            <CardContent className="flex items-center justify-end gap-2 pt-0">
+              {i > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => setActivePapel(papeis[i - 1])}>
+                  <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                </Button>
+              )}
+              {i < papeis.length - 1 && (
+                <Button size="sm" variant="ghost" onClick={() => setActivePapel(papeis[i + 1])}>
+                  Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              )}
             </CardContent>
           )}
         </Card>
@@ -1992,6 +2005,11 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             <Field label="Conta"><Input value={b.conta ?? ""} onChange={(e) => updB("conta", e.target.value)} disabled={!editable} /></Field>
             <Field label="PIX" colSpan={2}><Input value={b.pix ?? ""} onChange={(e) => updB("pix", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
+        </CardContent>
+        <CardContent className="flex justify-end pt-0">
+          <Button size="sm" variant="ghost" onClick={() => setActiveBlock("forma")}>
+            <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+          </Button>
         </CardContent>
       </Card>
             ),
@@ -2251,6 +2269,11 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
     const next = enabledBlocos[idx + 1];
     if (next) setActiveParte(next.parte);
   };
+  const goToPrevBlock = (parte: DocParte) => {
+    const idx = enabledBlocos.findIndex(b => b.parte === parte);
+    const prev = enabledBlocos[idx - 1];
+    if (prev) setActiveParte(prev.parte);
+  };
 
   // Leitura automática: assim que todos os documentos de um bloco (cliente ou imóvel) forem
   // enviados, a IA lê esse bloco sozinha — sem precisar clicar em "Ler documentos e aplicar
@@ -2461,11 +2484,18 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
                   <Button size="sm" variant="outline" onClick={() => setShowVendedor2(true)}>+ Adicionar 2º vendedor</Button>
                 )}
               </div>
-              {enabledBlocos.findIndex(b => b.parte === parte) < enabledBlocos.length - 1 && (
-                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => goToNextBlock(parte)}>
-                  Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                </Button>
-              )}
+              <div className="ml-auto flex items-center gap-2">
+                {enabledBlocos.findIndex(b => b.parte === parte) > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => goToPrevBlock(parte)}>
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                  </Button>
+                )}
+                {enabledBlocos.findIndex(b => b.parte === parte) < enabledBlocos.length - 1 && (
+                  <Button size="sm" variant="ghost" onClick={() => goToNextBlock(parte)}>
+                    Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           </section>
           ),
