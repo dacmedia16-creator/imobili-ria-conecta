@@ -179,7 +179,7 @@ function SalesList() {
                     : hasAny([papel])
                   );
                   return (
-                    <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-amber-500" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
+                    <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
                       <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
                       <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -189,7 +189,7 @@ function SalesList() {
                         <div className="flex items-center gap-2">
                           <StatusBadge status={s.status as SaleStatus} />
                           {minhaVez && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
                               Sua vez
                             </span>
                           )}
