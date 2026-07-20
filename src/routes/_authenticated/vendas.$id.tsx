@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, chegouAoJuridico, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -518,6 +518,7 @@ function SaleDetail() {
       content: (
         <DocumentsPanel
           saleId={id}
+          saleStatus={status}
           docs={docs}
           editable={editable}
           canModerate={isGestor || isJuridico}
@@ -2170,7 +2171,7 @@ const REUSABLE_DOC_TYPES = new Set(["certidao", "comprovante_endereco"]);
 const PARTE_BASE: Partial<Record<DocParte, DocParte>> = { comprador_2: "comprador_1", vendedor_2: "vendedor_1" };
 const PARTE_BASE_LABEL: Partial<Record<DocParte, string>> = { comprador_2: "Comprador 1", vendedor_2: "Vendedor 1" };
 
-function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canManageContratos, onChange }: { saleId: string; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; onChange: () => void }) {
+function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, onChange }: { saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; onChange: () => void }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
@@ -2182,6 +2183,38 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
   const [pendingReject, setPendingReject] = useState<any | null>(null);
   const [rejectMotivo, setRejectMotivo] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  // Certidões pedidas pelo jurídico: linhas dinâmicas (nome + upload) — "+" adiciona mais uma.
+  const [certidaoDrafts, setCertidaoDrafts] = useState<{ id: string; nome: string }[]>([{ id: crypto.randomUUID(), nome: "" }]);
+  const [uploadingCertidao, setUploadingCertidao] = useState<Record<string, boolean>>({});
+  const updCertidaoNome = (draftId: string, nome: string) => {
+    setCertidaoDrafts((rows) => rows.map((r) => (r.id === draftId ? { ...r, nome } : r)));
+  };
+  const addCertidaoDraft = () => {
+    setCertidaoDrafts((rows) => [...rows, { id: crypto.randomUUID(), nome: "" }]);
+  };
+  const uploadCertidao = async (draftId: string, nome: string, file: File) => {
+    setUploadingCertidao((m) => ({ ...m, [draftId]: true }));
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("sale-documents").upload(path, file, { upsert: false });
+      if (error) { toast.error(error.message); return; }
+      const { error: insErr } = await supabase.from("sale_documents").insert({
+        sale_id: saleId, tipo: "certidao_juridico", parte: "juridico", storage_path: path, file_name: file.name,
+        descricao: nome.trim() || null, uploaded_by: user!.id, status: "enviado",
+      } as any);
+      if (insErr) { toast.error(insErr.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "certidao_juridico", descricao: nome } });
+      toast.success("Certidão enviada");
+      setCertidaoDrafts((rows) => {
+        const next = rows.filter((r) => r.id !== draftId);
+        return next.length > 0 ? next : [{ id: crypto.randomUUID(), nome: "" }];
+      });
+      onChange();
+    } finally {
+      setUploadingCertidao((m) => { const next = { ...m }; delete next[draftId]; return next; });
+    }
+  };
 
   const zoomIn = () => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)));
   const zoomOut = () => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
@@ -2400,11 +2433,14 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
     ...(showVendedor2 ? [{ parte: "vendedor_2" as DocParte, tipos: pessoalTipos }] : []),
     { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
+    // Bloco de certidões do jurídico só aparece depois que a venda chega nessa etapa —
+    // antes disso não faz sentido pedir certidão pra ninguém ainda.
+    ...(chegouAoJuridico(saleStatus) ? [{ parte: "juridico" as DocParte, tipos: [] as typeof DOC_TYPES }] : []),
   ];
   // Navegação entre os blocos em modo wizard (um de cada vez, com Voltar/Próximo) —
   // mesma linguagem visual do wizard principal da venda.
   const [activeParte, setActiveParte] = useState<DocParte>("comprador_1");
-  const enabledBlocos = blocos.filter(b => b.tipos.length > 0);
+  const enabledBlocos = blocos.filter(b => b.tipos.length > 0 || b.parte === "juridico");
   const goToNextBlock = (parte: DocParte) => {
     const idx = enabledBlocos.findIndex(b => b.parte === parte);
     const next = enabledBlocos[idx + 1];
@@ -2446,7 +2482,7 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
   useEffect(() => {
     if (!editable) return;
     for (const { parte, tipos } of blocos) {
-      if (parte === "outros") continue;
+      if (parte === "outros" || parte === "juridico") continue;
       // A CNH é alternativa a RG+CPF (não um requisito extra): se enviada, dispensa os dois,
       // e não entra sozinha como pendência do bloco.
       const completo = tipos.every((t) => t.key === "cnh" || temDocDoTipo(docs, t.key, parte));
@@ -2608,6 +2644,70 @@ function DocumentsPanel({ saleId, docs, editable, canModerate, canUseAi, canMana
                 </Card>
               );
             })}
+            {parte === "juridico" && (
+              <>
+                {docs.filter((d) => d.tipo === "certidao_juridico").map((d) => (
+                  <Card key={d.id} className="border-l-4 border-l-indigo-500">
+                    <CardContent className="space-y-2 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-medium">{d.descricao || d.file_name}</div>
+                          {d.descricao && <div className="text-xs text-muted-foreground">{d.file_name}</div>}
+                        </div>
+                        <DocStatusBadge status={d.status} />
+                      </div>
+                      {d.status === "recusado" && d.motivo_recusa && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                          <b>Motivo da recusa:</b> {d.motivo_recusa}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="ghost" title="Visualizar" onClick={() => viewDoc(d)}><Eye className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="ghost" title="Imprimir" onClick={() => printDoc(d)}><Printer className="h-4 w-4" /></Button>
+                        {canModerate && d.status !== "aprovado" && (
+                          <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
+                        )}
+                        {canModerate && d.status !== "recusado" && (
+                          <Button size="sm" variant="ghost" onClick={() => openRejectDialog(d)}><FileX className="h-4 w-4" /></Button>
+                        )}
+                        {editable && (d.uploaded_by === user?.id || canModerate) && (
+                          <Button size="sm" variant="ghost" title="Excluir" onClick={() => setPendingDelete(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {canManageContratos && certidaoDrafts.map((draft) => (
+                  <Card key={draft.id}>
+                    <CardContent className="flex flex-wrap items-center gap-2 p-4">
+                      <Input
+                        placeholder="Nome da certidão (ex: Certidão de ônus reais)"
+                        value={draft.nome}
+                        onChange={(e) => updCertidaoNome(draft.id, e.target.value)}
+                        className="min-w-[14rem] flex-1"
+                      />
+                      <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
+                        <Upload className="h-4 w-4" />
+                        <span>{uploadingCertidao[draft.id] ? "Enviando..." : "Enviar"}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          disabled={!!uploadingCertidao[draft.id]}
+                          onChange={(e) => e.target.files?.[0] && uploadCertidao(draft.id, draft.nome, e.target.files[0])}
+                        />
+                      </label>
+                    </CardContent>
+                  </Card>
+                ))}
+                {canManageContratos && (
+                  <Button size="sm" variant="outline" onClick={addCertidaoDraft}>
+                    <Plus className="mr-1 h-4 w-4" />Adicionar certidão
+                  </Button>
+                )}
+              </>
+            )}
             <div className="flex items-center justify-between gap-2">
               <div>
                 {editable && parte === "comprador_1" && !showComprador2 && (
