@@ -47,9 +47,12 @@ function AuthPage() {
         className="hidden w-1/2 flex-col justify-between p-10 text-primary-foreground lg:flex"
         style={{ background: "var(--gradient-remax)" }}
       >
-        <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
-          RE/MAX Portal
+        <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+          <img src="/remax-icon.png" alt="RE/MAX" className="h-14 w-14" />
+          <div className="leading-tight">
+            <span className="block">RE/MAX Portal</span>
+            <span className="block text-sm font-normal text-primary-foreground/70">Única Escolha</span>
+          </div>
         </div>
         <div className="max-w-sm space-y-3">
           <h1 className="text-3xl font-semibold leading-tight">Da captação ao contrato assinado, em um só lugar.</h1>
