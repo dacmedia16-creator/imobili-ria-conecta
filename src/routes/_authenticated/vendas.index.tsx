@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
+import { STATUS_LABEL, proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -173,14 +173,28 @@ function SalesList() {
               <TableBody>
                 {sales.map((s) => {
                   const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
+                  const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+                    papel === "corretor" ? s.corretor_id === user?.id
+                    : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
+                    : hasAny([papel])
+                  );
                   return (
-                    <TableRow key={s.id} className="cursor-pointer" onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
+                    <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-amber-500" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
                       <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
                       <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
                       </TableCell>
-                      <TableCell><StatusBadge status={s.status as SaleStatus} /></TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={s.status as SaleStatus} />
+                          {minhaVez && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                              Sua vez
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
                       <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
                       <TableCell>
