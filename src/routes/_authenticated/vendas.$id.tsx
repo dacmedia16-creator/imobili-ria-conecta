@@ -677,6 +677,7 @@ function SaleDetail() {
           saleId={id}
           payment={payment}
           bank={bank}
+          parties={parties}
           editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("pagamento", fn)}
@@ -1823,8 +1824,8 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
 }
 
 // -------- Pagamento step (buffered) --------
-function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, onDirtyChange }: {
-  saleId: string; payment: any; bank: any; editable: boolean; onSaved: () => void;
+function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, registerSaver, onDirtyChange }: {
+  saleId: string; payment: any; bank: any; parties: Record<string, any>; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const [p, setP] = useState<any>(payment ?? {});
@@ -1839,6 +1840,15 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
 
   const updP = (k: string, v: any) => { setP((f: any) => ({ ...f, [k]: v })); setDp(true); };
   const updB = (k: string, v: any) => { setB((f: any) => ({ ...f, [k]: v })); setDb(true); };
+
+  // Titular da conta quase sempre é o próprio vendedor, já cadastrado na etapa "Partes" —
+  // evita digitar o nome de novo.
+  const pullTitular = () => {
+    const nome = parties?.vendedor_1?.nome;
+    if (!nome) { toast.error("Preencha o nome do vendedor na etapa Partes primeiro"); return; }
+    updB("titular", nome);
+    toast.success("Nome do vendedor aplicado ao titular");
+  };
 
   const save = useCallback(async (): Promise<boolean> => {
     if (dp) {
@@ -1904,7 +1914,10 @@ function PaymentStep({ saleId, payment, bank, editable, onSaved, registerSaver, 
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle className="text-base">Dados bancários do vendedor</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Dados bancários do vendedor</CardTitle>
+          {editable && <Button size="sm" variant="outline" onClick={pullTitular}>Puxar nome do vendedor</Button>}
+        </CardHeader>
         <CardContent>
           <FieldGrid>
             <Field label="Titular"><Input value={b.titular ?? ""} onChange={(e) => updB("titular", e.target.value)} disabled={!editable} /></Field>
