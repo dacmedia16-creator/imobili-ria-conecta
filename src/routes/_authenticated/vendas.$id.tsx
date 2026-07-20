@@ -51,6 +51,7 @@ function SaleDetail() {
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
   const [step, setStep] = useState<string>("documentos");
+  const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
 
   // Buffered Resumo form
   const [formSale, setFormSale] = useState<any>({});
@@ -502,6 +503,9 @@ function SaleDetail() {
               <Button size="sm" onClick={saveResumo}><Save className="mr-1 h-4 w-4" />Salvar</Button>
             </div>
           )}
+          <Wizard
+            steps={[
+              { key: "imovel", label: "Imóvel", content: (<>
           <SaleSection title="Imóvel">
             <FieldGrid>
               <Field label="ID do imóvel"><Input value={formSale.imovel_id ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_id: e.target.value })} /></Field>
@@ -511,6 +515,11 @@ function SaleDetail() {
               <Field label="Observações do imóvel" colSpan={2}><Textarea value={formSale.imovel_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("equipe")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+          </div>
+              </>) },
+              { key: "equipe", label: "Equipe", content: (<>
           <SaleSection title="Equipe">
             <FieldGrid>
               <Field label="Corretor captador"><Input value={formSale.corretor_captador ?? ""} disabled={!editable} onChange={(e) => updResumo({ corretor_captador: e.target.value })} /></Field>
@@ -518,6 +527,11 @@ function SaleDetail() {
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+          </div>
+              </>) },
+              { key: "valores", label: "Valores e negociação", content: (<>
           <SaleSection title="Valores e negociação">
             <FieldGrid>
               <Field label="Valor anunciado (R$)"><CurrencyInput value={formSale.valor_anunciado} disabled={!editable} onChange={(v) => updResumo({ valor_anunciado: v })} /></Field>
@@ -543,6 +557,11 @@ function SaleDetail() {
               <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+          </div>
+              </>) },
+              { key: "comissao", label: "Divisão da comissão", content: (<>
           <SaleSection title="Divisão da comissão (revisão do gestor)">
             {(() => {
               const total = Number(formSale.valor_total_comissao ?? 0);
@@ -646,12 +665,23 @@ function SaleDetail() {
               </div>
             </div>
           </SaleSection>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("posse")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+          </div>
+              </>) },
+              { key: "posse", label: "Posse", content: (<>
           <SaleSection title="Posse">
             <FieldGrid>
               <Field label="Data de entrega da posse"><Input type="date" value={formSale.posse_data ?? ""} disabled={!editable} onChange={(e) => updResumo({ posse_data: e.target.value || null })} /></Field>
               <Field label="Observações" colSpan={2}><Textarea value={formSale.posse_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ posse_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
+              </>) },
+            ]}
+            current={activeResumoBlock}
+            onChange={setActiveResumoBlock}
+            hideNav
+          />
         </div>
       ),
     },
@@ -1795,6 +1825,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
   useEffect(() => { registerSaver(saveAll); return () => registerSaver(null); }, [saveAll, registerSaver]);
 
   const labels: Record<string, string> = { vendedor_1: "Vendedor 01", vendedor_2: "Vendedor 02", comprador_1: "Comprador 01", comprador_2: "Comprador 02" };
+  const [activePapel, setActivePapel] = useState(papeis[0]);
   return (
     <div className="space-y-4">
       {editable && anyDirty && (
@@ -1803,8 +1834,12 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
           <Button size="sm" onClick={saveAll}><Save className="mr-1 h-4 w-4" />Salvar</Button>
         </div>
       )}
-      {papeis.map((p) => (
-        <Card key={p}>
+      <Wizard
+        steps={papeis.map((p, i) => ({
+          key: p,
+          label: labels[p],
+          content: (
+        <Card>
           <CardHeader><CardTitle className="text-base">{labels[p]}</CardTitle></CardHeader>
           <CardContent>
             <FieldGrid>
@@ -1817,8 +1852,20 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
+          {i < papeis.length - 1 && (
+            <CardContent className="flex justify-end pt-0">
+              <Button size="sm" variant="ghost" onClick={() => setActivePapel(papeis[i + 1])}>
+                Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </CardContent>
+          )}
         </Card>
-      ))}
+          ),
+        }))}
+        current={activePapel}
+        onChange={setActivePapel}
+        hideNav
+      />
     </div>
   );
 }
@@ -1870,6 +1917,8 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
 
   useEffect(() => { registerSaver(save); return () => registerSaver(null); }, [save, registerSaver]);
 
+  const [activeBlock, setActiveBlock] = useState<"forma" | "banco">("forma");
+
   return (
     <div className="space-y-4">
       {editable && dirty && (
@@ -1878,6 +1927,12 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
           <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />Salvar</Button>
         </div>
       )}
+      <Wizard
+        steps={[
+          {
+            key: "forma",
+            label: "Forma de pagamento",
+            content: (
       <Card>
         <CardHeader><CardTitle className="text-base">Forma de pagamento</CardTitle></CardHeader>
         <CardContent>
@@ -1912,7 +1967,18 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
         </CardContent>
+        <CardContent className="flex justify-end pt-0">
+          <Button size="sm" variant="ghost" onClick={() => setActiveBlock("banco")}>
+            Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
+        </CardContent>
       </Card>
+            ),
+          },
+          {
+            key: "banco",
+            label: "Dados bancários do vendedor",
+            content: (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Dados bancários do vendedor</CardTitle>
@@ -1928,6 +1994,13 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
           </FieldGrid>
         </CardContent>
       </Card>
+            ),
+          },
+        ]}
+        current={activeBlock}
+        onChange={(k) => setActiveBlock(k as "forma" | "banco")}
+        hideNav
+      />
     </div>
   );
 }
