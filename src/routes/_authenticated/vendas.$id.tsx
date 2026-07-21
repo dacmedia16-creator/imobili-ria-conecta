@@ -536,6 +536,9 @@ function SaleDetail() {
   const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
   const canOverview = !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
   const canEditOcorrencia = (isGestor && ["contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status)) || isFinanceiro || isAdminLike;
+  // Só financeiro/admin/super admin finalizam a ocorrência — gestor pode editar a tabela de
+  // comissão e mandar pro financeiro, mas não pode fechar a ocorrência sozinho, sem revisão.
+  const canFinalizarOcorrencia = isFinanceiro || isAdminLike;
   const steps: WizardStep[] = [
     {
       key: "documentos",
@@ -836,7 +839,7 @@ function SaleDetail() {
           saleId={id}
           sale={sale}
           parties={parties}
-          canEdit={canEditOcorrencia}
+          canEdit={canFinalizarOcorrencia}
           onChange={load}
         />
       ),
