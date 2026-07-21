@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -197,12 +197,13 @@ function SaleDetail() {
     setSaving(true);
     try {
     const fields = [
-      "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes",
+      "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes","tempo_venda","midia",
       "corretor_captador","corretor_vendedor","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
+      "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
       "coordenador_id","team_leader_id",
     ];
@@ -243,6 +244,7 @@ function SaleDetail() {
     if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
     try {
       await syncOccurrenceCommissions(id, { ...sale, ...formSale }, resolvedExtras);
+      await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
     } catch (err: any) {
       console.warn("syncOccurrenceCommissions", err?.message);
     }
@@ -307,7 +309,11 @@ function SaleDetail() {
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
-  const totalChecks = CHECKS_NAO_DOCUMENTAIS.length + DOC_TYPES.filter(t => t.obrigatorio).length;
+  // Docs "pessoal" (RG/CPF/Certidão/Comprovante) contam uma vez por comprador/vendedor ativo —
+  // os "imovel"/"outros" continuam contando uma vez só, mantendo em sincronia com validarProntaParaRevisao.
+  const pessoalObrigatoriosCount = DOC_TYPES.filter(t => t.obrigatorio && t.grupo === "pessoal").length;
+  const outrosObrigatoriosCount = DOC_TYPES.filter(t => t.obrigatorio && t.grupo !== "pessoal").length;
+  const totalChecks = CHECKS_NAO_DOCUMENTAIS.length + pessoalObrigatoriosCount * partesComExigenciaPessoal(parties, docs).length + outrosObrigatoriosCount;
   const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
   const requiredTypes = DOC_TYPES.map(d => d.key);
   const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
@@ -396,6 +402,23 @@ function SaleDetail() {
     if (valor != null) valor = Math.max(0, Math.min(valor, ladoValor));
     const p = valor != null && ladoValor > 0 ? Number(((valor / ladoValor) * 100).toFixed(3)) : formSale.percentual_comissao_indicador ?? null;
     updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
+  };
+  // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % sempre calculado sobre o
+  // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois.
+  const applyParceriaPercentual = (raw: string) => {
+    const p = raw ? Number(raw) : null;
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
+    updResumo({ parceria_percentual: p, parceria_valor: valor });
+  };
+  const applyParceriaValor = (v: number | null) => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const p = v != null && total > 0 ? Number(((v / total) * 100).toFixed(3)) : formSale.parceria_percentual ?? null;
+    updResumo({ parceria_valor: v, parceria_percentual: p });
+  };
+  const applyParceriaTipo = (v: string | null) => {
+    if (!v) { updResumo({ parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null }); return; }
+    updResumo({ parceria_tipo: v });
   };
   // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
   // o valor sai. O valor líquido de cada fatia (mostrado nos campos "Líquido...") já desconta a soma
@@ -659,6 +682,8 @@ function SaleDetail() {
               <Field label="Matrícula"><Input value={formSale.matricula ?? ""} disabled={!editable} onChange={(e) => updResumo({ matricula: e.target.value })} /></Field>
               <Field label="IPTU"><Input value={formSale.iptu ?? ""} disabled={!editable} onChange={(e) => updResumo({ iptu: e.target.value })} /></Field>
               <Field label="Código interno"><Input value={formSale.codigo_interno ?? ""} disabled={!editable} onChange={(e) => updResumo({ codigo_interno: e.target.value })} /></Field>
+              <Field label="Tempo de venda"><Input value={formSale.tempo_venda ?? ""} disabled={!editable} onChange={(e) => updResumo({ tempo_venda: e.target.value })} placeholder="Ex: 45 dias" /></Field>
+              <Field label="Mídia"><Input value={formSale.midia ?? ""} disabled={!editable} onChange={(e) => updResumo({ midia: e.target.value })} placeholder="Instagram, Portal, Placa..." /></Field>
               <Field label="Observações do imóvel" colSpan={2}><Textarea value={formSale.imovel_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
@@ -843,6 +868,31 @@ function SaleDetail() {
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("parceria")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+          </div>
+              </>) },
+              { key: "parceria", label: "Parceria", content: (<>
+          <SaleSection title="Parceria externa">
+            <FieldGrid>
+              <Field label="Tipo de parceria">
+                <Select value={formSale.parceria_tipo ?? "none"} onValueChange={(v) => applyParceriaTipo(v === "none" ? null : v)} disabled={!editable}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem parceria externa</SelectItem>
+                    {PARCERIA_TIPOS.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
+              {formSale.parceria_tipo && (<>
+                <Field label="Corretor(a) / Imobiliária parceira"><Input value={formSale.parceria_nome ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_nome: e.target.value })} /></Field>
+                <Field label="CPF/CNPJ"><Input value={formSale.parceria_cpf_cnpj ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })} /></Field>
+                <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.parceria_percentual ?? ""} disabled={!editable} onChange={(e) => applyParceriaPercentual(e.target.value)} /></Field>
+                <Field label="Valor da comissão (R$)"><CurrencyInput value={formSale.parceria_valor} disabled={!editable} onChange={applyParceriaValor} /></Field>
+              </>)}
+            </FieldGrid>
+          </SaleSection>
+          <div className="flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("posse")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
@@ -854,7 +904,7 @@ function SaleDetail() {
             </FieldGrid>
           </SaleSection>
           <div className="flex justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("parceria")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
           </div>
               </>) },
             ]}
@@ -1783,15 +1833,15 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
 
       <FormTitle>Parceria</FormTitle>
       <FormTable>
-        <FormHeadRow cols={["Corretor(a) / Imobiliária", "CPF/CNPJ", "Percentual", "Valor da comissão"]} />
-        {partners.length === 0 && <FormValueRow cols={["Não possui", null, "0%", "R$ 0,00"]} />}
+        <FormHeadRow cols={["Tipo", "Corretor(a) / Imobiliária", "CPF/CNPJ", "Percentual", "Valor da comissão"]} />
+        {partners.length === 0 && <FormValueRow cols={["Não possui", null, null, "0%", "R$ 0,00"]} />}
         {partners.map((p) => (
-          <FormValueRow key={p.id} cols={[p.nome, p.cpf_cnpj, p.percentual != null ? `${p.percentual}%` : "0%", money(p.valor) ?? "R$ 0,00"]} />
+          <FormValueRow key={p.id} cols={[PARCERIA_TIPOS.find((t) => t.key === p.tipo)?.label ?? "—", p.nome, p.cpf_cnpj, p.percentual != null ? `${p.percentual}%` : "0%", money(p.valor) ?? "R$ 0,00"]} />
         ))}
-        <FormHeadRow cols={["Dados bancários", "Banco", "Agência", "Conta"]} />
-        {partners.length === 0 && <FormValueRow cols={[null, null, null, null]} />}
+        <FormHeadRow cols={["", "Dados bancários", "Banco", "Agência", "Conta"]} />
+        {partners.length === 0 && <FormValueRow cols={[null, null, null, null, null]} />}
         {partners.map((p) => (
-          <FormValueRow key={`${p.id}-bank`} cols={[null, p.banco, p.agencia, p.conta]} />
+          <FormValueRow key={`${p.id}-bank`} cols={[null, null, p.banco, p.agencia, p.conta]} />
         ))}
       </FormTable>
 
@@ -2852,21 +2902,28 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
             {tipos.map((t) => {
               const list = docs.filter(d => d.tipo === t.key && (d.parte ?? "outros") === parte);
               const latest = list[list.length - 1];
-              // CNH enviada para essa parte dispensa o RG e o CPF, já que ela contém as duas informações.
+              // CNH enviada para essa parte dispensa o RG e o CPF, já que ela contém as duas informações — e vale o
+              // contrário também: RG + CPF já enviados dispensam a CNH. É uma exigência de "um dos dois", não das duas.
               const dispensadoPorCnh = (t.key === "rg" || t.key === "cpf") && temDocDoTipo(docs, "cnh", parte);
-              const obrigatorioEfetivo = t.obrigatorio && !dispensadoPorCnh;
+              const cnhDispensadaPorRgCpf = t.key === "cnh" && temDocDoTipo(docs, "rg", parte) && temDocDoTipo(docs, "cpf", parte);
+              const obrigatorioEfetivo = t.key === "cnh" ? !cnhDispensadaPorRgCpf : (t.obrigatorio && !dispensadoPorCnh);
               // "Contrato" e "Contrato assinado" já têm fluxo dedicado (jurídico anexa, gestor sobe o assinado) —
               // o corretor não deve enviar esses dois tipos por aqui, pra não pular a conferência.
               const isContratoTipo = t.key === "contrato" || t.key === "contrato_assinado";
               const podeEnviarAqui = editable && (!isContratoTipo || canManageContratos);
+              // Obrigatório vale para qualquer comprador/vendedor (não só o 1º) — o corretor pode
+              // adicionar quantos precisar, e cada um precisa dos seus próprios documentos.
+              const partePessoal = parte.startsWith("comprador_") || parte.startsWith("vendedor_");
+              const mostraObrigatorio = partePessoal || parte === "imovel";
               return (
                 <Card key={`${parte}-${t.key}`} className={parteAccent}>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-medium">{t.label}{obrigatorioEfetivo && (parte === "comprador_1" || parte === "vendedor_1") ? <span className="ml-1 text-destructive">*</span> : null}</div>
-                        {obrigatorioEfetivo && (parte === "comprador_1" || parte === "vendedor_1") && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+                        <div className="text-sm font-medium">{t.label}{obrigatorioEfetivo && mostraObrigatorio ? <span className="ml-1 text-destructive">*</span> : null}</div>
+                        {obrigatorioEfetivo && mostraObrigatorio && <div className="text-xs text-muted-foreground">Obrigatório</div>}
                         {dispensadoPorCnh && <div className="text-xs text-emerald-700 dark:text-emerald-400">Dispensado — CNH enviada</div>}
+                        {cnhDispensadaPorRgCpf && <div className="text-xs text-emerald-700 dark:text-emerald-400">Dispensado — RG e CPF enviados</div>}
                       </div>
                       <div className="flex items-center gap-2">
                         {latest && <DocStatusBadge status={latest.status} />}
@@ -3229,6 +3286,40 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
   }
 }
 
+/**
+ * Mesma lógica do syncOccurrenceCommissions, mas para a parceria externa (imobiliária externa ou
+ * outra unidade RE/MAX) sinalizada na Resumo — a linha em occurrence_partners marcada com
+ * from_sale=true é a que fica em sincronia; banco/agência/conta preenchidos depois pelo financeiro
+ * não são tocados aqui. Se a parceria for removida na Resumo, a linha sincronizada é apagada.
+ */
+async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
+  const { data: occ } = await supabase.from("occurrences").select("id").eq("sale_id", saleId).maybeSingle();
+  if (!occ) return;
+
+  const { data: existing } = await supabase.from("occurrence_partners").select("*").eq("occurrence_id", occ.id).eq("from_sale", true);
+  const row = (existing ?? [])[0];
+
+  if (!sale.parceria_tipo) {
+    if (row) await supabase.from("occurrence_partners").delete().eq("id", row.id);
+    return;
+  }
+
+  const data = {
+    tipo: sale.parceria_tipo,
+    nome: sale.parceria_nome ?? null,
+    cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
+    percentual: sale.parceria_percentual ?? null,
+    valor: sale.parceria_valor ?? null,
+  };
+  if (row) {
+    if (row.tipo !== data.tipo || row.nome !== data.nome || row.cpf_cnpj !== data.cpf_cnpj || Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) || Number(row.valor ?? 0) !== Number(data.valor ?? 0)) {
+      await supabase.from("occurrence_partners").update(data).eq("id", row.id);
+    }
+  } else {
+    await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, from_sale: true, ...data });
+  }
+}
+
 // -------- Occurrence step (buffered) --------
 function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, canEdit, onChange, registerSaver, onDirtyChange }: {
   saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; canEdit: boolean; onChange: () => void;
@@ -3294,6 +3385,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       sale_id: saleId,
       codigo_imovel: sale.imovel_id ?? sale.codigo_interno,
       data_assinatura: new Date().toISOString().slice(0, 10),
+      tempo_venda: sale.tempo_venda,
+      midia: sale.midia,
       valor_anunciado: sale.valor_anunciado,
       valor_negociado: sale.valor_negociado,
       percentual_comissao: sale.percentual_comissao,
@@ -3326,6 +3419,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       sale_commission_extra_id: e.id,
     }));
     await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
+    // Parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo
+    // entra junto na criação, sem precisar reentrar os dados na Ocorrência.
+    if (sale.parceria_tipo) {
+      await supabase.from("occurrence_partners").insert({
+        occurrence_id: data.id, from_sale: true, tipo: sale.parceria_tipo,
+        nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
+        percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null,
+      });
+    }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
     onChange();
@@ -3446,6 +3548,27 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     setFormPartners(rows => rows.filter(r => r.id !== id));
     setDirtyPartners(true);
   };
+  // Traz a parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo —
+  // útil para ocorrências criadas antes desse pré-preenchimento existir ou quando a Resumo mudou depois.
+  const pullPartnerFromSale = () => {
+    if (!sale.parceria_tipo) { toast.error("Nenhuma parceria externa sinalizada na Resumo."); return; }
+    const data = { tipo: sale.parceria_tipo, nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null, percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null, from_sale: true };
+    setFormPartners((rows) => {
+      const idx = rows.findIndex((r) => r.from_sale);
+      if (idx >= 0) return rows.map((r, i) => i === idx ? { ...r, ...data } : r);
+      return [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, banco: null, agencia: null, conta: null, ...data, _new: true }];
+    });
+    setDirtyPartners(true);
+    toast.success("Parceria da Resumo aplicada — confira e salve.");
+  };
+  const parceriaDesatualizada = useMemo(() => {
+    if (!occ || !sale.parceria_tipo) return false;
+    const row = partners.find((r) => r.from_sale);
+    if (!row) return true;
+    return row.tipo !== sale.parceria_tipo || (row.nome ?? "") !== (sale.parceria_nome ?? "") || (row.cpf_cnpj ?? "") !== (sale.parceria_cpf_cnpj ?? "")
+      || Math.abs(Number(row.percentual ?? 0) - Number(sale.parceria_percentual ?? 0)) > 0.001
+      || Math.abs(Number(row.valor ?? 0) - Number(sale.parceria_valor ?? 0)) > 0.01;
+  }, [occ, sale, partners]);
 
   const save = useCallback(async (): Promise<boolean> => {
     if (!occ) return true;
@@ -3722,12 +3845,29 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Parcerias</CardTitle>
-          {canWrite && <Button size="sm" variant="outline" onClick={addPartner}><Plus className="mr-1 h-4 w-4" />Adicionar parceria</Button>}
+          {canWrite && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={pullPartnerFromSale}>Puxar da Resumo</Button>
+              <Button size="sm" variant="outline" onClick={addPartner}><Plus className="mr-1 h-4 w-4" />Adicionar parceria</Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
+          {parceriaDesatualizada && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+              A parceria externa mudou na Resumo depois da última sincronização. Clique em "Puxar da Resumo" para atualizar.
+            </div>
+          )}
           {formPartners.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parceria adicionada.</p>}
           {formPartners.map(p => (
             <div key={p.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-4">
+              {p.tipo && (
+                <p className="text-xs font-medium text-muted-foreground md:col-span-4">
+                  {PARCERIA_TIPOS.find((t) => t.key === p.tipo)?.label ?? p.tipo}
+                  {p.from_sale && " · sinalizado na Resumo"}
+                </p>
+              )}
               <Field label="Corretor/Imobiliária"><Input value={p.nome ?? ""} onChange={(e) => updPartner(p.id, { nome: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="CPF/CNPJ"><Input value={p.cpf_cnpj ?? ""} onChange={(e) => updPartner(p.id, { cpf_cnpj: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="%"><Input type="number" step="0.001" value={p.percentual ?? ""} onChange={(e) => updPartner(p.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} /></Field>

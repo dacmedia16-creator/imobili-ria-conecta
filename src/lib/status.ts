@@ -136,13 +136,11 @@ export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigator
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
   { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true },
   { key: "cnh", label: "CNH (dispensa RG e CPF)", grupo: "pessoal" },
-  { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal" },
-  { key: "comprovante_endereco", label: "Comprovante de endereço", grupo: "pessoal" },
+  { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal", obrigatorio: true },
+  { key: "comprovante_endereco", label: "Comprovante de endereço", grupo: "pessoal", obrigatorio: true },
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
-  { key: "iptu", label: "IPTU", grupo: "imovel" },
+  { key: "iptu", label: "IPTU", grupo: "imovel", obrigatorio: true },
   { key: "cnd_condominio", label: "CND do condomínio (se aplicável)", grupo: "imovel" },
-  { key: "contrato", label: "Contrato (versão para revisão)", grupo: "outros" },
-  { key: "contrato_assinado", label: "Contrato assinado", grupo: "outros" },
   { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
 
@@ -208,6 +206,12 @@ export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
   { key: "outro", label: "Outro" },
 ];
 
+/** Tipos de parceria externa que a Resumo pode sinalizar antes de a venda chegar à Ocorrência. */
+export const PARCERIA_TIPOS: { key: string; label: string }[] = [
+  { key: "imobiliaria_externa", label: "Imobiliária externa" },
+  { key: "remax_externa", label: "Outra unidade RE/MAX" },
+];
+
 export type Pendencia = { campo: string; mensagem: string };
 
 /** Toda checagem não-documental feita por validarProntaParaRevisao — mantém o total de checks em sincronia com a função. */
@@ -243,14 +247,37 @@ export function validarProntaParaRevisao(
   }
 
   // Docs obrigatórios — a CNH dispensa RG e CPF, já que contém as duas informações.
+  // Os do grupo "pessoal" são exigidos de cada comprador/vendedor (pode haver quantos o corretor
+  // adicionar), não só do 1º de cada — cada um precisa dos seus próprios documentos.
   const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
+  const partesPessoais = partesComExigenciaPessoal(parties, docs);
   for (const t of obrigatorios) {
     const substituiPorCnh = t.key === "rg" || t.key === "cpf";
-    const tem = docs.some(d => docSatisfazObrigatorio(d, t.key));
-    if (!tem) pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+    if (t.grupo === "pessoal") {
+      for (const parte of partesPessoais) {
+        if (!temDocDoTipo(docs, t.key, parte)) {
+          pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta enviar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+        }
+      }
+    } else if (!docs.some(d => docSatisfazObrigatorio(d, t.key))) {
+      pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}` });
+    }
   }
 
   return pend;
+}
+
+/**
+ * Comprador_N/vendedor_N que precisam ter seus próprios documentos pessoais obrigatórios (RG, CPF,
+ * Certidão, Comprovante de endereço): os dois papéis-base (sempre) mais qualquer parte extra que já
+ * tenha nome preenchido na aba Partes ou já tenha ao menos um documento enviado na aba Documentos —
+ * o corretor pode adicionar tantos compradores/vendedores quanto precisar, e cada um conta.
+ */
+export function partesComExigenciaPessoal(parties: Record<string, any>, docs: { parte?: string | null }[]): string[] {
+  const base = ["vendedor_1", "comprador_1"];
+  const extrasDeParties = Object.keys(parties).filter((p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome);
+  const extrasDeDocs = docs.map((d) => d.parte).filter((p): p is string => !!p && /^(vendedor|comprador)_\d+$/.test(p));
+  return Array.from(new Set([...base, ...extrasDeParties, ...extrasDeDocs]));
 }
 
 /**

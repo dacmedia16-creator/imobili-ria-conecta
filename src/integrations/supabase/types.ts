@@ -193,10 +193,12 @@ export type Database = {
           conta: string | null
           cpf_cnpj: string | null
           created_at: string
+          from_sale: boolean
           id: string
           nome: string | null
           occurrence_id: string
           percentual: number | null
+          tipo: string | null
           valor: number | null
         }
         Insert: {
@@ -205,10 +207,12 @@ export type Database = {
           conta?: string | null
           cpf_cnpj?: string | null
           created_at?: string
+          from_sale?: boolean
           id?: string
           nome?: string | null
           occurrence_id: string
           percentual?: number | null
+          tipo?: string | null
           valor?: number | null
         }
         Update: {
@@ -217,10 +221,12 @@ export type Database = {
           conta?: string | null
           cpf_cnpj?: string | null
           created_at?: string
+          from_sale?: boolean
           id?: string
           nome?: string | null
           occurrence_id?: string
           percentual?: number | null
+          tipo?: string | null
           valor?: number | null
         }
         Relationships: [
@@ -630,8 +636,8 @@ export type Database = {
           fgts_valor: number | null
           financiamento: boolean | null
           financiamento_banco: string | null
-          financiamento_observacao: string | null
           financiamento_correspondente: string | null
+          financiamento_observacao: string | null
           financiamento_previsao: string | null
           financiamento_valor: number | null
           oba_credito: boolean
@@ -759,6 +765,11 @@ export type Database = {
           iptu: string | null
           matricula: string | null
           negociacao_observacoes: string | null
+          parceria_cpf_cnpj: string | null
+          parceria_nome: string | null
+          parceria_percentual: number | null
+          parceria_tipo: string | null
+          parceria_valor: number | null
           percentual_comissao: number | null
           percentual_comissao_captador: number | null
           percentual_comissao_indicador: number | null
@@ -795,6 +806,11 @@ export type Database = {
           iptu?: string | null
           matricula?: string | null
           negociacao_observacoes?: string | null
+          parceria_cpf_cnpj?: string | null
+          parceria_nome?: string | null
+          parceria_percentual?: number | null
+          parceria_tipo?: string | null
+          parceria_valor?: number | null
           percentual_comissao?: number | null
           percentual_comissao_captador?: number | null
           percentual_comissao_indicador?: number | null
@@ -831,6 +847,11 @@ export type Database = {
           iptu?: string | null
           matricula?: string | null
           negociacao_observacoes?: string | null
+          parceria_cpf_cnpj?: string | null
+          parceria_nome?: string | null
+          parceria_percentual?: number | null
+          parceria_tipo?: string | null
+          parceria_valor?: number | null
           percentual_comissao?: number | null
           percentual_comissao_captador?: number | null
           percentual_comissao_indicador?: number | null
@@ -900,6 +921,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_edit_sale_stage: {
+        Args: { _sale_id: string; _user: string }
+        Returns: boolean
+      }
       can_view_sale: {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
