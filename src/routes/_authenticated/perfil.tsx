@@ -18,12 +18,24 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
+      // team_members não tem FK declarada pro profiles no schema, então o embed
+      // "profiles:lider_id(...)" do PostgREST falha silenciosamente (retorna null) —
+      // por isso "Minha equipe" sempre aparecia vazia mesmo com vínculo cadastrado.
+      // Busca em duas etapas e junta no cliente, igual já é feito em admin.usuarios.tsx.
       const [l, m] = await Promise.all([
-        supabase.from("team_members").select("lider_id, profiles:lider_id(nome, email)").eq("membro_id", user.id),
-        supabase.from("team_members").select("membro_id, profiles:membro_id(nome, email)").eq("lider_id", user.id),
+        supabase.from("team_members").select("lider_id").eq("membro_id", user.id),
+        supabase.from("team_members").select("membro_id").eq("lider_id", user.id),
       ]);
-      setLeaders((l.data ?? []) as any[]);
-      setMembers((m.data ?? []) as any[]);
+      const liderIds = Array.from(new Set((l.data ?? []).map((r: any) => r.lider_id)));
+      const membroIds = Array.from(new Set((m.data ?? []).map((r: any) => r.membro_id)));
+      const allIds = Array.from(new Set([...liderIds, ...membroIds]));
+      const { data: profs } = allIds.length
+        ? await supabase.from("profiles").select("id, nome, email").in("id", allIds)
+        : { data: [] as any[] };
+      const profMap: Record<string, any> = {};
+      for (const p of profs ?? []) profMap[p.id] = p;
+      setLeaders(liderIds.map((id) => ({ lider_id: id, profiles: profMap[id] })));
+      setMembers(membroIds.map((id) => ({ membro_id: id, profiles: profMap[id] })));
     })();
   }, [user]);
 
