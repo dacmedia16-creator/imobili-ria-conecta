@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -257,6 +257,20 @@ function SaleDetail() {
   // (inputs desabilitados não disparam onChange), e "editable" só existe depois do guard abaixo.
   useAutosave(dirtyResumo || dirtyExtras, [formSale, formExtras], saveResumo);
 
+  const anyDirtyAnywhere = dirtyResumo || dirtyExtras || Object.values(dirtyMap).some(Boolean);
+
+  // Avisa o navegador (fechar aba, atualizar, digitar outra URL) se ainda tem algo pendente de
+  // salvar — o autosave cobre a digitação em si, mas não cobre sair da página no meio do caminho.
+  // Precisa ficar antes do guard de loading abaixo: é um hook (useEffect) e a ordem dos hooks não
+  // pode mudar entre o primeiro render (carregando) e os seguintes.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (anyDirtyAnywhere) { e.preventDefault(); e.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [anyDirtyAnywhere]);
+
   if (loading || !sale) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
 
   const status = sale.status as SaleStatus;
@@ -430,7 +444,28 @@ function SaleDetail() {
     })));
   };
 
+  // Garante que nada digitado em qualquer etapa fica pra trás antes de mudar o status (enviar
+  // pra outro papel). Sem isso, um campo preenchido mas ainda não salvo — o autosave ainda não
+  // tinha disparado, ou a pessoa clicou direto num botão do topo (ex.: "Enviar ao gestor") sem
+  // passar pela troca de aba que aciona o save — sumia quando a venda passava adiante.
+  const flushAllDirty = async (): Promise<boolean> => {
+    if (dirtyResumo || dirtyExtras) {
+      const ok = await saveResumo();
+      if (!ok) return false;
+    }
+    for (const key of Object.keys(dirtyMap)) {
+      if (!dirtyMap[key]) continue;
+      const fn = saversRef.current[key];
+      if (fn) {
+        const ok = await fn();
+        if (!ok) return false;
+      }
+    }
+    return true;
+  };
+
   const changeStatus = async (next: SaleStatus, motivo?: string) => {
+    if (!(await flushAllDirty())) return;
     const prev = sale.status as SaleStatus;
     const { error } = await supabase.from("sales").update({ status: next }).eq("id", id);
     if (error) { toast.error(error.message); return; }
@@ -576,6 +611,13 @@ function SaleDetail() {
   };
 
   const currentDirty = step === "resumo" ? (dirtyResumo || dirtyExtras) : !!dirtyMap[step];
+
+  // "Voltar" também é uma saída da página — sem isso, dado digitado mas ainda não salvo
+  // (autosave ainda não disparou) era perdido em silêncio ao clicar aqui.
+  const handleVoltar = async () => {
+    if (anyDirtyAnywhere) await flushAllDirty();
+    router.navigate({ to: "/vendas" });
+  };
 
   const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
   const canOverview = !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
@@ -904,7 +946,7 @@ function SaleDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 print:hidden">
-        <Button asChild variant="ghost" size="sm"><Link to="/vendas"><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Link></Button>
+        <Button variant="ghost" size="sm" onClick={handleVoltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
