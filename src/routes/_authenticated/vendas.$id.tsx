@@ -1207,6 +1207,7 @@ function SaleDetail() {
               <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
               <ReviewItem label="Parcela 1" value={money(payment?.parcela1_valor)} />
               <ReviewItem label="Parcela 2" value={money(payment?.parcela2_valor)} />
+              <ReviewItem label="Pagamento final" value={money(payment?.pagamento_final_valor)} />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
               <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
             </ReviewGroup>
@@ -2330,9 +2331,11 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             <Field label="Parcela 1 — data"><Input type="date" value={p.parcela1_data ?? ""} onChange={(e) => updP("parcela1_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — valor"><CurrencyInput value={p.parcela2_valor} onChange={(v) => updP("parcela2_valor", v)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — data"><Input type="date" value={p.parcela2_data ?? ""} onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
+            <Field label="Pagamento final — valor"><CurrencyInput value={p.pagamento_final_valor} onChange={(v) => updP("pagamento_final_valor", v)} disabled={!editable} /></Field>
+            <Field label="Pagamento final — data"><Input type="date" value={p.pagamento_final_data ?? ""} onChange={(e) => updP("pagamento_final_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
-            <Field label="Forma de pagamento">
+            <Field label="Financiamento">
               <Select
                 value={p.tipo_pagamento ?? "vista"}
                 onValueChange={(v) => {
@@ -2346,7 +2349,6 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                 <SelectContent>
                   <SelectItem value="vista">Vista</SelectItem>
                   <SelectItem value="financiamento">Financiamento</SelectItem>
-                  <SelectItem value="pagamento_final">Pagamento final</SelectItem>
                 </SelectContent>
               </Select>
             </Field>

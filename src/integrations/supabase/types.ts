@@ -635,6 +635,8 @@ export type Database = {
           financiamento_valor: number | null
           oba_credito: boolean
           observacoes: string | null
+          pagamento_final_data: string | null
+          pagamento_final_valor: number | null
           parcela1_data: string | null
           parcela1_valor: number | null
           parcela2_data: string | null
@@ -655,6 +657,8 @@ export type Database = {
           financiamento_valor?: number | null
           oba_credito?: boolean
           observacoes?: string | null
+          pagamento_final_data?: string | null
+          pagamento_final_valor?: number | null
           parcela1_data?: string | null
           parcela1_valor?: number | null
           parcela2_data?: string | null
@@ -675,6 +679,8 @@ export type Database = {
           financiamento_valor?: number | null
           oba_credito?: boolean
           observacoes?: string | null
+          pagamento_final_data?: string | null
+          pagamento_final_valor?: number | null
           parcela1_data?: string | null
           parcela1_valor?: number | null
           parcela2_data?: string | null
