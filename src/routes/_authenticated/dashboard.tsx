@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
-import { type SaleStatus } from "@/lib/status";
+import { proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
 import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
 
 /** Agrupa os status granulares de venda em etapas macro, só para leitura visual no funil do dashboard. */
@@ -238,17 +238,36 @@ function Dashboard() {
         </CardHeader>
         <CardContent className="space-y-2">
           {sales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>}
-          {sales.slice(0, 8).map((s) => (
-            <Link key={s.id} to="/vendas/$id" params={{ id: s.id }} className="flex items-center justify-between rounded-md border p-3 hover:bg-muted/50">
-              <div>
-                <div className="text-sm font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
-                <div className="text-xs text-muted-foreground">
-                  {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"}
+          {sales.slice(0, 8).map((s) => {
+            const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+              papel === "corretor" ? s.corretor_id === user?.id
+              : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
+              : hasAny([papel])
+            );
+            return (
+              <Link
+                key={s.id}
+                to="/vendas/$id"
+                params={{ id: s.id }}
+                className={`flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+              >
+                <div>
+                  <div className="text-sm font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"}
+                  </div>
                 </div>
-              </div>
-              <StatusBadge status={s.status as SaleStatus} />
-            </Link>
-          ))}
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={s.status as SaleStatus} />
+                  {minhaVez && (
+                    <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                      Sua vez
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </CardContent>
       </Card>
     </div>
