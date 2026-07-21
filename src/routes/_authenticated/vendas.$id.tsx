@@ -2332,23 +2332,34 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             <Field label="Parcela 2 — data"><Input type="date" value={p.parcela2_data ?? ""} onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
-            <Field label="Financiamento">
+            <Field label="Forma de pagamento">
               <Select
-                value={p.financiamento ? "Financiamento" : "Vista"}
-                onValueChange={(v) => { updP("financiamento", v === "Financiamento"); if (v !== "Financiamento") updP("financiamento_banco", null); }}
+                value={p.tipo_pagamento ?? "vista"}
+                onValueChange={(v) => {
+                  updP("tipo_pagamento", v);
+                  updP("financiamento", v === "financiamento");
+                  if (v !== "financiamento") { updP("financiamento_banco", null); updP("financiamento_correspondente", null); }
+                }}
                 disabled={!editable}
               >
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Vista">Vista</SelectItem>
-                  <SelectItem value="Financiamento">Financiamento</SelectItem>
+                  <SelectItem value="vista">Vista</SelectItem>
+                  <SelectItem value="financiamento">Financiamento</SelectItem>
+                  <SelectItem value="pagamento_final">Pagamento final</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            {p.financiamento && (
-              <Field label="Banco financiador">
-                <Input value={p.financiamento_banco ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_banco", e.target.value)} />
-              </Field>
+            {p.tipo_pagamento === "financiamento" && (
+              <>
+                <Field label="Banco financiador">
+                  <Input value={p.financiamento_banco ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_banco", e.target.value)} />
+                </Field>
+                <Field label="Correspondente bancário">
+                  <Input value={p.financiamento_correspondente ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_correspondente", e.target.value)} />
+                </Field>
+                <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!p.oba_credito} onCheckedChange={(v) => updP("oba_credito", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
+              </>
             )}
             <Field label="Financiamento — valor"><CurrencyInput value={p.financiamento_valor} onChange={(v) => updP("financiamento_valor", v)} disabled={!editable} /></Field>
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
@@ -3368,8 +3379,13 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   // Traz financiamento/valor já preenchidos pelo corretor na etapa "Forma de pagamento",
   // útil quando esses dados mudaram depois da criação da ocorrência.
   const pullFinanciamento = () => {
-    updOcc({ financiamento: payment?.financiamento ?? false, financiamento_valor: payment?.financiamento_valor ?? null });
-    toast.success("Financiamento e valor puxados do pagamento — confira e salve.");
+    updOcc({
+      financiamento: payment?.financiamento ?? false,
+      financiamento_valor: payment?.financiamento_valor ?? null,
+      financiamento_banco: payment?.financiamento_banco ?? null,
+      financiamento_correspondente: payment?.financiamento_correspondente ?? null,
+    });
+    toast.success("Financiamento, valor, banco e correspondente puxados do pagamento — confira e salve.");
   };
 
   // Compara o que está salvo na ocorrência com os dados atuais da Resumo/Pagamento — se algo
@@ -3397,7 +3413,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
 
   const financiamentoDesatualizado = !!occ && (
     Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||
-    Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0)
+    Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0) ||
+    (occ.financiamento_banco ?? "") !== (payment?.financiamento_banco ?? "") ||
+    (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "")
   );
 
   const updPartner = (id: string, patch: any) => {

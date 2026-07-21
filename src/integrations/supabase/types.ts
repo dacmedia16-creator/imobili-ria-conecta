@@ -631,13 +631,16 @@ export type Database = {
           financiamento: boolean | null
           financiamento_banco: string | null
           financiamento_observacao: string | null
+          financiamento_correspondente: string | null
           financiamento_valor: number | null
+          oba_credito: boolean
           observacoes: string | null
           parcela1_data: string | null
           parcela1_valor: number | null
           parcela2_data: string | null
           parcela2_valor: number | null
           sale_id: string
+          tipo_pagamento: string
         }
         Insert: {
           entrada_data?: string | null
@@ -647,14 +650,17 @@ export type Database = {
           fgts_valor?: number | null
           financiamento?: boolean | null
           financiamento_banco?: string | null
+          financiamento_correspondente?: string | null
           financiamento_observacao?: string | null
           financiamento_valor?: number | null
+          oba_credito?: boolean
           observacoes?: string | null
           parcela1_data?: string | null
           parcela1_valor?: number | null
           parcela2_data?: string | null
           parcela2_valor?: number | null
           sale_id: string
+          tipo_pagamento?: string
         }
         Update: {
           entrada_data?: string | null
@@ -664,14 +670,17 @@ export type Database = {
           fgts_valor?: number | null
           financiamento?: boolean | null
           financiamento_banco?: string | null
+          financiamento_correspondente?: string | null
           financiamento_observacao?: string | null
           financiamento_valor?: number | null
+          oba_credito?: boolean
           observacoes?: string | null
           parcela1_data?: string | null
           parcela1_valor?: number | null
           parcela2_data?: string | null
           parcela2_valor?: number | null
           sale_id?: string
+          tipo_pagamento?: string
         }
         Relationships: [
           {
