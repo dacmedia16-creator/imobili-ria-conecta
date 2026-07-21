@@ -365,6 +365,11 @@ function SaleDetail() {
       }
     }
     if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
+    try {
+      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, formExtras);
+    } catch (err: any) {
+      console.warn("syncOccurrenceCommissions", err?.message);
+    }
     setDirtyResumo(false);
     setDirtyExtras(false);
     toast.success("Alterações salvas");
@@ -2905,6 +2910,55 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
 const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro"]);
 const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
 
+/**
+ * Sempre que a Resumo é salva (captador/vendedor/indicador/partes extras), joga esses valores
+ * direto na ocorrência já criada — sem isso, o que foi preenchido lá só aparecia na Ocorrência
+ * depois de alguém clicar manualmente em "Puxar da revisão do gestor". Se a ocorrência ainda não
+ * existe, não faz nada (ela nasce com esses dados quando for criada).
+ */
+async function syncOccurrenceCommissions(saleId: string, sale: any, commissionExtras: any[]) {
+  const { data: occ } = await supabase.from("occurrences").select("id, valor_comissao").eq("sale_id", saleId).maybeSingle();
+  if (!occ) return;
+
+  const { data: existing } = await supabase.from("occurrence_commissions").select("*").eq("occurrence_id", occ.id);
+  const rows = existing ?? [];
+  const total = Number(occ.valor_comissao ?? 0);
+  const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
+
+  const fixedUpdates: { papel: string; nome: any; valor: any }[] = [
+    { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
+    { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
+  ];
+  if (sale.indicador_lado === "captador") fixedUpdates.push({ papel: "indicador_captador", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+  if (sale.indicador_lado === "vendedor") fixedUpdates.push({ papel: "indicador_vendedor", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+
+  for (const upd of fixedUpdates) {
+    if (upd.nome == null && upd.valor == null) continue;
+    const row = rows.find((r) => r.papel === upd.papel);
+    const percentual = pctOfTotal(upd.valor);
+    if (row) {
+      if (row.nome !== upd.nome || Number(row.valor ?? 0) !== Number(upd.valor ?? 0)) {
+        await supabase.from("occurrence_commissions").update({ nome: upd.nome, valor: upd.valor, percentual }).eq("id", row.id);
+      }
+    } else {
+      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel: upd.papel, nome: upd.nome, valor: upd.valor, percentual });
+    }
+  }
+
+  for (const extra of commissionExtras) {
+    const papel = papelDaExtra(extra.papel);
+    const row = rows.find((r) => r.papel === papel && r.nome === extra.nome);
+    const percentual = pctOfTotal(extra.valor);
+    if (row) {
+      if (Number(row.valor ?? 0) !== Number(extra.valor ?? 0)) {
+        await supabase.from("occurrence_commissions").update({ valor: extra.valor, percentual }).eq("id", row.id);
+      }
+    } else {
+      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual });
+    }
+  }
+}
+
 // -------- Occurrence step (buffered) --------
 function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, canEdit, onChange, registerSaver, onDirtyChange }: {
   saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; canEdit: boolean; onChange: () => void;
@@ -2948,6 +3002,17 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     setLoading(false);
   }, [saleId]);
   useEffect(() => { load(); }, [load]);
+
+  // Sempre que a Resumo salva captador/vendedor/indicador/partes extras, o valor já é
+  // sincronizado direto no banco (ver syncOccurrenceCommissions) — aqui só recarrega essa
+  // tela pra refletir o que já foi salvo, sem precisar de F5 nem clicar em "Puxar".
+  // Não recarrega se houver edição não salva na tabela, pra não apagar o que o usuário
+  // estava digitando.
+  useEffect(() => {
+    if (dirtyComms) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador, sale.indicador, sale.indicador_lado, commissionExtras]);
 
   const createOcc = async () => {
     const vendedor = parties?.vendedor_1;
