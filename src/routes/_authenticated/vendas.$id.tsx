@@ -2341,7 +2341,12 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                 onValueChange={(v) => {
                   updP("tipo_pagamento", v);
                   updP("financiamento", v === "financiamento");
-                  if (v !== "financiamento") { updP("financiamento_banco", null); updP("financiamento_correspondente", null); }
+                  if (v !== "financiamento") {
+                    updP("financiamento_banco", null);
+                    updP("financiamento_correspondente", null);
+                    updP("financiamento_valor", null);
+                    updP("oba_credito", false);
+                  }
                 }}
                 disabled={!editable}
               >
@@ -2354,6 +2359,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             </Field>
             {p.tipo_pagamento === "financiamento" && (
               <>
+                <Field label="Financiamento — valor"><CurrencyInput value={p.financiamento_valor} onChange={(v) => updP("financiamento_valor", v)} disabled={!editable} /></Field>
                 <Field label="Banco financiador">
                   <Input value={p.financiamento_banco ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_banco", e.target.value)} />
                 </Field>
@@ -2363,7 +2369,6 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                 <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!p.oba_credito} onCheckedChange={(v) => updP("oba_credito", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
               </>
             )}
-            <Field label="Financiamento — valor"><CurrencyInput value={p.financiamento_valor} onChange={(v) => updP("financiamento_valor", v)} disabled={!editable} /></Field>
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
         </CardContent>
