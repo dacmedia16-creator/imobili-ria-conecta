@@ -632,6 +632,7 @@ export type Database = {
           financiamento_banco: string | null
           financiamento_observacao: string | null
           financiamento_correspondente: string | null
+          financiamento_previsao: string | null
           financiamento_valor: number | null
           oba_credito: boolean
           observacoes: string | null
@@ -654,6 +655,7 @@ export type Database = {
           financiamento_banco?: string | null
           financiamento_correspondente?: string | null
           financiamento_observacao?: string | null
+          financiamento_previsao?: string | null
           financiamento_valor?: number | null
           oba_credito?: boolean
           observacoes?: string | null
@@ -676,6 +678,7 @@ export type Database = {
           financiamento_banco?: string | null
           financiamento_correspondente?: string | null
           financiamento_observacao?: string | null
+          financiamento_previsao?: string | null
           financiamento_valor?: number | null
           oba_credito?: boolean
           observacoes?: string | null

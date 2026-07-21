@@ -2345,6 +2345,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                     updP("financiamento_banco", null);
                     updP("financiamento_correspondente", null);
                     updP("financiamento_valor", null);
+                    updP("financiamento_previsao", null);
                     updP("oba_credito", false);
                   }
                 }}
@@ -2367,6 +2368,9 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                   <Input value={p.financiamento_correspondente ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_correspondente", e.target.value)} />
                 </Field>
                 <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!p.oba_credito} onCheckedChange={(v) => updP("oba_credito", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
+                <Field label="Previsão da liberação do crédito">
+                  <Input type="date" value={p.financiamento_previsao ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_previsao", e.target.value || null)} />
+                </Field>
               </>
             )}
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
@@ -3296,6 +3300,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       valor_comissao: sale.valor_total_comissao,
       financiamento: payment?.financiamento ?? false,
       financiamento_valor: payment?.financiamento_valor ?? null,
+      financiamento_banco: payment?.financiamento_banco ?? null,
+      financiamento_correspondente: payment?.financiamento_correspondente ?? null,
+      financiamento_previsao: payment?.financiamento_previsao ?? null,
       observacoes: [vendedor?.nome && `Vendedor: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
       status: "pendente",
     }).select("*").single();
@@ -3391,8 +3398,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       financiamento_valor: payment?.financiamento_valor ?? null,
       financiamento_banco: payment?.financiamento_banco ?? null,
       financiamento_correspondente: payment?.financiamento_correspondente ?? null,
+      financiamento_previsao: payment?.financiamento_previsao ?? null,
     });
-    toast.success("Financiamento, valor, banco e correspondente puxados do pagamento — confira e salve.");
+    toast.success("Financiamento, valor, banco, correspondente e previsão puxados do pagamento — confira e salve.");
   };
 
   // Compara o que está salvo na ocorrência com os dados atuais da Resumo/Pagamento — se algo
@@ -3422,7 +3430,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||
     Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0) ||
     (occ.financiamento_banco ?? "") !== (payment?.financiamento_banco ?? "") ||
-    (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "")
+    (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "") ||
+    (occ.financiamento_previsao ?? "") !== (payment?.financiamento_previsao ?? "")
   );
 
   const updPartner = (id: string, patch: any) => {
