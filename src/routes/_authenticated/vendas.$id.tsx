@@ -3206,9 +3206,17 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const excedido = total > 0 && somaComissoes > total + 0.01;
 
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
+  // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —
+  // travar antes disso congela o trabalho do gestor no meio sem ele nem saber. Destravar
+  // continua liberado sempre, já que voltar atrás é a direção segura.
+  const podeTravar = canFinLock && ["ocorrencia_analise_financeiro", "ocorrencia_concluida"].includes(sale.status);
 
   const toggleAceite = async () => {
     if (!canFinLock) { toast.error("Somente financeiro/admin/super admin"); return; }
+    if (!occ.aceita_financeiro && !podeTravar) {
+      toast.error("Só dá pra travar depois que a ocorrência estiver em análise do financeiro (ou já concluída).");
+      return;
+    }
     const novo = !occ.aceita_financeiro;
     const patch: any = novo
       ? { aceita_financeiro: true, aceita_financeiro_em: new Date().toISOString(), aceita_financeiro_por: user!.id }
@@ -3452,7 +3460,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
 
       <div className="flex flex-wrap justify-end gap-2">
         {canFinLock && (
-          <Button variant={occ.aceita_financeiro ? "outline" : "default"} onClick={toggleAceite}>
+          <Button
+            variant={occ.aceita_financeiro ? "outline" : "default"}
+            onClick={toggleAceite}
+            disabled={!occ.aceita_financeiro && !podeTravar}
+            title={!occ.aceita_financeiro && !podeTravar ? "Só dá pra travar depois que a ocorrência estiver em análise do financeiro" : undefined}
+          >
             {occ.aceita_financeiro ? "Liberar edições" : "Aceitar e travar (Financeiro)"}
           </Button>
         )}

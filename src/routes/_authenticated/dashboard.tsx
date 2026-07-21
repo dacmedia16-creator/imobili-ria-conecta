@@ -149,6 +149,15 @@ function Dashboard() {
             <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={count(s => s.corretor_id === user?.id && (s.status === "rascunho" || s.status === "devolvida_ajuste"))} to="/vendas" />
             <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirCorretor(user?.id))} to="/vendas" />
             <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(s.status))} to="/vendas" />
+            <KpiCard
+              icon={TrendingUp}
+              label="Comissão prevista (vendas em andamento)"
+              value={`R$ ${sales
+                .filter(s => s.corretor_id === user?.id && !["ocorrencia_concluida", "arquivada", "cancelada"].includes(s.status))
+                .reduce((sum, s) => sum + Number(s.valor_total_comissao ?? 0), 0)
+                .toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              to="/vendas"
+            />
           </KpiGrid>
         </DashSection>
       )}

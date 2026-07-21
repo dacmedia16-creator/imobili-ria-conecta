@@ -131,15 +131,19 @@ function RelatoriosPage() {
         </TabsList>
 
         <TabsContent value="caixa">
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.</p>
           <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="comissoes">
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).</p>
           <ComissoesTab occs={occs} comms={comms} partners={partners} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="financiamentos">
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>previsão de liberação do crédito</b>.</p>
           <FinanciamentosTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="funil">
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>última atualização</b> da venda.</p>
           <FunilTab sales={sales} occs={occs} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
       </Tabs>
