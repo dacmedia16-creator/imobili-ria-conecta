@@ -44,7 +44,7 @@ export const createUser = createServerFn({ method: "POST" })
       email: data.email,
       password: data.password,
       email_confirm: true,
-      user_metadata: { nome: data.nome },
+      user_metadata: { nome: data.nome, must_change_password: true },
     });
     if (createErr || !created?.user) {
       const msg = createErr?.message ?? "Falha ao criar usuário";

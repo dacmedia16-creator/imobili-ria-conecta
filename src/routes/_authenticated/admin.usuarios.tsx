@@ -281,7 +281,7 @@ function NewUserDialog({
               <Copy className="h-4 w-4" />
             </Button>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Anote e envie ao usuário. Ele poderá trocar depois.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Anote e envie ao usuário. Ele será obrigado a trocar essa senha já no primeiro acesso.</p>
         </div>
         <div>
           <Label>Papel</Label>
