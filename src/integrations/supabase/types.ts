@@ -146,6 +146,7 @@ export type Database = {
           occurrence_id: string
           papel: string
           percentual: number | null
+          sale_commission_extra_id: string | null
           valor: number | null
         }
         Insert: {
@@ -155,6 +156,7 @@ export type Database = {
           occurrence_id: string
           papel: string
           percentual?: number | null
+          sale_commission_extra_id?: string | null
           valor?: number | null
         }
         Update: {
@@ -164,6 +166,7 @@ export type Database = {
           occurrence_id?: string
           papel?: string
           percentual?: number | null
+          sale_commission_extra_id?: string | null
           valor?: number | null
         }
         Relationships: [
@@ -172,6 +175,13 @@ export type Database = {
             columns: ["occurrence_id"]
             isOneToOne: false
             referencedRelation: "occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "occurrence_commissions_sale_commission_extra_id_fkey"
+            columns: ["sale_commission_extra_id"]
+            isOneToOne: false
+            referencedRelation: "sale_commission_extras"
             referencedColumns: ["id"]
           },
         ]

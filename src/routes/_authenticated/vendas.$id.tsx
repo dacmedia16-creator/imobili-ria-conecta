@@ -349,6 +349,9 @@ function SaleDetail() {
       setSaving(false);
       if (error) { toast.error(error.message); return false; }
     }
+    // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
+    // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
+    let resolvedExtras = formExtras;
     if (dirtyExtras) {
       const currentIds = new Set(formExtras.filter(r => !r._new).map(r => r.id));
       const removed = commissionExtras.filter(r => !currentIds.has(r.id));
@@ -356,17 +359,23 @@ function SaleDetail() {
         const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
         if (error) { toast.error(error.message); return false; }
       }
-      for (const r of formExtras) {
+      resolvedExtras = [...formExtras];
+      for (let i = 0; i < resolvedExtras.length; i++) {
+        const r = resolvedExtras[i];
         const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null };
-        const { error } = r._new
-          ? await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data })
-          : await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
-        if (error) { toast.error(error.message); return false; }
+        if (r._new) {
+          const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
+          if (error) { toast.error(error.message); return false; }
+          resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
+        } else {
+          const { error } = await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
       }
     }
     if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
     try {
-      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, formExtras);
+      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, resolvedExtras);
     } catch (err: any) {
       console.warn("syncOccurrenceCommissions", err?.message);
     }
@@ -3006,14 +3015,18 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
 
   for (const extra of commissionExtras) {
     const papel = papelDaExtra(extra.papel);
-    const row = rows.find((r) => r.papel === papel && r.nome === extra.nome);
+    // Casa pelo id estável da parte extra (sale_commission_extra_id) — casar só por nome quebra
+    // quando o nome muda entre um save e outro (ex.: linha criada "sem nome" e preenchida depois),
+    // já que aí vira um "nome" diferente e uma linha nova duplicada era criada em vez de atualizar.
+    const row = rows.find((r) => r.sale_commission_extra_id === extra.id)
+      ?? rows.find((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
     const percentual = pctOfTotal(extra.valor);
     if (row) {
-      if (Number(row.valor ?? 0) !== Number(extra.valor ?? 0)) {
-        await supabase.from("occurrence_commissions").update({ valor: extra.valor, percentual }).eq("id", row.id);
+      if (row.nome !== extra.nome || Number(row.valor ?? 0) !== Number(extra.valor ?? 0) || row.sale_commission_extra_id !== extra.id) {
+        await supabase.from("occurrence_commissions").update({ nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id }).eq("id", row.id);
       }
     } else {
-      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual });
+      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id });
     }
   }
 }
@@ -3106,6 +3119,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
     const extraRows = commissionExtras.map((e) => ({
       occurrence_id: data.id, papel: papelDaExtra(e.papel), nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
+      sale_commission_extra_id: e.id,
     }));
     await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
@@ -3150,14 +3164,16 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         return r;
       });
       // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes
-      // (mesmo papel + nome) ou adiciona uma nova, sem duplicar a cada clique.
+      // (casando pelo id estável da parte extra, não só nome — nome pode ter mudado desde a
+      // última vez) ou adiciona uma nova, sem duplicar a cada clique.
       for (const extra of commissionExtras) {
         const papel = papelDaExtra(extra.papel);
-        const idx = next.findIndex((r) => r.papel === papel && r.nome === extra.nome);
-        if (idx >= 0) {
-          next = next.map((r, i) => i === idx ? { ...r, valor: extra.valor, percentual: pctOfTotal(extra.valor) } : r);
+        const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
+        const idxLegado = idx >= 0 ? idx : next.findIndex((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
+        if (idxLegado >= 0) {
+          next = next.map((r, i) => i === idxLegado ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id } : r);
         } else {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, _new: true }];
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, _new: true }];
         }
       }
       return next;
