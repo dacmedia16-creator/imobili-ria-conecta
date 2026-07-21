@@ -2528,10 +2528,10 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
     if (prev) setActiveParte(prev.parte);
   };
 
-  // Leitura automática: assim que todos os documentos de um bloco (cliente ou imóvel) forem
-  // enviados, a IA lê esse bloco sozinha — sem precisar clicar em "Ler documentos e aplicar
-  // dados". As leituras são enfileiradas e espaçadas (~13s cada) para não estourar o limite
-  // de requisições por minuto da API do Gemini quando vários blocos completam perto um do outro.
+  // Leitura automática: cada documento enviado entra na fila de leitura sozinho, sem esperar o
+  // bloco inteiro nem precisar clicar em "Ler documentos e aplicar dados". As leituras ficam
+  // enfileiradas e espaçadas (~13s cada) para não estourar o limite de requisições por minuto
+  // da API do Gemini quando vários uploads acontecem perto um do outro.
   const autoQueuedIdsRef = useRef<Set<string>>(new Set());
   const autoJobQueueRef = useRef<{ parte: DocParte; ids: string[] }[]>([]);
   const autoProcessingRef = useRef(false);
@@ -2557,26 +2557,22 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
 
   useEffect(() => {
     if (!editable) return;
-    for (const { parte, tipos } of blocos) {
-      if (parte === "outros" || parte === "juridico") continue;
-      // A CNH é alternativa a RG+CPF (não um requisito extra): se enviada, dispensa os dois,
-      // e não entra sozinha como pendência do bloco.
-      const completo = tipos.every((t) => t.key === "cnh" || temDocDoTipo(docs, t.key, parte));
-      if (!completo) continue;
-      // Só documentos NUNCA lidos (extraction_status null) entram na fila automática — um que já
-      // falhou (quota do Gemini, etc.) não é retentado sozinho a cada reload da página; fica "IA
-      // falhou" até o usuário mandar ler de novo manualmente (botão da IA ou "Ler novamente").
-      const pendentes = docs.filter(
-        (d) => (d.parte ?? "outros") === parte
-          && tipos.some((t) => t.key === d.tipo)
-          && d.extraction_status == null
-          && !autoQueuedIdsRef.current.has(d.id),
-      );
-      if (pendentes.length === 0) continue;
+    // Contrato/contrato assinado não têm dados de pessoa/imóvel pra extrair, e certidões do
+    // jurídico não têm roteamento de campos definido — ficam de fora da leitura automática.
+    // Só documentos NUNCA lidos (extraction_status "none", o valor padrão da coluna — não é
+    // null) entram na fila — um que já falhou (quota do Gemini, etc.) não é retentado sozinho
+    // a cada reload; fica "IA falhou" até o usuário mandar ler de novo manualmente.
+    const pendentes = docs.filter(
+      (d) => d.extraction_status === "none"
+        && d.tipo !== "contrato" && d.tipo !== "contrato_assinado"
+        && d.parte !== "juridico"
+        && !autoQueuedIdsRef.current.has(d.id),
+    );
+    if (pendentes.length > 0) {
       for (const d of pendentes) autoQueuedIdsRef.current.add(d.id);
-      autoJobQueueRef.current.push({ parte, ids: pendentes.map((d) => d.id) });
+      autoJobQueueRef.current.push({ parte: pendentes[0].parte, ids: pendentes.map((d) => d.id) });
+      void processAutoQueue();
     }
-    if (autoJobQueueRef.current.length > 0) void processAutoQueue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs, editable]);
 
@@ -2590,7 +2586,7 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
               <div className="text-sm">
                 <div className="font-medium">Leitura automática por IA</div>
                 <p className="text-muted-foreground">
-                  Envie os documentos de cada pessoa no bloco correspondente. Até 2 compradores e 2 vendedores. A IA lê cada arquivo e roteia os dados para a pessoa certa nas próximas etapas.
+                  Assim que você envia um documento, a IA já lê sozinha (em alguns segundos) e roteia os dados para a pessoa certa nas próximas etapas — sem precisar clicar em nada.
                 </p>
               </div>
             </div>
