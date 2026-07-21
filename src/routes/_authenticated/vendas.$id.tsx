@@ -24,6 +24,7 @@ import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
 import { Sparkles, Loader2 } from "lucide-react";
+import { PDFDocument } from "pdf-lib";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -638,6 +639,7 @@ function SaleDetail() {
           canModerate={isGestor || isJuridico}
           canUseAi={isOwner}
           canManageContratos={isGestor || isJuridico || isFinanceiro}
+          canDownloadAll={isGestor || isJuridico || isFinanceiro || isAdminLike}
           onChange={load}
         />
       ),
@@ -1572,6 +1574,53 @@ function partiesComNome(parties: Record<string, any>): string[] {
 const isImageFile = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
+// Converte qualquer imagem (jpg, png, etc.) pra PNG via canvas antes de embutir no PDF —
+// mais simples e robusto do que tentar diferenciar jpg de png na hora de embutir, e cobre
+// formatos que o pdf-lib não lê nativamente.
+async function imageToPngBytes(blob: Blob): Promise<Uint8Array> {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível");
+  ctx.drawImage(bitmap, 0, 0);
+  const pngBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Falha ao converter imagem"))), "image/png");
+  });
+  return new Uint8Array(await pngBlob.arrayBuffer());
+}
+
+/** Baixa uma lista de documentos (imagens e/ou PDFs) já mesclados num único arquivo PDF. */
+async function baixarDocumentosComoPdf(list: { file_name: string; url: string }[], nomeArquivo: string) {
+  const merged = await PDFDocument.create();
+  for (const doc of list) {
+    const resp = await fetch(doc.url);
+    if (!resp.ok) continue;
+    const blob = await resp.blob();
+    if (isImageFile(doc.file_name)) {
+      const pngBytes = await imageToPngBytes(blob);
+      const img = await merged.embedPng(pngBytes);
+      const page = merged.addPage([img.width, img.height]);
+      page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+    } else {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach((p) => merged.addPage(p));
+    }
+  }
+  const mergedBytes = await merged.save();
+  const blobUrl = URL.createObjectURL(new Blob([mergedBytes as BlobPart], { type: "application/pdf" }));
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}
+
 /** Abre uma janela com um documento (ou vários) por página e dispara a impressão do navegador assim que tudo carrega. */
 function printDocumentUrls(list: { file_name: string; url: string }[]) {
   const w = window.open("", "_blank", "noopener,noreferrer");
@@ -2352,7 +2401,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
 // comprovante de endereço compartilhado) — só esses ganham a opção "Mesmo do 1º" no 2º comprador/vendedor.
 const REUSABLE_DOC_TYPES = new Set(["certidao", "comprovante_endereco"]);
 
-function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, onChange }: { saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; onChange: () => void }) {
+function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange }: { saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; canDownloadAll: boolean; onChange: () => void }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
@@ -2361,6 +2410,7 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
   const [preview, setPreview] = useState<{ doc: any; url: string } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [printingAll, setPrintingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [pendingReject, setPendingReject] = useState<any | null>(null);
   const [rejectMotivo, setRejectMotivo] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -2426,6 +2476,24 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
       printDocumentUrls(list);
     } finally {
       setPrintingAll(false);
+    }
+  };
+
+  const downloadAllAsPdf = async () => {
+    if (docs.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      const { data, error } = await supabase.storage.from("sale-documents").createSignedUrls(docs.map((d) => d.storage_path), 300);
+      if (error || !data) { toast.error("Falha ao gerar links"); return; }
+      const list = data
+        .map((r, i) => (r.signedUrl ? { file_name: docs[i].file_name, url: r.signedUrl } : null))
+        .filter((x): x is { file_name: string; url: string } => !!x);
+      if (list.length === 0) { toast.error("Nenhum documento disponível para baixar"); return; }
+      await baixarDocumentosComoPdf(list, `documentos-${saleId.slice(0, 8)}.pdf`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao gerar PDF");
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -2707,6 +2775,12 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
               {printingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
               Imprimir todos
             </Button>
+            {canDownloadAll && (
+              <Button size="sm" variant="outline" onClick={downloadAllAsPdf} disabled={docs.length === 0 || downloadingAll}>
+                {downloadingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Baixar todos (PDF)
+              </Button>
+            )}
             {canUseAi && (
               <Button size="sm" onClick={applyAll} disabled={docs.length === 0 || applying || !editable}>
                 {applying ? (
