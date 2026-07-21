@@ -18,7 +18,7 @@ import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { useRouter } from "@tanstack/react-router";
@@ -31,6 +31,33 @@ export const Route = createFileRoute("/_authenticated/vendas/$id")({
 });
 
 type Saver = () => Promise<boolean>;
+
+const AUTOSAVE_DELAY_MS = 1200;
+
+// Salva sozinho X ms depois da última alteração, sem precisar de clique em "Salvar".
+// O delay evita gravar valor pela metade enquanto a pessoa ainda está digitando, e o
+// savingRef evita disparar um novo save por cima de um que ainda não terminou.
+function useAutosave(dirty: boolean, deps: readonly unknown[], saveFn: () => Promise<boolean>) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (!dirty) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      try { await saveFn(); } finally { savingRef.current = false; }
+    }, AUTOSAVE_DELAY_MS);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, ...deps]);
+}
+
+function AutosaveStatus({ saving, dirty }: { saving: boolean; dirty: boolean }) {
+  if (saving) return <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Salvando...</div>;
+  if (dirty) return <div className="text-xs text-muted-foreground">Alterações pendentes — salvando em instantes...</div>;
+  return null;
+}
 
 function SaleDetail() {
   const { id } = Route.useParams();
@@ -160,6 +187,75 @@ function SaleDetail() {
   }, [id, user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Definida aqui (antes do "return" de carregamento abaixo) porque useAutosave chama hooks
+  // (useEffect/useRef) — se ficasse depois do guard de loading, a ordem dos hooks mudaria entre
+  // o primeiro render (carregando) e os seguintes, o que quebra as regras dos hooks do React.
+  const saveResumo = async (): Promise<boolean> => {
+    if (!sale) return false;
+    setSaving(true);
+    try {
+    const fields = [
+      "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes",
+      "corretor_captador","corretor_vendedor","indicador",
+      "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
+      "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
+      "percentual_comissao_captador","percentual_comissao_vendedor",
+      "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
+      "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
+      "coordenador_id","team_leader_id",
+    ];
+    const patch: any = {};
+    for (const k of fields) {
+      const v = formSale?.[k];
+      const orig = sale?.[k];
+      if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
+    }
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabase.from("sales").update(patch).eq("id", id);
+      if (error) { toast.error(error.message); return false; }
+    }
+    // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
+    // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
+    let resolvedExtras = formExtras;
+    if (dirtyExtras) {
+      const currentIds = new Set(formExtras.filter(r => !r._new).map(r => r.id));
+      const removed = commissionExtras.filter(r => !currentIds.has(r.id));
+      for (const r of removed) {
+        const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
+        if (error) { toast.error(error.message); return false; }
+      }
+      resolvedExtras = [...formExtras];
+      for (let i = 0; i < resolvedExtras.length; i++) {
+        const r = resolvedExtras[i];
+        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null };
+        if (r._new) {
+          const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
+          if (error) { toast.error(error.message); return false; }
+          resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
+        } else {
+          const { error } = await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
+      }
+    }
+    if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
+    try {
+      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, resolvedExtras);
+    } catch (err: any) {
+      console.warn("syncOccurrenceCommissions", err?.message);
+    }
+    setDirtyResumo(false);
+    setDirtyExtras(false);
+    await load();
+    return true;
+    } finally {
+      setSaving(false);
+    }
+  };
+  // Sem "editable &&" aqui de propósito: os campos só ficam dirty se o usuário conseguiu editá-los
+  // (inputs desabilitados não disparam onChange), e "editable" só existe depois do guard abaixo.
+  useAutosave(dirtyResumo || dirtyExtras, [formSale, formExtras], saveResumo);
 
   if (loading || !sale) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
 
@@ -325,67 +421,6 @@ function SaleDetail() {
     setFormExtras(rows => rows.filter(r => r.id !== rowId));
     setDirtyExtras(true);
   };
-  const saveResumo = async (): Promise<boolean> => {
-    if (!sale) return false;
-    const fields = [
-      "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes",
-      "corretor_captador","corretor_vendedor","indicador",
-      "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
-      "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
-      "percentual_comissao_captador","percentual_comissao_vendedor",
-      "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
-      "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
-      "coordenador_id","team_leader_id",
-    ];
-    const patch: any = {};
-    for (const k of fields) {
-      const v = formSale?.[k];
-      const orig = sale?.[k];
-      if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
-    }
-    if (Object.keys(patch).length > 0) {
-      setSaving(true);
-      const { error } = await supabase.from("sales").update(patch).eq("id", id);
-      setSaving(false);
-      if (error) { toast.error(error.message); return false; }
-    }
-    // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
-    // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
-    let resolvedExtras = formExtras;
-    if (dirtyExtras) {
-      const currentIds = new Set(formExtras.filter(r => !r._new).map(r => r.id));
-      const removed = commissionExtras.filter(r => !currentIds.has(r.id));
-      for (const r of removed) {
-        const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
-        if (error) { toast.error(error.message); return false; }
-      }
-      resolvedExtras = [...formExtras];
-      for (let i = 0; i < resolvedExtras.length; i++) {
-        const r = resolvedExtras[i];
-        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null };
-        if (r._new) {
-          const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
-          if (error) { toast.error(error.message); return false; }
-          resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
-        } else {
-          const { error } = await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
-        }
-      }
-    }
-    if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
-    try {
-      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, resolvedExtras);
-    } catch (err: any) {
-      console.warn("syncOccurrenceCommissions", err?.message);
-    }
-    setDirtyResumo(false);
-    setDirtyExtras(false);
-    toast.success("Alterações salvas");
-    await load();
-    return true;
-  };
-
   const notifyRoles = async (rolesToNotify: string[], titulo: string, mensagem?: string) => {
     const { data: users } = await supabase.from("user_roles").select("user_id").in("role", rolesToNotify as any);
     const uniqIds = Array.from(new Set((users ?? []).map((u: any) => u.user_id)));
@@ -532,7 +567,7 @@ function SaleDetail() {
 
   // Wizard: on leaving a step, run its saver if dirty
   const onBeforeLeave = async (from: string): Promise<boolean> => {
-    if (from === "resumo" && dirtyResumo) return await saveResumo();
+    if (from === "resumo" && (dirtyResumo || dirtyExtras)) return await saveResumo();
     if (dirtyMap[from]) {
       const fn = saversRef.current[from];
       if (fn) return await fn();
@@ -570,12 +605,7 @@ function SaleDetail() {
       label: "2. Resumo",
       content: (
         <div className="space-y-4">
-          {editable && (dirtyResumo || dirtyExtras) && (
-            <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              <span>Você tem alterações não salvas nesta etapa.</span>
-              <Button size="sm" onClick={saveResumo}><Save className="mr-1 h-4 w-4" />Salvar</Button>
-            </div>
-          )}
+          {editable && <AutosaveStatus saving={saving} dirty={dirtyResumo || dirtyExtras} />}
           <Wizard
             steps={[
               { key: "imovel", label: "Imóvel", content: (<>
@@ -2007,6 +2037,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
   });
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setForms((prev) => {
@@ -2051,31 +2082,31 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
   };
 
   const saveAll = useCallback(async (): Promise<boolean> => {
-    for (const papel of papeis) {
-      if (!dirty[papel]) continue;
-      const existing = parties[papel];
-      const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null };
-      const { error } = existing
-        ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
-        : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
-      if (error) { toast.error(error.message); return false; }
+    setSaving(true);
+    try {
+      for (const papel of papeis) {
+        if (!dirty[papel]) continue;
+        const existing = parties[papel];
+        const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null };
+        const { error } = existing
+          ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
+          : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
+        if (error) { toast.error(error.message); return false; }
+      }
+      setDirty({});
+      onSaved();
+      return true;
+    } finally {
+      setSaving(false);
     }
-    toast.success("Partes salvas");
-    setDirty({});
-    onSaved();
-    return true;
   }, [dirty, forms, papeis, parties, saleId, onSaved]);
 
   useEffect(() => { registerSaver(saveAll); return () => registerSaver(null); }, [saveAll, registerSaver]);
+  useAutosave(editable && anyDirty, [forms, dirty], saveAll);
 
   return (
     <div className="space-y-4">
-      {editable && anyDirty && (
-        <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          <span>Você tem alterações não salvas nesta etapa.</span>
-          <Button size="sm" onClick={saveAll}><Save className="mr-1 h-4 w-4" />Salvar</Button>
-        </div>
-      )}
+      {editable && <AutosaveStatus saving={saving} dirty={anyDirty} />}
       <Wizard
         steps={papeis.map((p, i) => {
           const numero = Number(p.split("_")[1]);
@@ -2143,6 +2174,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
   const [b, setB] = useState<any>(bank ?? {});
   const [dp, setDp] = useState(false);
   const [db, setDb] = useState(false);
+  const [saving, setSaving] = useState(false);
   const dirty = dp || db;
 
   useEffect(() => { setP(payment ?? {}); setDp(false); }, [payment]);
@@ -2162,35 +2194,35 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
   };
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (dp) {
-      const { error } = await supabase.from("sale_payment").upsert({ sale_id: saleId, ...p });
-      if (error) { toast.error(error.message); return false; }
+    setSaving(true);
+    try {
+      if (dp) {
+        const { error } = await supabase.from("sale_payment").upsert({ sale_id: saleId, ...p });
+        if (error) { toast.error(error.message); return false; }
+      }
+      if (db) {
+        const existing = bank?.id ? bank : null;
+        const { error } = existing
+          ? await supabase.from("sale_bank_accounts").update(b).eq("id", existing.id)
+          : await supabase.from("sale_bank_accounts").insert({ sale_id: saleId, ...b });
+        if (error) { toast.error(error.message); return false; }
+      }
+      setDp(false); setDb(false);
+      onSaved();
+      return true;
+    } finally {
+      setSaving(false);
     }
-    if (db) {
-      const existing = bank?.id ? bank : null;
-      const { error } = existing
-        ? await supabase.from("sale_bank_accounts").update(b).eq("id", existing.id)
-        : await supabase.from("sale_bank_accounts").insert({ sale_id: saleId, ...b });
-      if (error) { toast.error(error.message); return false; }
-    }
-    toast.success("Pagamento salvo");
-    setDp(false); setDb(false);
-    onSaved();
-    return true;
   }, [dp, db, p, b, bank, saleId, onSaved]);
 
   useEffect(() => { registerSaver(save); return () => registerSaver(null); }, [save, registerSaver]);
+  useAutosave(editable && dirty, [p, b], save);
 
   const [activeBlock, setActiveBlock] = useState<"forma" | "banco">("forma");
 
   return (
     <div className="space-y-4">
-      {editable && dirty && (
-        <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          <span>Você tem alterações não salvas nesta etapa.</span>
-          <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />Salvar</Button>
-        </div>
-      )}
+      {editable && <AutosaveStatus saving={saving} dirty={dirty} />}
       <Wizard
         steps={[
           {
@@ -3078,8 +3110,11 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState("");
   const [reopening, setReopening] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const anyDirty = dirtyOcc || dirtyComms || dirtyPartners;
+  const concluida = occ?.status === "concluida";
+  const canWrite = canEdit && !concluida;
   useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
 
   const load = useCallback(async () => {
@@ -3264,45 +3299,50 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
 
   const save = useCallback(async (): Promise<boolean> => {
     if (!occ) return true;
-    if (dirtyOcc) {
-      const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
-      const patch: any = {};
-      for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
-      if (Object.keys(patch).length) {
-        const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
-        if (error) { toast.error(error.message); return false; }
+    setSaving(true);
+    try {
+      if (dirtyOcc) {
+        const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
+        const patch: any = {};
+        for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
+        if (Object.keys(patch).length) {
+          const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
+          if (error) { toast.error(error.message); return false; }
+        }
       }
-    }
-    if (dirtyComms) {
-      const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
-      const removed = commissions.filter(r => !currentIds.has(r.id));
-      for (const r of removed) await supabase.from("occurrence_commissions").delete().eq("id", r.id);
-      for (const r of formComms) {
-        const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null };
-        const { error } = r._new
-          ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, ...data })
-          : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
-        if (error) { toast.error(error.message); return false; }
+      if (dirtyComms) {
+        const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
+        const removed = commissions.filter(r => !currentIds.has(r.id));
+        for (const r of removed) await supabase.from("occurrence_commissions").delete().eq("id", r.id);
+        for (const r of formComms) {
+          const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null };
+          const { error } = r._new
+            ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, ...data })
+            : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
       }
-    }
-    if (dirtyPartners) {
-      const currentIds = new Set(formPartners.filter(r => !r._new).map(r => r.id));
-      const removed = partners.filter(r => !currentIds.has(r.id));
-      for (const r of removed) await supabase.from("occurrence_partners").delete().eq("id", r.id);
-      for (const r of formPartners) {
-        const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null };
-        const { error } = r._new
-          ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
-          : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
-        if (error) { toast.error(error.message); return false; }
+      if (dirtyPartners) {
+        const currentIds = new Set(formPartners.filter(r => !r._new).map(r => r.id));
+        const removed = partners.filter(r => !currentIds.has(r.id));
+        for (const r of removed) await supabase.from("occurrence_partners").delete().eq("id", r.id);
+        for (const r of formPartners) {
+          const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null };
+          const { error } = r._new
+            ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
+            : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
       }
+      await load();
+      return true;
+    } finally {
+      setSaving(false);
     }
-    toast.success("Ocorrência salva");
-    await load();
-    return true;
   }, [occ, dirtyOcc, dirtyComms, dirtyPartners, formOcc, formComms, formPartners, commissions, partners, load]);
 
   useEffect(() => { registerSaver(save); return () => registerSaver(null); }, [save, registerSaver]);
+  useAutosave(canWrite && anyDirty, [formOcc, formComms, formPartners], save);
 
   const somaComissoes = formComms.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   const total = Number(formOcc?.valor_comissao ?? 0);
@@ -3387,17 +3427,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     );
   }
 
-  const concluida = occ.status === "concluida";
-  const canWrite = canEdit && !concluida;
-
   return (
     <div className="space-y-4">
-      {canWrite && anyDirty && (
-        <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          <span>Você tem alterações não salvas nesta etapa.</span>
-          <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />Salvar</Button>
-        </div>
-      )}
+      {canWrite && <AutosaveStatus saving={saving} dirty={anyDirty} />}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Ocorrência de compra e venda</CardTitle>
