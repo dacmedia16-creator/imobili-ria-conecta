@@ -2335,7 +2335,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
             <Field label="Pagamento final — data"><Input type="date" value={p.pagamento_final_data ?? ""} onChange={(e) => updP("pagamento_final_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
-            <Field label="Financiamento">
+            <Field label="Tipo de pagamento">
               <Select
                 value={p.tipo_pagamento ?? "vista"}
                 onValueChange={(v) => {
