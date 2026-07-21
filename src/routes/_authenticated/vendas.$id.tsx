@@ -422,6 +422,15 @@ function SaleDetail() {
   const contratoDocs = docs.filter((d) => d.tipo === "contrato");
   const contratoAssinadoDocs = docs.filter((d) => d.tipo === "contrato_assinado");
 
+  // Atalho pra abrir o contrato direto do topo da página — sem isso o contrato só existia
+  // dentro de Documentos > Outros, e quem recebia a venda de volta (gestor/corretor) tinha
+  // que caçar em qual aba/bloco ele tinha sido anexado.
+  const abrirContratoRapido = async (doc: any) => {
+    const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 300);
+    if (error || !data) { toast.error("Falha ao gerar link do contrato"); return; }
+    window.open(data.signedUrl, "_blank");
+  };
+
   const marcarContratoAssinado = async () => {
     if (contratoAssinadoDocs.length === 0) {
       toast.error("Suba o contrato assinado antes de marcar como assinado.");
@@ -1176,6 +1185,22 @@ function SaleDetail() {
               <AgingBadge since={stageChangedAt} />
             </div>
           </div>
+          {(contratoDocs.length > 0 || contratoAssinadoDocs.length > 0) && status !== "ocorrencia_concluida" && (
+            <div className="space-y-1.5 rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
+              {contratoAssinadoDocs.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> Contrato assinado: <b className="text-foreground">{contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}</b></span>
+                  <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver</Button>
+                </div>
+              )}
+              {contratoDocs.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> Contrato (versão para revisão): <b className="text-foreground">{contratoDocs[contratoDocs.length - 1].file_name}</b></span>
+                  <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver</Button>
+                </div>
+              )}
+            </div>
+          )}
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
               🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
