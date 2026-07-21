@@ -92,16 +92,39 @@ export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
   outros: "Outros documentos",
 };
 
-export type DocParte = "comprador_1" | "comprador_2" | "vendedor_1" | "vendedor_2" | "imovel" | "outros" | "juridico";
-export const DOC_PARTE_LABEL: Record<DocParte, string> = {
-  comprador_1: "Cliente Comprador 1",
-  comprador_2: "Cliente Comprador 2",
-  vendedor_1: "Cliente Vendedor 1",
-  vendedor_2: "Cliente Vendedor 2",
+// Compradores e vendedores são em número livre (comprador_1, comprador_2, comprador_3, ...) —
+// o corretor pode adicionar quantos precisar, não só os 2 de cada lado que existiam antes.
+export type DocParte = `comprador_${number}` | `vendedor_${number}` | "imovel" | "outros" | "juridico";
+
+const PARTE_FIXA_LABEL: Record<"imovel" | "outros" | "juridico", string> = {
   imovel: "Documentos do Imóvel",
   outros: "Outros",
   juridico: "Certidões (Jurídico)",
 };
+
+/** Rótulo de exibição para qualquer "parte"/"papel" — comprador_N/vendedor_N num formato livre, mais os 3 fixos. */
+export function parteLabel(parte: string): string {
+  const m = parte.match(/^(comprador|vendedor)_(\d+)$/);
+  if (m) {
+    const tipo = m[1] === "comprador" ? "Cliente Comprador" : "Cliente Vendedor";
+    return `${tipo} ${m[2]}`;
+  }
+  return (PARTE_FIXA_LABEL as Record<string, string>)[parte] ?? parte;
+}
+
+/** Pra qual "parte" base (sempre o nº 1 do mesmo tipo) um comprador_N/vendedor_N reaproveitaria documento — null se não se aplica (já é o 1º, ou não é comprador/vendedor). */
+export function parteBase(parte: string): string | null {
+  const m = parte.match(/^(comprador|vendedor)_(\d+)$/);
+  if (!m || m[2] === "1") return null;
+  return `${m[1]}_1`;
+}
+
+/** Ordena comprador_N/vendedor_N em ordem natural (vendedor antes de comprador, depois por número). */
+export function parteSortKey(parte: string): [number, number] {
+  const m = parte.match(/^(vendedor|comprador)_(\d+)$/);
+  if (!m) return [99, 0];
+  return [m[1] === "vendedor" ? 0 : 1, Number(m[2])];
+}
 
 /** Status a partir do qual a venda já passou pelo gestor e está (ou já esteve) nas mãos do jurídico. */
 export function chegouAoJuridico(status: SaleStatus): boolean {

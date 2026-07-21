@@ -165,7 +165,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // Partes — a "parte" do documento decide o papel (comprador_1/2 ou vendedor_1/2).
       // Documentos do imóvel/outros não alimentam partes, exceto se tiverem nome_proprietario (vendedor_1).
       let papel: string | null = null;
-      if (parte === "comprador_1" || parte === "comprador_2" || parte === "vendedor_1" || parte === "vendedor_2") {
+      if (/^(comprador|vendedor)_\d+$/.test(parte)) {
         papel = parte;
       } else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
 
@@ -273,11 +273,10 @@ function safeParseJson(text: string): any | null {
 }
 
 function buildPromptForType(tipo: string, filename: string, parte: string): string {
-  const pessoaLabel =
-    parte === "comprador_1" ? "1º CLIENTE COMPRADOR" :
-    parte === "comprador_2" ? "2º CLIENTE COMPRADOR" :
-    parte === "vendedor_1" ? "1º CLIENTE VENDEDOR" :
-    parte === "vendedor_2" ? "2º CLIENTE VENDEDOR" : null;
+  const parteMatch = parte.match(/^(comprador|vendedor)_(\d+)$/);
+  const pessoaLabel = parteMatch
+    ? `${parteMatch[2]}º CLIENTE ${parteMatch[1] === "comprador" ? "COMPRADOR" : "VENDEDOR"}`
+    : null;
   const parteHint =
     pessoaLabel
       ? `\n\nATENÇÃO: Este documento pertence ao ${pessoaLabel} da venda. Os dados pessoais extraídos devem ser atribuídos a essa pessoa.`

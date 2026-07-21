@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, DOC_PARTE_LABEL, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, chegouAoJuridico, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Save, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -1088,13 +1088,12 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Partes (qualificação para o contrato)">
-              {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
-                .filter((papel) => parties[papel]?.nome)
+              {partiesComNome(parties)
                 .map((papel, i, arr) => {
                   const p = parties[papel];
                   return (
                     <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
-                      <div className="mb-1 font-medium">{DOC_PARTE_LABEL[papel]} — {p.nome}</div>
+                      <div className="mb-1 font-medium">{parteLabel(papel)} — {p.nome}</div>
                       <ReviewItem label="CPF/CNPJ" value={p.cpf_cnpj} />
                       <ReviewItem label="RG" value={p.rg} />
                       <ReviewItem label="Profissão" value={p.profissao} />
@@ -1104,7 +1103,7 @@ function SaleDetail() {
                     </div>
                   );
                 })}
-              {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const).every((papel) => !parties[papel]?.nome) && (
+              {partiesComNome(parties).length === 0 && (
                 <ReviewItem label="Nenhuma parte preenchida" value={null} />
               )}
             </ReviewGroup>
@@ -1245,12 +1244,10 @@ function SaleDetail() {
               </ReviewGroup>
 
               <ReviewGroup title="Partes">
-                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
-                  .filter((papel) => parties[papel]?.nome)
-                  .map((papel) => (
-                    <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={parties[papel]?.nome} />
-                  ))}
-                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const).every((papel) => !parties[papel]?.nome) && (
+                {partiesComNome(parties).map((papel) => (
+                  <ReviewItem key={papel} label={parteLabel(papel)} value={parties[papel]?.nome} />
+                ))}
+                {partiesComNome(parties).length === 0 && (
                   <ReviewItem label="Nenhuma parte preenchida" value={null} />
                 )}
               </ReviewGroup>
@@ -1293,11 +1290,9 @@ function SaleDetail() {
               </ReviewGroup>
 
               <ReviewGroup title="Partes">
-                {(["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"] as const)
-                  .filter((papel) => parties[papel]?.nome)
-                  .map((papel) => (
-                    <ReviewItem key={papel} label={DOC_PARTE_LABEL[papel]} value={parties[papel]?.nome} />
-                  ))}
+                {partiesComNome(parties).map((papel) => (
+                  <ReviewItem key={papel} label={parteLabel(papel)} value={parties[papel]?.nome} />
+                ))}
               </ReviewGroup>
 
               <ReviewGroup title="Pagamento">
@@ -1454,6 +1449,16 @@ const AGENCY_CRECI = "CRECI: 29.886-J";
 
 const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
 const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : null);
+
+/** Papéis de comprador_N/vendedor_N com nome preenchido, em ordem — usado nos resumos/diálogos de conferência. */
+function partiesComNome(parties: Record<string, any>): string[] {
+  return Object.keys(parties)
+    .filter((p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome)
+    .sort((a, b) => {
+      const ka = parteSortKey(a), kb = parteSortKey(b);
+      return ka[0] - kb[0] || ka[1] - kb[1];
+    });
+}
 
 const isImageFile = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
@@ -1942,12 +1947,22 @@ function CurrencyInput({ value, onChange, disabled }: { value: number | null | u
   );
 }
 
+const partePapelSort = (a: string, b: string) => {
+  const ka = parteSortKey(a), kb = parteSortKey(b);
+  return ka[0] - kb[0] || ka[1] - kb[1];
+};
+
 // -------- Partes step (buffered) --------
+// Compradores e vendedores são em número livre — o corretor adiciona quantos precisar, um bloco
+// (nested Wizard) por pessoa, e só o "_1" de cada lado é obrigatório/fixo.
 function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirtyChange }: {
   saleId: string; parties: Record<string, any>; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
-  const papeis = ["vendedor_1", "vendedor_2", "comprador_1", "comprador_2"];
+  const [papeis, setPapeis] = useState<string[]>(() => {
+    const fromDb = Object.keys(parties).filter((p) => /^(vendedor|comprador)_\d+$/.test(p));
+    return Array.from(new Set(["vendedor_1", "comprador_1", ...fromDb])).sort(partePapelSort);
+  });
   const [forms, setForms] = useState<Record<string, any>>(() => {
     const m: Record<string, any> = {};
     papeis.forEach(p => { m[p] = parties[p] ?? {}; });
@@ -1957,10 +1972,13 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
 
   useEffect(() => {
-    const m: Record<string, any> = {};
-    papeis.forEach(p => { m[p] = parties[p] ?? {}; });
-    setForms(m);
+    setForms((prev) => {
+      const m: Record<string, any> = {};
+      for (const p of papeis) m[p] = parties[p] ?? prev[p] ?? {};
+      return m;
+    });
     setDirty({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parties]);
 
   useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
@@ -1968,6 +1986,31 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
   const update = (papel: string, k: string, v: string) => {
     setForms(f => ({ ...f, [papel]: { ...f[papel], [k]: v } }));
     setDirty(d => ({ ...d, [papel]: true }));
+  };
+
+  const [activePapel, setActivePapel] = useState(papeis[0]);
+
+  const addPapel = (tipo: "vendedor" | "comprador") => {
+    const nums = papeis.filter((p) => p.startsWith(`${tipo}_`)).map((p) => Number(p.split("_")[1]));
+    const novoPapel = `${tipo}_${(nums.length ? Math.max(...nums) : 0) + 1}`;
+    setPapeis((prev) => [...prev, novoPapel].sort(partePapelSort));
+    setForms((f) => ({ ...f, [novoPapel]: {} }));
+    setActivePapel(novoPapel);
+  };
+
+  const removePapel = async (papel: string) => {
+    const existing = parties[papel];
+    if (existing?.id) {
+      const { error } = await supabase.from("sale_parties").delete().eq("id", existing.id);
+      if (error) { toast.error(error.message); return; }
+    }
+    const idx = papeis.indexOf(papel);
+    setPapeis((prev) => prev.filter((p) => p !== papel));
+    setForms((f) => { const n = { ...f }; delete n[papel]; return n; });
+    setDirty((d) => { const n = { ...d }; delete n[papel]; return n; });
+    if (activePapel === papel) setActivePapel(papeis[idx - 1] ?? papeis[idx + 1] ?? papeis[0]);
+    toast.success("Removido");
+    onSaved();
   };
 
   const saveAll = useCallback(async (): Promise<boolean> => {
@@ -1984,12 +2027,10 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
     setDirty({});
     onSaved();
     return true;
-  }, [dirty, forms, parties, saleId, onSaved]);
+  }, [dirty, forms, papeis, parties, saleId, onSaved]);
 
   useEffect(() => { registerSaver(saveAll); return () => registerSaver(null); }, [saveAll, registerSaver]);
 
-  const labels: Record<string, string> = { vendedor_1: "Vendedor 01", vendedor_2: "Vendedor 02", comprador_1: "Comprador 01", comprador_2: "Comprador 02" };
-  const [activePapel, setActivePapel] = useState(papeis[0]);
   return (
     <div className="space-y-4">
       {editable && anyDirty && (
@@ -1999,12 +2040,19 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
         </div>
       )}
       <Wizard
-        steps={papeis.map((p, i) => ({
+        steps={papeis.map((p, i) => {
+          const numero = Number(p.split("_")[1]);
+          return {
           key: p,
-          label: labels[p],
+          label: parteLabel(p),
           content: (
         <Card>
-          <CardHeader><CardTitle className="text-base">{labels[p]}</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">{parteLabel(p)}</CardTitle>
+            {editable && numero > 1 && (
+              <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => removePapel(p)}>Remover</Button>
+            )}
+          </CardHeader>
           <CardContent>
             <FieldGrid>
               <Field label="Nome"><Input value={forms[p].nome ?? ""} onChange={(e) => update(p, "nome", e.target.value)} disabled={!editable} /></Field>
@@ -2016,8 +2064,16 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
-          {(i > 0 || i < papeis.length - 1) && (
-            <CardContent className="flex items-center justify-end gap-2 pt-0">
+          <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-0">
+            <div className="flex gap-2">
+              {editable && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => addPapel("comprador")}>+ Adicionar comprador</Button>
+                  <Button size="sm" variant="outline" onClick={() => addPapel("vendedor")}>+ Adicionar vendedor</Button>
+                </>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
               {i > 0 && (
                 <Button size="sm" variant="ghost" onClick={() => setActivePapel(papeis[i - 1])}>
                   <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
@@ -2028,11 +2084,11 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
                   Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
                 </Button>
               )}
-            </CardContent>
-          )}
+            </div>
+          </CardContent>
         </Card>
           ),
-        }))}
+        };})}
         current={activePapel}
         onChange={setActivePapel}
         hideNav
@@ -2184,8 +2240,6 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
 // Tipos de documento que costumam ser o mesmo arquivo para o casal (certidão de casamento conjunta,
 // comprovante de endereço compartilhado) — só esses ganham a opção "Mesmo do 1º" no 2º comprador/vendedor.
 const REUSABLE_DOC_TYPES = new Set(["certidao", "comprovante_endereco"]);
-const PARTE_BASE: Partial<Record<DocParte, DocParte>> = { comprador_2: "comprador_1", vendedor_2: "vendedor_1" };
-const PARTE_BASE_LABEL: Partial<Record<DocParte, string>> = { comprador_2: "Comprador 1", vendedor_2: "Vendedor 1" };
 
 function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, onChange }: { saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; onChange: () => void }) {
   const { user } = useAuth();
@@ -2323,18 +2377,18 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
   // Certidão de casamento e comprovante de endereço costumam ser o mesmo documento para o casal —
   // em vez de reenviar, o 2º comprador/vendedor reaproveita o arquivo já enviado pelo 1º.
   const copyFromBase = async (tipo: string, parte: DocParte) => {
-    const baseParte = PARTE_BASE[parte];
+    const baseParte = parteBase(parte);
     if (!baseParte) return;
     const baseDocs = docs.filter(d => d.tipo === tipo && (d.parte ?? "outros") === baseParte && d.status !== "recusado");
     const baseDoc = baseDocs[baseDocs.length - 1];
-    if (!baseDoc) { toast.error(`Envie primeiro o documento de ${PARTE_BASE_LABEL[parte]}`); return; }
+    if (!baseDoc) { toast.error(`Envie primeiro o documento de ${parteLabel(baseParte)}`); return; }
     const { error } = await supabase.from("sale_documents").insert({
       sale_id: saleId, tipo, parte, storage_path: baseDoc.storage_path, file_name: baseDoc.file_name,
       uploaded_by: user!.id, status: baseDoc.status, extraction_status: "done",
     } as any);
     if (error) { toast.error(error.message); return; }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_reused_from_other_party", payload: { tipo, parte, de: baseParte } });
-    toast.success(`Documento reaproveitado de ${PARTE_BASE_LABEL[parte]}`);
+    toast.success(`Documento reaproveitado de ${parteLabel(baseParte)}`);
     onChange();
   };
 
@@ -2428,25 +2482,31 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
 
   const anyPending = Object.values(extracting).some(Boolean);
 
-  // Blocos por parte da venda. Compradores/vendedores extras aparecem sob demanda
-  // (a IA usa a parte declarada em cada upload para rotear os dados extraídos).
-  const [showComprador2, setShowComprador2] = useState<boolean>(
-    docs.some(d => d.parte === "comprador_2")
-  );
-  const [showVendedor2, setShowVendedor2] = useState<boolean>(
-    docs.some(d => d.parte === "vendedor_2")
-  );
+  // Blocos por parte da venda. Compradores/vendedores extras (3º, 4º, ...) aparecem sob demanda,
+  // em número livre — a IA usa a parte declarada em cada upload para rotear os dados extraídos.
+  const numerosExtras = (tipo: "comprador" | "vendedor") => {
+    const re = new RegExp(`^${tipo}_(\\d+)$`);
+    const nums = docs.map(d => d.parte?.match(re)?.[1]).filter(Boolean).map(Number);
+    return Array.from(new Set(nums)).filter(n => n > 1).sort((a, b) => a - b);
+  };
+  const [compradorExtras, setCompradorExtras] = useState<number[]>(() => numerosExtras("comprador"));
+  const [vendedorExtras, setVendedorExtras] = useState<number[]>(() => numerosExtras("vendedor"));
   useEffect(() => {
-    if (docs.some(d => d.parte === "comprador_2")) setShowComprador2(true);
-    if (docs.some(d => d.parte === "vendedor_2")) setShowVendedor2(true);
+    setCompradorExtras(prev => Array.from(new Set([...prev, ...numerosExtras("comprador")])).sort((a, b) => a - b));
+    setVendedorExtras(prev => Array.from(new Set([...prev, ...numerosExtras("vendedor")])).sort((a, b) => a - b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs]);
+  const addParte = (tipo: "comprador" | "vendedor") => {
+    const setFn = tipo === "comprador" ? setCompradorExtras : setVendedorExtras;
+    setFn(prev => [...prev, (prev.length ? Math.max(...prev) : 1) + 1]);
+  };
 
   const pessoalTipos = DOC_TYPES.filter(t => t.grupo === "pessoal");
   const blocos: { parte: DocParte; tipos: typeof DOC_TYPES }[] = [
     { parte: "comprador_1", tipos: pessoalTipos },
-    ...(showComprador2 ? [{ parte: "comprador_2" as DocParte, tipos: pessoalTipos }] : []),
+    ...compradorExtras.map(n => ({ parte: `comprador_${n}` as DocParte, tipos: pessoalTipos })),
     { parte: "vendedor_1", tipos: pessoalTipos },
-    ...(showVendedor2 ? [{ parte: "vendedor_2" as DocParte, tipos: pessoalTipos }] : []),
+    ...vendedorExtras.map(n => ({ parte: `vendedor_${n}` as DocParte, tipos: pessoalTipos })),
     { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
     // Bloco de certidões do jurídico só aparece depois que a venda chega nessa etapa —
@@ -2562,24 +2622,27 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
 
       <Wizard
         steps={enabledBlocos.map(({ parte, tipos }) => {
+        const parteNumero = Number(parte.split("_")[1]);
         const parteAccent =
-          parte === "comprador_1" || parte === "comprador_2" ? "border-l-4 border-l-blue-500" :
-          parte === "vendedor_1" || parte === "vendedor_2" ? "border-l-4 border-l-amber-500" :
+          parte.startsWith("comprador_") ? "border-l-4 border-l-blue-500" :
+          parte.startsWith("vendedor_") ? "border-l-4 border-l-amber-500" :
           parte === "imovel" ? "border-l-4 border-l-emerald-500" : "";
         return {
           key: parte,
-          label: DOC_PARTE_LABEL[parte],
+          label: parteLabel(parte),
           content: (
           <section className="space-y-3">
-            {editable && (parte === "comprador_2" || parte === "vendedor_2") && (
+            {editable && parteNumero > 1 && (
               <div className="flex justify-end">
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => (parte === "comprador_2" ? setShowComprador2(false) : setShowVendedor2(false))}
+                  onClick={() => (parte.startsWith("comprador_")
+                    ? setCompradorExtras(prev => prev.filter(n => n !== parteNumero))
+                    : setVendedorExtras(prev => prev.filter(n => n !== parteNumero)))}
                   disabled={docs.some(d => d.parte === parte)}
                 >
-                  Remover {parte === "comprador_2" ? "2º comprador" : "2º vendedor"}
+                  Remover {parteLabel(parte)}
                 </Button>
               </div>
             )}
@@ -2604,9 +2667,9 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
                       </div>
                       <div className="flex items-center gap-2">
                         {latest && <DocStatusBadge status={latest.status} />}
-                        {editable && list.length === 0 && PARTE_BASE[parte] && REUSABLE_DOC_TYPES.has(t.key) && (
+                        {editable && list.length === 0 && parteBase(parte) && REUSABLE_DOC_TYPES.has(t.key) && (
                           <Button size="sm" variant="ghost" onClick={() => copyFromBase(t.key, parte)}>
-                            Mesmo do {PARTE_BASE_LABEL[parte]}
+                            Mesmo do {parteLabel(parteBase(parte)!)}
                           </Button>
                         )}
                         {podeEnviarAqui && (
@@ -2725,12 +2788,12 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
               </>
             )}
             <div className="flex items-center justify-between gap-2">
-              <div>
-                {editable && parte === "comprador_1" && !showComprador2 && (
-                  <Button size="sm" variant="outline" onClick={() => setShowComprador2(true)}>+ Adicionar 2º comprador</Button>
+              <div className="flex gap-2">
+                {editable && parte.startsWith("comprador_") && (
+                  <Button size="sm" variant="outline" onClick={() => addParte("comprador")}>+ Adicionar comprador</Button>
                 )}
-                {editable && parte === "vendedor_1" && !showVendedor2 && (
-                  <Button size="sm" variant="outline" onClick={() => setShowVendedor2(true)}>+ Adicionar 2º vendedor</Button>
+                {editable && parte.startsWith("vendedor_") && (
+                  <Button size="sm" variant="outline" onClick={() => addParte("vendedor")}>+ Adicionar vendedor</Button>
                 )}
               </div>
               <div className="ml-auto flex items-center gap-2">
