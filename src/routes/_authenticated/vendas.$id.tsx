@@ -1262,7 +1262,7 @@ function SaleDetail() {
               <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
             </ReviewGroup>
 
-            <ReviewGroup title="Dados bancários do vendedor">
+            <ReviewGroup title="Dados bancários do vendedor/proprietário">
               <ReviewItem label="Titular" value={bank?.titular} />
               <ReviewItem label="Banco" value={bank?.banco} />
               <ReviewItem label="Agência" value={bank?.agencia} />
@@ -1781,7 +1781,7 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
 
       {vendedores.map((v: any, i: number) => (
         <FormTable key={v.id ?? i}>
-          <FormValueRow cols={[<span><b>Nome do vendedor:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
+          <FormValueRow cols={[<span><b>Nome do vendedor/proprietário:</b> {v.nome}</span>, <span><b>E-mail:</b> {v.email}</span>]} />
           <FormValueRow cols={[<span><b>CPF/CNPJ:</b> {v.cpf_cnpj}</span>, <span><b>RG:</b> {v.rg}</span>, <span><b>Celular:</b> {v.telefone}</span>]} />
           <FormValueRow cols={[<span><b>Endereço:</b> {v.endereco}</span>]} />
         </FormTable>
@@ -2279,7 +2279,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               {editable && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => addPapel("comprador")}>+ Adicionar comprador</Button>
-                  <Button size="sm" variant="outline" onClick={() => addPapel("vendedor")}>+ Adicionar vendedor</Button>
+                  <Button size="sm" variant="outline" onClick={() => addPapel("vendedor")}>+ Adicionar vendedor/proprietário</Button>
                 </>
               )}
             </div>
@@ -2330,9 +2330,9 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
   // evita digitar o nome de novo.
   const pullTitular = () => {
     const nome = parties?.vendedor_1?.nome;
-    if (!nome) { toast.error("Preencha o nome do vendedor na etapa Partes primeiro"); return; }
+    if (!nome) { toast.error("Preencha o nome do vendedor/proprietário na etapa Partes primeiro"); return; }
     updB("titular", nome);
-    toast.success("Nome do vendedor aplicado ao titular");
+    toast.success("Nome do vendedor/proprietário aplicado ao titular");
   };
 
   const save = useCallback(async (): Promise<boolean> => {
@@ -2436,12 +2436,12 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
           },
           {
             key: "banco",
-            label: "Dados bancários do vendedor",
+            label: "Dados bancários do vendedor/proprietário",
             content: (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Dados bancários do vendedor</CardTitle>
-          {editable && <Button size="sm" variant="outline" onClick={pullTitular}>Puxar nome do vendedor</Button>}
+          <CardTitle className="text-base">Dados bancários do vendedor/proprietário</CardTitle>
+          {editable && <Button size="sm" variant="outline" onClick={pullTitular}>Puxar nome do vendedor/proprietário</Button>}
         </CardHeader>
         <CardContent>
           <FieldGrid>
@@ -3053,7 +3053,7 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
                   <Button size="sm" variant="outline" onClick={() => addParte("comprador")}>+ Adicionar comprador</Button>
                 )}
                 {editable && parte.startsWith("vendedor_") && (
-                  <Button size="sm" variant="outline" onClick={() => addParte("vendedor")}>+ Adicionar vendedor</Button>
+                  <Button size="sm" variant="outline" onClick={() => addParte("vendedor")}>+ Adicionar vendedor/proprietário</Button>
                 )}
               </div>
               <div className="ml-auto flex items-center gap-2">
@@ -3396,7 +3396,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       financiamento_banco: payment?.financiamento_banco ?? null,
       financiamento_correspondente: payment?.financiamento_correspondente ?? null,
       financiamento_previsao: payment?.financiamento_previsao ?? null,
-      observacoes: [vendedor?.nome && `Vendedor: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
+      observacoes: [vendedor?.nome && `Vendedor/Proprietário: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
       status: "pendente",
     }).select("*").single();
     if (error) { toast.error(error.message); return; }

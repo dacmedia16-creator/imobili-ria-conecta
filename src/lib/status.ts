@@ -106,7 +106,7 @@ const PARTE_FIXA_LABEL: Record<"imovel" | "outros" | "juridico", string> = {
 export function parteLabel(parte: string): string {
   const m = parte.match(/^(comprador|vendedor)_(\d+)$/);
   if (m) {
-    const tipo = m[1] === "comprador" ? "Cliente Comprador" : "Cliente Vendedor";
+    const tipo = m[1] === "comprador" ? "Cliente Comprador" : "Cliente Vendedor/Proprietário";
     return `${tipo} ${m[2]}`;
   }
   return (PARTE_FIXA_LABEL as Record<string, string>)[parte] ?? parte;
@@ -235,7 +235,7 @@ export function validarProntaParaRevisao(
 
   // Partes
   const vendedor = parties?.vendedor_1;
-  if (!vendedor?.nome || !vendedor?.cpf_cnpj) pend.push({ campo: "vendedor", mensagem: "Falta preencher pelo menos um vendedor (nome + CPF)" });
+  if (!vendedor?.nome || !vendedor?.cpf_cnpj) pend.push({ campo: "vendedor", mensagem: "Falta preencher pelo menos um vendedor/proprietário (nome + CPF)" });
   const comprador = parties?.comprador_1;
   if (!comprador?.nome || !comprador?.cpf_cnpj) pend.push({ campo: "comprador", mensagem: "Falta preencher pelo menos um comprador (nome + CPF)" });
 
