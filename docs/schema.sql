@@ -378,6 +378,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
   valor_comissao_indicador numeric(14,2),
   percentual_comissao_indicador numeric(6,3),
   indicador_lado text,
+  tempo_venda text,
+  midia text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT sales_pkey PRIMARY KEY (id),
