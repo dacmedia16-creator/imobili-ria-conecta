@@ -180,6 +180,30 @@ AS $function$
 $function$
 ;
 
+-- Restringe edição por status/papel além da visibilidade de can_view_sale — ex.: corretor só
+-- edita a própria venda em rascunho/devolvida_ajuste/contrato_conferencia_corretor (etapas que
+-- são "a vez dele"), gestor só nos status em que é a vez do gestor, etc.
+CREATE OR REPLACE FUNCTION public.can_edit_sale_stage(_user uuid, _sale_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.sales s
+    where s.id = _sale_id
+    and (
+      public.has_any_role(_user, array['financeiro','admin','super_admin']::public.app_role[])
+      or (s.corretor_id = _user and s.status::text = any(array['rascunho','devolvida_ajuste','contrato_conferencia_corretor']))
+      or (public.has_role(_user,'gestor') and s.status::text = any(array[
+            'enviada_revisao','contrato_conferencia_gestor','contrato_ok_corretor',
+            'aguardando_assinatura','contrato_assinado','ocorrencia_pendente','ocorrencia_devolvida_gestor']))
+      or (public.has_role(_user,'juridico') and s.status::text = any(array['aprovada_gestor','em_elaboracao_contrato']))
+    )
+  );
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.is_sale_locked(_sale_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -400,7 +424,10 @@ CREATE POLICY sales_insert_corretor ON public.sales AS PERMISSIVE FOR INSERT TO 
 DROP POLICY IF EXISTS sales_select ON public.sales;
 CREATE POLICY sales_select ON public.sales AS PERMISSIVE FOR SELECT TO authenticated USING (((corretor_id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id)) OR (has_role(auth.uid(), 'juridico'::app_role) AND ((status)::text = ANY (ARRAY['aprovada_gestor'::text, 'enviada_juridico'::text, 'em_elaboracao_contrato'::text, 'contrato_conferencia_gestor'::text, 'contrato_conferencia_corretor'::text, 'contrato_ok_corretor'::text, 'aguardando_assinatura'::text, 'contrato_assinado'::text, 'ocorrencia_pendente'::text, 'ocorrencia_analise_financeiro'::text, 'ocorrencia_devolvida_gestor'::text, 'ocorrencia_concluida'::text])))));
 DROP POLICY IF EXISTS sales_update_owner_draft ON public.sales;
-CREATE POLICY sales_update_owner_draft ON public.sales AS PERMISSIVE FOR UPDATE TO  USING ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])))) WITH CHECK ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]))));
+-- WITH CHECK também exige can_edit_sale_stage(auth.uid(), id) — trava por status/papel além da
+-- visibilidade de can_view_sale (ex.: corretor só edita em rascunho/devolvida_ajuste/
+-- contrato_conferencia_corretor, gestor só nos status onde é a vez dele, etc.).
+CREATE POLICY sales_update_owner_draft ON public.sales AS PERMISSIVE FOR UPDATE TO  USING ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])))) WITH CHECK ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])) AND can_edit_sale_stage(auth.uid(), id)));
 DROP TRIGGER IF EXISTS trg_sales_updated ON public.sales;
 CREATE TRIGGER trg_sales_updated BEFORE UPDATE ON public.sales FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_validate_sale_status ON public.sales;
