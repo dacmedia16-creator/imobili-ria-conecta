@@ -93,7 +93,7 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">Olá, {user?.email?.split("@")[0]}</h1>
           <p className="text-sm text-muted-foreground">Perfis: {roles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</p>
         </div>
-        {hasAny(["corretor"]) && (
+        {hasAny(["corretor", "gestor"]) && (
           <Button asChild>
             <Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link>
           </Button>
