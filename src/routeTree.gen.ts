@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
+import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
@@ -57,6 +58,11 @@ const AuthenticatedNotificacoesRoute =
     path: '/notificacoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
+  id: '/equipe',
+  path: '/equipe',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/trocar-senha'
     | '/dashboard'
+    | '/equipe'
     | '/notificacoes'
     | '/perfil'
     | '/relatorios'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/trocar-senha'
     | '/dashboard'
+    | '/equipe'
     | '/notificacoes'
     | '/perfil'
     | '/relatorios'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/trocar-senha'
     | '/_authenticated/dashboard'
+    | '/_authenticated/equipe'
     | '/_authenticated/notificacoes'
     | '/_authenticated/perfil'
     | '/_authenticated/relatorios'
@@ -227,6 +239,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotificacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/equipe': {
+      id: '/_authenticated/equipe'
+      path: '/equipe'
+      fullPath: '/equipe'
+      preLoaderRoute: typeof AuthenticatedEquipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -267,6 +286,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -278,6 +298,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,

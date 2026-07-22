@@ -875,25 +875,71 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          lider_id: string
           membro_id: string
+          team_id: string
           tipo: string
         }
         Insert: {
           created_at?: string
           id?: string
-          lider_id: string
           membro_id: string
+          team_id: string
           tipo?: string
         }
         Update: {
           created_at?: string
           id?: string
-          lider_id?: string
           membro_id?: string
+          team_id?: string
           tipo?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          cor: string
+          created_at: string
+          id: string
+          lider_id: string
+          nome: string
+          parent_team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          id?: string
+          lider_id: string
+          nome?: string
+          parent_team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          id?: string
+          lider_id?: string
+          nome?: string
+          parent_team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_parent_team_id_fkey"
+            columns: ["parent_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

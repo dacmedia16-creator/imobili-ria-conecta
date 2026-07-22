@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,13 +55,26 @@ function AdminUsers() {
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo");
     const { data: r } = await supabase.from("user_roles").select("user_id, role");
-    const { data: t } = await supabase.from("team_members").select("membro_id, lider_id");
+    const { data: teams } = await supabase.from("teams").select("id, lider_id, parent_team_id");
+    const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
     setUsers(profs ?? []);
     const map: Record<string, AppRole[]> = {};
     (r ?? []).forEach((x: any) => { (map[x.user_id] ??= []).push(x.role); });
     setRolesByUser(map);
+
+    // Líderes de cada membro = líder da equipe/sub-equipe + líder da equipe-mãe (1 nível),
+    // igual à hierarquia usada em is_lead_of() — só pra filtrar quem o gestor pode ver aqui.
+    const teamById: Record<string, any> = {};
+    (teams ?? []).forEach((tm: any) => { teamById[tm.id] = tm; });
     const tmap: Record<string, string[]> = {};
-    (t ?? []).forEach((x: any) => { (tmap[x.membro_id] ??= []).push(x.lider_id); });
+    (t ?? []).forEach((x: any) => {
+      const team = teamById[x.team_id];
+      if (!team) return;
+      const lideres = [team.lider_id];
+      const parent = team.parent_team_id ? teamById[team.parent_team_id] : null;
+      if (parent?.lider_id) lideres.push(parent.lider_id);
+      (tmap[x.membro_id] ??= []).push(...lideres);
+    });
     setTeamLeads(tmap);
   };
   useEffect(() => { load(); }, []);
@@ -92,19 +105,6 @@ function AdminUsers() {
     if (error) toast.error(error.message);
     else { toast.success(ativo ? "Usuário desativado" : "Usuário ativado"); load(); }
   };
-
-  const setLead = async (membroId: string, liderId: string) => {
-    if (!liderId) return;
-    const { error } = await supabase.from("team_members").insert({ membro_id: membroId, lider_id: liderId });
-    if (error) toast.error(error.message); else load();
-  };
-
-  const removeLead = async (membroId: string, liderId: string) => {
-    await supabase.from("team_members").delete().eq("membro_id", membroId).eq("lider_id", liderId);
-    load();
-  };
-
-  const leads = users.filter(u => (rolesByUser[u.id] ?? []).some(r => r === "gestor"));
 
   // Filtra usuários visíveis: gestor sem admin vê só a própria equipe + a si mesmo.
   const visibleUsers = isAdminLike
@@ -189,25 +189,13 @@ function AdminUsers() {
                       })}
                     </div>
                     <div className="mt-3 space-y-1">
-                      <div className="text-xs text-muted-foreground">Líderes deste usuário (gestor):</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {(teamLeads[u.id] ?? []).map((lid) => {
-                          const lu = users.find(x => x.id === lid);
-                          return (
-                            <span key={lid} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
-                              {lu?.nome || lu?.email || lid}
-                              <button onClick={() => removeLead(u.id, lid)} className="ml-1 text-muted-foreground hover:text-foreground">×</button>
-                            </span>
-                          );
-                        })}
-                        <Select onValueChange={(v) => setLead(u.id, v)}>
-                          <SelectTrigger className="h-7 w-56 text-xs"><SelectValue placeholder="Adicionar líder..." /></SelectTrigger>
-                          <SelectContent>
-                            {leads.filter(l => l.id !== u.id && !(teamLeads[u.id] ?? []).includes(l.id)).map((l) => (
-                              <SelectItem key={l.id} value={l.id}>{l.nome || l.email}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="text-xs text-muted-foreground">
+                        Líderes deste usuário:{" "}
+                        {(teamLeads[u.id] ?? []).length === 0
+                          ? "nenhum"
+                          : (teamLeads[u.id] ?? []).map((lid) => users.find(x => x.id === lid)?.nome || users.find(x => x.id === lid)?.email || lid).join(", ")}
+                        {" — "}
+                        <Link to="/equipe" className="text-primary hover:underline">gerenciar em Equipes →</Link>
                       </div>
                     </div>
                   </>

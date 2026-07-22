@@ -91,8 +91,46 @@ CREATE OR REPLACE FUNCTION public.is_lead_of(_lider uuid, _membro uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  SELECT EXISTS (SELECT 1 FROM public.team_members WHERE lider_id = _lider AND membro_id = _membro)
+  SELECT EXISTS (
+    SELECT 1 FROM public.team_members tm
+    JOIN public.teams t ON t.id = tm.team_id
+    LEFT JOIN public.teams pt ON pt.id = t.parent_team_id
+    WHERE tm.membro_id = _membro AND (t.lider_id = _lider OR pt.lider_id = _lider)
+  )
 $function$
+;
+
+CREATE OR REPLACE FUNCTION public.enforce_team_leader_role()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NOT public.has_role(NEW.lider_id, 'gestor') THEN
+    RAISE EXCEPTION 'O líder de uma equipe precisa ter o papel gestor.' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END; $function$
+;
+
+CREATE OR REPLACE FUNCTION public.enforce_team_depth()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NEW.parent_team_id IS NOT NULL THEN
+    IF NEW.parent_team_id = NEW.id THEN
+      RAISE EXCEPTION 'Uma equipe não pode ser sub-equipe dela mesma.' USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.teams t WHERE t.id = NEW.parent_team_id AND t.parent_team_id IS NOT NULL) THEN
+      RAISE EXCEPTION 'Só é permitido 1 nível de sub-equipes.' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END; $function$
 ;
 
 CREATE OR REPLACE FUNCTION public.is_sale_locked(_sale_id uuid)
@@ -253,7 +291,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS profiles_self_insert ON public.profiles;
 CREATE POLICY profiles_self_insert ON public.profiles AS PERMISSIVE FOR INSERT TO  WITH CHECK (((id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role])));
 DROP POLICY IF EXISTS profiles_self_select ON public.profiles;
-CREATE POLICY profiles_self_select ON public.profiles AS PERMISSIVE FOR SELECT TO  USING (((id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['gestor'::app_role, 'juridico'::app_role, 'financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])));
+CREATE POLICY profiles_self_select ON public.profiles AS PERMISSIVE FOR SELECT TO  USING (((id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['gestor'::app_role, 'juridico'::app_role, 'financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (EXISTS ( SELECT 1 FROM team_members tm JOIN teams t ON t.id = tm.team_id LEFT JOIN teams pt ON pt.id = t.parent_team_id WHERE tm.membro_id = auth.uid() AND (t.lider_id = profiles.id OR pt.lider_id = profiles.id)))));
 DROP POLICY IF EXISTS profiles_self_update ON public.profiles;
 CREATE POLICY profiles_self_update ON public.profiles AS PERMISSIVE FOR UPDATE TO authenticated USING (((id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))) WITH CHECK (((id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role)));
 DROP TRIGGER IF EXISTS trg_profiles_updated ON public.profiles;
@@ -319,23 +357,50 @@ CREATE TRIGGER trg_sales_updated BEFORE UPDATE ON public.sales FOR EACH ROW EXEC
 DROP TRIGGER IF EXISTS trg_validate_sale_status ON public.sales;
 CREATE TRIGGER trg_validate_sale_status BEFORE UPDATE ON public.sales FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status) EXECUTE FUNCTION validate_sale_status_transition();
 
+-- ===== TABELA: teams =====
+CREATE TABLE IF NOT EXISTS public.teams (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  lider_id uuid NOT NULL,
+  nome text NOT NULL DEFAULT ''::text,
+  cor text NOT NULL DEFAULT '#6366f1'::text,
+  parent_team_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT teams_pkey PRIMARY KEY (id),
+  CONSTRAINT teams_lider_id_fkey FOREIGN KEY (lider_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT teams_parent_team_id_fkey FOREIGN KEY (parent_team_id) REFERENCES public.teams(id) ON DELETE CASCADE
+);
+ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
+DROP TRIGGER IF EXISTS trg_teams_leader_role ON public.teams;
+CREATE TRIGGER trg_teams_leader_role BEFORE INSERT OR UPDATE OF lider_id ON public.teams FOR EACH ROW EXECUTE FUNCTION enforce_team_leader_role();
+DROP TRIGGER IF EXISTS trg_teams_depth ON public.teams;
+CREATE TRIGGER trg_teams_depth BEFORE INSERT OR UPDATE OF parent_team_id ON public.teams FOR EACH ROW EXECUTE FUNCTION enforce_team_depth();
+DROP POLICY IF EXISTS teams_select ON public.teams;
+-- Qualquer gestor/admin/super_admin gerencia qualquer equipe (só 2 gestores hoje — silo por
+-- equipe própria seria over-engineering); corretor só lê a equipe onde está.
+CREATE POLICY teams_select ON public.teams AS PERMISSIVE FOR SELECT TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = teams.parent_team_id) AND (pt.lider_id = auth.uid())))) OR (EXISTS ( SELECT 1 FROM teams ct WHERE ((ct.parent_team_id = teams.id) AND (ct.lider_id = auth.uid())))) OR (EXISTS ( SELECT 1 FROM team_members tm WHERE ((tm.team_id = teams.id) AND (tm.membro_id = auth.uid()))))));
+DROP POLICY IF EXISTS teams_write ON public.teams;
+CREATE POLICY teams_write ON public.teams AS PERMISSIVE FOR ALL TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = teams.parent_team_id) AND (pt.lider_id = auth.uid())))))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = teams.parent_team_id) AND (pt.lider_id = auth.uid()))))));
+DROP TRIGGER IF EXISTS trg_teams_updated ON public.teams;
+CREATE TRIGGER trg_teams_updated BEFORE UPDATE ON public.teams FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 -- ===== TABELA: team_members =====
 CREATE TABLE IF NOT EXISTS public.team_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   membro_id uuid NOT NULL,
-  lider_id uuid NOT NULL,
+  team_id uuid NOT NULL,
   tipo text NOT NULL DEFAULT 'coordenador'::text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT team_members_membro_id_lider_id_key UNIQUE (membro_id, lider_id),
+  CONSTRAINT team_members_membro_id_key UNIQUE (membro_id),
   CONSTRAINT team_members_pkey PRIMARY KEY (id),
-  CONSTRAINT team_members_lider_id_fkey FOREIGN KEY (lider_id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT team_members_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE CASCADE,
   CONSTRAINT team_members_membro_id_fkey FOREIGN KEY (membro_id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS team_admin_write ON public.team_members;
-CREATE POLICY team_admin_write ON public.team_members AS PERMISSIVE FOR ALL TO  USING (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role])) WITH CHECK (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]));
-DROP POLICY IF EXISTS team_view ON public.team_members;
-CREATE POLICY team_view ON public.team_members AS PERMISSIVE FOR SELECT TO authenticated USING (((membro_id = auth.uid()) OR (lider_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role)));
+DROP POLICY IF EXISTS team_members_select ON public.team_members;
+CREATE POLICY team_members_select ON public.team_members AS PERMISSIVE FOR SELECT TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (membro_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM teams t WHERE ((t.id = team_members.team_id) AND (t.lider_id = auth.uid() OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = t.parent_team_id) AND (pt.lider_id = auth.uid())))) OR (EXISTS ( SELECT 1 FROM teams ct WHERE ((ct.parent_team_id = t.id) AND (ct.lider_id = auth.uid()))))))))));
+DROP POLICY IF EXISTS team_members_write ON public.team_members;
+CREATE POLICY team_members_write ON public.team_members AS PERMISSIVE FOR ALL TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (EXISTS ( SELECT 1 FROM teams t WHERE ((t.id = team_members.team_id) AND (t.lider_id = auth.uid() OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = t.parent_team_id) AND (pt.lider_id = auth.uid())))))))))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (EXISTS ( SELECT 1 FROM teams t WHERE ((t.id = team_members.team_id) AND (t.lider_id = auth.uid() OR (EXISTS ( SELECT 1 FROM teams pt WHERE ((pt.id = t.parent_team_id) AND (pt.lider_id = auth.uid()))))))))));
 
 -- ===== TABELA: user_roles =====
 CREATE TABLE IF NOT EXISTS public.user_roles (

@@ -62,9 +62,30 @@ export const createUser = createServerFn({ method: "POST" })
       if (insErr) throw new Error(insErr.message);
     }
 
-    // Gestor criando corretor: vincula automaticamente à sua equipe.
+    // Gestor criando corretor: vincula automaticamente à equipe principal dele
+    // (a de nível 1 que ele já lidera; cria uma se ainda não existir nenhuma).
     if (callerRoles.includes("gestor") && !callerRoles.includes("admin") && !callerRoles.includes("super_admin") && data.role === "corretor") {
-      await supabaseAdmin.from("team_members").insert({ lider_id: userId, membro_id: newId });
+      const { data: existingTeam } = await supabaseAdmin
+        .from("teams")
+        .select("id")
+        .eq("lider_id", userId)
+        .is("parent_team_id", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      let teamId = existingTeam?.id as string | undefined;
+      if (!teamId) {
+        const { data: callerProfile } = await supabaseAdmin.from("profiles").select("nome").eq("id", userId).maybeSingle();
+        const { data: newTeam, error: teamErr } = await supabaseAdmin
+          .from("teams")
+          .insert({ lider_id: userId, nome: `Equipe de ${callerProfile?.nome ?? "gestor"}` })
+          .select("id")
+          .single();
+        if (teamErr) throw new Error(teamErr.message);
+        teamId = newTeam.id;
+      }
+      await supabaseAdmin.from("team_members").insert({ team_id: teamId, membro_id: newId });
     }
 
     // Garante nome atualizado no profile

@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -40,13 +41,7 @@ function SalesList() {
   useEffect(() => {
     if (!user) return;
     if (!hasAny(["gestor"])) return;
-    (async () => {
-      const { data } = await supabase
-        .from("team_members")
-        .select("membro_id")
-        .eq("lider_id", user.id);
-      setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
-    })();
+    fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user, hasAny]);
 
   useEffect(() => {

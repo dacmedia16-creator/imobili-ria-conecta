@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { fetchLedMemberIds } from "@/lib/team";
 import { useRouter } from "@tanstack/react-router";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -127,23 +128,24 @@ function SaleDetail() {
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("team_members")
-        .select("membro_id")
-        .eq("lider_id", user.id);
-      setTeamIds(new Set((data ?? []).map((r: any) => r.membro_id)));
-    })();
+    fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user]);
 
   const [lideres, setLideres] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
     if (!sale?.corretor_id) return;
     (async () => {
-      const { data: tm } = await supabase.from("team_members").select("lider_id").eq("membro_id", sale.corretor_id);
-      const liderIds = Array.from(new Set((tm ?? []).map((r: any) => r.lider_id)));
-      if (liderIds.length === 0) { setLideres([]); return; }
-      const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", liderIds);
+      const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", sale.corretor_id).maybeSingle();
+      if (!tm) { setLideres([]); return; }
+      const { data: team } = await supabase.from("teams").select("lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
+      if (!team) { setLideres([]); return; }
+      const liderIds = [team.lider_id];
+      if (team.parent_team_id) {
+        const { data: parent } = await supabase.from("teams").select("lider_id").eq("id", team.parent_team_id).maybeSingle();
+        if (parent?.lider_id) liderIds.push(parent.lider_id);
+      }
+      const uniqueIds = Array.from(new Set(liderIds));
+      const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", uniqueIds);
       setLideres((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, [sale?.corretor_id]);

@@ -1,96 +1,47 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldCheck, Plus, X } from "lucide-react";
-import { toast } from "sonner";
-import { listCorretoresDisponiveis, addCorretorToTeam, removeCorretorFromTeam } from "@/lib/team.functions";
+import { ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   head: () => ({ meta: [{ title: "Meu acesso" }] }),
   component: MeuAcesso,
 });
 
+type TeamInfo = {
+  nome: string;
+  parentNome: string | null;
+  lideres: { id: string; nome: string; email: string | null }[];
+};
+
 function MeuAcesso() {
   const { user, roles, hasAny } = useAuth();
-  const [leaders, setLeaders] = useState<any[]>([]);
-  const [members, setMembers] = useState<any[]>([]);
-  const [addOpen, setAddOpen] = useState(false);
-  const [candidatos, setCandidatos] = useState<{ id: string; nome: string; email: string }[]>([]);
-  const [selecionado, setSelecionado] = useState("");
-  const [loadingCandidatos, setLoadingCandidatos] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
 
   const loadTeam = useCallback(async () => {
     if (!user) return;
-    // team_members não tem FK declarada pro profiles no schema, então o embed
-    // "profiles:lider_id(...)" do PostgREST falha silenciosamente (retorna null) —
-    // por isso "Minha equipe" sempre aparecia vazia mesmo com vínculo cadastrado.
-    // Busca em duas etapas e junta no cliente, igual já é feito em admin.usuarios.tsx.
-    const [l, m] = await Promise.all([
-      supabase.from("team_members").select("lider_id").eq("membro_id", user.id),
-      supabase.from("team_members").select("membro_id").eq("lider_id", user.id),
-    ]);
-    const liderIds = Array.from(new Set((l.data ?? []).map((r: any) => r.lider_id)));
-    const membroIds = Array.from(new Set((m.data ?? []).map((r: any) => r.membro_id)));
-    const allIds = Array.from(new Set([...liderIds, ...membroIds]));
-    const { data: profs } = allIds.length
-      ? await supabase.from("profiles").select("id, nome, email").in("id", allIds)
-      : { data: [] as any[] };
-    const profMap: Record<string, any> = {};
-    for (const p of profs ?? []) profMap[p.id] = p;
-    setLeaders(liderIds.map((id) => ({ lider_id: id, profiles: profMap[id] })));
-    setMembers(membroIds.map((id) => ({ membro_id: id, profiles: profMap[id] })));
+    const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", user.id).maybeSingle();
+    if (!tm) { setMyTeam(null); return; }
+    const { data: team } = await supabase.from("teams").select("nome, lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
+    if (!team) { setMyTeam(null); return; }
+
+    const liderIds = [team.lider_id];
+    let parentNome: string | null = null;
+    if (team.parent_team_id) {
+      const { data: parent } = await supabase.from("teams").select("nome, lider_id").eq("id", team.parent_team_id).maybeSingle();
+      if (parent) {
+        parentNome = parent.nome;
+        liderIds.push(parent.lider_id);
+      }
+    }
+    const uniqueIds = Array.from(new Set(liderIds));
+    const { data: profs } = await supabase.from("profiles").select("id, nome, email").in("id", uniqueIds);
+    setMyTeam({ nome: team.nome, parentNome, lideres: profs ?? [] });
   }, [user]);
 
   useEffect(() => { loadTeam(); }, [loadTeam]);
-
-  const openAddDialog = async () => {
-    setSelecionado("");
-    setAddOpen(true);
-    setLoadingCandidatos(true);
-    try {
-      const data = await listCorretoresDisponiveis();
-      setCandidatos(data as any[]);
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao listar corretores");
-    } finally {
-      setLoadingCandidatos(false);
-    }
-  };
-
-  const confirmAdd = async () => {
-    if (!selecionado) return;
-    setAdding(true);
-    try {
-      await addCorretorToTeam({ data: { corretorId: selecionado } });
-      toast.success("Corretor adicionado à equipe");
-      setAddOpen(false);
-      await loadTeam();
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao adicionar corretor");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const removeMember = async (corretorId: string) => {
-    setRemovingId(corretorId);
-    try {
-      await removeCorretorFromTeam({ data: { corretorId } });
-      toast.success("Corretor removido da equipe");
-      await loadTeam();
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao remover corretor");
-    } finally {
-      setRemovingId(null);
-    }
-  };
 
   const explain = (r: AppRole): string => {
     switch (r) {
@@ -134,70 +85,32 @@ function MeuAcesso() {
         </CardContent>
       </Card>
 
-      {hasAny(["corretor","gestor"]) && (
+      {hasAny(["corretor", "gestor"]) && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Minha equipe</CardTitle>
-            {hasAny(["gestor"]) && (
-              <Button size="sm" variant="outline" onClick={openAddDialog}><Plus className="mr-1 h-4 w-4" />Adicionar corretor</Button>
+            {hasAny(["gestor", "admin", "super_admin"]) && (
+              <Link to="/equipe" className="text-xs text-primary hover:underline">Gerenciar equipes →</Link>
             )}
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div>
-              <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Meus líderes (gestores que enxergam minhas vendas)</div>
-              {leaders.length === 0 && <p className="text-muted-foreground">Nenhum líder vinculado.</p>}
-              {leaders.map((l: any) => (
-                <div key={l.lider_id} className="rounded border p-2">{l.profiles?.nome || l.profiles?.email || l.lider_id}</div>
-              ))}
-            </div>
-            {hasAny(["gestor"]) && (
-              <div>
-                <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Corretores da minha equipe (cujas vendas eu enxergo)</div>
-                {members.length === 0 && <p className="text-muted-foreground">Nenhum corretor vinculado ainda — use "Adicionar corretor" acima.</p>}
-                {members.map((m: any) => (
-                  <div key={m.membro_id} className="flex items-center justify-between rounded border p-2">
-                    <span>{m.profiles?.nome || m.profiles?.email || m.membro_id}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      title="Remover da equipe"
-                      disabled={removingId === m.membro_id}
-                      onClick={() => removeMember(m.membro_id)}
-                    >
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
+          <CardContent className="space-y-2 text-sm">
+            {!myTeam ? (
+              <p className="text-muted-foreground">Você ainda não está vinculado a nenhuma equipe.</p>
+            ) : (
+              <>
+                <div>
+                  Equipe: <b>{myTeam.nome}</b>
+                  {myTeam.parentNome && <span className="text-muted-foreground"> (sub-equipe de {myTeam.parentNome})</span>}
+                </div>
+                <div className="mb-1 mt-2 text-xs uppercase tracking-wide text-muted-foreground">Líder(es) — gestores que enxergam suas vendas</div>
+                {myTeam.lideres.map((l) => (
+                  <div key={l.id} className="rounded border p-2">{l.nome || l.email}</div>
                 ))}
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
       )}
-
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adicionar corretor à equipe</DialogTitle>
-            <DialogDescription>Só corretores que ainda não estão na sua equipe aparecem na lista.</DialogDescription>
-          </DialogHeader>
-          {loadingCandidatos ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
-          ) : candidatos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum corretor disponível para adicionar — todos já estão na sua equipe, ou não existe nenhum corretor cadastrado ainda.</p>
-          ) : (
-            <Select value={selecionado} onValueChange={setSelecionado}>
-              <SelectTrigger><SelectValue placeholder="Selecione um corretor" /></SelectTrigger>
-              <SelectContent>
-                {candidatos.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome || c.email}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmAdd} disabled={!selecionado || adding}>{adding ? "Adicionando..." : "Adicionar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
