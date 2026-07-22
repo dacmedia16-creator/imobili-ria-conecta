@@ -426,9 +426,15 @@ DROP POLICY IF EXISTS teams_select ON public.teams;
 -- Gestor só vê/gerencia a própria equipe (+ sub-equipes dela, + a equipe-mãe pra contexto).
 -- Usa sees_team/leads_team_or_parent (SECURITY DEFINER) em vez de EXISTS direto em team_members
 -- pra não recair na recursão de RLS corrigida em 20260721190000_fix_teams_rls_recursion.sql.
-CREATE POLICY teams_select ON public.teams AS PERMISSIVE FOR SELECT TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR sees_team(teams.id, auth.uid())));
+-- lider_id = auth.uid() aparece direto (sem passar por sees_team) pra funcionar mesmo quando a
+-- linha acaba de ser inserida na mesma transação (INSERT ... RETURNING / .insert().select()),
+-- caso em que uma reconsulta da própria tabela por id ainda não enxerga a linha nova.
+CREATE POLICY teams_select ON public.teams AS PERMISSIVE FOR SELECT TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR sees_team(teams.id, auth.uid())));
 DROP POLICY IF EXISTS teams_write ON public.teams;
-CREATE POLICY teams_write ON public.teams AS PERMISSIVE FOR ALL TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR leads_team_or_parent(teams.id, auth.uid()))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR leads_team_or_parent(teams.id, auth.uid())));
+-- WITH CHECK usa lider_id/parent_team_id direto (colunas da própria linha) em vez de
+-- leads_team_or_parent(teams.id, ...) pro mesmo motivo: numa linha nova, id ainda não existe
+-- na tabela pra essa função encontrar via subquery.
+CREATE POLICY teams_write ON public.teams AS PERMISSIVE FOR ALL TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR leads_team_or_parent(teams.id, auth.uid()))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR ((parent_team_id IS NOT NULL) AND leads_team_or_parent(parent_team_id, auth.uid()))));
 DROP TRIGGER IF EXISTS trg_teams_updated ON public.teams;
 CREATE TRIGGER trg_teams_updated BEFORE UPDATE ON public.teams FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
