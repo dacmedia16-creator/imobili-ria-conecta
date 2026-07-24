@@ -18,7 +18,7 @@ import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { fetchLedMemberIds } from "@/lib/team";
@@ -1748,10 +1748,25 @@ function ReviewGroup({ title, children }: { title: string; children: React.React
   );
 }
 function ReviewItem({ label, value }: { label: string; value: React.ReactNode }) {
+  // Só string dá pra copiar (valores em badge/JSX, tipo status de documento, ficam de fora).
+  const copiable = typeof value === "string" && value.trim().length > 0;
+  const copy = async () => {
+    if (!copiable) return;
+    await navigator.clipboard.writeText(value as string);
+    toast.success(`"${label}" copiado`);
+  };
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value ?? <span className="text-muted-foreground">—</span>}</span>
+      <span
+        role={copiable ? "button" : undefined}
+        title={copiable ? "Clique para copiar" : undefined}
+        onClick={copy}
+        className={`text-right font-medium ${copiable ? "cursor-pointer inline-flex items-center gap-1 hover:text-primary" : ""}`}
+      >
+        {value ?? <span className="text-muted-foreground">—</span>}
+        {copiable && <Copy className="h-3 w-3 shrink-0 opacity-50" />}
+      </span>
     </div>
   );
 }
