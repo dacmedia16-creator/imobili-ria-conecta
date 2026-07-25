@@ -198,6 +198,7 @@ export type Database = {
           nome: string | null
           occurrence_id: string
           percentual: number | null
+          pix: string | null
           tipo: string | null
           valor: number | null
         }
@@ -212,6 +213,7 @@ export type Database = {
           nome?: string | null
           occurrence_id: string
           percentual?: number | null
+          pix?: string | null
           tipo?: string | null
           valor?: number | null
         }
@@ -226,6 +228,7 @@ export type Database = {
           nome?: string | null
           occurrence_id?: string
           percentual?: number | null
+          pix?: string | null
           tipo?: string | null
           valor?: number | null
         }
@@ -770,9 +773,13 @@ export type Database = {
           matricula: string | null
           midia: string | null
           negociacao_observacoes: string | null
+          parceria_agencia: string | null
+          parceria_banco: string | null
+          parceria_conta: string | null
           parceria_cpf_cnpj: string | null
           parceria_nome: string | null
           parceria_percentual: number | null
+          parceria_pix: string | null
           parceria_tipo: string | null
           parceria_valor: number | null
           percentual_comissao: number | null
@@ -814,9 +821,13 @@ export type Database = {
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null
+          parceria_agencia?: string | null
+          parceria_banco?: string | null
+          parceria_conta?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
           parceria_percentual?: number | null
+          parceria_pix?: string | null
           parceria_tipo?: string | null
           parceria_valor?: number | null
           percentual_comissao?: number | null
@@ -858,9 +869,13 @@ export type Database = {
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null
+          parceria_agencia?: string | null
+          parceria_banco?: string | null
+          parceria_conta?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
           parceria_percentual?: number | null
+          parceria_pix?: string | null
           parceria_tipo?: string | null
           parceria_valor?: number | null
           percentual_comissao?: number | null

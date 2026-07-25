@@ -206,6 +206,7 @@ function SaleDetail() {
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
+      "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
       "coordenador_id","team_leader_id",
     ];
@@ -422,7 +423,7 @@ function SaleDetail() {
     updResumo({ parceria_valor: v, parceria_percentual: p });
   };
   const applyParceriaTipo = (v: string | null) => {
-    if (!v) { updResumo({ parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null }); return; }
+    if (!v) { updResumo({ parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null, parceria_banco: null, parceria_agencia: null, parceria_conta: null, parceria_pix: null }); return; }
     updResumo({ parceria_tipo: v });
   };
   // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
@@ -925,6 +926,10 @@ function SaleDetail() {
                 <Field label="CPF/CNPJ"><Input value={formSale.parceria_cpf_cnpj ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })} /></Field>
                 <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.parceria_percentual ?? ""} disabled={!editable} onChange={(e) => applyParceriaPercentual(e.target.value)} /></Field>
                 <Field label="Valor da comissão (R$)"><CurrencyInput value={formSale.parceria_valor} disabled={!editable} onChange={applyParceriaValor} /></Field>
+                <Field label="Banco"><Input value={formSale.parceria_banco ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_banco: e.target.value })} /></Field>
+                <Field label="Agência"><Input value={formSale.parceria_agencia ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_agencia: e.target.value })} /></Field>
+                <Field label="Conta"><Input value={formSale.parceria_conta ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_conta: e.target.value })} /></Field>
+                <Field label="PIX"><Input value={formSale.parceria_pix ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_pix: e.target.value })} /></Field>
               </>)}
             </FieldGrid>
           </SaleSection>
@@ -3374,11 +3379,17 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
     valor: sale.parceria_valor ?? null,
   };
   if (row) {
+    // Banco/agência/conta/pix NÃO entram aqui de propósito — uma vez que a ocorrência existe,
+    // esses campos passam a ser do financeiro, e ressincronizar a cada save da Resumo sobrescreveria
+    // o que ele já preencheu.
     if (row.tipo !== data.tipo || row.nome !== data.nome || row.cpf_cnpj !== data.cpf_cnpj || Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) || Number(row.valor ?? 0) !== Number(data.valor ?? 0)) {
       await supabase.from("occurrence_partners").update(data).eq("id", row.id);
     }
   } else {
-    await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, from_sale: true, ...data });
+    await supabase.from("occurrence_partners").insert({
+      occurrence_id: occ.id, from_sale: true, ...data,
+      banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
+    });
   }
 }
 
@@ -3488,6 +3499,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         occurrence_id: data.id, from_sale: true, tipo: sale.parceria_tipo,
         nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
         percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null,
+        banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
       });
     }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
@@ -3617,8 +3629,14 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     const data = { tipo: sale.parceria_tipo, nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null, percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null, from_sale: true };
     setFormPartners((rows) => {
       const idx = rows.findIndex((r) => r.from_sale);
+      // Banco/agência/conta/pix só entram quando a linha ainda nem existia (nada do financeiro
+      // pra preservar) — num pull repetido numa linha já existente, ficam como estão.
       if (idx >= 0) return rows.map((r, i) => i === idx ? { ...r, ...data } : r);
-      return [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, banco: null, agencia: null, conta: null, ...data, _new: true }];
+      return [...rows, {
+        id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id,
+        banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
+        ...data, _new: true,
+      }];
     });
     setDirtyPartners(true);
     toast.success("Parceria da Resumo aplicada — confira e salve.");
@@ -3662,7 +3680,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         const removed = partners.filter(r => !currentIds.has(r.id));
         for (const r of removed) await supabase.from("occurrence_partners").delete().eq("id", r.id);
         for (const r of formPartners) {
-          const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null };
+          const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null, pix: r.pix ?? null };
           const { error } = r._new
             ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
             : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
@@ -3937,6 +3955,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
               <Field label="Banco"><Input value={p.banco ?? ""} onChange={(e) => updPartner(p.id, { banco: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="Agência"><Input value={p.agencia ?? ""} onChange={(e) => updPartner(p.id, { agencia: e.target.value })} disabled={!canWrite} /></Field>
               <Field label="Conta"><Input value={p.conta ?? ""} onChange={(e) => updPartner(p.id, { conta: e.target.value })} disabled={!canWrite} /></Field>
+              <Field label="PIX"><Input value={p.pix ?? ""} onChange={(e) => updPartner(p.id, { pix: e.target.value })} disabled={!canWrite} /></Field>
               {canWrite && (
                 <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delPartner(p.id)}>Remover</Button></div>
               )}
