@@ -587,6 +587,7 @@ export type Database = {
           nome: string | null
           papel: string
           profissao: string | null
+          regime_casamento: string | null
           rg: string | null
           sale_id: string
           telefone: string | null
@@ -600,6 +601,7 @@ export type Database = {
           nome?: string | null
           papel: string
           profissao?: string | null
+          regime_casamento?: string | null
           rg?: string | null
           sale_id: string
           telefone?: string | null
@@ -613,6 +615,7 @@ export type Database = {
           nome?: string | null
           papel?: string
           profissao?: string | null
+          regime_casamento?: string | null
           rg?: string | null
           sale_id?: string
           telefone?: string | null

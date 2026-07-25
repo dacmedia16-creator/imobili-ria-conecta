@@ -177,6 +177,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       const viaMatricula = papel === "vendedor_1" && (parte === "imovel" || parte === "outros");
       // Endereço só vem do comprovante de endereço — é o único documento com esse propósito.
       const endereco = tipo === "comprovante_endereco" ? r.endereco : null;
+      // Regime de casamento só vem da certidão (rg/cpf/cnh não têm esse dado).
+      const regimeCasamento = tipo === "certidao" ? r.regime_casamento : null;
       if (papel) {
         const nome = isIdentidade ? (r.nome ?? r.nome_completo) : (viaMatricula ? r.nome_proprietario : null);
         const rg = isIdentidade ? (r.rg ?? r.numero_rg) : null;
@@ -184,7 +186,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         const prof = isIdentidade ? r.profissao : null;
         const email = isIdentidade ? r.email : null;
         const tel = isIdentidade ? (r.telefone ?? r.celular) : null;
-        if (nome || rg || cpf || prof || email || tel || endereco) {
+        if (nome || rg || cpf || prof || email || tel || endereco || regimeCasamento) {
           const p = (partiesPatch[papel] ??= {});
           assign(p, "nome", nome);
           assign(p, "rg", rg);
@@ -193,6 +195,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           assign(p, "email", email);
           assign(p, "telefone", tel);
           assign(p, "endereco", endereco);
+          assign(p, "regime_casamento", regimeCasamento);
         }
       }
     }
@@ -291,11 +294,13 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "rg": string|null,
   "data_nascimento": string|null,
   "estado_civil": string|null,
+  "regime_casamento": string|null,
   "profissao": string|null,
   "endereco": string|null,
   "email": string|null,
   "telefone": string|null
-}`;
+}
+Se o documento for uma certidão de casamento, "regime_casamento" é o regime de bens declarado nela (ex.: "Comunhão parcial de bens", "Comunhão universal de bens", "Separação total de bens", "Separação obrigatória de bens", "Participação final nos aquestos").`;
   const commonImovel = `\n\nCampos do imóvel possíveis:
 {
   "matricula": string|null,

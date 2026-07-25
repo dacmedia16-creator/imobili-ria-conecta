@@ -1247,6 +1247,7 @@ function SaleDetail() {
                       <ReviewItem label="E-mail" value={p.email} />
                       <ReviewItem label="Telefone" value={p.telefone} />
                       <ReviewItem label="Endereço" value={p.endereco} />
+                      <ReviewItem label="Regime de casamento" value={p.regime_casamento} />
                     </div>
                   );
                 })}
@@ -2246,7 +2247,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
       for (const papel of papeis) {
         if (!dirty[papel]) continue;
         const existing = parties[papel];
-        const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null };
+        const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null, regime_casamento: forms[papel].regime_casamento ?? null };
         const { error } = existing
           ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
           : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
@@ -2289,6 +2290,7 @@ function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirt
               <Field label="E-mail"><Input type="email" value={forms[p].email ?? ""} onChange={(e) => update(p, "email", e.target.value)} disabled={!editable} /></Field>
               <Field label="Telefone"><Input value={forms[p].telefone ?? ""} onChange={(e) => update(p, "telefone", e.target.value)} disabled={!editable} /></Field>
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
+              <Field label="Regime de casamento"><Input value={forms[p].regime_casamento ?? ""} onChange={(e) => update(p, "regime_casamento", e.target.value)} placeholder="Ex.: Comunhão parcial de bens" disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
           <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-0">

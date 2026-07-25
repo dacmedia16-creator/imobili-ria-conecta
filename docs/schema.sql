@@ -663,6 +663,8 @@ CREATE TABLE IF NOT EXISTS public.sale_parties (
   profissao text,
   email text,
   telefone text,
+  endereco text,
+  regime_casamento text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT sale_parties_sale_id_papel_key UNIQUE (sale_id, papel),
   CONSTRAINT sale_parties_pkey PRIMARY KEY (id),
