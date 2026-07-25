@@ -817,3 +817,25 @@ DROP POLICY IF EXISTS sale_comments_insert ON public.sale_comments;
 CREATE POLICY sale_comments_insert ON public.sale_comments AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((can_view_sale(auth.uid(), sale_id) AND (autor_id = auth.uid())));
 DROP POLICY IF EXISTS sale_comments_view ON public.sale_comments;
 CREATE POLICY sale_comments_view ON public.sale_comments AS PERMISSIVE FOR SELECT TO authenticated USING (can_view_sale(auth.uid(), sale_id));
+
+-- ===== TABELA: sale_commission_extras =====
+-- Partes extras da divisão de comissão (Resumo): cada linha tem nome/origem(imobiliária,
+-- captador,vendedor)/papel/% /R$ próprios. papel=corretor_captador/corretor_vendedor serve pra
+-- registrar mais de um captador/vendedor dividindo a mesma fatia (origem deve bater com o papel).
+CREATE TABLE IF NOT EXISTS public.sale_commission_extras (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  sale_id uuid NOT NULL,
+  nome text,
+  origem text NOT NULL DEFAULT 'imobiliaria'::text,
+  papel text,
+  percentual numeric(6,3),
+  valor numeric(14,2),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT sale_commission_extras_pkey PRIMARY KEY (id),
+  CONSTRAINT sale_commission_extras_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+  CONSTRAINT sale_commission_extras_origem_check CHECK (origem IN ('imobiliaria','captador','vendedor')),
+  CONSTRAINT sale_commission_extras_papel_check CHECK (papel IS NULL OR papel IN ('gestor','team_leader','outro','corretor_captador','corretor_vendedor'))
+);
+ALTER TABLE public.sale_commission_extras ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS sale_commission_extras_rw ON public.sale_commission_extras;
+CREATE POLICY sale_commission_extras_rw ON public.sale_commission_extras AS PERMISSIVE FOR ALL TO  USING (can_view_sale(auth.uid(), sale_id)) WITH CHECK ((can_view_sale(auth.uid(), sale_id) AND ((NOT is_sale_locked(sale_id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]))));

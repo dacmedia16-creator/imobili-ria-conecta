@@ -457,6 +457,16 @@ function SaleDetail() {
     setFormExtras(rows => [...rows, { id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "", papel: null, origem: "imobiliaria", percentual: null, valor: null, _new: true }]);
     setDirtyExtras(true);
   };
+  // Atalho pra "mais um captador/vendedor": mesma linha de sale_commission_extras, só pré-preenchida
+  // com o papel e a origem certos — assim entra no mesmo cálculo/sincronização das partes extras.
+  const addCoCorretor = (role: "captador" | "vendedor") => {
+    setFormExtras(rows => [...rows, {
+      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
+      papel: role === "captador" ? "corretor_captador" : "corretor_vendedor",
+      origem: role, percentual: null, valor: null, _new: true,
+    }]);
+    setDirtyExtras(true);
+  };
   const delExtra = (rowId: string) => {
     setFormExtras(rows => rows.filter(r => r.id !== rowId));
     setDirtyExtras(true);
@@ -766,6 +776,16 @@ function SaleDetail() {
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
             </FieldGrid>
+            {editable && (
+              <div className="mt-2 flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => addCoCorretor("captador")}>
+                  <Plus className="mr-1 h-4 w-4" />Outro captador
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addCoCorretor("vendedor")}>
+                  <Plus className="mr-1 h-4 w-4" />Outro vendedor
+                </Button>
+              </div>
+            )}
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
                 A comissão do indicador sai de dentro da fatia do captador ou do vendedor (não é descontada do total nem da imobiliária).
@@ -838,10 +858,21 @@ function SaleDetail() {
                       />
                     </Field>
                     <Field label="Papel">
-                      <Select value={r.papel ?? "none"} onValueChange={(v) => updExtra(r.id, { papel: v === "none" ? null : v })} disabled={!editable}>
+                      <Select
+                        value={r.papel ?? "none"}
+                        onValueChange={(v) => {
+                          const patch: any = { papel: v === "none" ? null : v };
+                          if (v === "corretor_captador") patch.origem = "captador";
+                          if (v === "corretor_vendedor") patch.origem = "vendedor";
+                          updExtra(r.id, patch);
+                        }}
+                        disabled={!editable}
+                      >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="corretor_captador">Corretor captador</SelectItem>
+                          <SelectItem value="corretor_vendedor">Corretor vendedor</SelectItem>
                           <SelectItem value="gestor">Gestor</SelectItem>
                           <SelectItem value="team_leader">Team Leader</SelectItem>
                           <SelectItem value="outro">Outro</SelectItem>
@@ -1229,6 +1260,13 @@ function SaleDetail() {
                   />
                 </>
               )}
+              {commissionExtras.map((e) => (
+                <ReviewItem
+                  key={e.id}
+                  label={`${COMISSAO_PAPEIS.find((p) => p.key === e.papel)?.label ?? "Outro"}${e.nome ? ` — ${e.nome}` : ""}`}
+                  value={money(e.valor)}
+                />
+              ))}
             </ReviewGroup>
 
             <ReviewGroup title="Posse">
@@ -3251,7 +3289,7 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
 
 // Partes extras da divisão (Resumo) viram comissões na ocorrência usando o "papel" que a pessoa
 // recebeu lá (Gestor/Team Leader/Outro) — sem papel definido, cai em "outro".
-const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro"]);
+const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro", "corretor_captador", "corretor_vendedor"]);
 const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
 
 /**
