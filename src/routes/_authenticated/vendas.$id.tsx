@@ -199,7 +199,7 @@ function SaleDetail() {
     setSaving(true);
     try {
     const fields = [
-      "imovel_id","matricula","iptu","codigo_interno","imovel_observacoes","tempo_venda","midia",
+      "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda","midia",
       "corretor_captador","corretor_vendedor","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
@@ -683,6 +683,7 @@ function SaleDetail() {
               <Field label="ID do imóvel"><Input value={formSale.imovel_id ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_id: e.target.value })} /></Field>
               <Field label="Matrícula"><Input value={formSale.matricula ?? ""} disabled={!editable} onChange={(e) => updResumo({ matricula: e.target.value })} /></Field>
               <Field label="IPTU"><Input value={formSale.iptu ?? ""} disabled={!editable} onChange={(e) => updResumo({ iptu: e.target.value })} /></Field>
+              <Field label="Endereço do imóvel" colSpan={2}><Input value={formSale.imovel_endereco ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_endereco: e.target.value })} /></Field>
               <Field label="Código interno"><Input value={formSale.codigo_interno ?? ""} disabled={!editable} onChange={(e) => updResumo({ codigo_interno: e.target.value })} /></Field>
               <Field label="Tempo de venda"><Input value={formSale.tempo_venda ?? ""} disabled={!editable} onChange={(e) => updResumo({ tempo_venda: e.target.value })} placeholder="Ex: 45 dias" /></Field>
               <Field label="Mídia"><Input value={formSale.midia ?? ""} disabled={!editable} onChange={(e) => updResumo({ midia: e.target.value })} placeholder="Instagram, Portal, Placa..." /></Field>
@@ -1195,6 +1196,7 @@ function SaleDetail() {
               <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
+              <ReviewItem label="Endereço" value={sale.imovel_endereco} />
             </ReviewGroup>
 
             <ReviewGroup title="Equipe">

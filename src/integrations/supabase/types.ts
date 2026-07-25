@@ -761,12 +761,14 @@ export type Database = {
           created_at: string
           forma_pagamento: string | null
           id: string
+          imovel_endereco: string | null
           imovel_id: string | null
           imovel_observacoes: string | null
           indicador: string | null
           indicador_lado: string | null
           iptu: string | null
           matricula: string | null
+          midia: string | null
           negociacao_observacoes: string | null
           parceria_cpf_cnpj: string | null
           parceria_nome: string | null
@@ -781,6 +783,7 @@ export type Database = {
           posse_observacoes: string | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
+          tempo_venda: string | null
           updated_at: string
           valor_anunciado: number | null
           valor_comissao_captador: number | null
@@ -802,12 +805,14 @@ export type Database = {
           created_at?: string
           forma_pagamento?: string | null
           id?: string
+          imovel_endereco?: string | null
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
           indicador_lado?: string | null
           iptu?: string | null
           matricula?: string | null
+          midia?: string | null
           negociacao_observacoes?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
@@ -822,6 +827,7 @@ export type Database = {
           posse_observacoes?: string | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
+          tempo_venda?: string | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao_captador?: number | null
@@ -843,12 +849,14 @@ export type Database = {
           created_at?: string
           forma_pagamento?: string | null
           id?: string
+          imovel_endereco?: string | null
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
           indicador_lado?: string | null
           iptu?: string | null
           matricula?: string | null
+          midia?: string | null
           negociacao_observacoes?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
@@ -863,6 +871,7 @@ export type Database = {
           posse_observacoes?: string | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
+          tempo_venda?: string | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao_captador?: number | null

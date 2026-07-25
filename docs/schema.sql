@@ -376,6 +376,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
   imovel_id text,
   matricula text,
   iptu text,
+  imovel_endereco text,
   codigo_interno text,
   imovel_observacoes text,
   coordenador_id uuid,

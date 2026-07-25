@@ -149,6 +149,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         assign(salePatch, "matricula", r.matricula ?? r.numero_matricula);
         assign(salePatch, "imovel_id", r.codigo_imovel);
         assign(salePatch, "iptu", r.iptu ?? r.numero_iptu ?? r.inscricao_iptu);
+        assign(salePatch, "imovel_endereco", r.endereco_imovel);
         if (r.valor_venal) assign(salePatch, "valor_anunciado", num(r.valor_venal));
         if (r.valor_negociado) assign(salePatch, "valor_negociado", num(r.valor_negociado));
         if (r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
