@@ -1551,6 +1551,18 @@ function SaleDetail() {
                 <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
               </ReviewGroup>
 
+              <ReviewGroup title="Parceria externa">
+                {sale.parceria_tipo ? (
+                  <>
+                    <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
+                    <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                    <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
+                  </>
+                ) : (
+                  <ReviewItem label="Sem parceria externa" value={null} />
+                )}
+              </ReviewGroup>
+
               <ReviewGroup title="Partes">
                 {partiesComNome(parties).map((papel) => (
                   <ReviewItem key={papel} label={parteLabel(papel)} value={parties[papel]?.nome} />
@@ -1615,6 +1627,18 @@ function SaleDetail() {
                 <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
                 <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
                 <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+              </ReviewGroup>
+
+              <ReviewGroup title="Parceria externa">
+                {sale.parceria_tipo ? (
+                  <>
+                    <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
+                    <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                    <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
+                  </>
+                ) : (
+                  <ReviewItem label="Sem parceria externa" value={null} />
+                )}
               </ReviewGroup>
 
               <ReviewGroup title="Partes">
