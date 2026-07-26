@@ -258,6 +258,7 @@ export type Database = {
           id: string
           midia: string | null
           nota_fiscal_obrigatoria: boolean | null
+          oba_credito: boolean
           observacoes: string | null
           percentual_comissao: number | null
           prev_recebimento_data: string | null
@@ -295,6 +296,7 @@ export type Database = {
           id?: string
           midia?: string | null
           nota_fiscal_obrigatoria?: boolean | null
+          oba_credito?: boolean
           observacoes?: string | null
           percentual_comissao?: number | null
           prev_recebimento_data?: string | null
@@ -332,6 +334,7 @@ export type Database = {
           id?: string
           midia?: string | null
           nota_fiscal_obrigatoria?: boolean | null
+          oba_credito?: boolean
           observacoes?: string | null
           percentual_comissao?: number | null
           prev_recebimento_data?: string | null

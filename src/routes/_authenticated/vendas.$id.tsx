@@ -3664,6 +3664,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       financiamento_banco: payment?.financiamento_banco ?? null,
       financiamento_correspondente: payment?.financiamento_correspondente ?? null,
       financiamento_previsao: payment?.financiamento_previsao ?? null,
+      oba_credito: payment?.oba_credito ?? false,
       observacoes: [vendedor?.nome && `Vendedor/Proprietário: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
       status: "pendente",
     }).select("*").single();
@@ -3770,8 +3771,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       financiamento_banco: payment?.financiamento_banco ?? null,
       financiamento_correspondente: payment?.financiamento_correspondente ?? null,
       financiamento_previsao: payment?.financiamento_previsao ?? null,
+      oba_credito: payment?.oba_credito ?? false,
     });
-    toast.success("Financiamento, valor, banco, correspondente e previsão puxados do pagamento — confira e salve.");
+    toast.success("Financiamento, valor, banco, correspondente, previsão e Oba Crédito puxados do pagamento — confira e salve.");
   };
 
   // Compara o que está salvo na ocorrência com os dados atuais da Resumo/Pagamento — se algo
@@ -3802,7 +3804,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0) ||
     (occ.financiamento_banco ?? "") !== (payment?.financiamento_banco ?? "") ||
     (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "") ||
-    (occ.financiamento_previsao ?? "") !== (payment?.financiamento_previsao ?? "")
+    (occ.financiamento_previsao ?? "") !== (payment?.financiamento_previsao ?? "") ||
+    Boolean(occ.oba_credito) !== Boolean(payment?.oba_credito)
   );
 
   const updPartner = (id: string, patch: any) => {
@@ -3850,7 +3853,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     setSaving(true);
     try {
       if (dirtyOcc) {
-        const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
+        const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","oba_credito","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
         const patch: any = {};
         for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
         if (Object.keys(patch).length) {
@@ -4029,6 +4032,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
             <Field label="Banco"><Input value={formOcc.financiamento_banco ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_banco: e.target.value })} /></Field>
             <Field label="Correspondente bancário"><Input value={formOcc.financiamento_correspondente ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_correspondente: e.target.value })} /></Field>
             <Field label="Previsão de liberação"><Input type="date" value={formOcc.financiamento_previsao ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_previsao: e.target.value || null })} /></Field>
+            <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!formOcc.oba_credito} onCheckedChange={(v) => updOcc({ oba_credito: v })} disabled={!canWrite || !formOcc.financiamento} /><span className="text-sm text-muted-foreground">{formOcc.oba_credito ? "Sim" : "Não"}</span></div></Field>
           </FieldGrid>
         </CardContent>
       </Card>
