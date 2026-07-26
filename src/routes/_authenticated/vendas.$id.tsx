@@ -1177,10 +1177,10 @@ function SaleDetail() {
         </div>
       )}
 
-      {(sale.contrato_pendencia_descricao || sale.contrato_libera_assinatura === false) && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
+      {sale.contrato_libera_assinatura === false && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
         <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
-          <b>Jurídico sinalizou pendência de documento{sale.contrato_libera_assinatura === false ? " — assinatura bloqueada" : ""}:</b>{" "}
+          <b>Jurídico sinalizou pendência de documento — assinatura bloqueada:</b>{" "}
           {sale.contrato_pendencia_descricao || "sem descrição."}
         </div>
       )}
