@@ -3055,9 +3055,6 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
                             </Button>
                           )}
                           <DocStatusBadge status={d.status} />
-                          {canModerate && d.status !== "aprovado" && (
-                            <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
-                          )}
                           {canModerate && d.status !== "recusado" && (
                             <Button size="sm" variant="ghost" onClick={() => openRejectDialog(d)}><FileX className="h-4 w-4" /></Button>
                           )}
@@ -3093,9 +3090,6 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
                       <div className="flex items-center justify-end gap-2">
                         <Button size="sm" variant="ghost" title="Visualizar" onClick={() => viewDoc(d)}><Eye className="h-4 w-4" /></Button>
                         <Button size="sm" variant="ghost" title="Imprimir" onClick={() => printDoc(d)}><Printer className="h-4 w-4" /></Button>
-                        {canModerate && d.status !== "aprovado" && (
-                          <Button size="sm" variant="ghost" onClick={() => approve(d)}><FileCheck className="h-4 w-4" /></Button>
-                        )}
                         {canModerate && d.status !== "recusado" && (
                           <Button size="sm" variant="ghost" onClick={() => openRejectDialog(d)}><FileX className="h-4 w-4" /></Button>
                         )}
