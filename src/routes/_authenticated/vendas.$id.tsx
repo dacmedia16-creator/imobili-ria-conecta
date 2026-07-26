@@ -2443,13 +2443,13 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
         <CardContent>
           <FieldGrid>
             <Field label="Entrada — valor"><CurrencyInput value={p.entrada_valor} onChange={(v) => updP("entrada_valor", v)} disabled={!editable} /></Field>
-            <Field label="Entrada — data"><Input type="date" value={p.entrada_data ?? ""} onChange={(e) => updP("entrada_data", e.target.value || null)} disabled={!editable} /></Field>
+            <Field label="Entrada — quando"><Input value={p.entrada_data ?? ""} placeholder="Ex.: Na assinatura do contrato" onChange={(e) => updP("entrada_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="Parcela 1 — valor"><CurrencyInput value={p.parcela1_valor} onChange={(v) => updP("parcela1_valor", v)} disabled={!editable} /></Field>
-            <Field label="Parcela 1 — data"><Input type="date" value={p.parcela1_data ?? ""} onChange={(e) => updP("parcela1_data", e.target.value || null)} disabled={!editable} /></Field>
+            <Field label="Parcela 1 — quando"><Input value={p.parcela1_data ?? ""} placeholder="Ex.: 30 dias após a assinatura" onChange={(e) => updP("parcela1_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — valor"><CurrencyInput value={p.parcela2_valor} onChange={(v) => updP("parcela2_valor", v)} disabled={!editable} /></Field>
-            <Field label="Parcela 2 — data"><Input type="date" value={p.parcela2_data ?? ""} onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
+            <Field label="Parcela 2 — quando"><Input value={p.parcela2_data ?? ""} placeholder="Ex.: Na entrega das chaves" onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="Pagamento final — valor"><CurrencyInput value={p.pagamento_final_valor} onChange={(v) => updP("pagamento_final_valor", v)} disabled={!editable} /></Field>
-            <Field label="Pagamento final — data"><Input type="date" value={p.pagamento_final_data ?? ""} onChange={(e) => updP("pagamento_final_data", e.target.value || null)} disabled={!editable} /></Field>
+            <Field label="Pagamento final — quando"><Input value={p.pagamento_final_data ?? ""} placeholder="Ex.: Na liberação do financiamento" onChange={(e) => updP("pagamento_final_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
             <Field label="Tipo de pagamento">
