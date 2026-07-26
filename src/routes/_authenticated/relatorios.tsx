@@ -46,17 +46,49 @@ function RelatoriosPage() {
   const [dateTo, setDateTo] = useState(todayISO());
   const [corretorQ, setCorretorQ] = useState("");
 
+  // O filtro de período existe na tela há tempo, mas nunca bateu de verdade na consulta — a busca
+  // baixava sales/occurrences inteiras e só cortava por data no client, sem limite algum. Cada aba
+  // usa um campo de data diferente (parcela prevista, assinatura, previsão de crédito, atualização
+  // da venda), então o filtro do banco é uma união (OR) desses campos — sempre um superconjunto do
+  // que cada aba realmente mostra, nunca um subconjunto: pode trazer alguma linha a mais que o
+  // filtro client-side (já existente, inalterado) descarta depois, mas nunca deixa de trazer uma
+  // linha que deveria aparecer. Casos "sempre aparece independente do período" (financiamento sem
+  // previsão ainda definida) entram como uma condição incondicional à parte.
   useEffect(() => {
     if (!allowed) { setLoading(false); return; }
     (async () => {
       setLoading(true);
-      const [{ data: s }, { data: o }, { data: prof }] = await Promise.all([
-        supabase.from("sales").select("id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at"),
-        supabase.from("occurrences").select("*"),
-        supabase.from("profiles").select("id, nome"),
-      ]);
-      setSales(s ?? []);
+      // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
+      // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
+      // exata do dia final — quase nunca, o que na prática anulava essa condição.
+      const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
+      const timestampWindow = (col: string) => `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
+      const occFilter = [
+        dateWindow("prev_recebimento_data"),
+        dateWindow("prev_recebimento2_data"),
+        dateWindow("prev_recebimento3_data"),
+        dateWindow("data_assinatura"),
+        timestampWindow("created_at"),
+        dateWindow("financiamento_previsao"),
+        "and(financiamento.is.true,financiamento_previsao.is.null)",
+      ].join(",");
+      const { data: o } = await supabase
+        .from("occurrences")
+        .select("id, sale_id, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
+        .or(occFilter);
       setOccs(o ?? []);
+
+      // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
+      // nome/label das ocorrências já trazidas acima — union das duas necessidades.
+      const occSaleIds = Array.from(new Set((o ?? []).map((r: any) => r.sale_id)));
+      const updatedAtWindow = timestampWindow("updated_at");
+      const salesFilter = occSaleIds.length ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})` : updatedAtWindow;
+      const { data: s } = await supabase
+        .from("sales")
+        .select("id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at")
+        .or(salesFilter);
+      setSales(s ?? []);
+
       const occIds = (o ?? []).map((r: any) => r.id);
       if (occIds.length) {
         const [{ data: c }, { data: p }] = await Promise.all([
@@ -69,12 +101,13 @@ function RelatoriosPage() {
         setComms([]);
         setPartners([]);
       }
+      const { data: prof } = await supabase.from("profiles").select("id, nome");
       const names: Record<string, string> = {};
       for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
       setLoading(false);
     })();
-  }, [allowed]);
+  }, [allowed, dateFrom, dateTo]);
 
   const saleById = useMemo(() => {
     const m: Record<string, any> = {};
