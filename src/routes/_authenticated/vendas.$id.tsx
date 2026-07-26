@@ -2141,6 +2141,7 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
           const c = commByPapel(p.key);
           return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
         })}
+        <FormValueRow cols={[<b>Imobiliária</b>, "—", "—", <b>{money(sale.valor_comissao_imobiliaria) ?? "R$ 0,00"}</b>]} />
       </FormTable>
 
       <FormTitle right={<Checkbox checked={!!occ?.financiamento} label={occ?.financiamento ? "Sim" : "Não"} />}>
@@ -4030,6 +4031,10 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const somaComissoes = formComms.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   const total = Number(formOcc?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
+  // Só informativo (não é uma linha de comissão paga a alguém) — o mesmo cálculo da Resumo:
+  // valor_comissao_imobiliaria já descontando parceria externa, menos partes extras que saem dessa fatia.
+  const imobiliariaExtras = commissionExtras.filter((e) => e.origem === "imobiliaria").reduce((s, e) => s + Number(e.valor ?? 0), 0);
+  const valorImobiliaria = Number(sale.valor_comissao_imobiliaria ?? 0) - imobiliariaExtras;
 
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
   // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —
@@ -4220,7 +4225,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base">Divisão de comissão</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído: R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído: R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Imobiliária: R$ {valorImobiliaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
           </div>
           {canWrite && (
             <div className="flex gap-2">
