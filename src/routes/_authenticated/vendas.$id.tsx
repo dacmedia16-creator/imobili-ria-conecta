@@ -1169,7 +1169,7 @@ function SaleDetail() {
         <Button variant="ghost" size="sm" onClick={handleVoltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
       </div>
 
-      {(isGestor || isJuridico) && contratoDocs.length > 0 && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
+      {isJuridico && contratoDocs.length > 0 && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
         <div className="flex justify-end print:hidden">
           <Button size="sm" variant="outline" onClick={openContratoDialog}>
             <AlertTriangle className="mr-2 h-4 w-4" />Pendência do contrato
