@@ -2147,8 +2147,8 @@ function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
         Dados de financiamento — financiamento
       </FormTitle>
       <FormTable>
-        <FormHeadRow cols={["Financiamento R$", "Banco", "Correspondente bancário", "Previsão da liberação do crédito"]} />
-        <FormValueRow cols={[money(occ?.financiamento_valor), occ?.financiamento_banco, occ?.financiamento_correspondente, dateBR(occ?.financiamento_previsao)]} />
+        <FormHeadRow cols={["Financiamento R$", "Banco", "Correspondente bancário", "Previsão da liberação do crédito", "Oba Crédito"]} />
+        <FormValueRow cols={[money(occ?.financiamento_valor), occ?.financiamento_banco, occ?.financiamento_correspondente, dateBR(occ?.financiamento_previsao), occ?.oba_credito ? "Sim" : "Não"]} />
       </FormTable>
 
       <FormTitle>Previsão de recebimento da comissão</FormTitle>
