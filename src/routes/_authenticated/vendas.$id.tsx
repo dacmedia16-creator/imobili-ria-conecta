@@ -1310,9 +1310,13 @@ function SaleDetail() {
           <div className="space-y-4 text-sm">
             <ReviewGroup title="Imóvel">
               <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
+              <ReviewItem label="Código interno" value={sale.codigo_interno} />
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
               <ReviewItem label="Endereço" value={sale.imovel_endereco} />
+              <ReviewItem label="Tempo de venda" value={sale.tempo_venda} />
+              <ReviewItem label="Mídia" value={sale.midia} />
+              <ReviewItem label="Observações do imóvel" value={sale.imovel_observacoes} />
             </ReviewGroup>
 
             <ReviewGroup title="Equipe">
@@ -1327,6 +1331,7 @@ function SaleDetail() {
               <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
               <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
               <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento} />
+              <ReviewItem label="Observações" value={sale.negociacao_observacoes} />
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">
@@ -1400,12 +1405,24 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Pagamento">
-              <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
-              <ReviewItem label="Parcela 1" value={money(payment?.parcela1_valor)} />
-              <ReviewItem label="Parcela 2" value={money(payment?.parcela2_valor)} />
-              <ReviewItem label="Pagamento final" value={money(payment?.pagamento_final_valor)} />
+              <ReviewItem label="Entrada" value={payment?.entrada_valor != null ? `${money(payment.entrada_valor)}${payment?.entrada_data ? ` — ${payment.entrada_data}` : ""}` : null} />
+              <ReviewItem label="Parcela 1" value={payment?.parcela1_valor != null ? `${money(payment.parcela1_valor)}${payment?.parcela1_data ? ` — ${payment.parcela1_data}` : ""}` : null} />
+              <ReviewItem label="Parcela 2" value={payment?.parcela2_valor != null ? `${money(payment.parcela2_valor)}${payment?.parcela2_data ? ` — ${payment.parcela2_data}` : ""}` : null} />
+              <ReviewItem label="Pagamento final" value={payment?.pagamento_final_valor != null ? `${money(payment.pagamento_final_valor)}${payment?.pagamento_final_data ? ` — ${payment.pagamento_final_data}` : ""}` : null} />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
-              <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
+              <ReviewItem label="Tipo de pagamento" value={payment?.tipo_pagamento === "financiamento" ? "Financiamento" : payment?.tipo_pagamento === "consorcio" ? "Consórcio" : "Vista"} />
+              {payment?.tipo_pagamento === "financiamento" && (
+                <>
+                  <ReviewItem label="Financiamento" value={`${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`} />
+                  <ReviewItem label="Correspondente bancário" value={payment?.financiamento_correspondente} />
+                  <ReviewItem label="Oba Crédito" value={payment?.oba_credito ? "Sim" : "Não"} />
+                  <ReviewItem label="Previsão da liberação do crédito" value={dateBR(payment?.financiamento_previsao)} />
+                </>
+              )}
+              {payment?.tipo_pagamento === "consorcio" && (
+                <ReviewItem label="Consórcio" value={[payment?.consorcio_nome, payment?.consorcio_grupo && `Grupo ${payment.consorcio_grupo}`, payment?.consorcio_cota && `Cota ${payment.consorcio_cota}`].filter(Boolean).join(" — ") || null} />
+              )}
+              <ReviewItem label="Observações" value={payment?.observacoes} />
             </ReviewGroup>
 
             <ReviewGroup title="Dados bancários do vendedor/proprietário">
