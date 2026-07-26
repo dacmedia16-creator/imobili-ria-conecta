@@ -279,6 +279,44 @@ END;
 $function$
 ;
 
+-- Gestor já edita sales nas etapas de conferência/assinatura via can_edit_sale_stage, mas jurídico
+-- só tem permissão geral em aprovada_gestor/em_elaboracao_contrato. Esta função dá ao jurídico
+-- (e ao gestor) uma forma de mexer só nessas 2 colunas em qualquer etapa do contrato, sem abrir a
+-- edição geral da venda pro jurídico fora da janela dele.
+CREATE OR REPLACE FUNCTION public.update_contrato_pendencia(_sale_id uuid, _pendencia_descricao text, _libera_assinatura boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NOT public.can_view_sale(auth.uid(), _sale_id) THEN
+    RAISE EXCEPTION 'Sem permissão para editar esta venda.';
+  END IF;
+
+  IF NOT public.has_any_role(auth.uid(), ARRAY['gestor','juridico','financeiro','admin','super_admin']::public.app_role[]) THEN
+    RAISE EXCEPTION 'Somente gestor, jurídico, financeiro ou admin podem editar a pendência do contrato.';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.sales s
+    WHERE s.id = _sale_id
+    AND s.status::text = ANY(ARRAY[
+      'em_elaboracao_contrato','contrato_conferencia_gestor','contrato_conferencia_corretor',
+      'contrato_ok_corretor','aguardando_assinatura'
+    ])
+  ) THEN
+    RAISE EXCEPTION 'A pendência do contrato só pode ser editada durante as etapas de elaboração/conferência/assinatura do contrato.';
+  END IF;
+
+  UPDATE public.sales
+  SET contrato_pendencia_descricao = _pendencia_descricao,
+      contrato_libera_assinatura = _libera_assinatura
+  WHERE id = _sale_id;
+END;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.log_role_change()
  RETURNS trigger
  LANGUAGE plpgsql

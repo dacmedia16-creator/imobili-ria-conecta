@@ -1066,6 +1066,14 @@ export type Database = {
         Returns: boolean
       }
       is_sale_locked: { Args: { _sale_id: string }; Returns: boolean }
+      update_contrato_pendencia: {
+        Args: {
+          _libera_assinatura: boolean
+          _pendencia_descricao: string | null
+          _sale_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:

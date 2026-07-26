@@ -631,10 +631,15 @@ function SaleDetail() {
         await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
       }
       const pendenciaDesc = contratoFaltaDoc ? contratoFaltaDocDesc.trim() : null;
-      const { error: updErr } = await supabase.from("sales").update({
-        contrato_pendencia_descricao: pendenciaDesc,
-        contrato_libera_assinatura: contratoLiberaAssinatura,
-      } as any).eq("id", id);
+      // RPC em vez de update direto: gestor e jurídico precisam poder ajustar a pendência/liberação
+      // de assinatura em qualquer etapa do contrato (não só em_elaboracao_contrato), e o jurídico
+      // não tem permissão geral de editar a venda fora da janela dele — a função faz essa checagem
+      // à parte, sem abrir edição geral da venda pra ele.
+      const { error: updErr } = await supabase.rpc("update_contrato_pendencia", {
+        _sale_id: id,
+        _pendencia_descricao: pendenciaDesc,
+        _libera_assinatura: contratoLiberaAssinatura,
+      });
       if (updErr) { toast.error(updErr.message); return; }
       await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "contrato_pendencia_atualizada", payload: { pendencia: pendenciaDesc, libera_assinatura: contratoLiberaAssinatura } });
       toast.success(contratoFile ? "Contrato anexado" : "Informações salvas");
@@ -1163,6 +1168,14 @@ function SaleDetail() {
       <div className="flex items-center gap-2 print:hidden">
         <Button variant="ghost" size="sm" onClick={handleVoltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
       </div>
+
+      {(isGestor || isJuridico) && contratoDocs.length > 0 && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
+        <div className="flex justify-end print:hidden">
+          <Button size="sm" variant="outline" onClick={openContratoDialog}>
+            <AlertTriangle className="mr-2 h-4 w-4" />Pendência do contrato
+          </Button>
+        </div>
+      )}
 
       {(sale.contrato_pendencia_descricao || sale.contrato_libera_assinatura === false) && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
         <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">
