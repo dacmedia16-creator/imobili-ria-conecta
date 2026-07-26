@@ -464,6 +464,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
   parceria_agencia text,
   parceria_conta text,
   parceria_pix text,
+  contrato_pendencia_descricao text,
+  contrato_libera_assinatura boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT sales_pkey PRIMARY KEY (id),

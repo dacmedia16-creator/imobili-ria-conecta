@@ -766,6 +766,8 @@ export type Database = {
           comissao_observacoes: string | null
           comissao_quando: string | null
           comissao_valor: number | null
+          contrato_libera_assinatura: boolean
+          contrato_pendencia_descricao: string | null
           coordenador_id: string | null
           corretor_captador: string | null
           corretor_id: string
@@ -814,6 +816,8 @@ export type Database = {
           comissao_observacoes?: string | null
           comissao_quando?: string | null
           comissao_valor?: number | null
+          contrato_libera_assinatura?: boolean
+          contrato_pendencia_descricao?: string | null
           coordenador_id?: string | null
           corretor_captador?: string | null
           corretor_id: string
@@ -862,6 +866,8 @@ export type Database = {
           comissao_observacoes?: string | null
           comissao_quando?: string | null
           comissao_valor?: number | null
+          contrato_libera_assinatura?: boolean
+          contrato_pendencia_descricao?: string | null
           coordenador_id?: string | null
           corretor_captador?: string | null
           corretor_id?: string

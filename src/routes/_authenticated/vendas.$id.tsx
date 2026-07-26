@@ -122,6 +122,12 @@ function SaleDetail() {
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
   const [contratoFile, setContratoFile] = useState<File | null>(null);
   const [contratoUploading, setContratoUploading] = useState(false);
+  // Jurídico sinaliza, ao anexar o contrato, se falta algum documento (com descrição livre) e se
+  // isso impede o gestor de mandar pra assinatura — os dois são independentes: às vezes falta algo
+  // mas não é bloqueante, às vezes é.
+  const [contratoFaltaDoc, setContratoFaltaDoc] = useState(false);
+  const [contratoFaltaDocDesc, setContratoFaltaDocDesc] = useState("");
+  const [contratoLiberaAssinatura, setContratoLiberaAssinatura] = useState(true);
   const [contratoAssinadoDialogOpen, setContratoAssinadoDialogOpen] = useState(false);
   const [contratoAssinadoFile, setContratoAssinadoFile] = useState<File | null>(null);
   const [contratoAssinadoUploading, setContratoAssinadoUploading] = useState(false);
@@ -557,26 +563,49 @@ function SaleDetail() {
     await changeStatus("contrato_assinado");
   };
 
+  const openContratoDialog = () => {
+    setContratoFile(null);
+    setContratoFaltaDoc(!!sale.contrato_pendencia_descricao);
+    setContratoFaltaDocDesc(sale.contrato_pendencia_descricao ?? "");
+    setContratoLiberaAssinatura(sale.contrato_libera_assinatura ?? true);
+    setContratoDialogOpen(true);
+  };
+
   // Anexar o contrato NÃO envia a venda ao gestor sozinho — o jurídico confere o arquivo
-  // e só então clica em "Enviar ao gestor" (botão separado, fora deste dialog).
+  // e só então clica em "Enviar ao gestor" (botão separado, fora deste dialog). A sinalização de
+  // pendência/liberação de assinatura pode ser salva mesmo sem trocar o arquivo (ex.: já tinha
+  // contrato anexado e o jurídico só quer atualizar o aviso pro gestor).
   const uploadContrato = async () => {
-    if (!contratoFile) {
+    if (!contratoFile && contratoDocs.length === 0) {
       toast.error("Selecione o arquivo do contrato.");
+      return;
+    }
+    if (contratoFaltaDoc && !contratoFaltaDocDesc.trim()) {
+      toast.error("Descreva o que está faltando.");
       return;
     }
     setContratoUploading(true);
     try {
-      const ext = contratoFile.name.split(".").pop();
-      const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
-      if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
-      const { error: insErr } = await supabase.from("sale_documents").insert({
-        sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
-        file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
-      } as any);
-      if (insErr) { toast.error(insErr.message); return; }
-      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
-      toast.success("Contrato anexado");
+      if (contratoFile) {
+        const ext = contratoFile.name.split(".").pop();
+        const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
+        if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+        const { error: insErr } = await supabase.from("sale_documents").insert({
+          sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
+          file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
+        } as any);
+        if (insErr) { toast.error(insErr.message); return; }
+        await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
+      }
+      const pendenciaDesc = contratoFaltaDoc ? contratoFaltaDocDesc.trim() : null;
+      const { error: updErr } = await supabase.from("sales").update({
+        contrato_pendencia_descricao: pendenciaDesc,
+        contrato_libera_assinatura: contratoLiberaAssinatura,
+      } as any).eq("id", id);
+      if (updErr) { toast.error(updErr.message); return; }
+      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "contrato_pendencia_atualizada", payload: { pendencia: pendenciaDesc, libera_assinatura: contratoLiberaAssinatura } });
+      toast.success(contratoFile ? "Contrato anexado" : "Informações salvas");
       setContratoDialogOpen(false);
       setContratoFile(null);
       load();
@@ -1037,14 +1066,14 @@ function SaleDetail() {
   // Ação de avançar a venda para o próximo responsável — mesma ação do topo da página, só que
   // repetida no rodapé da última etapa do wizard, no lugar do "Próximo" (que ali não faz nada).
   // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
-  const primaryAction: { label: string; icon: typeof Send; onClick: () => void } | null =
+  const primaryAction: { label: string; icon: typeof Send; onClick: () => void; disabled?: boolean } | null =
     isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
     isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico } :
     isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
-    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: () => { setContratoFile(null); setContratoDialogOpen(true); } } :
+    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog } :
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0 ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor } :
     isOwner && status === "contrato_conferencia_corretor" ? { label: "Dar OK no contrato", icon: CheckCircle2, onClick: () => changeStatus("contrato_ok_corretor") } :
-    isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura") } :
+    isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura"), disabled: sale.contrato_libera_assinatura === false } :
     isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length === 0 ? { label: "Subir contrato assinado", icon: Upload, onClick: () => { setContratoAssinadoFile(null); setContratoAssinadoDialogOpen(true); } } :
     isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length > 0 ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
     isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") ? { label: "Enviar ocorrência ao financeiro", icon: DollarSign, onClick: () => changeStatus("ocorrencia_analise_financeiro") } :
@@ -1055,6 +1084,14 @@ function SaleDetail() {
       <div className="flex items-center gap-2 print:hidden">
         <Button variant="ghost" size="sm" onClick={handleVoltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
       </div>
+
+      {(sale.contrato_pendencia_descricao || sale.contrato_libera_assinatura === false) && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
+        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">
+          <AlertTriangle className="mr-2 inline h-4 w-4" />
+          <b>Jurídico sinalizou pendência de documento{sale.contrato_libera_assinatura === false ? " — assinatura bloqueada" : ""}:</b>{" "}
+          {sale.contrato_pendencia_descricao || "sem descrição."}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
@@ -1088,7 +1125,7 @@ function SaleDetail() {
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
-              <Button variant="outline" onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}>
+              <Button variant="outline" onClick={openContratoDialog}>
                 <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
               </Button>
               <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || certidoesJuridicoDocs.length === 0}>
@@ -1103,7 +1140,7 @@ function SaleDetail() {
           {isGestor && status === "contrato_conferencia_gestor" && (
             <>
               <Button onClick={() => changeStatus("contrato_conferencia_corretor")}><Send className="mr-2 h-4 w-4" />Enviar ao corretor conferir</Button>
-              <Button onClick={() => changeStatus("aguardando_assinatura")}><Send className="mr-2 h-4 w-4" />Enviar direto para assinatura</Button>
+              <Button onClick={() => changeStatus("aguardando_assinatura")} disabled={sale.contrato_libera_assinatura === false} title={sale.contrato_libera_assinatura === false ? "Jurídico marcou que ainda não pode ir para assinatura" : undefined}><Send className="mr-2 h-4 w-4" />Enviar direto para assinatura</Button>
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
             </>
           )}
@@ -1119,7 +1156,7 @@ function SaleDetail() {
           {/* Gestor: liberar para assinatura */}
           {isGestor && status === "contrato_ok_corretor" && (
             <>
-              <Button onClick={() => changeStatus("aguardando_assinatura")}><Send className="mr-2 h-4 w-4" />Enviar para assinatura</Button>
+              <Button onClick={() => changeStatus("aguardando_assinatura")} disabled={sale.contrato_libera_assinatura === false} title={sale.contrato_libera_assinatura === false ? "Jurídico marcou que ainda não pode ir para assinatura" : undefined}><Send className="mr-2 h-4 w-4" />Enviar para assinatura</Button>
               <Button variant="outline" onClick={() => openReturnDialog("contrato_conferencia_corretor")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
             </>
           )}
@@ -1427,7 +1464,7 @@ function SaleDetail() {
           dirty={currentDirty}
           onBeforeLeave={onBeforeLeave}
           lastStepAction={primaryAction && (
-            <Button onClick={primaryAction.onClick}>
+            <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
               <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}
             </Button>
           )}
@@ -1618,13 +1655,39 @@ function SaleDetail() {
             )}
           </div>
 
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="flex items-center gap-2">
+              <Switch checked={contratoFaltaDoc} onCheckedChange={setContratoFaltaDoc} disabled={contratoUploading} />
+              <Label className="cursor-pointer" onClick={() => !contratoUploading && setContratoFaltaDoc((v) => !v)}>Está faltando algum documento?</Label>
+            </div>
+            {contratoFaltaDoc && (
+              <Textarea
+                placeholder="Descreva o que está faltando"
+                value={contratoFaltaDocDesc}
+                onChange={(e) => setContratoFaltaDocDesc(e.target.value)}
+                disabled={contratoUploading}
+                rows={3}
+              />
+            )}
+            <div className="flex items-center gap-2 border-t pt-3">
+              <Switch checked={contratoLiberaAssinatura} onCheckedChange={setContratoLiberaAssinatura} disabled={contratoUploading} />
+              <Label className="cursor-pointer" onClick={() => !contratoUploading && setContratoLiberaAssinatura((v) => !v)}>Libera o gestor a enviar para assinatura</Label>
+            </div>
+            {!contratoLiberaAssinatura && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+                Enquanto isso estiver desmarcado, o gestor não vai conseguir mandar o contrato para assinatura.
+              </p>
+            )}
+          </div>
+
           <DialogFooter>
             <Button variant="ghost" onClick={() => setContratoDialogOpen(false)} disabled={contratoUploading}>Cancelar</Button>
             <Button
               onClick={uploadContrato}
-              disabled={contratoUploading || !contratoFile}
+              disabled={contratoUploading || (!contratoFile && contratoDocs.length === 0)}
             >
-              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />Anexar contrato</>)}
+              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />{contratoFile || contratoDocs.length === 0 ? "Anexar contrato" : "Salvar"}</>)}
             </Button>
           </DialogFooter>
         </DialogContent>
