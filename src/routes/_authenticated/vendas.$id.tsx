@@ -2988,6 +2988,27 @@ function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUs
       uploaded_by: user!.id, status: baseDoc.status, extraction_status: "done",
     } as any);
     if (error) { toast.error(error.message); return; }
+
+    // O documento reaproveitado já foi extraído pela IA pro 1º — como o arquivo é o mesmo, o dado
+    // (endereço do comprovante, regime do casamento da certidão) vale igual pro 2º. Sem isso, o
+    // campo ficava vazio pro 2º mesmo usando exatamente o mesmo documento. Só preenche se o 2º
+    // ainda não tiver algo digitado (nunca sobrescreve dado já preenchido).
+    const campo = tipo === "comprovante_endereco" ? "endereco" : tipo === "certidao" ? "regime_casamento" : null;
+    if (campo) {
+      const { data: baseParty } = await supabase.from("sale_parties").select("endereco, regime_casamento").eq("sale_id", saleId).eq("papel", baseParte).maybeSingle();
+      const valor = (baseParty as any)?.[campo];
+      if (valor) {
+        const { data: existingParty } = await supabase.from("sale_parties").select("id, endereco, regime_casamento").eq("sale_id", saleId).eq("papel", parte).maybeSingle();
+        if (existingParty) {
+          if (!(existingParty as any)[campo]) {
+            await supabase.from("sale_parties").update({ [campo]: valor } as any).eq("id", (existingParty as any).id);
+          }
+        } else {
+          await supabase.from("sale_parties").insert({ sale_id: saleId, papel: parte, [campo]: valor } as any);
+        }
+      }
+    }
+
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_reused_from_other_party", payload: { tipo, parte, de: baseParte } });
     toast.success(`Documento reaproveitado de ${parteLabel(baseParte)}`);
     onChange();
