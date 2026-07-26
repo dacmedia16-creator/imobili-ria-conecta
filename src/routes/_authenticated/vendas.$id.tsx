@@ -4013,6 +4013,29 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       </Card>
 
       <Card>
+        <CardHeader><CardTitle className="text-base">Vendedor e Comprador</CardTitle></CardHeader>
+        <CardContent>
+          {partiesComNome(parties).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma parte preenchida.</p>
+          ) : (
+            <div className="space-y-3">
+              {partiesComNome(parties).map((papel) => {
+                const p = parties[papel];
+                return (
+                  <ReviewGroup key={papel} title={`${parteLabel(papel)} — ${p.nome}`}>
+                    <ReviewItem label="CPF/CNPJ" value={p.cpf_cnpj} />
+                    <ReviewItem label="RG" value={p.rg} />
+                    <ReviewItem label="E-mail" value={p.email} />
+                    <ReviewItem label="Telefone" value={p.telefone} />
+                  </ReviewGroup>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Financiamento</CardTitle>
           {canWrite && (
