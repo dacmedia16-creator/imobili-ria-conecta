@@ -805,6 +805,12 @@ export type Database = {
           previsao_recebimento_data: string | null
           previsao_recebimento_forma: string | null
           previsao_recebimento_valor: number | null
+          previsao_recebimento2_data: string | null
+          previsao_recebimento2_forma: string | null
+          previsao_recebimento2_valor: number | null
+          previsao_recebimento3_data: string | null
+          previsao_recebimento3_forma: string | null
+          previsao_recebimento3_valor: number | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
           tempo_venda: string | null
@@ -858,6 +864,12 @@ export type Database = {
           previsao_recebimento_data?: string | null
           previsao_recebimento_forma?: string | null
           previsao_recebimento_valor?: number | null
+          previsao_recebimento2_data?: string | null
+          previsao_recebimento2_forma?: string | null
+          previsao_recebimento2_valor?: number | null
+          previsao_recebimento3_data?: string | null
+          previsao_recebimento3_forma?: string | null
+          previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           tempo_venda?: string | null
@@ -911,6 +923,12 @@ export type Database = {
           previsao_recebimento_data?: string | null
           previsao_recebimento_forma?: string | null
           previsao_recebimento_valor?: number | null
+          previsao_recebimento2_data?: string | null
+          previsao_recebimento2_forma?: string | null
+          previsao_recebimento2_valor?: number | null
+          previsao_recebimento3_data?: string | null
+          previsao_recebimento3_forma?: string | null
+          previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           tempo_venda?: string | null

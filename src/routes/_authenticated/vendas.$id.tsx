@@ -131,6 +131,10 @@ function SaleDetail() {
   const [contratoAssinadoDialogOpen, setContratoAssinadoDialogOpen] = useState(false);
   const [contratoAssinadoFile, setContratoAssinadoFile] = useState<File | null>(null);
   const [contratoAssinadoUploading, setContratoAssinadoUploading] = useState(false);
+  // Previsão de recebimento da comissão: 2ª/3ª parcela ficam escondidas até o gestor clicar em
+  // "Adicionar parcela" (ou já existir valor salvo — aí aparecem sozinhas ao carregar a venda).
+  const [showParcela2Recebimento, setShowParcela2Recebimento] = useState(false);
+  const [showParcela3Recebimento, setShowParcela3Recebimento] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -212,6 +216,8 @@ function SaleDetail() {
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
+      "previsao_recebimento2_valor","previsao_recebimento2_data","previsao_recebimento2_forma",
+      "previsao_recebimento3_valor","previsao_recebimento3_data","previsao_recebimento3_forma",
       "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
       "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
@@ -895,13 +901,41 @@ function SaleDetail() {
             </div>
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
-                Previsão de recebimento da comissão — vira a 1ª parcela na Ocorrência quando ela for criada (financeiro pode ajustar ou completar com mais parcelas lá).
+                Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
               </p>
               <FieldGrid>
-                <Field label="Valor previsto (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
-                <Field label="Data prevista"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
-                <Field label="Forma de pagamento"><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
+                <Field label="1ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
+                <Field label="1ª parcela — data"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
+                <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
               </FieldGrid>
+              {(showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && (
+                <div className="mt-3">
+                  <FieldGrid>
+                    <Field label="2ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento2_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento2_valor: v })} /></Field>
+                    <Field label="2ª parcela — data"><Input type="date" value={formSale.previsao_recebimento2_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_data: e.target.value || null })} /></Field>
+                    <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento2_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_forma: e.target.value })} /></Field>
+                  </FieldGrid>
+                </div>
+              )}
+              {(showParcela3Recebimento || formSale.previsao_recebimento3_valor != null || formSale.previsao_recebimento3_data || formSale.previsao_recebimento3_forma) && (
+                <div className="mt-3">
+                  <FieldGrid>
+                    <Field label="3ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento3_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento3_valor: v })} /></Field>
+                    <Field label="3ª parcela — data"><Input type="date" value={formSale.previsao_recebimento3_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_data: e.target.value || null })} /></Field>
+                    <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento3_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_forma: e.target.value })} /></Field>
+                  </FieldGrid>
+                </div>
+              )}
+              {editableComissao && !showParcela2Recebimento && formSale.previsao_recebimento2_valor == null && !formSale.previsao_recebimento2_data && !formSale.previsao_recebimento2_forma && (
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela2Recebimento(true)}>
+                  <Plus className="mr-1 h-4 w-4" />Adicionar parcela
+                </Button>
+              )}
+              {editableComissao && (showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && !showParcela3Recebimento && formSale.previsao_recebimento3_valor == null && !formSale.previsao_recebimento3_data && !formSale.previsao_recebimento3_forma && (
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela3Recebimento(true)}>
+                  <Plus className="mr-1 h-4 w-4" />Adicionar parcela
+                </Button>
+              )}
             </div>
             <div className="mt-4 border-t pt-4">
               <div className="mb-3 flex items-center justify-between">
@@ -1368,10 +1402,23 @@ function SaleDetail() {
                   value={money(e.valor)}
                 />
               ))}
-              <ReviewItem
-                label="Previsão de recebimento"
-                value={sale.previsao_recebimento_valor != null ? `${money(sale.previsao_recebimento_valor)}${sale.previsao_recebimento_data ? ` — ${dateBR(sale.previsao_recebimento_data)}` : ""}${sale.previsao_recebimento_forma ? ` — ${sale.previsao_recebimento_forma}` : ""}` : null}
-              />
+              {([1, 2, 3] as const).map((n) => {
+                const suf = n === 1 ? "" : n;
+                const valor = sale[`previsao_recebimento${suf}_valor`];
+                const data = sale[`previsao_recebimento${suf}_data`];
+                const forma = sale[`previsao_recebimento${suf}_forma`];
+                if (valor == null && !data && !forma) return null;
+                return (
+                  <ReviewItem
+                    key={n}
+                    label={`Previsão de recebimento — ${n}ª parcela`}
+                    value={`${money(valor)}${data ? ` — ${dateBR(data)}` : ""}${forma ? ` — ${forma}` : ""}`}
+                  />
+                );
+              })}
+              {sale.previsao_recebimento_valor == null && sale.previsao_recebimento2_valor == null && sale.previsao_recebimento3_valor == null && (
+                <ReviewItem label="Previsão de recebimento" value={null} />
+              )}
             </ReviewGroup>
 
             <ReviewGroup title="Parceria externa">
@@ -3683,6 +3730,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       prev_recebimento_valor: sale.previsao_recebimento_valor ?? null,
       prev_recebimento_data: sale.previsao_recebimento_data ?? null,
       prev_recebimento_forma: sale.previsao_recebimento_forma ?? null,
+      prev_recebimento2_valor: sale.previsao_recebimento2_valor ?? null,
+      prev_recebimento2_data: sale.previsao_recebimento2_data ?? null,
+      prev_recebimento2_forma: sale.previsao_recebimento2_forma ?? null,
+      prev_recebimento3_valor: sale.previsao_recebimento3_valor ?? null,
+      prev_recebimento3_data: sale.previsao_recebimento3_data ?? null,
+      prev_recebimento3_forma: sale.previsao_recebimento3_forma ?? null,
       observacoes: [vendedor?.nome && `Vendedor/Proprietário: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
       status: "pendente",
     }).select("*").single();

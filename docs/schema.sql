@@ -265,6 +265,12 @@ BEGIN
     OR NEW.previsao_recebimento_valor IS DISTINCT FROM OLD.previsao_recebimento_valor
     OR NEW.previsao_recebimento_data IS DISTINCT FROM OLD.previsao_recebimento_data
     OR NEW.previsao_recebimento_forma IS DISTINCT FROM OLD.previsao_recebimento_forma
+    OR NEW.previsao_recebimento2_valor IS DISTINCT FROM OLD.previsao_recebimento2_valor
+    OR NEW.previsao_recebimento2_data IS DISTINCT FROM OLD.previsao_recebimento2_data
+    OR NEW.previsao_recebimento2_forma IS DISTINCT FROM OLD.previsao_recebimento2_forma
+    OR NEW.previsao_recebimento3_valor IS DISTINCT FROM OLD.previsao_recebimento3_valor
+    OR NEW.previsao_recebimento3_data IS DISTINCT FROM OLD.previsao_recebimento3_data
+    OR NEW.previsao_recebimento3_forma IS DISTINCT FROM OLD.previsao_recebimento3_forma
   ) AND NOT public.can_edit_sale_comissao(auth.uid(), OLD.id) THEN
     RAISE EXCEPTION 'Somente o gestor (ou financeiro/admin) pode editar a divisão da comissão desta venda.';
   END IF;
@@ -448,6 +454,12 @@ CREATE TABLE IF NOT EXISTS public.sales (
   previsao_recebimento_valor numeric(14,2),
   previsao_recebimento_data date,
   previsao_recebimento_forma text,
+  previsao_recebimento2_valor numeric(14,2),
+  previsao_recebimento2_data date,
+  previsao_recebimento2_forma text,
+  previsao_recebimento3_valor numeric(14,2),
+  previsao_recebimento3_data date,
+  previsao_recebimento3_forma text,
   comissao_valor numeric(14,2),
   comissao_quando text,
   comissao_observacoes text,
