@@ -16,16 +16,23 @@ export function canDeleteSale(
   return false;
 }
 
-/** Remove os arquivos do storage e depois deleta a venda. RLS decide o acesso. */
+/**
+ * Deleta a venda (sale_documents cai junto via ON DELETE CASCADE) e só depois limpa o storage.
+ * Nessa ordem: se a exclusão da venda falhar (RLS, rede), nada foi perdido — os arquivos continuam
+ * intactos. Na ordem inversa (storage antes do banco), uma falha no passo do banco deixava a venda
+ * viva mas com os documentos já apagados do storage, sem como recuperar.
+ */
 export async function deleteSaleCascade(saleId: string): Promise<void> {
   const { data: docs } = await supabase
     .from("sale_documents")
     .select("storage_path")
     .eq("sale_id", saleId);
   const paths = (docs ?? []).map((d: any) => d.storage_path).filter(Boolean);
+
+  const { error } = await supabase.from("sales").delete().eq("id", saleId);
+  if (error) throw error;
+
   if (paths.length > 0) {
     await supabase.storage.from("sale-documents").remove(paths);
   }
-  const { error } = await supabase.from("sales").delete().eq("id", saleId);
-  if (error) throw error;
 }

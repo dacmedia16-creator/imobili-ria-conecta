@@ -12,27 +12,47 @@ export const Route = createFileRoute("/_authenticated/notificacoes")({
   component: NotificationsPage,
 });
 
+const PAGE_SIZE = 50;
+
 function NotificationsPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<"nao_lidas" | "lidas">("nao_lidas");
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const fetchPage = useCallback(async (from: number) => {
+    if (!user) return [];
     const { data } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", user.id)
       .eq("lida", tab === "lidas")
       .order("created_at", { ascending: false })
-      .limit(100);
-    setItems(data ?? []);
-    setLoading(false);
+      .range(from, from + PAGE_SIZE - 1);
+    return data ?? [];
   }, [user, tab]);
 
+  // Recarrega do início — usada na troca de aba e depois de marcar como lida (o item some da
+  // lista de "não lidas", então a página inteira precisa ser recalculada, não só anexada).
+  const load = useCallback(async () => {
+    setLoading(true);
+    const rows = await fetchPage(0);
+    setItems(rows);
+    setHasMore(rows.length === PAGE_SIZE);
+    setLoading(false);
+  }, [fetchPage]);
+
   useEffect(() => { load(); }, [load]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const rows = await fetchPage(items.length);
+    setItems((prev) => [...prev, ...rows]);
+    setHasMore(rows.length === PAGE_SIZE);
+    setLoadingMore(false);
+  };
 
   const markRead = async (id: string) => {
     await supabase.from("notifications").update({ lida: true }).eq("id", id);
@@ -100,6 +120,13 @@ function NotificationsPage() {
               </div>
             </div>
           ))}
+          {!loading && hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? "Carregando..." : "Carregar mais"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
