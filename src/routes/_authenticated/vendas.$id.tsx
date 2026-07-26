@@ -211,6 +211,7 @@ function SaleDetail() {
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
+      "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
       "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
       "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
@@ -893,6 +894,16 @@ function SaleDetail() {
               </p>
             </div>
             <div className="mt-4 border-t pt-4">
+              <p className="mb-3 text-xs text-muted-foreground">
+                Previsão de recebimento da comissão — vira a 1ª parcela na Ocorrência quando ela for criada (financeiro pode ajustar ou completar com mais parcelas lá).
+              </p>
+              <FieldGrid>
+                <Field label="Valor previsto (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
+                <Field label="Data prevista"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
+                <Field label="Forma de pagamento"><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
+              </FieldGrid>
+            </div>
+            <div className="mt-4 border-t pt-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
                   Partes extras da divisão — classifique quem é a pessoa e de qual fatia (imobiliária, captador ou vendedor) o valor sai.
@@ -1357,6 +1368,10 @@ function SaleDetail() {
                   value={money(e.valor)}
                 />
               ))}
+              <ReviewItem
+                label="Previsão de recebimento"
+                value={sale.previsao_recebimento_valor != null ? `${money(sale.previsao_recebimento_valor)}${sale.previsao_recebimento_data ? ` — ${dateBR(sale.previsao_recebimento_data)}` : ""}${sale.previsao_recebimento_forma ? ` — ${sale.previsao_recebimento_forma}` : ""}` : null}
+              />
             </ReviewGroup>
 
             <ReviewGroup title="Parceria externa">
@@ -3665,6 +3680,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       financiamento_correspondente: payment?.financiamento_correspondente ?? null,
       financiamento_previsao: payment?.financiamento_previsao ?? null,
       oba_credito: payment?.oba_credito ?? false,
+      prev_recebimento_valor: sale.previsao_recebimento_valor ?? null,
+      prev_recebimento_data: sale.previsao_recebimento_data ?? null,
+      prev_recebimento_forma: sale.previsao_recebimento_forma ?? null,
       observacoes: [vendedor?.nome && `Vendedor/Proprietário: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
       status: "pendente",
     }).select("*").single();

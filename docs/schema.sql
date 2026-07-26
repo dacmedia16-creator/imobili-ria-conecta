@@ -262,6 +262,9 @@ BEGIN
     OR NEW.indicador_lado IS DISTINCT FROM OLD.indicador_lado
     OR NEW.percentual_comissao_indicador IS DISTINCT FROM OLD.percentual_comissao_indicador
     OR NEW.valor_comissao_indicador IS DISTINCT FROM OLD.valor_comissao_indicador
+    OR NEW.previsao_recebimento_valor IS DISTINCT FROM OLD.previsao_recebimento_valor
+    OR NEW.previsao_recebimento_data IS DISTINCT FROM OLD.previsao_recebimento_data
+    OR NEW.previsao_recebimento_forma IS DISTINCT FROM OLD.previsao_recebimento_forma
   ) AND NOT public.can_edit_sale_comissao(auth.uid(), OLD.id) THEN
     RAISE EXCEPTION 'Somente o gestor (ou financeiro/admin) pode editar a divisão da comissão desta venda.';
   END IF;
@@ -442,6 +445,9 @@ CREATE TABLE IF NOT EXISTS public.sales (
   negociacao_observacoes text,
   posse_data date,
   posse_observacoes text,
+  previsao_recebimento_valor numeric(14,2),
+  previsao_recebimento_data date,
+  previsao_recebimento_forma text,
   comissao_valor numeric(14,2),
   comissao_quando text,
   comissao_observacoes text,

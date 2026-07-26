@@ -802,6 +802,9 @@ export type Database = {
           percentual_comissao_vendedor: number | null
           posse_data: string | null
           posse_observacoes: string | null
+          previsao_recebimento_data: string | null
+          previsao_recebimento_forma: string | null
+          previsao_recebimento_valor: number | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
           tempo_venda: string | null
@@ -852,6 +855,9 @@ export type Database = {
           percentual_comissao_vendedor?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
+          previsao_recebimento_data?: string | null
+          previsao_recebimento_forma?: string | null
+          previsao_recebimento_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           tempo_venda?: string | null
@@ -902,6 +908,9 @@ export type Database = {
           percentual_comissao_vendedor?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
+          previsao_recebimento_data?: string | null
+          previsao_recebimento_forma?: string | null
+          previsao_recebimento_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
           tempo_venda?: string | null
