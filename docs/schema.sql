@@ -622,7 +622,9 @@ DROP POLICY IF EXISTS teams_write ON public.teams;
 -- WITH CHECK usa lider_id/parent_team_id direto (colunas da própria linha) em vez de
 -- leads_team_or_parent(teams.id, ...) pro mesmo motivo: numa linha nova, id ainda não existe
 -- na tabela pra essa função encontrar via subquery.
-CREATE POLICY teams_write ON public.teams AS PERMISSIVE FOR ALL TO authenticated USING ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR leads_team_or_parent(teams.id, auth.uid()))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR ((parent_team_id IS NOT NULL) AND leads_team_or_parent(parent_team_id, auth.uid()))));
+-- is_active_user(auth.uid()) fecha o bypass de "lider_id = auth.uid()"/leads_team_or_parent:
+-- sem essa trava, um gestor desativado que lidera uma equipe continuava editando/apagando ela.
+CREATE POLICY teams_write ON public.teams AS PERMISSIVE FOR ALL TO authenticated USING ((is_active_user(auth.uid()) AND (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR leads_team_or_parent(teams.id, auth.uid())))) WITH CHECK ((is_active_user(auth.uid()) AND (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]) OR (lider_id = auth.uid()) OR ((parent_team_id IS NOT NULL) AND leads_team_or_parent(parent_team_id, auth.uid())))));
 DROP TRIGGER IF EXISTS trg_teams_updated ON public.teams;
 CREATE TRIGGER trg_teams_updated BEFORE UPDATE ON public.teams FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
