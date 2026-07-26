@@ -310,6 +310,10 @@ function SaleDetail() {
   // Divisão da comissão é decisão do gestor — mesmo quando a venda volta pro corretor
   // (devolvida_ajuste) pra ajustar outra coisa, ele só pode VER essa parte, não editar.
   const editableComissao = (gestorEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
+  // Corretor só enxerga o bloco "Divisão da comissão" quando o gestor devolveu a venda pra ele
+  // (devolvida_ajuste) — fora disso o bloco fica oculto (nada pra ver ainda, ou já não é mais a
+  // vez dele mexer no Resumo). Gestor/financeiro/admin/jurídico sempre veem.
+  const hideComissaoBlock = isOwner && status !== "devolvida_ajuste";
 
   // history vem ordenado por created_at desc (ver load()); o primeiro item é a transição que colocou a venda no status atual
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
@@ -749,10 +753,10 @@ function SaleDetail() {
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("equipe")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock(hideComissaoBlock ? "parceria" : "comissao")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
-              { key: "comissao", label: "Divisão da comissão", content: (<>
+              { key: "comissao", label: "Divisão da comissão", disabled: hideComissaoBlock, content: (<>
           <SaleSection title="Divisão da comissão (revisão do gestor)">
             {(() => {
               const total = Number(formSale.valor_total_comissao ?? 0);
@@ -934,7 +938,7 @@ function SaleDetail() {
             </FieldGrid>
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock(hideComissaoBlock ? "valores" : "comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("posse")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
           </div>
               </>) },
