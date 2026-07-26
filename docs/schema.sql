@@ -220,6 +220,56 @@ AS $function$
 $function$
 ;
 
+-- Só gestor (no turno dele)/financeiro/admin editam "Divisão da comissão" — corretor só vê,
+-- mesmo quando a venda estiver na janela de edição dele para outros campos (Partes/Documentos).
+CREATE OR REPLACE FUNCTION public.can_edit_sale_comissao(_user uuid, _sale_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT
+    public.has_any_role(_user, ARRAY['financeiro','admin','super_admin']::public.app_role[])
+    OR (
+      public.has_role(_user, 'gestor'::public.app_role)
+      AND NOT public.is_sale_locked(_sale_id)
+      AND EXISTS (
+        SELECT 1 FROM public.sales s
+        WHERE s.id = _sale_id
+        AND s.status::text = ANY(ARRAY[
+          'enviada_revisao','contrato_conferencia_gestor','contrato_ok_corretor',
+          'aguardando_assinatura','contrato_assinado','ocorrencia_pendente','ocorrencia_devolvida_gestor'
+        ])
+      )
+    );
+$function$
+;
+
+-- Trava por coluna na própria sales (RLS não faz granularidade de coluna): qualquer UPDATE que
+-- mude um dos campos da divisão de comissão exige can_edit_sale_comissao.
+CREATE OR REPLACE FUNCTION public.enforce_sale_comissao_lock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF (
+    NEW.percentual_comissao_captador IS DISTINCT FROM OLD.percentual_comissao_captador
+    OR NEW.valor_comissao_captador IS DISTINCT FROM OLD.valor_comissao_captador
+    OR NEW.percentual_comissao_vendedor IS DISTINCT FROM OLD.percentual_comissao_vendedor
+    OR NEW.valor_comissao_vendedor IS DISTINCT FROM OLD.valor_comissao_vendedor
+    OR NEW.indicador IS DISTINCT FROM OLD.indicador
+    OR NEW.indicador_lado IS DISTINCT FROM OLD.indicador_lado
+    OR NEW.percentual_comissao_indicador IS DISTINCT FROM OLD.percentual_comissao_indicador
+    OR NEW.valor_comissao_indicador IS DISTINCT FROM OLD.valor_comissao_indicador
+  ) AND NOT public.can_edit_sale_comissao(auth.uid(), OLD.id) THEN
+    RAISE EXCEPTION 'Somente o gestor (ou financeiro/admin) pode editar a divisão da comissão desta venda.';
+  END IF;
+  RETURN NEW;
+END;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.log_role_change()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -442,6 +492,8 @@ DROP TRIGGER IF EXISTS trg_sales_updated ON public.sales;
 CREATE TRIGGER trg_sales_updated BEFORE UPDATE ON public.sales FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_validate_sale_status ON public.sales;
 CREATE TRIGGER trg_validate_sale_status BEFORE UPDATE ON public.sales FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status) EXECUTE FUNCTION validate_sale_status_transition();
+DROP TRIGGER IF EXISTS trg_sales_comissao_lock ON public.sales;
+CREATE TRIGGER trg_sales_comissao_lock BEFORE UPDATE ON public.sales FOR EACH ROW EXECUTE FUNCTION enforce_sale_comissao_lock();
 
 -- ===== TABELA: teams =====
 CREATE TABLE IF NOT EXISTS public.teams (
@@ -852,5 +904,10 @@ CREATE TABLE IF NOT EXISTS public.sale_commission_extras (
   CONSTRAINT sale_commission_extras_papel_check CHECK (papel IS NULL OR papel IN ('gestor','team_leader','outro','corretor_captador','corretor_vendedor'))
 );
 ALTER TABLE public.sale_commission_extras ENABLE ROW LEVEL SECURITY;
+-- Ver é liberado a quem vê a venda; escrever (insert/update/delete) é só quem pode editar a
+-- divisão de comissão (can_edit_sale_comissao) — corretor pode ver as linhas mas não mexer nelas.
 DROP POLICY IF EXISTS sale_commission_extras_rw ON public.sale_commission_extras;
-CREATE POLICY sale_commission_extras_rw ON public.sale_commission_extras AS PERMISSIVE FOR ALL TO  USING (can_view_sale(auth.uid(), sale_id)) WITH CHECK ((can_view_sale(auth.uid(), sale_id) AND ((NOT is_sale_locked(sale_id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]))));
+CREATE POLICY sale_commission_extras_select ON public.sale_commission_extras AS PERMISSIVE FOR SELECT TO  USING (can_view_sale(auth.uid(), sale_id));
+CREATE POLICY sale_commission_extras_insert ON public.sale_commission_extras AS PERMISSIVE FOR INSERT TO  WITH CHECK (can_edit_sale_comissao(auth.uid(), sale_id));
+CREATE POLICY sale_commission_extras_update ON public.sale_commission_extras AS PERMISSIVE FOR UPDATE TO  USING (can_edit_sale_comissao(auth.uid(), sale_id)) WITH CHECK (can_edit_sale_comissao(auth.uid(), sale_id));
+CREATE POLICY sale_commission_extras_delete ON public.sale_commission_extras AS PERMISSIVE FOR DELETE TO  USING (can_edit_sale_comissao(auth.uid(), sale_id));
