@@ -3594,9 +3594,14 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
 }
 
 // Partes extras da divisão (Resumo) viram comissões na ocorrência usando o "papel" que a pessoa
-// recebeu lá (Gestor/Team Leader/Outro) — sem papel definido, cai em "outro".
+// recebeu lá (Gestor/Team Leader/Outro/mais um captador ou vendedor) — sem papel definido, cai em "outro".
 const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro", "corretor_captador", "corretor_vendedor"]);
 const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
+// Papéis "fixos" da comissão (1 linha por venda cada, vindos direto de sales.corretor_captador/
+// vendedor/indicador) — diferente de EXTRA_ORIGEM_PAPEIS acima, que é só sobre como rotular uma
+// parte EXTRA. Não reaproveitar esse set ali: corretor_captador/vendedor está nos dois por razões
+// diferentes, e um dia já causou um bug (createOcc parava de criar a linha fixa do captador/vendedor).
+const FIXED_COMISSAO_PAPEIS = new Set(["corretor_captador", "indicador_captador", "corretor_vendedor", "indicador_vendedor"]);
 
 /**
  * Sempre que a Resumo é salva (captador/vendedor/indicador/partes extras), joga esses valores
@@ -3785,7 +3790,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     // (aba Resumo) — sem isso a tabela de comissões nasce zerada e duplica trabalho já feito.
     const totalComissao = Number(sale.valor_total_comissao ?? 0);
     const pctOfTotal = (v: any) => (v != null && totalComissao > 0 ? Number(((Number(v) / totalComissao) * 100).toFixed(3)) : null);
-    const commRows = COMISSAO_PAPEIS.filter((p) => !EXTRA_ORIGEM_PAPEIS.has(p.key)).map((p) => {
+    const commRows = COMISSAO_PAPEIS.filter((p) => FIXED_COMISSAO_PAPEIS.has(p.key)).map((p) => {
       let nome: string | null = null;
       let valor: number | null = null;
       if (p.key === "corretor_captador") { nome = sale.corretor_captador ?? null; valor = sale.valor_comissao_captador ?? null; }
@@ -3851,6 +3856,21 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
         return r;
       });
+      // Se a linha fixa (captador/vendedor/indicador) nunca existiu na ocorrência — ex.: ela foi
+      // criada antes desses campos serem preenchidos na revisão do gestor — o map acima não tem o
+      // que atualizar. Cria a linha que estiver faltando, em vez de silenciosamente não fazer nada.
+      const fixedTargets: { papel: string; nome: any; valor: any }[] = [
+        { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
+        { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
+      ];
+      if (sale.indicador_lado === "captador") fixedTargets.push({ papel: "indicador_captador", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+      if (sale.indicador_lado === "vendedor") fixedTargets.push({ papel: "indicador_vendedor", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+      for (const t of fixedTargets) {
+        if (t.nome == null && t.valor == null) continue;
+        if (!next.some((r) => r.papel === t.papel)) {
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, _new: true }];
+        }
+      }
       // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes
       // (casando pelo id estável da parte extra, não só nome — nome pode ter mudado desde a
       // última vez) ou adiciona uma nova, sem duplicar a cada clique.
