@@ -320,6 +320,14 @@ function SaleDetail() {
   // (devolvida_ajuste) — fora disso o bloco fica oculto (nada pra ver ainda, ou já não é mais a
   // vez dele mexer no Resumo). Gestor/financeiro/admin/jurídico sempre veem.
   const hideComissaoBlock = isOwner && status !== "devolvida_ajuste";
+  // Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total da
+  // comissão. Fora isso o preenchimento é livre — isso só vira bloqueio na hora de avançar pro
+  // jurídico (confirmApproveJuridico), nunca trava a digitação em si.
+  const comissaoExcedida = (() => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
+    return total > 0 && soma > total + 0.01;
+  })();
 
   // history vem ordenado por created_at desc (ver load()); o primeiro item é a transição que colocou a venda no status atual
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
@@ -362,17 +370,13 @@ function SaleDetail() {
     const p = formSale.percentual_comissao_indicador ?? 25;
     return { valor_comissao_indicador: ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null };
   };
-  // A soma das comissões de captador + vendedor nunca pode passar do valor total da comissão —
-  // cada mudança é limitada (clamp) ao que ainda resta disponível para o outro lado.
+  // Preenchimento livre: cada lado aceita qualquer % ou R$ digitado, sem travar contra o outro lado.
+  // A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o avanço
+  // da venda pro jurídico (ver comissaoExcedida/confirmApproveJuridico), não a digitação em si.
   const applyComissaoPercentual = (role: ComissaoRole, raw: string) => {
-    let p = raw ? Number(raw) : null;
+    const p = raw ? Number(raw) : null;
     const total = Number(formSale.valor_total_comissao ?? 0);
-    const outro = COMISSAO_ROLES.filter((r) => r !== role).reduce((s, r) => s + Number(formSale[`valor_comissao_${r}`] ?? 0), 0);
-    let valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : (formSale[`valor_comissao_${role}`] ?? null);
-    if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - outro).toFixed(2)));
-      if (valor > max) { valor = max; p = Number(((max / total) * 100).toFixed(3)); }
-    }
+    const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
     const patch: any = { [`percentual_comissao_${role}`]: p, [`valor_comissao_${role}`]: valor };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     Object.assign(patch, recalcIndicadorFromLado(patch));
@@ -380,14 +384,8 @@ function SaleDetail() {
   };
   const applyComissaoValor = (role: ComissaoRole, v: number | null) => {
     const total = Number(formSale.valor_total_comissao ?? 0);
-    const outro = COMISSAO_ROLES.filter((r) => r !== role).reduce((s, r) => s + Number(formSale[`valor_comissao_${r}`] ?? 0), 0);
-    let valor = v;
-    let p = formSale[`percentual_comissao_${role}`] ?? null;
-    if (total > 0 && valor != null) {
-      const max = Math.max(0, Number((total - outro).toFixed(2)));
-      if (valor > max) valor = max;
-      p = Number(((valor / total) * 100).toFixed(3));
-    }
+    const valor = v;
+    const p = total > 0 && valor != null ? Number(((valor / total) * 100).toFixed(3)) : (formSale[`percentual_comissao_${role}`] ?? null);
     const patch: any = { [`valor_comissao_${role}`]: valor, [`percentual_comissao_${role}`]: p };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     Object.assign(patch, recalcIndicadorFromLado(patch));
@@ -422,19 +420,14 @@ function SaleDetail() {
     updResumo({ indicador_lado: lado, percentual_comissao_indicador: lado ? p : null, valor_comissao_indicador: valor });
   };
   const applyIndicadorPercentual = (raw: string) => {
-    let p = raw ? Number(raw) : null;
+    const p = raw ? Number(raw) : null;
     const ladoValor = indicadorLadoValor();
-    let valor = p != null && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
-    if (valor != null && ladoValor > 0) {
-      valor = Math.min(valor, ladoValor);
-      p = Number(((valor / ladoValor) * 100).toFixed(3));
-    }
+    const valor = p != null && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
     updResumo({ percentual_comissao_indicador: p, valor_comissao_indicador: valor });
   };
   const applyIndicadorValor = (v: number | null) => {
     const ladoValor = indicadorLadoValor();
-    let valor = v;
-    if (valor != null) valor = Math.max(0, Math.min(valor, ladoValor));
+    const valor = v;
     const p = valor != null && ladoValor > 0 ? Number(((valor / ladoValor) * 100).toFixed(3)) : formSale.percentual_comissao_indicador ?? null;
     updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
@@ -469,25 +462,16 @@ function SaleDetail() {
       if (r.id !== rowId) return r;
       const merged = { ...r, ...patch };
       const base = baseParaOrigem(merged.origem);
-      // Quanto ainda sobra da fatia pra essa linha: desconta o indicador (quando vinculado ao mesmo
-      // lado) e as outras partes extras já lançadas na mesma origem — sem isso, dava pra cadastrar
-      // 2 captadores extras somando mais do que a fatia toda do captador (líquido ficando negativo).
-      const indicadorNoLado = (merged.origem === "captador" || merged.origem === "vendedor") && formSale.indicador_lado === merged.origem
-        ? Number(formSale.valor_comissao_indicador ?? 0) : 0;
-      const outrasExtras = rows.reduce((s, e) => s + (e.id !== rowId && e.origem === merged.origem ? Number(e.valor ?? 0) : 0), 0);
-      const disponivel = Math.max(0, Number((base - indicadorNoLado - outrasExtras).toFixed(2)));
       if ("percentual" in patch) {
-        let p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
-        let valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
-        if (valor != null) { valor = Math.min(valor, disponivel); p = base > 0 ? Number(((valor / base) * 100).toFixed(3)) : p; }
+        const p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
+        const valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
         merged.percentual = p; merged.valor = valor;
       } else if ("valor" in patch) {
-        let valor = patch.valor;
-        if (valor != null) valor = Math.max(0, Math.min(valor, disponivel));
+        const valor = patch.valor;
         const p = valor != null && base > 0 ? Number(((valor / base) * 100).toFixed(3)) : merged.percentual ?? null;
         merged.valor = valor; merged.percentual = p;
       } else if ("origem" in patch) {
-        merged.valor = merged.percentual != null && base > 0 ? Math.min(Number(((Number(merged.percentual) / 100) * base).toFixed(2)), disponivel) : (base > 0 ? merged.valor : null);
+        merged.valor = merged.percentual != null && base > 0 ? Number(((Number(merged.percentual) / 100) * base).toFixed(2)) : (base > 0 ? merged.valor : null);
       }
       return merged;
     }));
@@ -701,6 +685,7 @@ function SaleDetail() {
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
     if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
+    if (comissaoExcedida) { toast.error("A soma da comissão do captador e vendedor não pode ultrapassar o valor total da comissão"); return; }
     setApproveJuridicoOpen(false);
     await changeStatus("aprovada_gestor");
   };
@@ -1580,6 +1565,13 @@ function SaleDetail() {
               </div>
             )}
 
+            {comissaoExcedida && (
+              <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                A soma da comissão do captador ({money(formSale.valor_comissao_captador)}) e do vendedor ({money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão ({money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de enviar ao jurídico.
+              </div>
+            )}
+
             <div className="space-y-3">
               <ReviewGroup title="Imóvel">
                 <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
@@ -1611,7 +1603,7 @@ function SaleDetail() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0}>Confirmar e enviar ao jurídico</Button>
+            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0 || comissaoExcedida}>Confirmar e enviar ao jurídico</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
