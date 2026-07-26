@@ -31,10 +31,39 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
+/** Formato de retorno de dashboard_stats() — contagens/somas já agregadas no banco (respeitando o
+ * RLS de cada papel, igual às queries diretas de antes), em vez de baixar sales/occurrences
+ * inteiras só pra contar no client. */
+type DashboardStats = {
+  funil: Record<string, number>;
+  minhas_vendas: number;
+  minhas_pendencias: number;
+  meus_contratos_conferir: number;
+  meus_assinados: number;
+  minha_comissao_prevista: number;
+  gestor_aguardando_revisao: number;
+  gestor_contratos_conferir: number;
+  gestor_ocorrencias_enviar: number;
+  gestor_devolvidas: number;
+  juridico_aprovadas_gestor: number;
+  juridico_em_elaboracao: number;
+  juridico_aguardando_assinatura: number;
+  juridico_assinados: number;
+  fin_ocorrencias_analise: number;
+  fin_devolvidas: number;
+  occ_pendentes_total: number;
+  occ_concluidas_total: number;
+  comissao_prevista_total: number;
+  comissao_concluida_total: number;
+  comissao_por_corretor: Record<string, number>;
+};
+
+const RECENTES_COLUMNS = "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at";
+
 function Dashboard() {
   const { user, roles, hasAny } = useAuth();
-  const [sales, setSales] = useState<any[]>([]);
-  const [occs, setOccs] = useState<any[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentes, setRecentes] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
@@ -42,15 +71,15 @@ function Dashboard() {
     if (!user) return;
     (async () => {
       setLoading(true);
-      const [s, o, prof] = await Promise.all([
-        supabase.from("sales").select("id, status, corretor_id, valor_negociado, valor_total_comissao, imovel_id, codigo_interno, updated_at, created_at").order("updated_at", { ascending: false }),
-        supabase.from("occurrences").select("id, sale_id, valor_comissao, status, created_at"),
+      const [statsRes, recentesRes, profRes] = await Promise.all([
+        supabase.rpc("dashboard_stats"),
+        supabase.from("sales").select(RECENTES_COLUMNS).order("updated_at", { ascending: false }).limit(8),
         supabase.from("profiles").select("id, nome"),
       ]);
-      setSales(s.data ?? []);
-      setOccs(o.data ?? []);
+      setStats(statsRes.data as DashboardStats | null);
+      setRecentes(recentesRes.data ?? []);
       const names: Record<string, string> = {};
-      for (const p of prof.data ?? []) names[p.id] = p.nome ?? p.id;
+      for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
       setLoading(false);
     })();
@@ -61,30 +90,11 @@ function Dashboard() {
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
-  const count = (fn: (s: any) => boolean) => sales.filter(fn).length;
-  const juridicoStatuses = ["aprovada_gestor", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"];
-  const contratoParaConferirCorretor = (uid?: string) => (s: any) => s.corretor_id === uid && s.status === "contrato_conferencia_corretor";
-  const contratoParaConferirGestor = (s: any) => s.status === "contrato_conferencia_gestor" || s.status === "contrato_ok_corretor";
-
-  const totalComissaoPrevista = occs
-    .filter(o => o.status !== "concluida")
-    .reduce((sum, o) => sum + Number(o.valor_comissao ?? 0), 0);
-  const totalComissaoConcluida = occs
-    .filter(o => o.status === "concluida")
-    .reduce((sum, o) => sum + Number(o.valor_comissao ?? 0), 0);
-
-  const comissaoPorCorretor: Record<string, number> = {};
-  occs.forEach(o => {
-    const sale = sales.find(s => s.id === o.sale_id);
-    if (!sale) return;
-    comissaoPorCorretor[sale.corretor_id] = (comissaoPorCorretor[sale.corretor_id] ?? 0) + Number(o.valor_comissao ?? 0);
-  });
-
   const funilData = FUNIL_STAGES.map(({ key, label, statuses }) => ({
-    key, label, total: sales.filter(s => statuses.includes(s.status)).length,
+    key, label, total: statuses.reduce((sum, st) => sum + (stats?.funil[st] ?? 0), 0),
   }));
   const totalFunil = funilData.reduce((sum, f) => sum + f.total, 0);
-  const comissaoData = [{ prevista: totalComissaoPrevista, concluida: totalComissaoConcluida }];
+  const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
 
   return (
     <div className="space-y-6">
@@ -102,7 +112,7 @@ function Dashboard() {
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
-      {!loading && sales.length > 0 && (
+      {!loading && totalFunil > 0 && (
         <Card>
           <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
@@ -145,17 +155,14 @@ function Dashboard() {
       {(hasAny(["corretor"]) || isCorretor) && (
         <DashSection title="Suas vendas">
           <KpiGrid>
-            <KpiCard icon={FileText} label="Minhas vendas" value={count(s => s.corretor_id === user?.id)} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={count(s => s.corretor_id === user?.id && (s.status === "rascunho" || s.status === "devolvida_ajuste"))} to="/vendas" />
-            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirCorretor(user?.id))} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={count(s => s.corretor_id === user?.id && ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(s.status))} to="/vendas" />
+            <KpiCard icon={FileText} label="Minhas vendas" value={stats?.minhas_vendas ?? 0} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={stats?.minhas_pendencias ?? 0} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.meus_contratos_conferir ?? 0} to="/vendas" />
+            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={stats?.meus_assinados ?? 0} to="/vendas" />
             <KpiCard
               icon={TrendingUp}
               label="Comissão prevista (vendas em andamento)"
-              value={`R$ ${sales
-                .filter(s => s.corretor_id === user?.id && !["ocorrencia_concluida", "arquivada", "cancelada"].includes(s.status))
-                .reduce((sum, s) => sum + Number(s.valor_total_comissao ?? 0), 0)
-                .toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              value={`R$ ${Number(stats?.minha_comissao_prevista ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               to="/vendas"
             />
           </KpiGrid>
@@ -166,10 +173,10 @@ function Dashboard() {
       {isGestor && (
         <DashSection title="Painel do gestor">
           <KpiGrid>
-            <KpiCard icon={ClipboardCheck} label="Aguardando revisão" value={count(s => s.status === "enviada_revisao")} to="/vendas" />
-            <KpiCard icon={FileText} label="Contratos para conferir" value={count(contratoParaConferirGestor)} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={count(s => s.status === "ocorrencia_pendente" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas" value={count(s => s.status === "devolvida_ajuste" || s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
+            <KpiCard icon={ClipboardCheck} label="Aguardando revisão" value={stats?.gestor_aguardando_revisao ?? 0} to="/vendas" />
+            <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.gestor_contratos_conferir ?? 0} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={stats?.gestor_ocorrencias_enviar ?? 0} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas" value={stats?.gestor_devolvidas ?? 0} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
@@ -178,10 +185,10 @@ function Dashboard() {
       {isJuridico && (
         <DashSection title="Painel do jurídico">
           <KpiGrid>
-            <KpiCard icon={ClipboardCheck} label="Aprovadas pelo gestor" value={count(s => s.status === "aprovada_gestor")} to="/vendas" />
-            <KpiCard icon={Gavel} label="Em elaboração" value={count(s => s.status === "em_elaboracao_contrato")} to="/vendas" />
-            <KpiCard icon={FileText} label="Aguardando assinatura" value={count(s => s.status === "aguardando_assinatura")} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Assinados" value={count(s => s.status === "contrato_assinado")} to="/vendas" />
+            <KpiCard icon={ClipboardCheck} label="Aprovadas pelo gestor" value={stats?.juridico_aprovadas_gestor ?? 0} to="/vendas" />
+            <KpiCard icon={Gavel} label="Em elaboração" value={stats?.juridico_em_elaboracao ?? 0} to="/vendas" />
+            <KpiCard icon={FileText} label="Aguardando assinatura" value={stats?.juridico_aguardando_assinatura ?? 0} to="/vendas" />
+            <KpiCard icon={CheckCircle2} label="Assinados" value={stats?.juridico_assinados ?? 0} to="/vendas" />
           </KpiGrid>
         </DashSection>
       )}
@@ -190,14 +197,14 @@ function Dashboard() {
       {isFinanceiro && (
         <DashSection title="Painel financeiro">
           <KpiGrid>
-            <KpiCard icon={DollarSign} label="Ocorrências em análise" value={count(s => s.status === "ocorrencia_analise_financeiro")} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas por mim" value={count(s => s.status === "ocorrencia_devolvida_gestor")} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Pendentes (total)" value={occs.filter(o => o.status !== "concluida").length} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Ocorrências concluídas" value={occs.filter(o => o.status === "concluida").length} to="/vendas" />
-            <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${totalComissaoPrevista.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
-            <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${totalComissaoConcluida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+            <KpiCard icon={DollarSign} label="Ocorrências em análise" value={stats?.fin_ocorrencias_analise ?? 0} to="/vendas" />
+            <KpiCard icon={AlertCircle} label="Devolvidas por mim" value={stats?.fin_devolvidas ?? 0} to="/vendas" />
+            <KpiCard icon={DollarSign} label="Pendentes (total)" value={stats?.occ_pendentes_total ?? 0} to="/vendas" />
+            <KpiCard icon={CheckCircle2} label="Ocorrências concluídas" value={stats?.occ_concluidas_total ?? 0} to="/vendas" />
+            <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${Number(stats?.comissao_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+            <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
           </KpiGrid>
-          {(totalComissaoPrevista > 0 || totalComissaoConcluida > 0) && (
+          {((stats?.comissao_prevista_total ?? 0) > 0 || (stats?.comissao_concluida_total ?? 0) > 0) && (
             <Card className="mt-3">
               <CardHeader><CardTitle className="text-base">Comissão: prevista x concluída</CardTitle></CardHeader>
               <CardContent>
@@ -215,14 +222,14 @@ function Dashboard() {
               </CardContent>
             </Card>
           )}
-          {Object.keys(comissaoPorCorretor).length > 0 && (
+          {Object.keys(stats?.comissao_por_corretor ?? {}).length > 0 && (
             <Card className="mt-3">
               <CardHeader><CardTitle className="text-base">Comissão por corretor</CardTitle></CardHeader>
               <CardContent className="space-y-1 text-sm">
-                {Object.entries(comissaoPorCorretor).map(([cid, valor]) => (
+                {Object.entries(stats?.comissao_por_corretor ?? {}).map(([cid, valor]) => (
                   <div key={cid} className="flex items-center justify-between rounded-md border p-2">
                     <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
-                    <span className="font-medium">R$ {valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-medium">R$ {Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}
               </CardContent>
@@ -237,8 +244,8 @@ function Dashboard() {
           <Button asChild variant="ghost" size="sm"><Link to="/vendas">Ver todas</Link></Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {sales.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>}
-          {sales.slice(0, 8).map((s) => {
+          {!loading && recentes.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>}
+          {recentes.map((s) => {
             const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
               papel === "corretor" ? s.corretor_id === user?.id
               : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])

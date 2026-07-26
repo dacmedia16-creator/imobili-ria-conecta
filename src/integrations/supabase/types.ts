@@ -1039,6 +1039,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_edit_sale_comissao: {
+        Args: { _sale_id: string; _user: string }
+        Returns: boolean
+      }
       can_edit_sale_stage: {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
@@ -1047,6 +1051,7 @@ export type Database = {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
       }
+      dashboard_stats: { Args: never; Returns: Json }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
@@ -1061,11 +1066,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_user: { Args: { _user: string }; Returns: boolean }
       is_lead_of: {
         Args: { _lider: string; _membro: string }
         Returns: boolean
       }
       is_sale_locked: { Args: { _sale_id: string }; Returns: boolean }
+      leads_team_or_parent: {
+        Args: { _team_id: string; _user: string }
+        Returns: boolean
+      }
+      sees_own_team_leader: {
+        Args: { _profile_id: string; _user: string }
+        Returns: boolean
+      }
+      sees_team: { Args: { _team_id: string; _user: string }; Returns: boolean }
       update_contrato_pendencia: {
         Args: {
           _libera_assinatura: boolean
