@@ -28,13 +28,26 @@ END $mig$;
 -- ============================================================
 -- FUNCTIONS
 -- ============================================================
+-- Usuário desativado (profiles.ativo = false) perde todo acesso baseado em papel (has_role/
+-- has_any_role) e toda visibilidade/edição de vendas, mesmo a própria — sem isso, "desativar"
+-- era só um selo visual e a pessoa continuava com acesso total ao sistema.
+CREATE OR REPLACE FUNCTION public.is_active_user(_user uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE((SELECT ativo FROM public.profiles WHERE id = _user), true);
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.can_view_sale(_user uuid, _sale_id uuid)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  SELECT EXISTS (
+  SELECT public.is_active_user(_user) AND EXISTS (
     SELECT 1 FROM public.sales s
     WHERE s.id = _sale_id AND (
       s.corretor_id = _user
@@ -71,7 +84,8 @@ CREATE OR REPLACE FUNCTION public.has_any_role(_user_id uuid, _roles app_role[])
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = ANY(_roles))
+  SELECT public.is_active_user(_user_id)
+    AND EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = ANY(_roles))
 $function$
 ;
 
@@ -81,7 +95,8 @@ CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role)
+  SELECT public.is_active_user(_user_id)
+    AND EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role)
 $function$
 ;
 
@@ -189,7 +204,7 @@ CREATE OR REPLACE FUNCTION public.can_edit_sale_stage(_user uuid, _sale_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select exists (
+  select public.is_active_user(_user) and exists (
     select 1 from public.sales s
     where s.id = _sale_id
     and (
@@ -229,17 +244,19 @@ CREATE OR REPLACE FUNCTION public.can_edit_sale_comissao(_user uuid, _sale_id uu
  SET search_path TO 'public'
 AS $function$
   SELECT
-    public.has_any_role(_user, ARRAY['financeiro','admin','super_admin']::public.app_role[])
-    OR (
-      public.has_role(_user, 'gestor'::public.app_role)
-      AND NOT public.is_sale_locked(_sale_id)
-      AND EXISTS (
-        SELECT 1 FROM public.sales s
-        WHERE s.id = _sale_id
-        AND s.status::text = ANY(ARRAY[
-          'enviada_revisao','contrato_conferencia_gestor','contrato_ok_corretor',
-          'aguardando_assinatura','contrato_assinado','ocorrencia_pendente','ocorrencia_devolvida_gestor'
-        ])
+    public.is_active_user(_user) AND (
+      public.has_any_role(_user, ARRAY['financeiro','admin','super_admin']::public.app_role[])
+      OR (
+        public.has_role(_user, 'gestor'::public.app_role)
+        AND NOT public.is_sale_locked(_sale_id)
+        AND EXISTS (
+          SELECT 1 FROM public.sales s
+          WHERE s.id = _sale_id
+          AND s.status::text = ANY(ARRAY[
+            'enviada_revisao','contrato_conferencia_gestor','contrato_ok_corretor',
+            'aguardando_assinatura','contrato_assinado','ocorrencia_pendente','ocorrencia_devolvida_gestor'
+          ])
+        )
       )
     );
 $function$
@@ -465,6 +482,25 @@ CREATE POLICY profiles_self_update ON public.profiles AS PERMISSIVE FOR UPDATE T
 DROP TRIGGER IF EXISTS trg_profiles_updated ON public.profiles;
 CREATE TRIGGER trg_profiles_updated BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- profiles_self_update deixa id = auth.uid() editar o próprio registro inteiro — sem essa trava
+-- de coluna, o próprio usuário desativado conseguia reverter o "ativo" sozinho.
+CREATE OR REPLACE FUNCTION public.enforce_profiles_ativo_lock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NEW.ativo IS DISTINCT FROM OLD.ativo
+     AND NOT public.has_any_role(auth.uid(), ARRAY['admin','super_admin']::public.app_role[]) THEN
+    RAISE EXCEPTION 'Somente admin ou super_admin pode ativar/desativar um usuario.';
+  END IF;
+  RETURN NEW;
+END;
+$function$
+;
+DROP TRIGGER IF EXISTS trg_enforce_profiles_ativo_lock ON public.profiles;
+CREATE TRIGGER trg_enforce_profiles_ativo_lock BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION enforce_profiles_ativo_lock();
+
 -- ===== TABELA: sales =====
 CREATE TABLE IF NOT EXISTS public.sales (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -534,13 +570,16 @@ CREATE INDEX IF NOT EXISTS idx_sales_status ON public.sales USING btree (status)
 CREATE INDEX IF NOT EXISTS idx_sales_corretor_status ON public.sales USING btree (corretor_id, status);
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS delete_sales_por_papel ON public.sales;
-CREATE POLICY delete_sales_por_papel ON public.sales AS PERMISSIVE FOR DELETE TO authenticated USING ((has_any_role(auth.uid(), ARRAY['super_admin'::app_role, 'admin'::app_role, 'financeiro'::app_role]) OR (corretor_id = auth.uid()) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id))));
+-- is_active_user(auth.uid()) fecha o bypass de "corretor_id = auth.uid()": sem essa trava, um
+-- corretor desativado continuava apagando as próprias vendas mesmo sem passar por has_role.
+CREATE POLICY delete_sales_por_papel ON public.sales FOR DELETE USING ((is_active_user(auth.uid()) AND (has_any_role(auth.uid(), ARRAY['super_admin'::app_role, 'admin'::app_role, 'financeiro'::app_role]) OR ((corretor_id = auth.uid()) AND (NOT is_sale_locked(id))) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id) AND (NOT is_sale_locked(id))))));
 DROP POLICY IF EXISTS sales_delete_admin ON public.sales;
 CREATE POLICY sales_delete_admin ON public.sales AS PERMISSIVE FOR DELETE TO  USING (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]));
 DROP POLICY IF EXISTS sales_insert_corretor ON public.sales;
 CREATE POLICY sales_insert_corretor ON public.sales AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((corretor_id = auth.uid()));
 DROP POLICY IF EXISTS sales_select ON public.sales;
-CREATE POLICY sales_select ON public.sales AS PERMISSIVE FOR SELECT TO authenticated USING (((corretor_id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id)) OR (has_role(auth.uid(), 'juridico'::app_role) AND ((status)::text = ANY (ARRAY['aprovada_gestor'::text, 'enviada_juridico'::text, 'em_elaboracao_contrato'::text, 'contrato_conferencia_gestor'::text, 'contrato_conferencia_corretor'::text, 'contrato_ok_corretor'::text, 'aguardando_assinatura'::text, 'contrato_assinado'::text, 'ocorrencia_pendente'::text, 'ocorrencia_analise_financeiro'::text, 'ocorrencia_devolvida_gestor'::text, 'ocorrencia_concluida'::text])))));
+-- is_active_user(auth.uid()) fecha o mesmo bypass acima, agora para leitura.
+CREATE POLICY sales_select ON public.sales FOR SELECT TO authenticated USING ((is_active_user(auth.uid()) AND ((corretor_id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id)) OR (has_role(auth.uid(), 'juridico'::app_role) AND ((status)::text = ANY (ARRAY['aprovada_gestor'::text, 'enviada_juridico'::text, 'em_elaboracao_contrato'::text, 'contrato_conferencia_gestor'::text, 'contrato_conferencia_corretor'::text, 'contrato_ok_corretor'::text, 'aguardando_assinatura'::text, 'contrato_assinado'::text, 'ocorrencia_pendente'::text, 'ocorrencia_analise_financeiro'::text, 'ocorrencia_devolvida_gestor'::text, 'ocorrencia_concluida'::text]))))));
 DROP POLICY IF EXISTS sales_update_owner_draft ON public.sales;
 -- WITH CHECK também exige can_edit_sale_stage(auth.uid(), id) — trava por status/papel além da
 -- visibilidade de can_view_sale (ex.: corretor só edita em rascunho/devolvida_ajuste/
