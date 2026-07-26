@@ -365,18 +365,22 @@ function SaleDetail() {
   // sai da fatia da imobiliária, já que é quem paga o parceiro externo). O indicador NÃO desconta
   // daqui — a comissão dele sai de dentro da fatia do captador ou do vendedor (indicador_lado), não
   // é uma 3ª fatia do total.
+  // "key in patch" em vez de "patch[key] ?? formSale[key]": quando o usuário limpa um campo (R$
+  // vazio vira null), o patch traz null de propósito — "??" trataria esse null como "não veio
+  // nada" e voltaria pro valor antigo do formSale, fazendo o recálculo ignorar a limpeza.
+  const fromPatchOrSale = (patch: any, key: string) => (key in patch ? patch[key] : formSale[key]);
   const recalcImobiliaria = (patch: any) => {
-    const total = Number(patch.valor_total_comissao ?? formSale.valor_total_comissao ?? 0);
-    const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(patch[`valor_comissao_${r}`] ?? formSale[`valor_comissao_${r}`] ?? 0), 0);
-    const parceria = Number(patch.parceria_valor ?? formSale.parceria_valor ?? 0);
+    const total = Number(fromPatchOrSale(patch, "valor_total_comissao") ?? 0);
+    const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(fromPatchOrSale(patch, `valor_comissao_${r}`) ?? 0), 0);
+    const parceria = Number(fromPatchOrSale(patch, "parceria_valor") ?? 0);
     return Number((total - soma - parceria).toFixed(2));
   };
   // Recalcula a comissão do indicador (em R$) a partir do % já definido, sempre que a fatia do
   // lado ao qual ele está vinculado (captador/vendedor) mudar de valor.
   const recalcIndicadorFromLado = (patch: any) => {
-    const lado = patch.indicador_lado ?? formSale.indicador_lado;
+    const lado = fromPatchOrSale(patch, "indicador_lado");
     if (!lado) return { valor_comissao_indicador: null };
-    const ladoValor = Number(patch[`valor_comissao_${lado}`] ?? formSale[`valor_comissao_${lado}`] ?? 0);
+    const ladoValor = Number(fromPatchOrSale(patch, `valor_comissao_${lado}`) ?? 0);
     const p = formSale.percentual_comissao_indicador ?? 25;
     return { valor_comissao_indicador: ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null };
   };
@@ -1467,12 +1471,12 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Pagamento">
-              <ReviewItem label="Entrada" value={payment?.entrada_valor != null ? `${money(payment.entrada_valor)}${payment?.entrada_data ? ` — ${payment.entrada_data}` : ""}` : null} />
-              <ReviewItem label="Parcela 1" value={payment?.parcela1_valor != null ? `${money(payment.parcela1_valor)}${payment?.parcela1_data ? ` — ${payment.parcela1_data}` : ""}` : null} />
-              <ReviewItem label="Parcela 2" value={payment?.parcela2_valor != null ? `${money(payment.parcela2_valor)}${payment?.parcela2_data ? ` — ${payment.parcela2_data}` : ""}` : null} />
-              <ReviewItem label="Pagamento final" value={payment?.pagamento_final_valor != null ? `${money(payment.pagamento_final_valor)}${payment?.pagamento_final_data ? ` — ${payment.pagamento_final_data}` : ""}` : null} />
+              <ReviewItem label="Entrada" value={[money(payment?.entrada_valor), payment?.entrada_data].filter(Boolean).join(" — ") || null} />
+              <ReviewItem label="Parcela 1" value={[money(payment?.parcela1_valor), payment?.parcela1_data].filter(Boolean).join(" — ") || null} />
+              <ReviewItem label="Parcela 2" value={[money(payment?.parcela2_valor), payment?.parcela2_data].filter(Boolean).join(" — ") || null} />
+              <ReviewItem label="Pagamento final" value={[money(payment?.pagamento_final_valor), payment?.pagamento_final_data].filter(Boolean).join(" — ") || null} />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
-              <ReviewItem label="Tipo de pagamento" value={payment?.tipo_pagamento === "financiamento" ? "Financiamento" : payment?.tipo_pagamento === "consorcio" ? "Consórcio" : "Vista"} />
+              <ReviewItem label="Tipo de pagamento" value={payment ? (payment.tipo_pagamento === "financiamento" ? "Financiamento" : payment.tipo_pagamento === "consorcio" ? "Consórcio" : "Vista") : null} />
               {payment?.tipo_pagamento === "financiamento" && (
                 <>
                   <ReviewItem label="Financiamento" value={`${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`} />
