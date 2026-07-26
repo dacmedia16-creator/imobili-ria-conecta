@@ -538,6 +538,7 @@ function SaleDetail() {
 
   const contratoDocs = docs.filter((d) => d.tipo === "contrato");
   const contratoAssinadoDocs = docs.filter((d) => d.tipo === "contrato_assinado");
+  const certidoesJuridicoDocs = docs.filter((d) => d.tipo === "certidao_juridico");
 
   // Atalho pra abrir o contrato direto do topo da página — sem isso o contrato só existia
   // dentro de Documentos > Outros, e quem recebia a venda de volta (gestor/corretor) tinha
@@ -586,6 +587,10 @@ function SaleDetail() {
   const enviarContratoAoGestor = async () => {
     if (contratoDocs.length === 0) {
       toast.error("Anexe o contrato antes de enviar ao gestor.");
+      return;
+    }
+    if (certidoesJuridicoDocs.length === 0) {
+      toast.error("Anexe ao menos uma certidão antes de enviar ao gestor.");
       return;
     }
     await changeStatus("contrato_conferencia_gestor");
@@ -1086,7 +1091,7 @@ function SaleDetail() {
               <Button variant="outline" onClick={() => { setContratoFile(null); setContratoDialogOpen(true); }}>
                 <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
               </Button>
-              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0}>
+              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || certidoesJuridicoDocs.length === 0}>
                 <Send className="mr-2 h-4 w-4" />Enviar ao gestor
               </Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
