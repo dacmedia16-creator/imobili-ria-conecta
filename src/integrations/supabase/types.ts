@@ -635,6 +635,9 @@ export type Database = {
       }
       sale_payment: {
         Row: {
+          consorcio_cota: string | null
+          consorcio_grupo: string | null
+          consorcio_nome: string | null
           entrada_data: string | null
           entrada_valor: number | null
           fgts: boolean | null
@@ -658,6 +661,9 @@ export type Database = {
           tipo_pagamento: string
         }
         Insert: {
+          consorcio_cota?: string | null
+          consorcio_grupo?: string | null
+          consorcio_nome?: string | null
           entrada_data?: string | null
           entrada_valor?: number | null
           fgts?: boolean | null
@@ -681,6 +687,9 @@ export type Database = {
           tipo_pagamento?: string
         }
         Update: {
+          consorcio_cota?: string | null
+          consorcio_grupo?: string | null
+          consorcio_nome?: string | null
           entrada_data?: string | null
           entrada_valor?: number | null
           fgts?: boolean | null

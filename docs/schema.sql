@@ -699,6 +699,9 @@ CREATE TABLE IF NOT EXISTS public.sale_payment (
   financiamento boolean DEFAULT false,
   financiamento_valor numeric(14,2),
   financiamento_observacao text,
+  consorcio_nome text,
+  consorcio_grupo text,
+  consorcio_cota text,
   observacoes text,
   CONSTRAINT sale_payment_pkey PRIMARY KEY (sale_id),
   CONSTRAINT sale_payment_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE

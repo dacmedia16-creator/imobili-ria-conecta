@@ -2465,6 +2465,11 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                     updP("financiamento_previsao", null);
                     updP("oba_credito", false);
                   }
+                  if (v !== "consorcio") {
+                    updP("consorcio_nome", null);
+                    updP("consorcio_grupo", null);
+                    updP("consorcio_cota", null);
+                  }
                 }}
                 disabled={!editable}
               >
@@ -2472,6 +2477,7 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                 <SelectContent>
                   <SelectItem value="vista">Vista</SelectItem>
                   <SelectItem value="financiamento">Financiamento</SelectItem>
+                  <SelectItem value="consorcio">Consórcio</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -2487,6 +2493,19 @@ function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, regist
                 <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!p.oba_credito} onCheckedChange={(v) => updP("oba_credito", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
                 <Field label="Previsão da liberação do crédito">
                   <Input type="date" value={p.financiamento_previsao ?? ""} disabled={!editable} onChange={(e) => updP("financiamento_previsao", e.target.value || null)} />
+                </Field>
+              </>
+            )}
+            {p.tipo_pagamento === "consorcio" && (
+              <>
+                <Field label="Nome do consórcio">
+                  <Input value={p.consorcio_nome ?? ""} disabled={!editable} onChange={(e) => updP("consorcio_nome", e.target.value)} />
+                </Field>
+                <Field label="Grupo">
+                  <Input value={p.consorcio_grupo ?? ""} disabled={!editable} onChange={(e) => updP("consorcio_grupo", e.target.value)} />
+                </Field>
+                <Field label="Cota">
+                  <Input value={p.consorcio_cota ?? ""} disabled={!editable} onChange={(e) => updP("consorcio_cota", e.target.value)} />
                 </Field>
               </>
             )}
