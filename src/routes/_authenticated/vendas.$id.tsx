@@ -393,6 +393,22 @@ function SaleDetail() {
     Object.assign(patch, recalcIndicadorFromLado(patch));
     updResumo(patch);
   };
+  // Atalho: preenche captador e vendedor com 22,5% cada (45% somados) — só um ponto de partida
+  // sugerido, o gestor pode ajustar cada lado livremente depois.
+  const sugerirDivisao45 = () => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    if (total <= 0) { toast.error("Defina o valor total da comissão antes de sugerir a divisão."); return; }
+    const valor = Number(((22.5 / 100) * total).toFixed(2));
+    const patch: any = {
+      percentual_comissao_captador: 22.5,
+      valor_comissao_captador: valor,
+      percentual_comissao_vendedor: 22.5,
+      valor_comissao_vendedor: valor,
+    };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    Object.assign(patch, recalcIndicadorFromLado(patch));
+    updResumo(patch);
+  };
   // Indicador: comissão calculada sobre a fatia do lado escolhido (captador/vendedor), não sobre o total.
   const indicadorLadoValor = () => {
     const lado = formSale.indicador_lado;
@@ -453,18 +469,25 @@ function SaleDetail() {
       if (r.id !== rowId) return r;
       const merged = { ...r, ...patch };
       const base = baseParaOrigem(merged.origem);
+      // Quanto ainda sobra da fatia pra essa linha: desconta o indicador (quando vinculado ao mesmo
+      // lado) e as outras partes extras já lançadas na mesma origem — sem isso, dava pra cadastrar
+      // 2 captadores extras somando mais do que a fatia toda do captador (líquido ficando negativo).
+      const indicadorNoLado = (merged.origem === "captador" || merged.origem === "vendedor") && formSale.indicador_lado === merged.origem
+        ? Number(formSale.valor_comissao_indicador ?? 0) : 0;
+      const outrasExtras = rows.reduce((s, e) => s + (e.id !== rowId && e.origem === merged.origem ? Number(e.valor ?? 0) : 0), 0);
+      const disponivel = Math.max(0, Number((base - indicadorNoLado - outrasExtras).toFixed(2)));
       if ("percentual" in patch) {
         let p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
         let valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
-        if (valor != null && base > 0) { valor = Math.min(valor, base); p = Number(((valor / base) * 100).toFixed(3)); }
+        if (valor != null) { valor = Math.min(valor, disponivel); p = base > 0 ? Number(((valor / base) * 100).toFixed(3)) : p; }
         merged.percentual = p; merged.valor = valor;
       } else if ("valor" in patch) {
         let valor = patch.valor;
-        if (valor != null && base > 0) valor = Math.max(0, Math.min(valor, base));
+        if (valor != null) valor = Math.max(0, Math.min(valor, disponivel));
         const p = valor != null && base > 0 ? Number(((valor / base) * 100).toFixed(3)) : merged.percentual ?? null;
         merged.valor = valor; merged.percentual = p;
       } else if ("origem" in patch) {
-        merged.valor = merged.percentual != null && base > 0 ? Number(((Number(merged.percentual) / 100) * base).toFixed(2)) : (base > 0 ? merged.valor : null);
+        merged.valor = merged.percentual != null && base > 0 ? Math.min(Number(((Number(merged.percentual) / 100) * base).toFixed(2)), disponivel) : (base > 0 ? merged.valor : null);
       }
       return merged;
     }));
@@ -807,6 +830,11 @@ function SaleDetail() {
                 </div>
               ) : null;
             })()}
+            {editableComissao && (
+              <div className="mb-4">
+                <Button size="sm" variant="outline" onClick={sugerirDivisao45}>Sugerir 22,5% / 22,5% (45% somados)</Button>
+              </div>
+            )}
             <FieldGrid>
               <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
