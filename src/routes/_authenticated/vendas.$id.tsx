@@ -1354,6 +1354,24 @@ function SaleDetail() {
               ))}
             </ReviewGroup>
 
+            <ReviewGroup title="Parceria externa">
+              {sale.parceria_tipo ? (
+                <>
+                  <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
+                  <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                  <ReviewItem label="CPF/CNPJ" value={sale.parceria_cpf_cnpj} />
+                  <ReviewItem label="% Comissão" value={sale.parceria_percentual != null ? `${sale.parceria_percentual}%` : null} />
+                  <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
+                  <ReviewItem label="Banco" value={sale.parceria_banco} />
+                  <ReviewItem label="Agência" value={sale.parceria_agencia} />
+                  <ReviewItem label="Conta" value={sale.parceria_conta} />
+                  <ReviewItem label="PIX" value={sale.parceria_pix} />
+                </>
+              ) : (
+                <ReviewItem label="Sem parceria externa" value={null} />
+              )}
+            </ReviewGroup>
+
             <ReviewGroup title="Posse">
               <ReviewItem label="Data de entrega da posse" value={dateBR(sale.posse_data)} />
               <ReviewItem label="Observações" value={sale.posse_observacoes} />
