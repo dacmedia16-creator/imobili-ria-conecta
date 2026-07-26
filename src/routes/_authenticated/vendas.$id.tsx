@@ -650,8 +650,11 @@ function SaleDetail() {
       toast.error("Anexe o contrato antes de enviar ao gestor.");
       return;
     }
-    if (certidoesJuridicoDocs.length === 0) {
-      toast.error("Anexe ao menos uma certidão antes de enviar ao gestor.");
+    // Se o jurídico já sinalizou a pendência (documento faltando) ao anexar o contrato, isso vale
+    // como o aviso — não precisa também travar o envio. A trava de certidão é só pra pegar quem
+    // esqueceu de anexar sem avisar nada.
+    if (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao) {
+      toast.error("Anexe ao menos uma certidão antes de enviar ao gestor (ou sinalize a pendência ao anexar o contrato).");
       return;
     }
     await changeStatus("contrato_conferencia_gestor");
@@ -1204,7 +1207,7 @@ function SaleDetail() {
               <Button variant="outline" onClick={openContratoDialog}>
                 <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
               </Button>
-              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || certidoesJuridicoDocs.length === 0}>
+              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao)}>
                 <Send className="mr-2 h-4 w-4" />Enviar ao gestor
               </Button>
               <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
