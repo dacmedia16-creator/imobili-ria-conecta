@@ -268,6 +268,33 @@ export function validarProntaParaRevisao(
 }
 
 /**
+ * Valida se todos os documentos obrigatórios já foram aprovados (não só enviados) — usado antes de
+ * "Aprovar p/ jurídico": o gestor precisa ter revisado e aprovado cada um, não só recebido.
+ */
+export function validarDocsAprovadosParaJuridico(
+  parties: Record<string, any>,
+  docs: any[],
+): Pendencia[] {
+  const pend: Pendencia[] = [];
+  const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
+  const partesPessoais = partesComExigenciaPessoal(parties, docs);
+  const aprovado = (s: string) => s === "aprovado";
+  for (const t of obrigatorios) {
+    const substituiPorCnh = t.key === "rg" || t.key === "cpf";
+    if (t.grupo === "pessoal") {
+      for (const parte of partesPessoais) {
+        if (!temDocDoTipo(docs, t.key, parte, aprovado)) {
+          pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+        }
+      }
+    } else if (!docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status))) {
+      pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}` });
+    }
+  }
+  return pend;
+}
+
+/**
  * Comprador_N/vendedor_N que precisam ter seus próprios documentos pessoais obrigatórios (RG, CPF,
  * Certidão, Comprovante de endereço): os dois papéis-base (sempre) mais qualquer parte extra que já
  * tenha nome preenchido na aba Partes ou já tenha ao menos um documento enviado na aba Documentos —

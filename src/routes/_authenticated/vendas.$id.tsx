@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, validarProntaParaRevisao, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, validarProntaParaRevisao, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -327,6 +327,9 @@ function SaleDetail() {
   const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
   const requiredTypes = DOC_TYPES.map(d => d.key);
   const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
+  // Gestor só manda pro jurídico com todo documento obrigatório já aprovado (não só enviado) —
+  // sem isso, ficava aberto aprovar a venda inteira sem ter revisado nenhum documento de fato.
+  const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(parties, docs);
 
 
   const logActivity = async (acao: string, payload?: any) => {
@@ -640,6 +643,7 @@ function SaleDetail() {
 
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
+    if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
     setApproveJuridicoOpen(false);
     await changeStatus("aprovada_gestor");
   };
@@ -1493,6 +1497,19 @@ function SaleDetail() {
             <DialogDescription>Revise o que o corretor preencheu antes de aprovar e mandar pro jurídico.</DialogDescription>
           </DialogHeader>
           <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
+            {docsPendentesAprovacao.length === 0 ? (
+              <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+                <CheckCircle2 className="mr-2 inline h-4 w-4" />Todos os documentos obrigatórios estão aprovados.
+              </div>
+            ) : (
+              <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />{docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.
+                <ul className="mt-2 space-y-1 pl-2">
+                  {docsPendentesAprovacao.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                </ul>
+              </div>
+            )}
+
             <div className="space-y-3">
               <ReviewGroup title="Imóvel">
                 <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
@@ -1524,7 +1541,7 @@ function SaleDetail() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmApproveJuridico}>Confirmar e enviar ao jurídico</Button>
+            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0}>Confirmar e enviar ao jurídico</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
