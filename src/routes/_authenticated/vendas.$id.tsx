@@ -354,12 +354,15 @@ function SaleDetail() {
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
   const COMISSAO_ROLES = ["captador", "vendedor"] as const;
   type ComissaoRole = (typeof COMISSAO_ROLES)[number];
-  // Imobiliária = total menos captador e vendedor. O indicador NÃO desconta daqui — a comissão dele
-  // sai de dentro da fatia do captador ou do vendedor (indicador_lado), não é uma 3ª fatia do total.
+  // Imobiliária = total menos captador, vendedor e a parceria externa (quando houver — o valor dela
+  // sai da fatia da imobiliária, já que é quem paga o parceiro externo). O indicador NÃO desconta
+  // daqui — a comissão dele sai de dentro da fatia do captador ou do vendedor (indicador_lado), não
+  // é uma 3ª fatia do total.
   const recalcImobiliaria = (patch: any) => {
     const total = Number(patch.valor_total_comissao ?? formSale.valor_total_comissao ?? 0);
     const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(patch[`valor_comissao_${r}`] ?? formSale[`valor_comissao_${r}`] ?? 0), 0);
-    return Number((total - soma).toFixed(2));
+    const parceria = Number(patch.parceria_valor ?? formSale.parceria_valor ?? 0);
+    return Number((total - soma - parceria).toFixed(2));
   };
   // Recalcula a comissão do indicador (em R$) a partir do % já definido, sempre que a fatia do
   // lado ao qual ele está vinculado (captador/vendedor) mudar de valor.
@@ -432,20 +435,31 @@ function SaleDetail() {
     updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
   // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % sempre calculado sobre o
-  // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois.
+  // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois. O valor sai
+  // da fatia da imobiliária (recalcImobiliaria), por isso todo lugar que muda parceria_valor também
+  // recalcula valor_comissao_imobiliaria.
   const applyParceriaPercentual = (raw: string) => {
     const p = raw ? Number(raw) : null;
     const total = Number(formSale.valor_total_comissao ?? 0);
     const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
-    updResumo({ parceria_percentual: p, parceria_valor: valor });
+    const patch: any = { parceria_percentual: p, parceria_valor: valor };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
   };
   const applyParceriaValor = (v: number | null) => {
     const total = Number(formSale.valor_total_comissao ?? 0);
     const p = v != null && total > 0 ? Number(((v / total) * 100).toFixed(3)) : formSale.parceria_percentual ?? null;
-    updResumo({ parceria_valor: v, parceria_percentual: p });
+    const patch: any = { parceria_valor: v, parceria_percentual: p };
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
   };
   const applyParceriaTipo = (v: string | null) => {
-    if (!v) { updResumo({ parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null, parceria_banco: null, parceria_agencia: null, parceria_conta: null, parceria_pix: null }); return; }
+    if (!v) {
+      const patch: any = { parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null, parceria_banco: null, parceria_agencia: null, parceria_conta: null, parceria_pix: null };
+      patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+      updResumo(patch);
+      return;
+    }
     updResumo({ parceria_tipo: v });
   };
   // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
