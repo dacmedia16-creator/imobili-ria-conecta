@@ -1075,6 +1075,10 @@ export type Database = {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
       }
+      change_sale_status: {
+        Args: { _motivo?: string; _new_status: string; _sale_id: string }
+        Returns: undefined
+      }
       dashboard_stats: { Args: never; Returns: Json }
       has_any_role: {
         Args: {

@@ -336,11 +336,6 @@ function SaleDetail() {
   // sem isso, ficava aberto aprovar a venda inteira sem ter revisado nenhum documento de fato.
   const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(parties, docs);
 
-
-  const logActivity = async (acao: string, payload?: any) => {
-    await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao, payload: payload ?? null });
-  };
-
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
   const COMISSAO_ROLES = ["captador", "vendedor"] as const;
@@ -526,13 +521,19 @@ function SaleDetail() {
     return true;
   };
 
+  // sales.status + sale_status_history + activity_logs são gravados atomicamente dentro do RPC
+  // change_sale_status (mesma transação, tudo ou nada) — antes eram 3 chamadas soltas do client, e
+  // uma falha no meio (rede caiu) deixava o status mudado sem o registro de auditoria correspondente,
+  // sem erro visível pra ninguém. Notificação in-app e WhatsApp continuam fora da transação de
+  // propósito (são efeitos colaterais não-críticos, não faz sentido travar a troca de status por eles).
   const changeStatus = async (next: SaleStatus, motivo?: string) => {
     if (!(await flushAllDirty())) return;
-    const prev = sale.status as SaleStatus;
-    const { error } = await supabase.from("sales").update({ status: next }).eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("sale_status_history").insert({ sale_id: id, de: prev, para: next, autor_id: user!.id, motivo });
-    await logActivity("status_change", { de: prev, para: next, motivo });
+    const { error } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: next, _motivo: motivo });
+    if (error) {
+      toast.error(error.message);
+      load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
+      return;
+    }
     if (sale.corretor_id !== user?.id) {
       await supabase.from("notifications").insert({
         user_id: sale.corretor_id, sale_id: id,
@@ -544,9 +545,8 @@ function SaleDetail() {
     // atualização — nunca trava a troca de status se a API externa falhar.
     notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     if (next === "contrato_assinado") {
-      const { error: e2 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", id);
+      const { error: e2 } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: "ocorrencia_pendente", _motivo: "Automático: contrato assinado" });
       if (!e2) {
-        await supabase.from("sale_status_history").insert({ sale_id: id, de: "contrato_assinado", para: "ocorrencia_pendente", autor_id: user!.id, motivo: "Automático: contrato assinado" });
         await notifyRoles(["gestor"], `Contrato assinado — preencher ocorrência: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
         notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
       }
