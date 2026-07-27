@@ -358,18 +358,11 @@ function SaleDetail() {
     const p = formSale.percentual_comissao_indicador ?? 25;
     return { valor_comissao_indicador: ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null };
   };
-  // Preenchimento livre: cada lado aceita qualquer % ou R$ digitado, sem travar contra o outro lado.
-  // A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o avanço
-  // da venda pro jurídico (ver comissaoExcedida/confirmApproveJuridico), não a digitação em si.
-  const applyComissaoPercentual = (role: ComissaoRole, raw: string) => {
-    const p = raw ? Number(raw) : null;
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
-    const patch: any = { [`percentual_comissao_${role}`]: p, [`valor_comissao_${role}`]: valor };
-    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    Object.assign(patch, recalcIndicadorFromLado(patch));
-    updResumo(patch);
-  };
+  // Preenchimento livre: o gestor digita só o valor em R$ de cada lado, sem trava contra o outro
+  // lado. A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o
+  // avanço da venda pro jurídico (ver comissaoExcedida/confirmApproveJuridico), não a digitação em
+  // si. O percentual continua calculado e salvo por baixo dos panos (usado nos relatórios), só não
+  // tem mais campo próprio pra editar direto.
   const applyComissaoValor = (role: ComissaoRole, v: number | null) => {
     const total = Number(formSale.valor_total_comissao ?? 0);
     const valor = v;
@@ -828,9 +821,7 @@ function SaleDetail() {
               </div>
             )}
             <FieldGrid>
-              <Field label={`Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-              <Field label={`Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               <Field label="Líquido do captador (R$)">
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
