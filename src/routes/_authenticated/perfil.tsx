@@ -3,7 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   head: () => ({ meta: [{ title: "Meu acesso" }] }),
@@ -19,6 +23,28 @@ type TeamInfo = {
 function MeuAcesso() {
   const { user, roles, hasAny } = useAuth();
   const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
+  const [telefone, setTelefone] = useState("");
+  const [savingTelefone, setSavingTelefone] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("telefone").eq("id", user.id).maybeSingle();
+      setTelefone(data?.telefone ?? "");
+    })();
+  }, [user]);
+
+  const salvarTelefone = async () => {
+    if (!user) return;
+    setSavingTelefone(true);
+    try {
+      const { error } = await supabase.from("profiles").update({ telefone: telefone.trim() || null }).eq("id", user.id);
+      if (error) toast.error(error.message);
+      else toast.success("Telefone salvo");
+    } finally {
+      setSavingTelefone(false);
+    }
+  };
 
   const loadTeam = useCallback(async () => {
     if (!user) return;
@@ -63,9 +89,23 @@ function MeuAcesso() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Conta</CardTitle></CardHeader>
-        <CardContent className="text-sm">
+        <CardContent className="space-y-4 text-sm">
           <div className="mb-1"><span className="text-muted-foreground">Email:</span> <b>{user?.email}</b></div>
           <div><span className="text-muted-foreground">Papéis:</span> <b>{roles.map(r => ROLE_LABEL[r]).join(", ") || "Sem papel"}</b></div>
+          <div className="max-w-sm">
+            <Label className="mb-1.5 block text-xs text-muted-foreground">Telefone (WhatsApp)</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="(11) 91234-5678"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+              />
+              <Button size="sm" onClick={salvarTelefone} disabled={savingTelefone}>
+                {savingTelefone ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.</p>
+          </div>
         </CardContent>
       </Card>
 

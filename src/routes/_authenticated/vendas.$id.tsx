@@ -29,6 +29,7 @@ import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel } from "@/components/vendas/DocumentsPanel";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import { notifyProximoResponsavelWhatsapp } from "@/lib/whatsapp.functions";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -530,11 +531,14 @@ function SaleDetail() {
         mensagem: motivo ?? null,
       });
     }
+    // WhatsApp pra quem for a vez agora — nunca trava a troca de status se a API externa falhar.
+    notifyProximoResponsavelWhatsapp({ data: { saleId: id, status: next, titulo: `Venda aguardando você: ${STATUS_LABEL[next]}`, mensagem: motivo } }).catch(() => {});
     if (next === "contrato_assinado") {
       const { error: e2 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", id);
       if (!e2) {
         await supabase.from("sale_status_history").insert({ sale_id: id, de: "contrato_assinado", para: "ocorrencia_pendente", autor_id: user!.id, motivo: "Automático: contrato assinado" });
         await notifyRoles(["gestor"], `Contrato assinado — preencher ocorrência: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
+        notifyProximoResponsavelWhatsapp({ data: { saleId: id, status: "ocorrencia_pendente", titulo: "Contrato assinado — preencher ocorrência" } }).catch(() => {});
       }
     }
     toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
