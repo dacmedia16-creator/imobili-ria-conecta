@@ -332,3 +332,11 @@ export function temDocDoTipo(
   const substituiPorCnh = tipoAlvo === "rg" || tipoAlvo === "cpf";
   return docs.some(d => (d.tipo === tipoAlvo || (substituiPorCnh && d.tipo === "cnh")) && (d.parte ?? "outros") === parte && aceitaStatus(d.status));
 }
+
+/** Mapeia cada parcela (1/2/3) de recebimento de comissão pro par de colunas de recebimento
+ * efetivo correspondente em "occurrences" — mesmo padrão de nomenclatura das colunas de previsão. */
+export const RECEBIDO_COLS: Record<number, { em: string; valor: string }> = {
+  1: { em: "prev_recebimento_recebido_em", valor: "prev_recebimento_recebido_valor" },
+  2: { em: "prev_recebimento2_recebido_em", valor: "prev_recebimento2_recebido_valor" },
+  3: { em: "prev_recebimento3_recebido_em", valor: "prev_recebimento3_recebido_valor" },
+};

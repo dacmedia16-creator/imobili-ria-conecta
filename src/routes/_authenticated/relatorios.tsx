@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
-import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
+import { STATUS_LABEL, RECEBIDO_COLS, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -204,14 +204,6 @@ function ExportButton({ onClick }: { onClick: () => void }) {
     </Button>
   );
 }
-
-// Mapeia cada parcela (1/2/3) pro par de colunas de recebimento efetivo correspondente em
-// "occurrences" — mesmo padrão de nomenclatura das colunas de previsão já existentes.
-const RECEBIDO_COLS: Record<number, { em: string; valor: string }> = {
-  1: { em: "prev_recebimento_recebido_em", valor: "prev_recebimento_recebido_valor" },
-  2: { em: "prev_recebimento2_recebido_em", valor: "prev_recebimento2_recebido_valor" },
-  3: { em: "prev_recebimento3_recebido_em", valor: "prev_recebimento3_recebido_valor" },
-};
 
 function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange }: {
   occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
