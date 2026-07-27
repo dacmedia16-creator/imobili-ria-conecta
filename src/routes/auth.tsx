@@ -55,7 +55,7 @@ function AuthPage() {
           </div>
         </div>
         <div className="max-w-sm space-y-3">
-          <h1 className="text-3xl font-semibold leading-tight">Da captação ao contrato assinado, em um só lugar.</h1>
+          <h1 className="text-3xl font-semibold leading-tight">Da negociação ao contrato assinado, em um só lugar.</h1>
           <p className="text-sm text-primary-foreground/80">
             Gerencie vendas, contratos e comissões com o fluxo de aprovação completo — corretor, gestor, jurídico e financeiro.
           </p>
