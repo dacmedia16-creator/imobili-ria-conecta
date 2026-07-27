@@ -50,6 +50,12 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
   const commByPapel = (papel: string) => commissions.find((c) => c.papel === papel);
 
+  // Valor da comissão total é bruto (inclui a parte da parceria externa, quando houver) — a linha
+  // extra abaixo mostra só o que fica pra nossa imobiliária, descontada essa fatia.
+  const somaParceria = partners.reduce((s, p) => s + Number(p.valor ?? 0), 0);
+  const totalComissao = Number(occ?.valor_comissao ?? sale.valor_total_comissao ?? 0);
+  const valorNosso = totalComissao - somaParceria;
+
   return (
     <>
       <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
@@ -91,6 +97,13 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
           occ?.percentual_comissao ?? sale.percentual_comissao ? `${occ?.percentual_comissao ?? sale.percentual_comissao}%` : null,
           <span className="text-base font-bold text-primary">{money(occ?.valor_comissao ?? sale.valor_total_comissao)}</span>,
         ]} />
+        {somaParceria > 0 && (
+          <FormValueRow cols={[
+            null, null,
+            <span className="text-muted-foreground">Nossa parte (desconta parceria)</span>,
+            <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">{money(valorNosso)}</span>,
+          ]} />
+        )}
       </FormTable>
 
       <FormTable>
