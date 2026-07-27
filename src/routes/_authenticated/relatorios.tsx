@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CurrencyInput } from "@/components/vendas/shared";
 import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
@@ -54,60 +57,62 @@ function RelatoriosPage() {
   // filtro client-side (já existente, inalterado) descarta depois, mas nunca deixa de trazer uma
   // linha que deveria aparecer. Casos "sempre aparece independente do período" (financiamento sem
   // previsão ainda definida) entram como uma condição incondicional à parte.
+  const load = useCallback(async () => {
+    setLoading(true);
+    // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
+    // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
+    // exata do dia final — quase nunca, o que na prática anulava essa condição.
+    const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
+    const timestampWindow = (col: string) => `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
+    const occFilter = [
+      dateWindow("prev_recebimento_data"),
+      dateWindow("prev_recebimento2_data"),
+      dateWindow("prev_recebimento3_data"),
+      dateWindow("data_assinatura"),
+      timestampWindow("created_at"),
+      dateWindow("financiamento_previsao"),
+      "and(financiamento.is.true,financiamento_previsao.is.null)",
+    ].join(",");
+    const { data: o } = await supabase
+      .from("occurrences")
+      .select("id, sale_id, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
+      .or(occFilter);
+    setOccs(o ?? []);
+
+    // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
+    // nome/label das ocorrências já trazidas acima — union das duas necessidades.
+    const occSaleIds = Array.from(new Set((o ?? []).map((r: any) => r.sale_id)));
+    const updatedAtWindow = timestampWindow("updated_at");
+    const salesFilter = occSaleIds.length ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})` : updatedAtWindow;
+    const { data: s } = await supabase
+      .from("sales")
+      .select("id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at")
+      .or(salesFilter);
+    setSales(s ?? []);
+
+    const occIds = (o ?? []).map((r: any) => r.id);
+    if (occIds.length) {
+      const [{ data: c }, { data: p }] = await Promise.all([
+        supabase.from("occurrence_commissions").select("*").in("occurrence_id", occIds),
+        supabase.from("occurrence_partners").select("*").in("occurrence_id", occIds),
+      ]);
+      setComms(c ?? []);
+      setPartners(p ?? []);
+    } else {
+      setComms([]);
+      setPartners([]);
+    }
+    const { data: prof } = await supabase.from("profiles").select("id, nome");
+    const names: Record<string, string> = {};
+    for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
+    setProfileName(names);
+    setLoading(false);
+  }, [dateFrom, dateTo]);
+
   useEffect(() => {
     if (!allowed) { setLoading(false); return; }
-    (async () => {
-      setLoading(true);
-      // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
-      // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
-      // exata do dia final — quase nunca, o que na prática anulava essa condição.
-      const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
-      const timestampWindow = (col: string) => `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
-      const occFilter = [
-        dateWindow("prev_recebimento_data"),
-        dateWindow("prev_recebimento2_data"),
-        dateWindow("prev_recebimento3_data"),
-        dateWindow("data_assinatura"),
-        timestampWindow("created_at"),
-        dateWindow("financiamento_previsao"),
-        "and(financiamento.is.true,financiamento_previsao.is.null)",
-      ].join(",");
-      const { data: o } = await supabase
-        .from("occurrences")
-        .select("id, sale_id, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
-        .or(occFilter);
-      setOccs(o ?? []);
-
-      // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
-      // nome/label das ocorrências já trazidas acima — union das duas necessidades.
-      const occSaleIds = Array.from(new Set((o ?? []).map((r: any) => r.sale_id)));
-      const updatedAtWindow = timestampWindow("updated_at");
-      const salesFilter = occSaleIds.length ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})` : updatedAtWindow;
-      const { data: s } = await supabase
-        .from("sales")
-        .select("id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at")
-        .or(salesFilter);
-      setSales(s ?? []);
-
-      const occIds = (o ?? []).map((r: any) => r.id);
-      if (occIds.length) {
-        const [{ data: c }, { data: p }] = await Promise.all([
-          supabase.from("occurrence_commissions").select("*").in("occurrence_id", occIds),
-          supabase.from("occurrence_partners").select("*").in("occurrence_id", occIds),
-        ]);
-        setComms(c ?? []);
-        setPartners(p ?? []);
-      } else {
-        setComms([]);
-        setPartners([]);
-      }
-      const { data: prof } = await supabase.from("profiles").select("id, nome");
-      const names: Record<string, string> = {};
-      for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
-      setProfileName(names);
-      setLoading(false);
-    })();
-  }, [allowed, dateFrom, dateTo]);
+    load();
+  }, [allowed, load]);
 
   const saleById = useMemo(() => {
     const m: Record<string, any> = {};
@@ -165,7 +170,7 @@ function RelatoriosPage() {
 
         <TabsContent value="caixa">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.</p>
-          <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} />
         </TabsContent>
         <TabsContent value="comissoes">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).</p>
@@ -200,44 +205,91 @@ function ExportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
+// Mapeia cada parcela (1/2/3) pro par de colunas de recebimento efetivo correspondente em
+// "occurrences" — mesmo padrão de nomenclatura das colunas de previsão já existentes.
+const RECEBIDO_COLS: Record<number, { em: string; valor: string }> = {
+  1: { em: "prev_recebimento_recebido_em", valor: "prev_recebimento_recebido_valor" },
+  2: { em: "prev_recebimento2_recebido_em", valor: "prev_recebimento2_recebido_valor" },
+  3: { em: "prev_recebimento3_recebido_em", valor: "prev_recebimento3_recebido_valor" },
+};
+
+function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange }: {
   occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string;
+  dateFrom: string; dateTo: string; onChange: () => void;
 }) {
   const rows = useMemo(() => {
-    const out: { sale: any; parcela: number; data: string; valor: number; forma: string | null }[] = [];
+    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
       if (!matchesCorretor(sale)) continue;
-      const parcelas: [string | null, number | null, string | null][] = [
-        [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma],
-        [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma],
-        [o.prev_recebimento3_data, o.prev_recebimento3_valor, o.prev_recebimento3_forma],
+      const parcelas: [string | null, number | null, string | null, string | null, number | null][] = [
+        [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em, o.prev_recebimento_recebido_valor],
+        [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em, o.prev_recebimento2_recebido_valor],
+        [o.prev_recebimento3_data, o.prev_recebimento3_valor, o.prev_recebimento3_forma, o.prev_recebimento3_recebido_em, o.prev_recebimento3_recebido_valor],
       ];
-      parcelas.forEach(([data, valor], i) => {
+      parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
         if (!data || !valor) return;
         if (!inRange(data, dateFrom, dateTo)) return;
-        out.push({ sale, parcela: i + 1, data, valor: Number(valor), forma: parcelas[i][2] });
+        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
       });
     }
     return out.sort((a, b) => a.data.localeCompare(b.data));
   }, [occs, saleById, matchesCorretor, dateFrom, dateTo]);
 
-  const totalPrevisto = rows.reduce((s, r) => s + r.valor, 0);
   const hoje = todayISO();
-  const totalVencido = rows.filter((r) => r.data < hoje).reduce((s, r) => s + r.valor, 0);
-  const totalAVencer = totalPrevisto - totalVencido;
+  const totalPrevisto = rows.reduce((s, r) => s + r.valor, 0);
+  const totalRecebido = rows.filter((r) => r.recebidoEm).reduce((s, r) => s + (r.recebidoValor ?? 0), 0);
+  const totalVencido = rows.filter((r) => !r.recebidoEm && r.data < hoje).reduce((s, r) => s + r.valor, 0);
+  const totalAVencer = rows.filter((r) => !r.recebidoEm && r.data >= hoje).reduce((s, r) => s + r.valor, 0);
+
+  const situacao = (r: (typeof rows)[number]) => (r.recebidoEm ? "Recebida" : r.data < hoje ? "Vencida" : "A vencer");
 
   const doExport = () => exportCsv(`fluxo-caixa_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data, Valor: r.valor.toFixed(2), Forma: r.forma ?? "", Situacao: r.data < hoje ? "Vencida" : "A vencer",
+    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data, Valor: r.valor.toFixed(2), Forma: r.forma ?? "",
+    Situacao: situacao(r), RecebidoEm: r.recebidoEm ?? "", ValorRecebido: r.recebidoValor != null ? r.recebidoValor.toFixed(2) : "",
   })));
+
+  const [marcando, setMarcando] = useState<{ occId: string; parcela: number } | null>(null);
+  const [recValor, setRecValor] = useState<number | null>(null);
+  const [recData, setRecData] = useState(hoje);
+  const [saving, setSaving] = useState(false);
+
+  const abrirMarcar = (r: (typeof rows)[number]) => {
+    setMarcando({ occId: r.occId, parcela: r.parcela });
+    setRecValor(r.valor);
+    setRecData(hoje);
+  };
+
+  const confirmarRecebido = async () => {
+    if (!marcando) return;
+    setSaving(true);
+    try {
+      const cols = RECEBIDO_COLS[marcando.parcela];
+      const { error } = await supabase.from("occurrences").update({ [cols.em]: recData, [cols.valor]: recValor } as any).eq("id", marcando.occId);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Recebimento registrado");
+      setMarcando(null);
+      onChange();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const desfazerRecebido = async (occId: string, parcela: number) => {
+    const cols = RECEBIDO_COLS[parcela];
+    const { error } = await supabase.from("occurrences").update({ [cols.em]: null, [cols.valor]: null } as any).eq("id", occId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Desfeito");
+    onChange();
+  };
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total previsto no período</p><p className="text-xl font-semibold">{money(totalPrevisto)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Vencido (data já passou)</p><p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">A vencer</p><p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(totalAVencer)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Recebido</p><p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(totalRecebido)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Vencido (não recebido)</p><p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">A vencer</p><p className="text-xl font-semibold">{money(totalAVencer)}</p></CardContent></Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -255,10 +307,11 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
                 <TableHead>Forma</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <EmptyRow colSpan={7}>Nenhuma parcela prevista no período/filtro selecionado.</EmptyRow>}
+              {rows.length === 0 && <EmptyRow colSpan={8}>Nenhuma parcela prevista no período/filtro selecionado.</EmptyRow>}
               {rows.map((r, i) => (
                 <TableRow key={i}>
                   <TableCell className="font-medium">
@@ -270,9 +323,22 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
                   <TableCell>{money(r.valor)}</TableCell>
                   <TableCell>
-                    <span className={r.data < hoje ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"}>
-                      {r.data < hoje ? "Vencida" : "A vencer"}
-                    </span>
+                    {r.recebidoEm ? (
+                      <span className="text-emerald-700 dark:text-emerald-400">
+                        Recebida em {dateBR(r.recebidoEm)}{r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
+                      </span>
+                    ) : (
+                      <span className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}>
+                        {r.data < hoje ? "Vencida" : "A vencer"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {r.recebidoEm ? (
+                      <Button size="sm" variant="ghost" onClick={() => desfazerRecebido(r.occId, r.parcela)}>Desfazer</Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => abrirMarcar(r)}>Marcar recebido</Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -280,6 +346,29 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!marcando} onOpenChange={(o) => { if (!saving && !o) setMarcando(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar recebimento</DialogTitle>
+            <DialogDescription>Confirme o valor e a data em que a comissão foi efetivamente recebida.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">Valor recebido</Label>
+              <CurrencyInput value={recValor} onChange={setRecValor} />
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">Data do recebimento</Label>
+              <Input type="date" value={recData} onChange={(e) => setRecData(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setMarcando(null)} disabled={saving}>Cancelar</Button>
+            <Button onClick={confirmarRecebido} disabled={saving || !recData}>{saving ? "Salvando..." : "Confirmar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

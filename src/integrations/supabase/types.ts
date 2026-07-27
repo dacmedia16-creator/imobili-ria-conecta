@@ -263,12 +263,18 @@ export type Database = {
           percentual_comissao: number | null
           prev_recebimento_data: string | null
           prev_recebimento_forma: string | null
+          prev_recebimento_recebido_em: string | null
+          prev_recebimento_recebido_valor: number | null
           prev_recebimento_valor: number | null
           prev_recebimento2_data: string | null
           prev_recebimento2_forma: string | null
+          prev_recebimento2_recebido_em: string | null
+          prev_recebimento2_recebido_valor: number | null
           prev_recebimento2_valor: number | null
           prev_recebimento3_data: string | null
           prev_recebimento3_forma: string | null
+          prev_recebimento3_recebido_em: string | null
+          prev_recebimento3_recebido_valor: number | null
           prev_recebimento3_valor: number | null
           reopen_reason: string | null
           reopened_at: string | null
@@ -301,12 +307,18 @@ export type Database = {
           percentual_comissao?: number | null
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
+          prev_recebimento_recebido_em?: string | null
+          prev_recebimento_recebido_valor?: number | null
           prev_recebimento_valor?: number | null
           prev_recebimento2_data?: string | null
           prev_recebimento2_forma?: string | null
+          prev_recebimento2_recebido_em?: string | null
+          prev_recebimento2_recebido_valor?: number | null
           prev_recebimento2_valor?: number | null
           prev_recebimento3_data?: string | null
           prev_recebimento3_forma?: string | null
+          prev_recebimento3_recebido_em?: string | null
+          prev_recebimento3_recebido_valor?: number | null
           prev_recebimento3_valor?: number | null
           reopen_reason?: string | null
           reopened_at?: string | null
@@ -339,12 +351,18 @@ export type Database = {
           percentual_comissao?: number | null
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
+          prev_recebimento_recebido_em?: string | null
+          prev_recebimento_recebido_valor?: number | null
           prev_recebimento_valor?: number | null
           prev_recebimento2_data?: string | null
           prev_recebimento2_forma?: string | null
+          prev_recebimento2_recebido_em?: string | null
+          prev_recebimento2_recebido_valor?: number | null
           prev_recebimento2_valor?: number | null
           prev_recebimento3_data?: string | null
           prev_recebimento3_forma?: string | null
+          prev_recebimento3_recebido_em?: string | null
+          prev_recebimento3_recebido_valor?: number | null
           prev_recebimento3_valor?: number | null
           reopen_reason?: string | null
           reopened_at?: string | null

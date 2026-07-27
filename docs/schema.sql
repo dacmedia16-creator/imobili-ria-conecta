@@ -776,12 +776,18 @@ CREATE TABLE IF NOT EXISTS public.occurrences (
   prev_recebimento_valor numeric(14,2),
   prev_recebimento_data date,
   prev_recebimento_forma text,
+  prev_recebimento_recebido_em date,
+  prev_recebimento_recebido_valor numeric(14,2),
   prev_recebimento2_valor numeric,
   prev_recebimento2_data date,
   prev_recebimento2_forma text,
+  prev_recebimento2_recebido_em date,
+  prev_recebimento2_recebido_valor numeric(14,2),
   prev_recebimento3_valor numeric,
   prev_recebimento3_data date,
   prev_recebimento3_forma text,
+  prev_recebimento3_recebido_em date,
+  prev_recebimento3_recebido_valor numeric(14,2),
   oba_credito boolean NOT NULL DEFAULT false,
   observacoes text,
   status text NOT NULL DEFAULT 'pendente'::text,
@@ -807,6 +813,32 @@ DROP POLICY IF EXISTS occ_write ON public.occurrences;
 CREATE POLICY occ_write ON public.occurrences AS PERMISSIVE FOR ALL TO  USING ((has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role, 'gestor'::app_role]) AND can_view_sale(auth.uid(), sale_id))) WITH CHECK ((has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role, 'gestor'::app_role]) AND can_view_sale(auth.uid(), sale_id) AND ((NOT is_sale_locked(sale_id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]))));
 DROP TRIGGER IF EXISTS trg_occ_updated ON public.occurrences;
 CREATE TRIGGER trg_occ_updated BEFORE UPDATE ON public.occurrences FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Trava por coluna (RLS não faz granularidade de coluna): occ_write já deixa financeiro/admin/
+-- super_admin/gestor escreverem em occurrences — sem essa trava, um gestor poderia dar baixa
+-- num recebimento que é controle exclusivo do financeiro.
+CREATE OR REPLACE FUNCTION public.enforce_occurrence_recebido_lock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF (
+    NEW.prev_recebimento_recebido_em IS DISTINCT FROM OLD.prev_recebimento_recebido_em
+    OR NEW.prev_recebimento_recebido_valor IS DISTINCT FROM OLD.prev_recebimento_recebido_valor
+    OR NEW.prev_recebimento2_recebido_em IS DISTINCT FROM OLD.prev_recebimento2_recebido_em
+    OR NEW.prev_recebimento2_recebido_valor IS DISTINCT FROM OLD.prev_recebimento2_recebido_valor
+    OR NEW.prev_recebimento3_recebido_em IS DISTINCT FROM OLD.prev_recebimento3_recebido_em
+    OR NEW.prev_recebimento3_recebido_valor IS DISTINCT FROM OLD.prev_recebimento3_recebido_valor
+  ) AND NOT public.has_any_role(auth.uid(), ARRAY['financeiro','admin','super_admin']::public.app_role[]) THEN
+    RAISE EXCEPTION 'Somente financeiro/admin pode registrar recebimento de comissao.';
+  END IF;
+  RETURN NEW;
+END;
+$function$
+;
+DROP TRIGGER IF EXISTS trg_enforce_occurrence_recebido_lock ON public.occurrences;
+CREATE TRIGGER trg_enforce_occurrence_recebido_lock BEFORE UPDATE ON public.occurrences FOR EACH ROW EXECUTE FUNCTION enforce_occurrence_recebido_lock();
 
 -- ===== TABELA: sale_bank_accounts =====
 CREATE TABLE IF NOT EXISTS public.sale_bank_accounts (
