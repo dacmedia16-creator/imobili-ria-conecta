@@ -22,8 +22,13 @@ export function PaymentStep({ saleId, payment, bank, parties, editable, onSaved,
   const [saving, setSaving] = useState(false);
   const dirty = dp || db;
 
-  useEffect(() => { setP(payment ?? {}); setDp(false); }, [payment]);
-  useEffect(() => { setB(bank ?? {}); setDb(false); }, [bank]);
+  // Não sincroniza por cima de uma edição local ainda não salva: o pai recarrega os dados da venda
+  // (load()) por várias ações que não têm nada a ver com esta aba (upload de contrato, troca de
+  // status em outra etapa, etc.) — sem essa trava, a prop "payment"/"bank" chegava com um objeto
+  // novo a cada reload e apagava silenciosamente o que a pessoa estava digitando aqui, cancelando
+  // o autosave agendado (dirty virava false e o useAutosave desistia do timer pendente).
+  useEffect(() => { if (!dp) setP(payment ?? {}); }, [payment]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!db) setB(bank ?? {}); }, [bank]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
 
   const updP = (k: string, v: any) => { setP((f: any) => ({ ...f, [k]: v })); setDp(true); };

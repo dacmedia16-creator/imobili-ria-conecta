@@ -34,13 +34,21 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
   const [saving, setSaving] = useState(false);
 
+  // Não sincroniza por cima de uma parte com edição local não salva: "parties" chega com objeto
+  // novo a cada load() do pai, disparado por ações sem relação com esta aba (upload de contrato,
+  // troca de status, etc.) — sem preservar quem está dirty, isso apagava silenciosamente o que a
+  // pessoa estava digitando e cancelava o autosave (dirty virava false no meio do delay).
   useEffect(() => {
     setForms((prev) => {
       const m: Record<string, any> = {};
-      for (const p of papeis) m[p] = parties[p] ?? prev[p] ?? {};
+      for (const p of papeis) m[p] = dirty[p] ? prev[p] : (parties[p] ?? prev[p] ?? {});
       return m;
     });
-    setDirty({});
+    setDirty((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const p of papeis) if (prev[p]) next[p] = true;
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parties]);
 

@@ -74,10 +74,17 @@ function SaleDetail() {
 
   // Buffered Resumo form
   const [formSale, setFormSale] = useState<any>({});
-  const [dirtyResumo, setDirtyResumo] = useState(false);
+  const [dirtyResumo, setDirtyResumoState] = useState(false);
   const [commissionExtras, setCommissionExtras] = useState<any[]>([]);
   const [formExtras, setFormExtras] = useState<any[]>([]);
-  const [dirtyExtras, setDirtyExtras] = useState(false);
+  const [dirtyExtras, setDirtyExtrasState] = useState(false);
+  // Espelham dirtyResumo/dirtyExtras num ref, atualizado no mesmo instante do setState (não só no
+  // próximo render) — load() precisa ler o valor atual de forma síncrona logo depois de setar false
+  // dentro de saveResumo(), antes que o efeito de re-render tenha rodado.
+  const dirtyResumoRef = useRef(false);
+  const setDirtyResumo = (v: boolean) => { dirtyResumoRef.current = v; setDirtyResumoState(v); };
+  const dirtyExtrasRef = useRef(false);
+  const setDirtyExtras = (v: boolean) => { dirtyExtrasRef.current = v; setDirtyExtrasState(v); };
 
   // Per-step savers registered by child editors
   const saversRef = useRef<Record<string, Saver>>({});
@@ -153,11 +160,13 @@ function SaleDetail() {
       supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
     ]);
     setSale(s.data);
-    setFormSale(s.data ?? {});
-    setDirtyResumo(false);
+    // Não sobrescreve o buffer da aba Resumo se ela tiver edição local ainda não salva — load() é
+    // chamado por várias ações sem relação com essa aba (upload de contrato, troca de status em
+    // outra etapa, etc.), e sobrescrever aqui apagava silenciosamente o que a pessoa estava
+    // digitando (e cancelava o autosave, já que ele para assim que dirty vira false).
+    if (!dirtyResumoRef.current) setFormSale(s.data ?? {});
     setCommissionExtras(ce.data ?? []);
-    setFormExtras(ce.data ?? []);
-    setDirtyExtras(false);
+    if (!dirtyExtrasRef.current) setFormExtras(ce.data ?? []);
     const partyMap: Record<string, any> = {};
     (p.data ?? []).forEach((row: any) => { partyMap[row.papel] = row; });
     setParties(partyMap);
@@ -2364,22 +2373,32 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const canWrite = canEdit && !concluida;
   useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
 
+  // Espelham dirtyOcc/dirtyComms/dirtyPartners em refs — load() precisa ler o valor mais atual sem
+  // depender do ciclo de re-render (usado pra não sobrescrever um buffer que ainda está dirty).
+  const dirtyOccRef = useRef(false);
+  useEffect(() => { dirtyOccRef.current = dirtyOcc; }, [dirtyOcc]);
+  const dirtyCommsRef = useRef(false);
+  useEffect(() => { dirtyCommsRef.current = dirtyComms; }, [dirtyComms]);
+  const dirtyPartnersRef = useRef(false);
+  useEffect(() => { dirtyPartnersRef.current = dirtyPartners; }, [dirtyPartners]);
+
   const load = useCallback(async () => {
     const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle();
     setOcc(o);
-    setFormOcc(o ?? {});
-    setDirtyOcc(false);
+    // Não sobrescreve um buffer com edição local ainda não salva: load() roda tanto no mount quanto
+    // depois de qualquer save (que já limpa o dirty antes de chamar load(), ver save() abaixo) quanto
+    // pelo watcher de mudanças na Resumo logo adiante — sem essa trava, digitar aqui enquanto esse
+    // watcher dispara (por causa de uma mudança em OUTRA aba) apagava o que a pessoa estava editando.
+    if (!dirtyOccRef.current) setFormOcc(o ?? {});
     if (o) {
       const [c, p] = await Promise.all([
         supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
         supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
       ]);
       setCommissions(c.data ?? []);
-      setFormComms(c.data ?? []);
-      setDirtyComms(false);
+      if (!dirtyCommsRef.current) setFormComms(c.data ?? []);
       setPartners(p.data ?? []);
-      setFormPartners(p.data ?? []);
-      setDirtyPartners(false);
+      if (!dirtyPartnersRef.current) setFormPartners(p.data ?? []);
     }
     setLoading(false);
   }, [saleId]);
@@ -2388,10 +2407,10 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   // Sempre que a Resumo salva captador/vendedor/indicador/partes extras, o valor já é
   // sincronizado direto no banco (ver syncOccurrenceCommissions) — aqui só recarrega essa
   // tela pra refletir o que já foi salvo, sem precisar de F5 nem clicar em "Puxar".
-  // Não recarrega se houver edição não salva na tabela, pra não apagar o que o usuário
-  // estava digitando.
+  // Não recarrega se houver edição não salva em qualquer um dos três buffers, pra não apagar o
+  // que o usuário estava digitando (load() em si também está protegido, mas nem chega a rodar).
   useEffect(() => {
-    if (dirtyComms) return;
+    if (dirtyOcc || dirtyComms || dirtyPartners) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador, sale.indicador, sale.indicador_lado, commissionExtras]);
@@ -2659,6 +2678,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
           if (error) { toast.error(error.message); return false; }
         }
       }
+      // Limpa os refs de dirty já aqui (síncrono), antes do load() logo abaixo — senão load() ainda
+      // enxergaria os buffers como dirty (o useEffect que espelha dirty*->ref só roda no próximo
+      // render) e pularia a sincronização com o que acabou de ser salvo.
+      dirtyOccRef.current = false;
+      dirtyCommsRef.current = false;
+      dirtyPartnersRef.current = false;
+      setDirtyOcc(false);
+      setDirtyComms(false);
+      setDirtyPartners(false);
       await load();
       return true;
     } finally {
