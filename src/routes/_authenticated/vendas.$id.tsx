@@ -888,6 +888,9 @@ function SaleDetail() {
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
                 Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
+                {formSale.parceria_valor != null && (
+                  <> Digite o valor <b>total da parcela (bruto)</b>, incluindo a parte da parceria — "Comissões a Receber" já desconta automaticamente a fatia de {formSale.parceria_nome || "parceria"} (R$ {Number(formSale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) do total da comissão.</>
+                )}
               </p>
               <FieldGrid>
                 <Field label="1ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
@@ -2842,6 +2845,11 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       <Card>
         <CardHeader><CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {sale.parceria_valor != null && (
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Digite o valor <b>total da parcela (bruto)</b>, incluindo a parte da parceria — "Comissões a Receber" já desconta automaticamente a fatia de {sale.parceria_nome || "parceria"} (R$ {Number(sale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) do total da comissão.
+            </p>
+          )}
           <FieldGrid>
             <Field label="1ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento_valor: v })} /></Field>
             <Field label="1ª parcela — data"><Input type="date" value={formOcc.prev_recebimento_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })} /></Field>

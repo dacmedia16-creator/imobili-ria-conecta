@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { money, dateBR } from "@/components/vendas/shared";
-import { RECEBIDO_COLS } from "@/lib/status";
+import { RECEBIDO_COLS, fatorComissaoPropria } from "@/lib/status";
 import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/comissoes-a-receber")({
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-const OCC_COLUMNS = "id, sale_id, prev_recebimento_data, prev_recebimento_valor, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento2_data, prev_recebimento2_valor, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento3_data, prev_recebimento3_valor, prev_recebimento3_forma, prev_recebimento3_recebido_em";
+const OCC_COLUMNS = "id, sale_id, valor_comissao, prev_recebimento_data, prev_recebimento_valor, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento2_data, prev_recebimento2_valor, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento3_data, prev_recebimento3_valor, prev_recebimento3_forma, prev_recebimento3_recebido_em";
 
 function ComissoesAReceberPage() {
   const { hasAny, loading: authLoading } = useAuth();
@@ -30,6 +30,7 @@ function ComissoesAReceberPage() {
   const [loading, setLoading] = useState(true);
   const [occs, setOccs] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -55,6 +56,14 @@ function ComissoesAReceberPage() {
     } else {
       setSales([]);
     }
+
+    const occIds = (o ?? []).map((r: any) => r.id);
+    if (occIds.length) {
+      const { data: p } = await supabase.from("occurrence_partners").select("occurrence_id, valor").in("occurrence_id", occIds);
+      setPartners(p ?? []);
+    } else {
+      setPartners([]);
+    }
     const { data: prof } = await supabase.from("profiles").select("id, nome");
     const names: Record<string, string> = {};
     for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
@@ -74,10 +83,19 @@ function ComissoesAReceberPage() {
     return m;
   }, [sales]);
 
+  // Soma da parte que vai pra parceria externa por ocorrência — descontada das parcelas previstas,
+  // já que essa fatia não é nossa mesmo que passe pela nossa conta.
+  const parceriaPorOcc = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
+    return m;
+  }, [partners]);
+
   const rows = useMemo(() => {
-    const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; forma: string | null }[] = [];
+    const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; valorBruto: number; forma: string | null }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
+      const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
       const parcelas: [string | null, number | null, string | null, string | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em],
         [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em],
@@ -85,11 +103,11 @@ function ComissoesAReceberPage() {
       ];
       parcelas.forEach(([data, valor, forma, recebidoEm], i) => {
         if (!data || !valor || recebidoEm) return;
-        out.push({ key: `${o.id}-${i + 1}`, occId: o.id, parcela: i + 1, sale, data, valor: Number(valor), forma });
+        out.push({ key: `${o.id}-${i + 1}`, occId: o.id, parcela: i + 1, sale, data, valor: Number(valor) * fator, valorBruto: Number(valor), forma });
       });
     }
     return out.sort((a, b) => a.data.localeCompare(b.data));
-  }, [occs, saleById]);
+  }, [occs, saleById, parceriaPorOcc]);
 
   const hoje = todayISO();
   const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
@@ -142,11 +160,11 @@ function ComissoesAReceberPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Comissões a Receber</h1>
-        <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas.</p>
+        <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas — já descontada a parte de eventuais parcerias externas.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total pendente</p><p className="text-xl font-semibold">{money(rows.reduce((s, r) => s + r.valor, 0))}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total pendente (nossa parte)</p><p className="text-xl font-semibold">{money(rows.reduce((s, r) => s + r.valor, 0))}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Selecionado</p><p className="text-xl font-semibold text-primary">{money(totalSelecionado)}</p></CardContent></Card>
       </div>
 
@@ -185,7 +203,14 @@ function ComissoesAReceberPage() {
                   <TableCell>{r.parcela}ª</TableCell>
                   <TableCell>{dateBR(r.data)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>{money(r.valor)}</TableCell>
+                  <TableCell>
+                    {money(r.valor)}
+                    {r.valorBruto !== r.valor && (
+                      <div className="text-xs text-muted-foreground" title="Descontada a parte da parceria externa">
+                        de {money(r.valorBruto)} bruto
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <span className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}>
                       {r.data < hoje ? "Vencida" : "A vencer"}

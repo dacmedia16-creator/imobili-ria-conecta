@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
-import { STATUS_LABEL, RECEBIDO_COLS, type SaleStatus } from "@/lib/status";
+import { STATUS_LABEL, RECEBIDO_COLS, fatorComissaoPropria, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -75,7 +75,7 @@ function RelatoriosPage() {
     ].join(",");
     const { data: o } = await supabase
       .from("occurrences")
-      .select("id, sale_id, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
+      .select("id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
       .or(occFilter);
     setOccs(o ?? []);
 
@@ -119,6 +119,15 @@ function RelatoriosPage() {
     for (const s of sales) m[s.id] = s;
     return m;
   }, [sales]);
+
+  // Soma da parte que vai pra parceria externa (imobiliária externa/outra unidade RE/MAX) por
+  // ocorrência — usado pra descontar essa fatia das parcelas previstas no Fluxo de caixa, já que
+  // esse dinheiro não é nosso mesmo que passe pela nossa conta.
+  const parceriaPorOcc = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
+    return m;
+  }, [partners]);
 
   const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
   const corretorNome = (sale: any) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—");
@@ -170,7 +179,7 @@ function RelatoriosPage() {
 
         <TabsContent value="caixa">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.</p>
-          <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} />
+          <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} parceriaPorOcc={parceriaPorOcc} />
         </TabsContent>
         <TabsContent value="comissoes">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).</p>
@@ -205,15 +214,18 @@ function ExportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange }: {
+function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange, parceriaPorOcc }: {
   occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string; onChange: () => void;
+  dateFrom: string; dateTo: string; onChange: () => void; parceriaPorOcc: Record<string, number>;
 }) {
   const rows = useMemo(() => {
-    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
+    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; valorBruto: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
       if (!matchesCorretor(sale)) continue;
+      // Parcelas são digitadas com o valor bruto total — desconta a parte que vai pra parceria
+      // externa, já que essa fatia não é nossa mesmo que passe pela nossa conta.
+      const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
       const parcelas: [string | null, number | null, string | null, string | null, number | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em, o.prev_recebimento_recebido_valor],
         [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em, o.prev_recebimento2_recebido_valor],
@@ -222,11 +234,11 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
       parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
         if (!data || !valor) return;
         if (!inRange(data, dateFrom, dateTo)) return;
-        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
+        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor) * fator, valorBruto: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
       });
     }
     return out.sort((a, b) => a.data.localeCompare(b.data));
-  }, [occs, saleById, matchesCorretor, dateFrom, dateTo]);
+  }, [occs, saleById, matchesCorretor, dateFrom, dateTo, parceriaPorOcc]);
 
   const hoje = todayISO();
   const totalPrevisto = rows.reduce((s, r) => s + r.valor, 0);
@@ -237,7 +249,8 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   const situacao = (r: (typeof rows)[number]) => (r.recebidoEm ? "Recebida" : r.data < hoje ? "Vencida" : "A vencer");
 
   const doExport = () => exportCsv(`fluxo-caixa_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data, Valor: r.valor.toFixed(2), Forma: r.forma ?? "",
+    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data,
+    ValorBruto: r.valorBruto.toFixed(2), ValorNosso: r.valor.toFixed(2), Forma: r.forma ?? "",
     Situacao: situacao(r), RecebidoEm: r.recebidoEm ?? "", ValorRecebido: r.recebidoValor != null ? r.recebidoValor.toFixed(2) : "",
   })));
 
@@ -278,7 +291,7 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total previsto no período</p><p className="text-xl font-semibold">{money(totalPrevisto)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total previsto no período (nossa parte)</p><p className="text-xl font-semibold">{money(totalPrevisto)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Recebido</p><p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(totalRecebido)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Vencido (não recebido)</p><p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">A vencer</p><p className="text-xl font-semibold">{money(totalAVencer)}</p></CardContent></Card>
@@ -313,7 +326,14 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
                   <TableCell>{r.parcela}ª</TableCell>
                   <TableCell>{dateBR(r.data)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>{money(r.valor)}</TableCell>
+                  <TableCell>
+                    {money(r.valor)}
+                    {r.valorBruto !== r.valor && (
+                      <div className="text-xs text-muted-foreground" title="Descontada a parte da parceria externa">
+                        de {money(r.valorBruto)} bruto
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {r.recebidoEm ? (
                       <span className="text-emerald-700 dark:text-emerald-400">
