@@ -698,6 +698,7 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
   user_id uuid NOT NULL,
   role app_role NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  notificar_whatsapp boolean NOT NULL DEFAULT true,
   CONSTRAINT user_roles_user_id_role_key UNIQUE (user_id, role),
   CONSTRAINT user_roles_pkey PRIMARY KEY (id),
   CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -707,10 +708,34 @@ DROP POLICY IF EXISTS user_roles_admin_write ON public.user_roles;
 CREATE POLICY user_roles_admin_write ON public.user_roles AS PERMISSIVE FOR ALL TO  USING (((auth.uid() <> user_id) AND (has_role(auth.uid(), 'super_admin'::app_role) OR (has_role(auth.uid(), 'admin'::app_role) AND (role <> ALL (ARRAY['admin'::app_role, 'super_admin'::app_role])))))) WITH CHECK (((auth.uid() <> user_id) AND (has_role(auth.uid(), 'super_admin'::app_role) OR (has_role(auth.uid(), 'admin'::app_role) AND (role <> ALL (ARRAY['admin'::app_role, 'super_admin'::app_role]))))));
 DROP POLICY IF EXISTS user_roles_self_select ON public.user_roles;
 CREATE POLICY user_roles_self_select ON public.user_roles AS PERMISSIVE FOR SELECT TO authenticated USING (((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role)));
+-- Permite o próprio usuário ligar/desligar notificar_whatsapp da sua linha (por papel). Como essa
+-- policy é combinada em OR com user_roles_admin_write, uma trigger BEFORE UPDATE separada
+-- (enforce_user_roles_self_update_lock) bloqueia troca de role/user_id quando o ator é o dono da
+-- linha, senão essa policy reabriria a auto-promoção que user_roles_admin_write já bloqueia.
+DROP POLICY IF EXISTS user_roles_self_update_notif ON public.user_roles;
+CREATE POLICY user_roles_self_update_notif ON public.user_roles AS PERMISSIVE FOR UPDATE TO authenticated USING ((user_id = auth.uid())) WITH CHECK ((user_id = auth.uid()));
 DROP TRIGGER IF EXISTS trg_log_role_change_del ON public.user_roles;
 CREATE TRIGGER trg_log_role_change_del AFTER DELETE ON public.user_roles FOR EACH ROW EXECUTE FUNCTION log_role_change();
 DROP TRIGGER IF EXISTS trg_log_role_change_ins ON public.user_roles;
 CREATE TRIGGER trg_log_role_change_ins AFTER INSERT ON public.user_roles FOR EACH ROW EXECUTE FUNCTION log_role_change();
+DROP TRIGGER IF EXISTS trg_enforce_user_roles_self_update_lock ON public.user_roles;
+CREATE TRIGGER trg_enforce_user_roles_self_update_lock BEFORE UPDATE ON public.user_roles FOR EACH ROW EXECUTE FUNCTION enforce_user_roles_self_update_lock();
+
+-- Bloqueia troca de role/user_id quando o próprio dono da linha está editando (mesmo se
+-- admin/super_admin) — só a preferência notificar_whatsapp pode ser auto-editada.
+CREATE OR REPLACE FUNCTION public.enforce_user_roles_self_update_lock()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $$
+BEGIN
+  IF (NEW.role IS DISTINCT FROM OLD.role OR NEW.user_id IS DISTINCT FROM OLD.user_id)
+     AND auth.uid() = OLD.user_id THEN
+    RAISE EXCEPTION 'Você não pode alterar seu próprio papel -- só a preferência de notificação.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
 -- ===== TABELA: activity_logs =====
 CREATE TABLE IF NOT EXISTS public.activity_logs (

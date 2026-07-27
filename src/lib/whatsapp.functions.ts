@@ -51,8 +51,10 @@ export const notifyProximoResponsavelWhatsapp = createServerFn({ method: "POST" 
       .maybeSingle();
     if (!sale) return { sent: 0 };
 
-    const roles = proximoResponsavelRoles(data.status as SaleStatus);
-    if (roles.length === 0) return { sent: 0 };
+    // proximoResponsavelRoles nunca retorna mais de um papel por status (conferido em status.ts) —
+    // isso simplifica a filtragem por notificar_whatsapp abaixo, que é por (user_id, role).
+    const role = proximoResponsavelRoles(data.status as SaleStatus)[0];
+    if (!role) return { sent: 0 };
 
     // team_members/user_roles de terceiros não são visíveis via RLS pro corretor comum (só se
     // enxerga a si mesmo/seu próprio líder) — o service role resolve isso aqui, igual já é feito
@@ -60,22 +62,33 @@ export const notifyProximoResponsavelWhatsapp = createServerFn({ method: "POST" 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const userIds = new Set<string>();
-    for (const role of roles) {
-      if (role === "corretor") {
-        if (sale.corretor_id) userIds.add(sale.corretor_id);
-      } else if (role === "gestor") {
-        const { data: tm } = await supabaseAdmin.from("team_members").select("team_id").eq("membro_id", sale.corretor_id);
-        const teamIds = Array.from(new Set((tm ?? []).map((t: any) => t.team_id)));
-        if (teamIds.length) {
-          const { data: teams } = await supabaseAdmin.from("teams").select("lider_id").in("id", teamIds);
-          for (const t of teams ?? []) if (t.lider_id) userIds.add(t.lider_id);
-        }
-      } else {
-        const { data: users } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", role);
-        for (const u of users ?? []) userIds.add(u.user_id);
+    if (role === "corretor") {
+      if (sale.corretor_id) userIds.add(sale.corretor_id);
+    } else if (role === "gestor") {
+      const { data: tm } = await supabaseAdmin.from("team_members").select("team_id").eq("membro_id", sale.corretor_id);
+      const teamIds = Array.from(new Set((tm ?? []).map((t: any) => t.team_id)));
+      if (teamIds.length) {
+        const { data: teams } = await supabaseAdmin.from("teams").select("lider_id").in("id", teamIds);
+        for (const t of teams ?? []) if (t.lider_id) userIds.add(t.lider_id);
       }
+    } else {
+      const { data: users } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", role);
+      for (const u of users ?? []) userIds.add(u.user_id);
     }
     userIds.delete(userId); // quem fez a ação não precisa ser avisado de si mesmo
+
+    if (userIds.size === 0) return { sent: 0 };
+
+    // Só quem deixou notificar_whatsapp=true (default) pro papel específico que está sendo
+    // notificado recebe — permite Denis (que acumula todos os papéis) desligar por função.
+    const { data: optedIn } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", role)
+      .eq("notificar_whatsapp", true)
+      .in("user_id", Array.from(userIds));
+    const optedInIds = new Set((optedIn ?? []).map((u: any) => u.user_id));
+    for (const id of userIds) if (!optedInIds.has(id)) userIds.delete(id);
 
     if (userIds.size === 0) return { sent: 0 };
 

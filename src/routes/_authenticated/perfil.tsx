@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { ShieldCheck, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
@@ -25,6 +26,8 @@ function MeuAcesso() {
   const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
   const [telefone, setTelefone] = useState("");
   const [savingTelefone, setSavingTelefone] = useState(false);
+  const [notifPorPapel, setNotifPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
+  const [savingNotif, setSavingNotif] = useState<AppRole | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -32,7 +35,29 @@ function MeuAcesso() {
       const { data } = await supabase.from("profiles").select("telefone").eq("id", user.id).maybeSingle();
       setTelefone(data?.telefone ?? "");
     })();
+    (async () => {
+      const { data } = await supabase.from("user_roles").select("role, notificar_whatsapp").eq("user_id", user.id);
+      const map: Partial<Record<AppRole, boolean>> = {};
+      for (const r of data ?? []) map[r.role as AppRole] = r.notificar_whatsapp ?? true;
+      setNotifPorPapel(map);
+    })();
   }, [user]);
+
+  const alternarNotifPapel = async (r: AppRole, valor: boolean) => {
+    if (!user) return;
+    setSavingNotif(r);
+    try {
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ notificar_whatsapp: valor })
+        .eq("user_id", user.id)
+        .eq("role", r);
+      if (error) { toast.error(error.message); return; }
+      setNotifPorPapel((m) => ({ ...m, [r]: valor }));
+    } finally {
+      setSavingNotif(null);
+    }
+  };
 
   const salvarTelefone = async () => {
     if (!user) return;
@@ -108,6 +133,31 @@ function MeuAcesso() {
           </div>
         </CardContent>
       </Card>
+
+      {roles.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageCircle className="h-4 w-4" /> Notificações por WhatsApp
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="mb-2 text-xs text-muted-foreground">
+              Escolha por qual papel você quer receber aviso no WhatsApp quando for a sua vez de agir numa venda. Vale só pra você — não afeta os outros usuários com o mesmo papel.
+            </p>
+            {roles.map((r) => (
+              <div key={r} className="flex items-center justify-between rounded-md border p-3">
+                <span className="font-medium">{ROLE_LABEL[r]}</span>
+                <Switch
+                  checked={notifPorPapel[r] ?? true}
+                  disabled={savingNotif === r}
+                  onCheckedChange={(v) => alternarNotifPapel(r, v)}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">O que você pode ver e fazer</CardTitle></CardHeader>
