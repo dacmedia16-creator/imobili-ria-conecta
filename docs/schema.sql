@@ -699,6 +699,7 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
   role app_role NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   notificar_whatsapp boolean NOT NULL DEFAULT true,
+  notificar_toda_atualizacao boolean NOT NULL DEFAULT true,
   CONSTRAINT user_roles_user_id_role_key UNIQUE (user_id, role),
   CONSTRAINT user_roles_pkey PRIMARY KEY (id),
   CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE

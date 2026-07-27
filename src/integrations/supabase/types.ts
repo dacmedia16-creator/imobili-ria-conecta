@@ -1035,6 +1035,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          notificar_toda_atualizacao: boolean
           notificar_whatsapp: boolean
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
@@ -1042,6 +1043,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          notificar_toda_atualizacao?: boolean
           notificar_whatsapp?: boolean
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
@@ -1049,6 +1051,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          notificar_toda_atualizacao?: boolean
           notificar_whatsapp?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
