@@ -4,12 +4,12 @@ import { z } from "zod";
 import { proximoResponsavelRoles, STATUS_LABEL, type SaleStatus } from "@/lib/status";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
+const APP_URL = "https://imobili-ria-conecta.dacmedia16.workers.dev";
 
 const NotifyInput = z.object({
   saleId: z.string().uuid(),
   status: z.string(),
-  titulo: z.string(),
-  mensagem: z.string().nullable().optional(),
+  motivo: z.string().nullable().optional(),
 });
 
 /** Normaliza pro formato que o ZionTalk exige: só dígitos com DDI, SEM "+" na frente (testado ao
@@ -19,6 +19,17 @@ function normalizePhone(raw: string | null | undefined): string | null {
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 10) return null;
   return digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
+}
+
+/** Remove acento/cedilha e qualquer caractere fora do ASCII antes de mandar pro ZionTalk — testado
+ * ao vivo: qualquer letra acentuada (á, ã, ç, ñ...) ou símbolo como €/° faz a API retornar 500, e
+ * emoji são aceitos (201) mas chegam corrompidos ("??") no WhatsApp de verdade. `*negrito*` e
+ * quebra de linha funcionam normalmente, então o texto continua estruturado mesmo só em ASCII. */
+function paraWhatsapp(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\x00-\x7E]/g, "");
 }
 
 /**
@@ -38,6 +49,10 @@ function normalizePhone(raw: string | null | undefined): string | null {
  *   existe pra esses dois papéis.
  * Quem se qualifica nos dois grupos ao mesmo tempo recebe só a mensagem de "sua vez" (mais
  * específica), não as duas. Usuário desativado (profiles.ativo = false) nunca recebe.
+ *
+ * O texto (título, motivo, link) é montado aqui a partir de STATUS_LABEL — o chamador só passa
+ * status/motivo, não o texto já formatado, pra manter o formato consistente em todos os pontos
+ * de troca de status.
  */
 export const notifySaleStatusChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -96,9 +111,23 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       .in("user_id", candidateIds);
 
     const label = sale.imovel_id || sale.codigo_interno || `venda #${sale.id.slice(0, 8)}`;
-    const textoSuaVez = `${data.titulo}\nVenda: ${label}${data.mensagem ? `\n${data.mensagem}` : ""}`;
     const statusLabel = STATUS_LABEL[data.status as SaleStatus] ?? data.status;
-    const textoAtualizacao = `Atualização na venda: ${statusLabel}\nVenda: ${label}${data.mensagem ? `\n${data.mensagem}` : ""}`;
+    const link = `${APP_URL}/vendas/${sale.id}`;
+    const motivoLinha = data.motivo ? `Motivo: ${data.motivo}\n` : "";
+
+    const textoSuaVez =
+      `*É a sua vez de agir!*\n\n` +
+      `Venda: ${label}\n` +
+      `Status: ${statusLabel}\n` +
+      motivoLinha +
+      `\nAcesse: ${link}`;
+
+    const textoAtualizacao =
+      `*Atualização na venda*\n\n` +
+      `Venda: ${label}\n` +
+      `Novo status: ${statusLabel}\n` +
+      motivoLinha +
+      `\nAcesse: ${link}`;
 
     const mensagemPorUsuario = new Map<string, string>();
     for (const id of proximoIds) {
@@ -132,7 +161,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
             Authorization: `Basic ${btoa(`${apiKey}:`)}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({ msg: texto, mobile_phone: phone }).toString(),
+          body: new URLSearchParams({ msg: paraWhatsapp(texto), mobile_phone: phone }).toString(),
         });
         if (res.status === 201) sent++;
       } catch {

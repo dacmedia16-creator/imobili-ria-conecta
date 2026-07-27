@@ -533,13 +533,13 @@ function SaleDetail() {
     }
     // WhatsApp pra quem for a vez agora, e pro corretor/gestor da equipe que acompanham toda
     // atualização — nunca trava a troca de status se a API externa falhar.
-    notifySaleStatusChange({ data: { saleId: id, status: next, titulo: `Venda aguardando você: ${STATUS_LABEL[next]}`, mensagem: motivo } }).catch(() => {});
+    notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     if (next === "contrato_assinado") {
       const { error: e2 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", id);
       if (!e2) {
         await supabase.from("sale_status_history").insert({ sale_id: id, de: "contrato_assinado", para: "ocorrencia_pendente", autor_id: user!.id, motivo: "Automático: contrato assinado" });
         await notifyRoles(["gestor"], `Contrato assinado — preencher ocorrência: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
-        notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente", titulo: "Contrato assinado — preencher ocorrência" } }).catch(() => {});
+        notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
       }
     }
     toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
