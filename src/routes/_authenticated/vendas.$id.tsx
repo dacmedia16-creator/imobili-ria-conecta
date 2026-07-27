@@ -828,9 +828,9 @@ function SaleDetail() {
               </div>
             )}
             <FieldGrid>
-              <Field label={`% Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
+              <Field label={`Captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_captador ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("captador", e.target.value)} /></Field>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-              <Field label={`% Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
+              <Field label={`Vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}`}><Input type="number" step="0.001" value={formSale.percentual_comissao_vendedor ?? ""} disabled={!editableComissao} onChange={(e) => applyComissaoPercentual("vendedor", e.target.value)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               <Field label="Líquido do captador (R$)">
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
