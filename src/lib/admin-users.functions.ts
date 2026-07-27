@@ -6,8 +6,10 @@ const ROLES = ["corretor", "gestor", "juridico", "financeiro", "admin", "super_a
 type Role = (typeof ROLES)[number];
 
 const schema = z.object({
-  nome: z.string().trim().min(2).max(120),
+  nome: z.string().trim().min(2).max(120)
+    .refine((v) => v.trim().split(/\s+/).filter(Boolean).length >= 2, "Digite o nome completo (nome e sobrenome)."),
   email: z.string().trim().email().max(255),
+  telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
   password: z.string().min(8).max(72),
   role: z.enum(ROLES),
 });
@@ -88,8 +90,8 @@ export const createUser = createServerFn({ method: "POST" })
       await supabaseAdmin.from("team_members").insert({ team_id: teamId, membro_id: newId });
     }
 
-    // Garante nome atualizado no profile
-    await supabaseAdmin.from("profiles").update({ nome: data.nome }).eq("id", newId);
+    // Garante nome/telefone atualizados no profile (handle_new_user só preenche nome/email)
+    await supabaseAdmin.from("profiles").update({ nome: data.nome, telefone: data.telefone }).eq("id", newId);
 
     return { id: newId, email: data.email };
   });

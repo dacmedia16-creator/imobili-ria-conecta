@@ -214,10 +214,11 @@ function NewUserDialog({
 }: {
   allowedRoles: AppRole[];
   onDone: () => void;
-  createUserFn: (args: { data: { nome: string; email: string; password: string; role: AppRole } }) => Promise<any>;
+  createUserFn: (args: { data: { nome: string; email: string; telefone: string; password: string; role: AppRole } }) => Promise<any>;
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [password, setPassword] = useState(() => genPassword());
   const [role, setRole] = useState<AppRole>(allowedRoles[0]);
   const [loading, setLoading] = useState(false);
@@ -227,11 +228,14 @@ function NewUserDialog({
     toast.success("Credenciais copiadas");
   };
 
+  const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (nomeCompletoInvalido) { toast.error("Digite o nome completo (nome e sobrenome)."); return; }
     setLoading(true);
     try {
-      await createUserFn({ data: { nome, email, password, role } });
+      await createUserFn({ data: { nome, email, telefone, password, role } });
       toast.success("Usuário criado. Copie e envie as credenciais.", {
         action: { label: "Copiar", onClick: copyCreds },
         duration: 10000,
@@ -251,12 +255,19 @@ function NewUserDialog({
       </DialogHeader>
       <form onSubmit={onSubmit} className="space-y-3">
         <div>
-          <Label htmlFor="nu-nome">Nome</Label>
-          <Input id="nu-nome" value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} />
+          <Label htmlFor="nu-nome">Nome completo</Label>
+          <Input id="nu-nome" value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} placeholder="Nome e sobrenome" />
+          {nome.trim().length > 0 && nomeCompletoInvalido && (
+            <p className="mt-1 text-xs text-destructive">Digite o nome completo (nome e sobrenome).</p>
+          )}
         </div>
         <div>
           <Label htmlFor="nu-email">E-mail</Label>
           <Input id="nu-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div>
+          <Label htmlFor="nu-telefone">Telefone (WhatsApp)</Label>
+          <Input id="nu-telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} required minLength={10} placeholder="(11) 91234-5678" />
         </div>
         <div>
           <Label htmlFor="nu-pass">Senha inicial</Label>
