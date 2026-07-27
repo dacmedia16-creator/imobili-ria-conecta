@@ -12,14 +12,13 @@ const NotifyInput = z.object({
   mensagem: z.string().nullable().optional(),
 });
 
-/** Normaliza pro formato E.164 que o ZionTalk exige (+55DDDNÚMERO) — aceita o telefone digitado
- * com ou sem DDI/máscara. */
+/** Normaliza pro formato que o ZionTalk exige: só dígitos com DDI, SEM "+" na frente (testado ao
+ * vivo — com "+" a API retorna 500) — aceita o telefone digitado com ou sem DDI/máscara. */
 function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 10) return null;
-  const comDDI = digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
-  return `+${comDDI}`;
+  return digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
 }
 
 /**
