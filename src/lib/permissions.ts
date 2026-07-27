@@ -21,8 +21,13 @@ export function canDeleteSale(
  * Nessa ordem: se a exclusão da venda falhar (RLS, rede), nada foi perdido — os arquivos continuam
  * intactos. Na ordem inversa (storage antes do banco), uma falha no passo do banco deixava a venda
  * viva mas com os documentos já apagados do storage, sem como recuperar.
+ *
+ * `orphanedFiles` vem preenchido quando a venda já foi apagada do banco mas a limpeza do storage
+ * falhou (rede, permissão) — os arquivos ficam órfãos (nada mais referencia esse sale_id). Antes
+ * esse erro era simplesmente ignorado; agora quem chamar sabe disso e pode avisar o usuário em vez
+ * de mostrar "Venda excluída" como se estivesse tudo certo.
  */
-export async function deleteSaleCascade(saleId: string): Promise<void> {
+export async function deleteSaleCascade(saleId: string): Promise<{ orphanedFiles: string[] }> {
   const { data: docs } = await supabase
     .from("sale_documents")
     .select("storage_path")
@@ -32,7 +37,12 @@ export async function deleteSaleCascade(saleId: string): Promise<void> {
   const { error } = await supabase.from("sales").delete().eq("id", saleId);
   if (error) throw error;
 
-  if (paths.length > 0) {
-    await supabase.storage.from("sale-documents").remove(paths);
+  if (paths.length === 0) return { orphanedFiles: [] };
+
+  const { error: storageError } = await supabase.storage.from("sale-documents").remove(paths);
+  if (storageError) {
+    console.error(`Falha ao remover ${paths.length} arquivo(s) do storage da venda ${saleId} (venda já excluída):`, storageError);
+    return { orphanedFiles: paths };
   }
+  return { orphanedFiles: [] };
 }

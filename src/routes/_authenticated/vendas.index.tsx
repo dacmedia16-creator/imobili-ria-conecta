@@ -137,8 +137,12 @@ function SalesList() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      await deleteSaleCascade(toDelete.id);
-      toast.success("Venda excluída");
+      const { orphanedFiles } = await deleteSaleCascade(toDelete.id);
+      if (orphanedFiles.length > 0) {
+        toast.warning(`Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`);
+      } else {
+        toast.success("Venda excluída");
+      }
       setToDelete(null);
       setRefreshKey((k) => k + 1);
       router.invalidate();

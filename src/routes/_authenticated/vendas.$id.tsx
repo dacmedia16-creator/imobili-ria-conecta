@@ -288,8 +288,12 @@ function SaleDetail() {
   const onConfirmDelete = async () => {
     setDeleting(true);
     try {
-      await deleteSaleCascade(sale.id);
-      toast.success("Venda excluída");
+      const { orphanedFiles } = await deleteSaleCascade(sale.id);
+      if (orphanedFiles.length > 0) {
+        toast.warning(`Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`);
+      } else {
+        toast.success("Venda excluída");
+      }
       setDeleteOpen(false);
       router.navigate({ to: "/vendas" });
     } catch (err: any) {
