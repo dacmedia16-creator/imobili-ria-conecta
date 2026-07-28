@@ -99,8 +99,14 @@ export const extractDocument = createServerFn({ method: "POST" })
         raw = await callGemini(); // uma segunda tentativa: falhas de parse/corte costumam ser passageiras
       }
     } catch (err: any) {
-      await markFailed(supabase, doc.id, err?.message ?? "Falha na extração");
-      return { ok: false as const, error: err?.message ?? "Falha na extração" };
+      // Detalhe cru (pode incluir corpo da resposta do Gemini) só vai pro log do servidor e pro
+      // registro em document_extractions -- devolver isso direto pro client expunha detalhe interno
+      // da API terceira numa mensagem de toast, sem necessidade nenhuma pra quem só quer saber que
+      // falhou.
+      const detail = err?.message ?? "Falha na extração";
+      console.error(`extractDocument falhou (doc ${doc.id}):`, detail);
+      await markFailed(supabase, doc.id, detail);
+      return { ok: false as const, error: "Não foi possível ler o documento automaticamente. Tente novamente ou preencha os dados manualmente." };
     }
 
     await supabase

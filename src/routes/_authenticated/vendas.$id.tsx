@@ -159,6 +159,14 @@ function SaleDetail() {
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
       supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
     ]);
+    // Antes, erro em qualquer uma dessas 9 queries era ignorado silenciosamente — a tela mostrava
+    // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
+    // menos avisa que algo falhou, em vez de deixar a pessoa achar que os dados sumiram.
+    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error].filter(Boolean);
+    if (loadErrors.length > 0) {
+      console.error("Falha ao carregar dados da venda:", loadErrors);
+      toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
+    }
     setSale(s.data);
     // Não sobrescreve o buffer da aba Resumo se ela tiver edição local ainda não salva — load() é
     // chamado por várias ações sem relação com essa aba (upload de contrato, troca de status em
