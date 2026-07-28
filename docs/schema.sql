@@ -31,13 +31,17 @@ END $mig$;
 -- Usuário desativado (profiles.ativo = false) perde todo acesso baseado em papel (has_role/
 -- has_any_role) e toda visibilidade/edição de vendas, mesmo a própria — sem isso, "desativar"
 -- era só um selo visual e a pessoa continuava com acesso total ao sistema.
+-- _user IS NOT NULL evita fail-open: sem essa checagem, is_active_user(NULL) caía no COALESCE e
+-- retornava TRUE pra chamador anônimo/sem sessão -- inofensivo hoje porque toda policy que usa isso
+-- também combina com uma comparação de igualdade que já falha sozinha pra NULL, mas era uma
+-- armadilha pra qualquer policy nova que usasse só esta função como gate.
 CREATE OR REPLACE FUNCTION public.is_active_user(_user uuid)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  SELECT COALESCE((SELECT ativo FROM public.profiles WHERE id = _user), true);
+  SELECT _user IS NOT NULL AND COALESCE((SELECT ativo FROM public.profiles WHERE id = _user), true);
 $function$
 ;
 
@@ -655,22 +659,25 @@ CREATE INDEX IF NOT EXISTS idx_sales_corretor ON public.sales USING btree (corre
 CREATE INDEX IF NOT EXISTS idx_sales_status ON public.sales USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_sales_corretor_status ON public.sales USING btree (corretor_id, status);
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+-- auth.uid() aparece envolvido em "(select auth.uid())" nas policies abaixo (e no resto do arquivo)
+-- de propósito: sem isso o Postgres reavalia a função POR LINHA em vez de uma vez por query
+-- (auth_rls_initplan no linter do Supabase) — mesmo resultado, só muda como o planner avalia.
 DROP POLICY IF EXISTS delete_sales_por_papel ON public.sales;
--- is_active_user(auth.uid()) fecha o bypass de "corretor_id = auth.uid()": sem essa trava, um
--- corretor desativado continuava apagando as próprias vendas mesmo sem passar por has_role.
-CREATE POLICY delete_sales_por_papel ON public.sales FOR DELETE USING ((is_active_user(auth.uid()) AND (has_any_role(auth.uid(), ARRAY['super_admin'::app_role, 'admin'::app_role, 'financeiro'::app_role]) OR ((corretor_id = auth.uid()) AND (NOT is_sale_locked(id))) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id) AND (NOT is_sale_locked(id))))));
-DROP POLICY IF EXISTS sales_delete_admin ON public.sales;
-CREATE POLICY sales_delete_admin ON public.sales AS PERMISSIVE FOR DELETE TO  USING (has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role]));
+-- is_active_user((select auth.uid())) fecha o bypass de "corretor_id = auth.uid()": sem essa trava,
+-- um corretor desativado continuava apagando as próprias vendas mesmo sem passar por has_role.
+CREATE POLICY delete_sales_por_papel ON public.sales AS PERMISSIVE FOR DELETE TO authenticated USING ((is_active_user((select auth.uid())) AND (has_any_role((select auth.uid()), ARRAY['super_admin'::app_role, 'admin'::app_role, 'financeiro'::app_role]) OR ((corretor_id = (select auth.uid())) AND (NOT is_sale_locked(id))) OR (has_role((select auth.uid()), 'gestor'::app_role) AND is_lead_of((select auth.uid()), corretor_id) AND (NOT is_sale_locked(id))))));
+-- sales_delete_admin foi removida (redundante -- delete_sales_por_papel acima já cobre admin/
+-- super_admin no primeiro OR; ter as duas só fazia o Postgres avaliar a mesma coisa duas vezes).
 DROP POLICY IF EXISTS sales_insert_corretor ON public.sales;
-CREATE POLICY sales_insert_corretor ON public.sales AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((corretor_id = auth.uid()));
+CREATE POLICY sales_insert_corretor ON public.sales AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((corretor_id = (select auth.uid())) AND has_role((select auth.uid()), 'corretor'::app_role)));
 DROP POLICY IF EXISTS sales_select ON public.sales;
--- is_active_user(auth.uid()) fecha o mesmo bypass acima, agora para leitura.
-CREATE POLICY sales_select ON public.sales FOR SELECT TO authenticated USING ((is_active_user(auth.uid()) AND ((corretor_id = auth.uid()) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (has_role(auth.uid(), 'gestor'::app_role) AND is_lead_of(auth.uid(), corretor_id)) OR (has_role(auth.uid(), 'juridico'::app_role) AND ((status)::text = ANY (ARRAY['aprovada_gestor'::text, 'enviada_juridico'::text, 'em_elaboracao_contrato'::text, 'contrato_conferencia_gestor'::text, 'contrato_conferencia_corretor'::text, 'contrato_ok_corretor'::text, 'aguardando_assinatura'::text, 'contrato_assinado'::text, 'ocorrencia_pendente'::text, 'ocorrencia_analise_financeiro'::text, 'ocorrencia_devolvida_gestor'::text, 'ocorrencia_concluida'::text]))))));
+-- is_active_user((select auth.uid())) fecha o mesmo bypass acima, agora para leitura.
+CREATE POLICY sales_select ON public.sales AS PERMISSIVE FOR SELECT TO authenticated USING ((is_active_user((select auth.uid())) AND ((corretor_id = (select auth.uid())) OR has_any_role((select auth.uid()), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role]) OR (has_role((select auth.uid()), 'gestor'::app_role) AND is_lead_of((select auth.uid()), corretor_id)) OR (has_role((select auth.uid()), 'juridico'::app_role) AND ((status)::text = ANY (ARRAY['aprovada_gestor'::text, 'enviada_juridico'::text, 'em_elaboracao_contrato'::text, 'contrato_conferencia_gestor'::text, 'contrato_conferencia_corretor'::text, 'contrato_ok_corretor'::text, 'aguardando_assinatura'::text, 'contrato_assinado'::text, 'ocorrencia_pendente'::text, 'ocorrencia_analise_financeiro'::text, 'ocorrencia_devolvida_gestor'::text, 'ocorrencia_concluida'::text]))))));
 DROP POLICY IF EXISTS sales_update_owner_draft ON public.sales;
 -- WITH CHECK também exige can_edit_sale_stage(auth.uid(), id) — trava por status/papel além da
 -- visibilidade de can_view_sale (ex.: corretor só edita em rascunho/devolvida_ajuste/
 -- contrato_conferencia_corretor, gestor só nos status onde é a vez dele, etc.).
-CREATE POLICY sales_update_owner_draft ON public.sales AS PERMISSIVE FOR UPDATE TO  USING ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])))) WITH CHECK ((can_view_sale(auth.uid(), id) AND ((NOT is_sale_locked(id)) OR has_any_role(auth.uid(), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])) AND can_edit_sale_stage(auth.uid(), id)));
+CREATE POLICY sales_update_owner_draft ON public.sales AS PERMISSIVE FOR UPDATE TO authenticated USING ((can_view_sale((select auth.uid()), id) AND ((NOT is_sale_locked(id)) OR has_any_role((select auth.uid()), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])))) WITH CHECK ((can_view_sale((select auth.uid()), id) AND ((NOT is_sale_locked(id)) OR has_any_role((select auth.uid()), ARRAY['financeiro'::app_role, 'admin'::app_role, 'super_admin'::app_role])) AND can_edit_sale_stage((select auth.uid()), id)));
 DROP TRIGGER IF EXISTS trg_sales_updated ON public.sales;
 CREATE TRIGGER trg_sales_updated BEFORE UPDATE ON public.sales FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_validate_sale_status ON public.sales;
@@ -1162,3 +1169,40 @@ CREATE POLICY sale_commission_extras_select ON public.sale_commission_extras AS 
 CREATE POLICY sale_commission_extras_insert ON public.sale_commission_extras AS PERMISSIVE FOR INSERT TO  WITH CHECK (can_edit_sale_comissao(auth.uid(), sale_id));
 CREATE POLICY sale_commission_extras_update ON public.sale_commission_extras AS PERMISSIVE FOR UPDATE TO  USING (can_edit_sale_comissao(auth.uid(), sale_id)) WITH CHECK (can_edit_sale_comissao(auth.uid(), sale_id));
 CREATE POLICY sale_commission_extras_delete ON public.sale_commission_extras AS PERMISSIVE FOR DELETE TO  USING (can_edit_sale_comissao(auth.uid(), sale_id));
+
+-- ============================================================
+-- ÍNDICES DE FOREIGN KEY (auditoria técnica #15) — cascade delete e join por essas colunas faziam
+-- table scan em vez de index scan.
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_activity_logs_autor_id ON public.activity_logs (autor_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_sale_id ON public.notifications (sale_id);
+CREATE INDEX IF NOT EXISTS idx_occurrence_commissions_occurrence_id ON public.occurrence_commissions (occurrence_id);
+CREATE INDEX IF NOT EXISTS idx_occurrence_commissions_extra_id ON public.occurrence_commissions (sale_commission_extra_id);
+CREATE INDEX IF NOT EXISTS idx_occurrence_partners_occurrence_id ON public.occurrence_partners (occurrence_id);
+CREATE INDEX IF NOT EXISTS idx_occurrences_aceita_financeiro_por ON public.occurrences (aceita_financeiro_por);
+CREATE INDEX IF NOT EXISTS idx_occurrences_reopened_by ON public.occurrences (reopened_by);
+CREATE INDEX IF NOT EXISTS idx_sale_bank_accounts_sale_id ON public.sale_bank_accounts (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_comments_autor_id ON public.sale_comments (autor_id);
+CREATE INDEX IF NOT EXISTS idx_sale_comments_doc_id ON public.sale_comments (doc_id);
+CREATE INDEX IF NOT EXISTS idx_sale_comments_sale_id ON public.sale_comments (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_commission_extras_sale_id ON public.sale_commission_extras (sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_documents_uploaded_by ON public.sale_documents (uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_sale_status_history_autor_id ON public.sale_status_history (autor_id);
+CREATE INDEX IF NOT EXISTS idx_sales_coordenador_id ON public.sales (coordenador_id);
+CREATE INDEX IF NOT EXISTS idx_sales_team_leader_id ON public.sales (team_leader_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON public.team_members (team_id);
+CREATE INDEX IF NOT EXISTS idx_teams_lider_id ON public.teams (lider_id);
+CREATE INDEX IF NOT EXISTS idx_teams_parent_team_id ON public.teams (parent_team_id);
+
+-- ============================================================
+-- NOTA (auditoria técnica #5, parcial): as policies de sales já estão com auth.uid() envolvido em
+-- "(select auth.uid())" acima (fix de performance -- Postgres reavaliava a função por linha em vez
+-- de uma vez por query). O MESMO fix foi aplicado ao vivo em TODAS as outras ~25 policies do banco
+-- (activity_logs, document_extractions, notifications, occurrences, occurrence_commissions,
+-- occurrence_partners, profiles, sale_bank_accounts, sale_comments, sale_commission_extras,
+-- sale_documents, sale_parties, sale_payment, sale_status_history, team_members, teams, user_roles),
+-- mas o texto delas aqui neste arquivo ainda não foi ressincronizado (fica com auth.uid() sem o
+-- "select" em volta) — é só o texto do comentário/documentação que ficou pra trás, o banco real já
+-- está correto e testado. Sincronizar isso é um retoque cosmético pendente, não uma correção
+-- funcional.
+-- ============================================================
