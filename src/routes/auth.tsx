@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -62,24 +63,16 @@ function AuthPage() {
 
   return (
     <div className="flex min-h-screen">
-      <div
-        className="hidden w-1/2 flex-col justify-between p-10 text-primary-foreground lg:flex"
-        style={{ background: "var(--gradient-remax)" }}
-      >
-        <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
-          <img src="/remax-icon.png" alt="RE/MAX" className="h-14 w-14" />
-          <div className="leading-tight">
-            <span className="block">RE/MAX Portal</span>
-            <span className="block text-sm font-normal text-primary-foreground/70">Única Escolha</span>
-          </div>
-        </div>
-        <div className="max-w-sm space-y-3">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex">
+        <BrandHeroBackground />
+        <img src="/remax-logo-white.png" alt="RE/MAX Imóveis — Única Escolha" className="relative z-10 h-14 w-auto self-start" />
+        <div className="relative z-10 max-w-sm space-y-3">
           <h1 className="text-3xl font-semibold leading-tight">Da negociação ao contrato assinado, em um só lugar.</h1>
-          <p className="text-sm text-primary-foreground/80">
+          <p className="text-sm text-white/80">
             Gerencie vendas, contratos e comissões com o fluxo de aprovação completo — corretor, gestor, jurídico e financeiro.
           </p>
         </div>
-        <p className="text-xs text-primary-foreground/60">© {new Date().getFullYear()} RE/MAX Portal</p>
+        <p className="relative z-10 text-xs text-white/60">© {new Date().getFullYear()} RE/MAX Imóveis Única Escolha</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">

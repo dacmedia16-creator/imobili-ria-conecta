@@ -3,6 +3,7 @@ import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import type { ReactNode } from "react";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -27,41 +28,37 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar text-sidebar-foreground md:flex print:hidden">
-        <div className="flex items-center gap-2 border-b border-sidebar-border px-5 py-4">
-          <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
-          <div className="leading-tight">
-            <span className="block font-semibold tracking-tight">RE/MAX Portal</span>
-            <span className="block text-xs text-sidebar-foreground/70">Única Escolha</span>
+      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden">
+        <BrandHeroBackground />
+        <div className="relative z-10 flex h-full flex-col">
+          <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
+            <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
+            <div className="leading-tight">
+              <span className="block font-semibold tracking-tight">RE/MAX Portal</span>
+              <span className="block text-xs text-white/70">Única Escolha</span>
+            </div>
           </div>
-        </div>
-        <div className="h-1" style={{ background: "var(--gradient-remax)" }} />
-        <nav className="relative flex-1 space-y-1 p-3">
-          {nav.filter(n => n.show).map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              activeOptions={{ exact: n.to === "/" }}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground font-medium" }}
-            >
-              <n.icon className="h-4 w-4" />
-              {n.label}
-            </Link>
-          ))}
-          <img
-            src="/remax-icon.png"
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-6 left-1/2 h-28 w-28 -translate-x-1/2 opacity-[0.06]"
-          />
-        </nav>
-        <div className="border-t border-sidebar-border p-3 text-xs">
-          <div className="mb-1 truncate font-medium text-sidebar-foreground">{user?.email}</div>
-          <div className="mb-2 text-sidebar-foreground/70">{roles.map(r => ROLE_LABEL[r]).join(", ") || "Sem papel"}</div>
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4" /> Sair
-          </Button>
+          <nav className="flex-1 space-y-1 p-3">
+            {nav.filter(n => n.show).map((n) => (
+              <Link
+                key={n.to}
+                to={n.to}
+                activeOptions={{ exact: n.to === "/" }}
+                className="flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
+                activeProps={{ className: "bg-white/10 border-[#ff3b3b] text-white font-medium" }}
+              >
+                <n.icon className="h-4 w-4" />
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="border-t border-white/10 p-3 text-xs">
+            <div className="mb-1 truncate font-medium text-white">{user?.email}</div>
+            <div className="mb-2 text-white/70">{roles.map(r => ROLE_LABEL[r]).join(", ") || "Sem papel"}</div>
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4" /> Sair
+            </Button>
+          </div>
         </div>
       </aside>
       <main className="md:pl-60 print:pl-0">

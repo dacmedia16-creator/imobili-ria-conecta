@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 
@@ -48,8 +49,10 @@ function RedefinirSenhaPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
+      <BrandHeroBackground />
+      <img src="/remax-logo-white.png" alt="RE/MAX Imóveis — Única Escolha" className="relative z-10 mb-6 h-14 w-auto" />
+      <Card className="relative z-10 w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <KeyRound className="mx-auto h-8 w-8 text-primary" />
           <CardTitle>Redefinir senha</CardTitle>
