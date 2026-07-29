@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { UserPlus, Copy, RefreshCcw } from "lucide-react";
 
@@ -50,10 +50,12 @@ function AdminUsers() {
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
   const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+  const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const createUserFn = useServerFn(createUser);
 
   const load = async () => {
-    const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo");
+    const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
     const { data: r } = await supabase.from("user_roles").select("user_id, role");
     const { data: teams } = await supabase.from("teams").select("id, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
@@ -111,6 +113,90 @@ function AdminUsers() {
     ? users
     : users.filter(u => u.id === user?.id || (teamLeads[u.id] ?? []).includes(user?.id ?? ""));
 
+  // Ativos primeiro (por nome), inativos ficam colapsados por padrão pra não tomar conta da tela.
+  const sortedUsers = [...visibleUsers].sort((a, b) => {
+    if ((a.ativo === false) !== (b.ativo === false)) return a.ativo === false ? 1 : -1;
+    return (a.nome || a.email || "").localeCompare(b.nome || b.email || "");
+  });
+  const activeUsers = sortedUsers.filter((u) => u.ativo !== false);
+  const inactiveUsers = sortedUsers.filter((u) => u.ativo === false);
+
+  const renderUserCard = (u: any) => {
+    const userRoles = rolesByUser[u.id] ?? [];
+    const canEditThis = isAdminLike && u.id !== user?.id;
+    const isEditingRoles = editingRoles[u.id] === true;
+    return (
+      <div key={u.id} className={`rounded-lg border p-4 transition-shadow hover:shadow-sm ${u.ativo === false ? "opacity-60" : ""}`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <Avatar>
+              <AvatarImage src={u.avatar_url ?? undefined} alt={u.nome || u.email} />
+              <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+                {initials(u.nome || u.email)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="text-sm font-medium">
+                {u.nome || u.email}
+                {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+                {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
+              </div>
+              <div className="text-xs text-muted-foreground">{u.email}</div>
+              <div className="mt-1 text-xs text-muted-foreground">Papéis: {userRoles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {canEditThis && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingRoles((m) => ({ ...m, [u.id]: !m[u.id] }))}>
+                {isEditingRoles ? "Fechar" : "Editar papéis"}
+              </Button>
+            )}
+            {isAdminLike && (
+              <Button
+                size="sm"
+                variant={u.ativo === false ? "default" : "outline"}
+                onClick={() => toggleAtivo(u.id, u.ativo !== false)}
+                disabled={u.id === user?.id}
+              >
+                {u.ativo === false ? "Ativar" : "Desativar"}
+              </Button>
+            )}
+          </div>
+        </div>
+        {isAdminLike && (
+          <div className="text-xs text-muted-foreground">
+            Líderes deste usuário:{" "}
+            {(teamLeads[u.id] ?? []).length === 0
+              ? "nenhum"
+              : (teamLeads[u.id] ?? []).map((lid) => users.find(x => x.id === lid)?.nome || users.find(x => x.id === lid)?.email || lid).join(", ")}
+            {" — "}
+            <Link to="/equipe" className="text-primary hover:underline">gerenciar em Equipes →</Link>
+          </div>
+        )}
+        {isEditingRoles && canEditThis && (
+          <div className="mt-3 flex flex-wrap gap-1.5 border-t pt-3">
+            {ROLES.map((r) => {
+              const has = userRoles.includes(r);
+              const restrict = (r === "admin" || r === "super_admin") && !isSuper;
+              return (
+                <Button
+                  key={r}
+                  size="sm"
+                  variant={has ? "default" : "outline"}
+                  onClick={() => toggleRole(u.id, r, has)}
+                  disabled={restrict}
+                  title={restrict ? "Apenas super admin" : ""}
+                >
+                  {ROLE_LABEL[r]}
+                </Button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -132,77 +218,16 @@ function AdminUsers() {
       <Card>
         <CardHeader><CardTitle className="text-base">Lista de usuários</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {visibleUsers.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário para exibir.</p>}
-          {visibleUsers.map((u) => {
-            const userRoles = rolesByUser[u.id] ?? [];
-            const canEditThis = isAdminLike && u.id !== user?.id;
-            return (
-              <div key={u.id} className={`rounded-lg border p-4 transition-shadow hover:shadow-sm ${u.ativo === false ? "opacity-60" : ""}`}>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
-                        {initials(u.nome || u.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="text-sm font-medium">
-                        {u.nome || u.email}
-                        {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
-                        {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{u.email}</div>
-                      {!isAdminLike && (
-                        <div className="mt-1 text-xs text-muted-foreground">Papéis: {userRoles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</div>
-                      )}
-                    </div>
-                  </div>
-                  {isAdminLike && (
-                    <Button
-                      size="sm"
-                      variant={u.ativo === false ? "default" : "outline"}
-                      onClick={() => toggleAtivo(u.id, u.ativo !== false)}
-                      disabled={u.id === user?.id}
-                    >
-                      {u.ativo === false ? "Ativar" : "Desativar"}
-                    </Button>
-                  )}
-                </div>
-                {isAdminLike && (
-                  <>
-                    <div className="flex flex-wrap gap-1.5 border-t pt-3">
-                      {ROLES.map((r) => {
-                        const has = userRoles.includes(r);
-                        const restrict = (r === "admin" || r === "super_admin") && !isSuper;
-                        return (
-                          <Button
-                            key={r}
-                            size="sm"
-                            variant={has ? "default" : "outline"}
-                            onClick={() => toggleRole(u.id, r, has)}
-                            disabled={!canEditThis || restrict}
-                            title={restrict ? "Apenas super admin" : ""}
-                          >
-                            {ROLE_LABEL[r]}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 space-y-1">
-                      <div className="text-xs text-muted-foreground">
-                        Líderes deste usuário:{" "}
-                        {(teamLeads[u.id] ?? []).length === 0
-                          ? "nenhum"
-                          : (teamLeads[u.id] ?? []).map((lid) => users.find(x => x.id === lid)?.nome || users.find(x => x.id === lid)?.email || lid).join(", ")}
-                        {" — "}
-                        <Link to="/equipe" className="text-primary hover:underline">gerenciar em Equipes →</Link>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+          {sortedUsers.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário para exibir.</p>}
+          {activeUsers.map(renderUserCard)}
+          {inactiveUsers.length > 0 && (
+            <div className="pt-1">
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowInactive((v) => !v)}>
+                {showInactive ? "Ocultar inativos" : `Mostrar ${inactiveUsers.length} inativo${inactiveUsers.length > 1 ? "s" : ""}`}
+              </Button>
+              {showInactive && <div className="mt-3 space-y-3">{inactiveUsers.map(renderUserCard)}</div>}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

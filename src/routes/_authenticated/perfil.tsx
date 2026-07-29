@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ShieldCheck, MessageCircle } from "lucide-react";
+import { ShieldCheck, MessageCircle, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -38,6 +38,9 @@ function MeuAcesso() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [trocandoSenha, setTrocandoSenha] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -94,6 +97,21 @@ function MeuAcesso() {
       else toast.success("Telefone salvo");
     } finally {
       setSavingTelefone(false);
+    }
+  };
+
+  const trocarSenha = async () => {
+    if (novaSenha.length < 8) { toast.error("A senha precisa ter pelo menos 8 caracteres"); return; }
+    if (novaSenha !== confirmarSenha) { toast.error("As senhas não coincidem"); return; }
+    setTrocandoSenha(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: novaSenha });
+      if (error) { toast.error(error.message); return; }
+      setNovaSenha("");
+      setConfirmarSenha("");
+      toast.success("Senha alterada");
+    } finally {
+      setTrocandoSenha(false);
     }
   };
 
@@ -220,6 +238,40 @@ function MeuAcesso() {
               </Button>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="h-4 w-4" /> Segurança
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="grid max-w-sm gap-3">
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">Nova senha</Label>
+              <Input
+                type="password"
+                minLength={8}
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                placeholder="Mínimo de 8 caracteres"
+              />
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">Confirmar nova senha</Label>
+              <Input
+                type="password"
+                minLength={8}
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+              />
+            </div>
+            <Button size="sm" className="w-fit" onClick={trocarSenha} disabled={trocandoSenha || !novaSenha || !confirmarSenha}>
+              {trocandoSenha ? "Salvando..." : "Alterar senha"}
+            </Button>
           </div>
         </CardContent>
       </Card>

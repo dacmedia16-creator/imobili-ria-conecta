@@ -20,6 +20,9 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [modo, setModo] = useState<"login" | "recuperar">("login");
+  const [recuperando, setRecuperando] = useState(false);
+  const [linkEnviado, setLinkEnviado] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -38,6 +41,22 @@ function AuthPage() {
       toast.error(err.message ?? "Falha ao autenticar");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRecuperar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecuperando(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      });
+      if (error) throw error;
+      setLinkEnviado(true);
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao enviar o link de recuperação");
+    } finally {
+      setRecuperando(false);
     }
   };
 
@@ -68,44 +87,85 @@ function AuthPage() {
           <CardHeader className="space-y-3 px-8 pt-8 text-center">
             <img src="/remax-logo.png" alt="RE/MAX Imóveis — Única Escolha" className="mx-auto h-12 w-auto lg:hidden" />
             <CardTitle className="text-xl">Portal Interno</CardTitle>
-            <CardDescription>Acesse com sua conta corporativa</CardDescription>
+            <CardDescription>{modo === "login" ? "Acesse com sua conta corporativa" : "Recuperar senha"}</CardDescription>
           </CardHeader>
           <CardContent className="px-8 pb-8">
-            <form onSubmit={onSubmit} className="space-y-5">
-              <div>
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            {modo === "login" ? (
+              <>
+                <form onSubmit={onSubmit} className="space-y-5">
+                  <div>
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Senha</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setModo("recuperar"); setLinkEnviado(false); }}
+                      className="mt-1.5 text-xs text-primary hover:underline"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Aguarde..." : "Entrar"}
+                  </Button>
+                </form>
+                <p className="mt-4 text-center text-xs text-muted-foreground">
+                  Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
+                </p>
+              </>
+            ) : linkEnviado ? (
+              <div className="space-y-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Se <b>{email}</b> estiver cadastrado, enviamos um link para redefinir a senha. Confira sua caixa de entrada (e o spam).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setModo("login")}
+                  className="text-xs text-primary hover:underline"
+                >
+                  ← Voltar ao login
+                </button>
               </div>
-              <div>
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="pr-9"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+            ) : (
+              <form onSubmit={onRecuperar} className="space-y-5">
+                <div>
+                  <Label htmlFor="email-recuperar">E-mail</Label>
+                  <Input id="email-recuperar" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Aguarde..." : "Entrar"}
-              </Button>
-            </form>
-            <p className="mt-4 text-center text-xs text-muted-foreground">
-              Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
-            </p>
+                <Button type="submit" className="w-full" disabled={recuperando}>
+                  {recuperando ? "Enviando..." : "Enviar link de recuperação"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setModo("login")}
+                  className="mx-auto block text-xs text-primary hover:underline"
+                >
+                  ← Voltar ao login
+                </button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
