@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   head: () => ({ meta: [{ title: "Meu acesso" }] }),
@@ -24,17 +27,25 @@ type TeamInfo = {
 function MeuAcesso() {
   const { user, roles, hasAny } = useAuth();
   const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
+  const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [savingTelefone, setSavingTelefone] = useState(false);
   const [notifPorPapel, setNotifPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [notifAtualizacaoPorPapel, setNotifAtualizacaoPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("telefone").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url").eq("id", user.id).maybeSingle();
+      setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
+      setAvatarUrl(data?.avatar_url ?? null);
     })();
     (async () => {
       const { data } = await supabase
@@ -86,6 +97,43 @@ function MeuAcesso() {
     }
   };
 
+  const selecionarAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Selecione um arquivo de imagem"); return; }
+    if (file.size > AVATAR_MAX_BYTES) { toast.error("Imagem muito grande (máx. 5MB)"); return; }
+    setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+    setAvatarFile(file);
+  };
+
+  const salvarAvatar = async () => {
+    if (!user || !avatarFile) return;
+    setSavingAvatar(true);
+    try {
+      const path = `${user.id}/avatar`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
+      if (upErr) { toast.error(upErr.message); return; }
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+      const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+      if (dbErr) { toast.error(dbErr.message); return; }
+      setAvatarUrl(url);
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      toast.success("Foto de perfil atualizada");
+    } finally {
+      setSavingAvatar(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); };
+  }, [avatarPreview]);
+
   const loadTeam = useCallback(async () => {
     if (!user) return;
     const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", user.id).maybeSingle();
@@ -130,6 +178,33 @@ function MeuAcesso() {
       <Card>
         <CardHeader><CardTitle className="text-base">Conta</CardTitle></CardHeader>
         <CardContent className="space-y-4 text-sm">
+          <div className="flex items-center gap-4 border-b pb-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={avatarPreview ?? avatarUrl ?? undefined} alt={nome || user?.email || "Foto de perfil"} />
+              <AvatarFallback className="text-lg">{(nome || user?.email || "?")[0].toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div className="space-y-1.5">
+              {nome && <div className="font-medium">{nome}</div>}
+              <Label className="block text-xs text-muted-foreground">Foto de perfil</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={selecionarAvatar}
+                />
+                <Button size="sm" variant="outline" onClick={() => avatarInputRef.current?.click()}>
+                  Escolher foto
+                </Button>
+                {avatarFile && (
+                  <Button size="sm" onClick={salvarAvatar} disabled={savingAvatar}>
+                    {savingAvatar ? "Salvando..." : "Salvar foto"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="mb-1"><span className="text-muted-foreground">Email:</span> <b>{user?.email}</b></div>
           <div><span className="text-muted-foreground">Papéis:</span> <b>{roles.map(r => ROLE_LABEL[r]).join(", ") || "Sem papel"}</b></div>
           <div className="max-w-sm">

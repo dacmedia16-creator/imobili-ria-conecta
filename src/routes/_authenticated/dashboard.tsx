@@ -100,7 +100,7 @@ function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Olá, {user?.email?.split("@")[0]}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Olá, {(user && profileName[user.id]) || user?.email?.split("@")[0]}</h1>
           <p className="text-sm text-muted-foreground">Perfis: {roles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</p>
         </div>
         {hasAny(["corretor", "gestor"]) && (
