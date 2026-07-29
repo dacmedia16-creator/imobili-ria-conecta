@@ -14,6 +14,11 @@ const schema = z.object({
   role: z.enum(ROLES),
 });
 
+const resetPasswordSchema = z.object({
+  userId: z.string().uuid(),
+  password: z.string().min(8).max(72),
+});
+
 function allowedRolesFor(callerRoles: Role[]): Role[] {
   if (callerRoles.includes("super_admin")) return [...ROLES];
   if (callerRoles.includes("admin")) return ["corretor", "gestor", "juridico", "financeiro"];
@@ -94,6 +99,42 @@ export const createUser = createServerFn({ method: "POST" })
     await supabaseAdmin.from("profiles").update({ nome: data.nome, telefone: data.telefone }).eq("id", newId);
 
     return { id: newId, email: data.email };
+  });
+
+/** Redefine a senha de outro usuário — só admin/super_admin (mais restrito que criar usuário,
+ * que gestor também pode). Força troca no próximo login, igual à criação de usuário. */
+export const resetUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => resetPasswordSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId: callerId } = context;
+    if (data.userId === callerId) {
+      throw new Error('Use a tela "Meu acesso" para trocar a sua própria senha.');
+    }
+
+    const { data: myRoles, error: rolesErr } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId);
+    if (rolesErr) throw new Error(rolesErr.message);
+    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+    if (!callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r))) {
+      throw new Error("Apenas admin ou super admin podem redefinir a senha de outro usuário.");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // updateUserById substitui user_metadata inteiro — busca o atual pra não perder o que já tem lá.
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (getErr || !existing?.user) throw new Error(getErr?.message ?? "Usuário não encontrado.");
+
+    const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: data.password,
+      user_metadata: { ...existing.user.user_metadata, must_change_password: true },
+    });
+    if (updErr) throw new Error(updErr.message);
+
+    return { ok: true };
   });
 
 /** Último login (auth.users.last_sign_in_at) de cada usuário — só dá pra ler via Admin API

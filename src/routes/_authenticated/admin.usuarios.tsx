@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
-import { createUser, listLastSignIns } from "@/lib/admin-users.functions";
+import { createUser, listLastSignIns, resetUserPassword } from "@/lib/admin-users.functions";
 import { agingInfo } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { UserPlus, Copy, RefreshCcw } from "lucide-react";
+import { UserPlus, Copy, RefreshCcw, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
@@ -54,8 +54,10 @@ function AdminUsers() {
   const [showInactive, setShowInactive] = useState(false);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
+  const [resetPasswordFor, setResetPasswordFor] = useState<{ id: string; email: string; nome: string } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
+  const resetPasswordFn = useServerFn(resetUserPassword);
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
@@ -159,6 +161,11 @@ function AdminUsers() {
                 {isEditingRoles ? "Fechar" : "Editar papéis"}
               </Button>
             )}
+            {canEditThis && (
+              <Button size="sm" variant="ghost" onClick={() => setResetPasswordFor({ id: u.id, email: u.email, nome: u.nome })}>
+                <KeyRound className="mr-1.5 h-4 w-4" />Redefinir senha
+              </Button>
+            )}
             {isAdminLike && (
               <Button
                 size="sm"
@@ -238,7 +245,79 @@ function AdminUsers() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!resetPasswordFor} onOpenChange={(o) => !o && setResetPasswordFor(null)}>
+        {resetPasswordFor && (
+          <ResetPasswordDialog
+            target={resetPasswordFor}
+            onDone={() => setResetPasswordFor(null)}
+            resetFn={resetPasswordFn}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+function ResetPasswordDialog({
+  target, onDone, resetFn,
+}: {
+  target: { id: string; email: string; nome: string };
+  onDone: () => void;
+  resetFn: (args: { data: { userId: string; password: string } }) => Promise<any>;
+}) {
+  const [password, setPassword] = useState(() => genPassword());
+  const [loading, setLoading] = useState(false);
+
+  const copyCreds = async () => {
+    await navigator.clipboard.writeText(`E-mail: ${target.email}\nSenha: ${password}`);
+    toast.success("Credenciais copiadas");
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await resetFn({ data: { userId: target.id, password } });
+      toast.success(`Senha de ${target.nome || target.email} redefinida. Copie e envie a nova senha.`, {
+        action: { label: "Copiar", onClick: copyCreds },
+        duration: 10000,
+      });
+      onDone();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao redefinir senha");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Redefinir senha</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-muted-foreground">
+        Nova senha pra <b>{target.nome || target.email}</b>. A senha antiga deixa de funcionar, e a pessoa
+        será obrigada a trocar essa senha no próximo login.
+      </p>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <Label htmlFor="rp-pass">Nova senha</Label>
+          <div className="flex gap-2">
+            <Input id="rp-pass" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+            <Button type="button" variant="outline" size="icon" onClick={() => setPassword(genPassword())} title="Gerar senha">
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+            <Button type="button" variant="outline" size="icon" onClick={copyCreds} title="Copiar credenciais">
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Redefinir senha"}</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }
 
