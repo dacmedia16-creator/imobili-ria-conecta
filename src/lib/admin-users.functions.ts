@@ -95,3 +95,33 @@ export const createUser = createServerFn({ method: "POST" })
 
     return { id: newId, email: data.email };
   });
+
+/** Último login (auth.users.last_sign_in_at) de cada usuário — só dá pra ler via Admin API
+ * (service role), não existe em public.profiles nem é exposto por RLS comum. */
+export const listLastSignIns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+
+    const { data: myRoles, error: rolesErr } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    if (rolesErr) throw new Error(rolesErr.message);
+    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+    if (!callerRoles.some((r) => (["admin", "super_admin", "gestor"] as Role[]).includes(r))) {
+      throw new Error("Você não tem permissão para ver essa informação.");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const map: Record<string, string | null> = {};
+    let page = 1;
+    for (;;) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) throw new Error(error.message);
+      for (const u of data.users) map[u.id] = u.last_sign_in_at ?? null;
+      if (data.users.length < 1000) break;
+      page += 1;
+    }
+    return map;
+  });

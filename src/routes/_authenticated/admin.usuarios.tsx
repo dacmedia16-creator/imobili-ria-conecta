@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
-import { createUser } from "@/lib/admin-users.functions";
+import { createUser, listLastSignIns } from "@/lib/admin-users.functions";
+import { agingInfo } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,9 @@ function AdminUsers() {
   const [open, setOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
+  const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
   const createUserFn = useServerFn(createUser);
+  const listLastSignInsFn = useServerFn(listLastSignIns);
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
@@ -60,6 +63,7 @@ function AdminUsers() {
     const { data: teams } = await supabase.from("teams").select("id, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
     setUsers(profs ?? []);
+    listLastSignInsFn().then(setLastSignIn).catch(() => {});
     const map: Record<string, AppRole[]> = {};
     (r ?? []).forEach((x: any) => { (map[x.user_id] ??= []).push(x.role); });
     setRolesByUser(map);
@@ -125,6 +129,7 @@ function AdminUsers() {
     const userRoles = rolesByUser[u.id] ?? [];
     const canEditThis = isAdminLike && u.id !== user?.id;
     const isEditingRoles = editingRoles[u.id] === true;
+    const ultimoAcesso = lastSignIn[u.id];
     return (
       <div key={u.id} className={`rounded-lg border p-4 transition-shadow hover:shadow-sm ${u.ativo === false ? "opacity-60" : ""}`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -143,6 +148,9 @@ function AdminUsers() {
               </div>
               <div className="text-xs text-muted-foreground">{u.email}</div>
               <div className="mt-1 text-xs text-muted-foreground">Papéis: {userRoles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                Último acesso: {ultimoAcesso === undefined ? "…" : ultimoAcesso === null ? "nunca acessou" : agingInfo(ultimoAcesso).label}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
