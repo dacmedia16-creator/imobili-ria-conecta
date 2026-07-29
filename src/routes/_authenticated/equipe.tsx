@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,9 +143,18 @@ function EquipesPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Equipes</h1>
           <p className="text-sm text-muted-foreground">Organize seus corretores em equipes e sub-equipes.</p>
         </div>
-        <Button className="gap-2" onClick={() => setFormState({ mode: "create" })}>
-          <Plus className="h-4 w-4" />Nova Equipe
-        </Button>
+        {isAdminLike ? (
+          <Button className="gap-2" onClick={() => setFormState({ mode: "create" })}>
+            <Plus className="h-4 w-4" />Nova Equipe
+          </Button>
+        ) : (
+          // Gestor não cria equipe nova por aqui -- equipe própria já é criada sozinha (ou já existe)
+          // quando ele cria o primeiro corretor em Usuários (ver admin-users.functions.ts). Deixar
+          // "Nova Equipe" solto pra gestor permitia criar equipes duplicadas/soltas sem membro nenhum.
+          <Button className="gap-2" asChild>
+            <Link to="/admin/usuarios"><UserPlus className="h-4 w-4" />Criar usuário</Link>
+          </Button>
+        )}
       </div>
 
       {isAdminLike && !loading && (
