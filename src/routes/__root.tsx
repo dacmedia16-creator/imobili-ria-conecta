@@ -74,14 +74,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "RE/MAX Portal" },
-      { name: "description", content: "Web application for real estate agencies to manage property sales from registration to commission." },
-      { property: "og:title", content: "RE/MAX Portal" },
-      { property: "og:description", content: "Web application for real estate agencies to manage property sales from registration to commission." },
+      { title: "RE/MAX Única Escolha — Portal Interno" },
+      { name: "description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
+      { property: "og:title", content: "RE/MAX Única Escolha — Portal Interno" },
+      { property: "og:description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "RE/MAX Portal" },
-      { name: "twitter:description", content: "Web application for real estate agencies to manage property sales from registration to commission." },
+      { property: "og:url", content: "https://unicaescolha.com.br" },
+      { property: "og:image", content: "https://unicaescolha.com.br/og-image.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:locale", content: "pt_BR" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "RE/MAX Única Escolha — Portal Interno" },
+      { name: "twitter:description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
+      { name: "twitter:image", content: "https://unicaescolha.com.br/og-image.png" },
     ],
     links: [
       {
@@ -100,7 +106,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>
