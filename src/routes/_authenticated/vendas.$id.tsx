@@ -60,7 +60,16 @@ function SaleDetail() {
   const [archiveTarget, setArchiveTarget] = useState<"arquivada" | "cancelada">("arquivada");
   const [step, setStep] = useState<string>("documentos");
   const [docParte, setDocParte] = useState<DocParte>("comprador_1");
+  // Corretor e gestor só passam de "Documentos" depois de terem chegado no último bloco lá dentro
+  // (comprador → vendedor → imóvel → outros → certidões) — evita pular pra Resumo sem revisar tudo.
+  const [reachedLastDocBloco, setReachedLastDocBloco] = useState(false);
   const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
+  // Mesma trava do Documentos, agora pros blocos do Resumo (Imóvel → Equipe → Valores → Divisão →
+  // Parceria → Posse) — "posse" é sempre o último, mesmo quando "Divisão da comissão" fica oculto.
+  const [reachedLastResumoBlock, setReachedLastResumoBlock] = useState(false);
+  useEffect(() => {
+    if (activeResumoBlock === "posse") setReachedLastResumoBlock(true);
+  }, [activeResumoBlock]);
 
   // Assim que a venda carrega, se ela já estiver na fase de ocorrência/financeiro, abre direto
   // na aba "Ocorrência" em vez de "Documentos" — nessa altura os outros passos já foram
@@ -729,7 +738,17 @@ function SaleDetail() {
 
   // Wizard: on leaving a step, run its saver if dirty
   const onBeforeLeave = async (from: string): Promise<boolean> => {
-    if (from === "resumo" && (dirtyResumo || dirtyExtras)) return await saveResumo();
+    if (from === "documentos" && (isOwner || isGestor) && !reachedLastDocBloco) {
+      toast.error('Revise todos os blocos de documentos (use "Próximo bloco") antes de continuar.');
+      return false;
+    }
+    if (from === "resumo") {
+      if ((isOwner || isGestor) && !reachedLastResumoBlock) {
+        toast.error('Revise todos os blocos do resumo (use "Próximo bloco") antes de continuar.');
+        return false;
+      }
+      if (dirtyResumo || dirtyExtras) return await saveResumo();
+    }
     if (dirtyMap[from]) {
       const fn = saversRef.current[from];
       if (fn) return await fn();
@@ -738,6 +757,8 @@ function SaleDetail() {
   };
 
   const currentDirty = step === "resumo" ? (dirtyResumo || dirtyExtras) : !!dirtyMap[step];
+  const nextDisabledFromDocumentos = step === "documentos" && (isOwner || isGestor) && !reachedLastDocBloco;
+  const nextDisabledFromResumo = step === "resumo" && (isOwner || isGestor) && !reachedLastResumoBlock;
 
   // "Voltar" também é uma saída da página — sem isso, dado digitado mas ainda não salvo
   // (autosave ainda não disparou) era perdido em silêncio ao clicar aqui.
@@ -769,6 +790,7 @@ function SaleDetail() {
           onChange={load}
           activeParte={docParte}
           onActiveParteChange={setDocParte}
+          onReachedLastBloco={() => setReachedLastDocBloco(true)}
         />
       ),
     },
@@ -1629,6 +1651,7 @@ function SaleDetail() {
             onChange={setStep}
             dirty={currentDirty}
             onBeforeLeave={onBeforeLeave}
+            nextDisabled={nextDisabledFromDocumentos || nextDisabledFromResumo}
             lastStepAction={primaryAction && (
               <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
                 <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}

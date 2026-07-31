@@ -29,9 +29,12 @@ type Props = {
   /** Esconde a barra "Voltar/Próximo" — para wizards aninhados, onde só a navegação por clique no
    * stepper faz sentido (evita duas barras de navegação empilhadas na tela). */
   hideNav?: boolean;
+  /** Desabilita o botão "Próximo" mesmo fora da última etapa — usado quando a etapa atual exige
+   * alguma condição (ex: revisar todos os blocos de documentos) antes de deixar avançar. */
+  nextDisabled?: boolean;
 };
 
-export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction, hideNav }: Props) {
+export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction, hideNav, nextDisabled }: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -138,7 +141,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
           {idx >= enabled.length - 1 && lastStepAction ? (
             lastStepAction
           ) : (
-            <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1}>
+            <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1 || nextDisabled}>
               {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           )}

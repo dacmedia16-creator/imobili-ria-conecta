@@ -102,7 +102,7 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
 
 export function DocumentsPanel({
   saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange,
-  activeParte: activeParteProp, onActiveParteChange,
+  activeParte: activeParteProp, onActiveParteChange, onReachedLastBloco,
 }: {
   saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean;
   canManageContratos: boolean; canDownloadAll: boolean; onChange: () => void;
@@ -110,6 +110,9 @@ export function DocumentsPanel({
    * atalho "Subir certidões" no topo da página, que precisa pular direto pro bloco do jurídico. */
   activeParte?: DocParte;
   onActiveParteChange?: (parte: DocParte) => void;
+  /** Avisa o pai quando o usuário chega no último bloco de documentos — usado pra só liberar o
+   * "Próximo" do wizard da venda depois que corretor/gestor passaram por todos os blocos. */
+  onReachedLastBloco?: () => void;
 }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
@@ -439,6 +442,11 @@ export function DocumentsPanel({
     const prev = enabledBlocos[idx - 1];
     if (prev) setActiveParte(prev.parte);
   };
+
+  const ultimoBlocoKey = enabledBlocos[enabledBlocos.length - 1]?.parte;
+  useEffect(() => {
+    if (ultimoBlocoKey && activeParte === ultimoBlocoKey) onReachedLastBloco?.();
+  }, [activeParte, ultimoBlocoKey, onReachedLastBloco]);
 
   // Leitura automática: cada documento enviado entra na fila de leitura sozinho, sem esperar o
   // bloco inteiro nem precisar clicar em "Ler documentos e aplicar dados". As leituras ficam
