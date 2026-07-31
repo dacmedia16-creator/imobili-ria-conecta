@@ -59,6 +59,7 @@ function SaleDetail() {
   const [archiveMotivo, setArchiveMotivo] = useState("");
   const [archiveTarget, setArchiveTarget] = useState<"arquivada" | "cancelada">("arquivada");
   const [step, setStep] = useState<string>("documentos");
+  const [docParte, setDocParte] = useState<DocParte>("comprador_1");
   const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
 
   // Assim que a venda carrega, se ela já estiver na fase de ocorrência/financeiro, abre direto
@@ -580,6 +581,16 @@ function SaleDetail() {
     window.open(data.signedUrl, "_blank");
   };
 
+  // Pula direto pro bloco "Certidões (Jurídico)" dentro de Documentos — sem isso o jurídico tinha
+  // que ir em Documentos e descer até o último bloco pra achar onde subir as certidões.
+  const irParaCertidoes = () => {
+    setStep("documentos");
+    setDocParte("juridico");
+    requestAnimationFrame(() => {
+      document.getElementById("venda-wizard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const marcarContratoAssinado = async () => {
     if (contratoAssinadoDocs.length === 0) {
       toast.error("Suba o contrato assinado antes de marcar como assinado.");
@@ -756,6 +767,8 @@ function SaleDetail() {
           canManageContratos={isGestor || isJuridico || isFinanceiro}
           canDownloadAll={isGestor || isJuridico || isFinanceiro || isAdminLike}
           onChange={load}
+          activeParte={docParte}
+          onActiveParteChange={setDocParte}
         />
       ),
     },
@@ -1214,6 +1227,9 @@ function SaleDetail() {
               <Button variant="outline" onClick={openContratoDialog}>
                 <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
               </Button>
+              <Button variant="outline" onClick={irParaCertidoes}>
+                <Gavel className="mr-2 h-4 w-4" />Subir certidões
+              </Button>
               <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao)}>
                 <Send className="mr-2 h-4 w-4" />Enviar ao gestor
               </Button>
@@ -1563,6 +1579,17 @@ function SaleDetail() {
                   <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver</Button>
                 </div>
               )}
+              {certidoesJuridicoDocs.length > 0 && (
+                <div className="space-y-1 border-t border-primary/20 pt-1.5">
+                  <div className="text-muted-foreground">Certidões (Jurídico):</div>
+                  {certidoesJuridicoDocs.map((d) => (
+                    <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 pl-1">
+                      <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> <b className="text-foreground">{d.descricao || d.file_name}</b></span>
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(d)}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {locked && (
@@ -1595,18 +1622,20 @@ function SaleDetail() {
       {status === "ocorrencia_concluida" ? (
         <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} canReopen={isFinanceiro} onReopened={load} />
       ) : (
-        <Wizard
-          steps={steps}
-          current={step}
-          onChange={setStep}
-          dirty={currentDirty}
-          onBeforeLeave={onBeforeLeave}
-          lastStepAction={primaryAction && (
-            <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
-              <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}
-            </Button>
-          )}
-        />
+        <div id="venda-wizard">
+          <Wizard
+            steps={steps}
+            current={step}
+            onChange={setStep}
+            dirty={currentDirty}
+            onBeforeLeave={onBeforeLeave}
+            lastStepAction={primaryAction && (
+              <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
+                <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}
+              </Button>
+            )}
+          />
+        </div>
       )}
 
       {saving && <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">Salvando...</p>}

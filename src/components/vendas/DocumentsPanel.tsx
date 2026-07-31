@@ -100,7 +100,17 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
   return <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Aguardando IA</span>;
 }
 
-export function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange }: { saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean; canManageContratos: boolean; canDownloadAll: boolean; onChange: () => void }) {
+export function DocumentsPanel({
+  saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange,
+  activeParte: activeParteProp, onActiveParteChange,
+}: {
+  saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean;
+  canManageContratos: boolean; canDownloadAll: boolean; onChange: () => void;
+  /** Opcional: deixa o pai comandar qual bloco (comprador_1, juridico, ...) está ativo — usado pelo
+   * atalho "Subir certidões" no topo da página, que precisa pular direto pro bloco do jurídico. */
+  activeParte?: DocParte;
+  onActiveParteChange?: (parte: DocParte) => void;
+}) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
@@ -413,8 +423,11 @@ export function DocumentsPanel({ saleId, saleStatus, docs, editable, canModerate
     ...(chegouAoJuridico(saleStatus) ? [{ parte: "juridico" as DocParte, tipos: [] as typeof DOC_TYPES }] : []),
   ];
   // Navegação entre os blocos em modo wizard (um de cada vez, com Voltar/Próximo) —
-  // mesma linguagem visual do wizard principal da venda.
-  const [activeParte, setActiveParte] = useState<DocParte>("comprador_1");
+  // mesma linguagem visual do wizard principal da venda. Controlado de fora quando o pai passa
+  // activeParte/onActiveParteChange (atalho "Subir certidões"), senão fica em estado próprio.
+  const [activeParteState, setActiveParteState] = useState<DocParte>("comprador_1");
+  const activeParte = activeParteProp ?? activeParteState;
+  const setActiveParte = onActiveParteChange ?? setActiveParteState;
   const enabledBlocos = blocos.filter(b => b.tipos.length > 0 || b.parte === "juridico");
   const goToNextBlock = (parte: DocParte) => {
     const idx = enabledBlocos.findIndex(b => b.parte === parte);
