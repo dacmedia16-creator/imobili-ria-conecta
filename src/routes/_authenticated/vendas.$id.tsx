@@ -1590,24 +1590,24 @@ function SaleDetail() {
           {(contratoDocs.length > 0 || contratoAssinadoDocs.length > 0) && status !== "ocorrencia_concluida" && (
             <div className="space-y-1.5 rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
               {contratoAssinadoDocs.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> Contrato assinado: <b className="text-foreground">{contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}</b></span>
-                  <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver</Button>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <span className="shrink-0">Contrato assinado:</span> <b className="truncate text-foreground" title={contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}>{contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}</b></span>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
                 </div>
               )}
               {contratoDocs.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> Contrato (versão para revisão): <b className="text-foreground">{contratoDocs[contratoDocs.length - 1].file_name}</b></span>
-                  <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver</Button>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <span className="shrink-0">Contrato (versão para revisão):</span> <b className="truncate text-foreground" title={contratoDocs[contratoDocs.length - 1].file_name}>{contratoDocs[contratoDocs.length - 1].file_name}</b></span>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
                 </div>
               )}
               {certidoesJuridicoDocs.length > 0 && (
                 <div className="space-y-1 border-t border-primary/20 pt-1.5">
                   <div className="text-muted-foreground">Certidões (Jurídico):</div>
                   {certidoesJuridicoDocs.map((d) => (
-                    <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 pl-1">
-                      <span className="flex items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 text-primary" /> <b className="text-foreground">{d.descricao || d.file_name}</b></span>
-                      <Button size="sm" variant="outline" className="h-7" onClick={() => abrirContratoRapido(d)}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
+                    <div key={d.id} className="flex items-center justify-between gap-2 pl-1">
+                      <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <b className="truncate text-foreground" title={d.descricao || d.file_name}>{d.descricao || d.file_name}</b></span>
+                      <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(d)}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
                     </div>
                   ))}
                 </div>
