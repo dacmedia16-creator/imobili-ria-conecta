@@ -507,6 +507,18 @@ function SaleDetail() {
     }]);
     setDirtyExtras(true);
   };
+  // Mesmo atalho, mas pra gestor/team leader — já entra com o papel certo (o campo "Nome" vira
+  // um seletor de líder automaticamente, ver `vinculavel` mais abaixo).
+  const addLider = (role: "gestor" | "team_leader") => {
+    setFormExtras(rows => [...rows, {
+      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
+      papel: role, origem: "imobiliaria", percentual: null, valor: null, _new: true,
+    }]);
+    setDirtyExtras(true);
+  };
+  // Partes extras com um desses papéis ganham campo fixo lá em cima (junto do resto da comissão)
+  // em vez de aparecer na lista genérica de "Partes extras" mais abaixo.
+  const PAPEIS_FIXOS_NO_TOPO = new Set(["corretor_captador", "corretor_vendedor", "gestor", "team_leader"]);
   const delExtra = (rowId: string) => {
     setFormExtras(rows => rows.filter(r => r.id !== rowId));
     setDirtyExtras(true);
@@ -876,6 +888,68 @@ function SaleDetail() {
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
+              {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
+                const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
+                return (
+                  <Field key={r.id} label={`${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        className="w-48"
+                        placeholder="Nome"
+                        value={r.nome ?? ""}
+                        disabled={!editableComissao}
+                        onChange={(e) => updExtra(r.id, { nome: e.target.value })}
+                      />
+                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
+                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                    </div>
+                  </Field>
+                );
+              })}
+              {formExtras.filter((r) => r.papel === "gestor" || r.papel === "team_leader").map((r) => {
+                const rotulo = r.papel === "gestor" ? "Gestor" : "Team Leader";
+                const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : (formSale.team_leader_id ?? "");
+                const onSelectLider = (liderId: string) => {
+                  const lider = lideres.find((l) => l.id === liderId);
+                  updExtra(r.id, { nome: lider ? lider.nome : r.nome });
+                  if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
+                  if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
+                };
+                return (
+                  <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {lideres.length > 0 ? (
+                        <Select value={liderAtualId || "manual"} onValueChange={(v) => onSelectLider(v === "manual" ? "" : v)} disabled={!editableComissao}>
+                          <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o líder" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manual">Digitar nome</SelectItem>
+                            {lideres.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                      {(lideres.length === 0 || !liderAtualId) && (
+                        <Input
+                          className="w-40"
+                          placeholder="Nome"
+                          value={r.nome ?? ""}
+                          disabled={!editableComissao}
+                          onChange={(e) => updExtra(r.id, { nome: e.target.value })}
+                        />
+                      )}
+                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editableComissao}>
+                        <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="imobiliaria">Imobiliária</SelectItem>
+                          <SelectItem value="captador">Captador</SelectItem>
+                          <SelectItem value="vendedor">Vendedor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
+                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                    </div>
+                  </Field>
+                );
+              })}
             </FieldGrid>
             {editableComissao && (
               <div className="mt-2 flex gap-2">
@@ -884,6 +958,12 @@ function SaleDetail() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => addCoCorretor("vendedor")}>
                   <Plus className="mr-1 h-4 w-4" />Outro vendedor
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addLider("gestor")}>
+                  <Plus className="mr-1 h-4 w-4" />Gestor
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => addLider("team_leader")}>
+                  <Plus className="mr-1 h-4 w-4" />Team Leader
                 </Button>
               </div>
             )}
@@ -968,35 +1048,16 @@ function SaleDetail() {
                 </p>
                 {editableComissao && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
               </div>
-              {formExtras.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
+              {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel)).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
               <div className="space-y-2">
-                {formExtras.map((r) => {
-                  const vinculavel = (r.papel === "gestor" || r.papel === "team_leader") && lideres.length > 0;
-                  const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : r.papel === "team_leader" ? (formSale.team_leader_id ?? "") : "";
-                  const onSelectLider = (liderId: string) => {
-                    const lider = lideres.find((l) => l.id === liderId);
-                    updExtra(r.id, { nome: lider ? lider.nome : r.nome });
-                    if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
-                    if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
-                  };
+                {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel)).map((r) => {
                   return (
                   <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-6">
                     <Field label="Nome">
-                      {vinculavel ? (
-                        <Select value={liderAtualId || "manual"} onValueChange={(v) => onSelectLider(v === "manual" ? "" : v)} disabled={!editableComissao}>
-                          <SelectTrigger><SelectValue placeholder="Selecione o líder" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="manual">Digitar nome manualmente</SelectItem>
-                            {lideres.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : null}
                       <Input
-                        className={vinculavel ? "mt-2" : undefined}
                         value={r.nome ?? ""}
-                        disabled={!editableComissao || (vinculavel && !!liderAtualId)}
+                        disabled={!editableComissao}
                         onChange={(e) => updExtra(r.id, { nome: e.target.value })}
-                        placeholder={vinculavel ? "Nome (se não estiver na lista acima)" : undefined}
                       />
                     </Field>
                     <Field label="Papel">
