@@ -86,8 +86,13 @@ describe("corretorPodeEditar", () => {
 
 describe("gestorPodeEditar", () => {
   const permitidos: SaleStatus[] = [
-    "enviada_revisao", "contrato_conferencia_gestor", "contrato_ok_corretor",
-    "aguardando_assinatura", "contrato_assinado", "ocorrencia_pendente", "ocorrencia_devolvida_gestor",
+    "enviada_revisao",
+    "contrato_conferencia_gestor",
+    "contrato_ok_corretor",
+    "aguardando_assinatura",
+    "contrato_assinado",
+    "ocorrencia_pendente",
+    "ocorrencia_devolvida_gestor",
   ];
 
   it("permite em todos os status esperados, sendo gestor", () => {
@@ -113,7 +118,14 @@ describe("juridicoPodeEditar", () => {
 });
 
 describe("podeEditarVenda", () => {
-  const base = { corretorEdits: false, gestorEdits: false, juridicoEdits: false, isFinanceiro: false, isAdminLike: false, locked: false };
+  const base = {
+    corretorEdits: false,
+    gestorEdits: false,
+    juridicoEdits: false,
+    isFinanceiro: false,
+    isAdminLike: false,
+    locked: false,
+  };
 
   it("libera se qualquer papel tem edição no status atual", () => {
     expect(podeEditarVenda({ ...base, corretorEdits: true })).toBe(true);
@@ -136,21 +148,63 @@ describe("podeEditarVenda", () => {
 
 describe("podeEditarComissao", () => {
   it("financeiro e admin podem editar comissão mesmo sem gestorEdits", () => {
-    expect(podeEditarComissao({ gestorEdits: false, isFinanceiro: true, isAdminLike: false, locked: false })).toBe(true);
-    expect(podeEditarComissao({ gestorEdits: false, isFinanceiro: false, isAdminLike: true, locked: false })).toBe(true);
+    expect(
+      podeEditarComissao({
+        gestorEdits: false,
+        isFinanceiro: true,
+        isAdminLike: false,
+        locked: false,
+      }),
+    ).toBe(true);
+    expect(
+      podeEditarComissao({
+        gestorEdits: false,
+        isFinanceiro: false,
+        isAdminLike: true,
+        locked: false,
+      }),
+    ).toBe(true);
   });
 
   it("gestor edita comissão quando gestorEdits é true", () => {
-    expect(podeEditarComissao({ gestorEdits: true, isFinanceiro: false, isAdminLike: false, locked: false })).toBe(true);
+    expect(
+      podeEditarComissao({
+        gestorEdits: true,
+        isFinanceiro: false,
+        isAdminLike: false,
+        locked: false,
+      }),
+    ).toBe(true);
   });
 
   it("sem nenhum dos três, não edita", () => {
-    expect(podeEditarComissao({ gestorEdits: false, isFinanceiro: false, isAdminLike: false, locked: false })).toBe(false);
+    expect(
+      podeEditarComissao({
+        gestorEdits: false,
+        isFinanceiro: false,
+        isAdminLike: false,
+        locked: false,
+      }),
+    ).toBe(false);
   });
 
   it("venda travada bloqueia gestor mas não financeiro/admin", () => {
-    expect(podeEditarComissao({ gestorEdits: true, isFinanceiro: false, isAdminLike: false, locked: true })).toBe(false);
-    expect(podeEditarComissao({ gestorEdits: false, isFinanceiro: true, isAdminLike: false, locked: true })).toBe(true);
+    expect(
+      podeEditarComissao({
+        gestorEdits: true,
+        isFinanceiro: false,
+        isAdminLike: false,
+        locked: true,
+      }),
+    ).toBe(false);
+    expect(
+      podeEditarComissao({
+        gestorEdits: false,
+        isFinanceiro: true,
+        isAdminLike: false,
+        locked: true,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -206,17 +260,52 @@ describe("podeVerOcorrencia / podeVerResumoCompleto", () => {
 
 describe("podeEditarOcorrencia", () => {
   it("gestor edita só nos status de ocorrência permitidos", () => {
-    expect(podeEditarOcorrencia({ isGestor: true, status: "contrato_assinado", isFinanceiro: false, isAdminLike: false })).toBe(true);
-    expect(podeEditarOcorrencia({ isGestor: true, status: "ocorrencia_analise_financeiro", isFinanceiro: false, isAdminLike: false })).toBe(false);
+    expect(
+      podeEditarOcorrencia({
+        isGestor: true,
+        status: "contrato_assinado",
+        isFinanceiro: false,
+        isAdminLike: false,
+      }),
+    ).toBe(true);
+    expect(
+      podeEditarOcorrencia({
+        isGestor: true,
+        status: "ocorrencia_analise_financeiro",
+        isFinanceiro: false,
+        isAdminLike: false,
+      }),
+    ).toBe(false);
   });
 
   it("financeiro e admin sempre podem, independente do status", () => {
-    expect(podeEditarOcorrencia({ isGestor: false, status: "rascunho", isFinanceiro: true, isAdminLike: false })).toBe(true);
-    expect(podeEditarOcorrencia({ isGestor: false, status: "rascunho", isFinanceiro: false, isAdminLike: true })).toBe(true);
+    expect(
+      podeEditarOcorrencia({
+        isGestor: false,
+        status: "rascunho",
+        isFinanceiro: true,
+        isAdminLike: false,
+      }),
+    ).toBe(true);
+    expect(
+      podeEditarOcorrencia({
+        isGestor: false,
+        status: "rascunho",
+        isFinanceiro: false,
+        isAdminLike: true,
+      }),
+    ).toBe(true);
   });
 
   it("nega pra quem não é gestor/financeiro/admin", () => {
-    expect(podeEditarOcorrencia({ isGestor: false, status: "contrato_assinado", isFinanceiro: false, isAdminLike: false })).toBe(false);
+    expect(
+      podeEditarOcorrencia({
+        isGestor: false,
+        status: "contrato_assinado",
+        isFinanceiro: false,
+        isAdminLike: false,
+      }),
+    ).toBe(false);
   });
 });
 

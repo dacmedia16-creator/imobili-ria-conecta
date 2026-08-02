@@ -546,12 +546,16 @@ function SaleDetail() {
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
-    notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     if (next === "contrato_assinado") {
+      // contrato_assinado avança automaticamente pra ocorrencia_pendente, e as duas etapas têm o
+      // mesmo responsável (gestor) — notifica só o status final, senão o gestor toma dois avisos
+      // (sino + WhatsApp) pela mesma ação de marcar o contrato como assinado.
       const { error: e2 } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: "ocorrencia_pendente", _motivo: "Automático: contrato assinado" });
       if (!e2) {
         notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
       }
+    } else {
+      notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     }
     toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
     load();
@@ -2140,7 +2144,11 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
       if (e1) { toast.error(e1.message); return; }
       await supabase.from("sale_status_history").insert({ sale_id: sale.id, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
       await supabase.from("activity_logs").insert({ sale_id: sale.id, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
-      if (sale.corretor_id) {
+      // Não passa por notifySaleStatusChange de propósito: reabertura é uma ação corretiva rara
+      // (só financeiro/admin fazem), não faz parte da esteira normal de "sua vez"/"toda atualização"
+      // coberta por proximoResponsavelRoles, e decidimos não expandir o alcance do WhatsApp pra esse
+      // caso agora. Só o corretor é avisado (sino), e não duplica se ele mesmo tiver reaberto.
+      if (sale.corretor_id && sale.corretor_id !== user?.id) {
         await supabase.from("notifications").insert({
           user_id: sale.corretor_id, sale_id: sale.id,
           tipo: "occurrence_reopened",
@@ -2795,8 +2803,10 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       if (e1) { toast.error(e1.message); return; }
       await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
       await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+      // Não passa por notifySaleStatusChange de propósito — ver mesmo comentário na outra ocorrência
+      // desse bloco (reabertura é ação corretiva rara, fora da esteira normal de sua vez/toda atualização).
       const { data: s } = await supabase.from("sales").select("corretor_id").eq("id", saleId).maybeSingle();
-      if (s?.corretor_id) {
+      if (s?.corretor_id && s.corretor_id !== user?.id) {
         await supabase.from("notifications").insert({
           user_id: s.corretor_id, sale_id: saleId,
           tipo: "occurrence_reopened",
