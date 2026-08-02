@@ -212,17 +212,16 @@ export function DocumentsPanel({
   const removeDoc = async (doc: any) => {
     setDeleting(true);
     try {
-      // Documentos "Mesmo do 1º" apontam para o mesmo arquivo no storage — só apaga o arquivo
-      // de fato se nenhum outro registro (o original ou outra cópia) ainda depender dele.
-      const sharedWithOthers = docs.some(d => d.id !== doc.id && d.storage_path === doc.storage_path);
-      if (!sharedWithOthers) {
-        const { error: stErr } = await supabase.storage.from("sale-documents").remove([doc.storage_path]);
-        if (stErr) console.warn("storage remove", stErr.message);
-      }
+      // Arquivamento lógico: o arquivo e a linha continuam no banco/storage para consulta futura
+      // (auditoria), só saem da tela comum. Extração de IA é cache derivado, não o documento fonte
+      // — segue sendo descartada.
       await supabase.from("document_extractions").delete().eq("document_id", doc.id);
-      const { error } = await supabase.from("sale_documents").delete().eq("id", doc.id);
+      const { error } = await supabase
+        .from("sale_documents")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: user!.id })
+        .eq("id", doc.id);
       if (error) { toast.error(error.message); return; }
-      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_deleted", payload: { doc_id: doc.id, tipo: doc.tipo, parte: doc.parte, file_name: doc.file_name } });
+      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_archived", payload: { doc_id: doc.id, tipo: doc.tipo, parte: doc.parte, file_name: doc.file_name } });
       toast.success("Documento excluído");
       setPendingDelete(null);
       onChange();
@@ -746,7 +745,7 @@ export function DocumentsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir este documento?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.file_name} será removido permanentemente. Depois disso você pode enviar um novo arquivo — a IA fará a leitura novamente.
+              {pendingDelete?.file_name} sairá da lista. Depois disso você pode enviar um novo arquivo — a IA fará a leitura novamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

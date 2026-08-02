@@ -168,7 +168,7 @@ function SaleDetail() {
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
       supabase.from("sale_bank_accounts").select("*").eq("sale_id", id).maybeSingle(),
-      supabase.from("sale_documents").select("*").eq("sale_id", id).order("created_at"),
+      supabase.from("sale_documents").select("*").eq("sale_id", id).is("deleted_at", null).order("created_at"),
       supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),

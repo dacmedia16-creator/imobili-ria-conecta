@@ -548,6 +548,8 @@ export type Database = {
       sale_documents: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           descricao: string | null
           extraction_status: string
           file_name: string | null
@@ -564,6 +566,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           descricao?: string | null
           extraction_status?: string
           file_name?: string | null
@@ -580,6 +584,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           descricao?: string | null
           extraction_status?: string
           file_name?: string | null

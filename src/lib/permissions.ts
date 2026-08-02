@@ -1,7 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/lib/auth";
 
-export type DeletableSale = { id: string; corretor_id: string | null };
+export type DeletableSale = { id: string; corretor_id: string | null; status?: string };
+
+// Espelha a policy delete_sales_por_papel do banco (fonte da verdade — isto aqui só evita mostrar
+// o botão "Excluir venda" pra quem a policy vai recusar mesmo). Passado esses três status, a venda
+// já pode ter contrato/certidão/ocorrência produzido — exclusão definitiva não é mais permitida
+// pra NINGUÉM, nem admin/super_admin/financeiro; o caminho vira Arquivar/Cancelar.
+const STATUS_EXCLUIVEIS = ["rascunho", "devolvida_ajuste", "enviada_revisao"];
 
 export function canDeleteSale(
   userId: string | null | undefined,
@@ -10,6 +16,7 @@ export function canDeleteSale(
   teamMemberIds: Set<string>,
 ): boolean {
   if (!userId) return false;
+  if (sale.status && !STATUS_EXCLUIVEIS.includes(sale.status)) return false;
   if (hasAny(["super_admin", "admin", "financeiro"])) return true;
   if (sale.corretor_id === userId) return true;
   if (hasAny(["gestor"]) && sale.corretor_id && teamMemberIds.has(sale.corretor_id)) return true;
