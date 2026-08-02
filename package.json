@@ -11,7 +11,8 @@
     "preview:cf": "vite build && wrangler dev --config .output/server/wrangler.json",
     "deploy": "vite build && nitro deploy --prebuilt",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -87,6 +88,7 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16",
+    "vitest": "^4.1.10",
     "wrangler": "^4.112.0"
   }
 }
