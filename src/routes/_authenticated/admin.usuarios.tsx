@@ -101,7 +101,12 @@ function AdminUsers() {
       const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
       if (error) toast.error(error.message);
     } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+      // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
+      // nasce desligado pra eles (ver mesmo comentário em admin-users.functions.ts).
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: userId, role,
+        ...((role === "juridico" || role === "financeiro") ? { notificar_toda_atualizacao: false } : {}),
+      });
       if (error) toast.error(error.message);
     }
     load();

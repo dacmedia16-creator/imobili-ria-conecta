@@ -59,7 +59,7 @@ function MeuAcesso() {
       const mapAtualizacao: Partial<Record<AppRole, boolean>> = {};
       for (const r of data ?? []) {
         map[r.role as AppRole] = r.notificar_whatsapp ?? true;
-        mapAtualizacao[r.role as AppRole] = r.notificar_toda_atualizacao ?? true;
+        mapAtualizacao[r.role as AppRole] = r.notificar_toda_atualizacao ?? (r.role === "corretor" || r.role === "gestor");
       }
       setNotifPorPapel(map);
       setNotifAtualizacaoPorPapel(mapAtualizacao);
@@ -280,40 +280,46 @@ function MeuAcesso() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <MessageCircle className="h-4 w-4" /> Notificações por WhatsApp
+              <MessageCircle className="h-4 w-4" /> Notificações
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p className="mb-2 text-xs text-muted-foreground">
-              Escolha por qual papel você quer receber aviso no WhatsApp. Vale só pra você — não afeta os outros usuários com o mesmo papel.
+              Escolha por qual papel você quer receber aviso. Vale só pra você — não afeta os outros usuários com o mesmo papel.
             </p>
-            {roles.map((r) => (
-              <div key={r} className="rounded-md border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{ROLE_LABEL[r]}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Quando for sua vez de agir</span>
-                    <Switch
-                      checked={notifPorPapel[r] ?? true}
-                      disabled={savingNotif === `${r}:notificar_whatsapp`}
-                      onCheckedChange={(v) => alternarNotifCampo(r, "notificar_whatsapp", v)}
-                    />
+            {roles.map((r) => {
+              const todaAtualizacaoLabel =
+                r === "corretor" ? "A cada atualização das suas vendas" :
+                r === "gestor" ? "A cada atualização das vendas da sua equipe" :
+                r === "juridico" ? "A cada atualização das vendas que já chegaram até você" :
+                r === "financeiro" ? "A cada atualização de todas as vendas" :
+                null;
+              return (
+                <div key={r} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{ROLE_LABEL[r]}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Quando for sua vez de agir (WhatsApp)</span>
+                      <Switch
+                        checked={notifPorPapel[r] ?? true}
+                        disabled={savingNotif === `${r}:notificar_whatsapp`}
+                        onCheckedChange={(v) => alternarNotifCampo(r, "notificar_whatsapp", v)}
+                      />
+                    </div>
                   </div>
+                  {todaAtualizacaoLabel && (
+                    <div className="mt-2 flex items-center justify-between border-t pt-2">
+                      <span className="text-xs text-muted-foreground">{todaAtualizacaoLabel} (sino e WhatsApp)</span>
+                      <Switch
+                        checked={notifAtualizacaoPorPapel[r] ?? (r === "corretor" || r === "gestor")}
+                        disabled={savingNotif === `${r}:notificar_toda_atualizacao`}
+                        onCheckedChange={(v) => alternarNotifCampo(r, "notificar_toda_atualizacao", v)}
+                      />
+                    </div>
+                  )}
                 </div>
-                {(r === "corretor" || r === "gestor") && (
-                  <div className="mt-2 flex items-center justify-between border-t pt-2">
-                    <span className="text-xs text-muted-foreground">
-                      {r === "corretor" ? "A cada atualização das suas vendas" : "A cada atualização das vendas da sua equipe"}
-                    </span>
-                    <Switch
-                      checked={notifAtualizacaoPorPapel[r] ?? true}
-                      disabled={savingNotif === `${r}:notificar_toda_atualizacao`}
-                      onCheckedChange={(v) => alternarNotifCampo(r, "notificar_toda_atualizacao", v)}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}

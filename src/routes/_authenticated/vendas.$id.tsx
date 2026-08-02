@@ -34,7 +34,7 @@ import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel } from "@/components/vendas/DocumentsPanel";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
-import { notifySaleStatusChange } from "@/lib/whatsapp.functions";
+import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -511,15 +511,6 @@ function SaleDetail() {
     setFormExtras(rows => rows.filter(r => r.id !== rowId));
     setDirtyExtras(true);
   };
-  const notifyRoles = async (rolesToNotify: string[], titulo: string, mensagem?: string) => {
-    const { data: users } = await supabase.from("user_roles").select("user_id").in("role", rolesToNotify as any);
-    const uniqIds = Array.from(new Set((users ?? []).map((u: any) => u.user_id)));
-    if (uniqIds.length === 0) return;
-    await supabase.from("notifications").insert(uniqIds.map(uid => ({
-      user_id: uid, sale_id: id, tipo: "status_change", titulo, mensagem: mensagem ?? null,
-    })));
-  };
-
   // Garante que nada digitado em qualquer etapa fica pra trás antes de mudar o status (enviar
   // pra outro papel). Sem isso, um campo preenchido mas ainda não salvo — o autosave ainda não
   // tinha disparado, ou a pessoa clicou direto num botão do topo (ex.: "Enviar ao gestor") sem
@@ -544,7 +535,9 @@ function SaleDetail() {
   // change_sale_status (mesma transação, tudo ou nada) — antes eram 3 chamadas soltas do client, e
   // uma falha no meio (rede caiu) deixava o status mudado sem o registro de auditoria correspondente,
   // sem erro visível pra ninguém. Notificação in-app e WhatsApp continuam fora da transação de
-  // propósito (são efeitos colaterais não-críticos, não faz sentido travar a troca de status por eles).
+  // propósito (são efeitos colaterais não-críticos, não faz sentido travar a troca de status por eles) —
+  // as duas saem juntas de notifySaleStatusChange, que já calcula quem precisa saber (sua vez / toda
+  // atualização) e cobre o corretor e o gestor da equipe sem precisar de nenhuma chamada extra aqui.
   const changeStatus = async (next: SaleStatus, motivo?: string) => {
     if (!(await flushAllDirty())) return;
     const { error } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: next, _motivo: motivo });
@@ -553,20 +546,10 @@ function SaleDetail() {
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
-    if (sale.corretor_id !== user?.id) {
-      await supabase.from("notifications").insert({
-        user_id: sale.corretor_id, sale_id: id,
-        tipo: "status_change", titulo: `Venda agora está: ${STATUS_LABEL[next]}`,
-        mensagem: motivo ?? null,
-      });
-    }
-    // WhatsApp pra quem for a vez agora, e pro corretor/gestor da equipe que acompanham toda
-    // atualização — nunca trava a troca de status se a API externa falhar.
     notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     if (next === "contrato_assinado") {
       const { error: e2 } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: "ocorrencia_pendente", _motivo: "Automático: contrato assinado" });
       if (!e2) {
-        await notifyRoles(["gestor"], `Contrato assinado — preencher ocorrência: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
         notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
       }
     }
@@ -722,7 +705,6 @@ function SaleDetail() {
     if (pendencias.length > 0) { toast.error("Corrija as pendências antes de enviar"); return; }
     setReviewOpen(false);
     await changeStatus("enviada_revisao");
-    await notifyRoles(["gestor", "coordenador"], `Nova venda para revisão: ${sale.imovel_id ?? sale.codigo_interno ?? sale.id.slice(0, 8)}`);
   };
 
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);

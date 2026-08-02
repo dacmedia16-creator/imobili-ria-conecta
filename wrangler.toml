@@ -23,3 +23,5 @@ keep_vars = true
 [vars]
 SUPABASE_URL = "https://xvvymgurpchhlmbpjbgc.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-I6he0fFecr_ObJZTKiP_g_O6Arz8xJ"
+# Usado só pra montar o link dentro da mensagem de WhatsApp (src/lib/sale-notifications.functions.ts).
+APP_URL = "https://unicaescolha.com.br"

@@ -65,7 +65,13 @@ export const createUser = createServerFn({ method: "POST" })
       await supabaseAdmin.from("user_roles").delete().eq("user_id", newId).eq("role", "corretor");
       const { error: insErr } = await supabaseAdmin
         .from("user_roles")
-        .insert({ user_id: newId, role: data.role });
+        .insert({
+          user_id: newId, role: data.role,
+          // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
+          // pra eles nasce desligado (senão financeiro, que vê toda venda do sistema, já começa
+          // recebendo aviso de tudo sem ter escolhido isso).
+          ...((data.role === "juridico" || data.role === "financeiro") ? { notificar_toda_atualizacao: false } : {}),
+        });
       if (insErr) throw new Error(insErr.message);
     }
 
