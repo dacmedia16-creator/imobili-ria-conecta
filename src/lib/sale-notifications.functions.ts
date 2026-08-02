@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { chegouAoJuridico, proximoResponsavelRoles, STATUS_LABEL, type SaleStatus } from "@/lib/status";
+import {
+  chegouAoJuridico,
+  proximoResponsavelRoles,
+  STATUS_LABEL,
+  type SaleStatus,
+} from "@/lib/status";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
@@ -12,6 +17,15 @@ const NotifyInput = z.object({
   status: z.string(),
   motivo: z.string().nullable().optional(),
 });
+
+type TeamMemberRow = { team_id: string };
+type TeamRow = { lider_id: string | null };
+type UserRoleRow = {
+  user_id: string;
+  role: string;
+  notificar_whatsapp: boolean | null;
+  notificar_toda_atualizacao: boolean | null;
+};
 
 /** Normaliza pro formato que o ZionTalk exige: só dígitos com DDI, SEM "+" na frente (testado ao
  * vivo — com "+" a API retorna 500) — aceita o telefone digitado com ou sem DDI/máscara. */
@@ -27,11 +41,13 @@ function normalizePhone(raw: string | null | undefined): string | null {
  * emoji são aceitos (201) mas chegam corrompidos ("??") no WhatsApp de verdade. `*negrito*` e
  * quebra de linha funcionam normalmente, então o texto continua estruturado mesmo só em ASCII. */
 function paraWhatsapp(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    // eslint-disable-next-line no-control-regex -- intencional: mantém 0x00-0x7E (ASCII), inclui \n de propósito (ver comentário acima)
-    .replace(/[^\x00-\x7E]/g, "");
+  return (
+    texto
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      // eslint-disable-next-line no-control-regex -- intencional: mantém 0x00-0x7E (ASCII), inclui \n de propósito (ver comentário acima)
+      .replace(/[^\x00-\x7E]/g, "")
+  );
 }
 
 // Papéis sem conceito de "dono"/equipe (jurídico, financeiro) — preferência de "a cada
@@ -83,12 +99,20 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     // exige papel elevado — o service role resolve os dois casos aqui.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: tm } = await supabaseAdmin.from("team_members").select("team_id").eq("membro_id", sale.corretor_id);
-    const teamIds = Array.from(new Set((tm ?? []).map((t: any) => t.team_id)));
+    const { data: tm } = await supabaseAdmin
+      .from("team_members")
+      .select("team_id")
+      .eq("membro_id", sale.corretor_id);
+    const teamIds = Array.from(new Set((tm ?? []).map((t: TeamMemberRow) => t.team_id)));
     let liderIds: string[] = [];
     if (teamIds.length) {
-      const { data: teams } = await supabaseAdmin.from("teams").select("lider_id").in("id", teamIds);
-      liderIds = Array.from(new Set((teams ?? []).map((t: any) => t.lider_id).filter(Boolean)));
+      const { data: teams } = await supabaseAdmin
+        .from("teams")
+        .select("lider_id")
+        .in("id", teamIds);
+      liderIds = Array.from(
+        new Set((teams ?? []).map((t: TeamRow) => t.lider_id).filter((id): id is string => !!id)),
+      );
     }
 
     const status = data.status as SaleStatus;
@@ -101,21 +125,36 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     } else if (roleNext === "gestor") {
       for (const l of liderIds) proximoIds.add(l);
     } else if (roleNext) {
-      const { data: users } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", roleNext);
+      const { data: users } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", roleNext);
       for (const u of users ?? []) proximoIds.add(u.user_id);
     }
 
     // "Toda atualização" — corretor/gestor da equipe (como sempre), mais jurídico (só depois que a
     // venda chegou nele) e financeiro (vê tudo, sempre candidato).
-    const atualizacaoPapelById = new Map<string, "corretor" | "gestor" | "juridico" | "financeiro">();
+    const atualizacaoPapelById = new Map<
+      string,
+      "corretor" | "gestor" | "juridico" | "financeiro"
+    >();
     if (sale.corretor_id) atualizacaoPapelById.set(sale.corretor_id, "corretor");
-    for (const l of liderIds) if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
+    for (const l of liderIds)
+      if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
     if (chegouAoJuridico(status)) {
-      const { data: juridicoUsers } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "juridico");
-      for (const u of juridicoUsers ?? []) if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "juridico");
+      const { data: juridicoUsers } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "juridico");
+      for (const u of juridicoUsers ?? [])
+        if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "juridico");
     }
-    const { data: financeiroUsers } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "financeiro");
-    for (const u of financeiroUsers ?? []) if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "financeiro");
+    const { data: financeiroUsers } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "financeiro");
+    for (const u of financeiroUsers ?? [])
+      if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "financeiro");
 
     proximoIds.delete(userId); // quem fez a ação não precisa ser avisado de si mesmo
     atualizacaoPapelById.delete(userId);
@@ -133,33 +172,43 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const link = `${APP_URL}/vendas/${sale.id}`;
     const motivoLinha = data.motivo ? `Motivo: ${data.motivo}\n` : "";
 
-    const textoSuaVezWpp =
-      `*É a sua vez de agir!*\n\nVenda: ${label}\nStatus: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
-    const textoAtualizacaoWpp =
-      `*Atualização na venda*\n\nVenda: ${label}\nNovo status: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
+    const textoSuaVezWpp = `*É a sua vez de agir!*\n\nVenda: ${label}\nStatus: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
+    const textoAtualizacaoWpp = `*Atualização na venda*\n\nVenda: ${label}\nNovo status: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
 
     const inAppPorUsuario = new Map<string, { titulo: string; mensagem: string | null }>();
     const whatsappPorUsuario = new Map<string, string>();
 
     for (const id of proximoIds) {
       // "Sua vez" no sino sempre notifica — o toggle de preferência é só do WhatsApp.
-      inAppPorUsuario.set(id, { titulo: `Sua vez de agir: ${label}`, mensagem: `Status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}` });
-      const row = (rolesRows ?? []).find((r: any) => r.user_id === id && r.role === roleNext);
+      inAppPorUsuario.set(id, {
+        titulo: `Sua vez de agir: ${label}`,
+        mensagem: `Status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}`,
+      });
+      const row = (rolesRows ?? []).find(
+        (r: UserRoleRow) => r.user_id === id && r.role === roleNext,
+      );
       if (row?.notificar_whatsapp !== false) whatsappPorUsuario.set(id, textoSuaVezWpp);
     }
     for (const [id, papel] of atualizacaoPapelById) {
       if (inAppPorUsuario.has(id)) continue; // já ganhou a msg de "sua vez", mais específica — não duplica
-      const row = (rolesRows ?? []).find((r: any) => r.user_id === id && r.role === papel);
+      const row = (rolesRows ?? []).find((r: UserRoleRow) => r.user_id === id && r.role === papel);
       const quer = row ? row.notificar_toda_atualizacao : defaultTodaAtualizacao(papel);
       if (!quer) continue;
-      inAppPorUsuario.set(id, { titulo: `Atualização na venda: ${label}`, mensagem: `Novo status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}` });
+      inAppPorUsuario.set(id, {
+        titulo: `Atualização na venda: ${label}`,
+        mensagem: `Novo status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}`,
+      });
       whatsappPorUsuario.set(id, textoAtualizacaoWpp);
     }
 
     if (inAppPorUsuario.size > 0) {
       await supabaseAdmin.from("notifications").insert(
         Array.from(inAppPorUsuario, ([user_id, { titulo, mensagem }]) => ({
-          user_id, sale_id: sale.id, tipo: "status_change", titulo, mensagem,
+          user_id,
+          sale_id: sale.id,
+          tipo: "status_change",
+          titulo,
+          mensagem,
         })),
       );
     }
