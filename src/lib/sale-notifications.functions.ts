@@ -30,6 +30,7 @@ function paraWhatsapp(texto: string): string {
   return texto
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
+    // eslint-disable-next-line no-control-regex -- intencional: mantém 0x00-0x7E (ASCII), inclui \n de propósito (ver comentário acima)
     .replace(/[^\x00-\x7E]/g, "");
 }
 
