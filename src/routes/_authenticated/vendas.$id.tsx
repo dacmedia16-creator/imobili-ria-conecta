@@ -21,6 +21,11 @@ import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import {
+  getSaleRoleFlags, isSaleLocked, corretorPodeEditar, gestorPodeEditar, juridicoPodeEditar,
+  podeEditarVenda, podeEditarComissao, deveOcultarBlocoComissao, comissaoValorExcedido,
+  podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
+} from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -38,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/vendas/$id")({
 
 function SaleDetail() {
   const { id } = Route.useParams();
-  const { user, hasAny, hasRole } = useAuth();
+  const { user, hasAny, hasRole, roles } = useAuth();
   const [sale, setSale] = useState<any>(null);
   const [parties, setParties] = useState<Record<string, any>>({});
   const [payment, setPayment] = useState<any>(null);
@@ -295,12 +300,8 @@ function SaleDetail() {
   if (loading || !sale) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
 
   const status = sale.status as SaleStatus;
-  const isOwner = sale.corretor_id === user?.id;
-  const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
-  const isAdminLike = hasAny(["admin", "super_admin"]);
-  const isGestor = hasAny(["gestor"]);
-  const isJuridico = hasRole("juridico");
-  const locked = aceitaFin || status === "ocorrencia_concluida";
+  const { isOwner, isFinanceiro, isAdminLike, isGestor, isJuridico } = getSaleRoleFlags(roles, sale.corretor_id, user?.id);
+  const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
 
   const onConfirmDelete = async () => {
@@ -322,25 +323,21 @@ function SaleDetail() {
   };
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
-  const corretorEdits = isOwner && (status === "rascunho" || status === "devolvida_ajuste");
-  const gestorEdits = isGestor && ["enviada_revisao","contrato_conferencia_gestor","contrato_ok_corretor","aguardando_assinatura","contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status);
-  const juridicoEdits = isJuridico && ["aprovada_gestor","em_elaboracao_contrato"].includes(status);
-  const editable = (corretorEdits || gestorEdits || juridicoEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
+  const corretorEdits = corretorPodeEditar(isOwner, status);
+  const gestorEdits = gestorPodeEditar(isGestor, status);
+  const juridicoEdits = juridicoPodeEditar(isJuridico, status);
+  const editable = podeEditarVenda({ corretorEdits, gestorEdits, juridicoEdits, isFinanceiro, isAdminLike, locked });
   // Divisão da comissão é decisão do gestor — mesmo quando a venda volta pro corretor
   // (devolvida_ajuste) pra ajustar outra coisa, ele só pode VER essa parte, não editar.
-  const editableComissao = (gestorEdits || isFinanceiro || isAdminLike) && (!locked || isFinanceiro || isAdminLike);
+  const editableComissao = podeEditarComissao({ gestorEdits, isFinanceiro, isAdminLike, locked });
   // Corretor só enxerga o bloco "Divisão da comissão" quando o gestor devolveu a venda pra ele
   // (devolvida_ajuste) — fora disso o bloco fica oculto (nada pra ver ainda, ou já não é mais a
   // vez dele mexer no Resumo). Gestor/financeiro/admin/jurídico sempre veem.
-  const hideComissaoBlock = isOwner && status !== "devolvida_ajuste";
+  const hideComissaoBlock = deveOcultarBlocoComissao(isOwner, status);
   // Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total da
   // comissão. Fora isso o preenchimento é livre — isso só vira bloqueio na hora de avançar pro
   // jurídico (confirmApproveJuridico), nunca trava a digitação em si.
-  const comissaoExcedida = (() => {
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
-    return total > 0 && soma > total + 0.01;
-  })();
+  const comissaoExcedida = comissaoValorExcedido(formSale.valor_total_comissao, formSale.valor_comissao_captador, formSale.valor_comissao_vendedor);
 
   // history vem ordenado por created_at desc (ver load()); o primeiro item é a transição que colocou a venda no status atual
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
@@ -767,12 +764,12 @@ function SaleDetail() {
     router.navigate({ to: "/vendas" });
   };
 
-  const canOccurrence = ["contrato_assinado","ocorrencia_pendente","ocorrencia_analise_financeiro","ocorrencia_devolvida_gestor","ocorrencia_concluida"].includes(status);
-  const canOverview = !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
-  const canEditOcorrencia = (isGestor && ["contrato_assinado","ocorrencia_pendente","ocorrencia_devolvida_gestor"].includes(status)) || isFinanceiro || isAdminLike;
+  const canOccurrence = podeVerOcorrencia(status);
+  const canOverview = podeVerResumoCompleto(status);
+  const canEditOcorrencia = podeEditarOcorrencia({ isGestor, status, isFinanceiro, isAdminLike });
   // Só financeiro/admin/super admin finalizam a ocorrência — gestor pode editar a tabela de
   // comissão e mandar pro financeiro, mas não pode fechar a ocorrência sozinho, sem revisão.
-  const canFinalizarOcorrencia = isFinanceiro || isAdminLike;
+  const canFinalizarOcorrencia = podeFinalizarOcorrencia(isFinanceiro, isAdminLike);
   const steps: WizardStep[] = [
     {
       key: "documentos",
