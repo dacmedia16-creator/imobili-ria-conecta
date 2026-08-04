@@ -147,15 +147,43 @@ function SaleDetail() {
       const { data: team } = await supabase.from("teams").select("lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
       if (!team) { setLideres([]); return; }
       const liderIds = [team.lider_id];
+      const teamIdsForCoLideres = [tm.team_id];
       if (team.parent_team_id) {
         const { data: parent } = await supabase.from("teams").select("lider_id").eq("id", team.parent_team_id).maybeSingle();
         if (parent?.lider_id) liderIds.push(parent.lider_id);
+        teamIdsForCoLideres.push(team.parent_team_id);
       }
+      // Líder auxiliar ("braço direito") também entra como opção de Gestor/Team Leader da venda.
+      const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
+      (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
       const uniqueIds = Array.from(new Set(liderIds));
       const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", uniqueIds);
       setLideres((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, [sale?.corretor_id]);
+
+  // Fallback pra quando o corretor da venda não pertence a nenhum time (`lideres` fica vazio):
+  // em vez de travar o campo, oferece todo mundo com papel gestor / todo líder de time cadastrado.
+  const [gestoresGerais, setGestoresGerais] = useState<{ id: string; nome: string }[]>([]);
+  const [teamLeadersGerais, setTeamLeadersGerais] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: gestorRoles } = await supabase.from("user_roles").select("user_id").eq("role", "gestor");
+      const gestorIds = Array.from(new Set((gestorRoles ?? []).map((r: any) => r.user_id)));
+      if (gestorIds.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", gestorIds);
+        setGestoresGerais((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
+      }
+      const { data: teamsData } = await supabase.from("teams").select("lider_id");
+      const leaderIds = Array.from(new Set((teamsData ?? []).map((t: any) => t.lider_id).filter(Boolean)));
+      if (leaderIds.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", leaderIds);
+        setTeamLeadersGerais((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
+      }
+    })();
+  }, []);
+  const gestorOptions = lideres.length > 0 ? lideres : gestoresGerais;
+  const teamLeaderOptions = lideres.length > 0 ? lideres : teamLeadersGerais;
 
   const hasLoadedOnceRef = useRef(false);
   const load = useCallback(async () => {
@@ -777,6 +805,7 @@ function SaleDetail() {
           saleId={id}
           saleStatus={status}
           docs={docs}
+          parties={parties}
           editable={editable}
           canModerate={isGestor || isJuridico}
           canUseAi={isOwner}
@@ -820,6 +849,24 @@ function SaleDetail() {
               <Field label="Corretor captador"><Input value={formSale.corretor_captador ?? ""} disabled={!editable} onChange={(e) => updResumo({ corretor_captador: e.target.value })} /></Field>
               <Field label="Corretor vendedor"><Input value={formSale.corretor_vendedor ?? ""} disabled={!editable} onChange={(e) => updResumo({ corretor_vendedor: e.target.value })} /></Field>
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
+              <Field label="Gestor">
+                <Select value={formSale.coordenador_id ?? "none"} onValueChange={(v) => updResumo({ coordenador_id: v === "none" ? null : v })} disabled={!editable || gestorOptions.length === 0}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o gestor" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {gestorOptions.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Team Leader">
+                <Select value={formSale.team_leader_id ?? "none"} onValueChange={(v) => updResumo({ team_leader_id: v === "none" ? null : v })} disabled={!editable || teamLeaderOptions.length === 0}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o team leader" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {teamLeaderOptions.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
             </FieldGrid>
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
@@ -909,8 +956,9 @@ function SaleDetail() {
               {formExtras.filter((r) => r.papel === "gestor" || r.papel === "team_leader").map((r) => {
                 const rotulo = r.papel === "gestor" ? "Gestor" : "Team Leader";
                 const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : (formSale.team_leader_id ?? "");
+                const opcoesLider = r.papel === "gestor" ? gestorOptions : teamLeaderOptions;
                 const onSelectLider = (liderId: string) => {
-                  const lider = lideres.find((l) => l.id === liderId);
+                  const lider = opcoesLider.find((l) => l.id === liderId);
                   updExtra(r.id, { nome: lider ? lider.nome : r.nome });
                   if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
                   if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
@@ -918,16 +966,16 @@ function SaleDetail() {
                 return (
                   <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
-                      {lideres.length > 0 ? (
+                      {opcoesLider.length > 0 ? (
                         <Select value={liderAtualId || "manual"} onValueChange={(v) => onSelectLider(v === "manual" ? "" : v)} disabled={!editableComissao}>
                           <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o líder" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="manual">Digitar nome</SelectItem>
-                            {lideres.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                            {opcoesLider.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       ) : null}
-                      {(lideres.length === 0 || !liderAtualId) && (
+                      {(opcoesLider.length === 0 || !liderAtualId) && (
                         <Input
                           className="w-40"
                           placeholder="Nome"
@@ -1464,6 +1512,8 @@ function SaleDetail() {
               <ReviewItem label="Corretor captador" value={sale.corretor_captador} />
               <ReviewItem label="Corretor vendedor" value={sale.corretor_vendedor} />
               <ReviewItem label="Indicador" value={sale.indicador} />
+              <ReviewItem label="Gestor" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
+              <ReviewItem label="Team Leader" value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome} />
             </ReviewGroup>
 
             <ReviewGroup title="Valores e negociação">

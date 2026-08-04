@@ -20,12 +20,12 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   component: AdminUsers,
 });
 
-const ROLES: AppRole[] = ["corretor", "gestor", "juridico", "financeiro", "admin", "super_admin"];
+const ROLES: AppRole[] = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"];
 
 function allowedRolesFor(roles: AppRole[]): AppRole[] {
   if (roles.includes("super_admin")) return [...ROLES];
-  if (roles.includes("admin")) return ["corretor", "gestor", "juridico", "financeiro"];
-  if (roles.includes("gestor")) return ["corretor"];
+  if (roles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
+  if (roles.includes("gestor") || roles.includes("team_leader")) return ["corretor"];
   return [];
 }
 
@@ -64,30 +64,35 @@ function AdminUsers() {
     const { data: r } = await supabase.from("user_roles").select("user_id, role");
     const { data: teams } = await supabase.from("teams").select("id, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
+    const { data: cl } = await supabase.from("team_co_leaders").select("team_id, user_id");
     setUsers(profs ?? []);
     listLastSignInsFn().then(setLastSignIn).catch(() => {});
     const map: Record<string, AppRole[]> = {};
     (r ?? []).forEach((x: any) => { (map[x.user_id] ??= []).push(x.role); });
     setRolesByUser(map);
 
-    // Líderes de cada membro = líder da equipe/sub-equipe + líder da equipe-mãe (1 nível),
-    // igual à hierarquia usada em is_lead_of() — só pra filtrar quem o gestor pode ver aqui.
+    // Líderes de cada membro = líder (+ líder auxiliar) da equipe/sub-equipe + líder (+ auxiliar)
+    // da equipe-mãe (1 nível), igual à hierarquia usada em is_lead_of() — só pra filtrar quem o
+    // gestor/team_leader pode ver aqui.
     const teamById: Record<string, any> = {};
     (teams ?? []).forEach((tm: any) => { teamById[tm.id] = tm; });
+    const coLeadersByTeam: Record<string, string[]> = {};
+    (cl ?? []).forEach((x: any) => { (coLeadersByTeam[x.team_id] ??= []).push(x.user_id); });
     const tmap: Record<string, string[]> = {};
     (t ?? []).forEach((x: any) => {
       const team = teamById[x.team_id];
       if (!team) return;
-      const lideres = [team.lider_id];
+      const lideres = [team.lider_id, ...(coLeadersByTeam[team.id] ?? [])];
       const parent = team.parent_team_id ? teamById[team.parent_team_id] : null;
       if (parent?.lider_id) lideres.push(parent.lider_id);
+      if (parent) lideres.push(...(coLeadersByTeam[parent.id] ?? []));
       (tmap[x.membro_id] ??= []).push(...lideres);
     });
     setTeamLeads(tmap);
   };
   useEffect(() => { load(); }, []);
 
-  const canManage = hasAny(["admin", "super_admin", "gestor"]);
+  const canManage = hasAny(["admin", "super_admin", "gestor", "team_leader"]);
   const isAdminLike = hasAny(["admin", "super_admin"]);
   const isSuper = hasRole("super_admin");
   const allowedRoles = useMemo(() => allowedRolesFor(myRoles), [myRoles]);

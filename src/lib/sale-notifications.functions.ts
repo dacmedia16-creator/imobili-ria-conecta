@@ -58,6 +58,15 @@ function defaultTodaAtualizacao(papel: "corretor" | "gestor" | "juridico" | "fin
   return papel === "corretor" || papel === "gestor";
 }
 
+// team_leader é clone de gestor em tudo, inclusive aqui: o "papel" usado como bucket interno
+// pra líder de equipe continua "gestor", mas a preferência de notificação de cada líder mora em
+// user_roles sob o papel que ele de fato tem (gestor OU team_leader) — sem isso, a preferência
+// salva por um team_leader nunca era encontrada e ele sempre caía no default.
+function papelBate(roleReal: string, papelBucket: string): boolean {
+  if (papelBucket === "gestor") return roleReal === "gestor" || roleReal === "team_leader";
+  return roleReal === papelBucket;
+}
+
 /**
  * Avisa da mudança de status de uma venda nos dois canais — sino interno (tabela `notifications`)
  * e WhatsApp (ZionTalk) — a partir do MESMO cálculo de destinatário, pra não ter um casal de regras
@@ -106,12 +115,17 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const teamIds = Array.from(new Set((tm ?? []).map((t: TeamMemberRow) => t.team_id)));
     let liderIds: string[] = [];
     if (teamIds.length) {
-      const { data: teams } = await supabaseAdmin
-        .from("teams")
-        .select("lider_id")
-        .in("id", teamIds);
+      // Líder auxiliar ("braço direito") recebe os mesmos avisos que o líder principal, escopado
+      // à(s) mesma(s) equipe(s) — team_co_leaders soma à lista, não substitui.
+      const [{ data: teams }, { data: coLeaders }] = await Promise.all([
+        supabaseAdmin.from("teams").select("lider_id").in("id", teamIds),
+        supabaseAdmin.from("team_co_leaders").select("user_id").in("team_id", teamIds),
+      ]);
       liderIds = Array.from(
-        new Set((teams ?? []).map((t: TeamRow) => t.lider_id).filter((id): id is string => !!id)),
+        new Set([
+          ...(teams ?? []).map((t: TeamRow) => t.lider_id).filter((id): id is string => !!id),
+          ...(coLeaders ?? []).map((c: { user_id: string }) => c.user_id),
+        ]),
       );
     }
 
@@ -185,13 +199,13 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
         mensagem: `Status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}`,
       });
       const row = (rolesRows ?? []).find(
-        (r: UserRoleRow) => r.user_id === id && r.role === roleNext,
+        (r: UserRoleRow) => r.user_id === id && roleNext && papelBate(r.role, roleNext),
       );
       if (row?.notificar_whatsapp !== false) whatsappPorUsuario.set(id, textoSuaVezWpp);
     }
     for (const [id, papel] of atualizacaoPapelById) {
       if (inAppPorUsuario.has(id)) continue; // já ganhou a msg de "sua vez", mais específica — não duplica
-      const row = (rolesRows ?? []).find((r: UserRoleRow) => r.user_id === id && r.role === papel);
+      const row = (rolesRows ?? []).find((r: UserRoleRow) => r.user_id === id && papelBate(r.role, papel));
       const quer = row ? row.notificar_toda_atualizacao : defaultTodaAtualizacao(papel);
       if (!quer) continue;
       inAppPorUsuario.set(id, {

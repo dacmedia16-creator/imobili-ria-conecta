@@ -61,12 +61,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav: NavItem[] = [
     { to: "/", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
-    { to: "/equipe", label: "Equipe", icon: UsersRound, show: hasAny(["gestor","admin","super_admin"]) },
+    { to: "/equipe", label: "Equipe", icon: UsersRound, show: hasAny(["gestor","team_leader","admin","super_admin"]) },
     { to: "/relatorios", label: "Relatórios", icon: BarChart3, show: hasAny(["financeiro","admin","super_admin"]) },
     { to: "/comissoes-a-receber", label: "Comissões a Receber", icon: Wallet, show: hasAny(["financeiro","admin","super_admin"]) },
     { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
     { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
-    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin","gestor"]) },
+    { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin","gestor","team_leader"]) },
   ];
 
   return (

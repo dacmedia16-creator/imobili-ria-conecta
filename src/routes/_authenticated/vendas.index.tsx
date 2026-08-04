@@ -45,7 +45,7 @@ function SalesList() {
 
   useEffect(() => {
     if (!user) return;
-    if (!hasAny(["gestor"])) return;
+    if (!hasAny(["gestor", "team_leader"])) return;
     fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user, hasAny]);
 
@@ -157,7 +157,7 @@ function SalesList() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
-        {hasAny(["corretor", "gestor"]) && (
+        {hasAny(["corretor", "gestor", "team_leader"]) && (
           <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link></Button>
         )}
       </div>
@@ -177,10 +177,10 @@ function SalesList() {
           {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
           {!loading && sales.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              {hasAny(["corretor"]) && !hasAny(["gestor","juridico","financeiro","admin","super_admin"]) && (
+              {hasAny(["corretor"]) && !hasAny(["gestor","team_leader","juridico","financeiro","admin","super_admin"]) && (
                 <>Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.</>
               )}
-              {hasAny(["gestor"]) && !hasAny(["financeiro","admin","super_admin"]) && (
+              {hasAny(["gestor","team_leader"]) && !hasAny(["financeiro","admin","super_admin"]) && (
                 <>Nenhuma venda visível. Peça ao administrador para vincular corretores à sua equipe.</>
               )}
               {hasAny(["juridico"]) && !hasAny(["financeiro","admin","super_admin"]) && (
@@ -209,6 +209,7 @@ function SalesList() {
                     const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
                       papel === "corretor" ? s.corretor_id === user?.id
                       : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
+                      : papel === "gestor" ? hasAny(["gestor", "team_leader"])
                       : hasAny([papel])
                     );
                     return (

@@ -620,10 +620,12 @@ export type Database = {
           nome: string | null
           papel: string
           profissao: string | null
+          razao_social: string | null
           regime_casamento: string | null
           rg: string | null
           sale_id: string
           telefone: string | null
+          tipo_pessoa: string
         }
         Insert: {
           cpf_cnpj?: string | null
@@ -634,10 +636,12 @@ export type Database = {
           nome?: string | null
           papel: string
           profissao?: string | null
+          razao_social?: string | null
           regime_casamento?: string | null
           rg?: string | null
           sale_id: string
           telefone?: string | null
+          tipo_pessoa?: string
         }
         Update: {
           cpf_cnpj?: string | null
@@ -648,10 +652,12 @@ export type Database = {
           nome?: string | null
           papel?: string
           profissao?: string | null
+          razao_social?: string | null
           regime_casamento?: string | null
           rg?: string | null
           sale_id?: string
           telefone?: string | null
+          tipo_pessoa?: string
         }
         Relationships: [
           {
@@ -970,6 +976,32 @@ export type Database = {
         }
         Relationships: []
       }
+      team_co_leaders: {
+        Row: {
+          created_at: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_co_leaders_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string
@@ -1136,6 +1168,7 @@ export type Database = {
         | "financeiro"
         | "admin"
         | "super_admin"
+        | "team_leader"
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado"
       sale_status:
         | "rascunho"
@@ -1290,6 +1323,7 @@ export const Constants = {
         "financeiro",
         "admin",
         "super_admin",
+        "team_leader",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [

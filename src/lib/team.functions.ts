@@ -10,8 +10,8 @@ async function assertCanManageTeams(supabase: any, userId: string) {
   const { data: myRoles, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
   if (error) throw new Error(error.message);
   const roles = (myRoles ?? []).map((r: any) => r.role);
-  if (!roles.some((r: string) => r === "gestor" || r === "admin" || r === "super_admin")) {
-    throw new Error("Só gestor, admin ou super admin podem gerenciar equipes.");
+  if (!roles.some((r: string) => r === "gestor" || r === "team_leader" || r === "admin" || r === "super_admin")) {
+    throw new Error("Só gestor, team leader, admin ou super admin podem gerenciar equipes.");
   }
 }
 
@@ -45,7 +45,9 @@ export const listGestores = createServerFn({ method: "GET" })
     await assertCanManageTeams(supabase, userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: gestorRoles, error: rErr } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "gestor");
+    // Candidatos a "Team Leader" de uma equipe: quem já tem papel gestor OU team_leader
+    // (enforce_team_leader_role no banco só aceita um desses dois pra teams.lider_id).
+    const { data: gestorRoles, error: rErr } = await supabaseAdmin.from("user_roles").select("user_id").in("role", ["gestor", "team_leader"]);
     if (rErr) throw new Error(rErr.message);
 
     const ids = Array.from(new Set((gestorRoles ?? []).map((r: any) => r.user_id)));

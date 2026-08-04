@@ -32,12 +32,13 @@ type Profile = { id: string; nome: string; email: string | null };
 
 function EquipesPage() {
   const { user, hasAny } = useAuth();
-  const allowed = hasAny(["gestor", "admin", "super_admin"]);
+  const allowed = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
   const isAdminLike = hasAny(["admin", "super_admin"]);
   const listGestoresFn = useServerFn(listGestores);
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<{ team_id: string; membro_id: string }[]>([]);
+  const [coLeaders, setCoLeaders] = useState<{ team_id: string; user_id: string }[]>([]);
   const [allSales, setAllSales] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [gestores, setGestores] = useState<Profile[]>([]);
@@ -46,26 +47,30 @@ function EquipesPage() {
 
   const [formState, setFormState] = useState<{ mode: "create" | "create-sub" | "edit"; parent?: Team; initial?: Team } | null>(null);
   const [membrosTeam, setMembrosTeam] = useState<Team | null>(null);
+  const [coLideresTeam, setCoLideresTeam] = useState<Team | null>(null);
   const [desempenhoTeam, setDesempenhoTeam] = useState<Team | null>(null);
   const [deleteTeam, setDeleteTeam] = useState<Team | null>(null);
 
   const load = useCallback(async () => {
     if (!allowed) { setLoading(false); return; }
     setLoading(true);
-    const [{ data: t }, { data: tm }, salesRes] = await Promise.all([
+    const [{ data: t }, { data: tm }, { data: cl }, salesRes] = await Promise.all([
       supabase.from("teams").select("id, nome, cor, lider_id, parent_team_id").order("created_at", { ascending: true }),
       supabase.from("team_members").select("team_id, membro_id"),
+      supabase.from("team_co_leaders").select("team_id, user_id"),
       isAdminLike
         ? supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao")
         : Promise.resolve({ data: [] as any[] }),
     ]);
     setTeams(t ?? []);
     setMembers(tm ?? []);
+    setCoLeaders(cl ?? []);
     setAllSales(salesRes.data ?? []);
 
     const ids = new Set<string>();
     (t ?? []).forEach((x: any) => ids.add(x.lider_id));
     (tm ?? []).forEach((x: any) => ids.add(x.membro_id));
+    (cl ?? []).forEach((x: any) => ids.add(x.user_id));
     (salesRes.data ?? []).forEach((s: any) => ids.add(s.corretor_id));
     const idList = Array.from(ids);
     const { data: profs } = idList.length
@@ -90,6 +95,12 @@ function EquipesPage() {
     return map;
   }, [members]);
 
+  const coLeadersByTeam = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    coLeaders.forEach((c) => { (map[c.team_id] ??= []).push(c.user_id); });
+    return map;
+  }, [coLeaders]);
+
   const childrenByParent = useMemo(() => {
     const map: Record<string, Team[]> = {};
     teams.forEach((t) => { if (t.parent_team_id) (map[t.parent_team_id] ??= []).push(t); });
@@ -98,14 +109,18 @@ function EquipesPage() {
 
   const topLevel = useMemo(() => teams.filter((t) => !t.parent_team_id), [teams]);
 
-  // Gestor só gerencia a própria equipe (e sub-equipes dela); admin/super_admin gerenciam tudo.
-  // Espelha exatamente a regra da RLS (teams_write), então nunca mostra um botão que a API recusaria.
+  // Gestor (ou líder auxiliar — "braço direito") gerencia a própria equipe e sub-equipes dela;
+  // admin/super_admin gerenciam tudo. Espelha exatamente a regra da RLS (leads_team_or_parent),
+  // então nunca mostra um botão que a API recusaria.
   const canManageTeam = useCallback((team: Team) => {
     if (isAdminLike) return true;
-    if (team.lider_id === user?.id) return true;
+    if (!user?.id) return false;
+    if (team.lider_id === user.id) return true;
+    if ((coLeadersByTeam[team.id] ?? []).includes(user.id)) return true;
     const parent = team.parent_team_id ? teams.find((t) => t.id === team.parent_team_id) : null;
-    return parent?.lider_id === user?.id;
-  }, [isAdminLike, user?.id, teams]);
+    if (!parent) return false;
+    return parent.lider_id === user.id || (coLeadersByTeam[parent.id] ?? []).includes(user.id);
+  }, [isAdminLike, user?.id, teams, coLeadersByTeam]);
 
   // Pro seletor de "Team Leader": admin escolhe qualquer gestor; gestor só pode se nomear a si mesmo.
   const liderOptions = useMemo(() => (isAdminLike ? gestores : gestores.filter((g) => g.id === user?.id)), [isAdminLike, gestores, user?.id]);
@@ -130,7 +145,7 @@ function EquipesPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a gestores e administradores.
+          Esta área é restrita a gestores, team leaders e administradores.
         </CardContent>
       </Card>
     );
@@ -178,9 +193,11 @@ function EquipesPage() {
               team={team}
               profiles={profiles}
               membersByTeam={membersByTeam}
+              coLeadersByTeam={coLeadersByTeam}
               subTeams={childrenByParent[team.id] ?? []}
               canManageTeam={canManageTeam}
               onMembros={setMembrosTeam}
+              onCoLideres={setCoLideresTeam}
               onDesempenho={setDesempenhoTeam}
               onCreateSub={(t) => setFormState({ mode: "create-sub", parent: t })}
               onEdit={(t) => setFormState({ mode: "edit", initial: t })}
@@ -214,6 +231,17 @@ function EquipesPage() {
           membroIds={membersByTeam[membrosTeam.id] ?? []}
           profiles={profiles}
           onOpenChange={(open) => { if (!open) setMembrosTeam(null); }}
+          onChanged={load}
+        />
+      )}
+
+      {coLideresTeam && (
+        <CoLideresDialog
+          team={coLideresTeam}
+          coLiderIds={coLeadersByTeam[coLideresTeam.id] ?? []}
+          gestores={gestores}
+          profiles={profiles}
+          onOpenChange={(open) => { if (!open) setCoLideresTeam(null); }}
           onChanged={load}
         />
       )}
@@ -323,14 +351,16 @@ function VisaoGeralCard({
 }
 
 function TeamCard({
-  team, profiles, membersByTeam, subTeams, canManageTeam, onMembros, onDesempenho, onCreateSub, onEdit, onDelete,
+  team, profiles, membersByTeam, coLeadersByTeam, subTeams, canManageTeam, onMembros, onCoLideres, onDesempenho, onCreateSub, onEdit, onDelete,
 }: {
   team: Team;
   profiles: Record<string, Profile>;
   membersByTeam: Record<string, string[]>;
+  coLeadersByTeam: Record<string, string[]>;
   subTeams: Team[];
   canManageTeam: (t: Team) => boolean;
   onMembros: (t: Team) => void;
+  onCoLideres: (t: Team) => void;
   onDesempenho: (t: Team) => void;
   onCreateSub: (t: Team) => void;
   onEdit: (t: Team) => void;
@@ -340,7 +370,7 @@ function TeamCard({
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
-        <TeamRow team={team} profiles={profiles} memberCount={(membersByTeam[team.id] ?? []).length} />
+        <TeamRow team={team} profiles={profiles} memberCount={(membersByTeam[team.id] ?? []).length} coLiderIds={coLeadersByTeam[team.id] ?? []} />
         {manageable ? (
           <div className="flex flex-wrap gap-1.5 border-t pt-3">
             <Button size="icon" variant="outline" title="Ver equipe" onClick={() => onMembros(team)}>
@@ -348,6 +378,9 @@ function TeamCard({
             </Button>
             <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => onMembros(team)}>
               <UserPlus className="h-3.5 w-3.5" />Membros
+            </Button>
+            <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => onCoLideres(team)}>
+              <Crown className="h-3.5 w-3.5" />Líder auxiliar
             </Button>
             <Button size="icon" variant="outline" title="Desempenho" onClick={() => onDesempenho(team)}>
               <TrendingUp className="h-4 w-4" />
@@ -363,7 +396,7 @@ function TeamCard({
             </Button>
           </div>
         ) : (
-          <p className="border-t pt-3 text-xs text-muted-foreground">Equipe-mãe — gerenciada por {profiles[team.lider_id]?.nome || "outro gestor"}.</p>
+          <p className="border-t pt-3 text-xs text-muted-foreground">Equipe-mãe — gerenciada por {profiles[team.lider_id]?.nome || "outro líder"}.</p>
         )}
 
         {subTeams.length > 0 && (
@@ -371,7 +404,7 @@ function TeamCard({
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sub-equipes</div>
             {subTeams.map((sub) => (
               <div key={sub.id} className="space-y-2 rounded-md border p-3">
-                <TeamRow team={sub} profiles={profiles} memberCount={(membersByTeam[sub.id] ?? []).length} compact />
+                <TeamRow team={sub} profiles={profiles} memberCount={(membersByTeam[sub.id] ?? []).length} coLiderIds={coLeadersByTeam[sub.id] ?? []} compact />
                 {canManageTeam(sub) ? (
                   <div className="flex flex-wrap gap-1.5">
                     <Button size="icon" variant="outline" title="Ver equipe" onClick={() => onMembros(sub)}>
@@ -379,6 +412,9 @@ function TeamCard({
                     </Button>
                     <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => onMembros(sub)}>
                       <UserPlus className="h-3.5 w-3.5" />Membros
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => onCoLideres(sub)}>
+                      <Crown className="h-3.5 w-3.5" />Líder auxiliar
                     </Button>
                     <Button size="icon" variant="outline" title="Desempenho" onClick={() => onDesempenho(sub)}>
                       <TrendingUp className="h-4 w-4" />
@@ -391,7 +427,7 @@ function TeamCard({
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Gerenciada por {profiles[sub.lider_id]?.nome || "outro gestor"}.</p>
+                  <p className="text-xs text-muted-foreground">Gerenciada por {profiles[sub.lider_id]?.nome || "outro líder"}.</p>
                 )}
               </div>
             ))}
@@ -402,8 +438,9 @@ function TeamCard({
   );
 }
 
-function TeamRow({ team, profiles, memberCount, compact }: { team: Team; profiles: Record<string, Profile>; memberCount: number; compact?: boolean }) {
+function TeamRow({ team, profiles, memberCount, coLiderIds, compact }: { team: Team; profiles: Record<string, Profile>; memberCount: number; coLiderIds?: string[]; compact?: boolean }) {
   const leader = profiles[team.lider_id];
+  const coLideres = (coLiderIds ?? []).map((id) => profiles[id]?.nome || profiles[id]?.email || id).filter(Boolean);
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -414,6 +451,12 @@ function TeamRow({ team, profiles, memberCount, compact }: { team: Team; profile
         <Crown className="h-3.5 w-3.5" />
         <span>Team Leader: {leader?.nome || leader?.email || "—"}</span>
       </div>
+      {coLideres.length > 0 && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Crown className="h-3.5 w-3.5" />
+          <span>Líder(es) auxiliar(es): {coLideres.join(", ")}</span>
+        </div>
+      )}
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Users className="h-3.5 w-3.5" />
         <span>{memberCount} membros</span>
@@ -496,7 +539,7 @@ function TeamFormDialog({
                 {gestores.map((g) => <SelectItem key={g.id} value={g.id}>{g.nome || g.email}</SelectItem>)}
               </SelectContent>
             </Select>
-            {gestores.length === 0 && <p className="mt-1 text-xs text-muted-foreground">Nenhum usuário com papel gestor cadastrado ainda.</p>}
+            {gestores.length === 0 && <p className="mt-1 text-xs text-muted-foreground">Nenhum usuário com papel gestor ou team leader cadastrado ainda.</p>}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={saving || !nome.trim() || !liderId}>{saving ? "Salvando..." : "Salvar"}</Button>
@@ -594,6 +637,99 @@ function MembrosDialog({
               ) : (
                 <Select value={selecionado} onValueChange={setSelecionado}>
                   <SelectTrigger><SelectValue placeholder="Selecione um corretor" /></SelectTrigger>
+                  <SelectContent>
+                    {candidatos.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome || c.email}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <Button onClick={adicionar} disabled={!selecionado || busy}>Adicionar</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Líder auxiliar ("braço direito"): mesmas capacidades do líder principal, só que escopadas a
+// essa equipe (via team_co_leaders + leads_team_or_parent/is_lead_of no banco). Candidato precisa
+// já ter papel gestor/team_leader — mesma exigência do líder principal.
+function CoLideresDialog({
+  team, coLiderIds, gestores, profiles, onOpenChange, onChanged,
+}: {
+  team: Team;
+  coLiderIds: string[];
+  gestores: Profile[];
+  profiles: Record<string, Profile>;
+  onOpenChange: (open: boolean) => void;
+  onChanged: () => void;
+}) {
+  const [selecionado, setSelecionado] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const candidatos = useMemo(
+    () => gestores.filter((g) => g.id !== team.lider_id && !coLiderIds.includes(g.id)),
+    [gestores, team.lider_id, coLiderIds],
+  );
+
+  const adicionar = async () => {
+    if (!selecionado) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("team_co_leaders").insert({ team_id: team.id, user_id: selecionado });
+      if (error) throw error;
+      toast.success("Líder auxiliar adicionado");
+      setSelecionado("");
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao adicionar líder auxiliar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remover = async (userId: string) => {
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("team_co_leaders").delete().eq("team_id", team.id).eq("user_id", userId);
+      if (error) throw error;
+      toast.success("Líder auxiliar removido");
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message ?? "Falha ao remover líder auxiliar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Líderes auxiliares — {team.nome}</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          O líder auxiliar tem as mesmas permissões do líder principal (cadastrar corretor, aprovar/devolver venda,
+          mandar pro jurídico etc.), mas só dentro desta equipe.
+        </p>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            {coLiderIds.length === 0 && <p className="text-sm text-muted-foreground">Nenhum líder auxiliar nesta equipe ainda.</p>}
+            {coLiderIds.map((id) => (
+              <div key={id} className="flex items-center justify-between rounded border p-2 text-sm">
+                <span>{profiles[id]?.nome || profiles[id]?.email || id}</span>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => remover(id)} title="Remover como líder auxiliar">
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-end gap-2 border-t pt-3">
+            <div className="flex-1">
+              <Label>Adicionar líder auxiliar</Label>
+              {candidatos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum gestor/team leader disponível para adicionar.</p>
+              ) : (
+                <Select value={selecionado} onValueChange={setSelecionado}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um gestor/team leader" /></SelectTrigger>
                   <SelectContent>
                     {candidatos.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome || c.email}</SelectItem>)}
                   </SelectContent>

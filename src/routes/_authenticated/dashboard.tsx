@@ -85,8 +85,8 @@ function Dashboard() {
     })();
   }, [user]);
 
-  const isCorretor = hasAny(["corretor"]) && !hasAny(["gestor", "juridico", "financeiro", "admin", "super_admin"]);
-  const isGestor = hasAny(["gestor"]);
+  const isCorretor = hasAny(["corretor"]) && !hasAny(["gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"]);
+  const isGestor = hasAny(["gestor", "team_leader"]);
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
@@ -103,7 +103,7 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">Olá, {(user && profileName[user.id]) || user?.email?.split("@")[0]}</h1>
           <p className="text-sm text-muted-foreground">Perfis: {roles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</p>
         </div>
-        {hasAny(["corretor", "gestor"]) && (
+        {hasAny(["corretor", "gestor", "team_leader"]) && (
           <Button asChild>
             <Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link>
           </Button>
@@ -249,6 +249,7 @@ function Dashboard() {
             const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
               papel === "corretor" ? s.corretor_id === user?.id
               : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
+              : papel === "gestor" ? hasAny(["gestor", "team_leader"])
               : hasAny([papel])
             );
             return (

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const ROLES = ["corretor", "gestor", "juridico", "financeiro", "admin", "super_admin"] as const;
+const ROLES = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"] as const;
 type Role = (typeof ROLES)[number];
 
 const schema = z.object({
@@ -21,8 +21,8 @@ const resetPasswordSchema = z.object({
 
 function allowedRolesFor(callerRoles: Role[]): Role[] {
   if (callerRoles.includes("super_admin")) return [...ROLES];
-  if (callerRoles.includes("admin")) return ["corretor", "gestor", "juridico", "financeiro"];
-  if (callerRoles.includes("gestor")) return ["corretor"];
+  if (callerRoles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
+  if (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) return ["corretor"];
   return [];
 }
 
@@ -75,9 +75,9 @@ export const createUser = createServerFn({ method: "POST" })
       if (insErr) throw new Error(insErr.message);
     }
 
-    // Gestor criando corretor: vincula automaticamente à equipe principal dele
+    // Gestor/team leader criando corretor: vincula automaticamente à equipe principal dele
     // (a de nível 1 que ele já lidera; cria uma se ainda não existir nenhuma).
-    if (callerRoles.includes("gestor") && !callerRoles.includes("admin") && !callerRoles.includes("super_admin") && data.role === "corretor") {
+    if ((callerRoles.includes("gestor") || callerRoles.includes("team_leader")) && !callerRoles.includes("admin") && !callerRoles.includes("super_admin") && data.role === "corretor") {
       const { data: existingTeam } = await supabaseAdmin
         .from("teams")
         .select("id")
@@ -156,7 +156,7 @@ export const listLastSignIns = createServerFn({ method: "GET" })
       .eq("user_id", userId);
     if (rolesErr) throw new Error(rolesErr.message);
     const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
-    if (!callerRoles.some((r) => (["admin", "super_admin", "gestor"] as Role[]).includes(r))) {
+    if (!callerRoles.some((r) => (["admin", "super_admin", "gestor", "team_leader"] as Role[]).includes(r))) {
       throw new Error("Você não tem permissão para ver essa informação.");
     }
 

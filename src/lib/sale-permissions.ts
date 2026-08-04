@@ -14,7 +14,9 @@ export function getSaleRoleFlags(
       (["financeiro", "admin", "super_admin"] as AppRole[]).includes(r),
     ),
     isAdminLike: roles.some((r) => (["admin", "super_admin"] as AppRole[]).includes(r)),
-    isGestor: roles.includes("gestor"),
+    // team_leader tem exatamente as mesmas permissões de gestor em toda a venda (ver policies/
+    // funções espelhadas na migration team_leader_same_perms_as_gestor).
+    isGestor: roles.some((r) => (["gestor", "team_leader"] as AppRole[]).includes(r)),
     isJuridico: roles.includes("juridico"),
   };
 }

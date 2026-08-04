@@ -19,7 +19,7 @@ export function canDeleteSale(
   if (sale.status && !STATUS_EXCLUIVEIS.includes(sale.status)) return false;
   if (hasAny(["super_admin", "admin", "financeiro"])) return true;
   if (sale.corretor_id === userId) return true;
-  if (hasAny(["gestor"]) && sale.corretor_id && teamMemberIds.has(sale.corretor_id)) return true;
+  if (hasAny(["gestor", "team_leader"]) && sale.corretor_id && teamMemberIds.has(sale.corretor_id)) return true;
   return false;
 }
 

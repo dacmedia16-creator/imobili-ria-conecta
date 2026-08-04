@@ -59,7 +59,7 @@ function MeuAcesso() {
       const mapAtualizacao: Partial<Record<AppRole, boolean>> = {};
       for (const r of data ?? []) {
         map[r.role as AppRole] = r.notificar_whatsapp ?? true;
-        mapAtualizacao[r.role as AppRole] = r.notificar_toda_atualizacao ?? (r.role === "corretor" || r.role === "gestor");
+        mapAtualizacao[r.role as AppRole] = r.notificar_toda_atualizacao ?? (r.role === "corretor" || r.role === "gestor" || r.role === "team_leader");
       }
       setNotifPorPapel(map);
       setNotifAtualizacaoPorPapel(mapAtualizacao);
@@ -161,13 +161,18 @@ function MeuAcesso() {
 
     const liderIds = [team.lider_id];
     let parentNome: string | null = null;
+    const teamIdsForCoLideres = [tm.team_id];
     if (team.parent_team_id) {
       const { data: parent } = await supabase.from("teams").select("nome, lider_id").eq("id", team.parent_team_id).maybeSingle();
       if (parent) {
         parentNome = parent.nome;
         liderIds.push(parent.lider_id);
+        teamIdsForCoLideres.push(team.parent_team_id);
       }
     }
+    // Líder auxiliar ("braço direito") aparece aqui igual ao líder principal.
+    const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
+    (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
     const uniqueIds = Array.from(new Set(liderIds));
     const { data: profs } = await supabase.from("profiles").select("id, nome, email").in("id", uniqueIds);
     setMyTeam({ nome: team.nome, parentNome, lideres: profs ?? [] });
@@ -179,6 +184,7 @@ function MeuAcesso() {
     switch (r) {
       case "corretor": return "Você vê apenas as vendas onde você é o corretor responsável, e só edita rascunhos ou vendas devolvidas para ajuste.";
       case "gestor": return "Você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
+      case "team_leader": return "Mesmas permissões do gestor: você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
       case "juridico": return "Você vê todas as vendas a partir de \"aprovada pelo gestor\" e conduz elaboração, assinatura e envio para o financeiro.";
       case "financeiro": return "Você vê todas as vendas e é quem trava/libera a edição via ocorrência.";
       case "admin": return "Você vê e edita tudo. Não pode conceder o papel Admin ou Super Admin — só o Super Admin pode.";
@@ -291,6 +297,7 @@ function MeuAcesso() {
               const todaAtualizacaoLabel =
                 r === "corretor" ? "A cada atualização das suas vendas" :
                 r === "gestor" ? "A cada atualização das vendas da sua equipe" :
+                r === "team_leader" ? "A cada atualização das vendas da sua equipe" :
                 r === "juridico" ? "A cada atualização das vendas que já chegaram até você" :
                 r === "financeiro" ? "A cada atualização de todas as vendas" :
                 null;
@@ -311,7 +318,7 @@ function MeuAcesso() {
                     <div className="mt-2 flex items-center justify-between border-t pt-2">
                       <span className="text-xs text-muted-foreground">{todaAtualizacaoLabel} (sino e WhatsApp)</span>
                       <Switch
-                        checked={notifAtualizacaoPorPapel[r] ?? (r === "corretor" || r === "gestor")}
+                        checked={notifAtualizacaoPorPapel[r] ?? (r === "corretor" || r === "gestor" || r === "team_leader")}
                         disabled={savingNotif === `${r}:notificar_toda_atualizacao`}
                         onCheckedChange={(v) => alternarNotifCampo(r, "notificar_toda_atualizacao", v)}
                       />
@@ -340,11 +347,11 @@ function MeuAcesso() {
         </CardContent>
       </Card>
 
-      {hasAny(["corretor", "gestor"]) && (
+      {hasAny(["corretor", "gestor", "team_leader"]) && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Minha equipe</CardTitle>
-            {hasAny(["gestor", "admin", "super_admin"]) && (
+            {hasAny(["gestor", "team_leader", "admin", "super_admin"]) && (
               <Link to="/equipe" className="text-xs text-primary hover:underline">Gerenciar equipes →</Link>
             )}
           </CardHeader>
