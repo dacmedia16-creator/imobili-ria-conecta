@@ -47,7 +47,8 @@ function SaleDetail() {
   const [sale, setSale] = useState<any>(null);
   const [parties, setParties] = useState<Record<string, any>>({});
   const [payment, setPayment] = useState<any>(null);
-  const [bank, setBank] = useState<any>(null);
+  // Uma conta bancária por vendedor/proprietário (parte "vendedor_N"), não mais uma por venda.
+  const [banks, setBanks] = useState<Record<string, any>>({});
   const [docs, setDocs] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -195,7 +196,7 @@ function SaleDetail() {
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
-      supabase.from("sale_bank_accounts").select("*").eq("sale_id", id).maybeSingle(),
+      supabase.from("sale_bank_accounts").select("*").eq("sale_id", id),
       supabase.from("sale_documents").select("*").eq("sale_id", id).is("deleted_at", null).order("created_at"),
       supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
@@ -222,7 +223,9 @@ function SaleDetail() {
     (p.data ?? []).forEach((row: any) => { partyMap[row.papel] = row; });
     setParties(partyMap);
     setPayment(pay.data ?? {});
-    setBank(ba.data ?? {});
+    const bankMap: Record<string, any> = {};
+    (ba.data ?? []).forEach((row: any) => { bankMap[row.parte] = row; });
+    setBanks(bankMap);
     setDocs(d.data ?? []);
     setComments(c.data ?? []);
     setHistory(h.data ?? []);
@@ -1211,6 +1214,7 @@ function SaleDetail() {
         <PartiesStep
           saleId={id}
           parties={parties}
+          banks={banks}
           editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("partes", fn)}
@@ -1225,8 +1229,6 @@ function SaleDetail() {
         <PaymentStep
           saleId={id}
           payment={payment}
-          bank={bank}
-          parties={parties}
           editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("pagamento", fn)}
@@ -1634,11 +1636,22 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Dados bancários do vendedor/proprietário">
-              <ReviewItem label="Titular" value={bank?.titular} />
-              <ReviewItem label="Banco" value={bank?.banco} />
-              <ReviewItem label="Agência" value={bank?.agencia} />
-              <ReviewItem label="Conta" value={bank?.conta} />
-              <ReviewItem label="PIX" value={bank?.pix} />
+              {Object.keys(parties).filter((p) => p.startsWith("vendedor_")).sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1]).map((papel, i, arr) => {
+                const b = banks[papel];
+                return (
+                  <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
+                    <div className="mb-1 font-medium">{parteLabel(papel)}</div>
+                    <ReviewItem label="Titular" value={b?.titular} />
+                    <ReviewItem label="Banco" value={b?.banco} />
+                    <ReviewItem label="Agência" value={b?.agencia} />
+                    <ReviewItem label="Conta" value={b?.conta} />
+                    <ReviewItem label="PIX" value={b?.pix} />
+                  </div>
+                );
+              })}
+              {Object.keys(parties).filter((p) => p.startsWith("vendedor_")).length === 0 && (
+                <ReviewItem label="Nenhum vendedor/proprietário preenchido" value={null} />
+              )}
             </ReviewGroup>
 
             <ReviewGroup title="Documentos">

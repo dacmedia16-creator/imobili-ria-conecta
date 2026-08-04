@@ -425,6 +425,7 @@ export type Database = {
           conta: string | null
           created_at: string
           id: string
+          parte: string
           pix: string | null
           sale_id: string
           titular: string | null
@@ -435,6 +436,7 @@ export type Database = {
           conta?: string | null
           created_at?: string
           id?: string
+          parte: string
           pix?: string | null
           sale_id: string
           titular?: string | null
@@ -445,6 +447,7 @@ export type Database = {
           conta?: string | null
           created_at?: string
           id?: string
+          parte?: string
           pix?: string | null
           sale_id?: string
           titular?: string | null

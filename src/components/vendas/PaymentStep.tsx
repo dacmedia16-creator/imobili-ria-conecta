@@ -1,47 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Wizard } from "@/components/Wizard";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field, CurrencyInput } from "./shared";
 
-export function PaymentStep({ saleId, payment, bank, parties, editable, onSaved, registerSaver, onDirtyChange }: {
-  saleId: string; payment: any; bank: any; parties: Record<string, any>; editable: boolean; onSaved: () => void;
+export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver, onDirtyChange }: {
+  saleId: string; payment: any; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const [p, setP] = useState<any>(payment ?? {});
-  const [b, setB] = useState<any>(bank ?? {});
   const [dp, setDp] = useState(false);
-  const [db, setDb] = useState(false);
   const [saving, setSaving] = useState(false);
-  const dirty = dp || db;
+  const dirty = dp;
 
   // Não sincroniza por cima de uma edição local ainda não salva: o pai recarrega os dados da venda
   // (load()) por várias ações que não têm nada a ver com esta aba (upload de contrato, troca de
-  // status em outra etapa, etc.) — sem essa trava, a prop "payment"/"bank" chegava com um objeto
-  // novo a cada reload e apagava silenciosamente o que a pessoa estava digitando aqui, cancelando
-  // o autosave agendado (dirty virava false e o useAutosave desistia do timer pendente).
+  // status em outra etapa, etc.) — sem essa trava, a prop "payment" chegava com um objeto novo a
+  // cada reload e apagava silenciosamente o que a pessoa estava digitando aqui, cancelando o
+  // autosave agendado (dirty virava false e o useAutosave desistia do timer pendente).
   useEffect(() => { if (!dp) setP(payment ?? {}); }, [payment]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!db) setB(bank ?? {}); }, [bank]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
 
   const updP = (k: string, v: any) => { setP((f: any) => ({ ...f, [k]: v })); setDp(true); };
-  const updB = (k: string, v: any) => { setB((f: any) => ({ ...f, [k]: v })); setDb(true); };
-
-  // Titular da conta quase sempre é o próprio vendedor, já cadastrado na etapa "Partes" —
-  // evita digitar o nome de novo.
-  const pullTitular = () => {
-    const nome = parties?.vendedor_1?.nome;
-    if (!nome) { toast.error("Preencha o nome do vendedor/proprietário na etapa Partes primeiro"); return; }
-    updB("titular", nome);
-    toast.success("Nome do vendedor/proprietário aplicado ao titular");
-  };
 
   const save = useCallback(async (): Promise<boolean> => {
     setSaving(true);
@@ -50,35 +34,20 @@ export function PaymentStep({ saleId, payment, bank, parties, editable, onSaved,
         const { error } = await supabase.from("sale_payment").upsert({ sale_id: saleId, ...p });
         if (error) { toast.error(error.message); return false; }
       }
-      if (db) {
-        const existing = bank?.id ? bank : null;
-        const { error } = existing
-          ? await supabase.from("sale_bank_accounts").update(b).eq("id", existing.id)
-          : await supabase.from("sale_bank_accounts").insert({ sale_id: saleId, ...b });
-        if (error) { toast.error(error.message); return false; }
-      }
-      setDp(false); setDb(false);
+      setDp(false);
       onSaved();
       return true;
     } finally {
       setSaving(false);
     }
-  }, [dp, db, p, b, bank, saleId, onSaved]);
+  }, [dp, p, saleId, onSaved]);
 
   useEffect(() => { registerSaver(save); return () => registerSaver(null); }, [save, registerSaver]);
-  useAutosave(editable && dirty, [p, b], save);
-
-  const [activeBlock, setActiveBlock] = useState<"forma" | "banco">("forma");
+  useAutosave(editable && dirty, [p], save);
 
   return (
     <div className="space-y-4">
       {editable && <AutosaveStatus saving={saving} dirty={dirty} />}
-      <Wizard
-        steps={[
-          {
-            key: "forma",
-            label: "Forma de pagamento",
-            content: (
       <Card>
         <CardHeader><CardTitle className="text-base">Forma de pagamento</CardTitle></CardHeader>
         <CardContent>
@@ -153,45 +122,7 @@ export function PaymentStep({ saleId, payment, bank, parties, editable, onSaved,
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
         </CardContent>
-        <CardContent className="flex justify-end pt-0">
-          <Button size="sm" variant="ghost" onClick={() => setActiveBlock("banco")}>
-            Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
-          </Button>
-        </CardContent>
       </Card>
-            ),
-          },
-          {
-            key: "banco",
-            label: "Dados bancários do vendedor/proprietário",
-            content: (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Dados bancários do vendedor/proprietário</CardTitle>
-          {editable && <Button size="sm" variant="outline" onClick={pullTitular}>Puxar nome do vendedor/proprietário</Button>}
-        </CardHeader>
-        <CardContent>
-          <FieldGrid>
-            <Field label="Titular"><Input value={b.titular ?? ""} onChange={(e) => updB("titular", e.target.value)} disabled={!editable} /></Field>
-            <Field label="Banco"><Input value={b.banco ?? ""} onChange={(e) => updB("banco", e.target.value)} disabled={!editable} /></Field>
-            <Field label="Agência"><Input value={b.agencia ?? ""} onChange={(e) => updB("agencia", e.target.value)} disabled={!editable} /></Field>
-            <Field label="Conta"><Input value={b.conta ?? ""} onChange={(e) => updB("conta", e.target.value)} disabled={!editable} /></Field>
-            <Field label="PIX" colSpan={2}><Input value={b.pix ?? ""} onChange={(e) => updB("pix", e.target.value)} disabled={!editable} /></Field>
-          </FieldGrid>
-        </CardContent>
-        <CardContent className="flex justify-end pt-0">
-          <Button size="sm" variant="ghost" onClick={() => setActiveBlock("forma")}>
-            <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
-          </Button>
-        </CardContent>
-      </Card>
-            ),
-          },
-        ]}
-        current={activeBlock}
-        onChange={(k) => setActiveBlock(k as "forma" | "banco")}
-        hideNav
-      />
     </div>
   );
 }

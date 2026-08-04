@@ -18,8 +18,8 @@ const partePapelSort = (a: string, b: string) => {
 // -------- Partes step (buffered) --------
 // Compradores e vendedores são em número livre — o corretor adiciona quantos precisar, um bloco
 // (nested Wizard) por pessoa, e só o "_1" de cada lado é obrigatório/fixo.
-export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver, onDirtyChange }: {
-  saleId: string; parties: Record<string, any>; editable: boolean; onSaved: () => void;
+export function PartiesStep({ saleId, parties, banks, editable, onSaved, registerSaver, onDirtyChange }: {
+  saleId: string; parties: Record<string, any>; banks: Record<string, any>; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const [papeis, setPapeis] = useState<string[]>(() => {
@@ -34,6 +34,43 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
   const [saving, setSaving] = useState(false);
+
+  // Conta bancária de cada vendedor/proprietário — mesmo esquema buffered/dirty/autosave das
+  // partes, só que guardado à parte (tabela sale_bank_accounts, uma linha por parte "vendedor_N").
+  const [bankForms, setBankForms] = useState<Record<string, any>>(() => {
+    const m: Record<string, any> = {};
+    papeis.forEach(p => { if (p.startsWith("vendedor_")) m[p] = banks[p] ?? {}; });
+    return m;
+  });
+  const [bankDirty, setBankDirty] = useState<Record<string, boolean>>({});
+  const anyBankDirty = useMemo(() => Object.values(bankDirty).some(Boolean), [bankDirty]);
+
+  useEffect(() => {
+    setBankForms((prev) => {
+      const m: Record<string, any> = { ...prev };
+      for (const p of papeis) {
+        if (!p.startsWith("vendedor_")) continue;
+        m[p] = bankDirty[p] ? prev[p] : (banks[p] ?? prev[p] ?? {});
+      }
+      return m;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [banks]);
+
+  const updBank = (papel: string, k: string, v: string) => {
+    setBankForms(f => ({ ...f, [papel]: { ...f[papel], [k]: v } }));
+    setBankDirty(d => ({ ...d, [papel]: true }));
+  };
+
+  // "Usar mesma conta de": copia banco/agência/conta/pix de outro vendedor já preenchido nesta
+  // venda — não fica "linkado", só copia o valor atual (mesmo padrão de "puxar dado" já usado em
+  // outras etapas, ex. PaymentStep.pullTitular).
+  const copiarContaDe = (papel: string, deOutroPapel: string) => {
+    const origem = bankForms[deOutroPapel];
+    if (!origem) return;
+    setBankForms(f => ({ ...f, [papel]: { ...f[papel], banco: origem.banco ?? null, agencia: origem.agencia ?? null, conta: origem.conta ?? null, pix: origem.pix ?? null } }));
+    setBankDirty(d => ({ ...d, [papel]: true }));
+  };
 
   // Não sincroniza por cima de uma parte com edição local não salva: "parties" chega com objeto
   // novo a cada load() do pai, disparado por ações sem relação com esta aba (upload de contrato,
@@ -53,7 +90,8 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parties]);
 
-  useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
+  const anyDirtyTotal = anyDirty || anyBankDirty;
+  useEffect(() => { onDirtyChange(anyDirtyTotal); }, [anyDirtyTotal, onDirtyChange]);
 
   const update = (papel: string, k: string, v: string) => {
     setForms(f => ({ ...f, [papel]: { ...f[papel], [k]: v } }));
@@ -67,6 +105,7 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
     const novoPapel = `${tipo}_${(nums.length ? Math.max(...nums) : 0) + 1}`;
     setPapeis((prev) => [...prev, novoPapel].sort(partePapelSort));
     setForms((f) => ({ ...f, [novoPapel]: {} }));
+    if (tipo === "vendedor") setBankForms((f) => ({ ...f, [novoPapel]: {} }));
     setActivePapel(novoPapel);
   };
 
@@ -76,10 +115,17 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
       const { error } = await supabase.from("sale_parties").delete().eq("id", existing.id);
       if (error) { toast.error(error.message); return; }
     }
+    const existingBank = banks[papel];
+    if (existingBank?.id) {
+      const { error } = await supabase.from("sale_bank_accounts").delete().eq("id", existingBank.id);
+      if (error) { toast.error(error.message); return; }
+    }
     const idx = papeis.indexOf(papel);
     setPapeis((prev) => prev.filter((p) => p !== papel));
     setForms((f) => { const n = { ...f }; delete n[papel]; return n; });
     setDirty((d) => { const n = { ...d }; delete n[papel]; return n; });
+    setBankForms((f) => { const n = { ...f }; delete n[papel]; return n; });
+    setBankDirty((d) => { const n = { ...d }; delete n[papel]; return n; });
     if (activePapel === papel) setActivePapel(papeis[idx - 1] ?? papeis[idx + 1] ?? papeis[0]);
     toast.success("Removido");
     onSaved();
@@ -102,23 +148,43 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
           : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
         if (error) { toast.error(error.message); return false; }
       }
+      for (const papel of papeis) {
+        if (!papel.startsWith("vendedor_") || !bankDirty[papel]) continue;
+        const existingBank = banks[papel];
+        // Titular vem do próprio nome já cadastrado acima — não é campo redigitado à parte.
+        const bankData = {
+          titular: forms[papel]?.nome ?? null,
+          banco: bankForms[papel]?.banco ?? null,
+          agencia: bankForms[papel]?.agencia ?? null,
+          conta: bankForms[papel]?.conta ?? null,
+          pix: bankForms[papel]?.pix ?? null,
+        };
+        const { error } = existingBank
+          ? await supabase.from("sale_bank_accounts").update(bankData).eq("id", existingBank.id)
+          : await supabase.from("sale_bank_accounts").insert({ sale_id: saleId, parte: papel, ...bankData });
+        if (error) { toast.error(error.message); return false; }
+      }
       setDirty({});
+      setBankDirty({});
       onSaved();
       return true;
     } finally {
       setSaving(false);
     }
-  }, [dirty, forms, papeis, parties, saleId, onSaved]);
+  }, [dirty, forms, papeis, parties, saleId, onSaved, bankDirty, bankForms, banks]);
 
   useEffect(() => { registerSaver(saveAll); return () => registerSaver(null); }, [saveAll, registerSaver]);
-  useAutosave(editable && anyDirty, [forms, dirty], saveAll);
+  useAutosave(editable && anyDirtyTotal, [forms, dirty, bankForms, bankDirty], saveAll);
 
   return (
     <div className="space-y-4">
-      {editable && <AutosaveStatus saving={saving} dirty={anyDirty} />}
+      {editable && <AutosaveStatus saving={saving} dirty={anyDirtyTotal} />}
       <Wizard
         steps={papeis.map((p, i) => {
           const numero = Number(p.split("_")[1]);
+          const outrosVendedoresComConta = papeis.filter((op) =>
+            op.startsWith("vendedor_") && op !== p && (bankForms[op]?.banco || bankForms[op]?.conta || bankForms[op]?.pix),
+          );
           return {
           key: p,
           label: parteLabel(p),
@@ -162,6 +228,27 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
               )}
             </FieldGrid>
           </CardContent>
+          {p.startsWith("vendedor_") && (
+            <CardContent className="border-t pt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium">Dados bancários</div>
+                {editable && outrosVendedoresComConta.length > 0 && (
+                  <Select value="" onValueChange={(v) => copiarContaDe(p, v)}>
+                    <SelectTrigger className="w-64"><SelectValue placeholder="Usar mesma conta de..." /></SelectTrigger>
+                    <SelectContent>
+                      {outrosVendedoresComConta.map((op) => <SelectItem key={op} value={op}>{parteLabel(op)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <FieldGrid>
+                <Field label="Banco"><Input value={bankForms[p]?.banco ?? ""} onChange={(e) => updBank(p, "banco", e.target.value)} disabled={!editable} /></Field>
+                <Field label="Agência"><Input value={bankForms[p]?.agencia ?? ""} onChange={(e) => updBank(p, "agencia", e.target.value)} disabled={!editable} /></Field>
+                <Field label="Conta"><Input value={bankForms[p]?.conta ?? ""} onChange={(e) => updBank(p, "conta", e.target.value)} disabled={!editable} /></Field>
+                <Field label="PIX"><Input value={bankForms[p]?.pix ?? ""} onChange={(e) => updBank(p, "pix", e.target.value)} disabled={!editable} /></Field>
+              </FieldGrid>
+            </CardContent>
+          )}
           <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-0">
             <div className="flex gap-2">
               {editable && (
