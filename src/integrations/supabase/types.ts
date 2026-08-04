@@ -615,6 +615,7 @@ export type Database = {
       }
       sale_parties: {
         Row: {
+          cnpj: string | null
           cpf_cnpj: string | null
           created_at: string
           email: string | null
@@ -631,6 +632,7 @@ export type Database = {
           tipo_pessoa: string
         }
         Insert: {
+          cnpj?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null
@@ -647,6 +649,7 @@ export type Database = {
           tipo_pessoa?: string
         }
         Update: {
+          cnpj?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null

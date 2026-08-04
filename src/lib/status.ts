@@ -150,10 +150,12 @@ export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigator
   { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
 
-/** Documentos do grupo "pessoal" que valem pra uma parte com esse tipo_pessoa (física ou jurídica) —
- * ponto único da regra "PJ pede Cartão CNPJ/Última Alteração em vez de RG/CPF/Certidão". */
+/** Documentos do grupo "pessoal" que valem pra uma parte com esse tipo_pessoa — ponto único da
+ * regra "PJ pede os mesmos documentos de física (RG/CPF/Certidão, do representante legal que
+ * assina) MAIS Cartão CNPJ/Última Alteração Contratual (da empresa)". Física continua só com os
+ * documentos sem `pessoa` marcado ou marcados como "fisica"; jurídica soma os dois grupos. */
 export function docTypesPessoalPara(tipoPessoa: TipoPessoa): typeof DOC_TYPES {
-  return DOC_TYPES.filter((d) => d.grupo === "pessoal" && (!d.pessoa || d.pessoa === tipoPessoa));
+  return DOC_TYPES.filter((d) => d.grupo === "pessoal" && (!d.pessoa || d.pessoa === tipoPessoa || tipoPessoa === "juridica"));
 }
 
 

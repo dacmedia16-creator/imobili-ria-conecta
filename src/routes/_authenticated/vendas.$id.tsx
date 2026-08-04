@@ -1599,7 +1599,13 @@ function SaleDetail() {
                   return (
                     <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
                       <div className="mb-1 font-medium">{parteLabel(papel)} — {p.nome}</div>
-                      <ReviewItem label="CPF/CNPJ" value={p.cpf_cnpj} />
+                      {p.tipo_pessoa === "juridica" && (
+                        <>
+                          <ReviewItem label="Razão social" value={p.razao_social} />
+                          <ReviewItem label="CNPJ" value={p.cnpj} />
+                        </>
+                      )}
+                      <ReviewItem label="CPF" value={p.cpf_cnpj} />
                       <ReviewItem label="RG" value={p.rg} />
                       <ReviewItem label="Profissão" value={p.profissao} />
                       <ReviewItem label="E-mail" value={p.email} />
@@ -3006,7 +3012,13 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
                 const p = parties[papel];
                 return (
                   <ReviewGroup key={papel} title={`${parteLabel(papel)} — ${p.nome}`}>
-                    <ReviewItem label="CPF/CNPJ" value={p.cpf_cnpj} />
+                    {p.tipo_pessoa === "juridica" && (
+                      <>
+                        <ReviewItem label="Razão social" value={p.razao_social} />
+                        <ReviewItem label="CNPJ" value={p.cnpj} />
+                      </>
+                    )}
+                    <ReviewItem label="CPF" value={p.cpf_cnpj} />
                     <ReviewItem label="RG" value={p.rg} />
                     <ReviewItem label="E-mail" value={p.email} />
                     <ReviewItem label="Telefone" value={p.telefone} />

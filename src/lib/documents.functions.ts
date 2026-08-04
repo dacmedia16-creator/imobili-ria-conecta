@@ -182,7 +182,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // sobrescrever/atribuir dados de identidade à parte errada.
       const isIdentidade = tipo === "rg" || tipo === "cpf" || tipo === "cnh";
       // Cartão CNPJ/Última Alteração Contratual só existem pra parte marcada como pessoa jurídica —
-      // roteiam CNPJ/razão social em vez dos campos de pessoa física.
+      // roteiam CNPJ/razão social (da empresa) SOMADOS aos campos de pessoa física do representante
+      // (rg/cpf/nome vêm de outro documento, ex. RG/CNH dele — ver ramo abaixo).
       const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
       const viaMatricula = papel === "vendedor_1" && (parte === "imovel" || parte === "outros");
       // Endereço só vem do comprovante de endereço — é o único documento com esse propósito.
@@ -195,7 +196,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         if (r.razao_social || r.cnpj || endereco || email || tel) {
           const p = (partiesPatch[papel] ??= {});
           assign(p, "razao_social", r.razao_social);
-          assign(p, "cpf_cnpj", r.cnpj);
+          // Coluna própria (cnpj) — não é cpf_cnpj, que agora guarda sempre o CPF do representante.
+          assign(p, "cnpj", r.cnpj);
           assign(p, "endereco", endereco);
           assign(p, "email", email);
           assign(p, "telefone", tel);

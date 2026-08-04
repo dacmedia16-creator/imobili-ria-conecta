@@ -142,6 +142,7 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
           profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null,
           endereco: forms[papel].endereco ?? null, regime_casamento: forms[papel].regime_casamento ?? null,
           tipo_pessoa: forms[papel].tipo_pessoa ?? "fisica", razao_social: forms[papel].razao_social ?? null,
+          cnpj: forms[papel].cnpj ?? null,
         };
         const { error } = existing
           ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
@@ -208,24 +209,21 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
                 </Select>
               </Field>
               <Field label="Nome"><Input value={forms[p].nome ?? ""} onChange={(e) => update(p, "nome", e.target.value)} disabled={!editable} /></Field>
-              {(forms[p].tipo_pessoa ?? "fisica") === "juridica" ? (
+              {/* Jurídica soma aos campos de física (abaixo), não troca — quem assina pela empresa
+                  continua sendo uma pessoa física, então ainda precisa de RG/CPF/Profissão dela. */}
+              {(forms[p].tipo_pessoa ?? "fisica") === "juridica" && (
                 <>
                   <Field label="Razão social"><Input value={forms[p].razao_social ?? ""} onChange={(e) => update(p, "razao_social", e.target.value)} disabled={!editable} /></Field>
-                  <Field label="CNPJ"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
-                </>
-              ) : (
-                <>
-                  <Field label="RG"><Input value={forms[p].rg ?? ""} onChange={(e) => update(p, "rg", e.target.value)} disabled={!editable} /></Field>
-                  <Field label="CPF"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
-                  <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
+                  <Field label="CNPJ"><Input value={forms[p].cnpj ?? ""} onChange={(e) => update(p, "cnpj", e.target.value)} disabled={!editable} /></Field>
                 </>
               )}
+              <Field label="RG"><Input value={forms[p].rg ?? ""} onChange={(e) => update(p, "rg", e.target.value)} disabled={!editable} /></Field>
+              <Field label="CPF"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
+              <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
               <Field label="E-mail"><Input type="email" value={forms[p].email ?? ""} onChange={(e) => update(p, "email", e.target.value)} disabled={!editable} /></Field>
               <Field label="Telefone"><Input value={forms[p].telefone ?? ""} onChange={(e) => update(p, "telefone", e.target.value)} disabled={!editable} /></Field>
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
-              {(forms[p].tipo_pessoa ?? "fisica") === "fisica" && (
-                <Field label="Regime de casamento"><Input value={forms[p].regime_casamento ?? ""} onChange={(e) => update(p, "regime_casamento", e.target.value)} placeholder="Ex.: Comunhão parcial de bens" disabled={!editable} /></Field>
-              )}
+              <Field label="Regime de casamento"><Input value={forms[p].regime_casamento ?? ""} onChange={(e) => update(p, "regime_casamento", e.target.value)} placeholder="Ex.: Comunhão parcial de bens" disabled={!editable} /></Field>
             </FieldGrid>
           </CardContent>
           {p.startsWith("vendedor_") && (

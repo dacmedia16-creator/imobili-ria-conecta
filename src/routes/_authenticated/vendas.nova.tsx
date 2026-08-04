@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/vendas/nova")({
@@ -17,6 +18,8 @@ function NewSale() {
   const { user } = useAuth();
   const router = useRouter();
   const [imovelId, setImovelId] = useState("");
+  const [tipoPessoaVendedor, setTipoPessoaVendedor] = useState<"fisica" | "juridica">("fisica");
+  const [tipoPessoaComprador, setTipoPessoaComprador] = useState<"fisica" | "juridica">("fisica");
   const [loading, setLoading] = useState(false);
 
   const onCreate = async (e: React.FormEvent) => {
@@ -30,6 +33,13 @@ function NewSale() {
         .select("id")
         .single();
       if (error) throw error;
+      // Já cria as partes principais (vendedor 1 e comprador 1) com o tipo escolhido aqui — na
+      // etapa Partes os cards abrem prontos (física ou jurídica), sem escolher de novo.
+      const { error: partyErr } = await supabase.from("sale_parties").insert([
+        { sale_id: data.id, papel: "vendedor_1", tipo_pessoa: tipoPessoaVendedor },
+        { sale_id: data.id, papel: "comprador_1", tipo_pessoa: tipoPessoaComprador },
+      ]);
+      if (partyErr) throw partyErr;
       toast.success("Venda criada como rascunho");
       router.navigate({ to: "/vendas/$id", params: { id: data.id } });
     } catch (err: any) {
@@ -52,6 +62,26 @@ function NewSale() {
             <div>
               <Label htmlFor="imovel">ID do imóvel</Label>
               <Input id="imovel" value={imovelId} onChange={(e) => setImovelId(e.target.value)} placeholder="Ex: APT-001" />
+            </div>
+            <div>
+              <Label htmlFor="tipo-pessoa-vendedor">Tipo de pessoa (vendedor/proprietário)</Label>
+              <Select value={tipoPessoaVendedor} onValueChange={(v) => setTipoPessoaVendedor(v as "fisica" | "juridica")}>
+                <SelectTrigger id="tipo-pessoa-vendedor"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fisica">Pessoa física</SelectItem>
+                  <SelectItem value="juridica">Pessoa jurídica</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="tipo-pessoa-comprador">Tipo de pessoa (comprador)</Label>
+              <Select value={tipoPessoaComprador} onValueChange={(v) => setTipoPessoaComprador(v as "fisica" | "juridica")}>
+                <SelectTrigger id="tipo-pessoa-comprador"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fisica">Pessoa física</SelectItem>
+                  <SelectItem value="juridica">Pessoa jurídica</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button type="submit" disabled={loading}>{loading ? "Criando..." : "Criar rascunho"}</Button>
           </form>
