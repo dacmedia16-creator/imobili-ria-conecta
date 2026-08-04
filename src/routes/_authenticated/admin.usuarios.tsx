@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil } from "lucide-react";
+import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil, Search, Crown } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
@@ -50,8 +50,13 @@ function AdminUsers() {
   const [users, setUsers] = useState<any[]>([]);
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
   const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({});
+  const [teamsRaw, setTeamsRaw] = useState<{ id: string; nome: string; lider_id: string; parent_team_id: string | null }[]>([]);
+  const [teamMembersRaw, setTeamMembersRaw] = useState<{ membro_id: string; team_id: string }[]>([]);
+  const [coLeadersRaw, setCoLeadersRaw] = useState<{ team_id: string; user_id: string }[]>([]);
   const [open, setOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<AppRole | "todos">("todos");
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
   const [resetPasswordFor, setResetPasswordFor] = useState<{ id: string; email: string; nome: string } | null>(null);
@@ -64,10 +69,13 @@ function AdminUsers() {
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
     const { data: r } = await supabase.from("user_roles").select("user_id, role");
-    const { data: teams } = await supabase.from("teams").select("id, lider_id, parent_team_id");
+    const { data: teams } = await supabase.from("teams").select("id, nome, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
     const { data: cl } = await supabase.from("team_co_leaders").select("team_id, user_id");
     setUsers(profs ?? []);
+    setTeamsRaw(teams ?? []);
+    setTeamMembersRaw(t ?? []);
+    setCoLeadersRaw(cl ?? []);
     listLastSignInsFn().then(setLastSignIn).catch(() => {});
     const map: Record<string, AppRole[]> = {};
     (r ?? []).forEach((x: any) => { (map[x.user_id] ??= []).push(x.role); });
@@ -98,6 +106,36 @@ function AdminUsers() {
   const isAdminLike = hasAny(["admin", "super_admin"]);
   const isSuper = hasRole("super_admin");
   const allowedRoles = useMemo(() => allowedRolesFor(myRoles), [myRoles]);
+
+  // Agrupa por equipe (líder + líder auxiliar primeiro, depois membros) — só pra visão de
+  // admin/super admin, que vê todo mundo; gestor/team leader já enxerga só a própria equipe,
+  // então uma seção só não ajuda muito. "Sem equipe" pega quem não é membro nem líder de nada
+  // (jurídico, financeiro, corretor solto, etc.).
+  const teamGroups = useMemo(() => {
+    const teamById: Record<string, typeof teamsRaw[number]> = {};
+    teamsRaw.forEach((t) => { teamById[t.id] = t; });
+    const memberIdsByTeam: Record<string, string[]> = {};
+    teamMembersRaw.forEach((m) => { (memberIdsByTeam[m.team_id] ??= []).push(m.membro_id); });
+    const coLeaderIdsByTeam: Record<string, string[]> = {};
+    coLeadersRaw.forEach((c) => { (coLeaderIdsByTeam[c.team_id] ??= []).push(c.user_id); });
+
+    const assigned = new Set<string>();
+    const topTeams = [...teamsRaw].filter((t) => !t.parent_team_id).sort((a, b) => a.nome.localeCompare(b.nome));
+    const groups: { key: string; label: string; primaryLeaderId: string; coLeaderIds: string[]; memberIds: string[] }[] = [];
+    for (const top of topTeams) {
+      const subs = teamsRaw.filter((t) => t.parent_team_id === top.id).sort((a, b) => a.nome.localeCompare(b.nome));
+      for (const t of [top, ...subs]) {
+        const coLeaderIds = (coLeaderIdsByTeam[t.id] ?? []).filter((id) => id !== t.lider_id);
+        const memberIds = memberIdsByTeam[t.id] ?? [];
+        assigned.add(t.lider_id);
+        coLeaderIds.forEach((id) => assigned.add(id));
+        memberIds.forEach((id) => assigned.add(id));
+        groups.push({ key: t.id, label: t.parent_team_id ? `${top.nome} → ${t.nome}` : t.nome, primaryLeaderId: t.lider_id, coLeaderIds, memberIds });
+      }
+    }
+    const semEquipeIds = users.filter((u) => !assigned.has(u.id)).map((u) => u.id);
+    return { groups, semEquipeIds };
+  }, [teamsRaw, teamMembersRaw, coLeadersRaw, users]);
 
   if (!canManage) return <p className="text-sm text-muted-foreground">Você não tem permissão para acessar esta página.</p>;
 
@@ -136,10 +174,20 @@ function AdminUsers() {
     if ((a.ativo === false) !== (b.ativo === false)) return a.ativo === false ? 1 : -1;
     return (a.nome || a.email || "").localeCompare(b.nome || b.email || "");
   });
-  const activeUsers = sortedUsers.filter((u) => u.ativo !== false);
-  const inactiveUsers = sortedUsers.filter((u) => u.ativo === false);
 
-  const renderUserCard = (u: any) => {
+  const searchQ = search.trim().toLowerCase();
+  const passesFilter = (u: any) => {
+    const matchesSearch = !searchQ || (u.nome ?? "").toLowerCase().includes(searchQ) || (u.email ?? "").toLowerCase().includes(searchQ);
+    const matchesRole = roleFilter === "todos" || (rolesByUser[u.id] ?? []).includes(roleFilter);
+    return matchesSearch && matchesRole;
+  };
+
+  const activeUsers = sortedUsers.filter((u) => u.ativo !== false && passesFilter(u));
+  const inactiveUsers = sortedUsers.filter((u) => u.ativo === false && passesFilter(u));
+  const usersById: Record<string, any> = {};
+  users.forEach((u) => { usersById[u.id] = u; });
+
+  const renderUserCard = (u: any, badge?: "Líder" | "Líder auxiliar") => {
     const userRoles = rolesByUser[u.id] ?? [];
     const canEditThis = isAdminLike && u.id !== user?.id;
     // Editar dados básicos (nome/e-mail/telefone) — além de admin/super admin, gestor e team leader
@@ -161,6 +209,11 @@ function AdminUsers() {
             <div>
               <div className="text-sm font-medium">
                 {u.nome || u.email}
+                {badge && (
+                  <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    <Crown className="h-3 w-3" />{badge}
+                  </span>
+                )}
                 {u.id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
                 {u.ativo === false && <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">Inativo</span>}
               </div>
@@ -252,16 +305,69 @@ function AdminUsers() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Lista de usuários</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {sortedUsers.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário para exibir.</p>}
-          {activeUsers.map(renderUserCard)}
+        <CardHeader className="gap-3">
+          <CardTitle className="text-base">Lista de usuários</CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative max-w-xs flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Buscar por nome ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as AppRole | "todos")}>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os papéis</SelectItem>
+                {ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {sortedUsers.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>}
+          {sortedUsers.length > 0 && activeUsers.length === 0 && inactiveUsers.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum usuário encontrado com esse filtro.</p>
+          )}
+          {isAdminLike ? (
+            (() => {
+              const activeIdSet = new Set(activeUsers.map((u) => u.id));
+              const visibleGroups = teamGroups.groups
+                .map((g) => ({
+                  ...g,
+                  visiblePrimary: activeIdSet.has(g.primaryLeaderId) ? g.primaryLeaderId : null,
+                  visibleCoLeaders: g.coLeaderIds.filter((id) => activeIdSet.has(id)),
+                  visibleMembers: g.memberIds.filter((id) => activeIdSet.has(id)),
+                }))
+                .filter((g) => g.visiblePrimary || g.visibleCoLeaders.length > 0 || g.visibleMembers.length > 0);
+              const visibleSemEquipe = teamGroups.semEquipeIds.filter((id) => activeIdSet.has(id));
+              return (
+                <>
+                  {visibleGroups.map((g) => (
+                    <div key={g.key} className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</div>
+                      <div className="space-y-2">
+                        {g.visiblePrimary && renderUserCard(usersById[g.visiblePrimary], "Líder")}
+                        {g.visibleCoLeaders.map((id) => renderUserCard(usersById[id], "Líder auxiliar"))}
+                        {g.visibleMembers.map((id) => renderUserCard(usersById[id]))}
+                      </div>
+                    </div>
+                  ))}
+                  {visibleSemEquipe.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sem equipe</div>
+                      <div className="space-y-2">{visibleSemEquipe.map((id) => renderUserCard(usersById[id]))}</div>
+                    </div>
+                  )}
+                </>
+              );
+            })()
+          ) : (
+            <div className="space-y-3">{activeUsers.map((u) => renderUserCard(u))}</div>
+          )}
           {inactiveUsers.length > 0 && (
             <div className="pt-1">
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowInactive((v) => !v)}>
                 {showInactive ? "Ocultar inativos" : `Mostrar ${inactiveUsers.length} inativo${inactiveUsers.length > 1 ? "s" : ""}`}
               </Button>
-              {showInactive && <div className="mt-3 space-y-3">{inactiveUsers.map(renderUserCard)}</div>}
+              {showInactive && <div className="mt-3 space-y-3">{inactiveUsers.map((u) => renderUserCard(u))}</div>}
             </div>
           )}
         </CardContent>
