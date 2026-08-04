@@ -591,6 +591,9 @@ export function DocumentsPanel({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-sm font-medium">{t.label}{obrigatorioEfetivo && mostraObrigatorio ? <span className="ml-1 text-destructive">*</span> : null}</div>
+                        {t.key === "outros" && (
+                          <div className="text-xs text-muted-foreground">Ex.: procuração, declaração de união estável, comprovante de renda, distrato, laudêmio, autorização de venda</div>
+                        )}
                         {obrigatorioEfetivo && mostraObrigatorio && <div className="text-xs text-muted-foreground">Obrigatório</div>}
                         {dispensadoPorCnh && <div className="text-xs text-emerald-700 dark:text-emerald-400">Dispensado — CNH enviada</div>}
                         {cnhDispensadaPorRgCpf && <div className="text-xs text-emerald-700 dark:text-emerald-400">Dispensado — RG e CPF enviados</div>}

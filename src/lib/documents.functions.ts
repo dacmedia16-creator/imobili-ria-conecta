@@ -336,6 +336,10 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
+  // Matrícula traz a descrição completa do imóvel (cômodos, medidas, confrontações, unidade,
+  // bloco/torre, vaga de garagem, fração ideal etc.) — sem essa instrução explícita a IA tende a
+  // devolver um resumo curto (ou nada) em vez do texto integral que o corretor quer aproveitar.
+  const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma.`;
   const commonPessoaJuridica = `\n\nCampos de pessoa jurídica possíveis:
 {
   "razao_social": string|null,
@@ -347,10 +351,10 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
   if (pessoaLabel && isPessoaJuridica) return base + commonPessoaJuridica;
   if (pessoaLabel) return base + commonPessoal;
-  if (parte === "imovel") return base + commonImovel;
+  if (parte === "imovel") return base + commonImovel + (tipo === "matricula" ? matriculaDescricaoHint : "");
   if (isPessoaJuridica) return base + commonPessoaJuridica;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
-  if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
+  if (tipo === "matricula" || tipo === "iptu") return base + commonImovel + (tipo === "matricula" ? matriculaDescricaoHint : "");
   return base + commonPessoal + commonImovel;
 }
 
