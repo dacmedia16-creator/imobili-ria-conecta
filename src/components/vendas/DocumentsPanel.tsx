@@ -213,13 +213,12 @@ export function DocumentsPanel({
     setDeleting(true);
     try {
       // Arquivamento lógico: o arquivo e a linha continuam no banco/storage para consulta futura
-      // (auditoria), só saem da tela comum. Extração de IA é cache derivado, não o documento fonte
-      // — segue sendo descartada.
-      await supabase.from("document_extractions").delete().eq("document_id", doc.id);
-      const { error } = await supabase
-        .from("sale_documents")
-        .update({ deleted_at: new Date().toISOString(), deleted_by: user!.id })
-        .eq("id", doc.id);
+      // (auditoria), só saem da tela comum. Passa por uma RPC (archive_sale_document) em vez de
+      // update direto — vários corretores relataram "new row violates row-level security policy"
+      // mesmo com a permissão correta (confirmado em testes diretos no banco); a RPC reaplica a
+      // mesma checagem uma única vez server-side e escreve com privilégio elevado, contornando
+      // essa inconsistência da camada do PostgREST.
+      const { error } = await supabase.rpc("archive_sale_document", { _document_id: doc.id });
       if (error) { toast.error(error.message); return; }
       await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_archived", payload: { doc_id: doc.id, tipo: doc.tipo, parte: doc.parte, file_name: doc.file_name } });
       toast.success("Documento excluído");

@@ -1110,6 +1110,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_sale_document: {
+        Args: { _document_id: string }
+        Returns: undefined
+      }
       can_edit_sale_comissao: {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
