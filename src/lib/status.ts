@@ -132,17 +132,29 @@ export function chegouAoJuridico(status: SaleStatus): boolean {
 }
 
 
-export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean }[] = [
-  { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true },
-  { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true },
-  { key: "cnh", label: "CNH (dispensa RG e CPF)", grupo: "pessoal" },
-  { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal", obrigatorio: true },
+export type TipoPessoa = "fisica" | "juridica";
+
+// `pessoa` restringe o documento a um tipo de parte (comprador_N/vendedor_N marcado como física ou
+// jurídica na aba Partes) — sem o campo, o documento vale para os dois. Ver `docTypesPessoalPara`.
+export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean; pessoa?: TipoPessoa }[] = [
+  { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
+  { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
+  { key: "cnh", label: "CNH (dispensa RG e CPF)", grupo: "pessoal", pessoa: "fisica" },
+  { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
   { key: "comprovante_endereco", label: "Comprovante de endereço", grupo: "pessoal", obrigatorio: true },
+  { key: "cartao_cnpj", label: "Cartão CNPJ", grupo: "pessoal", obrigatorio: true, pessoa: "juridica" },
+  { key: "ultima_alteracao_contratual", label: "Última Alteração Contratual", grupo: "pessoal", obrigatorio: true, pessoa: "juridica" },
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
   { key: "iptu", label: "IPTU", grupo: "imovel", obrigatorio: true },
   { key: "cnd_condominio", label: "CND do condomínio (se aplicável)", grupo: "imovel" },
   { key: "outros", label: "Outros documentos", grupo: "outros" },
 ];
+
+/** Documentos do grupo "pessoal" que valem pra uma parte com esse tipo_pessoa (física ou jurídica) —
+ * ponto único da regra "PJ pede Cartão CNPJ/Última Alteração em vez de RG/CPF/Certidão". */
+export function docTypesPessoalPara(tipoPessoa: TipoPessoa): typeof DOC_TYPES {
+  return DOC_TYPES.filter((d) => d.grupo === "pessoal" && (!d.pessoa || d.pessoa === tipoPessoa));
+}
 
 
 /** Retorna o rótulo do responsável pela próxima ação de acordo com o status. */
@@ -248,18 +260,22 @@ export function validarProntaParaRevisao(
 
   // Docs obrigatórios — a CNH dispensa RG e CPF, já que contém as duas informações.
   // Os do grupo "pessoal" são exigidos de cada comprador/vendedor (pode haver quantos o corretor
-  // adicionar), não só do 1º de cada — cada um precisa dos seus próprios documentos.
-  const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
+  // adicionar), não só do 1º de cada — cada um precisa dos seus próprios documentos, e quais
+  // documentos dependem do tipo_pessoa dessa parte (física pede RG/CPF/Certidão, jurídica pede
+  // Cartão CNPJ/Última Alteração Contratual).
+  const obrigatoriosImovel = DOC_TYPES.filter(d => d.obrigatorio && d.grupo !== "pessoal");
   const partesPessoais = partesComExigenciaPessoal(parties, docs);
-  for (const t of obrigatorios) {
-    const substituiPorCnh = t.key === "rg" || t.key === "cpf";
-    if (t.grupo === "pessoal") {
-      for (const parte of partesPessoais) {
-        if (!temDocDoTipo(docs, t.key, parte)) {
-          pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta enviar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
-        }
+  for (const parte of partesPessoais) {
+    const tipoPessoa: TipoPessoa = parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
+    for (const t of docTypesPessoalPara(tipoPessoa).filter(d => d.obrigatorio)) {
+      const substituiPorCnh = t.key === "rg" || t.key === "cpf";
+      if (!temDocDoTipo(docs, t.key, parte)) {
+        pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta enviar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
       }
-    } else if (!docs.some(d => docSatisfazObrigatorio(d, t.key))) {
+    }
+  }
+  for (const t of obrigatoriosImovel) {
+    if (!docs.some(d => docSatisfazObrigatorio(d, t.key))) {
       pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}` });
     }
   }
@@ -276,18 +292,21 @@ export function validarDocsAprovadosParaJuridico(
   docs: any[],
 ): Pendencia[] {
   const pend: Pendencia[] = [];
-  const obrigatorios = DOC_TYPES.filter(d => d.obrigatorio);
+  const obrigatoriosImovel = DOC_TYPES.filter(d => d.obrigatorio && d.grupo !== "pessoal");
   const partesPessoais = partesComExigenciaPessoal(parties, docs);
   const aprovado = (s: string) => s === "aprovado";
-  for (const t of obrigatorios) {
-    const substituiPorCnh = t.key === "rg" || t.key === "cpf";
-    if (t.grupo === "pessoal") {
-      for (const parte of partesPessoais) {
-        if (!temDocDoTipo(docs, t.key, parte, aprovado)) {
-          pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
-        }
+  for (const parte of partesPessoais) {
+    const tipoPessoa: TipoPessoa = parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
+    for (const t of docTypesPessoalPara(tipoPessoa).filter(d => d.obrigatorio)) {
+      const substituiPorCnh = t.key === "rg" || t.key === "cpf";
+      if (!temDocDoTipo(docs, t.key, parte, aprovado)) {
+        pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
       }
-    } else if (!docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status))) {
+    }
+  }
+  for (const t of obrigatoriosImovel) {
+    const substituiPorCnh = t.key === "rg" || t.key === "cpf";
+    if (!docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status))) {
       pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}` });
     }
   }

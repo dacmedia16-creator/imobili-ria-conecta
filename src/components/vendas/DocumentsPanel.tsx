@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Wizard } from "@/components/Wizard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DOC_TYPES, temDocDoTipo, chegouAoJuridico, parteLabel, parteBase, type SaleStatus, type DocParte } from "@/lib/status";
+import { DOC_TYPES, docTypesPessoalPara, temDocDoTipo, chegouAoJuridico, parteLabel, parteBase, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { Upload, FileCheck, FileX, Plus, Trash2, Eye, Printer, Download, ZoomIn, ZoomOut, ChevronRight, ChevronLeft, Sparkles, Loader2 } from "lucide-react";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
@@ -101,10 +101,10 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
 }
 
 export function DocumentsPanel({
-  saleId, saleStatus, docs, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange,
+  saleId, saleStatus, docs, parties, editable, canModerate, canUseAi, canManageContratos, canDownloadAll, onChange,
   activeParte: activeParteProp, onActiveParteChange, onReachedLastBloco,
 }: {
-  saleId: string; saleStatus: SaleStatus; docs: any[]; editable: boolean; canModerate: boolean; canUseAi: boolean;
+  saleId: string; saleStatus: SaleStatus; docs: any[]; parties: Record<string, any>; editable: boolean; canModerate: boolean; canUseAi: boolean;
   canManageContratos: boolean; canDownloadAll: boolean; onChange: () => void;
   /** Opcional: deixa o pai comandar qual bloco (comprador_1, juridico, ...) está ativo — usado pelo
    * atalho "Subir certidões" no topo da página, que precisa pular direto pro bloco do jurídico. */
@@ -412,12 +412,14 @@ export function DocumentsPanel({
     setFn(prev => [...prev, (prev.length ? Math.max(...prev) : 1) + 1]);
   };
 
-  const pessoalTipos = DOC_TYPES.filter(t => t.grupo === "pessoal");
+  // Cada parte pede um checklist diferente conforme o tipo_pessoa marcado na aba Partes (física:
+  // RG/CPF/Certidão; jurídica: Cartão CNPJ/Última Alteração Contratual) — ver docTypesPessoalPara.
+  const tiposPessoalDaParte = (parte: string) => docTypesPessoalPara(parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica");
   const blocos: { parte: DocParte; tipos: typeof DOC_TYPES }[] = [
-    { parte: "comprador_1", tipos: pessoalTipos },
-    ...compradorExtras.map(n => ({ parte: `comprador_${n}` as DocParte, tipos: pessoalTipos })),
-    { parte: "vendedor_1", tipos: pessoalTipos },
-    ...vendedorExtras.map(n => ({ parte: `vendedor_${n}` as DocParte, tipos: pessoalTipos })),
+    { parte: "comprador_1", tipos: tiposPessoalDaParte("comprador_1") },
+    ...compradorExtras.map(n => ({ parte: `comprador_${n}` as DocParte, tipos: tiposPessoalDaParte(`comprador_${n}`) })),
+    { parte: "vendedor_1", tipos: tiposPessoalDaParte("vendedor_1") },
+    ...vendedorExtras.map(n => ({ parte: `vendedor_${n}` as DocParte, tipos: tiposPessoalDaParte(`vendedor_${n}`) })),
     { parte: "imovel", tipos: DOC_TYPES.filter(t => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter(t => t.grupo === "outros") },
     // Bloco de certidões do jurídico só aparece depois que a venda chega nessa etapa —

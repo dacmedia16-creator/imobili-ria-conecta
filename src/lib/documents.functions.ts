@@ -181,12 +181,26 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // certidão e comprovante de endereço podem ser de outra pessoa (cônjuge, terceiro) e não devem
       // sobrescrever/atribuir dados de identidade à parte errada.
       const isIdentidade = tipo === "rg" || tipo === "cpf" || tipo === "cnh";
+      // Cartão CNPJ/Última Alteração Contratual só existem pra parte marcada como pessoa jurídica —
+      // roteiam CNPJ/razão social em vez dos campos de pessoa física.
+      const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
       const viaMatricula = papel === "vendedor_1" && (parte === "imovel" || parte === "outros");
       // Endereço só vem do comprovante de endereço — é o único documento com esse propósito.
       const endereco = tipo === "comprovante_endereco" ? r.endereco : null;
       // Regime de casamento só vem da certidão (rg/cpf/cnh não têm esse dado).
       const regimeCasamento = tipo === "certidao" ? r.regime_casamento : null;
-      if (papel) {
+      if (papel && isPessoaJuridica) {
+        const email = r.email;
+        const tel = r.telefone ?? r.celular;
+        if (r.razao_social || r.cnpj || endereco || email || tel) {
+          const p = (partiesPatch[papel] ??= {});
+          assign(p, "razao_social", r.razao_social);
+          assign(p, "cpf_cnpj", r.cnpj);
+          assign(p, "endereco", endereco);
+          assign(p, "email", email);
+          assign(p, "telefone", tel);
+        }
+      } else if (papel) {
         const nome = isIdentidade ? (r.nome ?? r.nome_completo) : (viaMatricula ? r.nome_proprietario : null);
         const rg = isIdentidade ? (r.rg ?? r.numero_rg) : null;
         const cpf = isIdentidade ? (r.cpf ?? r.cpf_cnpj ?? r.cnpj) : (viaMatricula ? r.cpf_proprietario : null);
@@ -322,8 +336,19 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   "cpf_proprietario": string|null,
   "observacoes_imovel": string|null
 }`;
+  const commonPessoaJuridica = `\n\nCampos de pessoa jurídica possíveis:
+{
+  "razao_social": string|null,
+  "cnpj": string|null,
+  "endereco": string|null,
+  "email": string|null,
+  "telefone": string|null
+}`;
+  const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
+  if (pessoaLabel && isPessoaJuridica) return base + commonPessoaJuridica;
   if (pessoaLabel) return base + commonPessoal;
   if (parte === "imovel") return base + commonImovel;
+  if (isPessoaJuridica) return base + commonPessoaJuridica;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
   if (tipo === "matricula" || tipo === "iptu") return base + commonImovel;
   return base + commonPessoal + commonImovel;

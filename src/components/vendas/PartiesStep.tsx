@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wizard } from "@/components/Wizard";
 import { parteLabel, parteSortKey } from "@/lib/status";
 import { toast } from "sonner";
@@ -90,7 +91,12 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
       for (const papel of papeis) {
         if (!dirty[papel]) continue;
         const existing = parties[papel];
-        const data = { nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null, profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null, regime_casamento: forms[papel].regime_casamento ?? null };
+        const data = {
+          nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null,
+          profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null,
+          endereco: forms[papel].endereco ?? null, regime_casamento: forms[papel].regime_casamento ?? null,
+          tipo_pessoa: forms[papel].tipo_pessoa ?? "fisica", razao_social: forms[papel].razao_social ?? null,
+        };
         const { error } = existing
           ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
           : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
@@ -126,14 +132,34 @@ export function PartiesStep({ saleId, parties, editable, onSaved, registerSaver,
           </CardHeader>
           <CardContent>
             <FieldGrid>
+              <Field label="Tipo de pessoa">
+                <Select value={forms[p].tipo_pessoa ?? "fisica"} onValueChange={(v) => update(p, "tipo_pessoa", v)} disabled={!editable}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fisica">Pessoa física</SelectItem>
+                    <SelectItem value="juridica">Pessoa jurídica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="Nome"><Input value={forms[p].nome ?? ""} onChange={(e) => update(p, "nome", e.target.value)} disabled={!editable} /></Field>
-              <Field label="RG"><Input value={forms[p].rg ?? ""} onChange={(e) => update(p, "rg", e.target.value)} disabled={!editable} /></Field>
-              <Field label="CPF/CNPJ"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
-              <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
+              {(forms[p].tipo_pessoa ?? "fisica") === "juridica" ? (
+                <>
+                  <Field label="Razão social"><Input value={forms[p].razao_social ?? ""} onChange={(e) => update(p, "razao_social", e.target.value)} disabled={!editable} /></Field>
+                  <Field label="CNPJ"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
+                </>
+              ) : (
+                <>
+                  <Field label="RG"><Input value={forms[p].rg ?? ""} onChange={(e) => update(p, "rg", e.target.value)} disabled={!editable} /></Field>
+                  <Field label="CPF"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
+                  <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
+                </>
+              )}
               <Field label="E-mail"><Input type="email" value={forms[p].email ?? ""} onChange={(e) => update(p, "email", e.target.value)} disabled={!editable} /></Field>
               <Field label="Telefone"><Input value={forms[p].telefone ?? ""} onChange={(e) => update(p, "telefone", e.target.value)} disabled={!editable} /></Field>
               <Field label="Endereço" colSpan={2}><Input value={forms[p].endereco ?? ""} onChange={(e) => update(p, "endereco", e.target.value)} disabled={!editable} /></Field>
-              <Field label="Regime de casamento"><Input value={forms[p].regime_casamento ?? ""} onChange={(e) => update(p, "regime_casamento", e.target.value)} placeholder="Ex.: Comunhão parcial de bens" disabled={!editable} /></Field>
+              {(forms[p].tipo_pessoa ?? "fisica") === "fisica" && (
+                <Field label="Regime de casamento"><Input value={forms[p].regime_casamento ?? ""} onChange={(e) => update(p, "regime_casamento", e.target.value)} placeholder="Ex.: Comunhão parcial de bens" disabled={!editable} /></Field>
+              )}
             </FieldGrid>
           </CardContent>
           <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-0">
