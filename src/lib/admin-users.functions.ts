@@ -19,6 +19,14 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
+const updateUserSchema = z.object({
+  userId: z.string().uuid(),
+  nome: z.string().trim().min(2).max(120)
+    .refine((v) => v.trim().split(/\s+/).filter(Boolean).length >= 2, "Digite o nome completo (nome e sobrenome)."),
+  email: z.string().trim().email().max(255),
+  telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
+});
+
 function allowedRolesFor(callerRoles: Role[]): Role[] {
   if (callerRoles.includes("super_admin")) return [...ROLES];
   if (callerRoles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
@@ -139,6 +147,63 @@ export const resetUserPassword = createServerFn({ method: "POST" })
       user_metadata: { ...existing.user.user_metadata, must_change_password: true },
     });
     if (updErr) throw new Error(updErr.message);
+
+    return { ok: true };
+  });
+
+/** Corrige nome/e-mail/telefone de outro usuário quando algo foi preenchido errado no cadastro.
+ * Admin/super admin podem editar qualquer um; gestor/team leader só quem está na própria equipe
+ * (mesma regra estrutural de is_lead_of usada nas policies de venda). E-mail muda tanto o profile
+ * quanto o login em auth.users (senão a pessoa nunca mais entra com o e-mail certo). */
+export const updateUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => updateUserSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId: callerId } = context;
+    if (data.userId === callerId) {
+      throw new Error('Use a tela "Meu acesso" para editar seus próprios dados.');
+    }
+
+    const { data: myRoles, error: rolesErr } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId);
+    if (rolesErr) throw new Error(rolesErr.message);
+    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+
+    const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
+    const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
+    if (!isAdminLike && !isTeamLead) {
+      throw new Error("Você não tem permissão para editar usuários.");
+    }
+    if (!isAdminLike) {
+      const { data: leads, error: leadErr } = await supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId });
+      if (leadErr) throw new Error(leadErr.message);
+      if (!leads) throw new Error("Você só pode editar membros da sua equipe.");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (getErr || !existing?.user) throw new Error(getErr?.message ?? "Usuário não encontrado.");
+
+    if (existing.user.email !== data.email) {
+      const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+        email: data.email,
+        email_confirm: true,
+      });
+      if (updErr) {
+        const msg = updErr.message ?? "Falha ao atualizar e-mail";
+        if (/already|registered|exists/i.test(msg)) throw new Error("Já existe um usuário com esse e-mail.");
+        throw new Error(msg);
+      }
+    }
+
+    const { error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ nome: data.nome, email: data.email, telefone: data.telefone })
+      .eq("id", data.userId);
+    if (profErr) throw new Error(profErr.message);
 
     return { ok: true };
   });

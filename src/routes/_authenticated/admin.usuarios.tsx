@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
-import { createUser, listLastSignIns, resetUserPassword } from "@/lib/admin-users.functions";
+import { createUser, listLastSignIns, resetUserPassword, updateUser } from "@/lib/admin-users.functions";
 import { agingInfo } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { UserPlus, Copy, RefreshCcw, KeyRound } from "lucide-react";
+import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
@@ -55,9 +55,11 @@ function AdminUsers() {
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
   const [resetPasswordFor, setResetPasswordFor] = useState<{ id: string; email: string; nome: string } | null>(null);
+  const [editingUserFor, setEditingUserFor] = useState<{ id: string; email: string; nome: string; telefone: string | null } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
   const resetPasswordFn = useServerFn(resetUserPassword);
+  const updateUserFn = useServerFn(updateUser);
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
@@ -140,6 +142,10 @@ function AdminUsers() {
   const renderUserCard = (u: any) => {
     const userRoles = rolesByUser[u.id] ?? [];
     const canEditThis = isAdminLike && u.id !== user?.id;
+    // Editar dados básicos (nome/e-mail/telefone) — além de admin/super admin, gestor e team leader
+    // também podem corrigir cadastro errado, mas só de quem já está na própria equipe (a lista
+    // `visibleUsers` já filtra isso pra quem não é admin-like).
+    const canEditData = canManage && u.id !== user?.id;
     const isEditingRoles = editingRoles[u.id] === true;
     const ultimoAcesso = lastSignIn[u.id];
     return (
@@ -166,6 +172,11 @@ function AdminUsers() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canEditData && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingUserFor({ id: u.id, email: u.email, nome: u.nome ?? "", telefone: u.telefone ?? null })}>
+                <Pencil className="mr-1.5 h-4 w-4" />Editar dados
+              </Button>
+            )}
             {canEditThis && (
               <Button size="sm" variant="ghost" onClick={() => setEditingRoles((m) => ({ ...m, [u.id]: !m[u.id] }))}>
                 {isEditingRoles ? "Fechar" : "Editar papéis"}
@@ -265,6 +276,16 @@ function AdminUsers() {
           />
         )}
       </Dialog>
+
+      <Dialog open={!!editingUserFor} onOpenChange={(o) => !o && setEditingUserFor(null)}>
+        {editingUserFor && (
+          <EditUserDialog
+            target={editingUserFor}
+            onDone={() => { setEditingUserFor(null); load(); }}
+            updateFn={updateUserFn}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -325,6 +346,67 @@ function ResetPasswordDialog({
         </div>
         <DialogFooter>
           <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Redefinir senha"}</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function EditUserDialog({
+  target, onDone, updateFn,
+}: {
+  target: { id: string; email: string; nome: string; telefone: string | null };
+  onDone: () => void;
+  updateFn: (args: { data: { userId: string; nome: string; email: string; telefone: string } }) => Promise<any>;
+}) {
+  const [nome, setNome] = useState(target.nome);
+  const [email, setEmail] = useState(target.email);
+  const [telefone, setTelefone] = useState(target.telefone ?? "");
+  const [loading, setLoading] = useState(false);
+
+  const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (nomeCompletoInvalido) { toast.error("Digite o nome completo (nome e sobrenome)."); return; }
+    setLoading(true);
+    try {
+      await updateFn({ data: { userId: target.id, nome, email, telefone } });
+      toast.success("Dados do usuário atualizados.");
+      onDone();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Falha ao atualizar usuário");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Editar dados do usuário</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-muted-foreground">
+        Corrige nome, e-mail ou telefone cadastrados errados. Mudar o e-mail também muda o login da pessoa.
+      </p>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <Label htmlFor="eu-nome">Nome completo</Label>
+          <Input id="eu-nome" value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} placeholder="Nome e sobrenome" />
+          {nome.trim().length > 0 && nomeCompletoInvalido && (
+            <p className="mt-1 text-xs text-destructive">Digite o nome completo (nome e sobrenome).</p>
+          )}
+        </div>
+        <div>
+          <Label htmlFor="eu-email">E-mail</Label>
+          <Input id="eu-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div>
+          <Label htmlFor="eu-telefone">Telefone (WhatsApp)</Label>
+          <Input id="eu-telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} required minLength={10} placeholder="(11) 91234-5678" />
+        </div>
+        <DialogFooter>
+          <Button type="submit" disabled={loading}>{loading ? "Salvando..." : "Salvar"}</Button>
         </DialogFooter>
       </form>
     </DialogContent>
