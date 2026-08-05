@@ -520,6 +520,18 @@ function SaleDetail() {
   // o valor sai. O valor líquido de cada fatia (mostrado nos campos "Líquido...") já desconta a soma
   // das partes extras vinculadas a ela, pra bater com o que de fato sobra pra cada um.
   const somaExtrasPorOrigem = (origem: string) => formExtras.reduce((s, e) => s + (e.origem === origem ? Number(e.valor ?? 0) : 0), 0);
+  // Quando o % da REMAX está preenchido, ele passa a ser a fonte da fatia da imobiliária — não é
+  // mais "total menos captador/vendedor/parceria", é "nosso valor da REMAX (já a metade que fica
+  // interna, calculada sobre o valor negociado) menos captador/vendedor/líder já tirados dali".
+  // Sem REMAX preenchido, mantém o cálculo antigo (valor_comissao_imobiliaria, via recalcImobiliaria)
+  // pra não quebrar vendas que nunca usaram esse campo.
+  const valorImobiliaria = (data: any = formSale) => {
+    const lider = Number(data.valor_comissao_lider_captador ?? 0) + Number(data.valor_comissao_lider_vendedor ?? 0);
+    const base = data.percentual_remax != null
+      ? Number(data.valor_remax ?? 0) - Number(data.valor_comissao_captador ?? 0) - Number(data.valor_comissao_vendedor ?? 0)
+      : Number(data.valor_comissao_imobiliaria ?? 0);
+    return Number((base - lider - somaExtrasPorOrigem("imobiliaria")).toFixed(2));
+  };
   const baseParaOrigem = (origem: string) => {
     if (origem === "captador") return Number(formSale.valor_comissao_captador ?? 0);
     if (origem === "vendedor") return Number(formSale.valor_comissao_vendedor ?? 0);
@@ -1128,7 +1140,7 @@ function SaleDetail() {
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - Number(formSale.valor_remax ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={valorImobiliaria()} disabled onChange={() => {}} />
               </Field>
               {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
                 const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
@@ -1725,7 +1737,7 @@ function SaleDetail() {
               )}
               <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
               <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
-              <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
+              <ReviewItem label="Imobiliária" value={money(valorImobiliaria(sale))} />
               {sale.indicador_captador && (
                 <ReviewItem
                   label={`Indicador — ${sale.indicador_captador} (sai do captador)`}
@@ -3114,10 +3126,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const somaComissoes = formComms.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   const total = Number(formOcc?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
-  // Só informativo (não é uma linha de comissão paga a alguém) — o mesmo cálculo da Resumo:
-  // valor_comissao_imobiliaria já descontando parceria externa, menos partes extras que saem dessa fatia.
+  // Só informativo (não é uma linha de comissão paga a alguém) — mesmo cálculo da Resumo: com % da
+  // REMAX preenchido, ele é a fonte da fatia da imobiliária (menos captador/vendedor/líder já
+  // tirados dali); sem REMAX, mantém o valor_comissao_imobiliaria antigo (já descontando parceria).
   const imobiliariaExtras = commissionExtras.filter((e) => e.origem === "imobiliaria").reduce((s, e) => s + Number(e.valor ?? 0), 0);
-  const valorImobiliaria = Number(sale.valor_comissao_imobiliaria ?? 0) - imobiliariaExtras;
+  const liderImobiliaria = Number(sale.valor_comissao_lider_captador ?? 0) + Number(sale.valor_comissao_lider_vendedor ?? 0);
+  const baseImobiliaria = sale.percentual_remax != null
+    ? Number(sale.valor_remax ?? 0) - Number(sale.valor_comissao_captador ?? 0) - Number(sale.valor_comissao_vendedor ?? 0)
+    : Number(sale.valor_comissao_imobiliaria ?? 0);
+  const valorImobiliaria = baseImobiliaria - liderImobiliaria - imobiliariaExtras;
 
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
   // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —

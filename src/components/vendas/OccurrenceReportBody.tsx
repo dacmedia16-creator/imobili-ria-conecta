@@ -58,12 +58,14 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   // Imobiliária = o que sobra depois de pagar todo mundo listado na tabela abaixo (captador,
   // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro) — soma TODAS as
   // linhas de commissions, não só a primeira de cada papel (pode haver mais de um "Outro" extra).
-  // sale.valor_comissao_imobiliaria não serve aqui: é calculado só a partir de captador/vendedor/
-  // parceria (recalcImobiliaria em vendas.$id.tsx), sem descontar líder/indicador/outro.
   const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
-  // REMAX não é uma linha de commissions (não é uma pessoa) — desconta à parte, também da fatia da
-  // imobiliária, mesmo o % dela sendo calculado sobre o total (ver applyRemaxPercentual).
-  const valorImobiliaria = valorNosso - somaComissoes - Number(sale.valor_remax ?? 0);
+  // Com % da REMAX preenchido, ele é a fonte da fatia da imobiliária (já representa a metade que
+  // fica interna, calculada sobre o valor negociado) — substitui valorNosso (total menos parceria)
+  // como base. Sem REMAX preenchido, mantém o cálculo antigo pra não quebrar vendas que nunca
+  // usaram esse campo. sale.valor_comissao_imobiliaria não serve de base aqui: é calculado só a
+  // partir de captador/vendedor/parceria (recalcImobiliaria em vendas.$id.tsx).
+  const baseImobiliaria = sale.percentual_remax != null ? Number(sale.valor_remax ?? 0) : valorNosso;
+  const valorImobiliaria = baseImobiliaria - somaComissoes;
 
   return (
     <>
