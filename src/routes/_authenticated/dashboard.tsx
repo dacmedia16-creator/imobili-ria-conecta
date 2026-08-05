@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
-import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
+import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target } from "lucide-react";
+
+const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
+const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
 /** Agrupa os status granulares de venda em etapas macro, só para leitura visual no funil do dashboard. */
 const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
@@ -65,22 +68,26 @@ function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentes, setRecentes] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  const [metaCorretor, setMetaCorretor] = useState<{ meta_comissao: number; comissao_realizada: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       setLoading(true);
-      const [statsRes, recentesRes, profRes] = await Promise.all([
+      const [statsRes, recentesRes, profRes, metasRes] = await Promise.all([
         supabase.rpc("dashboard_stats"),
         supabase.from("sales").select(RECENTES_COLUMNS).order("updated_at", { ascending: false }).limit(8),
         supabase.from("profiles").select("id, nome"),
+        supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
       ]);
       setStats(statsRes.data as DashboardStats | null);
       setRecentes(recentesRes.data ?? []);
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
+      const metasData = metasRes.data as { corretor: { corretor_id: string; meta_comissao: number; comissao_realizada: number }[] } | null;
+      setMetaCorretor(metasData?.corretor.find((m) => m.corretor_id === user.id) ?? null);
       setLoading(false);
     })();
   }, [user]);
@@ -166,6 +173,28 @@ function Dashboard() {
               to="/vendas"
             />
           </KpiGrid>
+          {metaCorretor && (
+            <Card className="mt-3">
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="rounded-md bg-primary/10 p-2 text-primary"><Target className="h-5 w-5" /></div>
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="font-medium">Meta de {mesAtualLabel()}</span>
+                    <span className="text-muted-foreground">
+                      R$ {metaCorretor.comissao_realizada.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de R$ {metaCorretor.meta_comissao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {" "}({metaCorretor.meta_comissao > 0 ? Math.round((metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={`h-full rounded-full ${metaCorretor.comissao_realizada >= metaCorretor.meta_comissao ? "bg-emerald-500" : "bg-amber-500"}`}
+                      style={{ width: `${Math.min(100, Math.max(0, metaCorretor.meta_comissao > 0 ? (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100 : 0))}%` }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </DashSection>
       )}
 

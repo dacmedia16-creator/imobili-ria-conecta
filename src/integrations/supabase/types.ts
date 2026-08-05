@@ -148,6 +148,50 @@ export type Database = {
           },
         ]
       }
+      metas: {
+        Row: {
+          corretor_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          mes: string
+          meta_comissao: number
+          team_id: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          corretor_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mes: string
+          meta_comissao: number
+          team_id?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          corretor_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mes?: string
+          meta_comissao?: number
+          team_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1241,6 +1285,7 @@ export type Database = {
         Args: { _team_id: string; _user: string }
         Returns: boolean
       }
+      metas_progresso: { Args: { _mes: string }; Returns: Json }
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string }
         Returns: boolean

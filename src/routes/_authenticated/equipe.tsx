@@ -26,6 +26,9 @@ export const Route = createFileRoute("/_authenticated/equipe")({
 const TEAM_COLORS = ["#22c55e", "#06b6d4", "#6366f1", "#3b82f6", "#f59e0b", "#ef4444", "#ec4899", "#f97316"];
 const FECHADAS = ["contrato_assinado", "ocorrencia_concluida"];
 const money = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+/** Sempre dia 1 do mês corrente — mesmo formato que a coluna metas.mes exige (CHECK trava isso no banco). */
+const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
+const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
 type Team = { id: string; nome: string; cor: string; lider_id: string; parent_team_id: string | null };
 type Profile = { id: string; nome: string; email: string | null };
@@ -212,6 +215,7 @@ function EquipesPage() {
           team={desempenhoTeam}
           membroIds={membersByTeam[desempenhoTeam.id] ?? []}
           profiles={profiles}
+          canManage={canManageTeam(desempenhoTeam)}
           onOpenChange={(open) => { if (!open) setDesempenhoTeam(null); }}
         />
       )}
@@ -744,16 +748,64 @@ function CoLideresDialog({
   );
 }
 
+type MetaProgressoRow = { corretor_id?: string; team_id?: string; meta_comissao: number; comissao_realizada: number };
+type MetaProgresso = { corretor: MetaProgressoRow[]; equipe: MetaProgressoRow[] };
+
+/** Barra de progresso "comissão do mês / meta" — mesma cor da barra em oklch(verde) quando bate
+ * a meta, âmbar quando ainda não. */
+function MetaProgressBar({ realizado, meta }: { realizado: number; meta: number }) {
+  const pct = meta > 0 ? Math.round((realizado / meta) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 w-20 overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`}
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
+      </div>
+      <span className={`text-xs font-medium ${pct >= 100 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>{pct}%</span>
+    </div>
+  );
+}
+
+/** Campo de meta editável — mostra só o valor quando não pode gerenciar; vira input+salvar quando pode. */
+function MetaEditField({ valor, onSave, saving, placeholder }: { valor: number | null; onSave: (v: number) => void; saving: boolean; placeholder?: string }) {
+  const [draft, setDraft] = useState(valor != null ? String(valor) : "");
+  useEffect(() => { setDraft(valor != null ? String(valor) : ""); }, [valor]);
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        type="number" step="0.01" className="h-7 w-28 text-xs" placeholder={placeholder ?? "Definir meta"}
+        value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving}
+      />
+      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={saving || !draft}
+        onClick={() => onSave(Number(draft))}
+      >
+        {saving ? "..." : "Salvar"}
+      </Button>
+    </div>
+  );
+}
+
 function DesempenhoDialog({
-  team, membroIds, profiles, onOpenChange,
+  team, membroIds, profiles, canManage, onOpenChange,
 }: {
   team: Team;
   membroIds: string[];
   profiles: Record<string, Profile>;
+  canManage: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { user } = useAuth();
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
+  const [savingMetaKey, setSavingMetaKey] = useState<string | null>(null);
+
+  const carregarMetas = useCallback(async () => {
+    const { data } = await supabase.rpc("metas_progresso", { _mes: mesAtualISO() });
+    setMetas((data as any) ?? { corretor: [], equipe: [] });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -762,9 +814,10 @@ function DesempenhoDialog({
         ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds)
         : { data: [] as any[] };
       setSales(data ?? []);
+      await carregarMetas();
       setLoading(false);
     })();
-  }, [membroIds]);
+  }, [membroIds, carregarMetas]);
 
   const ranking = useMemo(() => {
     return membroIds
@@ -789,19 +842,67 @@ function DesempenhoDialog({
     comissao: ranking.reduce((s, r) => s + r.comissao, 0),
   }), [ranking]);
 
+  const metaEquipe = metas.equipe.find((e) => e.team_id === team.id) ?? null;
+  const metaPorCorretor = useMemo(() => {
+    const m: Record<string, MetaProgressoRow> = {};
+    for (const c of metas.corretor) if (c.corretor_id) m[c.corretor_id] = c;
+    return m;
+  }, [metas]);
+
+  const salvarMeta = async (args: { tipo: "corretor" | "equipe"; corretorId?: string; key: string; valor: number }) => {
+    setSavingMetaKey(args.key);
+    try {
+      const mes = mesAtualISO();
+      const filterCol = args.tipo === "corretor" ? "corretor_id" : "team_id";
+      const filterVal = args.tipo === "corretor" ? args.corretorId! : team.id;
+      const { data: existing } = await supabase.from("metas").select("id").eq("tipo", args.tipo).eq(filterCol, filterVal).eq("mes", mes).maybeSingle();
+      const { error } = existing
+        ? await supabase.from("metas").update({ meta_comissao: args.valor }).eq("id", existing.id)
+        : await supabase.from("metas").insert({
+            tipo: args.tipo, mes, meta_comissao: args.valor, created_by: user!.id,
+            corretor_id: args.tipo === "corretor" ? args.corretorId : null,
+            team_id: args.tipo === "equipe" ? team.id : null,
+          });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Meta salva");
+      await carregarMetas();
+    } finally {
+      setSavingMetaKey(null);
+    }
+  };
+
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader><DialogTitle>Desempenho — {team.nome}</DialogTitle></DialogHeader>
         {loading ? (
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-5">
               <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Membros</p><p className="text-xl font-semibold">{membroIds.length}</p></CardContent></Card>
               <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Vendas</p><p className="text-xl font-semibold">{totais.vendas}</p></CardContent></Card>
-              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Valor negociado</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></CardContent></Card>
-              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Comissão total</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></CardContent></Card>
+              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Comissão do mês</p><p className="text-xl font-semibold">{money(metaEquipe?.comissao_realizada ?? 0)}</p></CardContent></Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="mb-1.5 text-xs text-muted-foreground">Meta da equipe — {mesAtualLabel()}</p>
+                  {canManage ? (
+                    <MetaEditField
+                      valor={metaEquipe?.meta_comissao ?? null}
+                      saving={savingMetaKey === "equipe"}
+                      onSave={(v) => salvarMeta({ tipo: "equipe", key: "equipe", valor: v })}
+                    />
+                  ) : (
+                    <p className="text-sm font-semibold">{metaEquipe ? money(metaEquipe.meta_comissao) : "Sem meta"}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col justify-center pt-6">
+                  <p className="mb-1.5 text-xs text-muted-foreground">Progresso da equipe</p>
+                  {metaEquipe ? <MetaProgressBar realizado={metaEquipe.comissao_realizada} meta={metaEquipe.meta_comissao} /> : <p className="text-sm text-muted-foreground">—</p>}
+                </CardContent>
+              </Card>
             </div>
             <Table>
               <TableHeader>
@@ -809,27 +910,42 @@ function DesempenhoDialog({
                   <TableHead>Corretor</TableHead>
                   <TableHead>Vendas</TableHead>
                   <TableHead>Fechadas</TableHead>
-                  <TableHead>Valor negociado</TableHead>
-                  <TableHead>Comissão</TableHead>
+                  <TableHead>Comissão do mês</TableHead>
+                  <TableHead>Meta do corretor</TableHead>
+                  <TableHead>Progresso</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {ranking.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                       Nenhum corretor nesta equipe ainda.
                     </TableCell>
                   </TableRow>
                 )}
-                {ranking.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.nome}</TableCell>
-                    <TableCell>{r.total}</TableCell>
-                    <TableCell>{r.fechadas}</TableCell>
-                    <TableCell>{money(r.negociado)}</TableCell>
-                    <TableCell>{money(r.comissao)}</TableCell>
-                  </TableRow>
-                ))}
+                {ranking.map((r) => {
+                  const meta = metaPorCorretor[r.id] ?? null;
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.nome}</TableCell>
+                      <TableCell>{r.total}</TableCell>
+                      <TableCell>{r.fechadas}</TableCell>
+                      <TableCell>{money(meta?.comissao_realizada ?? 0)}</TableCell>
+                      <TableCell>
+                        {canManage ? (
+                          <MetaEditField
+                            valor={meta?.meta_comissao ?? null}
+                            saving={savingMetaKey === r.id}
+                            onSave={(v) => salvarMeta({ tipo: "corretor", corretorId: r.id, key: r.id, valor: v })}
+                          />
+                        ) : (
+                          <span className="text-sm text-muted-foreground">{meta ? money(meta.meta_comissao) : "Sem meta"}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{meta ? <MetaProgressBar realizado={meta.comissao_realizada} meta={meta.meta_comissao} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

@@ -41,6 +41,10 @@ const STAGE_LABELS: Record<string, string> = {
 const STAGE_ORDER = ["inicio", "aprovacao", "juridico", "concluida"];
 
 const money = (v: number) => `R$ ${Number(v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
+
+type MetaProgressoRow = { corretor_id?: string; team_id?: string; meta_comissao: number; comissao_realizada: number };
+type MetaProgresso = { corretor: MetaProgressoRow[]; equipe: MetaProgressoRow[] };
 const mesLabel = (m: string) => {
   const [ano, mes] = m.split("-");
   return new Date(Number(ano), Number(mes) - 1, 1).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }).replace(".", "");
@@ -57,20 +61,23 @@ function VisaoExecutiva() {
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!allowed) { setLoading(false); return; }
     (async () => {
       setLoading(true);
-      const [statsRes, profRes] = await Promise.all([
+      const [statsRes, profRes, metasRes] = await Promise.all([
         supabase.rpc("visao_executiva_stats"),
         supabase.from("profiles").select("id, nome"),
+        supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
       ]);
       setStats((statsRes.data as unknown as VisaoExecutivaStats) ?? null);
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
+      setMetas((metasRes.data as unknown as MetaProgresso) ?? { corretor: [], equipe: [] });
       setLoading(false);
     })();
   }, [allowed]);
@@ -172,20 +179,28 @@ function VisaoExecutiva() {
               </TabsList>
               <TabsContent value="corretor">
                 <RankingTable
-                  rows={(stats?.ranking_corretor ?? []).map((r) => ({
-                    id: r.corretor_id,
-                    nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
-                    vendas: r.vendas_fechadas, tempo: r.tempo_medio_dias, devolucao: r.taxa_devolucao, comissao: r.comissao,
-                  }))}
+                  rows={(stats?.ranking_corretor ?? []).map((r) => {
+                    const meta = metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
+                    return {
+                      id: r.corretor_id,
+                      nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
+                      vendas: r.vendas_fechadas, tempo: r.tempo_medio_dias, devolucao: r.taxa_devolucao, comissao: r.comissao,
+                      meta: meta?.meta_comissao ?? null, metaRealizado: meta?.comissao_realizada ?? 0,
+                    };
+                  })}
                 />
               </TabsContent>
               <TabsContent value="equipe">
                 <RankingTable
-                  rows={(stats?.ranking_equipe ?? []).map((r) => ({
-                    id: r.team_id ?? "sem-equipe",
-                    nome: r.team_nome ?? "Sem equipe",
-                    vendas: r.vendas_fechadas, tempo: null, devolucao: r.taxa_devolucao, comissao: r.comissao,
-                  }))}
+                  rows={(stats?.ranking_equipe ?? []).map((r) => {
+                    const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
+                    return {
+                      id: r.team_id ?? "sem-equipe",
+                      nome: r.team_nome ?? "Sem equipe",
+                      vendas: r.vendas_fechadas, tempo: null, devolucao: r.taxa_devolucao, comissao: r.comissao,
+                      meta: meta?.meta_comissao ?? null, metaRealizado: meta?.comissao_realizada ?? 0,
+                    };
+                  })}
                 />
               </TabsContent>
             </Tabs>
@@ -245,7 +260,7 @@ function AlertaCard({ icon: Icon, label, alerta, critical, sub }: { icon: any; l
   );
 }
 
-function RankingTable({ rows }: { rows: { id: string; nome: string; vendas: number; tempo: number | null; devolucao: number; comissao: number }[] }) {
+function RankingTable({ rows }: { rows: { id: string; nome: string; vendas: number; tempo: number | null; devolucao: number; comissao: number; meta: number | null; metaRealizado: number }[] }) {
   const sorted = [...rows].sort((a, b) => b.vendas - a.vendas || b.comissao - a.comissao);
   if (sorted.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">Sem dados no período.</p>;
   return (
@@ -257,6 +272,7 @@ function RankingTable({ rows }: { rows: { id: string; nome: string; vendas: numb
           <TableHead className="text-right">Tempo médio</TableHead>
           <TableHead className="text-right">Devolução</TableHead>
           <TableHead className="text-right">Comissão</TableHead>
+          <TableHead>Meta do mês</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -279,9 +295,22 @@ function RankingTable({ rows }: { rows: { id: string; nome: string; vendas: numb
             <TableCell className="text-right text-muted-foreground">{r.tempo != null ? `${r.tempo} dias` : "—"}</TableCell>
             <TableCell className={`text-right ${r.devolucao > 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}>{r.devolucao}%</TableCell>
             <TableCell className="text-right">{money(r.comissao)}</TableCell>
+            <TableCell>{r.meta != null ? <MetaCell realizado={r.metaRealizado} meta={r.meta} /> : <span className="text-xs text-muted-foreground">Sem meta</span>}</TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+function MetaCell({ realizado, meta }: { realizado: number; meta: number }) {
+  const pct = meta > 0 ? Math.round((realizado / meta) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </div>
+      <span className={`whitespace-nowrap text-xs font-medium ${pct >= 100 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>{pct}% de {money(meta)}</span>
+    </div>
   );
 }
