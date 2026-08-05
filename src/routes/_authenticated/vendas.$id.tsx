@@ -308,6 +308,7 @@ function SaleDetail() {
       "valor_comissao_lider_captador","valor_comissao_lider_vendedor",
       "valor_comissao_indicador_captador","valor_comissao_indicador_vendedor",
       "percentual_comissao_captador","percentual_comissao_vendedor",
+      "percentual_remax","valor_remax",
       "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
       "previsao_recebimento2_valor","previsao_recebimento2_data","previsao_recebimento2_forma",
       "previsao_recebimento3_valor","previsao_recebimento3_data","previsao_recebimento3_forma",
@@ -499,6 +500,20 @@ function SaleDetail() {
       return;
     }
     updResumo({ parceria_tipo: v });
+  };
+  // Royalty da REMAX: % sempre calculado sobre o valor TOTAL da comissão (diferente da parceria, que
+  // desconta do valor_comissao_imobiliaria persistido) — o valor em R$ sai da fatia da imobiliária
+  // só na hora de mostrar "Valor para a imobiliária" (mesmo tratamento de líder/indicador por lado).
+  const applyRemaxPercentual = (raw: string) => {
+    const p = raw ? Number(raw) : null;
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
+    updResumo({ percentual_remax: p, valor_remax: valor });
+  };
+  const applyRemaxValor = (v: number | null) => {
+    const total = Number(formSale.valor_total_comissao ?? 0);
+    const p = v != null && total > 0 ? Number(((v / total) * 100).toFixed(3)) : formSale.percentual_remax ?? null;
+    updResumo({ valor_remax: v, percentual_remax: p });
   };
   // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
   // o valor sai. O valor líquido de cada fatia (mostrado nos campos "Líquido...") já desconta a soma
@@ -1081,6 +1096,8 @@ function SaleDetail() {
               ) : null;
             })()}
             <FieldGrid>
+              <Field label="% da REMAX (sobre o total da comissão)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editable} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
+              <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editable} onChange={applyRemaxValor} /></Field>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               {formSale.lider_captador_id && (
@@ -1110,7 +1127,7 @@ function SaleDetail() {
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - Number(formSale.valor_remax ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
                 const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
@@ -1702,6 +1719,9 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">
+              {sale.percentual_remax != null && (
+                <ReviewItem label={`REMAX (${sale.percentual_remax}% do total)`} value={money(sale.valor_remax)} />
+              )}
               <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
               <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
               <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />

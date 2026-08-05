@@ -61,7 +61,9 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   // sale.valor_comissao_imobiliaria não serve aqui: é calculado só a partir de captador/vendedor/
   // parceria (recalcImobiliaria em vendas.$id.tsx), sem descontar líder/indicador/outro.
   const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
-  const valorImobiliaria = valorNosso - somaComissoes;
+  // REMAX não é uma linha de commissions (não é uma pessoa) — desconta à parte, também da fatia da
+  // imobiliária, mesmo o % dela sendo calculado sobre o total (ver applyRemaxPercentual).
+  const valorImobiliaria = valorNosso - somaComissoes - Number(sale.valor_remax ?? 0);
 
   return (
     <>
@@ -119,6 +121,9 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
           const c = commByPapel(p.key);
           return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
         })}
+        {sale.percentual_remax != null && (
+          <FormValueRow cols={["REMAX", "—", `${sale.percentual_remax}%`, money(sale.valor_remax) ?? "R$ 0,00"]} />
+        )}
         <FormValueRow cols={[<b>Imobiliária</b>, "—", "—", <b>{money(valorImobiliaria) ?? "R$ 0,00"}</b>]} />
       </FormTable>
 

@@ -964,6 +964,7 @@ export type Database = {
           percentual_comissao_captador: number | null
           percentual_comissao_indicador: number | null
           percentual_comissao_vendedor: number | null
+          percentual_remax: number | null
           posse_data: string | null
           posse_observacoes: string | null
           previsao_recebimento_data: string | null
@@ -990,6 +991,7 @@ export type Database = {
           valor_comissao_lider_vendedor: number | null
           valor_comissao_vendedor: number | null
           valor_negociado: number | null
+          valor_remax: number | null
           valor_total_comissao: number | null
         }
         Insert: {
@@ -1036,6 +1038,7 @@ export type Database = {
           percentual_comissao_captador?: number | null
           percentual_comissao_indicador?: number | null
           percentual_comissao_vendedor?: number | null
+          percentual_remax?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
           previsao_recebimento_data?: string | null
@@ -1062,6 +1065,7 @@ export type Database = {
           valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
+          valor_remax?: number | null
           valor_total_comissao?: number | null
         }
         Update: {
@@ -1108,6 +1112,7 @@ export type Database = {
           percentual_comissao_captador?: number | null
           percentual_comissao_indicador?: number | null
           percentual_comissao_vendedor?: number | null
+          percentual_remax?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
           previsao_recebimento_data?: string | null
@@ -1134,6 +1139,7 @@ export type Database = {
           valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
+          valor_remax?: number | null
           valor_total_comissao?: number | null
         }
         Relationships: []
