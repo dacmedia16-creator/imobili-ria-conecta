@@ -226,6 +226,23 @@ export const PARCERIA_TIPOS: { key: string; label: string }[] = [
   { key: "remax_externa", label: "Outra unidade RE/MAX" },
 ];
 
+/** Canal que gerou a venda. Lista fixa (trava por CHECK em sales.midia/occurrences.midia) pra
+ * "Instagram", "instagram", "Insta" não virarem categorias diferentes no relatório.
+ * "C2S" saiu daqui mas continua válida no CHECK do banco — uma venda antiga já usa esse valor
+ * e a decisão foi manter o dado como está em vez de apagar ou o formulário quebrar nela. */
+export const MIDIA_OPTIONS: { key: string; label: string }[] = [
+  { key: "Instagram", label: "Instagram" },
+  { key: "Facebook", label: "Facebook" },
+  { key: "Portal", label: "Portal (ZAP, Viva Real, OLX...)" },
+  { key: "Site Remax", label: "Site RE/MAX" },
+  { key: "Tráfego Pago", label: "Tráfego pago" },
+  { key: "Indicação", label: "Indicação" },
+  { key: "Placa", label: "Placa" },
+  { key: "Imovelweb", label: "Imovelweb" },
+  { key: "Chaves na Mão", label: "Chaves na Mão" },
+  { key: "Outro", label: "Outro" },
+];
+
 export type Pendencia = { campo: string; mensagem: string };
 
 /** Toda checagem não-documental feita por validarProntaParaRevisao — mantém o total de checks em sincronia com a função. */

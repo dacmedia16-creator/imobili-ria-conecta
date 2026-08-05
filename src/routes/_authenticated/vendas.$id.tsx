@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, validarProntaParaRevisao, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, MIDIA_OPTIONS, validarProntaParaRevisao, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -247,7 +247,7 @@ function SaleDetail() {
     setSaving(true);
     try {
     const fields = [
-      "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda","midia",
+      "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
       "corretor_captador","corretor_vendedor","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
@@ -837,8 +837,16 @@ function SaleDetail() {
               <Field label="IPTU"><Input value={formSale.iptu ?? ""} disabled={!editable} onChange={(e) => updResumo({ iptu: e.target.value })} /></Field>
               <Field label="Endereço do imóvel" colSpan={2}><Input value={formSale.imovel_endereco ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_endereco: e.target.value })} /></Field>
               <Field label="Código interno"><Input value={formSale.codigo_interno ?? ""} disabled={!editable} onChange={(e) => updResumo({ codigo_interno: e.target.value })} /></Field>
-              <Field label="Tempo de venda"><Input value={formSale.tempo_venda ?? ""} disabled={!editable} onChange={(e) => updResumo({ tempo_venda: e.target.value })} placeholder="Ex: 45 dias" /></Field>
-              <Field label="Mídia"><Input value={formSale.midia ?? ""} disabled={!editable} onChange={(e) => updResumo({ midia: e.target.value })} placeholder="Instagram, Portal, Placa..." /></Field>
+              <Field label="Tempo de venda (dias)"><Input type="number" min="0" step="1" value={formSale.tempo_venda_dias ?? ""} disabled={!editable} onChange={(e) => updResumo({ tempo_venda_dias: e.target.value ? Number(e.target.value) : null })} placeholder="Ex: 45" /></Field>
+              <Field label="Mídia">
+                <Select value={formSale.midia ?? "none"} onValueChange={(v) => updResumo({ midia: v === "none" ? null : v })} disabled={!editable}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {MIDIA_OPTIONS.map((m) => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="Observações do imóvel" colSpan={2}><Textarea value={formSale.imovel_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_observacoes: e.target.value })} /></Field>
             </FieldGrid>
           </SaleSection>
@@ -1505,7 +1513,7 @@ function SaleDetail() {
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
               <ReviewItem label="Endereço" value={sale.imovel_endereco} />
-              <ReviewItem label="Tempo de venda" value={sale.tempo_venda} />
+              <ReviewItem label="Tempo de venda" value={sale.tempo_venda_dias != null ? `${sale.tempo_venda_dias} dias` : null} />
               <ReviewItem label="Mídia" value={sale.midia} />
               <ReviewItem label="Observações do imóvel" value={sale.imovel_observacoes} />
             </ReviewGroup>
@@ -2603,7 +2611,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       sale_id: saleId,
       codigo_imovel: sale.imovel_id ?? sale.codigo_interno,
       data_assinatura: new Date().toISOString().slice(0, 10),
-      tempo_venda: sale.tempo_venda,
+      tempo_venda_dias: sale.tempo_venda_dias,
       midia: sale.midia,
       valor_anunciado: sale.valor_anunciado,
       valor_negociado: sale.valor_negociado,
@@ -2827,7 +2835,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     setSaving(true);
     try {
       if (dirtyOcc) {
-        const fields = ["codigo_imovel","tempo_venda","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","oba_credito","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
+        const fields = ["codigo_imovel","tempo_venda_dias","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","oba_credito","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
         const patch: any = {};
         for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
         if (Object.keys(patch).length) {
@@ -2978,9 +2986,17 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         <CardContent>
           <FieldGrid>
             <Field label="Código do imóvel"><Input value={formOcc.codigo_imovel ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ codigo_imovel: e.target.value })} /></Field>
-            <Field label="Tempo de venda"><Input value={formOcc.tempo_venda ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ tempo_venda: e.target.value })} placeholder="Ex: 45 dias" /></Field>
+            <Field label="Tempo de venda (dias)"><Input type="number" min="0" step="1" value={formOcc.tempo_venda_dias ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ tempo_venda_dias: e.target.value ? Number(e.target.value) : null })} placeholder="Ex: 45" /></Field>
             <Field label="Data de assinatura"><Input type="date" value={formOcc.data_assinatura ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ data_assinatura: e.target.value || null })} /></Field>
-            <Field label="Mídia"><Input value={formOcc.midia ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ midia: e.target.value })} placeholder="Instagram, Portal, Placa..." /></Field>
+            <Field label="Mídia">
+              <Select value={formOcc.midia ?? "none"} onValueChange={(v) => updOcc({ midia: v === "none" ? null : v })} disabled={!canWrite}>
+                <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {MIDIA_OPTIONS.map((m) => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Nota fiscal obrigatória"><div className="flex items-center gap-2"><Switch checked={!!formOcc.nota_fiscal_obrigatoria} onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}</span></div></Field>
             <Field label="Valor anunciado"><CurrencyInput value={formOcc.valor_anunciado} disabled={!canWrite} onChange={(v) => updOcc({ valor_anunciado: v })} /></Field>
             <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={(v) => updOcc({ valor_negociado: v })} /></Field>

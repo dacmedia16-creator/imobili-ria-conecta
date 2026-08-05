@@ -281,7 +281,7 @@ export type Database = {
           reopened_by: string | null
           sale_id: string
           status: string
-          tempo_venda: string | null
+          tempo_venda_dias: number | null
           updated_at: string
           valor_anunciado: number | null
           valor_comissao: number | null
@@ -325,7 +325,7 @@ export type Database = {
           reopened_by?: string | null
           sale_id: string
           status?: string
-          tempo_venda?: string | null
+          tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao?: number | null
@@ -369,7 +369,7 @@ export type Database = {
           reopened_by?: string | null
           sale_id?: string
           status?: string
-          tempo_venda?: string | null
+          tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao?: number | null
@@ -852,7 +852,7 @@ export type Database = {
           previsao_recebimento3_valor: number | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
-          tempo_venda: string | null
+          tempo_venda_dias: number | null
           updated_at: string
           valor_anunciado: number | null
           valor_comissao_captador: number | null
@@ -911,7 +911,7 @@ export type Database = {
           previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
-          tempo_venda?: string | null
+          tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao_captador?: number | null
@@ -970,7 +970,7 @@ export type Database = {
           previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
-          tempo_venda?: string | null
+          tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
           valor_comissao_captador?: number | null

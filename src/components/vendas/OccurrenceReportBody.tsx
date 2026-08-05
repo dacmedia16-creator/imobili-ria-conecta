@@ -66,7 +66,7 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
         <FormHeadRow cols={["Código do imóvel", "Tempo de venda", "Data de assinatura", "Nota fiscal obrigatória", "Mídia"]} />
         <FormValueRow cols={[
           sale.imovel_id || sale.codigo_interno,
-          occ?.tempo_venda,
+          occ?.tempo_venda_dias != null ? `${occ.tempo_venda_dias} dias` : "",
           <span className="font-semibold">{dateBR(occ?.data_assinatura)}</span>,
           <Checkbox checked={!!occ?.nota_fiscal_obrigatoria} label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"} />,
           occ?.midia,
