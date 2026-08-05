@@ -623,6 +623,7 @@ export type Database = {
           papel: string | null
           percentual: number | null
           sale_id: string
+          user_id: string | null
           valor: number | null
         }
         Insert: {
@@ -633,6 +634,7 @@ export type Database = {
           papel?: string | null
           percentual?: number | null
           sale_id: string
+          user_id?: string | null
           valor?: number | null
         }
         Update: {
@@ -643,6 +645,7 @@ export type Database = {
           papel?: string | null
           percentual?: number | null
           sale_id?: string
+          user_id?: string | null
           valor?: number | null
         }
         Relationships: [

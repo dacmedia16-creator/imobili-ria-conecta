@@ -347,7 +347,7 @@ function SaleDetail() {
       resolvedExtras = [...formExtras];
       for (let i = 0; i < resolvedExtras.length; i++) {
         const r = resolvedExtras[i];
-        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null };
+        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null };
         if (r._new) {
           const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
           if (error) { toast.error(error.message); return false; }
@@ -1144,16 +1144,36 @@ function SaleDetail() {
               </Field>
               {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
                 const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
+                const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
                 return (
                   <Field key={r.id} label={`${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        className="w-48"
-                        placeholder="Nome"
-                        value={r.nome ?? ""}
-                        disabled={!editable}
-                        onChange={(e) => updExtra(r.id, { nome: e.target.value })}
-                      />
+                      {corretorOptions.length > 0 && (
+                        <Select
+                          value={foraDaLista ? "manual" : (r.user_id || "manual")}
+                          onValueChange={(v) => {
+                            const c = corretorOptions.find((o) => o.id === v);
+                            updExtra(r.id, { user_id: v === "manual" ? null : v, nome: c ? c.nome : r.nome });
+                          }}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manual">Digitar nome</SelectItem>
+                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {(corretorOptions.length === 0 || !r.user_id || foraDaLista) && (
+                        <Input
+                          className="w-40"
+                          placeholder="Nome"
+                          value={r.nome ?? ""}
+                          disabled={!editable}
+                          onChange={(e) => updExtra(r.id, { nome: e.target.value })}
+                          title={foraDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
+                        />
+                      )}
                       <div className="w-32"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
                       {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                     </div>
@@ -2657,8 +2677,10 @@ const userIdParaPapel = (papel: string, sale: any): string | null => {
 // Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
 // "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
 // PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso
-// grudaria o id do captador/vendedor principal na comissão de outra pessoa.
-const userIdParaExtra = (papel: string, sale: any): string | null => {
+// grudaria o id do captador/vendedor principal na comissão de outra pessoa. `extra.user_id` (quando
+// o "Outro captador/vendedor" foi selecionado da lista, não digitado) tem prioridade sobre tudo.
+const userIdParaExtra = (papel: string, sale: any, extra?: any): string | null => {
+  if (extra?.user_id) return extra.user_id;
   if (papel === "gestor") return sale.coordenador_id ?? null;
   if (papel === "team_leader") return sale.team_leader_id ?? null;
   return null;
@@ -2704,7 +2726,7 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
 
   for (const extra of commissionExtras) {
     const papel = papelDaExtra(extra.papel);
-    const userId = userIdParaExtra(papel, sale);
+    const userId = userIdParaExtra(papel, sale, extra);
     // Casa pelo id estável da parte extra (sale_commission_extra_id) — casar só por nome quebra
     // quando o nome muda entre um save e outro (ex.: linha criada "sem nome" e preenchida depois),
     // já que aí vira um "nome" diferente e uma linha nova duplicada era criada em vez de atualizar.
@@ -2881,7 +2903,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       const papel = papelDaExtra(e.papel);
       return {
         occurrence_id: data.id, papel, nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
-        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale),
+        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale, e),
       };
     });
     await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
@@ -2960,7 +2982,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       // última vez) ou adiciona uma nova, sem duplicar a cada clique.
       for (const extra of commissionExtras) {
         const papel = papelDaExtra(extra.papel);
-        const userId = userIdParaExtra(papel, sale);
+        const userId = userIdParaExtra(papel, sale, extra);
         const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
         const idxLegado = idx >= 0 ? idx : next.findIndex((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
         if (idxLegado >= 0) {
