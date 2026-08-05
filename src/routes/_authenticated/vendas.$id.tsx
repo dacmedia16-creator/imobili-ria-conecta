@@ -562,12 +562,14 @@ function SaleDetail() {
     setDirtyExtras(true);
   };
   // Atalho pra "mais um captador/vendedor": mesma linha de sale_commission_extras, só pré-preenchida
-  // com o papel e a origem certos — assim entra no mesmo cálculo/sincronização das partes extras.
+  // com o papel certo — origem="imobiliaria" (desconta de "Valor para a imobiliária", não da fatia
+  // do corretor principal — o "outro" corretor é pago pelo escritório, não divide o corretor
+  // principal), mesmo tratamento de gestor/team leader extra.
   const addCoCorretor = (role: "captador" | "vendedor") => {
     setFormExtras(rows => [...rows, {
       id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
       papel: role === "captador" ? "corretor_captador" : "corretor_vendedor",
-      origem: role, percentual: null, valor: null, _new: true,
+      origem: "imobiliaria", percentual: null, valor: null, _new: true,
     }]);
     setDirtyExtras(true);
   };
