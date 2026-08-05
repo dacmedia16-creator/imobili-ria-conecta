@@ -55,6 +55,13 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   const somaParceria = partners.reduce((s, p) => s + Number(p.valor ?? 0), 0);
   const totalComissao = Number(occ?.valor_comissao ?? sale.valor_total_comissao ?? 0);
   const valorNosso = totalComissao - somaParceria;
+  // Imobiliária = o que sobra depois de pagar todo mundo listado na tabela abaixo (captador,
+  // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro) — soma TODAS as
+  // linhas de commissions, não só a primeira de cada papel (pode haver mais de um "Outro" extra).
+  // sale.valor_comissao_imobiliaria não serve aqui: é calculado só a partir de captador/vendedor/
+  // parceria (recalcImobiliaria em vendas.$id.tsx), sem descontar líder/indicador/outro.
+  const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
+  const valorImobiliaria = valorNosso - somaComissoes;
 
   return (
     <>
@@ -112,7 +119,7 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
           const c = commByPapel(p.key);
           return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
         })}
-        <FormValueRow cols={[<b>Imobiliária</b>, "—", "—", <b>{money(sale.valor_comissao_imobiliaria) ?? "R$ 0,00"}</b>]} />
+        <FormValueRow cols={[<b>Imobiliária</b>, "—", "—", <b>{money(valorImobiliaria) ?? "R$ 0,00"}</b>]} />
       </FormTable>
 
       <FormTitle right={<Checkbox checked={!!occ?.financiamento} label={occ?.financiamento ? "Sim" : "Não"} />}>
