@@ -945,7 +945,9 @@ export type Database = {
           indicador_vendedor: string | null
           iptu: string | null
           lider_captador_id: string | null
+          lider_captador_nome: string | null
           lider_vendedor_id: string | null
+          lider_vendedor_nome: string | null
           matricula: string | null
           midia: string | null
           negociacao_observacoes: string | null
@@ -1015,7 +1017,9 @@ export type Database = {
           indicador_vendedor?: string | null
           iptu?: string | null
           lider_captador_id?: string | null
+          lider_captador_nome?: string | null
           lider_vendedor_id?: string | null
+          lider_vendedor_nome?: string | null
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null
@@ -1085,7 +1089,9 @@ export type Database = {
           indicador_vendedor?: string | null
           iptu?: string | null
           lider_captador_id?: string | null
+          lider_captador_nome?: string | null
           lider_vendedor_id?: string | null
+          lider_vendedor_nome?: string | null
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null

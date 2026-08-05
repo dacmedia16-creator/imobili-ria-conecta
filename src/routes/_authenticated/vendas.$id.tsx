@@ -314,7 +314,7 @@ function SaleDetail() {
       "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
       "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
-      "coordenador_id","team_leader_id","lider_captador_id","lider_vendedor_id",
+      "coordenador_id","team_leader_id","lider_captador_id","lider_captador_nome","lider_vendedor_id","lider_vendedor_nome",
     ];
     const patch: any = {};
     for (const k of fields) {
@@ -924,7 +924,10 @@ function SaleDetail() {
                         <Field label="Gestor/Team Leader do captador">
                           <Select
                             value={formSale.lider_captador_id || "none"}
-                            onValueChange={(v) => updResumo({ lider_captador_id: v === "none" ? null : v })}
+                            onValueChange={(v) => {
+                              const l = liderOptions.find((o) => o.id === v);
+                              updResumo({ lider_captador_id: v === "none" ? null : v, lider_captador_nome: l ? l.nome : null });
+                            }}
                             disabled={!editable}
                           >
                             <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -1004,7 +1007,10 @@ function SaleDetail() {
                         <Field label="Gestor/Team Leader do vendedor">
                           <Select
                             value={formSale.lider_vendedor_id || "none"}
-                            onValueChange={(v) => updResumo({ lider_vendedor_id: v === "none" ? null : v })}
+                            onValueChange={(v) => {
+                              const l = liderOptions.find((o) => o.id === v);
+                              updResumo({ lider_vendedor_id: v === "none" ? null : v, lider_vendedor_nome: l ? l.nome : null });
+                            }}
                             disabled={!editable}
                           >
                             <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -1091,12 +1097,12 @@ function SaleDetail() {
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               {formSale.lider_captador_id && (
-                <Field label={`Comissão Gestor/Team Leader do captador — ${liderOptions.find((l) => l.id === formSale.lider_captador_id)?.nome ?? ""} (R$)`}>
+                <Field label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}>
                   <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
                 </Field>
               )}
               {formSale.lider_vendedor_id && (
-                <Field label={`Comissão Gestor/Team Leader do vendedor — ${liderOptions.find((l) => l.id === formSale.lider_vendedor_id)?.nome ?? ""} (R$)`}>
+                <Field label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}>
                   <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
                 </Field>
               )}
@@ -1690,9 +1696,9 @@ function SaleDetail() {
 
             <ReviewGroup title="Equipe">
               <ReviewItem label="Corretor captador" value={sale.corretor_captador} />
-              <ReviewItem label="Gestor/Team Leader do captador" value={liderOptions.find((l) => l.id === sale.lider_captador_id)?.nome} />
+              <ReviewItem label="Gestor/Team Leader do captador" value={sale.lider_captador_nome} />
               <ReviewItem label="Corretor vendedor" value={sale.corretor_vendedor} />
-              <ReviewItem label="Gestor/Team Leader do vendedor" value={liderOptions.find((l) => l.id === sale.lider_vendedor_id)?.nome} />
+              <ReviewItem label="Gestor/Team Leader do vendedor" value={sale.lider_vendedor_nome} />
               <ReviewItem label="Indicador do captador" value={sale.indicador_captador} />
               <ReviewItem label="Indicador do vendedor" value={sale.indicador_vendedor} />
               <ReviewItem label="Gestor (comissão)" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
@@ -2613,16 +2619,19 @@ const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has
 // vendedor/indicador) — diferente de EXTRA_ORIGEM_PAPEIS acima, que é só sobre como rotular uma
 // parte EXTRA. Não reaproveitar esse set ali: corretor_captador/vendedor está nos dois por razões
 // diferentes, e um dia já causou um bug (createOcc parava de criar a linha fixa do captador/vendedor).
-const FIXED_COMISSAO_PAPEIS = new Set(["corretor_captador", "indicador_captador", "corretor_vendedor", "indicador_vendedor"]);
+const FIXED_COMISSAO_PAPEIS = new Set(["corretor_captador", "indicador_captador", "lider_captador", "corretor_vendedor", "indicador_vendedor", "lider_vendedor"]);
 // Papéis com link de verdade pra conta de usuário (item 4): captador/vendedor via
 // sales.corretor_captador_id/vendedor_id, gestor/team_leader via coordenador_id/team_leader_id (já
-// existiam antes, só não eram propagados pra occurrence_commissions). Indicador/outro continuam só
-// por nome — geralmente é gente de fora do sistema.
+// existiam antes, só não eram propagados pra occurrence_commissions). lider_captador/vendedor via
+// sales.lider_captador_id/vendedor_id (Equipe). Indicador/outro continuam só por nome — geralmente
+// é gente de fora do sistema.
 const userIdParaPapel = (papel: string, sale: any): string | null => {
   if (papel === "corretor_captador") return sale.corretor_captador_id ?? null;
   if (papel === "corretor_vendedor") return sale.corretor_vendedor_id ?? null;
   if (papel === "gestor") return sale.coordenador_id ?? null;
   if (papel === "team_leader") return sale.team_leader_id ?? null;
+  if (papel === "lider_captador") return sale.lider_captador_id ?? null;
+  if (papel === "lider_vendedor") return sale.lider_vendedor_id ?? null;
   return null;
 };
 // Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
@@ -2656,6 +2665,8 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
   ];
   fixedUpdates.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
   fixedUpdates.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
+  fixedUpdates.push({ papel: "lider_captador", nome: sale.lider_captador_nome ?? null, valor: sale.valor_comissao_lider_captador ?? null });
+  fixedUpdates.push({ papel: "lider_vendedor", nome: sale.lider_vendedor_nome ?? null, valor: sale.valor_comissao_lider_vendedor ?? null });
 
   for (const upd of fixedUpdates) {
     if (upd.nome == null && upd.valor == null) continue;
@@ -2796,7 +2807,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     if (dirtyOcc || dirtyComms || dirtyPartners) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador_captador, sale.valor_comissao_indicador_vendedor, sale.indicador_captador, sale.indicador_vendedor, commissionExtras]);
+  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador_captador, sale.valor_comissao_indicador_vendedor, sale.indicador_captador, sale.indicador_vendedor, sale.valor_comissao_lider_captador, sale.valor_comissao_lider_vendedor, sale.lider_captador_nome, sale.lider_vendedor_nome, commissionExtras]);
 
   const createOcc = async () => {
     const vendedor = parties?.vendedor_1;
@@ -2841,6 +2852,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       else if (p.key === "corretor_vendedor") { nome = sale.corretor_vendedor ?? null; valor = sale.valor_comissao_vendedor ?? null; }
       else if (p.key === "indicador_captador") { nome = sale.indicador_captador ?? null; valor = sale.valor_comissao_indicador_captador ?? null; }
       else if (p.key === "indicador_vendedor") { nome = sale.indicador_vendedor ?? null; valor = sale.valor_comissao_indicador_vendedor ?? null; }
+      else if (p.key === "lider_captador") { nome = sale.lider_captador_nome ?? null; valor = sale.valor_comissao_lider_captador ?? null; }
+      else if (p.key === "lider_vendedor") { nome = sale.lider_vendedor_nome ?? null; valor = sale.valor_comissao_lider_vendedor ?? null; }
       return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale) };
     });
     // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
@@ -2901,17 +2914,21 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual, user_id: userIdParaPapel("corretor_vendedor", sale) };
         if (r.papel === "indicador_captador") return { ...r, nome: sale.indicador_captador ?? r.nome, valor: sale.valor_comissao_indicador_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_captador) ?? r.percentual };
         if (r.papel === "indicador_vendedor") return { ...r, nome: sale.indicador_vendedor ?? r.nome, valor: sale.valor_comissao_indicador_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_vendedor) ?? r.percentual };
+        if (r.papel === "lider_captador") return { ...r, nome: sale.lider_captador_nome ?? r.nome, valor: sale.valor_comissao_lider_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_lider_captador) ?? r.percentual, user_id: userIdParaPapel("lider_captador", sale) };
+        if (r.papel === "lider_vendedor") return { ...r, nome: sale.lider_vendedor_nome ?? r.nome, valor: sale.valor_comissao_lider_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_lider_vendedor) ?? r.percentual, user_id: userIdParaPapel("lider_vendedor", sale) };
         return r;
       });
-      // Se a linha fixa (captador/vendedor/indicador) nunca existiu na ocorrência — ex.: ela foi
-      // criada antes desses campos serem preenchidos na revisão do gestor — o map acima não tem o
-      // que atualizar. Cria a linha que estiver faltando, em vez de silenciosamente não fazer nada.
+      // Se a linha fixa (captador/vendedor/indicador/líder) nunca existiu na ocorrência — ex.: ela
+      // foi criada antes desses campos serem preenchidos na revisão do gestor — o map acima não tem
+      // o que atualizar. Cria a linha que estiver faltando, em vez de silenciosamente não fazer nada.
       const fixedTargets: { papel: string; nome: any; valor: any }[] = [
         { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
         { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
       ];
       fixedTargets.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
       fixedTargets.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
+      fixedTargets.push({ papel: "lider_captador", nome: sale.lider_captador_nome ?? null, valor: sale.valor_comissao_lider_captador ?? null });
+      fixedTargets.push({ papel: "lider_vendedor", nome: sale.lider_vendedor_nome ?? null, valor: sale.valor_comissao_lider_vendedor ?? null });
       for (const t of fixedTargets) {
         if (t.nome == null && t.valor == null) continue;
         if (!next.some((r) => r.papel === t.papel)) {
@@ -2966,6 +2983,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     ];
     checks.push({ papel: "indicador_captador", valorAtual: sale.valor_comissao_indicador_captador });
     checks.push({ papel: "indicador_vendedor", valorAtual: sale.valor_comissao_indicador_vendedor });
+    checks.push({ papel: "lider_captador", valorAtual: sale.valor_comissao_lider_captador });
+    checks.push({ papel: "lider_vendedor", valorAtual: sale.valor_comissao_lider_vendedor });
     const divergeValor = checks.some(({ papel, valorAtual }) => {
       if (valorAtual == null) return false;
       const row = commissions.find((r) => r.papel === papel);
