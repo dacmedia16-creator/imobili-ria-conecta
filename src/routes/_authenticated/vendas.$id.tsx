@@ -304,6 +304,7 @@ function SaleDetail() {
       "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
+      "valor_comissao_lider_captador","valor_comissao_lider_vendedor",
       "percentual_comissao_captador","percentual_comissao_vendedor",
       "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
@@ -1097,16 +1098,6 @@ function SaleDetail() {
               </>) },
               { key: "comissao", label: "Divisão da comissão", content: (<>
           <SaleSection title="Divisão da comissão (revisão do gestor)">
-            {(liderOptions.find((l) => l.id === formSale.lider_captador_id) || liderOptions.find((l) => l.id === formSale.lider_vendedor_id)) && (
-              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-                {formSale.lider_captador_id && (
-                  <span>Gestor/Team Leader do captador: <span className="font-medium text-foreground">{liderOptions.find((l) => l.id === formSale.lider_captador_id)?.nome ?? "—"}</span></span>
-                )}
-                {formSale.lider_vendedor_id && (
-                  <span>Gestor/Team Leader do vendedor: <span className="font-medium text-foreground">{liderOptions.find((l) => l.id === formSale.lider_vendedor_id)?.nome ?? "—"}</span></span>
-                )}
-              </div>
-            )}
             {(() => {
               const total = Number(formSale.valor_total_comissao ?? 0);
               const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
@@ -1126,11 +1117,21 @@ function SaleDetail() {
             <FieldGrid>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
+              {formSale.lider_captador_id && (
+                <Field label={`Comissão Gestor/Team Leader do captador — ${liderOptions.find((l) => l.id === formSale.lider_captador_id)?.nome ?? ""} (R$)`}>
+                  <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
+                </Field>
+              )}
+              {formSale.lider_vendedor_id && (
+                <Field label={`Comissão Gestor/Team Leader do vendedor — ${liderOptions.find((l) => l.id === formSale.lider_vendedor_id)?.nome ?? ""} (R$)`}>
+                  <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
+                </Field>
+              )}
               <Field label="Líquido do captador (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Líquido do vendedor (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - (formSale.indicador_lado === "vendedor" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - (formSale.indicador_lado === "vendedor" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />

@@ -980,6 +980,8 @@ export type Database = {
           valor_comissao_captador: number | null
           valor_comissao_imobiliaria: number | null
           valor_comissao_indicador: number | null
+          valor_comissao_lider_captador: number | null
+          valor_comissao_lider_vendedor: number | null
           valor_comissao_vendedor: number | null
           valor_negociado: number | null
           valor_total_comissao: number | null
@@ -1044,6 +1046,8 @@ export type Database = {
           valor_comissao_captador?: number | null
           valor_comissao_imobiliaria?: number | null
           valor_comissao_indicador?: number | null
+          valor_comissao_lider_captador?: number | null
+          valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
           valor_total_comissao?: number | null
@@ -1108,6 +1112,8 @@ export type Database = {
           valor_comissao_captador?: number | null
           valor_comissao_imobiliaria?: number | null
           valor_comissao_indicador?: number | null
+          valor_comissao_lider_captador?: number | null
+          valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null
           valor_negociado?: number | null
           valor_total_comissao?: number | null
