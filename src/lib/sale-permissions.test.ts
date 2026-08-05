@@ -4,12 +4,10 @@ import type { SaleStatus } from "@/lib/status";
 import {
   comissaoValorExcedido,
   corretorPodeEditar,
-  deveOcultarBlocoComissao,
   getSaleRoleFlags,
   gestorPodeEditar,
   isSaleLocked,
   juridicoPodeEditar,
-  podeEditarComissao,
   podeEditarOcorrencia,
   podeEditarVenda,
   podeFinalizarOcorrencia,
@@ -143,83 +141,6 @@ describe("podeEditarVenda", () => {
     expect(podeEditarVenda({ ...base, corretorEdits: true, locked: true })).toBe(false);
     expect(podeEditarVenda({ ...base, isFinanceiro: true, locked: true })).toBe(true);
     expect(podeEditarVenda({ ...base, isAdminLike: true, locked: true })).toBe(true);
-  });
-});
-
-describe("podeEditarComissao", () => {
-  it("financeiro e admin podem editar comissão mesmo sem gestorEdits", () => {
-    expect(
-      podeEditarComissao({
-        gestorEdits: false,
-        isFinanceiro: true,
-        isAdminLike: false,
-        locked: false,
-      }),
-    ).toBe(true);
-    expect(
-      podeEditarComissao({
-        gestorEdits: false,
-        isFinanceiro: false,
-        isAdminLike: true,
-        locked: false,
-      }),
-    ).toBe(true);
-  });
-
-  it("gestor edita comissão quando gestorEdits é true", () => {
-    expect(
-      podeEditarComissao({
-        gestorEdits: true,
-        isFinanceiro: false,
-        isAdminLike: false,
-        locked: false,
-      }),
-    ).toBe(true);
-  });
-
-  it("sem nenhum dos três, não edita", () => {
-    expect(
-      podeEditarComissao({
-        gestorEdits: false,
-        isFinanceiro: false,
-        isAdminLike: false,
-        locked: false,
-      }),
-    ).toBe(false);
-  });
-
-  it("venda travada bloqueia gestor mas não financeiro/admin", () => {
-    expect(
-      podeEditarComissao({
-        gestorEdits: true,
-        isFinanceiro: false,
-        isAdminLike: false,
-        locked: true,
-      }),
-    ).toBe(false);
-    expect(
-      podeEditarComissao({
-        gestorEdits: false,
-        isFinanceiro: true,
-        isAdminLike: false,
-        locked: true,
-      }),
-    ).toBe(true);
-  });
-});
-
-describe("deveOcultarBlocoComissao", () => {
-  it("esconde do corretor fora de devolvida_ajuste", () => {
-    expect(deveOcultarBlocoComissao(true, "rascunho")).toBe(true);
-    expect(deveOcultarBlocoComissao(true, "enviada_revisao")).toBe(true);
-  });
-
-  it("mostra pro corretor quando a venda foi devolvida pra ajuste", () => {
-    expect(deveOcultarBlocoComissao(true, "devolvida_ajuste")).toBe(false);
-  });
-
-  it("nunca esconde de quem não é o corretor dono", () => {
-    expect(deveOcultarBlocoComissao(false, "rascunho")).toBe(false);
   });
 });
 

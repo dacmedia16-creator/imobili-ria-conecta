@@ -73,26 +73,6 @@ export function podeEditarVenda(args: {
   );
 }
 
-/** Divisão da comissão é decisão do gestor — mesmo quando a venda volta pro corretor
- * (devolvida_ajuste) pra ajustar outra coisa, ele só pode VER essa parte, não editar. */
-export function podeEditarComissao(args: {
-  gestorEdits: boolean;
-  isFinanceiro: boolean;
-  isAdminLike: boolean;
-  locked: boolean;
-}): boolean {
-  return (
-    (args.gestorEdits || args.isFinanceiro || args.isAdminLike) &&
-    (!args.locked || args.isFinanceiro || args.isAdminLike)
-  );
-}
-
-/** Corretor só enxerga o bloco "Divisão da comissão" quando o gestor devolveu a venda pra ele
- * (devolvida_ajuste) — fora disso o bloco fica oculto. Gestor/financeiro/admin/jurídico sempre veem. */
-export function deveOcultarBlocoComissao(isOwner: boolean, status: SaleStatus): boolean {
-  return isOwner && status !== "devolvida_ajuste";
-}
-
 /** Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total. */
 export function comissaoValorExcedido(
   valorTotalComissao: number,
