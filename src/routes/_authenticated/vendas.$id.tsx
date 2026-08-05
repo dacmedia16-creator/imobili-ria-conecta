@@ -1967,9 +1967,9 @@ function SaleDetail() {
               <div className="mb-1 font-medium">Contrato(s) já anexado(s):</div>
               <ul className="space-y-1 text-muted-foreground">
                 {contratoDocs.map((d) => (
-                  <li key={d.id} className="flex items-center gap-2">
+                  <li key={d.id} className="flex min-w-0 items-center gap-2">
                     <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                    <span className="truncate">{d.file_name}</span>
+                    <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
                   </li>
                 ))}
               </ul>
@@ -2042,9 +2042,9 @@ function SaleDetail() {
               <div className="mb-1 font-medium">Contrato(s) assinado(s) já anexado(s):</div>
               <ul className="space-y-1 text-muted-foreground">
                 {contratoAssinadoDocs.map((d) => (
-                  <li key={d.id} className="flex items-center gap-2">
+                  <li key={d.id} className="flex min-w-0 items-center gap-2">
                     <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                    <span className="truncate">{d.file_name}</span>
+                    <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
                   </li>
                 ))}
               </ul>
