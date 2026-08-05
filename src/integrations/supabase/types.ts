@@ -198,6 +198,7 @@ export type Database = {
           papel: string
           percentual: number | null
           sale_commission_extra_id: string | null
+          user_id: string | null
           valor: number | null
         }
         Insert: {
@@ -208,6 +209,7 @@ export type Database = {
           papel: string
           percentual?: number | null
           sale_commission_extra_id?: string | null
+          user_id?: string | null
           valor?: number | null
         }
         Update: {
@@ -218,6 +220,7 @@ export type Database = {
           papel?: string
           percentual?: number | null
           sale_commission_extra_id?: string | null
+          user_id?: string | null
           valor?: number | null
         }
         Relationships: [
@@ -876,8 +879,10 @@ export type Database = {
           contrato_pendencia_descricao: string | null
           coordenador_id: string | null
           corretor_captador: string | null
+          corretor_captador_id: string | null
           corretor_id: string
           corretor_vendedor: string | null
+          corretor_vendedor_id: string | null
           created_at: string
           forma_pagamento: string | null
           id: string
@@ -936,8 +941,10 @@ export type Database = {
           contrato_pendencia_descricao?: string | null
           coordenador_id?: string | null
           corretor_captador?: string | null
+          corretor_captador_id?: string | null
           corretor_id: string
           corretor_vendedor?: string | null
+          corretor_vendedor_id?: string | null
           created_at?: string
           forma_pagamento?: string | null
           id?: string
@@ -996,8 +1003,10 @@ export type Database = {
           contrato_pendencia_descricao?: string | null
           coordenador_id?: string | null
           corretor_captador?: string | null
+          corretor_captador_id?: string | null
           corretor_id?: string
           corretor_vendedor?: string | null
+          corretor_vendedor_id?: string | null
           created_at?: string
           forma_pagamento?: string | null
           id?: string

@@ -186,6 +186,19 @@ function SaleDetail() {
   const gestorOptions = lideres.length > 0 ? lideres : gestoresGerais;
   const teamLeaderOptions = lideres.length > 0 ? lideres : teamLeadersGerais;
 
+  // Corretor captador/vendedor: lista todos os corretores ativos da imobiliária (sem filtrar por
+  // equipe — co-listagem entre times é comum, diferente de Gestor/Team Leader que é só da equipe).
+  const [corretorOptions, setCorretorOptions] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: corretorRoles } = await supabase.from("user_roles").select("user_id").eq("role", "corretor");
+      const ids = Array.from(new Set((corretorRoles ?? []).map((r: any) => r.user_id)));
+      if (ids.length === 0) return;
+      const { data: profs } = await supabase.from("profiles").select("id, nome").eq("ativo", true).in("id", ids);
+      setCorretorOptions((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })).sort((a, b) => a.nome.localeCompare(b.nome)));
+    })();
+  }, []);
+
   const hasLoadedOnceRef = useRef(false);
   const load = useCallback(async () => {
     // Só mostra a tela cheia de "Carregando..." na primeira vez — em recargas depois de uma ação
@@ -248,7 +261,7 @@ function SaleDetail() {
     try {
     const fields = [
       "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
-      "corretor_captador","corretor_vendedor","indicador",
+      "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id","indicador",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "percentual_comissao_captador","percentual_comissao_vendedor",
@@ -850,8 +863,64 @@ function SaleDetail() {
               { key: "equipe", label: "Equipe", content: (<>
           <SaleSection title="Equipe">
             <FieldGrid>
-              <Field label="Corretor captador"><Input value={formSale.corretor_captador ?? ""} disabled={!editable} onChange={(e) => updResumo({ corretor_captador: e.target.value })} /></Field>
-              <Field label="Corretor vendedor"><Input value={formSale.corretor_vendedor ?? ""} disabled={!editable} onChange={(e) => updResumo({ corretor_vendedor: e.target.value })} /></Field>
+              <Field label="Corretor captador">
+                <div className="flex flex-wrap items-center gap-2">
+                  {corretorOptions.length > 0 && (
+                    <Select
+                      value={formSale.corretor_captador_id || "manual"}
+                      onValueChange={(v) => {
+                        const c = corretorOptions.find((o) => o.id === v);
+                        updResumo({ corretor_captador_id: v === "manual" ? null : v, corretor_captador: c ? c.nome : formSale.corretor_captador });
+                      }}
+                      disabled={!editable}
+                    >
+                      <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">Digitar nome</SelectItem>
+                        {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {(corretorOptions.length === 0 || !formSale.corretor_captador_id) && (
+                    <Input
+                      className="w-40"
+                      value={formSale.corretor_captador ?? ""}
+                      disabled={!editable}
+                      onChange={(e) => updResumo({ corretor_captador: e.target.value })}
+                      placeholder="Nome"
+                    />
+                  )}
+                </div>
+              </Field>
+              <Field label="Corretor vendedor">
+                <div className="flex flex-wrap items-center gap-2">
+                  {corretorOptions.length > 0 && (
+                    <Select
+                      value={formSale.corretor_vendedor_id || "manual"}
+                      onValueChange={(v) => {
+                        const c = corretorOptions.find((o) => o.id === v);
+                        updResumo({ corretor_vendedor_id: v === "manual" ? null : v, corretor_vendedor: c ? c.nome : formSale.corretor_vendedor });
+                      }}
+                      disabled={!editable}
+                    >
+                      <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">Digitar nome</SelectItem>
+                        {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {(corretorOptions.length === 0 || !formSale.corretor_vendedor_id) && (
+                    <Input
+                      className="w-40"
+                      value={formSale.corretor_vendedor ?? ""}
+                      disabled={!editable}
+                      onChange={(e) => updResumo({ corretor_vendedor: e.target.value })}
+                      placeholder="Nome"
+                    />
+                  )}
+                </div>
+              </Field>
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
               <Field label="Gestor">
                 <Select value={formSale.coordenador_id ?? "none"} onValueChange={(v) => updResumo({ coordenador_id: v === "none" ? null : v })} disabled={!editable || gestorOptions.length === 0}>
@@ -2435,6 +2504,17 @@ const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has
 // parte EXTRA. Não reaproveitar esse set ali: corretor_captador/vendedor está nos dois por razões
 // diferentes, e um dia já causou um bug (createOcc parava de criar a linha fixa do captador/vendedor).
 const FIXED_COMISSAO_PAPEIS = new Set(["corretor_captador", "indicador_captador", "corretor_vendedor", "indicador_vendedor"]);
+// Papéis com link de verdade pra conta de usuário (item 4): captador/vendedor via
+// sales.corretor_captador_id/vendedor_id, gestor/team_leader via coordenador_id/team_leader_id (já
+// existiam antes, só não eram propagados pra occurrence_commissions). Indicador/outro continuam só
+// por nome — geralmente é gente de fora do sistema.
+const userIdParaPapel = (papel: string, sale: any): string | null => {
+  if (papel === "corretor_captador") return sale.corretor_captador_id ?? null;
+  if (papel === "corretor_vendedor") return sale.corretor_vendedor_id ?? null;
+  if (papel === "gestor") return sale.coordenador_id ?? null;
+  if (papel === "team_leader") return sale.team_leader_id ?? null;
+  return null;
+};
 
 /**
  * Sempre que a Resumo é salva (captador/vendedor/indicador/partes extras), joga esses valores
@@ -2462,17 +2542,19 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
     if (upd.nome == null && upd.valor == null) continue;
     const row = rows.find((r) => r.papel === upd.papel);
     const percentual = pctOfTotal(upd.valor);
+    const userId = userIdParaPapel(upd.papel, sale);
     if (row) {
-      if (row.nome !== upd.nome || Number(row.valor ?? 0) !== Number(upd.valor ?? 0)) {
-        await supabase.from("occurrence_commissions").update({ nome: upd.nome, valor: upd.valor, percentual }).eq("id", row.id);
+      if (row.nome !== upd.nome || Number(row.valor ?? 0) !== Number(upd.valor ?? 0) || row.user_id !== userId) {
+        await supabase.from("occurrence_commissions").update({ nome: upd.nome, valor: upd.valor, percentual, user_id: userId }).eq("id", row.id);
       }
     } else {
-      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel: upd.papel, nome: upd.nome, valor: upd.valor, percentual });
+      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel: upd.papel, nome: upd.nome, valor: upd.valor, percentual, user_id: userId });
     }
   }
 
   for (const extra of commissionExtras) {
     const papel = papelDaExtra(extra.papel);
+    const userId = userIdParaPapel(papel, sale);
     // Casa pelo id estável da parte extra (sale_commission_extra_id) — casar só por nome quebra
     // quando o nome muda entre um save e outro (ex.: linha criada "sem nome" e preenchida depois),
     // já que aí vira um "nome" diferente e uma linha nova duplicada era criada em vez de atualizar.
@@ -2480,11 +2562,11 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
       ?? rows.find((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
     const percentual = pctOfTotal(extra.valor);
     if (row) {
-      if (row.nome !== extra.nome || Number(row.valor ?? 0) !== Number(extra.valor ?? 0) || row.sale_commission_extra_id !== extra.id) {
-        await supabase.from("occurrence_commissions").update({ nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id }).eq("id", row.id);
+      if (row.nome !== extra.nome || Number(row.valor ?? 0) !== Number(extra.valor ?? 0) || row.sale_commission_extra_id !== extra.id || row.user_id !== userId) {
+        await supabase.from("occurrence_commissions").update({ nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id, user_id: userId }).eq("id", row.id);
       }
     } else {
-      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id });
+      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id, user_id: userId });
     }
   }
 }
@@ -2640,13 +2722,16 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       else if (p.key === "corretor_vendedor") { nome = sale.corretor_vendedor ?? null; valor = sale.valor_comissao_vendedor ?? null; }
       else if (p.key === "indicador_captador" && sale.indicador_lado === "captador") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
       else if (p.key === "indicador_vendedor" && sale.indicador_lado === "vendedor") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
-      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor };
+      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale) };
     });
     // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
-    const extraRows = commissionExtras.map((e) => ({
-      occurrence_id: data.id, papel: papelDaExtra(e.papel), nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
-      sale_commission_extra_id: e.id,
-    }));
+    const extraRows = commissionExtras.map((e) => {
+      const papel = papelDaExtra(e.papel);
+      return {
+        occurrence_id: data.id, papel, nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
+        sale_commission_extra_id: e.id, user_id: userIdParaPapel(papel, sale),
+      };
+    });
     await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
     // Parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo
     // entra junto na criação, sem precisar reentrar os dados na Ocorrência.
@@ -2693,8 +2778,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
     setFormComms((rows) => {
       let next = rows.map((r) => {
-        if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual };
-        if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual };
+        if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual, user_id: userIdParaPapel("corretor_captador", sale) };
+        if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual, user_id: userIdParaPapel("corretor_vendedor", sale) };
         if (r.papel === "indicador_captador" && sale.indicador_lado === "captador") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
         if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
         return r;
@@ -2711,7 +2796,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       for (const t of fixedTargets) {
         if (t.nome == null && t.valor == null) continue;
         if (!next.some((r) => r.papel === t.papel)) {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, _new: true }];
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, user_id: userIdParaPapel(t.papel, sale), _new: true }];
         }
       }
       // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes
@@ -2719,12 +2804,13 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       // última vez) ou adiciona uma nova, sem duplicar a cada clique.
       for (const extra of commissionExtras) {
         const papel = papelDaExtra(extra.papel);
+        const userId = userIdParaPapel(papel, sale);
         const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
         const idxLegado = idx >= 0 ? idx : next.findIndex((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
         if (idxLegado >= 0) {
-          next = next.map((r, i) => i === idxLegado ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id } : r);
+          next = next.map((r, i) => i === idxLegado ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id, user_id: userId } : r);
         } else {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, _new: true }];
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, user_id: userId, _new: true }];
         }
       }
       return next;
@@ -2841,7 +2927,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         const removed = commissions.filter(r => !currentIds.has(r.id));
         for (const r of removed) await supabase.from("occurrence_commissions").delete().eq("id", r.id);
         for (const r of formComms) {
-          const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null };
+          const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null };
           const { error } = r._new
             ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, ...data })
             : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
@@ -3124,7 +3210,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
             <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12">
               <div className="md:col-span-3">
                 <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v })} disabled={!canWrite}>
+                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v, user_id: userIdParaPapel(v, sale) })} disabled={!canWrite}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMISSAO_PAPEIS.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
