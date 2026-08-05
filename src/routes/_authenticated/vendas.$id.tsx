@@ -324,7 +324,14 @@ function SaleDetail() {
     }
     if (Object.keys(patch).length > 0) {
       const { error } = await supabase.from("sales").update(patch).eq("id", id);
-      if (error) { toast.error(error.message); return false; }
+      if (error) {
+        if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
+          toast.error("Já existe outra venda em andamento para esse código de imóvel.");
+        } else {
+          toast.error(error.message);
+        }
+        return false;
+      }
     }
     // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
     // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.

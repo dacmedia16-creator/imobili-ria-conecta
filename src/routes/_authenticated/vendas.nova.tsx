@@ -43,7 +43,11 @@ function NewSale() {
       toast.success("Venda criada como rascunho");
       router.navigate({ to: "/vendas/$id", params: { id: data.id } });
     } catch (err: any) {
-      toast.error(err.message ?? "Falha ao criar venda");
+      if (err.code === "23505" && err.message?.includes("sales_imovel_id_ativa_key")) {
+        toast.error("Já existe uma venda em andamento para esse código de imóvel.");
+      } else {
+        toast.error(err.message ?? "Falha ao criar venda");
+      }
     } finally {
       setLoading(false);
     }
