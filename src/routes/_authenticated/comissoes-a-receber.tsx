@@ -51,7 +51,7 @@ function ComissoesAReceberPage() {
 
     const saleIds = Array.from(new Set((o ?? []).map((r: any) => r.sale_id)));
     if (saleIds.length) {
-      const { data: s } = await supabase.from("sales").select("id, imovel_id, codigo_interno, corretor_id").in("id", saleIds);
+      const { data: s } = await supabase.from("sales").select("id, imovel_id, codigo_interno, corretor_id, status").in("id", saleIds);
       setSales(s ?? []);
     } else {
       setSales([]);
@@ -95,6 +95,9 @@ function ComissoesAReceberPage() {
     const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; valorBruto: number; forma: string | null }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
+      // Venda arquivada/cancelada não deve gerar cobrança pendente — a ocorrência continua existindo
+      // (histórico), mas a parcela prevista não é mais um recebimento de verdade.
+      if (sale && (sale.status === "arquivada" || sale.status === "cancelada")) continue;
       const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
       const parcelas: [string | null, number | null, string | null, string | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em],
