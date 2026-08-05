@@ -1111,13 +1111,13 @@ function SaleDetail() {
                 </Field>
               )}
               <Field label="Líquido do captador (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - Number(formSale.valor_comissao_indicador_captador ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - Number(formSale.valor_comissao_indicador_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Líquido do vendedor (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
                 const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
