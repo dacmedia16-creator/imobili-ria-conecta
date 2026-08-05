@@ -1291,6 +1291,10 @@ export type Database = {
         Args: { _team_id: string; _user: string }
         Returns: boolean
       }
+      list_active_corretores: {
+        Args: never
+        Returns: { id: string; nome: string }[]
+      }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string }

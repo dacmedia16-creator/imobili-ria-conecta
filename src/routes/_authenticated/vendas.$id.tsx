@@ -218,11 +218,8 @@ function SaleDetail() {
   const [corretorOptions, setCorretorOptions] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
     (async () => {
-      const { data: corretorRoles } = await supabase.from("user_roles").select("user_id").eq("role", "corretor");
-      const ids = Array.from(new Set((corretorRoles ?? []).map((r: any) => r.user_id)));
-      if (ids.length === 0) return;
-      const { data: profs } = await supabase.from("profiles").select("id, nome").eq("ativo", true).in("id", ids);
-      setCorretorOptions((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })).sort((a, b) => a.nome.localeCompare(b.nome)));
+      const { data } = await supabase.rpc("list_active_corretores");
+      setCorretorOptions((data ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, []);
 
