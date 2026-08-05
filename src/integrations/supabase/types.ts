@@ -940,7 +940,9 @@ export type Database = {
           imovel_id: string | null
           imovel_observacoes: string | null
           indicador: string | null
+          indicador_captador: string | null
           indicador_lado: string | null
+          indicador_vendedor: string | null
           iptu: string | null
           lider_captador_id: string | null
           lider_vendedor_id: string | null
@@ -980,6 +982,8 @@ export type Database = {
           valor_comissao_captador: number | null
           valor_comissao_imobiliaria: number | null
           valor_comissao_indicador: number | null
+          valor_comissao_indicador_captador: number | null
+          valor_comissao_indicador_vendedor: number | null
           valor_comissao_lider_captador: number | null
           valor_comissao_lider_vendedor: number | null
           valor_comissao_vendedor: number | null
@@ -1006,7 +1010,9 @@ export type Database = {
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
+          indicador_captador?: string | null
           indicador_lado?: string | null
+          indicador_vendedor?: string | null
           iptu?: string | null
           lider_captador_id?: string | null
           lider_vendedor_id?: string | null
@@ -1046,6 +1052,8 @@ export type Database = {
           valor_comissao_captador?: number | null
           valor_comissao_imobiliaria?: number | null
           valor_comissao_indicador?: number | null
+          valor_comissao_indicador_captador?: number | null
+          valor_comissao_indicador_vendedor?: number | null
           valor_comissao_lider_captador?: number | null
           valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null
@@ -1072,7 +1080,9 @@ export type Database = {
           imovel_id?: string | null
           imovel_observacoes?: string | null
           indicador?: string | null
+          indicador_captador?: string | null
           indicador_lado?: string | null
+          indicador_vendedor?: string | null
           iptu?: string | null
           lider_captador_id?: string | null
           lider_vendedor_id?: string | null
@@ -1112,6 +1122,8 @@ export type Database = {
           valor_comissao_captador?: number | null
           valor_comissao_imobiliaria?: number | null
           valor_comissao_indicador?: number | null
+          valor_comissao_indicador_captador?: number | null
+          valor_comissao_indicador_vendedor?: number | null
           valor_comissao_lider_captador?: number | null
           valor_comissao_lider_vendedor?: number | null
           valor_comissao_vendedor?: number | null

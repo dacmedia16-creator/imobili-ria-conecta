@@ -301,12 +301,13 @@ function SaleDetail() {
     try {
     const fields = [
       "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
-      "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id","indicador",
+      "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id",
+      "indicador_captador","indicador_vendedor",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "valor_comissao_lider_captador","valor_comissao_lider_vendedor",
+      "valor_comissao_indicador_captador","valor_comissao_indicador_vendedor",
       "percentual_comissao_captador","percentual_comissao_vendedor",
-      "valor_comissao_indicador","percentual_comissao_indicador","indicador_lado",
       "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
       "previsao_recebimento2_valor","previsao_recebimento2_data","previsao_recebimento2_forma",
       "previsao_recebimento3_valor","previsao_recebimento3_data","previsao_recebimento3_forma",
@@ -438,9 +439,9 @@ function SaleDetail() {
   const COMISSAO_ROLES = ["captador", "vendedor"] as const;
   type ComissaoRole = (typeof COMISSAO_ROLES)[number];
   // Imobiliária = total menos captador, vendedor e a parceria externa (quando houver — o valor dela
-  // sai da fatia da imobiliária, já que é quem paga o parceiro externo). O indicador NÃO desconta
-  // daqui — a comissão dele sai de dentro da fatia do captador ou do vendedor (indicador_lado), não
-  // é uma 3ª fatia do total.
+  // sai da fatia da imobiliária, já que é quem paga o parceiro externo). Indicador/líder do
+  // captador/vendedor NÃO descontam daqui — a comissão de cada um sai de dentro da fatia do próprio
+  // lado (captador ou vendedor), não são uma 3ª fatia do total.
   // "key in patch" em vez de "patch[key] ?? formSale[key]": quando o usuário limpa um campo (R$
   // vazio vira null), o patch traz null de propósito — "??" trataria esse null como "não veio
   // nada" e voltaria pro valor antigo do formSale, fazendo o recálculo ignorar a limpeza.
@@ -450,15 +451,6 @@ function SaleDetail() {
     const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(fromPatchOrSale(patch, `valor_comissao_${r}`) ?? 0), 0);
     const parceria = Number(fromPatchOrSale(patch, "parceria_valor") ?? 0);
     return Number((total - soma - parceria).toFixed(2));
-  };
-  // Recalcula a comissão do indicador (em R$) a partir do % já definido, sempre que a fatia do
-  // lado ao qual ele está vinculado (captador/vendedor) mudar de valor.
-  const recalcIndicadorFromLado = (patch: any) => {
-    const lado = fromPatchOrSale(patch, "indicador_lado");
-    if (!lado) return { valor_comissao_indicador: null };
-    const ladoValor = Number(fromPatchOrSale(patch, `valor_comissao_${lado}`) ?? 0);
-    const p = formSale.percentual_comissao_indicador ?? 25;
-    return { valor_comissao_indicador: ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null };
   };
   // Preenchimento livre: o gestor digita só o valor em R$ de cada lado, sem trava contra o outro
   // lado. A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o
@@ -471,7 +463,6 @@ function SaleDetail() {
     const p = total > 0 && valor != null ? Number(((valor / total) * 100).toFixed(3)) : (formSale[`percentual_comissao_${role}`] ?? null);
     const patch: any = { [`valor_comissao_${role}`]: valor, [`percentual_comissao_${role}`]: p };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    Object.assign(patch, recalcIndicadorFromLado(patch));
     updResumo(patch);
   };
   // Atalho: preenche captador e vendedor com 22,5% cada (45% somados) — só um ponto de partida
@@ -487,32 +478,7 @@ function SaleDetail() {
       valor_comissao_vendedor: valor,
     };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    Object.assign(patch, recalcIndicadorFromLado(patch));
     updResumo(patch);
-  };
-  // Indicador: comissão calculada sobre a fatia do lado escolhido (captador/vendedor), não sobre o total.
-  const indicadorLadoValor = () => {
-    const lado = formSale.indicador_lado;
-    if (lado === "captador" || lado === "vendedor") return Number(formSale[`valor_comissao_${lado}`] ?? 0);
-    return 0;
-  };
-  const applyIndicadorLado = (lado: "captador" | "vendedor" | null) => {
-    const ladoValor = lado === "captador" ? Number(formSale.valor_comissao_captador ?? 0) : lado === "vendedor" ? Number(formSale.valor_comissao_vendedor ?? 0) : 0;
-    const p = formSale.percentual_comissao_indicador ?? 25;
-    const valor = lado && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
-    updResumo({ indicador_lado: lado, percentual_comissao_indicador: lado ? p : null, valor_comissao_indicador: valor });
-  };
-  const applyIndicadorPercentual = (raw: string) => {
-    const p = raw ? Number(raw) : null;
-    const ladoValor = indicadorLadoValor();
-    const valor = p != null && ladoValor > 0 ? Number(((p / 100) * ladoValor).toFixed(2)) : null;
-    updResumo({ percentual_comissao_indicador: p, valor_comissao_indicador: valor });
-  };
-  const applyIndicadorValor = (v: number | null) => {
-    const ladoValor = indicadorLadoValor();
-    const valor = v;
-    const p = valor != null && ladoValor > 0 ? Number(((valor / ladoValor) * 100).toFixed(3)) : formSale.percentual_comissao_indicador ?? null;
-    updResumo({ valor_comissao_indicador: valor, percentual_comissao_indicador: p });
   };
   // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % sempre calculado sobre o
   // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois. O valor sai
@@ -977,6 +943,11 @@ function SaleDetail() {
                         </Field>
                       </div>
                     )}
+                    <div className="mt-4 border-t pt-3">
+                      <Field label="Indicador do captador">
+                        <Input value={formSale.indicador_captador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador_captador: e.target.value })} placeholder="Nome de quem indicou (opcional)" />
+                      </Field>
+                    </div>
                   </div>
                   <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-4)" }}>
                     <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-4)" }}>
@@ -1052,13 +1023,15 @@ function SaleDetail() {
                         </Field>
                       </div>
                     )}
+                    <div className="mt-4 border-t pt-3">
+                      <Field label="Indicador do vendedor">
+                        <Input value={formSale.indicador_vendedor ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador_vendedor: e.target.value })} placeholder="Nome de quem indicou (opcional)" />
+                      </Field>
+                    </div>
                   </div>
                 </div>
               );
             })()}
-            <FieldGrid>
-              <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
-            </FieldGrid>
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("imovel")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
@@ -1127,11 +1100,21 @@ function SaleDetail() {
                   <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
                 </Field>
               )}
+              {formSale.indicador_captador && (
+                <Field label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}>
+                  <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
+                </Field>
+              )}
+              {formSale.indicador_vendedor && (
+                <Field label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}>
+                  <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
+                </Field>
+              )}
               <Field label="Líquido do captador (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - (formSale.indicador_lado === "captador" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - Number(formSale.valor_comissao_indicador_captador ?? 0) - Number(formSale.valor_comissao_lider_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Líquido do vendedor (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - (formSale.indicador_lado === "vendedor" ? Number(formSale.valor_comissao_indicador ?? 0) : 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - Number(formSale.valor_comissao_lider_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
                 <CurrencyInput value={Number((Number(formSale.valor_comissao_imobiliaria ?? 0) - somaExtrasPorOrigem("imobiliaria")).toFixed(2))} disabled onChange={() => {}} />
@@ -1216,39 +1199,6 @@ function SaleDetail() {
                 </Button>
               </div>
             )}
-            <div className="mt-4 border-t pt-4">
-              <p className="mb-3 text-xs text-muted-foreground">
-                A comissão do indicador sai de dentro da fatia do captador ou do vendedor (não é descontada do total nem da imobiliária).
-              </p>
-              {formSale.indicador_lado && !formSale.indicador && (
-                <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  <AlertTriangle className="mr-2 inline h-4 w-4" />
-                  Falta o nome do indicador — preencha abaixo.
-                </div>
-              )}
-              <FieldGrid>
-                <Field label="Nome do indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
-                <Field label="Indicador de">
-                  <Select
-                    value={formSale.indicador_lado ?? "none"}
-                    onValueChange={(v) => applyIndicadorLado(v === "none" ? null : (v as "captador" | "vendedor"))}
-                    disabled={!editable}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem indicação</SelectItem>
-                      <SelectItem value="captador">Captador{formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""}</SelectItem>
-                      <SelectItem value="vendedor">Vendedor{formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="% Indicador (sobre a comissão do lado)"><Input type="number" step="0.001" value={formSale.percentual_comissao_indicador ?? ""} disabled={!editable || !formSale.indicador_lado} onChange={(e) => applyIndicadorPercentual(e.target.value)} /></Field>
-                <Field label="Comissão indicador (R$)"><CurrencyInput value={formSale.valor_comissao_indicador} disabled={!editable || !formSale.indicador_lado} onChange={applyIndicadorValor} /></Field>
-              </FieldGrid>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Veja o "Líquido do captador/vendedor" acima — já descontam indicador e partes extras dessa fatia.
-              </p>
-            </div>
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
                 Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
@@ -1743,7 +1693,8 @@ function SaleDetail() {
               <ReviewItem label="Gestor/Team Leader do captador" value={liderOptions.find((l) => l.id === sale.lider_captador_id)?.nome} />
               <ReviewItem label="Corretor vendedor" value={sale.corretor_vendedor} />
               <ReviewItem label="Gestor/Team Leader do vendedor" value={liderOptions.find((l) => l.id === sale.lider_vendedor_id)?.nome} />
-              <ReviewItem label="Indicador" value={sale.indicador} />
+              <ReviewItem label="Indicador do captador" value={sale.indicador_captador} />
+              <ReviewItem label="Indicador do vendedor" value={sale.indicador_vendedor} />
               <ReviewItem label="Gestor (comissão)" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
               <ReviewItem label="Team Leader (comissão)" value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome} />
             </ReviewGroup>
@@ -1761,17 +1712,17 @@ function SaleDetail() {
               <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
               <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
               <ReviewItem label="Imobiliária" value={money(sale.valor_comissao_imobiliaria)} />
-              {sale.indicador_lado && (
-                <>
-                  <ReviewItem
-                    label={`Indicador${sale.indicador ? ` — ${sale.indicador}` : ""} (${sale.indicador_lado === "captador" ? "sai do captador" : "sai do vendedor"})`}
-                    value={money(sale.valor_comissao_indicador)}
-                  />
-                  <ReviewItem
-                    label={`Líquido do ${sale.indicador_lado === "captador" ? "captador" : "vendedor"} após indicador`}
-                    value={money(Number(sale[`valor_comissao_${sale.indicador_lado}`] ?? 0) - Number(sale.valor_comissao_indicador ?? 0))}
-                  />
-                </>
+              {sale.indicador_captador && (
+                <ReviewItem
+                  label={`Indicador — ${sale.indicador_captador} (sai do captador)`}
+                  value={money(sale.valor_comissao_indicador_captador)}
+                />
+              )}
+              {sale.indicador_vendedor && (
+                <ReviewItem
+                  label={`Indicador — ${sale.indicador_vendedor} (sai do vendedor)`}
+                  value={money(sale.valor_comissao_indicador_vendedor)}
+                />
               )}
               {commissionExtras.map((e) => (
                 <ReviewItem
@@ -2703,8 +2654,8 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
     { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
     { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
   ];
-  if (sale.indicador_lado === "captador") fixedUpdates.push({ papel: "indicador_captador", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
-  if (sale.indicador_lado === "vendedor") fixedUpdates.push({ papel: "indicador_vendedor", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+  fixedUpdates.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
+  fixedUpdates.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
 
   for (const upd of fixedUpdates) {
     if (upd.nome == null && upd.valor == null) continue;
@@ -2845,7 +2796,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
     if (dirtyOcc || dirtyComms || dirtyPartners) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador, sale.indicador, sale.indicador_lado, commissionExtras]);
+  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador_captador, sale.valor_comissao_indicador_vendedor, sale.indicador_captador, sale.indicador_vendedor, commissionExtras]);
 
   const createOcc = async () => {
     const vendedor = parties?.vendedor_1;
@@ -2888,8 +2839,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       let valor: number | null = null;
       if (p.key === "corretor_captador") { nome = sale.corretor_captador ?? null; valor = sale.valor_comissao_captador ?? null; }
       else if (p.key === "corretor_vendedor") { nome = sale.corretor_vendedor ?? null; valor = sale.valor_comissao_vendedor ?? null; }
-      else if (p.key === "indicador_captador" && sale.indicador_lado === "captador") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
-      else if (p.key === "indicador_vendedor" && sale.indicador_lado === "vendedor") { nome = sale.indicador ?? null; valor = sale.valor_comissao_indicador ?? null; }
+      else if (p.key === "indicador_captador") { nome = sale.indicador_captador ?? null; valor = sale.valor_comissao_indicador_captador ?? null; }
+      else if (p.key === "indicador_vendedor") { nome = sale.indicador_vendedor ?? null; valor = sale.valor_comissao_indicador_vendedor ?? null; }
       return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale) };
     });
     // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
@@ -2948,8 +2899,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       let next = rows.map((r) => {
         if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual, user_id: userIdParaPapel("corretor_captador", sale) };
         if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual, user_id: userIdParaPapel("corretor_vendedor", sale) };
-        if (r.papel === "indicador_captador" && sale.indicador_lado === "captador") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
-        if (r.papel === "indicador_vendedor" && sale.indicador_lado === "vendedor") return { ...r, nome: sale.indicador ?? r.nome, valor: sale.valor_comissao_indicador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador) ?? r.percentual };
+        if (r.papel === "indicador_captador") return { ...r, nome: sale.indicador_captador ?? r.nome, valor: sale.valor_comissao_indicador_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_captador) ?? r.percentual };
+        if (r.papel === "indicador_vendedor") return { ...r, nome: sale.indicador_vendedor ?? r.nome, valor: sale.valor_comissao_indicador_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_vendedor) ?? r.percentual };
         return r;
       });
       // Se a linha fixa (captador/vendedor/indicador) nunca existiu na ocorrência — ex.: ela foi
@@ -2959,8 +2910,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
         { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
         { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
       ];
-      if (sale.indicador_lado === "captador") fixedTargets.push({ papel: "indicador_captador", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
-      if (sale.indicador_lado === "vendedor") fixedTargets.push({ papel: "indicador_vendedor", nome: sale.indicador ?? null, valor: sale.valor_comissao_indicador ?? null });
+      fixedTargets.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
+      fixedTargets.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
       for (const t of fixedTargets) {
         if (t.nome == null && t.valor == null) continue;
         if (!next.some((r) => r.papel === t.papel)) {
@@ -3013,8 +2964,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       { papel: "corretor_captador", valorAtual: sale.valor_comissao_captador },
       { papel: "corretor_vendedor", valorAtual: sale.valor_comissao_vendedor },
     ];
-    if (sale.indicador_lado === "captador") checks.push({ papel: "indicador_captador", valorAtual: sale.valor_comissao_indicador });
-    if (sale.indicador_lado === "vendedor") checks.push({ papel: "indicador_vendedor", valorAtual: sale.valor_comissao_indicador });
+    checks.push({ papel: "indicador_captador", valorAtual: sale.valor_comissao_indicador_captador });
+    checks.push({ papel: "indicador_vendedor", valorAtual: sale.valor_comissao_indicador_vendedor });
     const divergeValor = checks.some(({ papel, valorAtual }) => {
       if (valorAtual == null) return false;
       const row = commissions.find((r) => r.papel === papel);
