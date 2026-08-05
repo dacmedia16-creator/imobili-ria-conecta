@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Wizard } from "@/components/Wizard";
 import { parteLabel, parteSortKey } from "@/lib/status";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, UserCheck } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./shared";
 
 const partePapelSort = (a: string, b: string) => {
@@ -93,9 +93,55 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
   const anyDirtyTotal = anyDirty || anyBankDirty;
   useEffect(() => { onDirtyChange(anyDirtyTotal); }, [anyDirtyTotal, onDirtyChange]);
 
+  // Se a parte já chega do banco com cliente_id (ex.: a IA leu um RG/CPF e já achou/ligou o cliente
+  // direto no servidor, sem passar por aqui — ver applySaleExtractions), carrega o histórico mesmo
+  // sem o corretor ter tocado no campo CPF. Sem isso, o aviso "cliente já cadastrado" nunca
+  // apareceria pra parte preenchida via documento.
+  useEffect(() => {
+    for (const [papel, party] of Object.entries(parties)) {
+      if (party?.cliente_id && clienteMatch[papel] === undefined) {
+        supabase.rpc("cliente_historico", { _cliente_id: party.cliente_id, _excluir_sale_id: saleId }).then(({ data: historico }) => {
+          setClienteMatch((m) => ({ ...m, [papel]: { historico: historico ?? [] } }));
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parties]);
+
   const update = (papel: string, k: string, v: string) => {
     setForms(f => ({ ...f, [papel]: { ...f[papel], [k]: v } }));
     setDirty(d => ({ ...d, [papel]: true }));
+  };
+
+  // Reconhecimento de cliente: ao sair do campo CPF/CNPJ, busca se já existe alguém cadastrado
+  // com esse documento (em qualquer venda, de qualquer equipe — clientes é visível pra empresa
+  // toda) e pré-preenche os campos vazios, sem sobrescrever o que já foi digitado. Evita redigitar
+  // dado de gente que já negociou com a imobiliária antes.
+  const [clienteMatch, setClienteMatch] = useState<Record<string, { historico: { sale_id: string; papel: string; imovel_endereco: string | null; imovel_id: string | null; data: string }[] } | null>>({});
+
+  const buscarCliente = async (papel: string, cpfDigitado: string | null | undefined) => {
+    const normalizado = (cpfDigitado ?? "").replace(/\D/g, "");
+    if (normalizado.length < 11) { setClienteMatch((m) => ({ ...m, [papel]: null })); return; }
+    const { data: cliente } = await supabase.from("clientes").select("*").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+    if (!cliente) { setClienteMatch((m) => ({ ...m, [papel]: null })); return; }
+    setForms((f) => ({
+      ...f,
+      [papel]: {
+        ...f[papel],
+        nome: f[papel].nome || cliente.nome,
+        rg: f[papel].rg || cliente.rg,
+        profissao: f[papel].profissao || cliente.profissao,
+        email: f[papel].email || cliente.email,
+        telefone: f[papel].telefone || cliente.telefone,
+        endereco: f[papel].endereco || cliente.endereco,
+        tipo_pessoa: cliente.tipo_pessoa ?? f[papel].tipo_pessoa,
+        razao_social: f[papel].razao_social || cliente.razao_social,
+        cnpj: f[papel].cnpj || cliente.cnpj,
+      },
+    }));
+    setDirty((d) => ({ ...d, [papel]: true }));
+    const { data: historico } = await supabase.rpc("cliente_historico", { _cliente_id: cliente.id, _excluir_sale_id: saleId });
+    setClienteMatch((m) => ({ ...m, [papel]: { historico: historico ?? [] } }));
   };
 
   const [activePapel, setActivePapel] = useState(papeis[0]);
@@ -137,12 +183,37 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
       for (const papel of papeis) {
         if (!dirty[papel]) continue;
         const existing = parties[papel];
+        const clientePayload = {
+          tipo_pessoa: forms[papel].tipo_pessoa ?? "fisica", nome: forms[papel].nome ?? null,
+          razao_social: forms[papel].razao_social ?? null, cnpj: forms[papel].cnpj ?? null,
+          cpf_cnpj: forms[papel].cpf_cnpj ?? null, rg: forms[papel].rg ?? null,
+          profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null,
+          telefone: forms[papel].telefone ?? null, endereco: forms[papel].endereco ?? null,
+        };
+        // Cadastro de cliente centralizado (empresa toda): acha por CPF/CNPJ normalizado — se já
+        // existe, atualiza com o que foi digitado agora; se não, cria. Ligado via sale_parties.cliente_id.
+        const normalizado = (forms[papel].cpf_cnpj ?? "").replace(/\D/g, "");
+        let clienteId: string | null = existing?.cliente_id ?? null;
+        if (normalizado.length >= 11) {
+          if (!clienteId) {
+            const { data: achou } = await supabase.from("clientes").select("id").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+            clienteId = achou?.id ?? null;
+          }
+          if (clienteId) {
+            const { error: clienteError } = await supabase.from("clientes").update(clientePayload).eq("id", clienteId);
+            if (clienteError) { toast.error(clienteError.message); return false; }
+          } else {
+            const { data: novoCliente, error: clienteError } = await supabase.from("clientes").insert(clientePayload).select("id").single();
+            if (clienteError) { toast.error(clienteError.message); return false; }
+            clienteId = novoCliente.id;
+          }
+        }
         const data = {
           nome: forms[papel].nome ?? null, rg: forms[papel].rg ?? null, cpf_cnpj: forms[papel].cpf_cnpj ?? null,
           profissao: forms[papel].profissao ?? null, email: forms[papel].email ?? null, telefone: forms[papel].telefone ?? null,
           endereco: forms[papel].endereco ?? null, regime_casamento: forms[papel].regime_casamento ?? null,
           tipo_pessoa: forms[papel].tipo_pessoa ?? "fisica", razao_social: forms[papel].razao_social ?? null,
-          cnpj: forms[papel].cnpj ?? null,
+          cnpj: forms[papel].cnpj ?? null, cliente_id: clienteId,
         };
         const { error } = existing
           ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
@@ -218,7 +289,35 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
                 </>
               )}
               <Field label="RG"><Input value={forms[p].rg ?? ""} onChange={(e) => update(p, "rg", e.target.value)} disabled={!editable} /></Field>
-              <Field label="CPF"><Input value={forms[p].cpf_cnpj ?? ""} onChange={(e) => update(p, "cpf_cnpj", e.target.value)} disabled={!editable} /></Field>
+              <Field label="CPF">
+                <Input
+                  value={forms[p].cpf_cnpj ?? ""}
+                  onChange={(e) => update(p, "cpf_cnpj", e.target.value)}
+                  onBlur={(e) => editable && buscarCliente(p, e.target.value)}
+                  disabled={!editable}
+                />
+              </Field>
+              {clienteMatch[p] && (
+                <div className="md:col-span-2 flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950">
+                  <UserCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                  <div className="min-w-0 flex-1 text-sm">
+                    <div className="font-medium text-emerald-800 dark:text-emerald-300">Cliente já cadastrado — dados preenchidos automaticamente</div>
+                    {clienteMatch[p]!.historico.length > 0 ? (
+                      <div className="mt-1.5 space-y-1">
+                        {clienteMatch[p]!.historico.map((h) => (
+                          <div key={h.sale_id} className="flex items-center justify-between gap-2 rounded border border-emerald-200 bg-background px-2 py-1 text-xs dark:border-emerald-900">
+                            <span className="font-medium">{h.papel.startsWith("comprador") ? "Comprou" : "Vendeu"}</span>
+                            <span className="min-w-0 flex-1 truncate text-muted-foreground">{h.imovel_endereco || h.imovel_id || "Imóvel sem endereço cadastrado"}</span>
+                            <span className="shrink-0 text-muted-foreground">{new Date(h.data).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-xs text-muted-foreground">Primeira vez que esse CPF aparece numa venda. Edite os campos abaixo se algo mudou.</div>
+                    )}
+                  </div>
+                </div>
+              )}
               <Field label="Profissão"><Input value={forms[p].profissao ?? ""} onChange={(e) => update(p, "profissao", e.target.value)} disabled={!editable} /></Field>
               <Field label="E-mail"><Input type="email" value={forms[p].email ?? ""} onChange={(e) => update(p, "email", e.target.value)} disabled={!editable} /></Field>
               <Field label="Telefone"><Input value={forms[p].telefone ?? ""} onChange={(e) => update(p, "telefone", e.target.value)} disabled={!editable} /></Field>

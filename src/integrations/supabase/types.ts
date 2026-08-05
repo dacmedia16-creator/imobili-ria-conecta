@@ -49,6 +49,57 @@ export type Database = {
           },
         ]
       }
+      clientes: {
+        Row: {
+          cnpj: string | null
+          cpf_cnpj: string | null
+          cpf_cnpj_normalizado: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string | null
+          profissao: string | null
+          razao_social: string | null
+          rg: string | null
+          telefone: string | null
+          tipo_pessoa: string
+          updated_at: string
+        }
+        Insert: {
+          cnpj?: string | null
+          cpf_cnpj?: string | null
+          cpf_cnpj_normalizado?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string | null
+          profissao?: string | null
+          razao_social?: string | null
+          rg?: string | null
+          telefone?: string | null
+          tipo_pessoa?: string
+          updated_at?: string
+        }
+        Update: {
+          cnpj?: string | null
+          cpf_cnpj?: string | null
+          cpf_cnpj_normalizado?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string | null
+          profissao?: string | null
+          razao_social?: string | null
+          rg?: string | null
+          telefone?: string | null
+          tipo_pessoa?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_extractions: {
         Row: {
           created_at: string
@@ -281,6 +332,7 @@ export type Database = {
           reopened_by: string | null
           sale_id: string
           status: string
+          tempo_venda: string | null
           tempo_venda_dias: number | null
           updated_at: string
           valor_anunciado: number | null
@@ -325,6 +377,7 @@ export type Database = {
           reopened_by?: string | null
           sale_id: string
           status?: string
+          tempo_venda?: string | null
           tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
@@ -369,6 +422,7 @@ export type Database = {
           reopened_by?: string | null
           sale_id?: string
           status?: string
+          tempo_venda?: string | null
           tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
@@ -615,6 +669,7 @@ export type Database = {
       }
       sale_parties: {
         Row: {
+          cliente_id: string | null
           cnpj: string | null
           cpf_cnpj: string | null
           created_at: string
@@ -632,6 +687,7 @@ export type Database = {
           tipo_pessoa: string
         }
         Insert: {
+          cliente_id?: string | null
           cnpj?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -649,6 +705,7 @@ export type Database = {
           tipo_pessoa?: string
         }
         Update: {
+          cliente_id?: string | null
           cnpj?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -666,6 +723,13 @@ export type Database = {
           tipo_pessoa?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sale_parties_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sale_parties_sale_id_fkey"
             columns: ["sale_id"]
@@ -852,6 +916,7 @@ export type Database = {
           previsao_recebimento3_valor: number | null
           status: Database["public"]["Enums"]["sale_status"]
           team_leader_id: string | null
+          tempo_venda: string | null
           tempo_venda_dias: number | null
           updated_at: string
           valor_anunciado: number | null
@@ -911,6 +976,7 @@ export type Database = {
           previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
+          tempo_venda?: string | null
           tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
@@ -970,6 +1036,7 @@ export type Database = {
           previsao_recebimento3_valor?: number | null
           status?: Database["public"]["Enums"]["sale_status"]
           team_leader_id?: string | null
+          tempo_venda?: string | null
           tempo_venda_dias?: number | null
           updated_at?: string
           valor_anunciado?: number | null
@@ -1130,6 +1197,16 @@ export type Database = {
         Args: { _motivo?: string; _new_status: string; _sale_id: string }
         Returns: undefined
       }
+      cliente_historico: {
+        Args: { _cliente_id: string; _excluir_sale_id?: string }
+        Returns: {
+          data: string
+          imovel_endereco: string
+          imovel_id: string
+          papel: string
+          sale_id: string
+        }[]
+      }
       dashboard_stats: { Args: never; Returns: Json }
       has_any_role: {
         Args: {
@@ -1163,7 +1240,7 @@ export type Database = {
       update_contrato_pendencia: {
         Args: {
           _libera_assinatura: boolean
-          _pendencia_descricao: string | null
+          _pendencia_descricao: string
           _sale_id: string
         }
         Returns: undefined

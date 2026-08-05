@@ -259,6 +259,38 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         if (v == null || v === "") continue;
         if (!cur || cur[k] == null || cur[k] === "") { patch[k] = v; filled.push(`${papel}.${k}`); any = true; }
       }
+
+      // CPF extraído (ou já existente na parte) também tenta achar/ligar um cliente já cadastrado —
+      // mesma lógica de PartiesStep.saveAll no client, só que precisa rodar aqui de novo porque a
+      // IA escreve direto no banco sem passar pela tela (o onBlur do campo CPF nunca dispara nesse
+      // caminho, então sem isso o reconhecimento de cliente nunca aconteceria pra parte preenchida
+      // por documento).
+      const cpfFinal = patch.cpf_cnpj ?? cur?.cpf_cnpj;
+      const normalizado = String(cpfFinal ?? "").replace(/\D/g, "");
+      if (normalizado.length >= 11 && !cur?.cliente_id) {
+        const { data: clienteExistente } = await supabase.from("clientes").select("*").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+        if (clienteExistente) {
+          patch.cliente_id = clienteExistente.id;
+          any = true;
+          for (const k of ["nome", "rg", "profissao", "email", "telefone", "endereco"]) {
+            const jaTem = cur?.[k] ?? patch[k];
+            if (!jaTem && clienteExistente[k]) { patch[k] = clienteExistente[k]; filled.push(`${papel}.${k}`); }
+          }
+        } else {
+          const { data: novoCliente } = await supabase.from("clientes").insert({
+            tipo_pessoa: cur?.tipo_pessoa ?? "fisica",
+            nome: patch.nome ?? cur?.nome ?? null,
+            cpf_cnpj: cpfFinal,
+            rg: patch.rg ?? cur?.rg ?? null,
+            profissao: patch.profissao ?? cur?.profissao ?? null,
+            email: patch.email ?? cur?.email ?? null,
+            telefone: patch.telefone ?? cur?.telefone ?? null,
+            endereco: patch.endereco ?? cur?.endereco ?? null,
+          }).select("id").single();
+          if (novoCliente) { patch.cliente_id = novoCliente.id; any = true; }
+        }
+      }
+
       if (any) {
         if (cur) await supabase.from("sale_parties").update(patch).eq("id", cur.id);
         else await supabase.from("sale_parties").insert({ sale_id: data.saleId, papel, ...patch });
