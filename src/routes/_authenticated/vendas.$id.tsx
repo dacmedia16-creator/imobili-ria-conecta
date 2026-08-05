@@ -472,21 +472,6 @@ function SaleDetail() {
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
-  // Atalho: preenche captador e vendedor com 22,5% cada (45% somados) — só um ponto de partida
-  // sugerido, o gestor pode ajustar cada lado livremente depois.
-  const sugerirDivisao45 = () => {
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    if (total <= 0) { toast.error("Defina o valor total da comissão antes de sugerir a divisão."); return; }
-    const valor = Number(((22.5 / 100) * total).toFixed(2));
-    const patch: any = {
-      percentual_comissao_captador: 22.5,
-      valor_comissao_captador: valor,
-      percentual_comissao_vendedor: 22.5,
-      valor_comissao_vendedor: valor,
-    };
-    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    updResumo(patch);
-  };
   // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % sempre calculado sobre o
   // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois. O valor sai
   // da fatia da imobiliária (recalcImobiliaria), por isso todo lugar que muda parceria_valor também
@@ -1095,11 +1080,6 @@ function SaleDetail() {
                 </div>
               ) : null;
             })()}
-            {editable && (
-              <div className="mb-4">
-                <Button size="sm" variant="outline" onClick={sugerirDivisao45}>Sugerir 22,5% / 22,5% (45% somados)</Button>
-              </div>
-            )}
             <FieldGrid>
               <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
               <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
