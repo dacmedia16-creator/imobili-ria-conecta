@@ -914,16 +914,22 @@ function SaleDetail() {
               </>) },
               { key: "equipe", label: "Equipe", content: (<>
           <SaleSection title="Equipe">
-            <FieldGrid>
-              {(() => {
-                // Corretor selecionado antes e depois marcado inativo (some de corretorOptions,
-                // que só lista ativos) — sem isso o Select ficava em branco e o Input de fallback
-                // não aparecia (só aparecia quando corretor_captador_id era vazio), escondendo o
-                // nome que continua salvo certinho no banco.
-                const captadorForaDaLista = !!formSale.corretor_captador_id && !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
-                const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
-                return (
-                  <>
+            {(() => {
+              // Corretor selecionado antes e depois marcado inativo (some de corretorOptions,
+              // que só lista ativos) — sem isso o Select ficava em branco e o Input de fallback
+              // não aparecia (só aparecia quando corretor_captador_id era vazio), escondendo o
+              // nome que continua salvo certinho no banco.
+              const captadorForaDaLista = !!formSale.corretor_captador_id && !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
+              const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
+              const outrosCaptadores = formExtras.filter((r) => r.papel === "corretor_captador");
+              const outrosVendedores = formExtras.filter((r) => r.papel === "corretor_vendedor");
+              return (
+                <div className="mb-4 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-1)" }}>
+                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-1)" }}>
+                      <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-chart-1)" }} />
+                      Corretores captadores
+                    </div>
                     <Field label="Corretor captador">
                       <div className="flex flex-wrap items-center gap-2">
                         {corretorOptions.length > 0 && (
@@ -954,6 +960,27 @@ function SaleDetail() {
                         )}
                       </div>
                     </Field>
+                    {outrosCaptadores.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {outrosCaptadores.map((r) => (
+                          <div key={r.id} className="flex items-center gap-2">
+                            <Input className="w-40" placeholder="Nome" value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} />
+                            {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {editable && (
+                      <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("captador")}>
+                        <Plus className="mr-1 h-4 w-4" />Outro captador
+                      </Button>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-4)" }}>
+                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-4)" }}>
+                      <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-chart-4)" }} />
+                      Corretores vendedores
+                    </div>
                     <Field label="Corretor vendedor">
                       <div className="flex flex-wrap items-center gap-2">
                         {corretorOptions.length > 0 && (
@@ -984,9 +1011,26 @@ function SaleDetail() {
                         )}
                       </div>
                     </Field>
-                  </>
-                );
-              })()}
+                    {outrosVendedores.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {outrosVendedores.map((r) => (
+                          <div key={r.id} className="flex items-center gap-2">
+                            <Input className="w-40" placeholder="Nome" value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} />
+                            {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {editable && (
+                      <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("vendedor")}>
+                        <Plus className="mr-1 h-4 w-4" />Outro vendedor
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            <FieldGrid>
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
               <Field label="Gestor">
                 <Select value={formSale.coordenador_id ?? "none"} onValueChange={(v) => updResumo({ coordenador_id: v === "none" ? null : v })} disabled={!editable || gestorOptions.length === 0}>
