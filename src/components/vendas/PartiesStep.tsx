@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
   saleId: string; parties: Record<string, any>; banks: Record<string, any>; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
+  const { user } = useAuth();
   const [papeis, setPapeis] = useState<string[]>(() => {
     const fromDb = Object.keys(parties).filter((p) => /^(vendedor|comprador)_\d+$/.test(p));
     return Array.from(new Set(["vendedor_1", "comprador_1", ...fromDb])).sort(partePapelSort);
@@ -200,10 +202,10 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
             clienteId = achou?.id ?? null;
           }
           if (clienteId) {
-            const { error: clienteError } = await supabase.from("clientes").update(clientePayload).eq("id", clienteId);
+            const { error: clienteError } = await supabase.from("clientes").update({ ...clientePayload, updated_by: user?.id ?? null }).eq("id", clienteId);
             if (clienteError) { toast.error(clienteError.message); return false; }
           } else {
-            const { data: novoCliente, error: clienteError } = await supabase.from("clientes").insert(clientePayload).select("id").single();
+            const { data: novoCliente, error: clienteError } = await supabase.from("clientes").insert({ ...clientePayload, created_by: user?.id ?? null }).select("id").single();
             if (clienteError) { toast.error(clienteError.message); return false; }
             clienteId = novoCliente.id;
           }

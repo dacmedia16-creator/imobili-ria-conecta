@@ -55,6 +55,7 @@ export type Database = {
           cpf_cnpj: string | null
           cpf_cnpj_normalizado: string | null
           created_at: string
+          created_by: string | null
           email: string | null
           endereco: string | null
           id: string
@@ -65,12 +66,14 @@ export type Database = {
           telefone: string | null
           tipo_pessoa: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           cnpj?: string | null
           cpf_cnpj?: string | null
           cpf_cnpj_normalizado?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
@@ -81,12 +84,14 @@ export type Database = {
           telefone?: string | null
           tipo_pessoa?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           cnpj?: string | null
           cpf_cnpj?: string | null
           cpf_cnpj_normalizado?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
@@ -97,6 +102,7 @@ export type Database = {
           telefone?: string | null
           tipo_pessoa?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }

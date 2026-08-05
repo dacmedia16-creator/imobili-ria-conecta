@@ -915,64 +915,78 @@ function SaleDetail() {
               { key: "equipe", label: "Equipe", content: (<>
           <SaleSection title="Equipe">
             <FieldGrid>
-              <Field label="Corretor captador">
-                <div className="flex flex-wrap items-center gap-2">
-                  {corretorOptions.length > 0 && (
-                    <Select
-                      value={formSale.corretor_captador_id || "manual"}
-                      onValueChange={(v) => {
-                        const c = corretorOptions.find((o) => o.id === v);
-                        updResumo({ corretor_captador_id: v === "manual" ? null : v, corretor_captador: c ? c.nome : formSale.corretor_captador });
-                      }}
-                      disabled={!editable}
-                    >
-                      <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="manual">Digitar nome</SelectItem>
-                        {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {(corretorOptions.length === 0 || !formSale.corretor_captador_id) && (
-                    <Input
-                      className="w-40"
-                      value={formSale.corretor_captador ?? ""}
-                      disabled={!editable}
-                      onChange={(e) => updResumo({ corretor_captador: e.target.value })}
-                      placeholder="Nome"
-                    />
-                  )}
-                </div>
-              </Field>
-              <Field label="Corretor vendedor">
-                <div className="flex flex-wrap items-center gap-2">
-                  {corretorOptions.length > 0 && (
-                    <Select
-                      value={formSale.corretor_vendedor_id || "manual"}
-                      onValueChange={(v) => {
-                        const c = corretorOptions.find((o) => o.id === v);
-                        updResumo({ corretor_vendedor_id: v === "manual" ? null : v, corretor_vendedor: c ? c.nome : formSale.corretor_vendedor });
-                      }}
-                      disabled={!editable}
-                    >
-                      <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="manual">Digitar nome</SelectItem>
-                        {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {(corretorOptions.length === 0 || !formSale.corretor_vendedor_id) && (
-                    <Input
-                      className="w-40"
-                      value={formSale.corretor_vendedor ?? ""}
-                      disabled={!editable}
-                      onChange={(e) => updResumo({ corretor_vendedor: e.target.value })}
-                      placeholder="Nome"
-                    />
-                  )}
-                </div>
-              </Field>
+              {(() => {
+                // Corretor selecionado antes e depois marcado inativo (some de corretorOptions,
+                // que só lista ativos) — sem isso o Select ficava em branco e o Input de fallback
+                // não aparecia (só aparecia quando corretor_captador_id era vazio), escondendo o
+                // nome que continua salvo certinho no banco.
+                const captadorForaDaLista = !!formSale.corretor_captador_id && !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
+                const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
+                return (
+                  <>
+                    <Field label="Corretor captador">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {corretorOptions.length > 0 && (
+                          <Select
+                            value={captadorForaDaLista ? "manual" : (formSale.corretor_captador_id || "manual")}
+                            onValueChange={(v) => {
+                              const c = corretorOptions.find((o) => o.id === v);
+                              updResumo({ corretor_captador_id: v === "manual" ? null : v, corretor_captador: c ? c.nome : formSale.corretor_captador });
+                            }}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="manual">Digitar nome</SelectItem>
+                              {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {(corretorOptions.length === 0 || !formSale.corretor_captador_id || captadorForaDaLista) && (
+                          <Input
+                            className="w-40"
+                            value={formSale.corretor_captador ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ corretor_captador: e.target.value })}
+                            placeholder="Nome"
+                            title={captadorForaDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
+                          />
+                        )}
+                      </div>
+                    </Field>
+                    <Field label="Corretor vendedor">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {corretorOptions.length > 0 && (
+                          <Select
+                            value={vendedorForaDaLista ? "manual" : (formSale.corretor_vendedor_id || "manual")}
+                            onValueChange={(v) => {
+                              const c = corretorOptions.find((o) => o.id === v);
+                              updResumo({ corretor_vendedor_id: v === "manual" ? null : v, corretor_vendedor: c ? c.nome : formSale.corretor_vendedor });
+                            }}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="manual">Digitar nome</SelectItem>
+                              {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {(corretorOptions.length === 0 || !formSale.corretor_vendedor_id || vendedorForaDaLista) && (
+                          <Input
+                            className="w-40"
+                            value={formSale.corretor_vendedor ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ corretor_vendedor: e.target.value })}
+                            placeholder="Nome"
+                            title={vendedorForaDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
+                          />
+                        )}
+                      </div>
+                    </Field>
+                  </>
+                );
+              })()}
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
               <Field label="Gestor">
                 <Select value={formSale.coordenador_id ?? "none"} onValueChange={(v) => updResumo({ coordenador_id: v === "none" ? null : v })} disabled={!editable || gestorOptions.length === 0}>
@@ -2597,6 +2611,15 @@ const userIdParaPapel = (papel: string, sale: any): string | null => {
   if (papel === "team_leader") return sale.team_leader_id ?? null;
   return null;
 };
+// Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
+// "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
+// PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso
+// grudaria o id do captador/vendedor principal na comissão de outra pessoa.
+const userIdParaExtra = (papel: string, sale: any): string | null => {
+  if (papel === "gestor") return sale.coordenador_id ?? null;
+  if (papel === "team_leader") return sale.team_leader_id ?? null;
+  return null;
+};
 
 /**
  * Sempre que a Resumo é salva (captador/vendedor/indicador/partes extras), joga esses valores
@@ -2636,7 +2659,7 @@ async function syncOccurrenceCommissions(saleId: string, sale: any, commissionEx
 
   for (const extra of commissionExtras) {
     const papel = papelDaExtra(extra.papel);
-    const userId = userIdParaPapel(papel, sale);
+    const userId = userIdParaExtra(papel, sale);
     // Casa pelo id estável da parte extra (sale_commission_extra_id) — casar só por nome quebra
     // quando o nome muda entre um save e outro (ex.: linha criada "sem nome" e preenchida depois),
     // já que aí vira um "nome" diferente e uma linha nova duplicada era criada em vez de atualizar.
@@ -2811,7 +2834,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       const papel = papelDaExtra(e.papel);
       return {
         occurrence_id: data.id, papel, nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
-        sale_commission_extra_id: e.id, user_id: userIdParaPapel(papel, sale),
+        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale),
       };
     });
     await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
@@ -2886,7 +2909,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
       // última vez) ou adiciona uma nova, sem duplicar a cada clique.
       for (const extra of commissionExtras) {
         const papel = papelDaExtra(extra.papel);
-        const userId = userIdParaPapel(papel, sale);
+        const userId = userIdParaExtra(papel, sale);
         const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
         const idxLegado = idx >= 0 ? idx : next.findIndex((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
         if (idxLegado >= 0) {
@@ -3292,7 +3315,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
             <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12">
               <div className="md:col-span-3">
                 <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v, user_id: userIdParaPapel(v, sale) })} disabled={!canWrite}>
+                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v, user_id: userIdParaExtra(v, sale) })} disabled={!canWrite}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMISSAO_PAPEIS.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}

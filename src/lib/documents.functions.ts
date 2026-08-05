@@ -130,6 +130,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ApplyInput.parse(input))
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as any;
+    const userId = context.userId as string;
     const filled: string[] = [];
 
     const { data: extractions } = await supabase
@@ -286,6 +287,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
             email: patch.email ?? cur?.email ?? null,
             telefone: patch.telefone ?? cur?.telefone ?? null,
             endereco: patch.endereco ?? cur?.endereco ?? null,
+            created_by: userId ?? null,
           }).select("id").single();
           if (novoCliente) { patch.cliente_id = novoCliente.id; any = true; }
         }
