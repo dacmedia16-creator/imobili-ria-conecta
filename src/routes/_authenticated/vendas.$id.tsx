@@ -1097,6 +1097,16 @@ function SaleDetail() {
               </>) },
               { key: "comissao", label: "Divisão da comissão", content: (<>
           <SaleSection title="Divisão da comissão (revisão do gestor)">
+            {(liderOptions.find((l) => l.id === formSale.lider_captador_id) || liderOptions.find((l) => l.id === formSale.lider_vendedor_id)) && (
+              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                {formSale.lider_captador_id && (
+                  <span>Gestor/Team Leader do captador: <span className="font-medium text-foreground">{liderOptions.find((l) => l.id === formSale.lider_captador_id)?.nome ?? "—"}</span></span>
+                )}
+                {formSale.lider_vendedor_id && (
+                  <span>Gestor/Team Leader do vendedor: <span className="font-medium text-foreground">{liderOptions.find((l) => l.id === formSale.lider_vendedor_id)?.nome ?? "—"}</span></span>
+                )}
+              </div>
+            )}
             {(() => {
               const total = Number(formSale.valor_total_comissao ?? 0);
               const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
