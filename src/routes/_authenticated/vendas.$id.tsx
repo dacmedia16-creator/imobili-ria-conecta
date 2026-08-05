@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Wizard, type WizardStep } from "@/components/Wizard";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -196,22 +196,22 @@ function SaleDetail() {
   const [teamLeadersGerais, setTeamLeadersGerais] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
     (async () => {
-      const { data: gestorRoles } = await supabase.from("user_roles").select("user_id").eq("role", "gestor");
-      const gestorIds = Array.from(new Set((gestorRoles ?? []).map((r: any) => r.user_id)));
-      if (gestorIds.length > 0) {
-        const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", gestorIds);
-        setGestoresGerais((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
-      }
-      const { data: teamsData } = await supabase.from("teams").select("lider_id");
-      const leaderIds = Array.from(new Set((teamsData ?? []).map((t: any) => t.lider_id).filter(Boolean)));
-      if (leaderIds.length > 0) {
-        const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", leaderIds);
-        setTeamLeadersGerais((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
-      }
+      const { data: gestores } = await supabase.rpc("list_active_gestores");
+      setGestoresGerais((gestores ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id })));
+      const { data: teamLeaders } = await supabase.rpc("list_active_team_leaders");
+      setTeamLeadersGerais((teamLeaders ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, []);
   const gestorOptions = lideres.length > 0 ? lideres : gestoresGerais;
   const teamLeaderOptions = lideres.length > 0 ? lideres : teamLeadersGerais;
+  // Seletor único por lado (Equipe) que mistura gestor + team leader — quem lidera o captador pode
+  // ser de papel diferente de quem lidera o vendedor, daí não fixar um dropdown por papel aqui.
+  const liderOptions = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string; papel: "gestor" | "team_leader" }>();
+    gestorOptions.forEach((l) => map.set(l.id, { ...l, papel: "gestor" }));
+    teamLeaderOptions.forEach((l) => { if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" }); });
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [gestorOptions, teamLeaderOptions]);
 
   // Corretor captador/vendedor: lista todos os corretores ativos da imobiliária (sem filtrar por
   // equipe — co-listagem entre times é comum, diferente de Gestor/Team Leader que é só da equipe).
@@ -312,7 +312,7 @@ function SaleDetail() {
       "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
       "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
       "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
-      "coordenador_id","team_leader_id",
+      "coordenador_id","team_leader_id","lider_captador_id","lider_vendedor_id",
     ];
     const patch: any = {};
     for (const k of fields) {
@@ -952,6 +952,30 @@ function SaleDetail() {
                         <Plus className="mr-1 h-4 w-4" />Outro captador
                       </Button>
                     )}
+                    {liderOptions.length > 0 && (
+                      <div className="mt-4 border-t pt-3">
+                        <Field label="Gestor/Team Leader do captador">
+                          <Select
+                            value={formSale.lider_captador_id || "none"}
+                            onValueChange={(v) => updResumo({ lider_captador_id: v === "none" ? null : v })}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
+                              <SelectGroup>
+                                <SelectLabel>Gestores</SelectLabel>
+                                {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Team Leaders</SelectLabel>
+                                {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-4)" }}>
                     <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-4)" }}>
@@ -1003,30 +1027,36 @@ function SaleDetail() {
                         <Plus className="mr-1 h-4 w-4" />Outro vendedor
                       </Button>
                     )}
+                    {liderOptions.length > 0 && (
+                      <div className="mt-4 border-t pt-3">
+                        <Field label="Gestor/Team Leader do vendedor">
+                          <Select
+                            value={formSale.lider_vendedor_id || "none"}
+                            onValueChange={(v) => updResumo({ lider_vendedor_id: v === "none" ? null : v })}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
+                              <SelectGroup>
+                                <SelectLabel>Gestores</SelectLabel>
+                                {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Team Leaders</SelectLabel>
+                                {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })()}
             <FieldGrid>
               <Field label="Indicador"><Input value={formSale.indicador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador: e.target.value })} /></Field>
-              <Field label="Gestor">
-                <Select value={formSale.coordenador_id ?? "none"} onValueChange={(v) => updResumo({ coordenador_id: v === "none" ? null : v })} disabled={!editable || gestorOptions.length === 0}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o gestor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {gestorOptions.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Team Leader">
-                <Select value={formSale.team_leader_id ?? "none"} onValueChange={(v) => updResumo({ team_leader_id: v === "none" ? null : v })} disabled={!editable || teamLeaderOptions.length === 0}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o team leader" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {teamLeaderOptions.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
             </FieldGrid>
           </SaleSection>
           <div className="flex items-center justify-end gap-2">
@@ -1699,10 +1729,12 @@ function SaleDetail() {
 
             <ReviewGroup title="Equipe">
               <ReviewItem label="Corretor captador" value={sale.corretor_captador} />
+              <ReviewItem label="Gestor/Team Leader do captador" value={liderOptions.find((l) => l.id === sale.lider_captador_id)?.nome} />
               <ReviewItem label="Corretor vendedor" value={sale.corretor_vendedor} />
+              <ReviewItem label="Gestor/Team Leader do vendedor" value={liderOptions.find((l) => l.id === sale.lider_vendedor_id)?.nome} />
               <ReviewItem label="Indicador" value={sale.indicador} />
-              <ReviewItem label="Gestor" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
-              <ReviewItem label="Team Leader" value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome} />
+              <ReviewItem label="Gestor (comissão)" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
+              <ReviewItem label="Team Leader (comissão)" value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome} />
             </ReviewGroup>
 
             <ReviewGroup title="Valores e negociação">

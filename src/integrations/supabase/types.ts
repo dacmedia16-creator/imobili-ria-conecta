@@ -942,6 +942,8 @@ export type Database = {
           indicador: string | null
           indicador_lado: string | null
           iptu: string | null
+          lider_captador_id: string | null
+          lider_vendedor_id: string | null
           matricula: string | null
           midia: string | null
           negociacao_observacoes: string | null
@@ -1004,6 +1006,8 @@ export type Database = {
           indicador?: string | null
           indicador_lado?: string | null
           iptu?: string | null
+          lider_captador_id?: string | null
+          lider_vendedor_id?: string | null
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null
@@ -1066,6 +1070,8 @@ export type Database = {
           indicador?: string | null
           indicador_lado?: string | null
           iptu?: string | null
+          lider_captador_id?: string | null
+          lider_vendedor_id?: string | null
           matricula?: string | null
           midia?: string | null
           negociacao_observacoes?: string | null
@@ -1292,6 +1298,14 @@ export type Database = {
         Returns: boolean
       }
       list_active_corretores: {
+        Args: never
+        Returns: { id: string; nome: string }[]
+      }
+      list_active_gestores: {
+        Args: never
+        Returns: { id: string; nome: string }[]
+      }
+      list_active_team_leaders: {
         Args: never
         Returns: { id: string; nome: string }[]
       }
