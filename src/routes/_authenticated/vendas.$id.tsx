@@ -473,21 +473,21 @@ function SaleDetail() {
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
-  // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % sempre calculado sobre o
-  // total da comissão, sinalizado aqui na Resumo pra a Ocorrência puxar sozinha depois. O valor sai
-  // da fatia da imobiliária (recalcImobiliaria), por isso todo lugar que muda parceria_valor também
-  // recalcula valor_comissao_imobiliaria.
+  // Parceria externa (imobiliária de fora ou outra unidade RE/MAX): % calculado sobre o VALOR
+  // NEGOCIADO (preço de venda) — mesma convenção do % da REMAX, não sobre o valor total da
+  // comissão. O valor sai da fatia da imobiliária (recalcImobiliaria), por isso todo lugar que muda
+  // parceria_valor também recalcula valor_comissao_imobiliaria.
   const applyParceriaPercentual = (raw: string) => {
     const p = raw ? Number(raw) : null;
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const valor = p != null && total > 0 ? Number(((p / 100) * total).toFixed(2)) : null;
+    const negociado = Number(formSale.valor_negociado ?? 0);
+    const valor = p != null && negociado > 0 ? Number(((p / 100) * negociado).toFixed(2)) : null;
     const patch: any = { parceria_percentual: p, parceria_valor: valor };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
   const applyParceriaValor = (v: number | null) => {
-    const total = Number(formSale.valor_total_comissao ?? 0);
-    const p = v != null && total > 0 ? Number(((v / total) * 100).toFixed(3)) : formSale.parceria_percentual ?? null;
+    const negociado = Number(formSale.valor_negociado ?? 0);
+    const p = v != null && negociado > 0 ? Number(((v / negociado) * 100).toFixed(3)) : formSale.parceria_percentual ?? null;
     const patch: any = { parceria_valor: v, parceria_percentual: p };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
