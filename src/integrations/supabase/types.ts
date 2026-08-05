@@ -1168,6 +1168,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      visao_executiva_stats: { Args: never; Returns: Json }
     }
     Enums: {
       app_role:

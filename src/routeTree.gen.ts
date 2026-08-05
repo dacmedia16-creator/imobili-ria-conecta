@@ -14,6 +14,7 @@ import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
@@ -49,6 +50,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedVisaoExecutivaRoute =
+  AuthenticatedVisaoExecutivaRouteImport.update({
+    id: '/visao-executiva',
+    path: '/visao-executiva',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -115,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -131,6 +139,7 @@ export interface FileRoutesByTo {
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -149,6 +158,7 @@ export interface FileRoutesById {
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/_authenticated/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/notificacoes'
     | '/perfil'
     | '/relatorios'
+    | '/visao-executiva'
     | '/admin/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/notificacoes'
     | '/perfil'
     | '/relatorios'
+    | '/visao-executiva'
     | '/admin/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
@@ -200,6 +212,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notificacoes'
     | '/_authenticated/perfil'
     | '/_authenticated/relatorios'
+    | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/vendas/$id'
     | '/_authenticated/vendas/nova'
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/visao-executiva': {
+      id: '/_authenticated/visao-executiva'
+      path: '/visao-executiva'
+      fullPath: '/visao-executiva'
+      preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/relatorios': {
       id: '/_authenticated/relatorios'
@@ -331,6 +351,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
   AuthenticatedVendasNovaRoute: typeof AuthenticatedVendasNovaRoute
@@ -344,6 +365,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedVendasIdRoute: AuthenticatedVendasIdRoute,
   AuthenticatedVendasNovaRoute: AuthenticatedVendasNovaRoute,
