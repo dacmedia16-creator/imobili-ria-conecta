@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
@@ -41,6 +41,40 @@ export const Route = createFileRoute("/_authenticated/vendas/$id")({
   component: SaleDetail,
 });
 
+/** Tipo de documento pro payload de activity_logs — cobre os poucos que não estão em DOC_TYPES
+ * (contrato/contrato assinado são etapas próprias, não um dos tipos do checklist do corretor). */
+const TIPO_DOC_EXTRA_LABEL: Record<string, string> = {
+  contrato: "Contrato",
+  contrato_assinado: "Contrato assinado",
+  certidao_juridico: "Certidão (jurídico)",
+};
+const tipoDocLabel = (tipo?: string | null) => (tipo ? (DOC_TYPES.find((t) => t.key === tipo)?.label ?? TIPO_DOC_EXTRA_LABEL[tipo] ?? tipo) : null);
+
+/** Traduz activity_logs.acao + payload num texto de uma linha pro painel de Atividade. Ícone/tom
+ * junto porque cada ação tem uma "cor" diferente (upload é neutro, recusa é alerta, etc.). */
+function describeAtividade(acao: string, payload: any): { icon: any; label: string; detail?: string; tone?: "warn" | "ok" } {
+  const p = payload ?? {};
+  switch (acao) {
+    case "sale_viewed": return { icon: Eye, label: "Visualizou a venda" };
+    case "document_uploaded": return { icon: Upload, label: "Enviou documento", detail: tipoDocLabel(p.tipo) ?? undefined };
+    case "document_approved": return { icon: CheckCircle2, label: "Aprovou documento", detail: tipoDocLabel(p.tipo) ?? undefined, tone: "ok" };
+    case "document_rejected": return { icon: XCircle, label: "Recusou documento", detail: [tipoDocLabel(p.tipo), p.motivo].filter(Boolean).join(" — ") || undefined, tone: "warn" };
+    case "document_archived": return { icon: Trash2, label: "Excluiu documento", detail: tipoDocLabel(p.tipo) ?? undefined };
+    case "document_reused_from_other_party": return { icon: Copy, label: "Reaproveitou documento", detail: p.de ? `de ${parteLabel(p.de)}` : undefined };
+    case "status_change": return { icon: History, label: "Mudou o status da venda" };
+    case "occurrence_created": return { icon: FileCheck, label: "Criou a ocorrência" };
+    case "occurrence_concluded": return { icon: CheckCircle2, label: "Concluiu a ocorrência", tone: "ok" };
+    case "occurrence_reopened": return { icon: RotateCcw, label: "Reabriu a ocorrência", detail: p.motivo || undefined, tone: "warn" };
+    case "contrato_pendencia_atualizada": return { icon: AlertTriangle, label: "Atualizou pendência do contrato", detail: p.pendencia || (p.libera_assinatura === false ? "Bloqueia assinatura" : undefined) };
+    case "whatsapp_notification_result": return {
+      icon: MessageSquare, label: "Notificação por WhatsApp",
+      detail: `${p.enviados ?? 0} enviada(s)${p.falhas ? `, ${p.falhas} falhou(aram)` : ""}`,
+      tone: p.falhas ? "warn" : "ok",
+    };
+    default: return { icon: History, label: acao };
+  }
+}
+
 function SaleDetail() {
   const { id } = Route.useParams();
   const { user, hasAny, hasRole, roles } = useAuth();
@@ -52,6 +86,8 @@ function SaleDetail() {
   const [docs, setDocs] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [activity, setActivity] = useState<any[]>([]);
+  const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
   const [aceitaFin, setAceitaFin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -199,13 +235,27 @@ function SaleDetail() {
     })();
   }, []);
 
+  // Painel de atividade: resolve o nome de quem fez cada ação (activity_logs.autor_id) — só busca
+  // os perfis que ainda não tem, pra não refazer a mesma consulta a cada load().
+  useEffect(() => {
+    const ids = Array.from(new Set(activity.map((a) => a.autor_id).filter((id): id is string => !!id && !activityAuthorNames[id])));
+    if (ids.length === 0) return;
+    (async () => {
+      const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", ids);
+      const next: Record<string, string> = {};
+      for (const p of profs ?? []) next[p.id] = p.nome ?? p.id;
+      setActivityAuthorNames((m) => ({ ...m, ...next }));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity]);
+
   const hasLoadedOnceRef = useRef(false);
   const load = useCallback(async () => {
     // Só mostra a tela cheia de "Carregando..." na primeira vez — em recargas depois de uma ação
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, h, oc, ce] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc, ce, ac] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -215,11 +265,12 @@ function SaleDetail() {
       supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
       supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
+      supabase.from("activity_logs").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
     ]);
-    // Antes, erro em qualquer uma dessas 9 queries era ignorado silenciosamente — a tela mostrava
+    // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
     // menos avisa que algo falhou, em vez de deixar a pessoa achar que os dados sumiram.
-    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error].filter(Boolean);
+    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error, ac.error].filter(Boolean);
     if (loadErrors.length > 0) {
       console.error("Falha ao carregar dados da venda:", loadErrors);
       toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
@@ -242,6 +293,7 @@ function SaleDetail() {
     setDocs(d.data ?? []);
     setComments(c.data ?? []);
     setHistory(h.data ?? []);
+    setActivity(ac.data ?? []);
     setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
     setLoading(false);
     hasLoadedOnceRef.current = true;
@@ -1555,6 +1607,36 @@ function SaleDetail() {
             </SheetHeader>
             <div className="mt-4">
               <CommentsPanel saleId={id} comments={comments} onAdd={load} />
+            </div>
+          </SheetContent>
+        </Sheet>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="sm"><Eye className="mr-2 h-4 w-4" />Atividade</Button>
+          </SheetTrigger>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Atividade</SheetTitle>
+              <SheetDescription>Quem fez o quê nessa venda, mais recente primeiro.</SheetDescription>
+            </SheetHeader>
+            <div className="mt-4 space-y-2">
+              {activity.length === 0 && <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>}
+              {activity.map((a) => {
+                const { icon: Icon, label, detail, tone } = describeAtividade(a.acao, a.payload);
+                return (
+                  <div key={a.id} className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone === "warn" ? "text-amber-600 dark:text-amber-400" : tone === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{label}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
+                      </div>
+                      {detail && <p className="mt-0.5 text-muted-foreground">{detail}</p>}
+                      <p className="mt-0.5 text-xs text-muted-foreground">{a.autor_id ? (activityAuthorNames[a.autor_id] ?? "…") : "Sistema"}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </SheetContent>
         </Sheet>

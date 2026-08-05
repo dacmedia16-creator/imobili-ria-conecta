@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { FileSignature, Landmark, Gavel, RotateCcw } from "lucide-react";
+import { FileSignature, Landmark, Gavel, RotateCcw, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Visão Executiva" }] }),
@@ -26,6 +26,8 @@ type VisaoExecutivaStats = {
   ranking_corretor: { corretor_id: string; vendas_fechadas: number; tempo_medio_dias: number | null; taxa_devolucao: number; comissao: number }[];
   ranking_equipe: { team_id: string | null; team_nome: string | null; vendas_fechadas: number; comissao: number; taxa_devolucao: number }[];
   evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
+  /** Só vem preenchido pra super_admin — a RPC devolve null pra qualquer outro papel. */
+  whatsapp: { eventos: number; enviados: number; falhas: number; eventos_com_falha: number } | null;
 };
 
 /** Mesmo agrupamento macro do funil em dashboard.tsx — "encerrada" (cancelada/arquivada) fica
@@ -52,6 +54,7 @@ const evoChartConfig = {
 function VisaoExecutiva() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(["admin", "super_admin"]);
+  const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -106,6 +109,32 @@ function VisaoExecutiva() {
           <AlertaCard icon={RotateCcw} label="Vendas devolvidas 2× ou mais" alerta={stats?.alertas?.retrabalho} critical sub="Retrabalho — mesma venda voltou várias vezes" />
         </div>
       </section>
+
+      {isSuperAdmin && stats?.whatsapp && stats.whatsapp.eventos > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Saúde do WhatsApp — últimos 30 dias</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-3 gap-4 sm:grid-cols-4">
+            <div>
+              <div className="text-2xl font-bold">
+                {Math.round((100 * stats.whatsapp.enviados) / Math.max(1, stats.whatsapp.enviados + stats.whatsapp.falhas))}%
+              </div>
+              <p className="text-xs text-muted-foreground">Taxa de entrega</p>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{stats.whatsapp.enviados}</div>
+              <p className="text-xs text-muted-foreground">Mensagens entregues</p>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold ${stats.whatsapp.falhas > 0 ? "text-destructive" : ""}`}>{stats.whatsapp.falhas}</div>
+              <p className="text-xs text-muted-foreground">Falharam</p>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold ${stats.whatsapp.eventos_com_falha > 0 ? "text-destructive" : ""}`}>{stats.whatsapp.eventos_com_falha}</div>
+              <p className="text-xs text-muted-foreground">Mudanças de status com falha</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {etapas.length > 0 && (
         <Card>
