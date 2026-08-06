@@ -27,7 +27,7 @@ type ServiceCard = {
 };
 
 const CARDS: ServiceCard[] = [
-  { id: "adm", title: "Sistema ADM MAX", lines: ["Gestão administrativa", "e operacional"], icon: "/hub/adm.png", color: "navy", href: "https://unicaescolha.com.br/auth", pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" }, delay: "0s" },
+  { id: "adm", title: "Sistema ADM MAX", lines: ["Gestão administrativa", "Subir Contratos"], icon: "/hub/adm.png", color: "navy", href: "https://unicaescolha.com.br/auth", pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" }, delay: "0s" },
   { id: "estudo", title: "Estudo de Mercado MAX", lines: ["Análise estratégica", "de mercado"], icon: "/hub/estudo.png", color: "blue", href: "https://www.estudodemercadomax.com.br/auth", pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" }, delay: "0.35s" },
   { id: "academia", title: "Academia Única MAX", lines: ["Treinamento e", "desenvolvimento"], icon: "/hub/academia.png", color: "blue", pos: { left: "9.7%", top: "65.1%", width: "25.8%", height: "10.6%" }, delay: "0.7s" },
   { id: "60dias", title: "60 Dias MAX", lines: ["Acompanhamento e", "performance inicial"], icon: "/hub/60dias.png", color: "red", pos: { left: "65.2%", top: "30.7%", width: "23.2%", height: "10.6%" }, delay: "1.05s" },
@@ -156,6 +156,14 @@ function FrontPage() {
           padding: 2px 9px; border-radius: 999px;
           box-shadow: 0 4px 10px -4px rgba(20, 30, 60, 0.25);
         }
+        .hubpage .access-badge {
+          position: absolute; right: 10px; top: -9px;
+          background: linear-gradient(135deg, var(--blue-line), #2440ac);
+          color: #fff; font-size: 0.62rem; font-weight: 800;
+          letter-spacing: 0.06em; text-transform: uppercase;
+          padding: 3px 10px; border-radius: 999px;
+          box-shadow: 0 4px 10px -4px rgba(20, 30, 60, 0.4);
+        }
         .hubpage .card.soon, .hubpage .mcard.soon { opacity: 0.62; filter: grayscale(0.4); cursor: default; }
         .hubpage .card.soon .icon-ping, .hubpage .card.soon .icon img,
         .hubpage .mcard.soon .icon-ping, .hubpage .mcard.soon .icon img { animation: none; }
@@ -217,20 +225,9 @@ function FrontPage() {
           background: linear-gradient(100deg, var(--red), var(--red-dark));
           clip-path: polygon(100% 32%, 100% 100%, 45% 100%);
         }
-        .hubpage .logo { position: absolute; left: 39%; top: 1.6%; width: 21%; }
-        .hubpage .logo img { width: 100%; height: auto; display: block; }
-        .hubpage .enter-btn {
-          position: absolute; right: 3%; top: 3%;
-          display: inline-flex; align-items: center; gap: 0.4em;
-          padding: 0.5em 1.1em; border-radius: 999px;
-          background: #fff; border: 1px solid rgba(20, 30, 60, 0.12);
-          box-shadow: 0 10px 24px -14px rgba(20, 30, 60, 0.35);
-          color: var(--navy-2); font-weight: 700;
-          font-size: clamp(0.6rem, 1vw, 0.95rem);
-          text-decoration: none;
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .hubpage .enter-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -14px rgba(20, 30, 60, 0.4); }
+        .hubpage .logo { position: absolute; left: 39%; top: 1.6%; width: 21%; display: block; }
+        .hubpage .logo img { width: 100%; height: auto; display: block; transition: transform 0.15s ease, opacity 0.15s ease; }
+        .hubpage .logo:hover img { transform: translateY(-1px); opacity: 0.85; }
         .hubpage .titleblock { position: absolute; left: 3.4%; top: 14.5%; width: 42%; }
         .hubpage .titleblock h1 { margin: 0; font-size: clamp(1.6rem, 3.6vw, 3.6rem); line-height: 0.95; letter-spacing: 0.01em; }
         .hubpage .titleblock h1 .navy { color: var(--navy); }
@@ -258,17 +255,11 @@ function FrontPage() {
         @media (min-width: 860px) { .hubpage .mobile-stage { display: none; } }
 
         .hubpage .mheader {
-          display: flex; align-items: center; justify-content: space-between;
+          display: flex; align-items: center; justify-content: center;
           padding-top: max(18px, env(safe-area-inset-top));
         }
-        .hubpage .mlogo { height: 38px; width: auto; }
-        .hubpage .menter {
-          display: inline-flex; align-items: center; gap: 0.3em;
-          padding: 0.5em 0.9em; border-radius: 999px;
-          background: #fff; border: 1px solid rgba(20, 30, 60, 0.12);
-          box-shadow: 0 8px 18px -10px rgba(20, 30, 60, 0.3);
-          color: var(--navy-2); font-weight: 700; font-size: 0.8rem; text-decoration: none;
-        }
+        .hubpage .mlogo { height: 38px; width: auto; display: block; margin: 0 auto; transition: opacity 0.15s ease; }
+        .hubpage .mheader a:active .mlogo { opacity: 0.7; }
         .hubpage .mhero { margin-top: 22px; text-align: center; }
         .hubpage .mhero h1 { margin: 0; font-size: 2.15rem; line-height: 0.95; }
         .hubpage .mhero h1 .navy { color: var(--navy); }
@@ -308,11 +299,9 @@ function FrontPage() {
           <div className="corner-seam" />
           <div className="corner-red" />
 
-          <div className="logo">
-            <img src="/remax-logo-transparent.png" alt="RE/MAX Imóveis Única Escolha" />
-          </div>
-
-          <Link to="/auth" className="enter-btn">Entrar no portal →</Link>
+          <Link to="/auth" className="logo" aria-label="Entrar no portal">
+            <img src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
+          </Link>
 
           <div className="titleblock">
             <h1 className="display"><span className="navy">Hub</span> <span className="red">MAX</span></h1>
@@ -354,6 +343,7 @@ function FrontPage() {
             c.href ? (
               <a key={c.id} className="card-link" href={c.href} target="_blank" rel="noopener noreferrer">
                 <div className="card" style={c.pos}>
+                  <span className="access-badge">Acessar →</span>
                   <CardIcon card={c} />
                   <span className="txt">
                     <h3>{c.title}</h3>
@@ -388,8 +378,9 @@ function FrontPage() {
       {/* ---------- lista mobile ---------- */}
       <div className="mobile-stage">
         <div className="mheader">
-          <img className="mlogo" src="/remax-logo-transparent.png" alt="RE/MAX Imóveis Única Escolha" />
-          <Link to="/auth" className="menter">Entrar →</Link>
+          <Link to="/auth" aria-label="Entrar no portal">
+            <img className="mlogo" src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
+          </Link>
         </div>
 
         <div className="mhero">
@@ -403,6 +394,7 @@ function FrontPage() {
           {CARDS.map((c) =>
             c.href ? (
               <a key={c.id} className="mcard" href={c.href} target="_blank" rel="noopener noreferrer">
+                <span className="access-badge">Acessar →</span>
                 <CardIcon card={c} />
                 <span className="txt">
                   <h3>{c.title}</h3>
