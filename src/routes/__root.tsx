@@ -73,7 +73,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "RE/MAX Única Escolha — Portal Interno" },
       { name: "description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
       { property: "og:title", content: "RE/MAX Única Escolha — Portal Interno" },

@@ -1,4 +1,4 @@
-const CACHE_NAME = "remax-portal-static-v1";
+const CACHE_NAME = "remax-portal-static-v2";
 const STATIC_WHITELIST = [
   "/remax-icon.png",
   "/remax-icon-512.png",
@@ -11,6 +11,15 @@ const STATIC_WHITELIST = [
   "/favicon-32.png",
   "/pwa-192.png",
   "/pwa-512.png",
+  "/hub/adm.png",
+  "/hub/estudo.png",
+  "/hub/academia.png",
+  "/hub/60dias.png",
+  "/hub/recruta.png",
+  "/hub/locacao.png",
+  "/hub/visita.png",
+  "/fonts/barlow-condensed-600.woff2",
+  "/fonts/barlow-condensed-800.woff2",
 ];
 
 self.addEventListener("install", () => {
