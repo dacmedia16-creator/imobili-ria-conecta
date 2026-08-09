@@ -821,7 +821,13 @@ function SaleDetail() {
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
     if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
-    if (comissaoExcedida) { toast.error("A soma da comissão do captador e vendedor não pode ultrapassar o valor total da comissão"); return; }
+    // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
+    // bloqueia isso de qualquer forma (trigger em change_sale_status), mas checar aqui primeiro evita
+    // a viagem ao servidor e mostra a mensagem específica na hora, sem travar a digitação da Resumo.
+    if (distribuicao && !distribuicao.calculo_valido) {
+      toast.error(`Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      return;
+    }
     setApproveJuridicoOpen(false);
     await changeStatus("aprovada_gestor");
   };
@@ -1495,6 +1501,7 @@ function SaleDetail() {
           saleId={id}
           sale={sale}
           parties={parties}
+          distribuicao={distribuicao}
           canEdit={canFinalizarOcorrencia}
           onChange={load}
         />
@@ -2141,6 +2148,15 @@ function SaleDetail() {
               </div>
             )}
 
+            {distribuicao && !distribuicao.calculo_valido && (
+              <div className="rounded-md bg-destructive/10 p-3 text-destructive">
+                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-6">
+                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+                </ul>
+              </div>
+            )}
+
             <div className="space-y-3">
               <ReviewGroup title="Imóvel">
                 <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
@@ -2184,7 +2200,7 @@ function SaleDetail() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0 || comissaoExcedida}>Confirmar e enviar ao jurídico</Button>
+            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)}>Confirmar e enviar ao jurídico</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2393,8 +2409,8 @@ function ReviewItem({ label, value }: { label: string; value: React.ReactNode })
 }
 
 /** Tela de revisão da ocorrência (pré-finalização) — mesmo layout de relatório do SaleReport, com ação para confirmar e finalizar. */
-function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
-  saleId: string; sale: any; parties: Record<string, any>; canEdit: boolean; onChange: () => void;
+function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, onChange }: {
+  saleId: string; sale: any; parties: Record<string, any>; distribuicao: any; canEdit: boolean; onChange: () => void;
 }) {
   const { user } = useAuth();
   const [occ, setOcc] = useState<any>(null);
@@ -2445,6 +2461,13 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
   };
   const finalizar = async () => {
     if (!occ) return;
+    // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
+    // bloqueia isso de qualquer forma (trigger em occurrences), sem exceção nem justificativa
+    // possível (diferente do aviso de "excedido" logo abaixo, que já permitia prosseguir com motivo).
+    if (distribuicao && !distribuicao.calculo_valido) {
+      toast.error(`Não é possível concluir a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      return;
+    }
     if (excedido) { setExcedidoMotivo(""); setConfirmExcedidoOpen(true); return; }
     await doFinalizar();
   };
@@ -2474,11 +2497,20 @@ function OccurrenceReviewPanel({ saleId, sale, parties, canEdit, onChange }: {
         </div>
       )}
 
+      {distribuicao && !distribuicao.calculo_valido && (
+        <div className="space-y-1 rounded-md bg-destructive/10 p-3 text-sm text-destructive print:hidden">
+          <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste na Resumo antes de concluir:</p>
+          <ul className="ml-6 list-disc">
+            {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+          </ul>
+        </div>
+      )}
+
       <div className="flex justify-end print:hidden">
         {concluida ? (
           <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Ocorrência finalizada.</p>
         ) : canEdit ? (
-          <Button onClick={finalizar} disabled={finalizing}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar e finalizar ocorrência</Button>
+          <Button onClick={finalizar} disabled={finalizing || (!!distribuicao && !distribuicao.calculo_valido)}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar e finalizar ocorrência</Button>
         ) : null}
       </div>
 
@@ -3182,6 +3214,13 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       return;
     }
     const novo = !occ.aceita_financeiro;
+    // Só trava (aceita) exige a divisão consistente — destravar é sempre seguro, nunca bloqueado.
+    // O banco bloqueia isso de qualquer forma (trigger em occurrences); checar aqui só evita a
+    // viagem ao servidor e mostra a mensagem específica na hora.
+    if (novo && distribuicao && !distribuicao.calculo_valido) {
+      toast.error(`Não é possível travar a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      return;
+    }
     const patch: any = novo
       ? { aceita_financeiro: true, aceita_financeiro_em: new Date().toISOString(), aceita_financeiro_por: user!.id }
       : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
