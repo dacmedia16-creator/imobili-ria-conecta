@@ -365,18 +365,25 @@ function SaleDetail() {
           if (error) { toast.error(error.message); return false; }
         }
       }
+      // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
+      // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
+      // sincronização abaixo deixa dirtyExtras true de propósito (pra permitir retry). Sem isto, um
+      // retry encontraria os mesmos extras ainda com _new=true e id temporário "new-..." e os
+      // inseriria de novo — duplicando linha de comissão a cada tentativa.
+      setFormExtras(resolvedExtras);
+      setCommissionExtras(resolvedExtras);
     }
     if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
     try {
       await syncOccurrenceCommissions(id);
       await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
     } catch (err: any) {
-      // sales/sale_commission_extras já foram persistidos com sucesso acima, mas a Ocorrência ficou
-      // fora de sincronia — bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez
-      // de só avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
+      // sales/sale_commission_extras já foram persistidos com sucesso acima (e formExtras/
+      // commissionExtras já refletem os ids reais, ver acima) — mas a Ocorrência ficou fora de
+      // sincronia. Bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez de só
+      // avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
       // dirtyResumo/dirtyExtras continuam true de propósito: a próxima tentativa de salvar/avançar
-      // reprocessa (patch já vazio, já persistido) e tenta sincronizar de novo. load() já recarrega
-      // formSale/formExtras com os ids reais gravados, pra um retry não tentar inserir tudo de novo.
+      // reprocessa (patch já vazio, extras já sem _new) e tenta sincronizar de novo, sem duplicar nada.
       toast.error(`Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${err?.message ?? "erro desconhecido"}. Tente salvar de novo antes de avançar a venda.`);
       await load();
       return false;
@@ -2773,14 +2780,19 @@ async function syncOccurrenceCommissions(saleId: string) {
  * não são tocados aqui. Se a parceria for removida na Resumo, a linha sincronizada é apagada.
  */
 async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
-  const { data: occ } = await supabase.from("occurrences").select("id").eq("sale_id", saleId).maybeSingle();
+  const { data: occ, error: occError } = await supabase.from("occurrences").select("id").eq("sale_id", saleId).maybeSingle();
+  if (occError) throw occError;
   if (!occ) return;
 
-  const { data: existing } = await supabase.from("occurrence_partners").select("*").eq("occurrence_id", occ.id).eq("from_sale", true);
+  const { data: existing, error: selectError } = await supabase.from("occurrence_partners").select("*").eq("occurrence_id", occ.id).eq("from_sale", true);
+  if (selectError) throw selectError;
   const row = (existing ?? [])[0];
 
   if (!sale.parceria_tipo) {
-    if (row) await supabase.from("occurrence_partners").delete().eq("id", row.id);
+    if (row) {
+      const { error } = await supabase.from("occurrence_partners").delete().eq("id", row.id);
+      if (error) throw error;
+    }
     return;
   }
 
@@ -2796,13 +2808,15 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
     // esses campos passam a ser do financeiro, e ressincronizar a cada save da Resumo sobrescreveria
     // o que ele já preencheu.
     if (row.tipo !== data.tipo || row.nome !== data.nome || row.cpf_cnpj !== data.cpf_cnpj || Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) || Number(row.valor ?? 0) !== Number(data.valor ?? 0)) {
-      await supabase.from("occurrence_partners").update(data).eq("id", row.id);
+      const { error } = await supabase.from("occurrence_partners").update(data).eq("id", row.id);
+      if (error) throw error;
     }
   } else {
-    await supabase.from("occurrence_partners").insert({
+    const { error } = await supabase.from("occurrence_partners").insert({
       occurrence_id: occ.id, from_sale: true, ...data,
       banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
     });
+    if (error) throw error;
   }
 }
 
@@ -2919,17 +2933,28 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       else if (p.key === "indicador_vendedor") { nome = sale.indicador_vendedor ?? null; valor = sale.valor_comissao_indicador_vendedor ?? null; }
       else if (p.key === "lider_captador") { nome = sale.lider_captador_nome ?? null; valor = sale.valor_comissao_lider_captador ?? null; }
       else if (p.key === "lider_vendedor") { nome = sale.lider_vendedor_nome ?? null; valor = sale.valor_comissao_lider_vendedor ?? null; }
-      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale) };
+      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale), managed_by_sale: true };
     });
     // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
     const extraRows = commissionExtras.map((e) => {
       const papel = papelDaExtra(e.papel);
       return {
         occurrence_id: data.id, papel, nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
-        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale, e),
+        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale, e), managed_by_sale: true,
       };
     });
-    await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
+    if (commRows.length + extraRows.length > 0) {
+      const { error: commError } = await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
+      if (commError) {
+        // A Ocorrência em si já foi criada com sucesso acima — só o pré-preenchimento da comissão
+        // falhou. Recarrega mesmo assim pra tela refletir o que existe de verdade, em vez de ficar
+        // mostrando o estado antigo escondendo que a Ocorrência já existe (só sem comissão ainda).
+        toast.error(`Ocorrência criada, mas falhou ao pré-preencher a comissão: ${commError.message}`);
+        onChange();
+        load();
+        return;
+      }
+    }
     // Parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo
     // entra junto na criação, sem precisar reentrar os dados na Ocorrência.
     if (sale.parceria_tipo) {
@@ -2976,7 +3001,10 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     setDirtyComms(true);
   };
   const addCommission = () => {
-    setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, _new: true }]);
+    // managed_by_sale: false — linha criada à mão pelo financeiro, sync_occurrence_commissions nunca
+    // deve sobrescrever/apagar ela (só linhas geradas a partir da Resumo/sale_commission_extras têm
+    // managed_by_sale: true, ver pullFromSaleSplit abaixo).
+    setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, managed_by_sale: false, _new: true }]);
     setDirtyComms(true);
   };
   // Traz captador/vendedor/indicador com os valores já definidos na revisão do gestor (aba Resumo),
@@ -3008,7 +3036,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       for (const t of fixedTargets) {
         if (t.nome == null && t.valor == null) continue;
         if (!next.some((r) => r.papel === t.papel)) {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, user_id: userIdParaPapel(t.papel, sale), _new: true }];
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, user_id: userIdParaPapel(t.papel, sale), managed_by_sale: true, _new: true }];
         }
       }
       // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes casando
@@ -3027,7 +3055,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
         if (idx >= 0) {
           next = next.map((r, i) => i === idx ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id, user_id: userId } : r);
         } else {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, user_id: userId, _new: true }];
+          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, user_id: userId, managed_by_sale: true, _new: true }];
         }
       }
       return next;
@@ -3144,11 +3172,17 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       if (dirtyComms) {
         const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
         const removed = commissions.filter(r => !currentIds.has(r.id));
-        for (const r of removed) await supabase.from("occurrence_commissions").delete().eq("id", r.id);
+        for (const r of removed) {
+          const { error } = await supabase.from("occurrence_commissions").delete().eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
         for (const r of formComms) {
           const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null };
+          // managed_by_sale só é gravado na criação — nunca muda o "dono" de uma linha já existente
+          // por uma edição feita aqui (evita que uma linha manual vire "gerenciada" só por ter sido
+          // reeditada na tela, ou vice-versa).
           const { error } = r._new
-            ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, ...data })
+            ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, managed_by_sale: r.managed_by_sale ?? false, ...data })
             : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
           if (error) { toast.error(error.message); return false; }
         }

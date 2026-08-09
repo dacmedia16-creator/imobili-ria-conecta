@@ -305,6 +305,41 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(depois.data).toBeNull();
   });
 
+  // ---- Regra nova: proteger linha manual de comissão (achado #4, 2ª rodada) ----
+  it("regra proteção — linha manual (managed_by_sale=false) com o mesmo papel do captador não é sobrescrita pela sincronização", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Real" });
+    const occId = await criarOcorrencia(saleId, { valor_comissao: 43800 });
+    const { error: manualErr } = await supabaseAdmin.from("occurrence_commissions").insert({
+      occurrence_id: occId, papel: "corretor_captador", nome: "Ajuste Manual do Financeiro", valor: 999.99, managed_by_sale: false,
+    });
+    if (manualErr) throw manualErr;
+
+    await sync(saleId);
+
+    const { data: linhas } = await supabaseAdmin.from("occurrence_commissions").select("nome, valor, managed_by_sale").eq("occurrence_id", occId).eq("papel", "corretor_captador");
+    const manual = linhas?.find((l) => l.managed_by_sale === false);
+    const gerenciada = linhas?.find((l) => l.managed_by_sale === true);
+    expect(manual?.nome).toBe("Ajuste Manual do Financeiro"); // sobrevive intacta
+    expect(Number(manual?.valor)).toBe(999.99);
+    expect(gerenciada?.nome).toBe("Captador Real"); // linha gerenciada criada à parte, não sobrescreve a manual
+    expect(Number(gerenciada?.valor)).toBe(4927.5);
+  });
+
+  it("regra proteção — linha manual sobrevive mesmo quando a venda não tem captador algum (ramo de remoção da RPC)", async () => {
+    const saleId = await criarVenda({ valor_negociado: 100000 }); // sem captador nenhum
+    const occId = await criarOcorrencia(saleId, { valor_comissao: 0 });
+    const { error: manualErr } = await supabaseAdmin.from("occurrence_commissions").insert({
+      occurrence_id: occId, papel: "corretor_captador", nome: "Ajuste Manual Sem Captador", valor: 500, managed_by_sale: false,
+    });
+    if (manualErr) throw manualErr;
+
+    await sync(saleId); // sale sem captador -> RPC tentaria remover a linha "gerenciada" desse papel
+
+    const { data: linha } = await supabaseAdmin.from("occurrence_commissions").select("nome, valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").maybeSingle();
+    expect(linha?.nome).toBe("Ajuste Manual Sem Captador"); // não foi apagada
+    expect(Number(linha?.valor)).toBe(500);
+  });
+
   // ---- Regra 12: venda cancelada ----
   it("regra 12 — venda cancelada não entra no ranking da Visão Executiva mesmo com comissão sincronizada", async () => {
     const captadorId = PROFILES[1];
@@ -508,6 +543,25 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     const depois = await vendasFechadasRankingEquipe(teamId);
 
     expect(depois - antes).toBe(1); // uma venda só, mesmo com 2 participantes da equipe nela
+  });
+
+  it("regra equipe — participante sem equipe (team_id null) continua aparecendo no ranking, não some", async () => {
+    const { data: comEquipe } = await supabaseAdmin.from("team_members").select("membro_id");
+    const idsComEquipe = new Set((comEquipe ?? []).map((m) => m.membro_id));
+    const semEquipeId = PROFILES.find((p) => !idsComEquipe.has(p));
+    if (!semEquipeId) return; // todos os profiles carregados têm equipe — regra não observável aqui.
+
+    const antes = await comissaoRankingCorretor(semEquipeId);
+    const antesSemEquipe = await vendasFechadasRankingEquipe(null as unknown as string);
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: semEquipeId, corretor_captador: "Sem Equipe Teste" });
+    await fecharVendaNoPeriodo(saleId);
+    await criarOcorrencia(saleId, { valor_comissao: 43800 });
+    await sync(saleId);
+
+    const depois = await comissaoRankingCorretor(semEquipeId);
+    const depoisSemEquipe = await vendasFechadasRankingEquipe(null as unknown as string);
+    expect(depois - antes).toBe(4927.5); // continua no ranking_corretor
+    expect(depoisSemEquipe - antesSemEquipe).toBe(1); // e entra no grupo "Sem equipe" (team_id null), não some
   });
 
   // ---- Regra 21: consistência entre Resumo, Ocorrência, Relatórios e Visão Executiva ----

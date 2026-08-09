@@ -243,6 +243,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          managed_by_sale: boolean
           nome: string | null
           occurrence_id: string
           papel: string
@@ -254,6 +255,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          managed_by_sale?: boolean
           nome?: string | null
           occurrence_id: string
           papel: string
@@ -265,6 +267,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          managed_by_sale?: boolean
           nome?: string | null
           occurrence_id?: string
           papel?: string
