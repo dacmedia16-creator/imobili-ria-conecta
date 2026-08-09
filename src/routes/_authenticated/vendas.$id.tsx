@@ -1222,7 +1222,11 @@ function SaleDetail() {
                 const opcoesLider = r.papel === "gestor" ? gestorOptions : teamLeaderOptions;
                 const onSelectLider = (liderId: string) => {
                   const lider = opcoesLider.find((l) => l.id === liderId);
-                  updExtra(r.id, { nome: lider ? lider.nome : r.nome });
+                  // Grava o user_id direto na linha do extra (não só em sales.coordenador_id/team_leader_id)
+                  // — sync_occurrence_commissions/createOcc já caem pro campo antigo como respaldo se isso
+                  // faltar, mas depender só do respaldo deixa a comissão sem dono se esse campo nunca foi
+                  // preenchido (ex.: venda antiga, ou gestor trocado só aqui sem passar pelo Resumo geral).
+                  updExtra(r.id, { nome: lider ? lider.nome : r.nome, user_id: liderId || null });
                   if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
                   if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
                 };
