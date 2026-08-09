@@ -27,6 +27,7 @@ import {
   podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
+import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money, dateBR, DocStatusBadge } from "@/components/vendas/shared";
@@ -463,13 +464,9 @@ function SaleDetail() {
   // "key in patch" em vez de "patch[key] ?? formSale[key]": quando o usuário limpa um campo (R$
   // vazio vira null), o patch traz null de propósito — "??" trataria esse null como "não veio
   // nada" e voltaria pro valor antigo do formSale, fazendo o recálculo ignorar a limpeza.
-  const fromPatchOrSale = (patch: any, key: string) => (key in patch ? patch[key] : formSale[key]);
-  const recalcImobiliaria = (patch: any) => {
-    const total = Number(fromPatchOrSale(patch, "valor_total_comissao") ?? 0);
-    const soma = COMISSAO_ROLES.reduce((s, r) => s + Number(fromPatchOrSale(patch, `valor_comissao_${r}`) ?? 0), 0);
-    const parceria = Number(fromPatchOrSale(patch, "parceria_valor") ?? 0);
-    return Number((total - soma - parceria).toFixed(2));
-  };
+  // Fórmula em src/lib/sale-financial-calc.ts (testada em sale-financial-calc.test.ts) — wrapper só
+  // pra manter a assinatura de 1 argumento já usada em todos os call sites abaixo.
+  const recalcImobiliaria = (patch: any) => recalcImobiliariaCalc(patch, formSale);
   // Preenchimento livre: o gestor digita só o valor em R$ de cada lado, sem trava contra o outro
   // lado. A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o
   // avanço da venda pro jurídico (ver comissaoExcedida/confirmApproveJuridico), não a digitação em
@@ -539,17 +536,7 @@ function SaleDetail() {
       toast.error("A Ocorrência desta venda está concluída ou travada pelo financeiro — reabra antes de alterar o valor negociado. Comissão, parceria e REMAX não são recalculados automaticamente numa venda fechada, pra não mudar valor já pago silenciosamente.");
       return;
     }
-    const negociado = v != null ? Number(v) : null;
-    const patch: any = { valor_negociado: negociado };
-    const pctSobreNegociado = (percentual: number | null | undefined) =>
-      percentual != null && negociado != null && negociado > 0 ? Number(((percentual / 100) * negociado).toFixed(2)) : null;
-    if (formSale.percentual_comissao != null) patch.valor_total_comissao = pctSobreNegociado(formSale.percentual_comissao);
-    if (formSale.parceria_percentual != null) patch.parceria_valor = pctSobreNegociado(formSale.parceria_percentual);
-    if (formSale.percentual_remax != null) patch.valor_remax = pctSobreNegociado(formSale.percentual_remax);
-    // Campo legado (sem % da REMAX preenchido) — recalcula com o novo total/parceria pra não ficar
-    // com "Valor para a imobiliária" desatualizado nas vendas antigas que ainda dependem dele.
-    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-    updResumo(patch);
+    updResumo(calcularPatchValorNegociado(formSale, v));
   };
   // Líquido do captador/vendedor e valor da imobiliária não são mais calculados aqui — vêm de
   // calcular_distribuicao_venda() (RPC, ver `distribuicao` carregado no load() da página), a mesma
@@ -2966,12 +2953,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       toast.error("Ocorrência concluída ou travada — reabra antes de alterar o valor negociado.");
       return;
     }
-    const negociado = v != null ? Number(v) : null;
-    const patch: any = { valor_negociado: negociado };
-    if (formOcc.percentual_comissao != null) {
-      patch.valor_comissao = negociado != null && negociado > 0 ? Number(((formOcc.percentual_comissao / 100) * negociado).toFixed(2)) : null;
-    }
-    updOcc(patch);
+    updOcc(calcularPatchOccValorNegociado(formOcc, v));
   };
 
   const updComm = (id: string, patch: any) => {
