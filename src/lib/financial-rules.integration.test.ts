@@ -43,7 +43,7 @@ type Distribuicao = {
 };
 type VisaoExecutivaStats = {
   ranking_corretor: { corretor_id: string; comissao: number }[];
-  ranking_equipe: { team_id: string | null; comissao: number }[];
+  ranking_equipe: { team_id: string | null; comissao: number; vendas_fechadas: number }[];
   resumo_operacional: { vgv: number; comissao_bruta_operacao: number; parceria_externa: number; parte_unidade: number; receita_liquida_imobiliaria: number; quantidade_vendas: number; quantidade_captacoes: number };
 };
 type MetasProgresso = { corretor: { corretor_id: string; comissao_realizada: number }[] };
@@ -156,6 +156,12 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     const stats = await visaoExecutiva();
     const row = (stats.ranking_equipe ?? []).find((r) => r.team_id === teamId);
     return row ? Number(row.comissao) : 0;
+  }
+
+  async function vendasFechadasRankingEquipe(teamId: string) {
+    const stats = await visaoExecutiva();
+    const row = (stats.ranking_equipe ?? []).find((r) => r.team_id === teamId);
+    return row ? Number(row.vendas_fechadas) : 0;
   }
 
   async function resumoOperacional() {
@@ -480,6 +486,28 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     const deltaEquipe = equipeDepois - equipeAntes;
     expect(deltaCorretor).toBe(4927.5);
     expect(deltaEquipe).toBe(deltaCorretor); // mesma origem, sem duplicar em outra equipe
+  });
+
+  it("regra equipe — 2 participantes da mesma equipe na mesma venda contam a venda 1 vez só pra equipe", async () => {
+    const { data: membros } = await supabaseAdmin.from("team_members").select("membro_id, team_id");
+    const porEquipe = new Map<string, string[]>();
+    for (const m of membros ?? []) porEquipe.set(m.team_id, [...(porEquipe.get(m.team_id) ?? []), m.membro_id]);
+    const par = [...porEquipe.entries()].find(([, ids]) => ids.length >= 2);
+    if (!par) return; // ambiente sem equipe com 2+ membros — regra não observável aqui.
+    const [teamId, [membroA, membroB]] = par;
+
+    const antes = await vendasFechadasRankingEquipe(teamId);
+    const saleId = await criarVenda({
+      ...CENARIO_BASE,
+      corretor_captador_id: membroA, corretor_captador: "Membro A Teste",
+      corretor_vendedor_id: membroB, corretor_vendedor: "Membro B Teste",
+    });
+    await fecharVendaNoPeriodo(saleId);
+    await criarOcorrencia(saleId, { valor_comissao: 43800 });
+    await sync(saleId);
+    const depois = await vendasFechadasRankingEquipe(teamId);
+
+    expect(depois - antes).toBe(1); // uma venda só, mesmo com 2 participantes da equipe nela
   });
 
   // ---- Regra 21: consistência entre Resumo, Ocorrência, Relatórios e Visão Executiva ----

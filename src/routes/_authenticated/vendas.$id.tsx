@@ -371,10 +371,15 @@ function SaleDetail() {
       await syncOccurrenceCommissions(id);
       await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
     } catch (err: any) {
-      // Não aborta o save: sales/sale_commission_extras já foram persistidos com sucesso acima.
-      // Mas o usuário precisa saber que a Ocorrência pode ter ficado fora de sincronia — antes esse
-      // erro só ia pro console (fácil de nunca ver), violando a regra de nunca engolir falha do Supabase.
-      toast.error(`Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${err?.message ?? "erro desconhecido"}`);
+      // sales/sale_commission_extras já foram persistidos com sucesso acima, mas a Ocorrência ficou
+      // fora de sincronia — bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez
+      // de só avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
+      // dirtyResumo/dirtyExtras continuam true de propósito: a próxima tentativa de salvar/avançar
+      // reprocessa (patch já vazio, já persistido) e tenta sincronizar de novo. load() já recarrega
+      // formSale/formExtras com os ids reais gravados, pra um retry não tentar inserir tudo de novo.
+      toast.error(`Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${err?.message ?? "erro desconhecido"}. Tente salvar de novo antes de avançar a venda.`);
+      await load();
+      return false;
     }
     setDirtyResumo(false);
     setDirtyExtras(false);
@@ -3006,16 +3011,21 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
           next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, user_id: userIdParaPapel(t.papel, sale), _new: true }];
         }
       }
-      // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes
-      // (casando pelo id estável da parte extra, não só nome — nome pode ter mudado desde a
-      // última vez) ou adiciona uma nova, sem duplicar a cada clique.
+      // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes casando
+      // SÓ pelo id estável da parte extra (sale_commission_extra_id) — nunca por papel+nome. Casar por
+      // nome já causou um risco real: uma linha adicionada manualmente na Ocorrência (botão
+      // "Adicionar", sem sale_commission_extra_id) com o mesmo papel+nome de um extra do Resumo era
+      // "adotada" silenciosamente por esse extra, passando a ser sobrescrita e até apagada se o extra
+      // do Resumo fosse removido depois — mesmo tendo sido criada e preenchida à mão pelo financeiro,
+      // sem nenhuma relação real com aquele extra. Sem esse casamento por nome, o pior caso vira uma
+      // linha duplicada visível (fácil de notar e remover à mão), nunca uma sobrescrita/exclusão
+      // silenciosa de dado financeiro.
       for (const extra of commissionExtras) {
         const papel = papelDaExtra(extra.papel);
         const userId = userIdParaExtra(papel, sale, extra);
         const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
-        const idxLegado = idx >= 0 ? idx : next.findIndex((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
-        if (idxLegado >= 0) {
-          next = next.map((r, i) => i === idxLegado ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id, user_id: userId } : r);
+        if (idx >= 0) {
+          next = next.map((r, i) => i === idx ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id, user_id: userId } : r);
         } else {
           next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, user_id: userId, _new: true }];
         }
