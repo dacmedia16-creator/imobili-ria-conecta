@@ -557,12 +557,19 @@ function SaleDetail() {
   const baseParaOrigem = (origem: string) => {
     if (origem === "captador") return Number(formSale.valor_comissao_captador ?? 0);
     if (origem === "vendedor") return Number(formSale.valor_comissao_vendedor ?? 0);
-    return Number(formSale.valor_comissao_imobiliaria ?? 0);
+    // "imobiliaria": base BRUTA (saldo inicial, antes de gestor/team leader/outros extras — regra
+    // "não calcule percentual sobre saldo já reduzido") — vem de calcular_distribuicao_venda(), a
+    // mesma fonte da tela e da Ocorrência. Nunca o campo legado valor_comissao_imobiliaria: ele não
+    // considera percentual_remax e ficava divergente do saldo realmente exibido.
+    return Number(distribuicao?.saldo_inicial_imobiliaria ?? 0);
   };
   const updExtra = (rowId: string, patch: any) => {
     setFormExtras(rows => rows.map(r => {
       if (r.id !== rowId) return r;
       const merged = { ...r, ...patch };
+      // Gestor/Team Leader têm origem obrigatória "imobiliaria" (regra 4) — nunca editável pra
+      // captador/vendedor, mesmo que algum patch tente mudar isso.
+      if (merged.papel === "gestor" || merged.papel === "team_leader") merged.origem = "imobiliaria";
       const base = baseParaOrigem(merged.origem);
       if ("percentual" in patch) {
         const p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
@@ -1247,14 +1254,11 @@ function SaleDetail() {
                           onChange={(e) => updExtra(r.id, { nome: e.target.value })}
                         />
                       )}
-                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editable}>
-                        <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="imobiliaria">Imobiliária</SelectItem>
-                          <SelectItem value="captador">Captador</SelectItem>
-                          <SelectItem value="vendedor">Vendedor</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {/* Origem de gestor/team leader é sempre "imobiliária" (regra 4) — não é uma escolha,
+                          por isso não tem Select aqui (diferente de "outro captador/vendedor" logo abaixo). */}
+                      <span className="w-36 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" title="Gestor/Team Leader sempre sai do saldo da imobiliária">
+                        Imobiliária
+                      </span>
                       <div className="w-32"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
                       {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                     </div>
