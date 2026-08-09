@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -48,6 +49,9 @@ function RelatoriosPage() {
   const [dateFrom, setDateFrom] = useState(monthsAgoISO(3));
   const [dateTo, setDateTo] = useState(todayISO());
   const [corretorQ, setCorretorQ] = useState("");
+  // Desmarcado por padrão: vendas canceladas/arquivadas não compõem os totais ativos (fluxo de
+  // caixa, comissões, financiamentos) a menos que o usuário explicitamente peça pra revisar histórico.
+  const [incluirCanceladas, setIncluirCanceladas] = useState(false);
 
   // O filtro de período existe na tela há tempo, mas nunca bateu de verdade na consulta — a busca
   // baixava sales/occurrences inteiras e só cortava por data no client, sem limite algum. Cada aba
@@ -120,6 +124,23 @@ function RelatoriosPage() {
     return m;
   }, [sales]);
 
+  // Fonte única da regra "cancelada/arquivada não compõe totais ativos", usada pelas 3 abas que
+  // somam dinheiro (Fluxo de caixa, Comissões, Financiamentos) — Funil já se auto-exclui porque
+  // FUNIL_STATUSES nunca inclui cancelada/arquivada, então continua recebendo occs/sales cheios.
+  // Ocorrência cujo sale_id não resolve em nenhuma venda carregada é tratada como inconsistência:
+  // nunca entra nos totais ativos, mesmo com "Incluir canceladas/arquivadas" marcado.
+  const { occsAtivas, inconsistentes } = useMemo(() => {
+    const ativas: any[] = [];
+    const semVenda: any[] = [];
+    for (const o of occs) {
+      const sale = saleById[o.sale_id];
+      if (!sale) { semVenda.push(o); continue; }
+      if (!incluirCanceladas && (sale.status === "cancelada" || sale.status === "arquivada")) continue;
+      ativas.push(o);
+    }
+    return { occsAtivas: ativas, inconsistentes: semVenda };
+  }, [occs, saleById, incluirCanceladas]);
+
   // Soma da parte que vai pra parceria externa (imobiliária externa/outra unidade RE/MAX) por
   // ocorrência — usado pra descontar essa fatia das parcelas previstas no Fluxo de caixa, já que
   // esse dinheiro não é nosso mesmo que passe pela nossa conta.
@@ -166,8 +187,22 @@ function RelatoriosPage() {
             <Label>Corretor</Label>
             <Input placeholder="Filtrar por nome do corretor" value={corretorQ} onChange={(e) => setCorretorQ(e.target.value)} />
           </div>
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox id="incluir-canceladas" checked={incluirCanceladas} onCheckedChange={(v) => setIncluirCanceladas(!!v)} />
+            <Label htmlFor="incluir-canceladas" className="cursor-pointer text-sm font-normal text-muted-foreground">
+              Incluir vendas canceladas/arquivadas (histórico)
+            </Label>
+          </div>
         </CardContent>
       </Card>
+
+      {inconsistentes.length > 0 && (
+        <Card className="border-destructive/40">
+          <CardContent className="py-3 text-sm text-destructive">
+            {inconsistentes.length} ocorrência(s) sem venda correspondente carregada — excluída(s) de todos os totais desta página por segurança. Verifique com o suporte técnico.
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="caixa">
         <TabsList>
@@ -178,16 +213,16 @@ function RelatoriosPage() {
         </TabsList>
 
         <TabsContent value="caixa">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.</p>
-          <FluxoCaixaTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} parceriaPorOcc={parceriaPorOcc} />
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
+          <FluxoCaixaTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} parceriaPorOcc={parceriaPorOcc} />
         </TabsContent>
         <TabsContent value="comissoes">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).</p>
-          <ComissoesTab occs={occs} comms={comms} partners={partners} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
+          <ComissoesTab occs={occsAtivas} comms={comms} partners={partners} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="financiamentos">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>previsão de liberação do crédito</b>.</p>
-          <FinanciamentosTab occs={occs} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>previsão de liberação do crédito</b>.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
+          <FinanciamentosTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="funil">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>última atualização</b> da venda.</p>

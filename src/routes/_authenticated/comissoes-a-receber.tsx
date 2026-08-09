@@ -91,13 +91,17 @@ function ComissoesAReceberPage() {
     return m;
   }, [partners]);
 
-  const rows = useMemo(() => {
+  const { rows, inconsistentes } = useMemo(() => {
     const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; valorBruto: number; forma: string | null }[] = [];
+    const semVenda: any[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
+      // Ocorrência sem venda resolvida é uma inconsistência de dados — não deve entrar silenciosamente
+      // no total pendente (ver item 7 do pedido de padronização financeira).
+      if (!sale) { semVenda.push(o); continue; }
       // Venda arquivada/cancelada não deve gerar cobrança pendente — a ocorrência continua existindo
       // (histórico), mas a parcela prevista não é mais um recebimento de verdade.
-      if (sale && (sale.status === "arquivada" || sale.status === "cancelada")) continue;
+      if (sale.status === "arquivada" || sale.status === "cancelada") continue;
       const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
       const parcelas: [string | null, number | null, string | null, string | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em],
@@ -109,7 +113,7 @@ function ComissoesAReceberPage() {
         out.push({ key: `${o.id}-${i + 1}`, occId: o.id, parcela: i + 1, sale, data, valor: Number(valor) * fator, valorBruto: Number(valor), forma });
       });
     }
-    return out.sort((a, b) => a.data.localeCompare(b.data));
+    return { rows: out.sort((a, b) => a.data.localeCompare(b.data)), inconsistentes: semVenda };
   }, [occs, saleById, parceriaPorOcc]);
 
   const hoje = todayISO();
@@ -165,6 +169,14 @@ function ComissoesAReceberPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Comissões a Receber</h1>
         <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas — já descontada a parte de eventuais parcerias externas.</p>
       </div>
+
+      {inconsistentes.length > 0 && (
+        <Card className="border-destructive/40">
+          <CardContent className="py-3 text-sm text-destructive">
+            {inconsistentes.length} ocorrência(s) sem venda correspondente carregada — excluída(s) do total pendente por segurança. Verifique com o suporte técnico.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total pendente (nossa parte)</p><p className="text-xl font-semibold">{money(rows.reduce((s, r) => s + r.valor, 0))}</p></CardContent></Card>

@@ -62,7 +62,9 @@ function EquipesPage() {
       supabase.from("team_members").select("team_id, membro_id"),
       supabase.from("team_co_leaders").select("team_id, user_id"),
       isAdminLike
-        ? supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao")
+        // Venda cancelada/arquivada não deve compor a Visão geral (vendas/valor negociado/comissão
+        // do ranking) — ela some do ranking, mas continua acessível na própria tela da venda.
+        ? supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").not("status", "in", "(cancelada,arquivada)")
         : Promise.resolve({ data: [] as any[] }),
     ]);
     setTeams(t ?? []);
@@ -810,8 +812,9 @@ function DesempenhoDialog({
   useEffect(() => {
     (async () => {
       setLoading(true);
+      // Mesma regra da Visão geral: cancelada/arquivada não compõe o desempenho do time nem do corretor.
       const { data } = membroIds.length
-        ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds)
+        ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds).not("status", "in", "(cancelada,arquivada)")
         : { data: [] as any[] };
       setSales(data ?? []);
       await carregarMetas();
