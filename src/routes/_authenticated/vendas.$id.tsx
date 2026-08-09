@@ -526,6 +526,31 @@ function SaleDetail() {
     const p = v != null && negociado > 0 ? Number(((v / negociado) * 100).toFixed(3)) : formSale.percentual_remax ?? null;
     updResumo({ valor_remax: v, percentual_remax: p });
   };
+  // Único ponto que muda "Valor negociado" — antes o campo só atualizava a si mesmo (onChange direto
+  // pra updResumo), deixando comissão/parceria/REMAX presas no valor em reais calculado sobre o preço
+  // ANTERIOR sempre que só o negociado mudava sem o gestor tocar em cada percentual de novo.
+  // Regra 1 (não muda o comportamento das outras regras de composição): o percentual que o usuário
+  // digitou continua o mesmo, só o valor em reais é recalculado em cima do novo negociado — igual à
+  // convenção já usada em applyRemax*/applyParceria* (percentual sobre o negociado, não sobre o total
+  // da comissão). Capitador/vendedor/indicador/líder nunca são tocados aqui: são valores em reais
+  // digitados direto, sem percentual vinculado ao negociado (regras 2/3/6).
+  const applyValorNegociado = (v: number | null) => {
+    if (locked) {
+      toast.error("A Ocorrência desta venda está concluída ou travada pelo financeiro — reabra antes de alterar o valor negociado. Comissão, parceria e REMAX não são recalculados automaticamente numa venda fechada, pra não mudar valor já pago silenciosamente.");
+      return;
+    }
+    const negociado = v != null ? Number(v) : null;
+    const patch: any = { valor_negociado: negociado };
+    const pctSobreNegociado = (percentual: number | null | undefined) =>
+      percentual != null && negociado != null && negociado > 0 ? Number(((percentual / 100) * negociado).toFixed(2)) : null;
+    if (formSale.percentual_comissao != null) patch.valor_total_comissao = pctSobreNegociado(formSale.percentual_comissao);
+    if (formSale.parceria_percentual != null) patch.parceria_valor = pctSobreNegociado(formSale.parceria_percentual);
+    if (formSale.percentual_remax != null) patch.valor_remax = pctSobreNegociado(formSale.percentual_remax);
+    // Campo legado (sem % da REMAX preenchido) — recalcula com o novo total/parceria pra não ficar
+    // com "Valor para a imobiliária" desatualizado nas vendas antigas que ainda dependem dele.
+    patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+    updResumo(patch);
+  };
   // Líquido do captador/vendedor e valor da imobiliária não são mais calculados aqui — vêm de
   // calcular_distribuicao_venda() (RPC, ver `distribuicao` carregado no load() da página), a mesma
   // fonte usada pela aba Ocorrência. Isso evita as duas telas divergirem quando a fórmula mudar.
@@ -1067,7 +1092,7 @@ function SaleDetail() {
           <SaleSection title="Valores e negociação">
             <FieldGrid>
               <Field label="Valor anunciado (R$)"><CurrencyInput value={formSale.valor_anunciado} disabled={!editable} onChange={(v) => updResumo({ valor_anunciado: v })} /></Field>
-              <Field label="Valor negociado (R$)"><CurrencyInput value={formSale.valor_negociado} disabled={!editable} onChange={(v) => updResumo({ valor_negociado: v })} /></Field>
+              <Field label="Valor negociado (R$)"><CurrencyInput value={formSale.valor_negociado} disabled={!editable} onChange={applyValorNegociado} /></Field>
               <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.percentual_comissao ?? ""} disabled={!editable} onChange={(e) => {
                 const p = e.target.value ? Number(e.target.value) : null;
                 const neg = Number(formSale.valor_negociado ?? 0);
@@ -2896,6 +2921,22 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   };
 
   const updOcc = (patch: any) => { setFormOcc((f: any) => ({ ...f, ...patch })); setDirtyOcc(true); };
+  // Mesmo problema do Resumo: só atualizar valor_negociado deixava valor_comissao preso no valor em
+  // reais calculado sobre o negociado ANTERIOR. Percentual continua o mesmo (regra 1), só o valor em
+  // reais recalcula. Ocorrência concluída já trava o campo (disabled={!canWrite} abaixo), mas o guard
+  // aqui também cobre qualquer outro caminho que chame isso sem passar pela UI.
+  const applyOccValorNegociado = (v: number | null) => {
+    if (!canWrite) {
+      toast.error("Ocorrência concluída ou travada — reabra antes de alterar o valor negociado.");
+      return;
+    }
+    const negociado = v != null ? Number(v) : null;
+    const patch: any = { valor_negociado: negociado };
+    if (formOcc.percentual_comissao != null) {
+      patch.valor_comissao = negociado != null && negociado > 0 ? Number(((formOcc.percentual_comissao / 100) * negociado).toFixed(2)) : null;
+    }
+    updOcc(patch);
+  };
 
   const updComm = (id: string, patch: any) => {
     setFormComms(rows => rows.map(r => {
@@ -3229,7 +3270,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
             </Field>
             <Field label="Nota fiscal obrigatória"><div className="flex items-center gap-2"><Switch checked={!!formOcc.nota_fiscal_obrigatoria} onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}</span></div></Field>
             <Field label="Valor anunciado"><CurrencyInput value={formOcc.valor_anunciado} disabled={!canWrite} onChange={(v) => updOcc({ valor_anunciado: v })} /></Field>
-            <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={(v) => updOcc({ valor_negociado: v })} /></Field>
+            <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={applyOccValorNegociado} /></Field>
             <Field label="% Comissão"><Input type="number" step="0.001" value={formOcc.percentual_comissao ?? ""} disabled={!canWrite} onChange={(e) => {
               const p = e.target.value ? Number(e.target.value) : null;
               const neg = Number(formOcc.valor_negociado ?? 0);
