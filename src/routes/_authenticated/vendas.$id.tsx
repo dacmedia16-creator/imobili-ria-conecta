@@ -2958,12 +2958,13 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     // Parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo
     // entra junto na criação, sem precisar reentrar os dados na Ocorrência.
     if (sale.parceria_tipo) {
-      await supabase.from("occurrence_partners").insert({
+      const { error: partnerError } = await supabase.from("occurrence_partners").insert({
         occurrence_id: data.id, from_sale: true, tipo: sale.parceria_tipo,
         nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
         percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null,
         banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
       });
+      if (partnerError) { toast.error(`Ocorrência criada, mas falhou ao pré-preencher a parceria: ${partnerError.message}`); onChange(); load(); return; }
     }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
@@ -3190,7 +3191,10 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       if (dirtyPartners) {
         const currentIds = new Set(formPartners.filter(r => !r._new).map(r => r.id));
         const removed = partners.filter(r => !currentIds.has(r.id));
-        for (const r of removed) await supabase.from("occurrence_partners").delete().eq("id", r.id);
+        for (const r of removed) {
+          const { error } = await supabase.from("occurrence_partners").delete().eq("id", r.id);
+          if (error) { toast.error(error.message); return false; }
+        }
         for (const r of formPartners) {
           const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null, pix: r.pix ?? null };
           const { error } = r._new

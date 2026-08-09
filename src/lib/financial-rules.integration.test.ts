@@ -16,6 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { calcularPatchValorNegociado } from "./sale-financial-calc";
 
 const HAS_SUPABASE_ADMIN_ENV = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -340,6 +341,56 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(Number(linha?.valor)).toBe(500);
   });
 
+  it("regra proteção — constraint do banco rejeita 2 linhas GERENCIADAS do mesmo papel fixo na mesma ocorrência", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Real" });
+    const occId = await criarOcorrencia(saleId, { valor_comissao: 43800 });
+    await sync(saleId); // já cria a linha gerenciada de corretor_captador
+
+    const { error } = await supabaseAdmin.from("occurrence_commissions").insert({
+      occurrence_id: occId, papel: "corretor_captador", nome: "Segunda Linha Gerenciada", valor: 1, managed_by_sale: true,
+    });
+    expect(error).toBeTruthy();
+    expect(error?.code).toBe("23505"); // unique violation — nunca 2 linhas gerenciadas do mesmo papel fixo
+  });
+
+  it("regra idempotência — chamar sync_occurrence_commissions várias vezes seguidas não duplica nem altera nada", async () => {
+    const saleId = await criarVenda(CENARIO_BASE);
+    await criarExtra(saleId, { papel: "gestor", origem: "imobiliaria", valor: 1000, nome: "Gestor Idempotência", user_id: PROFILES[4] });
+    const occId = await criarOcorrencia(saleId, { valor_comissao: 43800 });
+    await sync(saleId);
+    const { data: primeira } = await supabaseAdmin.from("occurrence_commissions").select("id, papel, valor, user_id, managed_by_sale").eq("occurrence_id", occId).order("papel");
+
+    await sync(saleId);
+    await sync(saleId);
+    const { data: terceira } = await supabaseAdmin.from("occurrence_commissions").select("id, papel, valor, user_id, managed_by_sale").eq("occurrence_id", occId).order("papel");
+
+    expect(terceira?.map((r) => r.id)).toEqual(primeira?.map((r) => r.id)); // mesmos ids — nada duplicado nem recriado
+    expect(terceira).toEqual(primeira); // mesmos valores — chamar de novo é inofensivo
+  });
+
+  it("regra arredondamento — cálculo em JS (sale-financial-calc) e no Postgres (calcular_distribuicao_venda) batem centavo a centavo", async () => {
+    const negociado = 333333.33;
+    const percentualComissao = 5.5;
+    const patchJs = calcularPatchValorNegociado({ percentual_comissao: percentualComissao, parceria_percentual: null, percentual_remax: null, valor_negociado: null, valor_total_comissao: null }, negociado);
+
+    const saleId = await criarVenda({ valor_negociado: negociado, percentual_comissao: percentualComissao });
+    const dist = await distribuicao(saleId);
+
+    expect(dist.comissao_bruta).toBe(patchJs.valor_total_comissao); // mesma fórmula (percentual/100 * negociado, 2 casas), duas linguagens diferentes
+  });
+
+  it("regra dados legados — venda sem percentual/valor de REMAX (campo legado valor_comissao_imobiliaria) continua calculando um resultado válido", async () => {
+    const saleId = await criarVenda({
+      valor_negociado: 100000, percentual_comissao: 6, valor_total_comissao: 6000,
+      valor_comissao_captador: 3000, valor_comissao_vendedor: 3000,
+      valor_comissao_imobiliaria: 0, // campo legado, sem percentual_remax/valor_remax preenchidos
+    });
+    const dist = await distribuicao(saleId);
+    expect(dist.saldo_inicial_imobiliaria).toBe(0); // usa o campo legado direto, não tenta calcular via REMAX
+    expect(dist.calculo_valido).toBe(true);
+    expect(dist.diferenca_restante).toBe(0);
+  });
+
   // ---- Regra 12: venda cancelada ----
   it("regra 12 — venda cancelada não entra no ranking da Visão Executiva mesmo com comissão sincronizada", async () => {
     const captadorId = PROFILES[1];
@@ -546,22 +597,42 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
   });
 
   it("regra equipe — participante sem equipe (team_id null) continua aparecendo no ranking, não some", async () => {
+    // Busca direto no banco todo (não só nos 6 PROFILES carregados no beforeAll) — com 57 profiles e
+    // 32 vínculos de equipe reais neste ambiente, sempre sobra gente sem equipe; não depende de sorte
+    // na amostra pequena. Se um dia não sobrar ninguém, falha alto e explícito (não retorna calado
+    // sem checar nada — regra 7 da auditoria: teste não pode voltar sem fazer nenhuma asserção).
     const { data: comEquipe } = await supabaseAdmin.from("team_members").select("membro_id");
     const idsComEquipe = new Set((comEquipe ?? []).map((m) => m.membro_id));
-    const semEquipeId = PROFILES.find((p) => !idsComEquipe.has(p));
-    if (!semEquipeId) return; // todos os profiles carregados têm equipe — regra não observável aqui.
+    const { data: todosProfiles } = await supabaseAdmin.from("profiles").select("id");
+    const semEquipeIds = (todosProfiles ?? []).map((p) => p.id).filter((id) => !idsComEquipe.has(id));
+    expect(semEquipeIds.length).toBeGreaterThanOrEqual(2); // pré-condição do teste — falha explícita se o ambiente não tiver gente sem equipe suficiente
+    const [semEquipeA, semEquipeB] = semEquipeIds;
 
-    const antes = await comissaoRankingCorretor(semEquipeId);
-    const antesSemEquipe = await vendasFechadasRankingEquipe(null as unknown as string);
-    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: semEquipeId, corretor_captador: "Sem Equipe Teste" });
+    const [corretorAAntes, corretorBAntes, semEquipeVendasAntes, semEquipeComissaoAntes] = await Promise.all([
+      comissaoRankingCorretor(semEquipeA), comissaoRankingCorretor(semEquipeB),
+      vendasFechadasRankingEquipe(null as unknown as string), comissaoRankingEquipe(null as unknown as string),
+    ]);
+
+    // Os DOIS participantes (captador e vendedor) da mesma venda são sem equipe — cobre também "venda
+    // com mais de um participante sem equipe" (item 7): tem que contar 1 venda só, nunca duplicar.
+    const saleId = await criarVenda({
+      ...CENARIO_BASE,
+      corretor_captador_id: semEquipeA, corretor_captador: "Sem Equipe A",
+      corretor_vendedor_id: semEquipeB, corretor_vendedor: "Sem Equipe B",
+    });
     await fecharVendaNoPeriodo(saleId);
     await criarOcorrencia(saleId, { valor_comissao: 43800 });
     await sync(saleId);
 
-    const depois = await comissaoRankingCorretor(semEquipeId);
-    const depoisSemEquipe = await vendasFechadasRankingEquipe(null as unknown as string);
-    expect(depois - antes).toBe(4927.5); // continua no ranking_corretor
-    expect(depoisSemEquipe - antesSemEquipe).toBe(1); // e entra no grupo "Sem equipe" (team_id null), não some
+    const [corretorADepois, corretorBDepois, semEquipeVendasDepois, semEquipeComissaoDepois] = await Promise.all([
+      comissaoRankingCorretor(semEquipeA), comissaoRankingCorretor(semEquipeB),
+      vendasFechadasRankingEquipe(null as unknown as string), comissaoRankingEquipe(null as unknown as string),
+    ]);
+
+    expect(corretorADepois - corretorAAntes).toBe(4927.5); // continuam no ranking_corretor individual
+    expect(corretorBDepois - corretorBAntes).toBe(4927.5);
+    expect(semEquipeVendasDepois - semEquipeVendasAntes).toBe(1); // 1 venda só no grupo "Sem equipe", mesmo com 2 participantes sem equipe nela — sem duplicidade
+    expect(semEquipeComissaoDepois - semEquipeComissaoAntes).toBe(9855); // soma das comissões dos dois (4927.50 + 4927.50) — grupo NULL não fica zerado
   });
 
   // ---- Regra 21: consistência entre Resumo, Ocorrência, Relatórios e Visão Executiva ----
