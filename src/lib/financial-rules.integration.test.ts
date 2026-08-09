@@ -338,6 +338,36 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(depois - antes).toBe(4927.5); // líquido do captador reaparece, pois o status ATUAL é ativo
   });
 
+  // ---- Regra nova: só Parceria Externa pode ficar sem conta vinculada ----
+  it("regra vínculo — captador/vendedor com nome mas sem conta vinculada é sinalizado, e some quando vinculado", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador: "Fulano Sem Conta", corretor_vendedor: "Beltrana Sem Conta" });
+    const semVinculo = await distribuicao(saleId);
+    expect(semVinculo.calculo_valido).toBe(false);
+    expect(semVinculo.inconsistencias.some((m: string) => m === 'Captador "Fulano Sem Conta" sem conta vinculada no sistema.')).toBe(true);
+    expect(semVinculo.inconsistencias.some((m: string) => m === 'Vendedor "Beltrana Sem Conta" sem conta vinculada no sistema.')).toBe(true);
+
+    // Mesma venda, agora com as contas vinculadas — a inconsistência desaparece.
+    await supabaseAdmin.from("sales").update({ corretor_captador_id: PROFILES[1], corretor_vendedor_id: PROFILES[2] }).eq("id", saleId);
+    const comVinculo = await distribuicao(saleId);
+    expect(comVinculo.inconsistencias.some((m: string) => m.includes("sem conta vinculada"))).toBe(false);
+  });
+
+  it("regra vínculo — gestor e \"outro captador\" (extras) sem conta vinculada também são sinalizados", async () => {
+    const saleId = await criarVenda(CENARIO_BASE);
+    await criarExtra(saleId, { papel: "gestor", origem: "imobiliaria", valor: 1000, nome: "Gestor Sem Conta" });
+    await criarExtra(saleId, { papel: "corretor_captador", origem: "imobiliaria", valor: 500, nome: "Outro Captador Sem Conta" });
+    const dist = await distribuicao(saleId);
+    expect(dist.calculo_valido).toBe(false);
+    expect(dist.inconsistencias.some((m: string) => m === 'Gestor "Gestor Sem Conta" sem conta vinculada no sistema.')).toBe(true);
+    expect(dist.inconsistencias.some((m: string) => m === 'Outro corretor captador "Outro Captador Sem Conta" sem conta vinculada no sistema.')).toBe(true);
+  });
+
+  it("regra vínculo — Parceria Externa continua podendo ficar só no nome, sem conta (é o único caso permitido)", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, parceria_nome: "Imobiliária Parceira Ltda" });
+    const dist = await distribuicao(saleId);
+    expect(dist.inconsistencias.some((m: string) => m.includes("sem conta vinculada"))).toBe(false);
+  });
+
   // ---- Regra 16: parceria maior que a comissão ----
   it("regra 16 — parceria maior que a comissão bruta é sinalizada como inconsistência, não aceita silenciosamente", async () => {
     const saleId = await criarVenda({ valor_negociado: 730000, percentual_comissao: 6, parceria_tipo: "imobiliaria_externa", parceria_valor: 60000 });

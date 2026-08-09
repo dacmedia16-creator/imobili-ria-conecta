@@ -920,39 +920,35 @@ function SaleDetail() {
                     </div>
                     <Field label="Corretor captador">
                       <div className="flex flex-wrap items-center gap-2">
-                        {corretorOptions.length > 0 && (
-                          <Select
-                            value={captadorForaDaLista ? "manual" : (formSale.corretor_captador_id || "manual")}
-                            onValueChange={(v) => {
-                              const c = corretorOptions.find((o) => o.id === v);
-                              updResumo({ corretor_captador_id: v === "manual" ? null : v, corretor_captador: c ? c.nome : formSale.corretor_captador });
-                            }}
-                            disabled={!editable}
-                          >
-                            <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="manual">Digitar nome</SelectItem>
-                              {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        {(corretorOptions.length === 0 || !formSale.corretor_captador_id || captadorForaDaLista) && (
-                          <Input
-                            className="w-40"
-                            value={formSale.corretor_captador ?? ""}
-                            disabled={!editable}
-                            onChange={(e) => updResumo({ corretor_captador: e.target.value })}
-                            placeholder="Nome"
-                            title={captadorForaDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
-                          />
-                        )}
+                        {/* Só conta cadastrada e ativa — captador é sempre gente interna (regra: só
+                            Parceria Externa pode ficar sem vínculo). A opção "Digitar nome" foi removida
+                            de propósito; "foraDaLista" preserva o nome de quem já foi selecionado e depois
+                            ficou inativo, sem permitir um NOVO vínculo manual. */}
+                        <Select
+                          value={formSale.corretor_captador_id || ""}
+                          onValueChange={(v) => {
+                            const c = corretorOptions.find((o) => o.id === v);
+                            updResumo({ corretor_captador_id: v || null, corretor_captador: c ? c.nome : null });
+                          }}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
+                          <SelectContent>
+                            {captadorForaDaLista && formSale.corretor_captador_id && (
+                              <SelectItem value={formSale.corretor_captador_id}>{formSale.corretor_captador} (inativo)</SelectItem>
+                            )}
+                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </Field>
                     {outrosCaptadores.length > 0 && (
                       <div className="mt-3 space-y-2">
+                        {/* Conta é escolhida na aba "Divisão da comissão" (junto do valor) — aqui é só
+                            um resumo de quem já foi adicionado. */}
                         {outrosCaptadores.map((r) => (
-                          <div key={r.id} className="flex items-center gap-2">
-                            <Input className="w-40" placeholder="Nome" value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} />
+                          <div key={r.id} className="flex items-center gap-2 text-sm">
+                            <span className={r.user_id ? "" : "text-destructive"}>{r.nome || "(sem conta vinculada — defina na aba Divisão da comissão)"}</span>
                             {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                           </div>
                         ))}
@@ -1003,39 +999,31 @@ function SaleDetail() {
                     </div>
                     <Field label="Corretor vendedor">
                       <div className="flex flex-wrap items-center gap-2">
-                        {corretorOptions.length > 0 && (
-                          <Select
-                            value={vendedorForaDaLista ? "manual" : (formSale.corretor_vendedor_id || "manual")}
-                            onValueChange={(v) => {
-                              const c = corretorOptions.find((o) => o.id === v);
-                              updResumo({ corretor_vendedor_id: v === "manual" ? null : v, corretor_vendedor: c ? c.nome : formSale.corretor_vendedor });
-                            }}
-                            disabled={!editable}
-                          >
-                            <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="manual">Digitar nome</SelectItem>
-                              {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        {(corretorOptions.length === 0 || !formSale.corretor_vendedor_id || vendedorForaDaLista) && (
-                          <Input
-                            className="w-40"
-                            value={formSale.corretor_vendedor ?? ""}
-                            disabled={!editable}
-                            onChange={(e) => updResumo({ corretor_vendedor: e.target.value })}
-                            placeholder="Nome"
-                            title={vendedorForaDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
-                          />
-                        )}
+                        <Select
+                          value={formSale.corretor_vendedor_id || ""}
+                          onValueChange={(v) => {
+                            const c = corretorOptions.find((o) => o.id === v);
+                            updResumo({ corretor_vendedor_id: v || null, corretor_vendedor: c ? c.nome : null });
+                          }}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
+                          <SelectContent>
+                            {vendedorForaDaLista && formSale.corretor_vendedor_id && (
+                              <SelectItem value={formSale.corretor_vendedor_id}>{formSale.corretor_vendedor} (inativo)</SelectItem>
+                            )}
+                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </Field>
                     {outrosVendedores.length > 0 && (
                       <div className="mt-3 space-y-2">
+                        {/* Conta é escolhida na aba "Divisão da comissão" (junto do valor) — aqui é só
+                            um resumo de quem já foi adicionado. */}
                         {outrosVendedores.map((r) => (
-                          <div key={r.id} className="flex items-center gap-2">
-                            <Input className="w-40" placeholder="Nome" value={r.nome ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { nome: e.target.value })} />
+                          <div key={r.id} className="flex items-center gap-2 text-sm">
+                            <span className={r.user_id ? "" : "text-destructive"}>{r.nome || "(sem conta vinculada — defina na aba Divisão da comissão)"}</span>
                             {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                           </div>
                         ))}
@@ -1184,32 +1172,22 @@ function SaleDetail() {
                 return (
                   <Field key={r.id} label={`${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
-                      {corretorOptions.length > 0 && (
-                        <Select
-                          value={foraDaLista ? "manual" : (r.user_id || "manual")}
-                          onValueChange={(v) => {
-                            const c = corretorOptions.find((o) => o.id === v);
-                            updExtra(r.id, { user_id: v === "manual" ? null : v, nome: c ? c.nome : r.nome });
-                          }}
-                          disabled={!editable}
-                        >
-                          <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o corretor" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="manual">Digitar nome</SelectItem>
-                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {(corretorOptions.length === 0 || !r.user_id || foraDaLista) && (
-                        <Input
-                          className="w-40"
-                          placeholder="Nome"
-                          value={r.nome ?? ""}
-                          disabled={!editable}
-                          onChange={(e) => updExtra(r.id, { nome: e.target.value })}
-                          title={foraDaLista ? "Esse corretor não está mais ativo — nome mantido como texto." : undefined}
-                        />
-                      )}
+                      <Select
+                        value={r.user_id || ""}
+                        onValueChange={(v) => {
+                          const c = corretorOptions.find((o) => o.id === v);
+                          updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
+                        }}
+                        disabled={!editable}
+                      >
+                        <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
+                        <SelectContent>
+                          {foraDaLista && r.user_id && (
+                            <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>
+                          )}
+                          {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                       <div className="w-32"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
                       {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                     </div>
@@ -1233,24 +1211,12 @@ function SaleDetail() {
                 return (
                   <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
-                      {opcoesLider.length > 0 ? (
-                        <Select value={liderAtualId || "manual"} onValueChange={(v) => onSelectLider(v === "manual" ? "" : v)} disabled={!editable}>
-                          <SelectTrigger className="w-48"><SelectValue placeholder="Selecione o líder" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="manual">Digitar nome</SelectItem>
-                            {opcoesLider.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : null}
-                      {(opcoesLider.length === 0 || !liderAtualId) && (
-                        <Input
-                          className="w-40"
-                          placeholder="Nome"
-                          value={r.nome ?? ""}
-                          disabled={!editable}
-                          onChange={(e) => updExtra(r.id, { nome: e.target.value })}
-                        />
-                      )}
+                      <Select value={liderAtualId || ""} onValueChange={(v) => onSelectLider(v)} disabled={!editable}>
+                        <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o líder cadastrado" /></SelectTrigger>
+                        <SelectContent>
+                          {opcoesLider.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                       {/* Origem de gestor/team leader é sempre "imobiliária" (regra 4) — não é uma escolha,
                           por isso não tem Select aqui (diferente de "outro captador/vendedor" logo abaixo). */}
                       <span className="w-36 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" title="Gestor/Team Leader sempre sai do saldo da imobiliária">
