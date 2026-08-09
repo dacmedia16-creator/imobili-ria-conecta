@@ -89,6 +89,11 @@ function SaleDetail() {
   const [activity, setActivity] = useState<any[]>([]);
   const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
   const [aceitaFin, setAceitaFin] = useState(false);
+  // Distribuição financeira da venda (captador/vendedor líquidos, saldo da imobiliária, etc.) —
+  // calculada uma única vez no banco por calcular_distribuicao_venda(), fonte de verdade usada
+  // tanto no Resumo quanto na Ocorrência (ver migration 20260809030000). Reflete o que está
+  // salvo, não o buffer não salvo do Resumo — atualiza de novo assim que o autosave roda.
+  const [distribuicao, setDistribuicao] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -243,7 +248,7 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, h, oc, ce, ac] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc, ce, ac, dist] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -254,16 +259,18 @@ function SaleDetail() {
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
       supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
       supabase.from("activity_logs").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
+      supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
     ]);
     // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
     // menos avisa que algo falhou, em vez de deixar a pessoa achar que os dados sumiram.
-    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error, ac.error].filter(Boolean);
+    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error, ac.error, dist.error].filter(Boolean);
     if (loadErrors.length > 0) {
       console.error("Falha ao carregar dados da venda:", loadErrors);
       toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
     }
     setSale(s.data);
+    setDistribuicao(dist.data ?? null);
     // Não sobrescreve o buffer da aba Resumo se ela tiver edição local ainda não salva — load() é
     // chamado por várias ações sem relação com essa aba (upload de contrato, troca de status em
     // outra etapa, etc.), e sobrescrever aqui apagava silenciosamente o que a pessoa estava
@@ -519,22 +526,9 @@ function SaleDetail() {
     const p = v != null && negociado > 0 ? Number(((v / negociado) * 100).toFixed(3)) : formSale.percentual_remax ?? null;
     updResumo({ valor_remax: v, percentual_remax: p });
   };
-  // Partes extras da divisão de comissão: cada uma escolhe de qual fatia (imobiliária/captador/vendedor)
-  // o valor sai. O valor líquido de cada fatia (mostrado nos campos "Líquido...") já desconta a soma
-  // das partes extras vinculadas a ela, pra bater com o que de fato sobra pra cada um.
-  const somaExtrasPorOrigem = (origem: string) => formExtras.reduce((s, e) => s + (e.origem === origem ? Number(e.valor ?? 0) : 0), 0);
-  // Quando o % da REMAX está preenchido, ele passa a ser a fonte da fatia da imobiliária — não é
-  // mais "total menos captador/vendedor/parceria", é "nosso valor da REMAX (já a metade que fica
-  // interna, calculada sobre o valor negociado) menos captador/vendedor/líder já tirados dali".
-  // Sem REMAX preenchido, mantém o cálculo antigo (valor_comissao_imobiliaria, via recalcImobiliaria)
-  // pra não quebrar vendas que nunca usaram esse campo.
-  const valorImobiliaria = (data: any = formSale) => {
-    const lider = Number(data.valor_comissao_lider_captador ?? 0) + Number(data.valor_comissao_lider_vendedor ?? 0);
-    const base = data.percentual_remax != null
-      ? Number(data.valor_remax ?? 0) - Number(data.valor_comissao_captador ?? 0) - Number(data.valor_comissao_vendedor ?? 0)
-      : Number(data.valor_comissao_imobiliaria ?? 0);
-    return Number((base - lider - somaExtrasPorOrigem("imobiliaria")).toFixed(2));
-  };
+  // Líquido do captador/vendedor e valor da imobiliária não são mais calculados aqui — vêm de
+  // calcular_distribuicao_venda() (RPC, ver `distribuicao` carregado no load() da página), a mesma
+  // fonte usada pela aba Ocorrência. Isso evita as duas telas divergirem quando a fórmula mudar.
   const baseParaOrigem = (origem: string) => {
     if (origem === "captador") return Number(formSale.valor_comissao_captador ?? 0);
     if (origem === "vendedor") return Number(formSale.valor_comissao_vendedor ?? 0);
@@ -1113,6 +1107,15 @@ function SaleDetail() {
                 </div>
               ) : null;
             })()}
+            {/* Inconsistências detectadas pela RPC no que já está salvo (não reflete edição em andamento) */}
+            {!dirtyResumo && !dirtyExtras && distribuicao && !distribuicao.calculo_valido && (
+              <div className="mb-4 space-y-1 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências:</p>
+                <ul className="ml-6 list-disc">
+                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+                </ul>
+              </div>
+            )}
             <FieldGrid>
               <Field label="% da REMAX (sobre o valor negociado)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editable} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
               <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editable} onChange={applyRemaxValor} /></Field>
@@ -1139,14 +1142,17 @@ function SaleDetail() {
                 </Field>
               )}
               <Field label="Líquido do captador (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_captador ?? 0) - Number(formSale.valor_comissao_indicador_captador ?? 0) - somaExtrasPorOrigem("captador")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={distribuicao?.liquido_captador ?? null} disabled onChange={() => {}} />
               </Field>
               <Field label="Líquido do vendedor (R$)">
-                <CurrencyInput value={Number((Number(formSale.valor_comissao_vendedor ?? 0) - Number(formSale.valor_comissao_indicador_vendedor ?? 0) - somaExtrasPorOrigem("vendedor")).toFixed(2))} disabled onChange={() => {}} />
+                <CurrencyInput value={distribuicao?.liquido_vendedor ?? null} disabled onChange={() => {}} />
               </Field>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                <CurrencyInput value={valorImobiliaria()} disabled onChange={() => {}} />
+                <CurrencyInput value={distribuicao?.saldo_liquido_imobiliaria ?? null} disabled onChange={() => {}} />
               </Field>
+              {(dirtyResumo || dirtyExtras) && (
+                <p className="col-span-full text-xs text-muted-foreground">Líquidos e valor da imobiliária recalculam depois que as alterações forem salvas.</p>
+              )}
               {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
                 const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
                 const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
@@ -1443,6 +1449,7 @@ function SaleDetail() {
           payment={payment}
           parties={parties}
           commissionExtras={commissionExtras}
+          distribuicao={distribuicao}
           canEdit={canEditOcorrencia}
           onChange={load}
           registerSaver={(fn) => registerSaver("ocorrencia", fn)}
@@ -1762,7 +1769,7 @@ function SaleDetail() {
               )}
               <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
               <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
-              <ReviewItem label="Imobiliária" value={money(valorImobiliaria(sale))} />
+              <ReviewItem label="Imobiliária" value={distribuicao ? money(distribuicao.saldo_liquido_imobiliaria) : null} />
               {sale.indicador_captador && (
                 <ReviewItem
                   label={`Indicador — ${sale.indicador_captador} (sai do captador)`}
@@ -2749,8 +2756,8 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
 }
 
 // -------- Occurrence step (buffered) --------
-function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, canEdit, onChange, registerSaver, onDirtyChange }: {
-  saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; canEdit: boolean; onChange: () => void;
+function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, distribuicao, canEdit, onChange, registerSaver, onDirtyChange }: {
+  saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; distribuicao: any; canEdit: boolean; onChange: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const { user, hasAny } = useAuth();
@@ -3113,15 +3120,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, can
   const somaComissoes = formComms.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   const total = Number(formOcc?.valor_comissao ?? 0);
   const excedido = total > 0 && somaComissoes > total + 0.01;
-  // Só informativo (não é uma linha de comissão paga a alguém) — mesmo cálculo da Resumo: com % da
-  // REMAX preenchido, ele é a fonte da fatia da imobiliária (menos captador/vendedor/líder já
-  // tirados dali); sem REMAX, mantém o valor_comissao_imobiliaria antigo (já descontando parceria).
-  const imobiliariaExtras = commissionExtras.filter((e) => e.origem === "imobiliaria").reduce((s, e) => s + Number(e.valor ?? 0), 0);
-  const liderImobiliaria = Number(sale.valor_comissao_lider_captador ?? 0) + Number(sale.valor_comissao_lider_vendedor ?? 0);
-  const baseImobiliaria = sale.percentual_remax != null
-    ? Number(sale.valor_remax ?? 0) - Number(sale.valor_comissao_captador ?? 0) - Number(sale.valor_comissao_vendedor ?? 0)
-    : Number(sale.valor_comissao_imobiliaria ?? 0);
-  const valorImobiliaria = baseImobiliaria - liderImobiliaria - imobiliariaExtras;
+  // Só informativo (não é uma linha de comissão paga a alguém) — vem de calcular_distribuicao_venda()
+  // (mesma RPC usada na Resumo), não recalculado aqui pra não divergir entre as duas telas.
+  const valorImobiliaria = Number(distribuicao?.saldo_liquido_imobiliaria ?? 0);
 
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
   // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —

@@ -1279,6 +1279,10 @@ export type Database = {
         Args: { _document_id: string }
         Returns: undefined
       }
+      calcular_distribuicao_venda: {
+        Args: { p_sale_id: string }
+        Returns: Json
+      }
       can_edit_sale_comissao: {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
