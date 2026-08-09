@@ -132,6 +132,14 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     if (error) throw error;
   }
 
+  /** Cria a Ocorrência inteira pela RPC transacional — nunca via INSERT direto (esse é o caminho real
+   * da tela). Retorna o occurrence_id devolvido pela própria RPC. */
+  async function criarOcorrenciaCompleta(saleId: string) {
+    const { data, error } = await supabaseAdmin.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
+    if (error) throw error;
+    return (data as { occurrence_id: string }).occurrence_id;
+  }
+
   async function fecharVendaNoPeriodo(saleId: string, diasAtras = 2) {
     const data = new Date();
     data.setDate(data.getDate() - diasAtras);
@@ -633,6 +641,122 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(corretorBDepois - corretorBAntes).toBe(4927.5);
     expect(semEquipeVendasDepois - semEquipeVendasAntes).toBe(1); // 1 venda só no grupo "Sem equipe", mesmo com 2 participantes sem equipe nela — sem duplicidade
     expect(semEquipeComissaoDepois - semEquipeComissaoAntes).toBe(9855); // soma das comissões dos dois (4927.50 + 4927.50) — grupo NULL não fica zerado
+  });
+
+  // ---- Regras novas (auditoria externa, 3º lote): criar_ocorrencia_completa grava líquido, não bruto ----
+  it("teste 1 — criação com indicador: captador líquido = bruto − indicador", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 1",
+      valor_comissao_indicador_captador: 500,
+    });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linha } = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
+    expect(Number(linha?.valor)).toBe(4427.5); // 4927.50 - 500
+  });
+
+  it("teste 2 — criação com indicador + extra do captador: cenário oficial da auditoria (4.227,50)", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 2",
+      valor_comissao_indicador_captador: 500,
+    });
+    await criarExtra(saleId, { papel: "outro", origem: "captador", valor: 200, nome: "Extra captador teste 2" });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linhas } = await supabaseAdmin.from("occurrence_commissions").select("papel, valor").eq("occurrence_id", occId);
+    const captador = linhas?.find((l) => l.papel === "corretor_captador");
+    const indicador = linhas?.find((l) => l.papel === "indicador_captador");
+    const extra = linhas?.find((l) => l.papel === "outro");
+    expect(Number(captador?.valor)).toBe(4227.5); // 4927.50 - 500 - 200, exatamente o cenário do relatório
+    expect(Number(indicador?.valor)).toBe(500);
+    expect(Number(extra?.valor)).toBe(200);
+    expect(Number(captador?.valor) + Number(indicador?.valor) + Number(extra?.valor)).toBe(4927.5); // soma reconstrói o bruto exatamente
+  });
+
+  it("teste 3 — vendedor com indicador + extra segue a mesma reconstrução do bruto", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_vendedor_id: PROFILES[2], corretor_vendedor: "Vendedor Teste 3",
+      valor_comissao_indicador_vendedor: 300,
+    });
+    await criarExtra(saleId, { papel: "outro", origem: "vendedor", valor: 150, nome: "Extra vendedor teste 3" });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linhas } = await supabaseAdmin.from("occurrence_commissions").select("papel, valor").eq("occurrence_id", occId);
+    const vendedor = linhas?.find((l) => l.papel === "corretor_vendedor");
+    expect(Number(vendedor?.valor)).toBe(4477.5); // 4927.50 - 300 - 150
+  });
+
+  it("teste 4 — sem indicador nem extra, líquido = bruto", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 4" });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linha } = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
+    expect(Number(linha?.valor)).toBe(4927.5); // nada pra descontar
+  });
+
+  it("teste 5 — gestor reduz só a imobiliária, nunca captador/vendedor", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_vendedor_id: PROFILES[2] });
+    await criarExtra(saleId, { papel: "gestor", origem: "imobiliaria", valor: 1000, nome: "Gestor Teste 5", user_id: PROFILES[4] });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linhas } = await supabaseAdmin.from("occurrence_commissions").select("papel, valor").eq("occurrence_id", occId);
+    expect(Number(linhas?.find((l) => l.papel === "corretor_captador")?.valor)).toBe(4927.5);
+    expect(Number(linhas?.find((l) => l.papel === "corretor_vendedor")?.valor)).toBe(4927.5);
+    expect(Number(linhas?.find((l) => l.papel === "gestor")?.valor)).toBe(1000);
+  });
+
+  it("teste 6 — pullFromSaleSplit (sync_occurrence_commissions) mantém captador/vendedor líquidos ao ressincronizar", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 6",
+      valor_comissao_indicador_captador: 500,
+    });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    // Botão "Puxar da revisão do gestor" hoje só chama de novo esta RPC — reproduz esse clique.
+    await sync(saleId);
+    const { data: linha } = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
+    expect(Number(linha?.valor)).toBe(4427.5); // continua líquido, não voltou a ser bruto
+  });
+
+  it("teste 8 — remover o extra do captador restaura o líquido pro bruto (menos só o indicador)", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 8",
+      valor_comissao_indicador_captador: 500,
+    });
+    const { data: extraRow, error: extraErr } = await supabaseAdmin
+      .from("sale_commission_extras").insert({ sale_id: saleId, papel: "outro", origem: "captador", valor: 200, nome: "Extra removível teste 8" }).select("id").single();
+    if (extraErr) throw extraErr;
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const antes = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
+    expect(Number(antes.data?.valor)).toBe(4227.5); // 4927.50 - 500 - 200
+
+    await supabaseAdmin.from("sale_commission_extras").delete().eq("id", extraRow.id);
+    await sync(saleId);
+    const depois = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
+    expect(Number(depois.data?.valor)).toBe(4427.5); // 4927.50 - 500 (extra removido, indicador continua)
+    const extraLinha = await supabaseAdmin.from("occurrence_commissions").select("id").eq("sale_commission_extra_id", extraRow.id).maybeSingle();
+    expect(extraLinha.data).toBeNull(); // linha do extra removido some
+  });
+
+  it("teste 10 — falha de validação na criação não deixa Ocorrência órfã (rollback transacional)", async () => {
+    // Venda com captador+vendedor somando mais que a comissão bruta — calcular_distribuicao_venda
+    // acusa inconsistência, criar_ocorrencia_completa deve rejeitar SEM criar nada.
+    const saleId = await criarVenda({ valor_negociado: 100000, percentual_comissao: 1, valor_comissao_captador: 5000, valor_comissao_vendedor: 5000 });
+    await expect(criarOcorrenciaCompleta(saleId)).rejects.toBeTruthy();
+    const { count } = await supabaseAdmin.from("occurrences").select("id", { count: "exact", head: true }).eq("sale_id", saleId);
+    expect(count).toBe(0); // nenhuma ocorrência órfã — a validação roda ANTES do primeiro INSERT, então uma venda inválida nunca chega a criar nada pela metade
+  });
+
+  it("teste 12 — cenário financeiro oficial completo via RPC transacional (venda R$730.000)", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 12",
+      corretor_vendedor_id: PROFILES[2], corretor_vendedor: "Vendedor Teste 12",
+      valor_comissao_indicador_captador: 500, valor_comissao_indicador_vendedor: 300,
+    });
+    await criarExtra(saleId, { papel: "gestor", origem: "imobiliaria", valor: 1000, nome: "Gestor Teste 12", user_id: PROFILES[4] });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { data: linhas } = await supabaseAdmin.from("occurrence_commissions").select("papel, valor").eq("occurrence_id", occId);
+    expect(Number(linhas?.find((l) => l.papel === "corretor_captador")?.valor)).toBe(4427.5);
+    expect(Number(linhas?.find((l) => l.papel === "corretor_vendedor")?.valor)).toBe(4627.5);
+    expect(Number(linhas?.find((l) => l.papel === "gestor")?.valor)).toBe(1000);
+    const dist = await distribuicao(saleId);
+    expect(dist.saldo_inicial_imobiliaria).toBe(12045);
+    expect(dist.saldo_liquido_imobiliaria).toBe(11045);
+    expect(dist.calculo_valido).toBe(true);
   });
 
   // ---- Regra 21: consistência entre Resumo, Ocorrência, Relatórios e Visão Executiva ----

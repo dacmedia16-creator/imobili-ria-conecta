@@ -43,12 +43,14 @@ function Checkbox({ checked, label }: { checked: boolean; label: string }) {
 }
 
 /** Tabelas do formulário "Ocorrência de compra e venda", compartilhadas entre a revisão (pré-finalização) e o relatório final. */
-export function OccurrenceReportBody({ sale, occ, commissions, partners, parties }: {
-  sale: any; occ: any; commissions: any[]; partners: any[]; parties: Record<string, any>;
+export function OccurrenceReportBody({ sale, occ, commissions, partners, parties, distribuicao }: {
+  sale: any; occ: any; commissions: any[]; partners: any[]; parties: Record<string, any>; distribuicao?: any;
 }) {
   const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor")).map(([, p]) => p);
   const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
-  const commByPapel = (papel: string) => commissions.find((c) => c.papel === papel);
+  // Todas as linhas daquele papel, não só a primeira — find() escondia um segundo captador/vendedor,
+  // mais de um gestor/Team Leader, ou outros extras repetidos do mesmo papel.
+  const commByPapel = (papel: string) => commissions.filter((c) => c.papel === papel);
 
   // Valor da comissão total é bruto (inclui a parte da parceria externa, quando houver) — a linha
   // extra abaixo mostra só o que fica pra nossa imobiliária, descontada essa fatia.
@@ -59,13 +61,13 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro) — soma TODAS as
   // linhas de commissions, não só a primeira de cada papel (pode haver mais de um "Outro" extra).
   const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
-  // Com % da REMAX preenchido, ele é a fonte da fatia da imobiliária (já representa a metade que
-  // fica interna, calculada sobre o valor negociado) — substitui valorNosso (total menos parceria)
-  // como base. Sem REMAX preenchido, mantém o cálculo antigo pra não quebrar vendas que nunca
-  // usaram esse campo. sale.valor_comissao_imobiliaria não serve de base aqui: é calculado só a
-  // partir de captador/vendedor/parceria (recalcImobiliaria em vendas.$id.tsx).
-  const baseImobiliaria = sale.percentual_remax != null ? Number(sale.valor_remax ?? 0) : valorNosso;
-  const valorImobiliaria = baseImobiliaria - somaComissoes;
+  // Fonte única: calcular_distribuicao_venda() (mesma RPC usada no Resumo/Ocorrência/ranking) —
+  // nunca recalcula aqui. Só cai no cálculo local (base REMAX/legado menos soma das comissões) se o
+  // componente for usado sem o prop distribuicao (compatibilidade com chamadas antigas).
+  const valorImobiliaria = distribuicao?.saldo_liquido_imobiliaria ?? (() => {
+    const baseImobiliaria = sale.percentual_remax != null ? Number(sale.valor_remax ?? 0) : valorNosso;
+    return baseImobiliaria - somaComissoes;
+  })();
 
   return (
     <>
@@ -119,9 +121,16 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
 
       <FormTable>
         <FormHeadRow cols={["Papel", "Nome", "Comissão %", "Comissão R$"]} />
-        {COMISSAO_PAPEIS.map((p) => {
-          const c = commByPapel(p.key);
-          return <FormValueRow key={p.key} cols={[p.label, c?.nome ?? "Não possui", c?.percentual != null ? `${c.percentual}%` : "0%", money(c?.valor) ?? "R$ 0,00"]} />;
+        {COMISSAO_PAPEIS.flatMap((p) => {
+          const rows = commByPapel(p.key);
+          if (rows.length === 0) {
+            return [<FormValueRow key={p.key} cols={[p.label, "Não possui", "0%", "R$ 0,00"]} />];
+          }
+          // Papel só aparece na 1ª linha do grupo — evita repetir "Outro" quatro vezes seguidas
+          // quando há mais de um extra do mesmo papel, mas nenhum participante fica escondido.
+          return rows.map((c, i) => (
+            <FormValueRow key={c.id ?? `${p.key}-${i}`} cols={[i === 0 ? p.label : "", c.nome ?? "Não possui", c.percentual != null ? `${c.percentual}%` : "0%", money(c.valor) ?? "R$ 0,00"]} />
+          ));
         })}
         {sale.percentual_remax != null && (
           <FormValueRow cols={["REMAX", "—", `${sale.percentual_remax}%`, money(sale.valor_remax) ?? "R$ 0,00"]} />

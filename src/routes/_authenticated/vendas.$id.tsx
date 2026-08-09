@@ -2027,7 +2027,7 @@ function SaleDetail() {
       </Card>
 
       {status === "ocorrencia_concluida" ? (
-        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} canReopen={isFinanceiro} onReopened={load} />
+        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} canReopen={isFinanceiro} onReopened={load} distribuicao={distribuicao} />
       ) : (
         <div id="venda-wizard">
           <Wizard
@@ -2485,7 +2485,7 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
           </Button>
         </div>
 
-        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} />
+        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} distribuicao={distribuicao} />
       </div>
 
       {excedido && (
@@ -2536,9 +2536,9 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
 }
 
 /** Relatório oficial "Ocorrência de compra e venda" — réplica digital do formulário em papel usado pela imobiliária, exibido em vez do wizard de etapas quando a venda está concluída. */
-function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopened }: {
+function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopened, distribuicao }: {
   sale: any; parties: Record<string, any>; payment: any; docs: any[]; history: any[];
-  canReopen: boolean; onReopened: () => void;
+  canReopen: boolean; onReopened: () => void; distribuicao: any;
 }) {
   const { user } = useAuth();
   const [occ, setOcc] = useState<any>(null);
@@ -2630,7 +2630,7 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           </div>
         </div>
 
-        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} />
+        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} distribuicao={distribuicao} />
       </div>
 
       <div className="space-y-4 print:hidden">
@@ -2725,11 +2725,6 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
 // recebeu lá (Gestor/Team Leader/Outro/mais um captador ou vendedor) — sem papel definido, cai em "outro".
 const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro", "corretor_captador", "corretor_vendedor"]);
 const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
-// Papéis "fixos" da comissão (1 linha por venda cada, vindos direto de sales.corretor_captador/
-// vendedor/indicador) — diferente de EXTRA_ORIGEM_PAPEIS acima, que é só sobre como rotular uma
-// parte EXTRA. Não reaproveitar esse set ali: corretor_captador/vendedor está nos dois por razões
-// diferentes, e um dia já causou um bug (createOcc parava de criar a linha fixa do captador/vendedor).
-const FIXED_COMISSAO_PAPEIS = new Set(["corretor_captador", "indicador_captador", "lider_captador", "corretor_vendedor", "indicador_vendedor", "lider_vendedor"]);
 // Papéis com link de verdade pra conta de usuário (item 4): captador/vendedor via
 // sales.corretor_captador_id/vendedor_id, gestor/team_leader via coordenador_id/team_leader_id (já
 // existiam antes, só não eram propagados pra occurrence_commissions). lider_captador/vendedor via
@@ -2888,85 +2883,14 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador_captador, sale.valor_comissao_indicador_vendedor, sale.indicador_captador, sale.indicador_vendedor, sale.valor_comissao_lider_captador, sale.valor_comissao_lider_vendedor, sale.lider_captador_nome, sale.lider_vendedor_nome, commissionExtras]);
 
+  // Toda a criação (occurrences + comissões líquidas via sync_occurrence_commissions + parceria + log)
+  // roda dentro de uma única RPC transacional — nunca monta linha de comissão na mão aqui (isso já
+  // causou um bug real: bruto de sales.valor_comissao_captador/vendedor sendo gravado em
+  // occurrence_commissions em vez do líquido, restaurando a dupla contagem que a RPC de sync existe
+  // pra evitar). Uma falha em qualquer etapa desfaz tudo — nunca fica "meio criada".
   const createOcc = async () => {
-    const vendedor = parties?.vendedor_1;
-    const comprador = parties?.comprador_1;
-    const { data, error } = await supabase.from("occurrences").insert({
-      sale_id: saleId,
-      codigo_imovel: sale.imovel_id ?? sale.codigo_interno,
-      data_assinatura: new Date().toISOString().slice(0, 10),
-      tempo_venda_dias: sale.tempo_venda_dias,
-      midia: sale.midia,
-      valor_anunciado: sale.valor_anunciado,
-      valor_negociado: sale.valor_negociado,
-      percentual_comissao: sale.percentual_comissao,
-      valor_comissao: sale.valor_total_comissao,
-      financiamento: payment?.financiamento ?? false,
-      financiamento_valor: payment?.financiamento_valor ?? null,
-      financiamento_banco: payment?.financiamento_banco ?? null,
-      financiamento_correspondente: payment?.financiamento_correspondente ?? null,
-      financiamento_previsao: payment?.financiamento_previsao ?? null,
-      oba_credito: payment?.oba_credito ?? false,
-      prev_recebimento_valor: sale.previsao_recebimento_valor ?? null,
-      prev_recebimento_data: sale.previsao_recebimento_data ?? null,
-      prev_recebimento_forma: sale.previsao_recebimento_forma ?? null,
-      prev_recebimento2_valor: sale.previsao_recebimento2_valor ?? null,
-      prev_recebimento2_data: sale.previsao_recebimento2_data ?? null,
-      prev_recebimento2_forma: sale.previsao_recebimento2_forma ?? null,
-      prev_recebimento3_valor: sale.previsao_recebimento3_valor ?? null,
-      prev_recebimento3_data: sale.previsao_recebimento3_data ?? null,
-      prev_recebimento3_forma: sale.previsao_recebimento3_forma ?? null,
-      observacoes: [vendedor?.nome && `Vendedor/Proprietário: ${vendedor.nome}`, comprador?.nome && `Comprador: ${comprador.nome}`].filter(Boolean).join(" | ") || null,
-      status: "pendente",
-    }).select("*").single();
+    const { error } = await supabase.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
     if (error) { toast.error(error.message); return; }
-    // Pré-preenche captador/vendedor/indicador com o que já foi definido na revisão do gestor
-    // (aba Resumo) — sem isso a tabela de comissões nasce zerada e duplica trabalho já feito.
-    const totalComissao = Number(sale.valor_total_comissao ?? 0);
-    const pctOfTotal = (v: any) => (v != null && totalComissao > 0 ? Number(((Number(v) / totalComissao) * 100).toFixed(3)) : null);
-    const commRows = COMISSAO_PAPEIS.filter((p) => FIXED_COMISSAO_PAPEIS.has(p.key)).map((p) => {
-      let nome: string | null = null;
-      let valor: number | null = null;
-      if (p.key === "corretor_captador") { nome = sale.corretor_captador ?? null; valor = sale.valor_comissao_captador ?? null; }
-      else if (p.key === "corretor_vendedor") { nome = sale.corretor_vendedor ?? null; valor = sale.valor_comissao_vendedor ?? null; }
-      else if (p.key === "indicador_captador") { nome = sale.indicador_captador ?? null; valor = sale.valor_comissao_indicador_captador ?? null; }
-      else if (p.key === "indicador_vendedor") { nome = sale.indicador_vendedor ?? null; valor = sale.valor_comissao_indicador_vendedor ?? null; }
-      else if (p.key === "lider_captador") { nome = sale.lider_captador_nome ?? null; valor = sale.valor_comissao_lider_captador ?? null; }
-      else if (p.key === "lider_vendedor") { nome = sale.lider_vendedor_nome ?? null; valor = sale.valor_comissao_lider_vendedor ?? null; }
-      return { occurrence_id: data.id, papel: p.key, nome, percentual: pctOfTotal(valor), valor, user_id: userIdParaPapel(p.key, sale), managed_by_sale: true };
-    });
-    // Partes extras já cadastradas no Resumo (Gestor/Team Leader/Outro) entram junto na criação.
-    const extraRows = commissionExtras.map((e) => {
-      const papel = papelDaExtra(e.papel);
-      return {
-        occurrence_id: data.id, papel, nome: e.nome, percentual: pctOfTotal(e.valor), valor: e.valor,
-        sale_commission_extra_id: e.id, user_id: userIdParaExtra(papel, sale, e), managed_by_sale: true,
-      };
-    });
-    if (commRows.length + extraRows.length > 0) {
-      const { error: commError } = await supabase.from("occurrence_commissions").insert([...commRows, ...extraRows]);
-      if (commError) {
-        // A Ocorrência em si já foi criada com sucesso acima — só o pré-preenchimento da comissão
-        // falhou. Recarrega mesmo assim pra tela refletir o que existe de verdade, em vez de ficar
-        // mostrando o estado antigo escondendo que a Ocorrência já existe (só sem comissão ainda).
-        toast.error(`Ocorrência criada, mas falhou ao pré-preencher a comissão: ${commError.message}`);
-        onChange();
-        load();
-        return;
-      }
-    }
-    // Parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo
-    // entra junto na criação, sem precisar reentrar os dados na Ocorrência.
-    if (sale.parceria_tipo) {
-      const { error: partnerError } = await supabase.from("occurrence_partners").insert({
-        occurrence_id: data.id, from_sale: true, tipo: sale.parceria_tipo,
-        nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
-        percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null,
-        banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
-      });
-      if (partnerError) { toast.error(`Ocorrência criada, mas falhou ao pré-preencher a parceria: ${partnerError.message}`); onChange(); load(); return; }
-    }
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_created", payload: { occurrence_id: data.id } });
     toast.success("Ocorrência criada");
     onChange();
     load();
@@ -3008,61 +2932,19 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, managed_by_sale: false, _new: true }]);
     setDirtyComms(true);
   };
-  // Traz captador/vendedor/indicador com os valores já definidos na revisão do gestor (aba Resumo),
-  // útil para ocorrências criadas antes desse pré-preenchimento existir ou quando a revisão mudou depois.
-  const pullFromSaleSplit = () => {
-    const total = Number(formOcc?.valor_comissao ?? 0);
-    const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
-    setFormComms((rows) => {
-      let next = rows.map((r) => {
-        if (r.papel === "corretor_captador") return { ...r, nome: sale.corretor_captador ?? r.nome, valor: sale.valor_comissao_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_captador) ?? r.percentual, user_id: userIdParaPapel("corretor_captador", sale) };
-        if (r.papel === "corretor_vendedor") return { ...r, nome: sale.corretor_vendedor ?? r.nome, valor: sale.valor_comissao_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_vendedor) ?? r.percentual, user_id: userIdParaPapel("corretor_vendedor", sale) };
-        if (r.papel === "indicador_captador") return { ...r, nome: sale.indicador_captador ?? r.nome, valor: sale.valor_comissao_indicador_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_captador) ?? r.percentual };
-        if (r.papel === "indicador_vendedor") return { ...r, nome: sale.indicador_vendedor ?? r.nome, valor: sale.valor_comissao_indicador_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_indicador_vendedor) ?? r.percentual };
-        if (r.papel === "lider_captador") return { ...r, nome: sale.lider_captador_nome ?? r.nome, valor: sale.valor_comissao_lider_captador ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_lider_captador) ?? r.percentual, user_id: userIdParaPapel("lider_captador", sale) };
-        if (r.papel === "lider_vendedor") return { ...r, nome: sale.lider_vendedor_nome ?? r.nome, valor: sale.valor_comissao_lider_vendedor ?? r.valor, percentual: pctOfTotal(sale.valor_comissao_lider_vendedor) ?? r.percentual, user_id: userIdParaPapel("lider_vendedor", sale) };
-        return r;
-      });
-      // Se a linha fixa (captador/vendedor/indicador/líder) nunca existiu na ocorrência — ex.: ela
-      // foi criada antes desses campos serem preenchidos na revisão do gestor — o map acima não tem
-      // o que atualizar. Cria a linha que estiver faltando, em vez de silenciosamente não fazer nada.
-      const fixedTargets: { papel: string; nome: any; valor: any }[] = [
-        { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
-        { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
-      ];
-      fixedTargets.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
-      fixedTargets.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
-      fixedTargets.push({ papel: "lider_captador", nome: sale.lider_captador_nome ?? null, valor: sale.valor_comissao_lider_captador ?? null });
-      fixedTargets.push({ papel: "lider_vendedor", nome: sale.lider_vendedor_nome ?? null, valor: sale.valor_comissao_lider_vendedor ?? null });
-      for (const t of fixedTargets) {
-        if (t.nome == null && t.valor == null) continue;
-        if (!next.some((r) => r.papel === t.papel)) {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: t.papel, nome: t.nome, percentual: pctOfTotal(t.valor), valor: t.valor, user_id: userIdParaPapel(t.papel, sale), managed_by_sale: true, _new: true }];
-        }
-      }
-      // Partes extras (Gestor/Team Leader/Outro) do Resumo: atualiza a linha já puxada antes casando
-      // SÓ pelo id estável da parte extra (sale_commission_extra_id) — nunca por papel+nome. Casar por
-      // nome já causou um risco real: uma linha adicionada manualmente na Ocorrência (botão
-      // "Adicionar", sem sale_commission_extra_id) com o mesmo papel+nome de um extra do Resumo era
-      // "adotada" silenciosamente por esse extra, passando a ser sobrescrita e até apagada se o extra
-      // do Resumo fosse removido depois — mesmo tendo sido criada e preenchida à mão pelo financeiro,
-      // sem nenhuma relação real com aquele extra. Sem esse casamento por nome, o pior caso vira uma
-      // linha duplicada visível (fácil de notar e remover à mão), nunca uma sobrescrita/exclusão
-      // silenciosa de dado financeiro.
-      for (const extra of commissionExtras) {
-        const papel = papelDaExtra(extra.papel);
-        const userId = userIdParaExtra(papel, sale, extra);
-        const idx = next.findIndex((r) => r.sale_commission_extra_id === extra.id);
-        if (idx >= 0) {
-          next = next.map((r, i) => i === idx ? { ...r, nome: extra.nome, valor: extra.valor, percentual: pctOfTotal(extra.valor), sale_commission_extra_id: extra.id, user_id: userId } : r);
-        } else {
-          next = [...next, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel, nome: extra.nome, percentual: pctOfTotal(extra.valor), valor: extra.valor, sale_commission_extra_id: extra.id, user_id: userId, managed_by_sale: true, _new: true }];
-        }
-      }
-      return next;
-    });
-    setDirtyComms(true);
-    toast.success("Valores da revisão do gestor aplicados — confira e salve.");
+  // Traz captador/vendedor/indicador/líder/extras com os valores já definidos na revisão do gestor
+  // (aba Resumo), útil para ocorrências criadas antes desse pré-preenchimento existir ou quando a
+  // revisão mudou depois. Chama sync_occurrence_commissions() (mesma RPC usada em todo save() da
+  // Resumo) em vez de reconstruir a distribuição aqui em JS — reconstruir na mão já causou um bug
+  // real: usava sales.valor_comissao_captador/vendedor BRUTO em vez do líquido (bruto menos
+  // indicador/extras daquele lado), restaurando a dupla contagem que a RPC existe pra evitar. Grava
+  // direto no banco (não fica num buffer local esperando "Salvar") — managed_by_sale já protege
+  // qualquer linha manual de ser tocada por esse sync.
+  const pullFromSaleSplit = async () => {
+    const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Comissões sincronizadas com a revisão do gestor.");
+    await load();
   };
   const delCommission = (id: string) => {
     setFormComms(rows => rows.filter(r => r.id !== id));
@@ -3083,30 +2965,47 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     toast.success("Financiamento, valor, banco, correspondente, previsão e Oba Crédito puxados do pagamento — confira e salve.");
   };
 
-  // Compara o que está salvo na ocorrência com os dados atuais da Resumo/Pagamento — se algo
-  // mudou depois da última vez que alguém clicou em "Puxar", a ocorrência ficou desatualizada.
+  // Compara o que está salvo na ocorrência com o LÍQUIDO esperado (calcular_distribuicao_venda),
+  // nunca com sales.valor_comissao_captador/vendedor bruto — comparar líquido salvo × bruto atual
+  // acusava "desatualizado" quase sempre que havia indicador/extra (mesmo logo depois de sincronizar
+  // certinho), já que líquido ≠ bruto nesse caso. Líder continua comparado direto contra
+  // sales.valor_comissao_lider_* (valor fixo em reais, não passa por calcular_distribuicao_venda —
+  // nunca é reduzido por indicador/extra do próprio líder).
   const comissoesDesatualizadas = useMemo(() => {
     if (!occ) return false;
-    const checks: { papel: string; valorAtual: any }[] = [
-      { papel: "corretor_captador", valorAtual: sale.valor_comissao_captador },
-      { papel: "corretor_vendedor", valorAtual: sale.valor_comissao_vendedor },
+    const checks: { papel: string; valorEsperado: any }[] = [
+      { papel: "corretor_captador", valorEsperado: distribuicao?.liquido_captador },
+      { papel: "corretor_vendedor", valorEsperado: distribuicao?.liquido_vendedor },
+      { papel: "indicador_captador", valorEsperado: sale.valor_comissao_indicador_captador },
+      { papel: "indicador_vendedor", valorEsperado: sale.valor_comissao_indicador_vendedor },
+      { papel: "lider_captador", valorEsperado: sale.valor_comissao_lider_captador },
+      { papel: "lider_vendedor", valorEsperado: sale.valor_comissao_lider_vendedor },
     ];
-    checks.push({ papel: "indicador_captador", valorAtual: sale.valor_comissao_indicador_captador });
-    checks.push({ papel: "indicador_vendedor", valorAtual: sale.valor_comissao_indicador_vendedor });
-    checks.push({ papel: "lider_captador", valorAtual: sale.valor_comissao_lider_captador });
-    checks.push({ papel: "lider_vendedor", valorAtual: sale.valor_comissao_lider_vendedor });
-    const divergeValor = checks.some(({ papel, valorAtual }) => {
-      if (valorAtual == null) return false;
-      const row = commissions.find((r) => r.papel === papel);
-      return !row || Math.abs(Number(row.valor ?? 0) - Number(valorAtual)) > 0.01;
+    const divergeValor = checks.some(({ papel, valorEsperado }) => {
+      if (valorEsperado == null) return false;
+      const row = commissions.find((r) => r.papel === papel && !r.sale_commission_extra_id);
+      if (!row) return true; // linha ausente
+      if (Math.abs(Number(row.valor ?? 0) - Number(valorEsperado)) > 0.01) return true; // valor diferente
+      const userIdEsperado = userIdParaPapel(papel, sale);
+      if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true; // beneficiário/user_id diferente
+      return false;
     });
+    // Extras: casados por sale_commission_extra_id (nunca papel+nome — nome pode coincidir por
+    // acaso com outra pessoa). Cobre "extra novo ainda ausente" (row not found) e "extra removido
+    // ainda presente" (linha na ocorrência sem extra correspondente no Resumo).
     const divergeExtra = commissionExtras.some((extra) => {
       const papel = papelDaExtra(extra.papel);
-      const row = commissions.find((r) => r.papel === papel && r.nome === extra.nome);
-      return !row || Math.abs(Number(row.valor ?? 0) - Number(extra.valor ?? 0)) > 0.01;
+      const userIdEsperado = userIdParaExtra(papel, sale, extra);
+      const row = commissions.find((r) => r.sale_commission_extra_id === extra.id);
+      if (!row) return true;
+      if (Math.abs(Number(row.valor ?? 0) - Number(extra.valor ?? 0)) > 0.01) return true;
+      if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true;
+      if ((row.nome ?? null) !== (extra.nome ?? null)) return true;
+      return false;
     });
-    return divergeValor || divergeExtra;
-  }, [occ, sale, commissions, commissionExtras]);
+    const extraOrfao = commissions.some((r) => r.sale_commission_extra_id && !commissionExtras.some((e) => e.id === r.sale_commission_extra_id));
+    return divergeValor || divergeExtra || extraOrfao;
+  }, [occ, sale, commissions, commissionExtras, distribuicao]);
 
   const financiamentoDesatualizado = !!occ && (
     Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||

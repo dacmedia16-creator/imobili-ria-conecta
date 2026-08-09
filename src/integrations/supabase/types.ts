@@ -1312,6 +1312,10 @@ export type Database = {
           sale_id: string
         }[]
       }
+      criar_ocorrencia_completa: {
+        Args: { p_sale_id: string }
+        Returns: Json
+      }
       dashboard_stats: { Args: never; Returns: Json }
       has_any_role: {
         Args: {
