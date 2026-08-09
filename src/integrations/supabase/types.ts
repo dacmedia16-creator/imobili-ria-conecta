@@ -1348,6 +1348,10 @@ export type Database = {
         Returns: boolean
       }
       sees_team: { Args: { _team_id: string; _user: string }; Returns: boolean }
+      sync_occurrence_commissions: {
+        Args: { _sale_id: string }
+        Returns: undefined
+      }
       update_contrato_pendencia: {
         Args: {
           _libera_assinatura: boolean

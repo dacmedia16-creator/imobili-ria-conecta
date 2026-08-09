@@ -360,10 +360,13 @@ function SaleDetail() {
     }
     if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
     try {
-      await syncOccurrenceCommissions(id, { ...sale, ...formSale }, resolvedExtras);
+      await syncOccurrenceCommissions(id);
       await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
     } catch (err: any) {
-      console.warn("syncOccurrenceCommissions", err?.message);
+      // Não aborta o save: sales/sale_commission_extras já foram persistidos com sucesso acima.
+      // Mas o usuário precisa saber que a Ocorrência pode ter ficado fora de sincronia — antes esse
+      // erro só ia pro console (fácil de nunca ver), violando a regra de nunca engolir falha do Supabase.
+      toast.error(`Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${err?.message ?? "erro desconhecido"}`);
     }
     setDirtyResumo(false);
     setDirtyExtras(false);
@@ -2693,56 +2696,16 @@ const userIdParaExtra = (papel: string, sale: any, extra?: any): string | null =
  * direto na ocorrência já criada — sem isso, o que foi preenchido lá só aparecia na Ocorrência
  * depois de alguém clicar manualmente em "Puxar da revisão do gestor". Se a ocorrência ainda não
  * existe, não faz nada (ela nasce com esses dados quando for criada).
+ *
+ * A sincronização em si (insert/update/delete) roda inteira dentro da RPC sync_occurrence_commissions
+ * no banco (transacional — ver migration 20260809000000) em vez de várias chamadas soltas daqui:
+ * client-side isso nunca apagava a linha de quem foi removido no Resumo (outro captador/vendedor,
+ * indicador, líder), deixando a pessoa presa em relatórios e recebendo comissão mesmo depois de
+ * removida. Lança o erro em vez de engolir — quem chama decide como mostrar pro usuário.
  */
-async function syncOccurrenceCommissions(saleId: string, sale: any, commissionExtras: any[]) {
-  const { data: occ } = await supabase.from("occurrences").select("id, valor_comissao").eq("sale_id", saleId).maybeSingle();
-  if (!occ) return;
-
-  const { data: existing } = await supabase.from("occurrence_commissions").select("*").eq("occurrence_id", occ.id);
-  const rows = existing ?? [];
-  const total = Number(occ.valor_comissao ?? 0);
-  const pctOfTotal = (v: any) => (v != null && total > 0 ? Number(((Number(v) / total) * 100).toFixed(3)) : null);
-
-  const fixedUpdates: { papel: string; nome: any; valor: any }[] = [
-    { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valor: sale.valor_comissao_captador ?? null },
-    { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valor: sale.valor_comissao_vendedor ?? null },
-  ];
-  fixedUpdates.push({ papel: "indicador_captador", nome: sale.indicador_captador ?? null, valor: sale.valor_comissao_indicador_captador ?? null });
-  fixedUpdates.push({ papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valor: sale.valor_comissao_indicador_vendedor ?? null });
-  fixedUpdates.push({ papel: "lider_captador", nome: sale.lider_captador_nome ?? null, valor: sale.valor_comissao_lider_captador ?? null });
-  fixedUpdates.push({ papel: "lider_vendedor", nome: sale.lider_vendedor_nome ?? null, valor: sale.valor_comissao_lider_vendedor ?? null });
-
-  for (const upd of fixedUpdates) {
-    if (upd.nome == null && upd.valor == null) continue;
-    const row = rows.find((r) => r.papel === upd.papel);
-    const percentual = pctOfTotal(upd.valor);
-    const userId = userIdParaPapel(upd.papel, sale);
-    if (row) {
-      if (row.nome !== upd.nome || Number(row.valor ?? 0) !== Number(upd.valor ?? 0) || row.user_id !== userId) {
-        await supabase.from("occurrence_commissions").update({ nome: upd.nome, valor: upd.valor, percentual, user_id: userId }).eq("id", row.id);
-      }
-    } else {
-      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel: upd.papel, nome: upd.nome, valor: upd.valor, percentual, user_id: userId });
-    }
-  }
-
-  for (const extra of commissionExtras) {
-    const papel = papelDaExtra(extra.papel);
-    const userId = userIdParaExtra(papel, sale, extra);
-    // Casa pelo id estável da parte extra (sale_commission_extra_id) — casar só por nome quebra
-    // quando o nome muda entre um save e outro (ex.: linha criada "sem nome" e preenchida depois),
-    // já que aí vira um "nome" diferente e uma linha nova duplicada era criada em vez de atualizar.
-    const row = rows.find((r) => r.sale_commission_extra_id === extra.id)
-      ?? rows.find((r) => !r.sale_commission_extra_id && r.papel === papel && r.nome === extra.nome);
-    const percentual = pctOfTotal(extra.valor);
-    if (row) {
-      if (row.nome !== extra.nome || Number(row.valor ?? 0) !== Number(extra.valor ?? 0) || row.sale_commission_extra_id !== extra.id || row.user_id !== userId) {
-        await supabase.from("occurrence_commissions").update({ nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id, user_id: userId }).eq("id", row.id);
-      }
-    } else {
-      await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, papel, nome: extra.nome, valor: extra.valor, percentual, sale_commission_extra_id: extra.id, user_id: userId });
-    }
-  }
+async function syncOccurrenceCommissions(saleId: string) {
+  const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
+  if (error) throw error;
 }
 
 /**
