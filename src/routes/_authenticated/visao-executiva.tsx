@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { FileSignature, Landmark, Gavel, RotateCcw, MessageSquare } from "lucide-react";
+import { FileSignature, Landmark, Gavel, RotateCcw, Banknote, Percent, Handshake, Building2, PiggyBank, CheckCircle2, ClipboardList } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Visão Executiva" }] }),
@@ -25,6 +25,16 @@ type VisaoExecutivaStats = {
   };
   ranking_corretor: { corretor_id: string; vendas_fechadas: number; tempo_medio_dias: number | null; taxa_devolucao: number; comissao: number }[];
   ranking_equipe: { team_id: string | null; team_nome: string | null; vendas_fechadas: number; comissao: number; taxa_devolucao: number }[];
+  /** Indicadores da operação (não por pessoa) — mesma janela de 30 dias do ranking. */
+  resumo_operacional: {
+    vgv: number;
+    comissao_bruta_operacao: number;
+    parceria_externa: number;
+    parte_unidade: number;
+    receita_liquida_imobiliaria: number;
+    quantidade_vendas: number;
+    quantidade_captacoes: number;
+  };
   evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
   /** Só vem preenchido pra super_admin — a RPC devolve null pra qualquer outro papel. */
   whatsapp: { eventos: number; enviados: number; falhas: number; eventos_com_falha: number } | null;
@@ -114,6 +124,19 @@ function VisaoExecutiva() {
           <AlertaCard icon={Landmark} label="Ocorrência no financeiro parada +5 dias" alerta={stats?.alertas?.financeiro_parado} />
           <AlertaCard icon={Gavel} label="Contrato em conferência há +3 dias" alerta={stats?.alertas?.contrato_parado} />
           <AlertaCard icon={RotateCcw} label="Vendas devolvidas 2× ou mais" alerta={stats?.alertas?.retrabalho} critical sub="Retrabalho — mesma venda voltou várias vezes" />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Resumo da operação — últimos 30 dias</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ResumoCard icon={Banknote} label="VGV" valor={money(stats?.resumo_operacional?.vgv ?? 0)} />
+          <ResumoCard icon={Percent} label="Comissão bruta da operação" valor={money(stats?.resumo_operacional?.comissao_bruta_operacao ?? 0)} />
+          <ResumoCard icon={Handshake} label="Parceria externa" valor={money(stats?.resumo_operacional?.parceria_externa ?? 0)} />
+          <ResumoCard icon={Building2} label="Parte da unidade" valor={money(stats?.resumo_operacional?.parte_unidade ?? 0)} />
+          <ResumoCard icon={PiggyBank} label="Receita líquida da imobiliária" valor={money(stats?.resumo_operacional?.receita_liquida_imobiliaria ?? 0)} />
+          <ResumoCard icon={CheckCircle2} label="Quantidade de vendas" valor={String(stats?.resumo_operacional?.quantidade_vendas ?? 0)} />
+          <ResumoCard icon={ClipboardList} label="Quantidade de captações" valor={String(stats?.resumo_operacional?.quantidade_captacoes ?? 0)} />
         </div>
       </section>
 
@@ -255,6 +278,18 @@ function AlertaCard({ icon: Icon, label, alerta, critical, sub }: { icon: any; l
         <p className="text-xs text-muted-foreground">
           {sub ?? (alerta?.max_dias ? `A mais antiga: ${alerta.max_dias} dias parada` : "Nenhuma pendência")}
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResumoCard({ icon: Icon, label, valor }: { icon: any; label: string; valor: string }) {
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-4">
+        <div className="rounded-md bg-primary/10 p-2 text-primary w-fit"><Icon className="h-5 w-5" /></div>
+        <p className="text-xl font-bold leading-none">{valor}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
   );
