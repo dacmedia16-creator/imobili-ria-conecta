@@ -944,14 +944,28 @@ function SaleDetail() {
                     </Field>
                     {outrosCaptadores.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        {/* Conta é escolhida na aba "Divisão da comissão" (junto do valor) — aqui é só
-                            um resumo de quem já foi adicionado. */}
-                        {outrosCaptadores.map((r) => (
-                          <div key={r.id} className="flex items-center gap-2 text-sm">
-                            <span className={r.user_id ? "" : "text-destructive"}>{r.nome || "(sem conta vinculada — defina na aba Divisão da comissão)"}</span>
-                            {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
-                          </div>
-                        ))}
+                        {outrosCaptadores.map((r) => {
+                          const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
+                          return (
+                            <div key={r.id} className="flex flex-wrap items-center gap-2">
+                              <Select
+                                value={r.user_id || ""}
+                                onValueChange={(v) => {
+                                  const c = corretorOptions.find((o) => o.id === v);
+                                  updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
+                                }}
+                                disabled={!editable}
+                              >
+                                <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
+                                <SelectContent>
+                                  {foraDaLista && r.user_id && <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>}
+                                  {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {editable && (
@@ -1019,14 +1033,28 @@ function SaleDetail() {
                     </Field>
                     {outrosVendedores.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        {/* Conta é escolhida na aba "Divisão da comissão" (junto do valor) — aqui é só
-                            um resumo de quem já foi adicionado. */}
-                        {outrosVendedores.map((r) => (
-                          <div key={r.id} className="flex items-center gap-2 text-sm">
-                            <span className={r.user_id ? "" : "text-destructive"}>{r.nome || "(sem conta vinculada — defina na aba Divisão da comissão)"}</span>
-                            {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
-                          </div>
-                        ))}
+                        {outrosVendedores.map((r) => {
+                          const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
+                          return (
+                            <div key={r.id} className="flex flex-wrap items-center gap-2">
+                              <Select
+                                value={r.user_id || ""}
+                                onValueChange={(v) => {
+                                  const c = corretorOptions.find((o) => o.id === v);
+                                  updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
+                                }}
+                                disabled={!editable}
+                              >
+                                <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
+                                <SelectContent>
+                                  {foraDaLista && r.user_id && <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>}
+                                  {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {editable && (
