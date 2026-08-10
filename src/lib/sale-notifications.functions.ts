@@ -229,6 +229,11 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
 
     let sent = 0;
     let falhas = 0;
+    // Status HTTP + corpo (ou mensagem de exceção) de cada falha, truncado — sem isso o
+    // `activity_logs` só mostrava a contagem, e diagnosticar uma chave revogada/expirada ou API
+    // fora do ar exigia reproduzir a chamada manualmente. Cap em 10 pra não inchar o payload
+    // quando muita gente falha no mesmo evento.
+    const erros: { status: number | null; corpo: string }[] = [];
     const apiKey = process.env.ZIONTALK_API_KEY;
     if (apiKey && whatsappPorUsuario.size > 0) {
       const { data: profiles } = await supabaseAdmin
@@ -252,9 +257,21 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
             body: new URLSearchParams({ msg: paraWhatsapp(texto), mobile_phone: phone }).toString(),
           });
           if (res.status === 201) sent++;
-          else falhas++;
-        } catch {
+          else {
+            falhas++;
+            if (erros.length < 10) {
+              const corpo = await res.text().catch(() => "");
+              erros.push({ status: res.status, corpo: corpo.slice(0, 200) });
+            }
+          }
+        } catch (e) {
           falhas++; // falha no envio (número inválido, API fora do ar) não deve travar a troca de status
+          if (erros.length < 10) {
+            erros.push({
+              status: null,
+              corpo: (e instanceof Error ? e.message : String(e)).slice(0, 200),
+            });
+          }
         }
       }
     }
@@ -269,6 +286,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
         falhas,
         ignorados: whatsappPorUsuario.size - sent - falhas,
         notificados_interno: inAppPorUsuario.size,
+        ...(erros.length > 0 ? { erros } : {}),
       },
     });
 
