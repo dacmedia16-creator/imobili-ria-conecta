@@ -172,29 +172,45 @@ function SaleDetail() {
     fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user]);
 
+  // Busca o(s) líder(es) — líder principal + líder da equipe-mãe (se houver) + líderes auxiliares —
+  // do time de um corretor específico. Usada separadamente pro lado captador e pro lado vendedor:
+  // como co-listagem entre times é comum, os dois podem ter líderes diferentes (ver comentário mais
+  // abaixo, no cálculo de liderOptionsVendedor).
+  const buscarLideresDoCorretor = useCallback(async (corretorId: string): Promise<{ id: string; nome: string }[]> => {
+    const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", corretorId).maybeSingle();
+    if (!tm) return [];
+    const { data: team } = await supabase.from("teams").select("lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
+    if (!team) return [];
+    const liderIds = [team.lider_id];
+    const teamIdsForCoLideres = [tm.team_id];
+    if (team.parent_team_id) {
+      const { data: parent } = await supabase.from("teams").select("lider_id").eq("id", team.parent_team_id).maybeSingle();
+      if (parent?.lider_id) liderIds.push(parent.lider_id);
+      teamIdsForCoLideres.push(team.parent_team_id);
+    }
+    // Líder auxiliar ("braço direito") também entra como opção de Gestor/Team Leader da venda.
+    const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
+    (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
+    const uniqueIds = Array.from(new Set(liderIds));
+    const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", uniqueIds);
+    return (profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id }));
+  }, []);
+
   const [lideres, setLideres] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
     if (!sale?.corretor_id) return;
-    (async () => {
-      const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", sale.corretor_id).maybeSingle();
-      if (!tm) { setLideres([]); return; }
-      const { data: team } = await supabase.from("teams").select("lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
-      if (!team) { setLideres([]); return; }
-      const liderIds = [team.lider_id];
-      const teamIdsForCoLideres = [tm.team_id];
-      if (team.parent_team_id) {
-        const { data: parent } = await supabase.from("teams").select("lider_id").eq("id", team.parent_team_id).maybeSingle();
-        if (parent?.lider_id) liderIds.push(parent.lider_id);
-        teamIdsForCoLideres.push(team.parent_team_id);
-      }
-      // Líder auxiliar ("braço direito") também entra como opção de Gestor/Team Leader da venda.
-      const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
-      (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
-      const uniqueIds = Array.from(new Set(liderIds));
-      const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", uniqueIds);
-      setLideres((profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id })));
-    })();
-  }, [sale?.corretor_id]);
+    buscarLideresDoCorretor(sale.corretor_id).then(setLideres);
+  }, [sale?.corretor_id, buscarLideresDoCorretor]);
+
+  // Líder(es) do time do corretor vendedor — separado de `lideres` (time do captador/dono da venda)
+  // porque captador e vendedor podem estar em times diferentes, cada um com seu próprio líder. Usar
+  // `liderOptions` (time do captador) também pro lado vendedor fazia o líder do vendedor nunca
+  // aparecer quando os dois times divergiam.
+  const [lideresVendedor, setLideresVendedor] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    if (!formSale.corretor_vendedor_id) { setLideresVendedor([]); return; }
+    buscarLideresDoCorretor(formSale.corretor_vendedor_id).then(setLideresVendedor);
+  }, [formSale.corretor_vendedor_id, buscarLideresDoCorretor]);
 
   // Fallback pra quando o corretor da venda não pertence a nenhum time (`lideres` fica vazio):
   // em vez de travar o campo, oferece todo mundo com papel gestor / todo líder de time cadastrado.
@@ -218,6 +234,14 @@ function SaleDetail() {
     teamLeaderOptions.forEach((l) => { if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" }); });
     return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [gestorOptions, teamLeaderOptions]);
+  const gestorOptionsVendedor = lideresVendedor.length > 0 ? lideresVendedor : gestoresGerais;
+  const teamLeaderOptionsVendedor = lideresVendedor.length > 0 ? lideresVendedor : teamLeadersGerais;
+  const liderOptionsVendedor = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string; papel: "gestor" | "team_leader" }>();
+    gestorOptionsVendedor.forEach((l) => map.set(l.id, { ...l, papel: "gestor" }));
+    teamLeaderOptionsVendedor.forEach((l) => { if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" }); });
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [gestorOptionsVendedor, teamLeaderOptionsVendedor]);
 
   // Corretor captador/vendedor: lista todos os corretores ativos da imobiliária (sem filtrar por
   // equipe — co-listagem entre times é comum, diferente de Gestor/Team Leader que é só da equipe).
@@ -1074,13 +1098,13 @@ function SaleDetail() {
                         <Plus className="mr-1 h-4 w-4" />Outro vendedor
                       </Button>
                     )}
-                    {liderOptions.length > 0 && (
+                    {liderOptionsVendedor.length > 0 && (
                       <div className="mt-4 border-t pt-3">
                         <Field label="Gestor/Team Leader do vendedor">
                           <Select
                             value={formSale.lider_vendedor_id || "none"}
                             onValueChange={(v) => {
-                              const l = liderOptions.find((o) => o.id === v);
+                              const l = liderOptionsVendedor.find((o) => o.id === v);
                               updResumo({ lider_vendedor_id: v === "none" ? null : v, lider_vendedor_nome: l ? l.nome : null });
                             }}
                             disabled={!editable}
@@ -1090,11 +1114,11 @@ function SaleDetail() {
                               <SelectItem value="none">—</SelectItem>
                               <SelectGroup>
                                 <SelectLabel>Gestores</SelectLabel>
-                                {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                {liderOptionsVendedor.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                               </SelectGroup>
                               <SelectGroup>
                                 <SelectLabel>Team Leaders</SelectLabel>
-                                {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                {liderOptionsVendedor.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                               </SelectGroup>
                             </SelectContent>
                           </Select>
