@@ -56,3 +56,104 @@ export function calcularPatchOccValorNegociado(formOcc: FieldBag, v: number | nu
   }
   return patch;
 }
+
+// Papéis com link de verdade pra conta de usuário: captador/vendedor via
+// sales.corretor_captador_id/vendedor_id, gestor/team_leader via coordenador_id/team_leader_id,
+// lider_captador/vendedor via sales.lider_captador_id/vendedor_id (Equipe). Indicador/outro
+// continuam só por nome — geralmente é gente de fora do sistema.
+export function userIdParaPapel(papel: string, sale: FieldBag): string | null {
+  if (papel === "corretor_captador") return sale.corretor_captador_id ?? null;
+  if (papel === "corretor_vendedor") return sale.corretor_vendedor_id ?? null;
+  if (papel === "gestor") return sale.coordenador_id ?? null;
+  if (papel === "team_leader") return sale.team_leader_id ?? null;
+  if (papel === "lider_captador") return sale.lider_captador_id ?? null;
+  if (papel === "lider_vendedor") return sale.lider_vendedor_id ?? null;
+  return null;
+}
+
+// Partes extras da divisão (Resumo) viram comissões na ocorrência usando o "papel" que a pessoa
+// recebeu lá (Gestor/Team Leader/Outro/mais um captador ou vendedor) — sem papel definido, cai em "outro".
+const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro", "corretor_captador", "corretor_vendedor"]);
+export function papelDaExtra(papel: string | null): string {
+  return papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro";
+}
+
+// Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
+// "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
+// PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso
+// grudaria o id do captador/vendedor principal na comissão de outra pessoa. `extra.user_id` (quando
+// o "Outro captador/vendedor" foi selecionado da lista, não digitado) tem prioridade sobre tudo.
+export function userIdParaExtra(papel: string, sale: FieldBag, extra?: { user_id?: string | null }): string | null {
+  if (extra?.user_id) return extra.user_id;
+  if (papel === "gestor") return sale.coordenador_id ?? null;
+  if (papel === "team_leader") return sale.team_leader_id ?? null;
+  return null;
+}
+
+export type OcorrenciaComissaoRow = {
+  papel: string;
+  nome: string | null;
+  valor: number | null;
+  user_id: string | null;
+  sale_commission_extra_id: string | null;
+  managed_by_sale: boolean;
+};
+export type SaleExtraRow = { id: string; papel: string | null; nome: string | null; valor: number | null; user_id: string | null };
+
+const PAPEIS_FIXOS = ["corretor_captador", "corretor_vendedor", "indicador_captador", "indicador_vendedor", "lider_captador", "lider_vendedor"] as const;
+
+/**
+ * Compara as linhas GERENCIADAS (managed_by_sale=true) de occurrence_commissions contra o que
+ * calcular_distribuicao_venda()/sale_commission_extras dizem que deveria estar lá. "Deveria existir"
+ * usa a MESMA regra de sync_occurrence_commissions (nome, valor bruto OU user_id não-nulos) — nunca
+ * só "valor não é null": isso deixava passar um indicador/líder removido só no nome, e não detectava
+ * uma linha automática velha que já deveria ter sido apagada. Nunca usa uma linha manual
+ * (managed_by_sale=false) pra decidir se está sincronizado — mesmo que exista uma com o mesmo papel.
+ */
+export function verificarComissoesDesatualizadas(args: {
+  sale: FieldBag;
+  distribuicao: FieldBag | null | undefined;
+  commissions: OcorrenciaComissaoRow[];
+  commissionExtras: SaleExtraRow[];
+}): boolean {
+  const { sale, distribuicao, commissions, commissionExtras } = args;
+  if (!distribuicao) return false;
+
+  const checagens: { papel: (typeof PAPEIS_FIXOS)[number]; nome: string | null; valorBruto: number | null; valorEsperado: number | null; userIdEsperado: string | null }[] = [
+    { papel: "corretor_captador", nome: sale.corretor_captador ?? null, valorBruto: sale.valor_comissao_captador ?? null, valorEsperado: distribuicao.liquido_captador ?? null, userIdEsperado: userIdParaPapel("corretor_captador", sale) },
+    { papel: "corretor_vendedor", nome: sale.corretor_vendedor ?? null, valorBruto: sale.valor_comissao_vendedor ?? null, valorEsperado: distribuicao.liquido_vendedor ?? null, userIdEsperado: userIdParaPapel("corretor_vendedor", sale) },
+    { papel: "indicador_captador", nome: sale.indicador_captador ?? null, valorBruto: sale.valor_comissao_indicador_captador ?? null, valorEsperado: sale.valor_comissao_indicador_captador ?? null, userIdEsperado: null },
+    { papel: "indicador_vendedor", nome: sale.indicador_vendedor ?? null, valorBruto: sale.valor_comissao_indicador_vendedor ?? null, valorEsperado: sale.valor_comissao_indicador_vendedor ?? null, userIdEsperado: null },
+    { papel: "lider_captador", nome: sale.lider_captador_nome ?? null, valorBruto: sale.valor_comissao_lider_captador ?? null, valorEsperado: sale.valor_comissao_lider_captador ?? null, userIdEsperado: userIdParaPapel("lider_captador", sale) },
+    { papel: "lider_vendedor", nome: sale.lider_vendedor_nome ?? null, valorBruto: sale.valor_comissao_lider_vendedor ?? null, valorEsperado: sale.valor_comissao_lider_vendedor ?? null, userIdEsperado: userIdParaPapel("lider_vendedor", sale) },
+  ];
+
+  const divergeFixo = checagens.some(({ papel, nome, valorBruto, valorEsperado, userIdEsperado }) => {
+    const deveriaExistir = nome != null || valorBruto != null || userIdEsperado != null;
+    const row = commissions.find((r) => r.papel === papel && !r.sale_commission_extra_id && r.managed_by_sale === true);
+    if (!deveriaExistir) return !!row; // linha automática velha ainda presente = desatualizado
+    if (!row) return true; // deveria existir e não tem linha automática = desatualizado
+    if (Math.abs(Number(row.valor ?? 0) - Number(valorEsperado ?? 0)) > 0.01) return true;
+    if ((row.nome ?? null) !== (nome ?? null)) return true;
+    if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true;
+    return false;
+  });
+
+  const divergeExtra = commissionExtras.some((extra) => {
+    const papel = papelDaExtra(extra.papel);
+    const userIdEsperado = userIdParaExtra(papel, sale, extra);
+    const row = commissions.find((r) => r.sale_commission_extra_id === extra.id);
+    if (!row) return true; // extra novo ainda sem linha
+    if (Math.abs(Number(row.valor ?? 0) - Number(extra.valor ?? 0)) > 0.01) return true;
+    if ((row.nome ?? null) !== (extra.nome ?? null)) return true;
+    if (row.papel !== papel) return true;
+    if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true;
+    if (row.managed_by_sale !== true) return true;
+    return false;
+  });
+
+  // Extra removido no Resumo, mas a linha automática ainda existe na Ocorrência.
+  const extraOrfao = commissions.some((r) => r.sale_commission_extra_id && r.managed_by_sale === true && !commissionExtras.some((e) => e.id === r.sale_commission_extra_id));
+
+  return divergeFixo || divergeExtra || extraOrfao;
+}

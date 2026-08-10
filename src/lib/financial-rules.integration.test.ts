@@ -16,7 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { calcularPatchValorNegociado } from "./sale-financial-calc";
+import { calcularPatchValorNegociado, verificarComissoesDesatualizadas } from "./sale-financial-calc";
 
 const HAS_SUPABASE_ADMIN_ENV = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -710,6 +710,36 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     await sync(saleId);
     const { data: linha } = await supabaseAdmin.from("occurrence_commissions").select("valor").eq("occurrence_id", occId).eq("papel", "corretor_captador").single();
     expect(Number(linha?.valor)).toBe(4427.5); // continua líquido, não voltou a ser bruto
+  });
+
+  it("teste 11 — depois de 'Puxar da revisão do gestor', o aviso de desatualização some e linhas manuais continuam intactas", async () => {
+    const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 11" });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { error: manualErr } = await supabaseAdmin.from("occurrence_commissions").insert({
+      occurrence_id: occId, papel: "outro", nome: "Ajuste Manual Teste 11", valor: 321, managed_by_sale: false,
+    });
+    if (manualErr) throw manualErr;
+
+    // Simula o Resumo mudando depois da criação: captador some (o mesmo dado que produziria um
+    // aviso "desatualizado" antes de puxar de novo).
+    await supabaseAdmin.from("sale_commission_extras").insert({ sale_id: saleId, papel: "gestor", origem: "imobiliaria", valor: 1000, nome: "Gestor Puxado Depois", user_id: PROFILES[4] });
+
+    await sync(saleId); // reproduz o clique em "Puxar da revisão do gestor"
+
+    const dist = await distribuicao(saleId);
+    const { data: linhasFinal } = await supabaseAdmin.from("occurrence_commissions").select("papel, nome, valor, user_id, sale_commission_extra_id, managed_by_sale").eq("occurrence_id", occId);
+    const { data: extrasFinal } = await supabaseAdmin.from("sale_commission_extras").select("id, papel, nome, valor, user_id").eq("sale_id", saleId);
+    const { data: saleAtual, error: saleErr } = await supabaseAdmin.from("sales").select("*").eq("id", saleId).single();
+    if (saleErr) throw saleErr;
+
+    const desatualizado = verificarComissoesDesatualizadas({
+      sale: saleAtual, distribuicao: dist, commissions: (linhasFinal ?? []) as any, commissionExtras: (extrasFinal ?? []) as any,
+    });
+    expect(desatualizado).toBe(false); // aviso some depois de sincronizar
+
+    const manual = linhasFinal?.find((l) => l.managed_by_sale === false);
+    expect(manual?.nome).toBe("Ajuste Manual Teste 11"); // linha manual continua intacta
+    expect(Number(manual?.valor)).toBe(321);
   });
 
   it("teste 8 — remover o extra do captador restaura o líquido pro bruto (menos só o indicador)", async () => {

@@ -27,7 +27,7 @@ import {
   podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado } from "@/lib/sale-financial-calc";
+import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado, userIdParaExtra, verificarComissoesDesatualizadas } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money, dateBR, DocStatusBadge } from "@/components/vendas/shared";
@@ -2721,36 +2721,6 @@ function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: 
   );
 }
 
-// Partes extras da divisão (Resumo) viram comissões na ocorrência usando o "papel" que a pessoa
-// recebeu lá (Gestor/Team Leader/Outro/mais um captador ou vendedor) — sem papel definido, cai em "outro".
-const EXTRA_ORIGEM_PAPEIS = new Set(["gestor", "team_leader", "outro", "corretor_captador", "corretor_vendedor"]);
-const papelDaExtra = (papel: string | null) => (papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro");
-// Papéis com link de verdade pra conta de usuário (item 4): captador/vendedor via
-// sales.corretor_captador_id/vendedor_id, gestor/team_leader via coordenador_id/team_leader_id (já
-// existiam antes, só não eram propagados pra occurrence_commissions). lider_captador/vendedor via
-// sales.lider_captador_id/vendedor_id (Equipe). Indicador/outro continuam só por nome — geralmente
-// é gente de fora do sistema.
-const userIdParaPapel = (papel: string, sale: any): string | null => {
-  if (papel === "corretor_captador") return sale.corretor_captador_id ?? null;
-  if (papel === "corretor_vendedor") return sale.corretor_vendedor_id ?? null;
-  if (papel === "gestor") return sale.coordenador_id ?? null;
-  if (papel === "team_leader") return sale.team_leader_id ?? null;
-  if (papel === "lider_captador") return sale.lider_captador_id ?? null;
-  if (papel === "lider_vendedor") return sale.lider_vendedor_id ?? null;
-  return null;
-};
-// Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
-// "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
-// PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso
-// grudaria o id do captador/vendedor principal na comissão de outra pessoa. `extra.user_id` (quando
-// o "Outro captador/vendedor" foi selecionado da lista, não digitado) tem prioridade sobre tudo.
-const userIdParaExtra = (papel: string, sale: any, extra?: any): string | null => {
-  if (extra?.user_id) return extra.user_id;
-  if (papel === "gestor") return sale.coordenador_id ?? null;
-  if (papel === "team_leader") return sale.team_leader_id ?? null;
-  return null;
-};
-
 /**
  * Sempre que a Resumo é salva (captador/vendedor/indicador/partes extras), joga esses valores
  * direto na ocorrência já criada — sem isso, o que foi preenchido lá só aparecia na Ocorrência
@@ -2965,46 +2935,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     toast.success("Financiamento, valor, banco, correspondente, previsão e Oba Crédito puxados do pagamento — confira e salve.");
   };
 
-  // Compara o que está salvo na ocorrência com o LÍQUIDO esperado (calcular_distribuicao_venda),
-  // nunca com sales.valor_comissao_captador/vendedor bruto — comparar líquido salvo × bruto atual
-  // acusava "desatualizado" quase sempre que havia indicador/extra (mesmo logo depois de sincronizar
-  // certinho), já que líquido ≠ bruto nesse caso. Líder continua comparado direto contra
-  // sales.valor_comissao_lider_* (valor fixo em reais, não passa por calcular_distribuicao_venda —
-  // nunca é reduzido por indicador/extra do próprio líder).
+  // Lógica pura (testável sem montar o componente) em src/lib/sale-financial-calc.ts. Só considera
+  // linhas GERENCIADAS (managed_by_sale=true) — uma linha manual do financeiro com o mesmo papel
+  // nunca é usada pra decidir se está sincronizado.
   const comissoesDesatualizadas = useMemo(() => {
     if (!occ) return false;
-    const checks: { papel: string; valorEsperado: any }[] = [
-      { papel: "corretor_captador", valorEsperado: distribuicao?.liquido_captador },
-      { papel: "corretor_vendedor", valorEsperado: distribuicao?.liquido_vendedor },
-      { papel: "indicador_captador", valorEsperado: sale.valor_comissao_indicador_captador },
-      { papel: "indicador_vendedor", valorEsperado: sale.valor_comissao_indicador_vendedor },
-      { papel: "lider_captador", valorEsperado: sale.valor_comissao_lider_captador },
-      { papel: "lider_vendedor", valorEsperado: sale.valor_comissao_lider_vendedor },
-    ];
-    const divergeValor = checks.some(({ papel, valorEsperado }) => {
-      if (valorEsperado == null) return false;
-      const row = commissions.find((r) => r.papel === papel && !r.sale_commission_extra_id);
-      if (!row) return true; // linha ausente
-      if (Math.abs(Number(row.valor ?? 0) - Number(valorEsperado)) > 0.01) return true; // valor diferente
-      const userIdEsperado = userIdParaPapel(papel, sale);
-      if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true; // beneficiário/user_id diferente
-      return false;
-    });
-    // Extras: casados por sale_commission_extra_id (nunca papel+nome — nome pode coincidir por
-    // acaso com outra pessoa). Cobre "extra novo ainda ausente" (row not found) e "extra removido
-    // ainda presente" (linha na ocorrência sem extra correspondente no Resumo).
-    const divergeExtra = commissionExtras.some((extra) => {
-      const papel = papelDaExtra(extra.papel);
-      const userIdEsperado = userIdParaExtra(papel, sale, extra);
-      const row = commissions.find((r) => r.sale_commission_extra_id === extra.id);
-      if (!row) return true;
-      if (Math.abs(Number(row.valor ?? 0) - Number(extra.valor ?? 0)) > 0.01) return true;
-      if ((row.user_id ?? null) !== (userIdEsperado ?? null)) return true;
-      if ((row.nome ?? null) !== (extra.nome ?? null)) return true;
-      return false;
-    });
-    const extraOrfao = commissions.some((r) => r.sale_commission_extra_id && !commissionExtras.some((e) => e.id === r.sale_commission_extra_id));
-    return divergeValor || divergeExtra || extraOrfao;
+    return verificarComissoesDesatualizadas({ sale, distribuicao, commissions, commissionExtras });
   }, [occ, sale, commissions, commissionExtras, distribuicao]);
 
   const financiamentoDesatualizado = !!occ && (

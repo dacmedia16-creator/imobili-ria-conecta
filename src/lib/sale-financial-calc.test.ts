@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado } from "./sale-financial-calc";
+import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado, verificarComissoesDesatualizadas, type OcorrenciaComissaoRow, type SaleExtraRow } from "./sale-financial-calc";
 
 // Cenário base do pedido: venda R$730.000, comissão 6% (R$43.800), parceria 3% (R$21.900),
 // parte RE/MAX 3% (R$21.900), captador R$4.927,50, vendedor R$4.927,50 (valores fixos em reais,
@@ -101,5 +101,83 @@ describe("calcularPatchOccValorNegociado — regra 11 no lado da Ocorrência", (
   it("sem percentual definido, não mexe em valor_comissao", () => {
     const patch = calcularPatchOccValorNegociado({ percentual_comissao: null }, 730000);
     expect(patch).not.toHaveProperty("valor_comissao");
+  });
+});
+
+describe("verificarComissoesDesatualizadas", () => {
+  // Só captador ativo (líquido = bruto, sem indicador/líder/extra) — cada teste ajusta o que precisa.
+  const sale = {
+    corretor_captador: "Captador Teste", corretor_captador_id: "captador-1", valor_comissao_captador: 4927.5,
+    corretor_vendedor: null, corretor_vendedor_id: null, valor_comissao_vendedor: null,
+    indicador_captador: null, valor_comissao_indicador_captador: null,
+    indicador_vendedor: null, valor_comissao_indicador_vendedor: null,
+    lider_captador_nome: null, valor_comissao_lider_captador: null, lider_captador_id: null,
+    lider_vendedor_nome: null, valor_comissao_lider_vendedor: null, lider_vendedor_id: null,
+  };
+  const distribuicao = { liquido_captador: 4927.5, liquido_vendedor: null };
+  const linhaCaptadorOk: OcorrenciaComissaoRow = { papel: "corretor_captador", nome: "Captador Teste", valor: 4927.5, user_id: "captador-1", sale_commission_extra_id: null, managed_by_sale: true };
+  const linhaManual: OcorrenciaComissaoRow = { papel: "corretor_captador", nome: "Ajuste Manual do Financeiro", valor: 999, user_id: null, sale_commission_extra_id: null, managed_by_sale: false };
+
+  it("teste 1 — linha automática correta + linha manual do mesmo papel: aviso falso, manual nunca usada na comparação", () => {
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaManual], commissionExtras: [] });
+    expect(desatualizado).toBe(false);
+  });
+
+  it("teste 2 — linha manual aparece ANTES da automática no array: ainda encontra a automática", () => {
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaManual, linhaCaptadorOk], commissionExtras: [] });
+    expect(desatualizado).toBe(false);
+  });
+
+  it("teste 3 — indicador removido do Resumo mas linha automática antiga ainda presente: aviso verdadeiro", () => {
+    const linhaIndicadorVelha: OcorrenciaComissaoRow = { papel: "indicador_captador", nome: "Fulano Antigo", valor: 500, user_id: null, sale_commission_extra_id: null, managed_by_sale: true };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaIndicadorVelha], commissionExtras: [] });
+    expect(desatualizado).toBe(true);
+  });
+
+  it("teste 4 — indicador removido e linha automática também removida: aviso falso", () => {
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk], commissionExtras: [] });
+    expect(desatualizado).toBe(false);
+  });
+
+  it("teste 5 — líder removido com linha automática antiga: aviso verdadeiro", () => {
+    const linhaLiderVelha: OcorrenciaComissaoRow = { papel: "lider_captador", nome: "Líder Antigo", valor: 700, user_id: "lider-x", sale_commission_extra_id: null, managed_by_sale: true };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaLiderVelha], commissionExtras: [] });
+    expect(desatualizado).toBe(true);
+  });
+
+  it("teste 6 — captador líquido correto com linha manual adicional (extra independente): aviso falso", () => {
+    const linhaManualOutroPapel: OcorrenciaComissaoRow = { papel: "outro", nome: "Ajuste avulso do financeiro", valor: 50, user_id: null, sale_commission_extra_id: null, managed_by_sale: false };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaManualOutroPapel], commissionExtras: [] });
+    expect(desatualizado).toBe(false);
+  });
+
+  it("teste 7 — captador automático com valor incorreto: aviso verdadeiro", () => {
+    const linhaValorErrado = { ...linhaCaptadorOk, valor: 4000 };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaValorErrado], commissionExtras: [] });
+    expect(desatualizado).toBe(true);
+  });
+
+  it("teste 8 — captador automático com user_id incorreto: aviso verdadeiro", () => {
+    const linhaUserIdErrado = { ...linhaCaptadorOk, user_id: "outra-pessoa" };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaUserIdErrado], commissionExtras: [] });
+    expect(desatualizado).toBe(true);
+  });
+
+  it("teste 9 — extra removido do Resumo mas linha ainda presente na Ocorrência: aviso verdadeiro", () => {
+    const linhaExtraOrfa: OcorrenciaComissaoRow = { papel: "outro", nome: "Extra removido", valor: 200, user_id: null, sale_commission_extra_id: "extra-removido-1", managed_by_sale: true };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaExtraOrfa], commissionExtras: [] });
+    expect(desatualizado).toBe(true);
+  });
+
+  it("teste 10 — extra correto e uma linha manual independente: aviso falso", () => {
+    const extra: SaleExtraRow = { id: "extra-1", papel: "outro", nome: "Extra Correto", valor: 200, user_id: null };
+    const linhaExtraOk: OcorrenciaComissaoRow = { papel: "outro", nome: "Extra Correto", valor: 200, user_id: null, sale_commission_extra_id: "extra-1", managed_by_sale: true };
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao, commissions: [linhaCaptadorOk, linhaExtraOk, linhaManual], commissionExtras: [extra] });
+    expect(desatualizado).toBe(false);
+  });
+
+  it("sem distribuição carregada ainda, não acusa nada (evita falso positivo durante o loading)", () => {
+    const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao: null, commissions: [], commissionExtras: [] });
+    expect(desatualizado).toBe(false);
   });
 });
