@@ -36,6 +36,8 @@ function SalesList() {
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>("todas");
   const [diasFilter, setDiasFilter] = useState<number | null>(null);
+  const [dataDe, setDataDe] = useState("");
+  const [dataAte, setDataAte] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
@@ -67,13 +69,18 @@ function SalesList() {
   // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
   // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
   // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string }> => {
-    const filters: { status?: string; orParts?: string[]; desde?: string } = {};
+  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string; ate?: string }> => {
+    const filters: { status?: string; orParts?: string[]; desde?: string; ate?: string } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
+    // Chip de dias e período customizado (De/Até) são mutualmente exclusivos — os handlers do
+    // chip e dos inputs de data já zeram um ao escolher o outro, então só um dos dois se aplica aqui.
     if (diasFilter) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - diasFilter);
       filters.desde = cutoff.toISOString();
+    } else {
+      if (dataDe) filters.desde = new Date(`${dataDe}T00:00:00`).toISOString();
+      if (dataAte) filters.ate = new Date(`${dataAte}T23:59:59.999`).toISOString();
     }
     // "," e "()" têm significado especial na sintaxe de filtro do PostgREST (separador de
     // condições e escopo de valor) — removidos aqui pra um termo de busca com esses caracteres
@@ -92,14 +99,15 @@ function SalesList() {
       filters.orParts = orParts;
     }
     return filters;
-  }, [statusFilter, diasFilter, q]);
+  }, [statusFilter, diasFilter, dataDe, dataAte, q]);
 
-  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string }) => {
+  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string; ate?: string }) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
     // não pela data de criação — assim o filtro reflete o mesmo recorte que a pessoa já enxerga.
     if (filters.desde) out = out.gte("updated_at", filters.desde);
+    if (filters.ate) out = out.lte("updated_at", filters.ate);
     if (filters.orParts) out = out.or(filters.orParts.join(","));
     return out;
   };
@@ -235,6 +243,28 @@ function SalesList() {
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={dataDe}
+                onChange={(e) => { setDataDe(e.target.value); setDiasFilter(null); }}
+                className="w-[9.5rem]"
+                aria-label="Atualizado de"
+              />
+              <span className="text-sm text-muted-foreground">até</span>
+              <Input
+                type="date"
+                value={dataAte}
+                onChange={(e) => { setDataAte(e.target.value); setDiasFilter(null); }}
+                className="w-[9.5rem]"
+                aria-label="Atualizado até"
+              />
+              {(dataDe || dataAte) && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setDataDe(""); setDataAte(""); }}>
+                  Limpar
+                </Button>
+              )}
+            </div>
             <div className="flex gap-2">
               {[30, 60, 90].map((dias) => (
                 <Button
@@ -242,7 +272,7 @@ function SalesList() {
                   type="button"
                   variant={diasFilter === dias ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setDiasFilter((d) => (d === dias ? null : dias))}
+                  onClick={() => { setDiasFilter((d) => (d === dias ? null : dias)); setDataDe(""); setDataAte(""); }}
                 >
                   {dias} dias
                 </Button>
