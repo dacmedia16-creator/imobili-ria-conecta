@@ -15,7 +15,7 @@ import { AgingBadge } from "@/components/AgingBadge";
 import { STATUS_LABEL, proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
@@ -48,6 +48,7 @@ function SalesList() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [totalValor, setTotalValor] = useState(0);
   const [soMinhaVez, setSoMinhaVez] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -234,8 +235,21 @@ function SalesList() {
 
       <Card>
         <CardHeader className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-sm" />
+          <div className="flex items-center gap-2">
+            <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 md:max-w-sm" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 md:hidden"
+              onClick={() => setFiltersOpen((v) => !v)}
+            >
+              <SlidersHorizontal className="mr-1 h-4 w-4" />
+              Filtros
+              <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
+          <div className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
@@ -243,7 +257,7 @@ function SalesList() {
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"
                 value={dataDe}
@@ -323,59 +337,110 @@ function SalesList() {
           )}
           {!loading && displayedSales.length > 0 && (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Imóvel / código</TableHead>
-                    <TableHead>Corretor</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Nesta etapa</TableHead>
-                    <TableHead>Atualizado em</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayedSales.map((s) => {
-                    const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
-                    const minhaVez = saleIsMinhaVez(s);
-                    return (
-                      <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
-                        <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
-                        <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <StatusBadge status={s.status as SaleStatus} />
-                            {minhaVez && (
-                              <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                                Sua vez
-                              </span>
+              {/* Mobile: cards empilhados — a tabela força colunas largas demais e corta o texto
+                  do status numa tela estreita. A partir de md, volta pra tabela (mais densa, melhor
+                  pra comparar várias vendas de uma vez, o que faz sentido numa tela maior). */}
+              <div className="space-y-2 md:hidden">
+                {displayedSales.map((s) => {
+                  const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
+                  const minhaVez = saleIsMinhaVez(s);
+                  return (
+                    <div
+                      key={s.id}
+                      className={`cursor-pointer rounded-md border p-3 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+                      onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
+                          <div className="truncate text-sm text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</div>
+                        </div>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="-mr-2 -mt-1 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
+                            aria-label="Excluir venda"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <StatusBadge status={s.status as SaleStatus} />
+                        {minhaVez && (
+                          <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                            Sua vez
+                          </span>
+                        )}
+                        <AgingBadge since={stageSince[s.id] ?? s.created_at} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-sm">
+                        <span className="font-medium">
+                          {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Imóvel / código</TableHead>
+                      <TableHead>Corretor</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Nesta etapa</TableHead>
+                      <TableHead>Atualizado em</TableHead>
+                      <TableHead className="w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedSales.map((s) => {
+                      const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
+                      const minhaVez = saleIsMinhaVez(s);
+                      return (
+                        <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
+                          <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
+                          <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status={s.status as SaleStatus} />
+                              {minhaVez && (
+                                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                                  Sua vez
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
+                          <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell>
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
+                                aria-label="Excluir venda"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
-                        <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
-                        <TableCell>
-                          {canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
-                              aria-label="Excluir venda"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
               {hasMore && (
                 <div className="flex justify-center pt-4">
                   <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
