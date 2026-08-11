@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
+import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target } from "lucide-react";
 
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
@@ -70,6 +71,13 @@ function Dashboard() {
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metaCorretor, setMetaCorretor] = useState<{ meta_comissao: number; comissao_realizada: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+    if (!hasAny(["gestor", "team_leader"])) return;
+    fetchLedMemberIds(user.id).then(setTeamIds);
+  }, [user, hasAny]);
 
   useEffect(() => {
     if (!user) return;
@@ -278,7 +286,9 @@ function Dashboard() {
             const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
               papel === "corretor" ? s.corretor_id === user?.id
               : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
-              : papel === "gestor" ? hasAny(["gestor", "team_leader"])
+              // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
+              // mesmo comentário em vendas.index.tsx.
+              : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
               : hasAny([papel])
             );
             return (

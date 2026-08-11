@@ -219,7 +219,11 @@ function SalesList() {
                     const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
                       papel === "corretor" ? s.corretor_id === user?.id
                       : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
-                      : papel === "gestor" ? hasAny(["gestor", "team_leader"])
+                      // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda —
+                      // sem esse filtro, quem também é jurídico/financeiro/admin (e por isso enxerga
+                      // vendas de times que não lidera) via o badge acender pra toda venda parada
+                      // numa etapa do gestor, mesmo fora da própria equipe.
+                      : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
                       : hasAny([papel])
                     );
                     return (
