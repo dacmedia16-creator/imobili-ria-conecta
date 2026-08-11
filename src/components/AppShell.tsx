@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Button variant="ghost" size="icon" onClick={() => setMobileNavOpen(true)} aria-label="Abrir menu">
               <Menu className="h-5 w-5" />
             </Button>
-            <SheetContent side="left" className="relative w-72 overflow-hidden border-0 p-0 text-white [&>button]:text-white">
+            <SheetContent side="left" className="w-72 overflow-hidden border-0 p-0 text-white [&>button]:text-white">
               <BrandHeroBackground />
               <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
               <SheetDescription className="sr-only">Links de navegação do portal</SheetDescription>
