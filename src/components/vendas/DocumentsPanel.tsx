@@ -142,10 +142,12 @@ export function DocumentsPanel({
       const path = `${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from("sale-documents").upload(path, file, { upsert: false });
       if (error) { toast.error(error.message); return; }
-      const { error: insErr } = await supabase.from("sale_documents").insert({
-        sale_id: saleId, tipo: "certidao_juridico", parte: "juridico", storage_path: path, file_name: file.name,
-        descricao: nome.trim() || null, uploaded_by: user!.id, status: "enviado",
-      } as any);
+      // RPC em vez de insert direto: mesmo bug de RLS inconsistente do PostgREST já corrigido
+      // pra archive_sale_document (ver comentário em removeDoc) também acontecia aqui.
+      const { error: insErr } = await supabase.rpc("insert_sale_document", {
+        _sale_id: saleId, _tipo: "certidao_juridico", _parte: "juridico", _storage_path: path, _file_name: file.name,
+        _descricao: nome.trim() || undefined,
+      });
       if (insErr) { toast.error(insErr.message); return; }
       await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "certidao_juridico", descricao: nome } });
       toast.success("Certidão enviada");
@@ -251,10 +253,11 @@ export function DocumentsPanel({
     const path = `${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from("sale-documents").upload(path, file, { upsert: false });
     if (error) { toast.error(error.message); return; }
-    const { data: inserted, error: insErr } = await supabase.from("sale_documents").insert({
-      sale_id: saleId, tipo, parte, storage_path: path, file_name: file.name,
-      uploaded_by: user!.id, status: "enviado",
-    } as any).select("id").single();
+    // RPC em vez de insert direto: mesmo bug de RLS inconsistente do PostgREST já corrigido
+    // pra archive_sale_document (ver comentário em removeDoc) também acontecia aqui.
+    const { data: inserted, error: insErr } = await supabase.rpc("insert_sale_document", {
+      _sale_id: saleId, _tipo: tipo, _parte: parte, _storage_path: path, _file_name: file.name,
+    });
     if (insErr) { toast.error(insErr.message); return; }
     await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "document_uploaded", payload: { tipo, parte } });
     toast.success("Documento enviado");
@@ -271,10 +274,12 @@ export function DocumentsPanel({
     const baseDocs = docs.filter(d => d.tipo === tipo && (d.parte ?? "outros") === baseParte && d.status !== "recusado");
     const baseDoc = baseDocs[baseDocs.length - 1];
     if (!baseDoc) { toast.error(`Envie primeiro o documento de ${parteLabel(baseParte)}`); return; }
-    const { error } = await supabase.from("sale_documents").insert({
-      sale_id: saleId, tipo, parte, storage_path: baseDoc.storage_path, file_name: baseDoc.file_name,
-      uploaded_by: user!.id, status: baseDoc.status, extraction_status: "done",
-    } as any);
+    // RPC em vez de insert direto: mesmo bug de RLS inconsistente do PostgREST já corrigido
+    // pra archive_sale_document (ver comentário em removeDoc) também acontecia aqui.
+    const { error } = await supabase.rpc("insert_sale_document", {
+      _sale_id: saleId, _tipo: tipo, _parte: parte, _storage_path: baseDoc.storage_path, _file_name: baseDoc.file_name,
+      _status: baseDoc.status, _extraction_status: "done",
+    });
     if (error) { toast.error(error.message); return; }
 
     // O documento reaproveitado já foi extraído pela IA pro 1º — como o arquivo é o mesmo, o dado
