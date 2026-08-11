@@ -15,6 +15,7 @@ import { ArrowLeft, Plus, Send, Loader2, XCircle, CheckCircle2, RotateCcw, Alert
 import { MIDIA_OPTIONS, LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import { useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money } from "@/components/vendas/shared";
+import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 
 /** Tela única (sem wizard) da venda de Lançamento: sem documentos, sem jurídico, sem contrato — só
  * o formulário que o corretor/coordenador preenche, e que já sai direto pro financeiro ao enviar
@@ -43,6 +44,26 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
     supabase.from("sale_status_history").select("motivo").eq("sale_id", saleId).eq("para", "devolvida_ajuste")
       .order("created_at", { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setMotivoDevolucao(data?.motivo ?? null));
+  }, [sale.status, saleId]);
+
+  // Ocorrência já criada (qualquer status além de rascunho/devolvida_ajuste) — busca pra exibir a
+  // mesma tela formatada "Ocorrência de compra e venda" que as vendas normais têm, em vez de repetir
+  // os campos do formulário desabilitados.
+  const [occ, setOcc] = useState<any>(null);
+  const [occCommissions, setOccCommissions] = useState<any[]>([]);
+  const [loadingOcc, setLoadingOcc] = useState(false);
+  useEffect(() => {
+    if (sale.status === "rascunho" || sale.status === "devolvida_ajuste") { setOcc(null); return; }
+    setLoadingOcc(true);
+    (async () => {
+      const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle();
+      setOcc(o);
+      if (o) {
+        const { data: c } = await supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at");
+        setOccCommissions(c ?? []);
+      }
+      setLoadingOcc(false);
+    })();
   }, [sale.status, saleId]);
 
   // ----- Ações do financeiro sobre a Ocorrência já criada: devolver pro dono corrigir, concluir,
@@ -252,6 +273,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
         </div>
       )}
 
+      {canEdit && <>
       <SaleSection title="Imóvel e negociação">
         <FieldGrid>
           <Field label="Código do imóvel"><Input value={form.imovel_id} disabled={!canEdit} onChange={(e) => upd({ imovel_id: e.target.value })} /></Field>
@@ -360,6 +382,22 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       <SaleSection title="Observações">
         <Textarea value={form.negociacao_observacoes ?? ""} disabled={!canEdit} onChange={(e) => upd({ negociacao_observacoes: e.target.value })} rows={4} />
       </SaleSection>
+      </>}
+
+      {!canEdit && loadingOcc && <p className="py-8 text-center text-sm text-muted-foreground">Carregando ocorrência...</p>}
+
+      {!canEdit && !loadingOcc && occ && (
+        <div className="rounded-lg border p-4 print:border-0 print:p-0">
+          <OccurrenceReportBody
+            sale={sale}
+            occ={occ}
+            commissions={occCommissions}
+            partners={[]}
+            parties={parties}
+            papeis={LANCAMENTO_COMISSAO_PAPEIS}
+          />
+        </div>
+      )}
 
       {canEdit && (
         <div className="flex items-center justify-between gap-3">
@@ -391,7 +429,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
         </div>
       )}
 
-      {!canEdit && !(isFinanceiro && (sale.status === "ocorrencia_analise_financeiro" || sale.status === "ocorrencia_concluida")) && sale.status !== "devolvida_ajuste" && (
+      {!canEdit && !loadingOcc && !occ && sale.status !== "devolvida_ajuste" && (
         <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
           Este lançamento já foi enviado ao financeiro e não pode mais ser editado por aqui.
         </div>

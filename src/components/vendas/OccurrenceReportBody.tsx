@@ -42,12 +42,18 @@ function Checkbox({ checked, label }: { checked: boolean; label: string }) {
   return <span className="font-mono">({checked ? "X" : " "}) {label}</span>;
 }
 
-/** Tabelas do formulário "Ocorrência de compra e venda", compartilhadas entre a revisão (pré-finalização) e o relatório final. */
-export function OccurrenceReportBody({ sale, occ, commissions, partners, parties, distribuicao }: {
-  sale: any; occ: any; commissions: any[]; partners: any[]; parties: Record<string, any>; distribuicao?: any;
+/** Tabelas do formulário "Ocorrência de compra e venda", compartilhadas entre a revisão (pré-finalização) e o relatório final.
+ * `papeis` deixa trocar a lista de papéis de comissão exibida (default COMISSAO_PAPEIS) — a venda de
+ * Lançamento usa um subconjunto diferente (sem captador/vendedor/indicador, com Coordenador). */
+export function OccurrenceReportBody({ sale, occ, commissions, partners, parties, distribuicao, papeis = COMISSAO_PAPEIS }: {
+  sale: any; occ: any; commissions: any[]; partners: any[]; parties: Record<string, any>; distribuicao?: any; papeis?: typeof COMISSAO_PAPEIS;
 }) {
-  const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor")).map(([, p]) => p);
-  const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador")).map(([, p]) => p);
+  // Vendedor/comprador pessoa jurídica (ex: construtora do Lançamento) só preenche razão social/CNPJ,
+  // sem nome/CPF de representante — cai pro nome fantasia/CNPJ pra não mostrar a linha em branco.
+  const vendedores = Object.entries(parties).filter(([papel]) => papel.startsWith("vendedor"))
+    .map(([, p]) => ({ ...p, nome: p.nome || p.razao_social, cpf_cnpj: p.cpf_cnpj || p.cnpj }));
+  const compradores = Object.entries(parties).filter(([papel]) => papel.startsWith("comprador"))
+    .map(([, p]) => ({ ...p, nome: p.nome || p.razao_social, cpf_cnpj: p.cpf_cnpj || p.cnpj }));
   // Todas as linhas daquele papel, não só a primeira — find() escondia um segundo captador/vendedor,
   // mais de um gestor/Team Leader, ou outros extras repetidos do mesmo papel.
   const commByPapel = (papel: string) => commissions.filter((c) => c.papel === papel);
@@ -121,7 +127,7 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
 
       <FormTable>
         <FormHeadRow cols={["Papel", "Nome", "Comissão %", "Comissão R$"]} />
-        {COMISSAO_PAPEIS.flatMap((p) => {
+        {papeis.flatMap((p) => {
           const rows = commByPapel(p.key);
           if (rows.length === 0) {
             return [<FormValueRow key={p.key} cols={[p.label, "Não possui", "0%", "R$ 0,00"]} />];
