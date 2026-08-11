@@ -49,12 +49,42 @@ function SalesList() {
   const [totalValor, setTotalValor] = useState(0);
   const [soMinhaVez, setSoMinhaVez] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
+  const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
+  const [equipeFilter, setEquipeFilter] = useState<string>("todas");
 
   useEffect(() => {
     if (!user) return;
     if (!hasAny(["gestor", "team_leader"])) return;
     fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user, hasAny]);
+
+  // Jurídico/financeiro/admin/super admin enxergam vendas de todas as equipes por definição —
+  // esse filtro deixa restringir a visão a uma equipe específica. Gestor/team_leader já enxerga
+  // só a própria equipe (via RLS), então não precisam desse seletor.
+  useEffect(() => {
+    if (!hasAny(["juridico", "admin", "super_admin", "financeiro"])) return;
+    (async () => {
+      const [{ data: teams }, { data: members }] = await Promise.all([
+        supabase.from("teams").select("id, nome, parent_team_id"),
+        supabase.from("team_members").select("membro_id, team_id"),
+      ]);
+      const byId: Record<string, { nome: string; parent_team_id: string | null }> = {};
+      (teams ?? []).forEach((t: any) => { byId[t.id] = t; });
+      const byTeam: Record<string, string[]> = {};
+      (members ?? []).forEach((m: any) => { (byTeam[m.team_id] ??= []).push(m.membro_id); });
+      const topTeams = [...(teams ?? [])].filter((t: any) => !t.parent_team_id).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+      const options: { id: string; label: string }[] = [];
+      for (const top of topTeams) {
+        const subs = (teams ?? []).filter((t: any) => t.parent_team_id === top.id).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+        for (const t of [top, ...subs]) {
+          options.push({ id: t.id, label: t.parent_team_id ? `${byId[t.parent_team_id]?.nome ?? ""} → ${t.nome}` : t.nome });
+        }
+      }
+      setTeamOptions(options);
+      setMemberIdsByTeam(byTeam);
+    })();
+  }, [hasAny]);
 
   useEffect(() => {
     (async () => {
@@ -70,9 +100,12 @@ function SalesList() {
   // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
   // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
   // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string; ate?: string }> => {
-    const filters: { status?: string; orParts?: string[]; desde?: string; ate?: string } = {};
+  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }> => {
+    const filters: { status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
+    // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
+    // uuid que nunca bate em vez de deixar o .in() vazio, que o PostgREST trataria como "sem filtro".
+    if (equipeFilter !== "todas") filters.corretorIds = memberIdsByTeam[equipeFilter]?.length ? memberIdsByTeam[equipeFilter] : ["00000000-0000-0000-0000-000000000000"];
     // Chip de dias e período customizado (De/Até) são mutualmente exclusivos — os handlers do
     // chip e dos inputs de data já zeram um ao escolher o outro, então só um dos dois se aplica aqui.
     if (diasFilter) {
@@ -100,9 +133,9 @@ function SalesList() {
       filters.orParts = orParts;
     }
     return filters;
-  }, [statusFilter, diasFilter, dataDe, dataAte, q]);
+  }, [statusFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string; ate?: string }) => {
+  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
@@ -110,6 +143,7 @@ function SalesList() {
     if (filters.desde) out = out.gte("updated_at", filters.desde);
     if (filters.ate) out = out.lte("updated_at", filters.ate);
     if (filters.orParts) out = out.or(filters.orParts.join(","));
+    if (filters.corretorIds) out = out.in("corretor_id", filters.corretorIds);
     return out;
   };
 
@@ -257,6 +291,15 @@ function SalesList() {
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && teamOptions.length > 0 && (
+              <Select value={equipeFilter} onValueChange={setEquipeFilter}>
+                <SelectTrigger className="md:w-56"><SelectValue placeholder="Equipe" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as equipes</SelectItem>
+                  {teamOptions.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"
