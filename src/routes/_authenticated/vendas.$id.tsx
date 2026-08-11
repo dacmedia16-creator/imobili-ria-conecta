@@ -1680,6 +1680,15 @@ function SaleDetail() {
             </Button>
           )}
 
+          {/* Gestor: desfazer "contrato assinado" marcado por engano — volta pra aguardando_assinatura,
+              reabrindo subir/substituir e marcar de novo. Ainda não existe Ocorrência criada nesse
+              ponto (passo manual, separado), então não há nada além do status pra desfazer. */}
+          {isGestor && status === "ocorrencia_pendente" && (
+            <Button variant="outline" onClick={() => openReturnDialog("aguardando_assinatura")}>
+              <RotateCcw className="mr-2 h-4 w-4" />Desfazer contrato assinado
+            </Button>
+          )}
+
           {/* Financeiro: devolver ocorrência (aceite é feito dentro do painel de Ocorrência) */}
           {isFinanceiro && status === "ocorrencia_analise_financeiro" && (
             <Button variant="outline" onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}>
