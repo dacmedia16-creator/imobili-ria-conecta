@@ -1670,6 +1670,7 @@ function SaleDetail() {
               <Button onClick={marcarContratoAssinado} disabled={contratoAssinadoDocs.length === 0}>
                 <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
               </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
             </>
           )}
 
