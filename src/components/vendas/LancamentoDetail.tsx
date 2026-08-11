@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "@tanstack/react-router";
@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Send, Loader2, XCircle, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
 import { MIDIA_OPTIONS, LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import { useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money } from "@/components/vendas/shared";
@@ -26,10 +27,75 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
   commissionExtras: any[];
   onChange: () => void | Promise<void>;
 }) {
-  const { user } = useAuth();
+  const { user, hasAny } = useAuth();
   const router = useRouter();
   const isOwner = sale.corretor_id === user?.id;
-  const canEdit = sale.status === "rascunho" && isOwner;
+  const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
+  const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
+  const isResend = sale.status === "devolvida_ajuste";
+
+  // Motivo da devolução mais recente — a venda de Lançamento não tem painel de comentários/histórico
+  // próprio (tela única, sem wizard), então mostra direto o motivo gravado pelo financeiro em
+  // sale_status_history no momento de devolver.
+  const [motivoDevolucao, setMotivoDevolucao] = useState<string | null>(null);
+  useEffect(() => {
+    if (sale.status !== "devolvida_ajuste") { setMotivoDevolucao(null); return; }
+    supabase.from("sale_status_history").select("motivo").eq("sale_id", saleId).eq("para", "devolvida_ajuste")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => setMotivoDevolucao(data?.motivo ?? null));
+  }, [sale.status, saleId]);
+
+  // ----- Ações do financeiro sobre a Ocorrência já criada: devolver pro dono corrigir, concluir,
+  // reabrir depois de concluída — mesmas ações que as vendas normais têm, adaptadas ao fluxo de
+  // Lançamento (sem gestor no meio, então "devolver" volta direto pro corretor/coordenador). -----
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnMotivo, setReturnMotivo] = useState("");
+  const [returning, setReturning] = useState(false);
+  const submitReturn = async () => {
+    if (!returnMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
+    setReturning(true);
+    try {
+      const { error } = await supabase.rpc("change_sale_status", { _sale_id: saleId, _new_status: "devolvida_ajuste", _motivo: returnMotivo });
+      if (error) { toast.error(error.message); return; }
+      notifySaleStatusChange({ data: { saleId, status: "devolvida_ajuste", motivo: returnMotivo } }).catch(() => {});
+      toast.success("Lançamento devolvido");
+      setReturnOpen(false);
+      await onChange();
+    } finally {
+      setReturning(false);
+    }
+  };
+
+  const [concluding, setConcluding] = useState(false);
+  const concluirOcorrencia = async () => {
+    setConcluding(true);
+    try {
+      const { error } = await supabase.rpc("change_sale_status", { _sale_id: saleId, _new_status: "ocorrencia_concluida" });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Ocorrência concluída");
+      await onChange();
+    } finally {
+      setConcluding(false);
+    }
+  };
+
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenMotivo, setReopenMotivo] = useState("");
+  const [reopening, setReopening] = useState(false);
+  const submitReopen = async () => {
+    if (!reopenMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
+    setReopening(true);
+    try {
+      const { error } = await supabase.rpc("change_sale_status", { _sale_id: saleId, _new_status: "ocorrencia_analise_financeiro", _motivo: `Reaberta: ${reopenMotivo}` });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Ocorrência reaberta");
+      setReopenOpen(false);
+      setReopenMotivo("");
+      await onChange();
+    } finally {
+      setReopening(false);
+    }
+  };
 
   // ----- Resumo: campos direto em sales -----
   const [form, setForm] = useState(() => ({
@@ -153,7 +219,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       const { error } = await supabase.rpc("criar_ocorrencia_lancamento", { p_sale_id: saleId });
       if (error) { toast.error(error.message); return; }
       notifySaleStatusChange({ data: { saleId, status: "ocorrencia_analise_financeiro" } }).catch(() => {});
-      toast.success("Lançamento enviado ao financeiro");
+      toast.success(isResend ? "Lançamento reenviado ao financeiro" : "Lançamento enviado ao financeiro");
       await onChange();
     } finally {
       setSending(false);
@@ -175,6 +241,16 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
         <h1 className="text-2xl font-semibold tracking-tight">{sale.imovel_id || `Lançamento #${sale.id.slice(0, 8)}`}</h1>
         <p className="mt-1 text-sm text-muted-foreground">Venda de lançamento — em parceria com construtora.</p>
       </div>
+
+      {sale.status === "devolvida_ajuste" && (
+        <div className="flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <b>O financeiro devolveu este lançamento para ajuste.</b>
+            {motivoDevolucao && <p className="mt-1">{motivoDevolucao}</p>}
+          </div>
+        </div>
+      )}
 
       <SaleSection title="Imóvel e negociação">
         <FieldGrid>
@@ -290,16 +366,68 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
           <AutosaveStatus saving={false} dirty={anyDirty} />
           <Button onClick={enviarFinanceiro} disabled={sending || anyDirty}>
             {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            Enviar ao financeiro
+            {isResend ? "Reenviar ao financeiro" : "Enviar ao financeiro"}
           </Button>
         </div>
       )}
 
-      {sale.status !== "rascunho" && (
+      {!canEdit && isFinanceiro && sale.status === "ocorrencia_analise_financeiro" && (
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+          <p className="text-sm text-muted-foreground">Ocorrência em análise — devolva pro corretor/coordenador corrigir, ou conclua.</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setReturnOpen(true)}><XCircle className="mr-2 h-4 w-4" />Devolver</Button>
+            <Button onClick={concluirOcorrencia} disabled={concluding}>
+              {concluding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Concluir ocorrência
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!canEdit && isFinanceiro && sale.status === "ocorrencia_concluida" && (
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+          <p className="text-sm text-muted-foreground">Ocorrência concluída.</p>
+          <Button variant="outline" onClick={() => setReopenOpen(true)}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
+        </div>
+      )}
+
+      {!canEdit && !(isFinanceiro && (sale.status === "ocorrencia_analise_financeiro" || sale.status === "ocorrencia_concluida")) && sale.status !== "devolvida_ajuste" && (
         <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
           Este lançamento já foi enviado ao financeiro e não pode mais ser editado por aqui.
         </div>
       )}
+
+      <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devolver lançamento para ajuste</DialogTitle>
+            <DialogDescription>Descreva o motivo. O corretor/coordenador que enviou será notificado.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Motivo da devolução (obrigatório)" value={returnMotivo} onChange={(e) => setReturnMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReturnOpen(false)}>Cancelar</Button>
+            <Button onClick={submitReturn} disabled={!returnMotivo.trim() || returning}>
+              {returning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Devolver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir ocorrência</DialogTitle>
+            <DialogDescription>Descreva o motivo da reabertura.</DialogDescription>
+          </DialogHeader>
+          <Textarea placeholder="Motivo (obrigatório)" value={reopenMotivo} onChange={(e) => setReopenMotivo(e.target.value)} rows={4} />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setReopenOpen(false)}>Cancelar</Button>
+            <Button onClick={submitReopen} disabled={!reopenMotivo.trim() || reopening}>
+              {reopening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Reabrir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
