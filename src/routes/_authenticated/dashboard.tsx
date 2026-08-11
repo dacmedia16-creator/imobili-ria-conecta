@@ -283,9 +283,10 @@ function Dashboard() {
         <CardContent className="space-y-2">
           {!loading && recentes.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>}
           {recentes.map((s) => {
-            const minhaVez = proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+            // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila
+            // operacional de verdade, não pra quem só está supervisionando o sistema.
+            const minhaVez = !hasAny(["admin", "super_admin"]) && proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
               papel === "corretor" ? s.corretor_id === user?.id
-              : papel === "financeiro" ? hasAny(["financeiro", "admin", "super_admin"])
               // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
               // mesmo comentário em vendas.index.tsx.
               : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
