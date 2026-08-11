@@ -34,6 +34,7 @@ import { type Saver, useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field,
 import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel } from "@/components/vendas/DocumentsPanel";
+import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 
@@ -440,8 +441,17 @@ function SaleDetail() {
 
   if (loading || !sale) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
 
+  // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
+  // ver LancamentoDetail.
+  if (sale.modalidade === "lancamento") {
+    return <LancamentoDetail saleId={id} sale={sale} parties={parties} commissionExtras={commissionExtras} onChange={load} />;
+  }
+
   const status = sale.status as SaleStatus;
   const { isOwner, isFinanceiro, isAdminLike, isGestor, isJuridico } = getSaleRoleFlags(roles, sale.corretor_id, user?.id);
+  // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
+  // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
+  const isOwnerGestor = isOwner && isGestor;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
 
@@ -837,6 +847,18 @@ function SaleDetail() {
   const attemptSendForReview = () => setReviewOpen(true);
   const confirmSendForReview = async () => {
     if (pendencias.length > 0) { toast.error("Corrija as pendências antes de enviar"); return; }
+    // Dono também é gestor/team leader: em vez de ir para "enviada_revisao" (que ele mesmo teria que
+    // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
+    if (isOwnerGestor) {
+      if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
+      if (distribuicao && !distribuicao.calculo_valido) {
+        toast.error(`Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+        return;
+      }
+      setReviewOpen(false);
+      await changeStatus("aprovada_gestor");
+      return;
+    }
     setReviewOpen(false);
     await changeStatus("enviada_revisao");
   };
@@ -1534,7 +1556,7 @@ function SaleDetail() {
   // repetida no rodapé da última etapa do wizard, no lugar do "Próximo" (que ali não faz nada).
   // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
   const primaryAction: { label: string; icon: typeof Send; onClick: () => void; disabled?: boolean } | null =
-    isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
+    isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: isOwnerGestor ? "Enviar ao jurídico" : "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
     isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico } :
     isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog } :
@@ -1577,9 +1599,9 @@ function SaleDetail() {
           <p className="mt-1 text-sm text-muted-foreground">Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Corretor: envio inicial ou reenvio após devolução */}
+          {/* Corretor: envio inicial ou reenvio após devolução (dono que também é gestor/team leader pula a revisão e já manda pro jurídico) */}
           {isOwner && (status === "rascunho" || status === "devolvida_ajuste") && (
-            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />Enviar ao gestor</Button>
+            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />{isOwnerGestor ? "Enviar ao jurídico" : "Enviar ao gestor"}</Button>
           )}
 
           {/* Gestor: revisão inicial */}
@@ -2074,19 +2096,48 @@ function SaleDetail() {
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Conferência antes de enviar</DialogTitle>
-            <DialogDescription>Revise o que foi preenchido antes de enviar para o gestor.</DialogDescription>
+            <DialogTitle>{isOwnerGestor ? "Conferência antes de enviar ao jurídico" : "Conferência antes de enviar"}</DialogTitle>
+            <DialogDescription>
+              {isOwnerGestor
+                ? "Você também é gestor/team leader desta venda — a revisão do gestor é dispensada. Revise antes de encaminhar direto ao jurídico."
+                : "Revise o que foi preenchido antes de enviar para o gestor."}
+            </DialogDescription>
           </DialogHeader>
           <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
             {pendencias.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                <CheckCircle2 className="mr-2 inline h-4 w-4" />Venda pronta para revisão.
+                <CheckCircle2 className="mr-2 inline h-4 w-4" />{isOwnerGestor ? "Venda pronta para enviar ao jurídico." : "Venda pronta para revisão."}
               </div>
             ) : (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />{pendencias.length} pendência(s). Corrija antes de enviar.
                 <ul className="mt-2 space-y-1 pl-2">
                   {pendencias.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                </ul>
+              </div>
+            )}
+
+            {isOwnerGestor && docsPendentesAprovacao.length > 0 && (
+              <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />{docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.
+                <ul className="mt-2 space-y-1 pl-2">
+                  {docsPendentesAprovacao.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                </ul>
+              </div>
+            )}
+
+            {isOwnerGestor && comissaoExcedida && (
+              <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                A soma da comissão do captador ({money(formSale.valor_comissao_captador)}) e do vendedor ({money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão ({money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de enviar ao jurídico.
+              </div>
+            )}
+
+            {isOwnerGestor && distribuicao && !distribuicao.calculo_valido && (
+              <div className="rounded-md bg-destructive/10 p-3 text-destructive">
+                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-6">
+                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
                 </ul>
               </div>
             )}
@@ -2131,13 +2182,22 @@ function SaleDetail() {
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
-                <ReviewItem label="Anexados" value={`${docs.length}`} />
+                {isOwnerGestor ? (
+                  <ReviewItem label="Aprovados" value={`${docsApproved}/${requiredTypes.length}`} />
+                ) : (
+                  <ReviewItem label="Anexados" value={`${docs.length}`} />
+                )}
               </ReviewGroup>
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReviewOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmSendForReview} disabled={pendencias.length > 0}>Confirmar envio</Button>
+            <Button
+              onClick={confirmSendForReview}
+              disabled={pendencias.length > 0 || (isOwnerGestor && (docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)))}
+            >
+              {isOwnerGestor ? "Confirmar e enviar ao jurídico" : "Confirmar envio"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

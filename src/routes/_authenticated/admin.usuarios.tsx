@@ -20,11 +20,11 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   component: AdminUsers,
 });
 
-const ROLES: AppRole[] = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"];
+const ROLES: AppRole[] = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "lancamento", "admin", "super_admin"];
 
 function allowedRolesFor(roles: AppRole[]): AppRole[] {
   if (roles.includes("super_admin")) return [...ROLES];
-  if (roles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
+  if (roles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "lancamento"];
   if (roles.includes("gestor") || roles.includes("team_leader")) return ["corretor"];
   return [];
 }

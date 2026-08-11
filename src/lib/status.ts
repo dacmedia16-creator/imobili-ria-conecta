@@ -126,8 +126,11 @@ export function parteSortKey(parte: string): [number, number] {
   return [m[1] === "vendedor" ? 0 : 1, Number(m[2])];
 }
 
-/** Status a partir do qual a venda já passou pelo gestor e está (ou já esteve) nas mãos do jurídico. */
-export function chegouAoJuridico(status: SaleStatus): boolean {
+/** Status a partir do qual a venda já passou pelo gestor e está (ou já esteve) nas mãos do jurídico.
+ * Venda de Lançamento (modalidade) nunca passa pelo jurídico — sempre false pra ela, independente do
+ * status (vai direto de rascunho pro financeiro). */
+export function chegouAoJuridico(status: SaleStatus, modalidade?: string): boolean {
+  if (modalidade === "lancamento") return false;
   return !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
 }
 
@@ -219,8 +222,15 @@ export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
   { key: "lider_vendedor", label: "Gestor/Team Leader do vendedor" },
   { key: "gestor", label: "Gestor" },
   { key: "team_leader", label: "Team Leader" },
+  { key: "coordenador_lancamento", label: "Coordenador (Lançamento)" },
   { key: "outro", label: "Outro" },
 ];
+
+/** Subconjunto de COMISSAO_PAPEIS relevante pra divisão de comissão de uma venda de Lançamento —
+ * não existe captador/vendedor/indicador ali, só corretor + Team Leader(s) + Coordenador. */
+export const LANCAMENTO_COMISSAO_PAPEIS = COMISSAO_PAPEIS.filter((p) =>
+  ["corretor_vendedor", "team_leader", "coordenador_lancamento", "outro"].includes(p.key),
+);
 
 /** Tipos de parceria externa que a Resumo pode sinalizar antes de a venda chegar à Ocorrência. */
 export const PARCERIA_TIPOS: { key: string; label: string }[] = [

@@ -98,7 +98,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
 
     const { data: sale } = await supabase
       .from("sales")
-      .select("id, corretor_id, imovel_id, codigo_interno")
+      .select("id, corretor_id, imovel_id, codigo_interno, modalidade")
       .eq("id", data.saleId)
       .maybeSingle();
     if (!sale) return { notified: 0, sent: 0 };
@@ -155,7 +155,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     if (sale.corretor_id) atualizacaoPapelById.set(sale.corretor_id, "corretor");
     for (const l of liderIds)
       if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
-    if (chegouAoJuridico(status)) {
+    if (chegouAoJuridico(status, sale.modalidade)) {
       const { data: juridicoUsers } = await supabaseAdmin
         .from("user_roles")
         .select("user_id")

@@ -368,6 +368,7 @@ export type Database = {
           oba_credito: boolean
           observacoes: string | null
           percentual_comissao: number | null
+          premio_valor: number | null
           prev_recebimento_data: string | null
           prev_recebimento_forma: string | null
           prev_recebimento_recebido_em: string | null
@@ -413,6 +414,7 @@ export type Database = {
           oba_credito?: boolean
           observacoes?: string | null
           percentual_comissao?: number | null
+          premio_valor?: number | null
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_recebido_em?: string | null
@@ -458,6 +460,7 @@ export type Database = {
           oba_credito?: boolean
           observacoes?: string | null
           percentual_comissao?: number | null
+          premio_valor?: number | null
           prev_recebimento_data?: string | null
           prev_recebimento_forma?: string | null
           prev_recebimento_recebido_em?: string | null
@@ -657,6 +660,13 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_commission_extras_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -940,6 +950,7 @@ export type Database = {
           corretor_vendedor: string | null
           corretor_vendedor_id: string | null
           created_at: string
+          data_assinatura: string | null
           forma_pagamento: string | null
           id: string
           imovel_endereco: string | null
@@ -956,7 +967,9 @@ export type Database = {
           lider_vendedor_nome: string | null
           matricula: string | null
           midia: string | null
+          modalidade: string
           negociacao_observacoes: string | null
+          nota_fiscal_obrigatoria: boolean
           parceria_agencia: string | null
           parceria_banco: string | null
           parceria_conta: string | null
@@ -973,6 +986,7 @@ export type Database = {
           percentual_remax: number | null
           posse_data: string | null
           posse_observacoes: string | null
+          premio_valor: number | null
           previsao_recebimento_data: string | null
           previsao_recebimento_forma: string | null
           previsao_recebimento_valor: number | null
@@ -1014,6 +1028,7 @@ export type Database = {
           corretor_vendedor?: string | null
           corretor_vendedor_id?: string | null
           created_at?: string
+          data_assinatura?: string | null
           forma_pagamento?: string | null
           id?: string
           imovel_endereco?: string | null
@@ -1030,7 +1045,9 @@ export type Database = {
           lider_vendedor_nome?: string | null
           matricula?: string | null
           midia?: string | null
+          modalidade?: string
           negociacao_observacoes?: string | null
+          nota_fiscal_obrigatoria?: boolean
           parceria_agencia?: string | null
           parceria_banco?: string | null
           parceria_conta?: string | null
@@ -1047,6 +1064,7 @@ export type Database = {
           percentual_remax?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
+          premio_valor?: number | null
           previsao_recebimento_data?: string | null
           previsao_recebimento_forma?: string | null
           previsao_recebimento_valor?: number | null
@@ -1088,6 +1106,7 @@ export type Database = {
           corretor_vendedor?: string | null
           corretor_vendedor_id?: string | null
           created_at?: string
+          data_assinatura?: string | null
           forma_pagamento?: string | null
           id?: string
           imovel_endereco?: string | null
@@ -1104,7 +1123,9 @@ export type Database = {
           lider_vendedor_nome?: string | null
           matricula?: string | null
           midia?: string | null
+          modalidade?: string
           negociacao_observacoes?: string | null
+          nota_fiscal_obrigatoria?: boolean
           parceria_agencia?: string | null
           parceria_banco?: string | null
           parceria_conta?: string | null
@@ -1121,6 +1142,7 @@ export type Database = {
           percentual_remax?: number | null
           posse_data?: string | null
           posse_observacoes?: string | null
+          premio_valor?: number | null
           previsao_recebimento_data?: string | null
           previsao_recebimento_forma?: string | null
           previsao_recebimento_valor?: number | null
@@ -1148,7 +1170,22 @@ export type Database = {
           valor_remax?: number | null
           valor_total_comissao?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sales_lider_captador_id_fkey"
+            columns: ["lider_captador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_lider_vendedor_id_fkey"
+            columns: ["lider_vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_co_leaders: {
         Row: {
@@ -1282,10 +1319,12 @@ export type Database = {
         Args: { _document_id: string }
         Returns: undefined
       }
-      calcular_distribuicao_venda: {
-        Args: { p_sale_id: string }
-        Returns: Json
-      }
+      calcular_distribuicao_venda:
+        | {
+            Args: { p_sale: Database["public"]["Tables"]["sales"]["Row"] }
+            Returns: Json
+          }
+        | { Args: { p_sale_id: string }; Returns: Json }
       can_edit_sale_comissao: {
         Args: { _sale_id: string; _user: string }
         Returns: boolean
@@ -1312,7 +1351,8 @@ export type Database = {
           sale_id: string
         }[]
       }
-      criar_ocorrencia_completa: {
+      criar_ocorrencia_completa: { Args: { p_sale_id: string }; Returns: Json }
+      criar_ocorrencia_lancamento: {
         Args: { p_sale_id: string }
         Returns: Json
       }
@@ -1331,6 +1371,42 @@ export type Database = {
         }
         Returns: boolean
       }
+      insert_sale_document: {
+        Args: {
+          _descricao?: string
+          _extraction_status?: string
+          _file_name: string
+          _parte: string
+          _sale_id: string
+          _status?: Database["public"]["Enums"]["doc_status"]
+          _storage_path: string
+          _tipo: string
+        }
+        Returns: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          descricao: string | null
+          extraction_status: string
+          file_name: string | null
+          id: string
+          motivo_recusa: string | null
+          parte: string
+          sale_id: string
+          status: Database["public"]["Enums"]["doc_status"]
+          storage_path: string | null
+          tipo: string
+          updated_at: string
+          uploaded_by: string | null
+          versao: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sale_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       is_active_user: { Args: { _user: string }; Returns: boolean }
       is_lead_of: {
         Args: { _lider: string; _membro: string }
@@ -1343,15 +1419,24 @@ export type Database = {
       }
       list_active_corretores: {
         Args: never
-        Returns: { id: string; nome: string }[]
+        Returns: {
+          id: string
+          nome: string
+        }[]
       }
       list_active_gestores: {
         Args: never
-        Returns: { id: string; nome: string }[]
+        Returns: {
+          id: string
+          nome: string
+        }[]
       }
       list_active_team_leaders: {
         Args: never
-        Returns: { id: string; nome: string }[]
+        Returns: {
+          id: string
+          nome: string
+        }[]
       }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
       sees_own_team_leader: {
@@ -1383,6 +1468,7 @@ export type Database = {
         | "admin"
         | "super_admin"
         | "team_leader"
+        | "lancamento"
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado"
       sale_status:
         | "rascunho"
@@ -1538,6 +1624,7 @@ export const Constants = {
         "admin",
         "super_admin",
         "team_leader",
+        "lancamento",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [

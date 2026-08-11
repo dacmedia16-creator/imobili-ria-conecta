@@ -157,9 +157,16 @@ function SalesList() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
-        {hasAny(["corretor", "gestor", "team_leader"]) && (
-          <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link></Button>
-        )}
+        <div className="flex gap-2">
+          {hasAny(["corretor", "gestor", "team_leader"]) && (
+            <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link></Button>
+          )}
+          {hasAny(["lancamento"]) && (
+            <Button asChild variant={hasAny(["corretor", "gestor", "team_leader"]) ? "outline" : "default"}>
+              <Link to="/vendas/lancamento/nova"><Plus className="mr-2 h-4 w-4" />Novo Lançamento</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -179,6 +186,9 @@ function SalesList() {
             <div className="py-8 text-center text-sm text-muted-foreground">
               {hasAny(["corretor"]) && !hasAny(["gestor","team_leader","juridico","financeiro","admin","super_admin"]) && (
                 <>Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.</>
+              )}
+              {hasAny(["lancamento"]) && !hasAny(["corretor","gestor","team_leader","juridico","financeiro","admin","super_admin"]) && (
+                <>Você ainda não criou nenhum lançamento. Clique em <b>Novo Lançamento</b> para começar.</>
               )}
               {hasAny(["gestor","team_leader"]) && !hasAny(["financeiro","admin","super_admin"]) && (
                 <>Nenhuma venda visível. Peça ao administrador para vincular corretores à sua equipe.</>
