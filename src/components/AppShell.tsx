@@ -35,7 +35,7 @@ function SidebarNav({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => vo
             to={n.to}
             activeOptions={{ exact: n.to === "/" }}
             onClick={onNavigate}
-            className="flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
+            className="flex touch-manipulation items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
             activeProps={{ className: "bg-white/10 border-[#ff3b3b] text-white font-medium" }}
           >
             <n.icon className="h-4 w-4" />

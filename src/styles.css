@@ -152,4 +152,11 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+
+  /* O menu mobile (Sheet) fica colado na borda esquerda da tela — sem isso, um toque perto da
+     borda podia ser lido pelo Chrome/Android como o gesto de "voltar" (arrastar da borda), que
+     cancela o toque no link em vez de navegar. */
+  html, body {
+    overscroll-behavior-x: none;
+  }
 }
