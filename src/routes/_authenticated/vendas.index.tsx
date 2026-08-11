@@ -42,6 +42,9 @@ function SalesList() {
   const [deleting, setDeleting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [totalValor, setTotalValor] = useState(0);
+  const [soMinhaVez, setSoMinhaVez] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -60,10 +63,12 @@ function SalesList() {
 
   // Busca por nome de comprador/vendedor (sale_parties) precisa de uma consulta à parte pra achar
   // quais vendas batem, já que esse dado não mora em "sales" — o resultado vira um id.in.(...)
-  // somado aos campos de texto que já existem na própria linha da venda.
-  const fetchPage = useCallback(async (from: number) => {
-    let query = supabase.from("sales").select(SALE_COLUMNS).order("updated_at", { ascending: false });
-    if (statusFilter !== "todas") query = query.eq("status", statusFilter as any);
+  // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
+  // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
+  // mas sem a paginação.
+  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[] }> => {
+    const filters: { status?: string; orParts?: string[] } = {};
+    if (statusFilter !== "todas") filters.status = statusFilter;
     // "," e "()" têm significado especial na sintaxe de filtro do PostgREST (separador de
     // condições e escopo de valor) — removidos aqui pra um termo de busca com esses caracteres
     // não quebrar a query. O ilike em si (comparação por método, não string crua) não precisa disso.
@@ -78,11 +83,35 @@ function SalesList() {
         `corretor_vendedor.ilike.%${qSafe}%`,
       ];
       if (partySaleIds.length) orParts.push(`id.in.(${partySaleIds.join(",")})`);
-      query = query.or(orParts.join(","));
+      filters.orParts = orParts;
     }
+    return filters;
+  }, [statusFilter, q]);
+
+  const applyFilters = (query: any, filters: { status?: string; orParts?: string[] }) => {
+    let out = query;
+    if (filters.status) out = out.eq("status", filters.status);
+    if (filters.orParts) out = out.or(filters.orParts.join(","));
+    return out;
+  };
+
+  const fetchPage = useCallback(async (from: number) => {
+    const filters = await buildFilters();
+    const query = applyFilters(supabase.from("sales").select(SALE_COLUMNS).order("updated_at", { ascending: false }), filters);
     const { data } = await query.range(from, from + PAGE_SIZE - 1);
     return data ?? [];
-  }, [statusFilter, q]);
+  }, [buildFilters]);
+
+  // Contador + soma do valor negociado de TODAS as vendas que batem no filtro atual (não só a
+  // página carregada) — só a coluna valor_negociado, então a soma sai barata mesmo pra bases maiores.
+  const fetchSummary = useCallback(async () => {
+    const filters = await buildFilters();
+    const countQuery = applyFilters(supabase.from("sales").select("id", { count: "exact", head: true }), filters);
+    const sumQuery = applyFilters(supabase.from("sales").select("valor_negociado").limit(5000), filters);
+    const [{ count }, { data: valores }] = await Promise.all([countQuery, sumQuery]);
+    setTotalCount(count ?? 0);
+    setTotalValor((valores ?? []).reduce((sum: number, r: any) => sum + (Number(r.valor_negociado) || 0), 0));
+  }, [buildFilters]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[]) => {
@@ -109,7 +138,7 @@ function SalesList() {
   const load = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
     setLoading(true);
-    const rows = await fetchPage(0);
+    const [rows] = await Promise.all([fetchPage(0), fetchSummary()]);
     if (requestIdRef.current !== myRequestId) return;
     setSales(rows);
     setStageSince({});
@@ -117,7 +146,7 @@ function SalesList() {
     await mergeStageSince(rows.map((s: any) => s.id));
     if (requestIdRef.current !== myRequestId) return;
     setLoading(false);
-  }, [fetchPage]);
+  }, [fetchPage, fetchSummary]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -153,6 +182,23 @@ function SalesList() {
     }
   };
 
+  // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila operacional
+  // de verdade, não pra quem só está supervisionando o sistema.
+  const isOverseer = hasAny(["admin", "super_admin"]);
+  const podeTerFila = !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
+  const saleIsMinhaVez = useCallback((s: any) => {
+    if (isOverseer) return false;
+    return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+      papel === "corretor" ? s.corretor_id === user?.id
+      // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — sem esse filtro,
+      // quem também é jurídico/financeiro (e por isso enxerga vendas de times que não lidera) via
+      // o badge acender pra toda venda parada numa etapa do gestor, mesmo fora da própria equipe.
+      : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
+      : hasAny([papel])
+    );
+  }, [isOverseer, user?.id, hasAny, teamIds]);
+  const displayedSales = soMinhaVez ? sales.filter(saleIsMinhaVez) : sales;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -170,15 +216,34 @@ function SalesList() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-sm" />
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todos os status</SelectItem>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <CardHeader className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="md:max-w-sm" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todos os status</SelectItem>
+                {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {podeTerFila && (
+              <Button
+                type="button"
+                variant={soMinhaVez ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSoMinhaVez((v) => !v)}
+                className={soMinhaVez ? "bg-destructive hover:bg-destructive/90" : ""}
+              >
+                Só minha vez
+              </Button>
+            )}
+          </div>
+          {!loading && totalCount !== null && (
+            <p className="text-sm text-muted-foreground">
+              {totalCount} {totalCount === 1 ? "venda encontrada" : "vendas encontradas"}
+              {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
@@ -199,7 +264,12 @@ function SalesList() {
               {hasAny(["financeiro","admin","super_admin"]) && (<>Nenhuma venda encontrada com o filtro atual.</>)}
             </div>
           )}
-          {!loading && sales.length > 0 && (
+          {!loading && sales.length > 0 && displayedSales.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhuma venda esperando sua ação na página carregada. {hasMore && "Carregue mais vendas ou desative o filtro pra ver o restante."}
+            </p>
+          )}
+          {!loading && displayedSales.length > 0 && (
             <>
               <Table>
                 <TableHeader>
@@ -214,19 +284,9 @@ function SalesList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sales.map((s) => {
+                  {displayedSales.map((s) => {
                     const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
-                    // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma
-                    // fila operacional de verdade, não pra quem só está supervisionando o sistema.
-                    const minhaVez = !hasAny(["admin", "super_admin"]) && proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
-                      papel === "corretor" ? s.corretor_id === user?.id
-                      // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda —
-                      // sem esse filtro, quem também é jurídico/financeiro (e por isso enxerga
-                      // vendas de times que não lidera) via o badge acender pra toda venda parada
-                      // numa etapa do gestor, mesmo fora da própria equipe.
-                      : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
-                      : hasAny([papel])
-                    );
+                    const minhaVez = saleIsMinhaVez(s);
                     return (
                       <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
                         <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
