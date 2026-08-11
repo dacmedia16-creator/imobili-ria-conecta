@@ -35,6 +35,7 @@ function SalesList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>("todas");
+  const [diasFilter, setDiasFilter] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
@@ -66,9 +67,14 @@ function SalesList() {
   // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
   // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
   // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[] }> => {
-    const filters: { status?: string; orParts?: string[] } = {};
+  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string }> => {
+    const filters: { status?: string; orParts?: string[]; desde?: string } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
+    if (diasFilter) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - diasFilter);
+      filters.desde = cutoff.toISOString();
+    }
     // "," e "()" têm significado especial na sintaxe de filtro do PostgREST (separador de
     // condições e escopo de valor) — removidos aqui pra um termo de busca com esses caracteres
     // não quebrar a query. O ilike em si (comparação por método, não string crua) não precisa disso.
@@ -86,11 +92,14 @@ function SalesList() {
       filters.orParts = orParts;
     }
     return filters;
-  }, [statusFilter, q]);
+  }, [statusFilter, diasFilter, q]);
 
-  const applyFilters = (query: any, filters: { status?: string; orParts?: string[] }) => {
+  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string }) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
+    // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
+    // não pela data de criação — assim o filtro reflete o mesmo recorte que a pessoa já enxerga.
+    if (filters.desde) out = out.gte("updated_at", filters.desde);
     if (filters.orParts) out = out.or(filters.orParts.join(","));
     return out;
   };
@@ -226,6 +235,19 @@ function SalesList() {
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            <div className="flex gap-2">
+              {[30, 60, 90].map((dias) => (
+                <Button
+                  key={dias}
+                  type="button"
+                  variant={diasFilter === dias ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDiasFilter((d) => (d === dias ? null : dias))}
+                >
+                  {dias} dias
+                </Button>
+              ))}
+            </div>
             {podeTerFila && (
               <Button
                 type="button"
