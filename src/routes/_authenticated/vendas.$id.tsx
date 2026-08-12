@@ -478,6 +478,13 @@ function SaleDetail() {
   const gestorEdits = gestorPodeEditar(isGestor, status);
   const juridicoEdits = juridicoPodeEditar(isJuridico, status);
   const editable = podeEditarVenda({ corretorEdits, gestorEdits, juridicoEdits, isFinanceiro, isAdminLike, locked });
+  // Divisão da comissão é trava mais estrita que o resto do Resumo: nunca é o corretor quem edita
+  // (nem em rascunho, onde `editable` já é true pra ele por ser dono da venda), só gestor/team leader
+  // (e só nos status em que é a vez dele, já refletido em gestorEdits) ou financeiro/admin — mesma
+  // regra de can_edit_sale_comissao no banco (enforce_sale_comissao_lock). Sem essa distinção os
+  // campos ficavam clicáveis pro corretor mas todo save estourava o erro "Somente o gestor/team
+  // leader..." vindo direto do trigger, sem nenhum aviso antes de tentar digitar.
+  const editableComissao = editable && (isGestor || isFinanceiro || isAdminLike);
   // Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total da
   // comissão. Fora isso o preenchimento é livre — isso só vira bloqueio na hora de avançar pro
   // jurídico (confirmApproveJuridico), nunca trava a digitação em si.
@@ -1216,28 +1223,28 @@ function SaleDetail() {
               </div>
             )}
             <FieldGrid>
-              <Field label="% da REMAX (sobre o valor negociado)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editable} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
-              <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editable} onChange={applyRemaxValor} /></Field>
-              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editable} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editable} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
+              <Field label="% da REMAX (sobre o valor negociado)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editableComissao} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
+              <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editableComissao} onChange={applyRemaxValor} /></Field>
+              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
+              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
               {formSale.lider_captador_id && (
                 <Field label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
+                  <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
                 </Field>
               )}
               {formSale.lider_vendedor_id && (
                 <Field label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
+                  <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
                 </Field>
               )}
               {formSale.indicador_captador && (
                 <Field label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
+                  <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
                 </Field>
               )}
               {formSale.indicador_vendedor && (
                 <Field label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editable} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
+                  <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
                 </Field>
               )}
               <Field label="Líquido do captador (R$)">
@@ -1264,7 +1271,7 @@ function SaleDetail() {
                           const c = corretorOptions.find((o) => o.id === v);
                           updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
                         }}
-                        disabled={!editable}
+                        disabled={!editableComissao}
                       >
                         <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                         <SelectContent>
@@ -1274,8 +1281,8 @@ function SaleDetail() {
                           {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
-                      {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
+                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                     </div>
                   </Field>
                 );
@@ -1297,7 +1304,7 @@ function SaleDetail() {
                 return (
                   <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Select value={liderAtualId || ""} onValueChange={(v) => onSelectLider(v)} disabled={!editable}>
+                      <Select value={liderAtualId || ""} onValueChange={(v) => onSelectLider(v)} disabled={!editableComissao}>
                         <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o líder cadastrado" /></SelectTrigger>
                         <SelectContent>
                           {opcoesLider.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
@@ -1308,14 +1315,14 @@ function SaleDetail() {
                       <span className="w-36 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" title="Gestor/Team Leader sempre sai do saldo da imobiliária">
                         Imobiliária
                       </span>
-                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
-                      {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
+                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
                     </div>
                   </Field>
                 );
               })}
             </FieldGrid>
-            {editable && (
+            {editableComissao && (
               <div className="mt-2 flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => addCoCorretor("captador")}>
                   <Plus className="mr-1 h-4 w-4" />Outro captador
@@ -1339,34 +1346,34 @@ function SaleDetail() {
                 )}
               </p>
               <FieldGrid>
-                <Field label="1ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editable} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
-                <Field label="1ª parcela — data"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
-                <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
+                <Field label="1ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
+                <Field label="1ª parcela — data"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
+                <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
               </FieldGrid>
               {(showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && (
                 <div className="mt-3">
                   <FieldGrid>
-                    <Field label="2ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento2_valor} disabled={!editable} onChange={(v) => updResumo({ previsao_recebimento2_valor: v })} /></Field>
-                    <Field label="2ª parcela — data"><Input type="date" value={formSale.previsao_recebimento2_data ?? ""} disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento2_data: e.target.value || null })} /></Field>
-                    <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento2_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento2_forma: e.target.value })} /></Field>
+                    <Field label="2ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento2_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento2_valor: v })} /></Field>
+                    <Field label="2ª parcela — data"><Input type="date" value={formSale.previsao_recebimento2_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_data: e.target.value || null })} /></Field>
+                    <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento2_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_forma: e.target.value })} /></Field>
                   </FieldGrid>
                 </div>
               )}
               {(showParcela3Recebimento || formSale.previsao_recebimento3_valor != null || formSale.previsao_recebimento3_data || formSale.previsao_recebimento3_forma) && (
                 <div className="mt-3">
                   <FieldGrid>
-                    <Field label="3ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento3_valor} disabled={!editable} onChange={(v) => updResumo({ previsao_recebimento3_valor: v })} /></Field>
-                    <Field label="3ª parcela — data"><Input type="date" value={formSale.previsao_recebimento3_data ?? ""} disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento3_data: e.target.value || null })} /></Field>
-                    <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento3_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editable} onChange={(e) => updResumo({ previsao_recebimento3_forma: e.target.value })} /></Field>
+                    <Field label="3ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento3_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento3_valor: v })} /></Field>
+                    <Field label="3ª parcela — data"><Input type="date" value={formSale.previsao_recebimento3_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_data: e.target.value || null })} /></Field>
+                    <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento3_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_forma: e.target.value })} /></Field>
                   </FieldGrid>
                 </div>
               )}
-              {editable && !showParcela2Recebimento && formSale.previsao_recebimento2_valor == null && !formSale.previsao_recebimento2_data && !formSale.previsao_recebimento2_forma && (
+              {editableComissao && !showParcela2Recebimento && formSale.previsao_recebimento2_valor == null && !formSale.previsao_recebimento2_data && !formSale.previsao_recebimento2_forma && (
                 <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela2Recebimento(true)}>
                   <Plus className="mr-1 h-4 w-4" />Adicionar parcela
                 </Button>
               )}
-              {editable && (showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && !showParcela3Recebimento && formSale.previsao_recebimento3_valor == null && !formSale.previsao_recebimento3_data && !formSale.previsao_recebimento3_forma && (
+              {editableComissao && (showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && !showParcela3Recebimento && formSale.previsao_recebimento3_valor == null && !formSale.previsao_recebimento3_data && !formSale.previsao_recebimento3_forma && (
                 <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela3Recebimento(true)}>
                   <Plus className="mr-1 h-4 w-4" />Adicionar parcela
                 </Button>
@@ -1377,7 +1384,7 @@ function SaleDetail() {
                 <p className="text-xs text-muted-foreground">
                   Partes extras da divisão — classifique quem é a pessoa e de qual fatia (imobiliária, captador ou vendedor) o valor sai.
                 </p>
-                {editable && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
+                {editableComissao && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
               </div>
               {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel)).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
               <div className="space-y-2">
@@ -1387,7 +1394,7 @@ function SaleDetail() {
                     <Field label="Nome">
                       <Input
                         value={r.nome ?? ""}
-                        disabled={!editable}
+                        disabled={!editableComissao}
                         onChange={(e) => updExtra(r.id, { nome: e.target.value })}
                       />
                     </Field>
@@ -1400,7 +1407,7 @@ function SaleDetail() {
                           if (v === "corretor_vendedor") patch.origem = "vendedor";
                           updExtra(r.id, patch);
                         }}
-                        disabled={!editable}
+                        disabled={!editableComissao}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -1414,7 +1421,7 @@ function SaleDetail() {
                       </Select>
                     </Field>
                     <Field label="Origem">
-                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editable}>
+                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editableComissao}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="imobiliaria">Imobiliária</SelectItem>
@@ -1423,9 +1430,9 @@ function SaleDetail() {
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field label="% (sobre a origem)"><Input type="number" step="0.001" value={r.percentual ?? ""} disabled={!editable} onChange={(e) => updExtra(r.id, { percentual: e.target.value })} /></Field>
-                    <Field label="Valor (R$)"><CurrencyInput value={r.valor} disabled={!editable} onChange={(v) => updExtra(r.id, { valor: v })} /></Field>
-                    {editable && (
+                    <Field label="% (sobre a origem)"><Input type="number" step="0.001" value={r.percentual ?? ""} disabled={!editableComissao} onChange={(e) => updExtra(r.id, { percentual: e.target.value })} /></Field>
+                    <Field label="Valor (R$)"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></Field>
+                    {editableComissao && (
                       <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button></div>
                     )}
                   </div>
