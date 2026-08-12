@@ -206,8 +206,28 @@ export function PartiesStep({ saleId, parties, banks, editable, onSaved, registe
             if (clienteError) { toast.error(clienteError.message); return false; }
           } else {
             const { data: novoCliente, error: clienteError } = await supabase.from("clientes").insert({ ...clientePayload, created_by: user?.id ?? null }).select("id").single();
-            if (clienteError) { toast.error(clienteError.message); return false; }
-            clienteId = novoCliente.id;
+            if (clienteError) {
+              // Corrida: outro save concorrente (autosave x troca de aba/status, que também força
+              // salvar) pode inserir o mesmo CPF entre o SELECT acima e este INSERT — o SELECT não
+              // é atômico com o INSERT. Em vez de estourar erro pro usuário, busca de novo (a outra
+              // chamada já deve ter criado) e atualiza esse registro em vez de falhar.
+              if (clienteError.code === "23505") {
+                const { data: achouDeNovo } = await supabase.from("clientes").select("id").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+                if (achouDeNovo) {
+                  clienteId = achouDeNovo.id;
+                  const { error: updateError } = await supabase.from("clientes").update({ ...clientePayload, updated_by: user?.id ?? null }).eq("id", clienteId);
+                  if (updateError) { toast.error(updateError.message); return false; }
+                } else {
+                  toast.error(clienteError.message);
+                  return false;
+                }
+              } else {
+                toast.error(clienteError.message);
+                return false;
+              }
+            } else {
+              clienteId = novoCliente.id;
+            }
           }
         }
         const data = {

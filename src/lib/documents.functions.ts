@@ -278,7 +278,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
             if (!jaTem && clienteExistente[k]) { patch[k] = clienteExistente[k]; filled.push(`${papel}.${k}`); }
           }
         } else {
-          const { data: novoCliente } = await supabase.from("clientes").insert({
+          const { data: novoCliente, error: novoClienteError } = await supabase.from("clientes").insert({
             tipo_pessoa: cur?.tipo_pessoa ?? "fisica",
             nome: patch.nome ?? cur?.nome ?? null,
             cpf_cnpj: cpfFinal,
@@ -289,7 +289,15 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
             endereco: patch.endereco ?? cur?.endereco ?? null,
             created_by: userId ?? null,
           }).select("id").single();
-          if (novoCliente) { patch.cliente_id = novoCliente.id; any = true; }
+          if (novoCliente) {
+            patch.cliente_id = novoCliente.id;
+            any = true;
+          } else if (novoClienteError?.code === "23505") {
+            // Corrida com PartiesStep.saveAll (usuário digitando o mesmo CPF na tela ao mesmo tempo
+            // em que a IA grava a extração do documento) — o cliente já foi criado pelo outro lado.
+            const { data: clienteDeNovo } = await supabase.from("clientes").select("id").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+            if (clienteDeNovo) { patch.cliente_id = clienteDeNovo.id; any = true; }
+          }
         }
       }
 
