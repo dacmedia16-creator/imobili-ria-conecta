@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Send, Loader2, XCircle, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Send, Loader2, XCircle, CheckCircle2, RotateCcw, AlertTriangle, Printer } from "lucide-react";
 import { MIDIA_OPTIONS, LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import { useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money } from "@/components/vendas/shared";
@@ -251,7 +251,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 print:hidden">
         <Button variant="ghost" size="sm" onClick={() => router.navigate({ to: "/vendas" })}>
           <ArrowLeft className="mr-2 h-4 w-4" />Voltar
         </Button>
@@ -388,6 +388,11 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
 
       {!canEdit && !loadingOcc && occ && (
         <div className="rounded-lg border p-4 print:border-0 print:p-0">
+          <div className="mb-3 flex justify-end print:hidden">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />Imprimir / baixar
+            </Button>
+          </div>
           <OccurrenceReportBody
             sale={sale}
             occ={occ}
@@ -410,7 +415,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       )}
 
       {!canEdit && isFinanceiro && sale.status === "ocorrencia_analise_financeiro" && (
-        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3 print:hidden">
           <p className="text-sm text-muted-foreground">Ocorrência em análise — devolva pro corretor/coordenador corrigir, ou conclua.</p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setReturnOpen(true)}><XCircle className="mr-2 h-4 w-4" />Devolver</Button>
@@ -423,7 +428,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       )}
 
       {!canEdit && isFinanceiro && sale.status === "ocorrencia_concluida" && (
-        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3 print:hidden">
           <p className="text-sm text-muted-foreground">Ocorrência concluída.</p>
           <Button variant="outline" onClick={() => setReopenOpen(true)}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
         </div>
