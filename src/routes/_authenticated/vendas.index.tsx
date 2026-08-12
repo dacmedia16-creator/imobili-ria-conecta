@@ -65,13 +65,20 @@ function SalesList() {
   useEffect(() => {
     if (!hasAny(["juridico", "admin", "super_admin", "financeiro"])) return;
     (async () => {
-      const [{ data: teams }, { data: members }] = await Promise.all([
-        supabase.from("teams").select("id, nome, parent_team_id"),
+      const [{ data: teams }, { data: members }, { data: coLeaders }] = await Promise.all([
+        supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
         supabase.from("team_members").select("membro_id, team_id"),
+        supabase.from("team_co_leaders").select("user_id, team_id"),
       ]);
       const byId: Record<string, { nome: string; parent_team_id: string | null }> = {};
       (teams ?? []).forEach((t: any) => { byId[t.id] = t; });
       const byTeam: Record<string, string[]> = {};
+      // Líder e líder(es) auxiliar(es) também entram no filtro por equipe, não só quem está em
+      // team_members — sem isso, uma venda cujo dono é o próprio líder (ex: papel Lançamento
+      // acumulado com Gestor, que sobe a venda em nome próprio, não como membro de ninguém) sumia
+      // do filtro por não estar em team_members.
+      (teams ?? []).forEach((t: any) => { if (t.lider_id) (byTeam[t.id] ??= []).push(t.lider_id); });
+      (coLeaders ?? []).forEach((c: any) => { (byTeam[c.team_id] ??= []).push(c.user_id); });
       (members ?? []).forEach((m: any) => { (byTeam[m.team_id] ??= []).push(m.membro_id); });
       const topTeams = [...(teams ?? [])].filter((t: any) => !t.parent_team_id).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
       const options: { id: string; label: string }[] = [];
