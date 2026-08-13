@@ -129,6 +129,22 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       );
     }
 
+    // Nome do corretor e do(s) gestor(es)/lider(es) envolvidos na venda, pra aparecer nas
+    // notificações (sino e WhatsApp) — sem isso quem recebe o aviso não sabe de qual corretor/time
+    // se trata sem abrir o link.
+    const envolvidosIds = Array.from(
+      new Set([sale.corretor_id, ...liderIds].filter((id): id is string => !!id)),
+    );
+    const { data: envolvidosProfiles } = envolvidosIds.length
+      ? await supabaseAdmin.from("profiles").select("id, nome").in("id", envolvidosIds)
+      : { data: [] as { id: string; nome: string | null }[] };
+    const nomeById = new Map((envolvidosProfiles ?? []).map((p) => [p.id, p.nome]));
+    const corretorNome = sale.corretor_id ? nomeById.get(sale.corretor_id) : null;
+    const gestorNomes = liderIds
+      .map((id) => nomeById.get(id))
+      .filter((n): n is string => !!n)
+      .join(", ");
+
     const status = data.status as SaleStatus;
 
     // "Sua vez" — proximoResponsavelRoles nunca retorna mais de um papel por status (conferido em status.ts).
@@ -185,9 +201,16 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const statusLabel = STATUS_LABEL[status] ?? data.status;
     const link = `${APP_URL}/vendas/${sale.id}`;
     const motivoLinha = data.motivo ? `Motivo: ${data.motivo}\n` : "";
+    const envolvidosLinha =
+      (corretorNome ? `Corretor: ${corretorNome}\n` : "") +
+      (gestorNomes ? `Gestor: ${gestorNomes}\n` : "");
+    const envolvidosPartes: string[] = [];
+    if (corretorNome) envolvidosPartes.push(`Corretor: ${corretorNome}`);
+    if (gestorNomes) envolvidosPartes.push(`Gestor: ${gestorNomes}`);
+    const envolvidosInApp = envolvidosPartes.length ? ` • ${envolvidosPartes.join(" • ")}` : "";
 
-    const textoSuaVezWpp = `*É a sua vez de agir!*\n\nVenda: ${label}\nStatus: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
-    const textoAtualizacaoWpp = `*Atualização na venda*\n\nVenda: ${label}\nNovo status: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
+    const textoSuaVezWpp = `*É a sua vez de agir!*\n\nVenda: ${label}\n${envolvidosLinha}Status: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
+    const textoAtualizacaoWpp = `*Atualização na venda*\n\nVenda: ${label}\n${envolvidosLinha}Novo status: ${statusLabel}\n${motivoLinha}\nAcesse: ${link}`;
 
     const inAppPorUsuario = new Map<string, { titulo: string; mensagem: string | null }>();
     const whatsappPorUsuario = new Map<string, string>();
@@ -196,7 +219,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       // "Sua vez" no sino sempre notifica — o toggle de preferência é só do WhatsApp.
       inAppPorUsuario.set(id, {
         titulo: `Sua vez de agir: ${label}`,
-        mensagem: `Status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}`,
+        mensagem: `Status: ${statusLabel}${envolvidosInApp}${data.motivo ? ` — ${data.motivo}` : ""}`,
       });
       const row = (rolesRows ?? []).find(
         (r: UserRoleRow) => r.user_id === id && roleNext && papelBate(r.role, roleNext),
@@ -210,7 +233,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       if (!quer) continue;
       inAppPorUsuario.set(id, {
         titulo: `Atualização na venda: ${label}`,
-        mensagem: `Novo status: ${statusLabel}${data.motivo ? ` — ${data.motivo}` : ""}`,
+        mensagem: `Novo status: ${statusLabel}${envolvidosInApp}${data.motivo ? ` — ${data.motivo}` : ""}`,
       });
       whatsappPorUsuario.set(id, textoAtualizacaoWpp);
     }
