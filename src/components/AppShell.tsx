@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge } from "lucide-react";
+import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge, Percent } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import type { ReactNode } from "react";
@@ -62,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin"]) },
+    { to: "/comparativo-comissao", label: "Comparativo 6%", icon: Percent, show: hasAny(["admin","super_admin","financeiro"]) },
     { to: "/equipe", label: "Equipe", icon: UsersRound, show: hasAny(["gestor","team_leader","admin","super_admin"]) },
     { to: "/relatorios", label: "Relatórios", icon: BarChart3, show: hasAny(["financeiro","admin","super_admin"]) },
     { to: "/comissoes-a-receber", label: "Comissões a Receber", icon: Wallet, show: hasAny(["financeiro","admin","super_admin"]) },

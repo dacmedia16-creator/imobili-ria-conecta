@@ -20,6 +20,7 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedComparativoComissaoRouteImport } from './routes/_authenticated/comparativo-comissao'
 import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_authenticated/comissoes-a-receber'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
@@ -83,6 +84,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComparativoComissaoRoute =
+  AuthenticatedComparativoComissaoRouteImport.update({
+    id: '/comparativo-comissao',
+    path: '/comparativo-comissao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedComissoesAReceberRoute =
   AuthenticatedComissoesAReceberRouteImport.update({
     id: '/comissoes-a-receber',
@@ -124,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
+  '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -142,6 +150,7 @@ export interface FileRoutesByTo {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
+  '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -162,6 +171,7 @@ export interface FileRoutesById {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/_authenticated/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
+  '/_authenticated/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/comissoes-a-receber'
+    | '/comparativo-comissao'
     | '/dashboard'
     | '/equipe'
     | '/notificacoes'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/comissoes-a-receber'
+    | '/comparativo-comissao'
     | '/dashboard'
     | '/equipe'
     | '/notificacoes'
@@ -219,6 +231,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/_authenticated/comissoes-a-receber'
+    | '/_authenticated/comparativo-comissao'
     | '/_authenticated/dashboard'
     | '/_authenticated/equipe'
     | '/_authenticated/notificacoes'
@@ -319,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comparativo-comissao': {
+      id: '/_authenticated/comparativo-comissao'
+      path: '/comparativo-comissao'
+      fullPath: '/comparativo-comissao'
+      preLoaderRoute: typeof AuthenticatedComparativoComissaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/comissoes-a-receber': {
       id: '/_authenticated/comissoes-a-receber'
       path: '/comissoes-a-receber'
@@ -366,6 +386,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedComissoesAReceberRoute: typeof AuthenticatedComissoesAReceberRoute
+  AuthenticatedComparativoComissaoRoute: typeof AuthenticatedComparativoComissaoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
@@ -381,6 +402,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComissoesAReceberRoute: AuthenticatedComissoesAReceberRoute,
+  AuthenticatedComparativoComissaoRoute: AuthenticatedComparativoComissaoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
