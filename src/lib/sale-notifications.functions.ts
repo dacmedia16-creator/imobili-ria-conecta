@@ -98,7 +98,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
 
     const { data: sale } = await supabase
       .from("sales")
-      .select("id, corretor_id, imovel_id, codigo_interno, modalidade")
+      .select("id, corretor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado")
       .eq("id", data.saleId)
       .maybeSingle();
     if (!sale) return { notified: 0, sent: 0 };
@@ -201,7 +201,16 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const statusLabel = STATUS_LABEL[status] ?? data.status;
     const link = `${APP_URL}/vendas/${sale.id}`;
     const motivoLinha = data.motivo ? `Motivo: ${data.motivo}\n` : "";
+    // Bairro/condomínio não são campos próprios da venda — quando preenchidos, moram dentro do
+    // texto livre de "Endereço do imóvel" (imovel_endereco), então é ele que aparece aqui.
+    const enderecoLinha = sale.imovel_endereco ? `Endereco: ${sale.imovel_endereco}\n` : "";
+    const valorLinha =
+      sale.valor_negociado != null
+        ? `Valor: R$ ${Number(sale.valor_negociado).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n`
+        : "";
     const envolvidosLinha =
+      enderecoLinha +
+      valorLinha +
       (corretorNome ? `Corretor: ${corretorNome}\n` : "") +
       (gestorNomes ? `Gestor: ${gestorNomes}\n` : "");
     const envolvidosPartes: string[] = [];
