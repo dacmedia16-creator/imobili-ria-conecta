@@ -166,8 +166,10 @@ function Dashboard() {
         </Card>
       )}
 
-      {/* Corretor */}
-      {(hasAny(["corretor"]) || isCorretor) && (
+      {/* Corretor — só quem opera como corretor "puro" (sem outros papéis de supervisão) vê essa
+          seção; admin/super_admin/gestor/etc que também carregam o papel corretor (ex.: pra
+          testes) não têm fila própria de vendas, então não faz sentido mostrar aqui. */}
+      {isCorretor && (
         <DashSection title="Suas vendas">
           <KpiGrid>
             <KpiCard icon={FileText} label="Minhas vendas" value={stats?.minhas_vendas ?? 0} to="/vendas" />
