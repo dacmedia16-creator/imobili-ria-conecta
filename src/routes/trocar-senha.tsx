@@ -15,7 +15,7 @@ export const Route = createFileRoute("/trocar-senha")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
-    if (!data.session.user.user_metadata?.must_change_password) throw redirect({ to: "/" });
+    if (!data.session.user.user_metadata?.must_change_password) throw redirect({ to: "/dashboard" });
   },
   component: TrocarSenhaPage,
 });
@@ -40,7 +40,7 @@ function TrocarSenhaPage() {
       });
       if (error) throw error;
       toast.success("Senha atualizada!");
-      router.navigate({ to: "/", replace: true });
+      router.navigate({ to: "/dashboard", replace: true });
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao trocar a senha");
     } finally {

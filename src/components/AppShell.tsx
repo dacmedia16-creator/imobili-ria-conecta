@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const nav: NavItem[] = [
-    { to: "/", label: "Dashboard", icon: Home, show: true },
+    { to: "/dashboard", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin"]) },
     { to: "/comparativo-comissao", label: "Comparativo 6%", icon: Percent, show: hasAny(["admin","super_admin","financeiro"]) },

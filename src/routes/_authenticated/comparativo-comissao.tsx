@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
     const roles = (data ?? []).map((r) => r.role);
     if (!podeAcessarComparativo6pct(roles)) {
       toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/dashboard" });
     }
   },
   component: ComparativoComissaoPage,

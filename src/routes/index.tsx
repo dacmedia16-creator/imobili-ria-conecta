@@ -1,14 +1,13 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
+// O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
+// redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
+// troca de senha, etc.) que dependia de "/" encaminhar pro dashboard agora aponta direto pra
+// "/dashboard", pra não perder esse comportamento em nenhum desses fluxos.
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({ meta: [{ title: "Hub Única Escolha — RE/MAX Imóveis" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/dashboard" });
-  },
   component: FrontPage,
 });
 

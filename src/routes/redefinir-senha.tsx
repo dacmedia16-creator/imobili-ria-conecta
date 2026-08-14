@@ -40,7 +40,7 @@ function RedefinirSenhaPage() {
       const { error } = await supabase.auth.updateUser({ password: senha });
       if (error) throw error;
       toast.success("Senha redefinida!");
-      router.navigate({ to: "/", replace: true });
+      router.navigate({ to: "/dashboard", replace: true });
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao redefinir a senha");
     } finally {

@@ -27,7 +27,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.navigate({ to: "/", replace: true });
+      if (data.session) router.navigate({ to: "/dashboard", replace: true });
     });
   }, [router]);
 
@@ -37,7 +37,7 @@ function AuthPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      router.navigate({ to: "/", replace: true });
+      router.navigate({ to: "/dashboard", replace: true });
     } catch (err: any) {
       toast.error(err.message ?? "Falha ao autenticar");
     } finally {
