@@ -1820,7 +1820,10 @@ function SaleDetail() {
       </div>
 
       <Dialog open={overviewOpen} onOpenChange={setOverviewOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        {/* print:static + print:overflow-visible + print:max-h-none: sem isso a impressão só saía
+            com o pedaço visível no momento do clique (max-h-[85vh] overflow-y-auto corta o resto do
+            conteúdo fora da rolagem, e position:fixed mantém só aquele recorte na página impressa). */}
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto print:static print:max-h-none print:w-auto print:max-w-none print:translate-x-0 print:translate-y-0 print:overflow-visible print:shadow-none">
           <DialogHeader>
             <DialogTitle>Visão geral da venda</DialogTitle>
             <DialogDescription>
@@ -2013,7 +2016,7 @@ function SaleDetail() {
               ))}
             </ReviewGroup>
           </div>
-          <DialogFooter>
+          <DialogFooter className="print:hidden">
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />Imprimir
             </Button>
