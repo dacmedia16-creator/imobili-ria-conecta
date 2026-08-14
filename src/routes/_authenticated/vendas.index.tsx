@@ -52,6 +52,7 @@ function SalesList() {
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
   const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
   const [equipeFilter, setEquipeFilter] = useState<string>("todas");
+  const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -70,7 +71,7 @@ function SalesList() {
         supabase.from("team_members").select("membro_id, team_id"),
         supabase.from("team_co_leaders").select("user_id, team_id"),
       ]);
-      const byId: Record<string, { nome: string; parent_team_id: string | null }> = {};
+      const byId: Record<string, { nome: string; parent_team_id: string | null; lider_id: string | null }> = {};
       (teams ?? []).forEach((t: any) => { byId[t.id] = t; });
       const byTeam: Record<string, string[]> = {};
       // Líder e líder(es) auxiliar(es) também entram no filtro por equipe, não só quem está em
@@ -90,6 +91,21 @@ function SalesList() {
       }
       setTeamOptions(options);
       setMemberIdsByTeam(byTeam);
+
+      // Corretor → líder da equipe (mesma resolução membro/líder/líder-auxiliar de cima, mas
+      // invertida: de quem é membro para quem lidera) — pra mostrar de qual gestor/team_leader
+      // cada corretor é na coluna "Gestor/Líder", já que quem vê vendas de várias equipes ao mesmo
+      // tempo (jurídico/financeiro/admin) não tem como saber isso de cabeça.
+      const teamIdByCorretor: Record<string, string> = {};
+      (members ?? []).forEach((m: any) => { if (!teamIdByCorretor[m.membro_id]) teamIdByCorretor[m.membro_id] = m.team_id; });
+      (teams ?? []).forEach((t: any) => { if (t.lider_id && !teamIdByCorretor[t.lider_id]) teamIdByCorretor[t.lider_id] = t.id; });
+      (coLeaders ?? []).forEach((c: any) => { if (!teamIdByCorretor[c.user_id]) teamIdByCorretor[c.user_id] = c.team_id; });
+      const liderByCorretor: Record<string, string> = {};
+      for (const [corretorId, teamId] of Object.entries(teamIdByCorretor)) {
+        const liderId = byId[teamId]?.lider_id;
+        if (liderId) liderByCorretor[corretorId] = liderId;
+      }
+      setLiderIdByCorretor(liderByCorretor);
     })();
   }, [hasAny]);
 
@@ -403,7 +419,12 @@ function SalesList() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
-                          <div className="truncate text-sm text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</div>
+                          <div className="truncate text-sm text-muted-foreground">
+                            {profileName[s.corretor_id] ?? "—"}
+                            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && liderIdByCorretor[s.corretor_id] && (
+                              <> · {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</>
+                            )}
+                          </div>
                         </div>
                         {canDelete && (
                           <Button
@@ -442,6 +463,7 @@ function SalesList() {
                     <TableRow>
                       <TableHead>Imóvel / código</TableHead>
                       <TableHead>Corretor</TableHead>
+                      {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && <TableHead>Gestor/Líder</TableHead>}
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Nesta etapa</TableHead>
@@ -457,6 +479,9 @@ function SalesList() {
                         <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
                           <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
                           <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
+                          {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
+                            <TableCell className="text-muted-foreground">{profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</TableCell>
+                          )}
                           <TableCell className="text-muted-foreground">
                             {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
                           </TableCell>
