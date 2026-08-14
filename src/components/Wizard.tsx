@@ -61,7 +61,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
   return (
     <div className="space-y-4">
       {/* Desktop stepper */}
-      <div className="hidden md:block">
+      <div className="hidden md:block print:hidden">
         <ol className="flex items-center gap-2">
           {enabled.map((s, i) => {
             const done = i < idx;
@@ -103,7 +103,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
       </div>
 
       {/* Mobile step selector */}
-      <div className="md:hidden">
+      <div className="md:hidden print:hidden">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             Etapa {idx + 1} de {enabled.length}
@@ -131,7 +131,7 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
 
       {/* Nav */}
       {!hideNav && (
-        <div className="flex items-center justify-between border-t pt-4">
+        <div className="flex items-center justify-between border-t pt-4 print:hidden">
           <Button variant="ghost" onClick={() => go(idx - 1)} disabled={idx === 0}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
           </Button>

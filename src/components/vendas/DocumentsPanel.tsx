@@ -502,7 +502,11 @@ export function DocumentsPanel({
   }, [docs, editable]);
 
   return (
-    <div className="space-y-6">
+    // print:hidden — é UI operacional (enviar/aprovar documento), nunca um relatório: "Imprimir
+    // todos" já abre os arquivos numa janela própria (ver printDocumentUrls), não depende do
+    // navegador imprimir esta tela. Sem isso, essa lista vazava como página extra sempre que
+    // qualquer outra impressão (ex.: Visão geral da venda) era disparada com a aba Documentos ativa.
+    <div className="space-y-6 print:hidden">
       <Card className={canUseAi ? "border-primary/40 bg-primary/5" : ""}>
         <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
           {canUseAi ? (

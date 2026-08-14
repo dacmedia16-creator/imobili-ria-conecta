@@ -936,7 +936,9 @@ function SaleDetail() {
       key: "resumo",
       label: "2. Resumo",
       content: (
-        <div className="space-y-4">
+        // print:hidden — formulário de edição, não um relatório (o resumo pra imprimir é o modal
+        // "Visão geral da venda", que já tem os mesmos dados num layout próprio pra impressão).
+        <div className="space-y-4 print:hidden">
           {editable && <AutosaveStatus saving={saving} dirty={dirtyResumo || dirtyExtras} />}
           <Wizard
             steps={[
