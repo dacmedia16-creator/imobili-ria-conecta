@@ -33,7 +33,7 @@ const CARDS: ServiceCard[] = [
   { id: "60dias", title: "60 Dias MAX", lines: ["Acompanhamento e", "performance inicial"], icon: "/hub/60dias.png", color: "red", pos: { left: "65.2%", top: "30.7%", width: "23.2%", height: "10.6%" }, delay: "1.05s" },
   { id: "recruta", title: "Recruta MAX", lines: ["Captação e seleção", "de talentos"], icon: "/hub/recruta.png", color: "blue", pos: { left: "67%", top: "48.1%", width: "21.7%", height: "10.6%" }, delay: "1.4s" },
   { id: "locacao", title: "Locação MAX", lines: ["Gestão do setor", "de locação"], icon: "/hub/locacao.png", color: "blue", pos: { left: "65.2%", top: "65.1%", width: "23.2%", height: "10.6%" }, delay: "1.75s" },
-  { id: "visita", title: "Visita Prova", lines: ["Registro e proteção", "de visitas"], icon: "/hub/visita.png", color: "blue", href: "https://visitaprova.com.br/auth", pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" }, delay: "2.1s" },
+  { id: "visita", title: "Visita Prova", lines: ["Registro e proteção", "de visitas"], icon: "/hub/visita.png", color: "blue", href: "https://visitaprova.com.br/", pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" }, delay: "2.1s" },
 ];
 
 function CardIcon({ card }: { card: ServiceCard }) {
