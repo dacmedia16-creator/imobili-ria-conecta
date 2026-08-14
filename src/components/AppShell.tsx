@@ -71,8 +71,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/admin/usuarios", label: "Usuários", icon: Users, show: hasAny(["admin","super_admin","gestor","team_leader"]) },
   ];
 
+  // print:min-h-0 — sem isso essa div ficava reservando uma tela cheia de altura vazia na
+  // impressão (o menu lateral/cabeçalho já somem com print:hidden, mas o min-h-screen continua
+  // valendo pro wrapper), empurrando o conteúdo real (ex.: modal Visão geral) pra segunda página,
+  // com a primeira saindo em branco.
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background print:min-h-0">
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden">
         <BrandHeroBackground />
         <SidebarNav nav={nav} />
