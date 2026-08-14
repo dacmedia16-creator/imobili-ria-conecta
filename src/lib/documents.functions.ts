@@ -159,7 +159,12 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         assign(salePatch, "imovel_endereco", r.endereco_imovel);
         if (r.valor_venal) assign(salePatch, "valor_anunciado", num(r.valor_venal));
         if (r.valor_negociado) assign(salePatch, "valor_negociado", num(r.valor_negociado));
-        if (r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
+        // Só a matrícula tem a descrição completa do imóvel — um IPTU ou uma CND de condomínio
+        // (outro documento do grupo "imovel") também podem preencher "observacoes_imovel" com
+        // texto próprio deles (ex.: "certifico que não há débitos..."), e como o merge só respeita
+        // ordem de chegada (não qual documento é o certo), esse texto errado podia "ganhar" da
+        // descrição real da matrícula.
+        if (tipo === "matricula" && r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
 
         // Pagamento (só de docs do imóvel/contrato/outros)
         if (r.entrada_valor) assign(paymentPatch, "entrada_valor", num(r.entrada_valor));
@@ -366,7 +371,11 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "telefone": string|null
 }
 Se o documento for uma certidão de casamento, "regime_casamento" é o regime de bens declarado nela (ex.: "Comunhão parcial de bens", "Comunhão universal de bens", "Separação total de bens", "Separação obrigatória de bens", "Participação final nos aquestos").`;
-  const commonImovel = `\n\nCampos do imóvel possíveis:
+  // "observacoes_imovel" só entra no schema pedido pra matrícula — é o único documento com a
+  // descrição completa do imóvel. Deixar esse campo disponível também pra IPTU/CND de condomínio
+  // fazia a IA "achar" algo pra preencher ali (ex.: o texto de "não há débitos" da CND), que depois
+  // podia vencer a descrição real da matrícula na hora de mesclar os documentos (ver applySaleExtractions).
+  const commonImovel = (incluirObservacoes: boolean) => `\n\nCampos do imóvel possíveis:
 {
   "matricula": string|null,
   "codigo_imovel": string|null,
@@ -377,13 +386,12 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   "area_construida": string|null,
   "valor_venal": string|null,
   "nome_proprietario": string|null,
-  "cpf_proprietario": string|null,
-  "observacoes_imovel": string|null
+  "cpf_proprietario": string|null${incluirObservacoes ? ',\n  "observacoes_imovel": string|null' : ""}
 }`;
   // Matrícula traz a descrição completa do imóvel (cômodos, medidas, confrontações, unidade,
   // bloco/torre, vaga de garagem, fração ideal etc.) — sem essa instrução explícita a IA tende a
   // devolver um resumo curto (ou nada) em vez do texto integral que o corretor quer aproveitar.
-  const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma.`;
+  const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma. NÃO copie texto de certidões de débito, IPTU ou outros documentos — só o que está literalmente na matrícula.`;
   const commonPessoaJuridica = `\n\nCampos de pessoa jurídica possíveis:
 {
   "razao_social": string|null,
@@ -395,11 +403,11 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
   if (pessoaLabel && isPessoaJuridica) return base + commonPessoaJuridica;
   if (pessoaLabel) return base + commonPessoal;
-  if (parte === "imovel") return base + commonImovel + (tipo === "matricula" ? matriculaDescricaoHint : "");
+  if (parte === "imovel") return base + commonImovel(tipo === "matricula") + (tipo === "matricula" ? matriculaDescricaoHint : "");
   if (isPessoaJuridica) return base + commonPessoaJuridica;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
-  if (tipo === "matricula" || tipo === "iptu") return base + commonImovel + (tipo === "matricula" ? matriculaDescricaoHint : "");
-  return base + commonPessoal + commonImovel;
+  if (tipo === "matricula" || tipo === "iptu") return base + commonImovel(tipo === "matricula") + (tipo === "matricula" ? matriculaDescricaoHint : "");
+  return base + commonPessoal + commonImovel(false);
 }
 
 
