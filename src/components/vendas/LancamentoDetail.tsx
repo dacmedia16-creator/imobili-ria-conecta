@@ -16,6 +16,7 @@ import { MIDIA_OPTIONS, LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import { useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money } from "@/components/vendas/shared";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import { mesclarPessoasAtivas, resolverSelecaoBeneficiario, SEM_CADASTRO_VALUE } from "@/lib/lancamento-pessoas";
 
 /** Tela única (sem wizard) da venda de Lançamento: sem documentos, sem jurídico, sem contrato — só
  * o formulário que o corretor/coordenador preenche, e que já sai direto pro financeiro ao enviar
@@ -195,6 +196,25 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
   useAutosave(canEdit && partiesDirty, [partiesForm], savePartiesForm);
 
   // ----- Divisão da comissão: sale_commission_extras -----
+  // Pessoas selecionáveis pra "Nome" — mesmas 3 RPCs já usadas no fluxo padrão (vendas.$id.tsx) pra
+  // listar corretor/gestor/team_leader ativos, sem expor a tabela profiles inteira via RLS. Uma
+  // pessoa de Lançamento pode estar em qualquer um dos 3 papéis (ex.: um gestor atuando como
+  // "corretor vendedor" na venda), por isso as 3 listas são combinadas numa só, ao contrário do
+  // fluxo padrão que usa cada lista separada pro campo equivalente.
+  const [pessoasAtivas, setPessoasAtivas] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const [{ data: corretores }, { data: gestores }, { data: teamLeaders }] = await Promise.all([
+        supabase.rpc("list_active_corretores"),
+        supabase.rpc("list_active_gestores"),
+        supabase.rpc("list_active_team_leaders"),
+      ]);
+      const norm = (rows: { id: string; nome: string | null }[] | null) =>
+        (rows ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id }));
+      setPessoasAtivas(mesclarPessoasAtivas(norm(corretores), norm(gestores), norm(teamLeaders)));
+    })();
+  }, []);
+
   const [commRows, setCommRows] = useState<any[]>(() => commissionExtras.map((c) => ({ ...c })));
   const [commDirty, setCommDirty] = useState(false);
   const updComm = (id: string, patch: any) => {
@@ -202,7 +222,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
     setCommDirty(true);
   };
   const addComm = () => {
-    setCommRows((rows) => [...rows, { id: `new-${crypto.randomUUID()}`, papel: "corretor_vendedor", nome: "", percentual: null, valor: null, _new: true }]);
+    setCommRows((rows) => [...rows, { id: `new-${crypto.randomUUID()}`, papel: "corretor_vendedor", nome: "", user_id: null, percentual: null, valor: null, _new: true }]);
     setCommDirty(true);
   };
   const delComm = (id: string) => {
@@ -217,7 +237,7 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       if (error) { toast.error(error.message); return false; }
     }
     for (const r of commRows) {
-      const payload = { sale_id: saleId, papel: r.papel, nome: r.nome || null, percentual: r.percentual, valor: r.valor };
+      const payload = { sale_id: saleId, papel: r.papel, nome: r.nome || null, user_id: r.user_id || null, percentual: r.percentual, valor: r.valor };
       const { error } = r._new
         ? await supabase.from("sale_commission_extras").insert(payload)
         : await supabase.from("sale_commission_extras").update(payload).eq("id", r.id);
@@ -346,9 +366,31 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
                   <SelectContent>{LANCAMENTO_COMISSAO_PAPEIS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-4">
+              <div className="md:col-span-4 space-y-1">
                 <Label className="mb-1 block text-xs text-muted-foreground">Nome</Label>
-                <Input value={c.nome ?? ""} disabled={!canEdit} onChange={(e) => updComm(c.id, { nome: e.target.value })} />
+                {(() => {
+                  const foraDaLista = !!c.user_id && !pessoasAtivas.some((p) => p.id === c.user_id);
+                  return (
+                    <Select
+                      value={c.user_id || SEM_CADASTRO_VALUE}
+                      disabled={!canEdit}
+                      onValueChange={(v) => updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_CADASTRO_VALUE}>Sem cadastro / parceiro externo (digitar nome)</SelectItem>
+                        {foraDaLista && <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>}
+                        {pessoasAtivas.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
+                <Input
+                  value={c.nome ?? ""}
+                  disabled={!canEdit || !!c.user_id}
+                  placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
+                  onChange={(e) => updComm(c.id, { nome: e.target.value })}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
