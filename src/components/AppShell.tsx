@@ -3,9 +3,10 @@ import { useState } from "react";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge, Percent } from "lucide-react";
+import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge, Percent, Landmark } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
+import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import type { ReactNode } from "react";
 
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
@@ -55,7 +56,7 @@ function SidebarNav({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => vo
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { hasAny } = useAuth();
+  const { hasAny, roles } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const nav: NavItem[] = [
@@ -63,6 +64,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin"]) },
     { to: "/comparativo-comissao", label: "Comparativo 6%", icon: Percent, show: hasAny(["admin","super_admin","financeiro"]) },
+    // Mesma função usada no beforeLoad da rota (financeiro-dashboard-calc.ts) — fonte única, nunca diverge.
+    { to: "/financeiro", label: "Central Financeira", icon: Landmark, show: podeAcessarCentralFinanceira(roles) },
     { to: "/equipe", label: "Equipe", icon: UsersRound, show: hasAny(["gestor","team_leader","admin","super_admin"]) },
     { to: "/relatorios", label: "Relatórios", icon: BarChart3, show: hasAny(["financeiro","admin","super_admin"]) },
     { to: "/comissoes-a-receber", label: "Comissões a Receber", icon: Wallet, show: hasAny(["financeiro","admin","super_admin"]) },

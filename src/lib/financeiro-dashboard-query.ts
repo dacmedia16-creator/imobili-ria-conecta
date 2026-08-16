@@ -1,0 +1,578 @@
+/**
+ * Busca/montagem de dados da Central Financeira — único módulo que fala com o Supabase aqui.
+ * Só leitura: nenhuma função faz insert/update/delete. Reaproveita as duas RPCs do Comparativo 6%
+ * (já restritas a financeiro/admin/super_admin, ver migration 20260813020000) em vez de reescrever
+ * a regra de "data de efetivação" — e reaproveita `fatorComissaoPropria`/`RECEBIDO_COLS` de
+ * status.ts, a mesma fórmula que Relatórios e Comissões a Receber já usam pra descontar parceria
+ * externa. Resolução de equipe/gestor por corretor é uma cópia local do mesmo cálculo já feito em
+ * comparativo-comissao-query.ts e vendas.index.tsx — o projeto não tem hoje um helper compartilhado
+ * pra isso (2 cópias já existentes), então uma 3ª local segue a convenção real do repo.
+ */
+import { supabase } from "@/integrations/supabase/client";
+import { fatorComissaoPropria } from "@/lib/status";
+import {
+  classificarVinculoBeneficiario,
+  montarComissaoCalculada,
+  montarParcela,
+  normalizarNomeParaCorrespondencia,
+} from "@/lib/financeiro-dashboard-calc";
+import type {
+  ComissaoCalculada,
+  DivergenciaFinanceira,
+  EfetivacaoVenda,
+  ParcelaRecebimento,
+} from "@/lib/financeiro-dashboard-types";
+
+type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
+type TeamMemberRow = { membro_id: string; team_id: string };
+type CoLeaderRow = { user_id: string; team_id: string };
+
+type EfetivacaoRawRow = {
+  sale_id: string;
+  codigo_interno: string | null;
+  imovel_id: string | null;
+  modalidade: string;
+  status: string;
+  corretor_id: string;
+  valor_negociado: number;
+  valor_total_comissao: number;
+  data_fechamento: string;
+};
+
+type InconsistenciaRawRow = {
+  sale_id: string;
+  codigo_interno: string | null;
+  modalidade: string;
+  motivo: string;
+};
+
+/** occurrences, tipado à mão: o select usa uma `const` com a lista de colunas (não um literal
+ * inline), e o gerador de tipos do supabase-js só infere colunas a partir de um literal de string
+ * no próprio call site — com uma variável, cai no overload genérico (`GenericStringError`). Mesmo
+ * problema não ocorre nos outros `.select("...")` deste arquivo, que já são literais inline. */
+type OccRow = {
+  id: string;
+  sale_id: string;
+  valor_comissao: number | null;
+  // Só existe (e só é diferente de zero) em vendas de Lançamento — "Prêmio/bônus da venda de
+  // lançamento, somado à comissão na previsão de recebimento — fora da conta percentual normal"
+  // (comentário oficial da coluna, migration 20260811020000_lancamento_schema.sql). Por desenho,
+  // prev_recebimento_valor = valor_comissao + premio_valor quando premio_valor existe — nunca tratar
+  // isso como divergência.
+  premio_valor: number | null;
+  prev_recebimento_valor: number | null;
+  prev_recebimento_data: string | null;
+  prev_recebimento_forma: string | null;
+  prev_recebimento_recebido_em: string | null;
+  prev_recebimento_recebido_valor: number | null;
+  prev_recebimento2_valor: number | null;
+  prev_recebimento2_data: string | null;
+  prev_recebimento2_forma: string | null;
+  prev_recebimento2_recebido_em: string | null;
+  prev_recebimento2_recebido_valor: number | null;
+  prev_recebimento3_valor: number | null;
+  prev_recebimento3_data: string | null;
+  prev_recebimento3_forma: string | null;
+  prev_recebimento3_recebido_em: string | null;
+  prev_recebimento3_recebido_valor: number | null;
+};
+
+// Mesmo motivo do "as any" em comparativo-comissao-query.ts: as RPCs existem no banco mas nunca
+// foram regeneradas em src/integrations/supabase/types.ts (arquivo gerado). Some sozinho na próxima geração.
+async function callRpc<T>(name: string): Promise<T[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = (await supabase.rpc(name as any)) as {
+    data: T[] | null;
+    error: { message: string } | null;
+  };
+  if (error) throw error;
+  return data ?? [];
+}
+
+function resolverEquipePorCorretor(
+  teams: TeamRow[],
+  members: TeamMemberRow[],
+  coLeaders: CoLeaderRow[],
+) {
+  const teamIdByCorretor = new Map<string, string>();
+  for (const m of members)
+    if (!teamIdByCorretor.has(m.membro_id)) teamIdByCorretor.set(m.membro_id, m.team_id);
+  for (const t of teams)
+    if (t.lider_id && !teamIdByCorretor.has(t.lider_id)) teamIdByCorretor.set(t.lider_id, t.id);
+  for (const c of coLeaders)
+    if (!teamIdByCorretor.has(c.user_id)) teamIdByCorretor.set(c.user_id, c.team_id);
+  return teamIdByCorretor;
+}
+
+const ETAPAS_FINANCEIRAS = [
+  "contrato_assinado",
+  "ocorrencia_pendente",
+  "ocorrencia_analise_financeiro",
+  "ocorrencia_devolvida_gestor",
+  "ocorrencia_concluida",
+];
+
+const OCC_COLUMNS =
+  "id, sale_id, valor_comissao, premio_valor, " +
+  "prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, " +
+  "prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, " +
+  "prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor";
+
+export type FinanceiroBundle = {
+  efetivadas: EfetivacaoVenda[];
+  parcelas: ParcelaRecebimento[];
+  comissoes: ComissaoCalculada[];
+  divergencias: DivergenciaFinanceira[];
+  corretorOptions: { id: string; label: string }[];
+  gestorOptions: { id: string; label: string }[];
+  teamOptions: { id: string; label: string }[];
+};
+
+export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const [
+    efetivadasRaw,
+    inconsistencias,
+    { data: occs },
+    { data: sales },
+    { data: commissions },
+    { data: partners },
+    { data: extras },
+    { data: profiles },
+    { data: teams },
+    { data: members },
+    { data: coLeaders },
+  ] = await Promise.all([
+    callRpc<EfetivacaoRawRow>("comparativo_comissao_6pct"),
+    callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
+    supabase.from("occurrences").select(OCC_COLUMNS) as unknown as Promise<{
+      data: OccRow[] | null;
+      error: { message: string } | null;
+    }>,
+    supabase.from("sales").select("id, status, corretor_id, imovel_id, codigo_interno, modalidade"),
+    supabase
+      .from("occurrence_commissions")
+      .select(
+        "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id",
+      ),
+    supabase.from("occurrence_partners").select("occurrence_id, valor"),
+    supabase.from("sale_commission_extras").select("id"),
+    supabase.from("profiles").select("id, nome"),
+    supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
+    supabase.from("team_members").select("membro_id, team_id"),
+    supabase.from("team_co_leaders").select("user_id, team_id"),
+  ]);
+
+  const nomePorId = new Map<string, string>();
+  for (const p of profiles ?? []) nomePorId.set(p.id, p.nome ?? p.id);
+
+  // Contagem de profiles por nome normalizado — só pra saber se a correspondência de um
+  // beneficiário sem user_id é única (1) ou ambígua (2+), nunca pra vincular automaticamente.
+  const contagemPorNomeNormalizado = new Map<string, number>();
+  for (const p of profiles ?? []) {
+    if (!p.nome) continue;
+    const chave = normalizarNomeParaCorrespondencia(p.nome);
+    contagemPorNomeNormalizado.set(chave, (contagemPorNomeNormalizado.get(chave) ?? 0) + 1);
+  }
+
+  const teamsArr = (teams ?? []) as TeamRow[];
+  const teamById = new Map(teamsArr.map((t) => [t.id, t]));
+  const teamIdByCorretor = resolverEquipePorCorretor(
+    teamsArr,
+    (members ?? []) as TeamMemberRow[],
+    (coLeaders ?? []) as CoLeaderRow[],
+  );
+  const equipeDoCorretor = (corretorId: string) => {
+    const teamId = teamIdByCorretor.get(corretorId) ?? null;
+    const team = teamId ? (teamById.get(teamId) ?? null) : null;
+    const gestorId = team?.lider_id ?? null;
+    return {
+      teamId,
+      teamNome: team?.nome ?? null,
+      gestorId,
+      gestorNome: gestorId ? (nomePorId.get(gestorId) ?? gestorId) : null,
+    };
+  };
+
+  const saleById = new Map((sales ?? []).map((s) => [s.id, s]));
+  const occBySaleId = new Map((occs ?? []).map((o) => [o.sale_id, o]));
+  const occByOccId = new Map((occs ?? []).map((o) => [o.id, o]));
+  const extraIds = new Set((extras ?? []).map((e) => e.id));
+
+  const parceriaPorOcc = new Map<string, number>();
+  for (const p of partners ?? [])
+    parceriaPorOcc.set(
+      p.occurrence_id,
+      (parceriaPorOcc.get(p.occurrence_id) ?? 0) + Number(p.valor ?? 0),
+    );
+
+  const saleLabel = (sale: {
+    imovel_id: string | null;
+    codigo_interno: string | null;
+    id: string;
+  }) => sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`;
+
+  const divergencias: DivergenciaFinanceira[] = [];
+
+  // ---- Parcelas de recebimento (aba Recebimentos + Aging) ----
+  const parcelas: ParcelaRecebimento[] = [];
+  for (const occ of occs ?? []) {
+    const sale = saleById.get(occ.sale_id);
+    if (!sale) {
+      divergencias.push({
+        id: `occ-sem-venda:${occ.id}`,
+        gravidade: "alta",
+        saleId: null,
+        imovelLabel: null,
+        tipo: "Ocorrência sem venda correspondente",
+        explicacao: `A ocorrência ${occ.id.slice(0, 8)} referencia uma venda que não foi encontrada.`,
+        valorAfetado: occ.valor_comissao ?? null,
+        acaoRecomendada: "Verificar com o suporte técnico — possível inconsistência de dado.",
+        linkTo: null,
+      });
+      continue;
+    }
+    const cancelada = sale.status === "cancelada" || sale.status === "arquivada";
+    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(sale.corretor_id);
+    const fator = fatorComissaoPropria(occ.valor_comissao, parceriaPorOcc.get(occ.id) ?? 0);
+    const imovelLabel = saleLabel(sale);
+
+    let somaParcelasPrevistas = 0;
+    const parcelasDaVenda: { dataRecebimento: string | null }[] = [];
+    ([1, 2, 3] as const).forEach((n) => {
+      const suf = n === 1 ? "" : String(n);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const o = occ as any;
+      const data: string | null = o[`prev_recebimento${suf}_data`];
+      const valor: number | null = o[`prev_recebimento${suf}_valor`];
+      const forma: string | null = o[`prev_recebimento${suf}_forma`];
+      const recebidoEm: string | null = o[`prev_recebimento${suf}_recebido_em`];
+      const recebidoValor: number | null = o[`prev_recebimento${suf}_recebido_valor`];
+
+      // Parcela marcada como recebida com só metade do par (data sem valor, ou valor sem data) —
+      // dado inconsistente, independente de a parcela ter previsão completa ou não.
+      if ((recebidoEm && recebidoValor == null) || (!recebidoEm && recebidoValor != null)) {
+        divergencias.push({
+          id: `parcela-recebido-incompleto:${occ.id}:${n}`,
+          gravidade: "media",
+          saleId: sale.id,
+          imovelLabel,
+          tipo: "Parcela marcada como recebida sem data ou sem valor",
+          explicacao: `Parcela ${n}ª da venda ${imovelLabel}: ${recebidoEm ? "tem data de recebimento mas falta o valor recebido" : "tem valor recebido mas falta a data"}.`,
+          valorAfetado: recebidoValor ?? null,
+          acaoRecomendada: "Completar o registro de recebimento em Relatórios (Fluxo de caixa).",
+          linkTo: `/vendas/${sale.id}`,
+        });
+      }
+      if (recebidoValor != null && (!Number.isFinite(recebidoValor) || recebidoValor < 0)) {
+        divergencias.push({
+          id: `parcela-recebido-invalido:${occ.id}:${n}`,
+          gravidade: "alta",
+          saleId: sale.id,
+          imovelLabel,
+          tipo: "Recebimento com valor negativo ou não numérico",
+          explicacao: `Parcela ${n}ª da venda ${imovelLabel} tem valor recebido inválido (${String(recebidoValor)}).`,
+          valorAfetado: recebidoValor,
+          acaoRecomendada: "Corrigir o valor recebido em Relatórios (Fluxo de caixa).",
+          linkTo: `/vendas/${sale.id}`,
+        });
+      }
+      if (cancelada && recebidoEm) {
+        divergencias.push({
+          id: `parcela-cancelada-recebida:${occ.id}:${n}`,
+          gravidade: "media",
+          saleId: sale.id,
+          imovelLabel,
+          tipo: "Recebimento em venda cancelada/arquivada",
+          explicacao: `A venda ${imovelLabel} está ${sale.status} mas tem a parcela ${n}ª marcada como recebida.`,
+          valorAfetado: recebidoValor,
+          acaoRecomendada:
+            "Confirmar se o cancelamento/arquivamento está correto ou se o recebimento é anterior a ele.",
+          linkTo: `/vendas/${sale.id}`,
+        });
+      }
+
+      if (!data || valor == null) return;
+      somaParcelasPrevistas += Number(valor);
+      parcelasDaVenda.push({ dataRecebimento: recebidoEm });
+      parcelas.push(
+        montarParcela({
+          saleId: sale.id,
+          occId: occ.id,
+          parcela: n,
+          imovelLabel,
+          codigoInterno: sale.codigo_interno,
+          corretorId: sale.corretor_id,
+          corretorNome: nomePorId.get(sale.corretor_id) ?? sale.corretor_id,
+          teamId,
+          teamNome,
+          gestorId,
+          gestorNome,
+          saleStatus: sale.status,
+          modalidade: sale.modalidade,
+          cancelada,
+          dataPrevista: data,
+          formaPrevista: forma,
+          valorBrutoPrevisto: Number(valor),
+          fatorComissaoPropria: fator,
+          dataRecebimento: recebidoEm,
+          valorRecebido: recebidoValor != null ? Number(recebidoValor) : null,
+          hoje,
+        }),
+      );
+    });
+
+    // Em vendas de Lançamento, o prêmio/bônus (occurrences.premio_valor) é somado à comissão só na
+    // previsão de recebimento, por desenho (comentário oficial da coluna) — nunca comparar a soma das
+    // parcelas só contra valor_comissao quando há prêmio, senão toda venda com prêmio vira falso
+    // positivo aqui.
+    const comissaoEsperada = Number(occ.valor_comissao ?? 0) + Number(occ.premio_valor ?? 0);
+    if (
+      (occ.valor_comissao != null || occ.premio_valor != null) &&
+      Math.abs(somaParcelasPrevistas - comissaoEsperada) > 0.01
+    ) {
+      const premioTxt = occ.premio_valor
+        ? ` + premio_valor (R$ ${Number(occ.premio_valor).toFixed(2)})`
+        : "";
+      divergencias.push({
+        id: `soma-parcelas-incompativel:${occ.id}`,
+        gravidade: "media",
+        saleId: sale.id,
+        imovelLabel,
+        tipo: "Soma das parcelas incompatível com a comissão da ocorrência",
+        explicacao:
+          `Soma de prev_recebimento{1,2,3}_valor (R$ ${somaParcelasPrevistas.toFixed(2)}) difere de ` +
+          `occurrences.valor_comissao (R$ ${Number(occ.valor_comissao ?? 0).toFixed(2)})${premioTxt} em R$ ${(somaParcelasPrevistas - comissaoEsperada).toFixed(2)}.`,
+        valorAfetado: Number((somaParcelasPrevistas - comissaoEsperada).toFixed(2)),
+        acaoRecomendada:
+          "Revisar as parcelas previstas ou o valor de comissão/prêmio da ocorrência.",
+        linkTo: `/vendas/${sale.id}`,
+      });
+    }
+  }
+
+  // Parcela com diferença entre previsto e recebido (recebido_parcial / recebido_diferenca) —
+  // reaproveita a classificação já feita em montarParcela, não recalcula.
+  for (const p of parcelas) {
+    if (p.situacao === "recebido_parcial" || p.situacao === "recebido_diferenca") {
+      divergencias.push({
+        id: `parcela-diferenca:${p.key}`,
+        gravidade: "media",
+        saleId: p.saleId,
+        imovelLabel: p.imovelLabel,
+        tipo:
+          p.situacao === "recebido_parcial"
+            ? "Recebido abaixo do previsto"
+            : "Recebido com diferença do previsto",
+        explicacao: `Parcela ${p.parcela}ª: previsto R$ ${p.valorLiquidoPrevisto.toFixed(2)}, recebido R$ ${(p.valorRecebido ?? 0).toFixed(2)} (diferença R$ ${(p.diferenca ?? 0).toFixed(2)}).`,
+        valorAfetado: p.diferenca,
+        acaoRecomendada: "Confirmar o motivo da diferença com o financeiro.",
+        linkTo: `/vendas/${p.saleId}`,
+      });
+    }
+  }
+
+  // Venda em etapa financeira sem a ocorrência esperada (occurrences.sale_id é UNIQUE — nunca há
+  // mais de uma ocorrência por venda, por isso esse cenário nem entra na lista de checagens).
+  for (const sale of sales ?? []) {
+    if (!ETAPAS_FINANCEIRAS.includes(sale.status)) continue;
+    if (!occBySaleId.has(sale.id)) {
+      divergencias.push({
+        id: `venda-sem-ocorrencia:${sale.id}`,
+        gravidade: "alta",
+        saleId: sale.id,
+        imovelLabel: saleLabel(sale),
+        tipo: "Venda em etapa financeira sem ocorrência",
+        explicacao: `A venda está em "${sale.status}" mas não tem registro de ocorrência.`,
+        valorAfetado: null,
+        acaoRecomendada:
+          "Verificar com o suporte técnico — a ocorrência deveria existir nesta etapa.",
+        linkTo: `/vendas/${sale.id}`,
+      });
+    }
+    if (!teamIdByCorretor.has(sale.corretor_id)) {
+      divergencias.push({
+        id: `equipe-nao-resolvida:${sale.id}`,
+        gravidade: "baixa",
+        saleId: sale.id,
+        imovelLabel: saleLabel(sale),
+        tipo: "Equipe/gestor não resolvido",
+        explicacao:
+          "O corretor desta venda não está vinculado a nenhuma equipe (nem como membro, nem como líder).",
+        valorAfetado: null,
+        acaoRecomendada: "Conferir o cadastro de equipes do corretor.",
+        linkTo: `/vendas/${sale.id}`,
+      });
+    }
+  }
+
+  // ---- Comissões calculadas (aba Comissões Calculadas) — só vendas já efetivadas, mesma
+  // população do Comparativo 6% (ver comentário no topo do arquivo). ----
+  const efetivacaoBySaleId = new Map((efetivadasRaw ?? []).map((r) => [r.sale_id, r]));
+  const comissoes: ComissaoCalculada[] = [];
+  for (const row of commissions ?? []) {
+    const occ = occByOccId.get(row.occurrence_id);
+    if (!occ) continue;
+    const sale = saleById.get(occ.sale_id);
+    if (!sale) continue;
+    const efet = efetivacaoBySaleId.get(sale.id);
+    if (!efet) continue;
+    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(sale.corretor_id);
+
+    const parcelasDaVenda = ([1, 2, 3] as const)
+      .map((n) => {
+        const suf = n === 1 ? "" : String(n);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const o = occ as any;
+        return {
+          data: o[`prev_recebimento${suf}_data`],
+          valor: o[`prev_recebimento${suf}_valor`],
+          dataRecebimento: o[`prev_recebimento${suf}_recebido_em`] as string | null,
+        };
+      })
+      .filter((p) => p.data && p.valor != null)
+      .map((p) => ({ dataRecebimento: p.dataRecebimento }));
+
+    const comissao = montarComissaoCalculada({
+      id: row.id,
+      saleId: sale.id,
+      occId: occ.id,
+      imovelLabel: saleLabel(sale),
+      codigoInterno: sale.codigo_interno,
+      dataEfetivacao: efet.data_fechamento,
+      modalidade: sale.modalidade,
+      saleCorretorId: sale.corretor_id,
+      teamId,
+      teamNome,
+      gestorId,
+      gestorNome,
+      papel: row.papel,
+      beneficiarioNome: row.nome,
+      beneficiarioUserId: row.user_id,
+      percentual: row.percentual,
+      valor: Number(row.valor ?? 0),
+      managedBySale: row.managed_by_sale,
+      parcelasDaVenda,
+    });
+    comissoes.push(comissao);
+
+    if (!comissao.beneficiarioNome && !comissao.beneficiarioUserId) {
+      divergencias.push({
+        id: `comissao-sem-beneficiario:${row.id}`,
+        gravidade: "alta",
+        saleId: sale.id,
+        imovelLabel: comissao.imovelLabel,
+        tipo: "Comissão sem beneficiário",
+        explicacao: `Linha de comissão (papel: ${row.papel}) sem nome nem vínculo de usuário.`,
+        valorAfetado: comissao.valor,
+        acaoRecomendada: "Revisar a divisão de comissão dessa venda.",
+        linkTo: `/vendas/${sale.id}`,
+      });
+    } else if (comissao.semVinculoUsuario) {
+      // Nunca marca como "externo" só por não achar correspondência — hoje não existe campo
+      // algum em occurrence_commissions pra isso, então marcadoExplicitamenteExterno é sempre
+      // false (ver comentário em classificarVinculoBeneficiario). A classificação real vem só de
+      // haver (ou não) exatamente 1 profile com esse nome.
+      const correspondencias = comissao.beneficiarioNome
+        ? (contagemPorNomeNormalizado.get(
+            normalizarNomeParaCorrespondencia(comissao.beneficiarioNome),
+          ) ?? 0)
+        : 0;
+      const c = classificarVinculoBeneficiario({
+        marcadoExplicitamenteExterno: false,
+        correspondenciasNoNome: correspondencias,
+      });
+      divergencias.push({
+        id: `beneficiario-sem-vinculo:${row.id}`,
+        gravidade: c.gravidade,
+        saleId: sale.id,
+        imovelLabel: comissao.imovelLabel,
+        tipo: c.tipo,
+        explicacao: `"${comissao.beneficiarioNome}" (papel: ${row.papel}) — ${c.explicacao}`,
+        valorAfetado: comissao.valor,
+        acaoRecomendada: c.acaoRecomendada,
+        linkTo: `/vendas/${sale.id}`,
+      });
+    }
+    if (
+      row.managed_by_sale &&
+      row.sale_commission_extra_id &&
+      !extraIds.has(row.sale_commission_extra_id)
+    ) {
+      divergencias.push({
+        id: `linha-automatica-orfa:${row.id}`,
+        gravidade: "media",
+        saleId: sale.id,
+        imovelLabel: comissao.imovelLabel,
+        tipo: "Linha automática sem origem válida",
+        explicacao:
+          "Esta linha automática referencia um ajuste extra que não existe mais no cadastro da venda.",
+        valorAfetado: comissao.valor,
+        acaoRecomendada: "Reabrir a venda para ressincronizar a divisão de comissão.",
+        linkTo: `/vendas/${sale.id}`,
+      });
+    }
+  }
+
+  // ---- Reaproveita as inconsistências já detectadas pelo Comparativo 6% ----
+  for (const inc of inconsistencias) {
+    divergencias.push({
+      id: `comparativo6pct:${inc.sale_id}`,
+      gravidade: inc.motivo === "sem_historico_fechamento" ? "alta" : "media",
+      saleId: inc.sale_id,
+      imovelLabel: inc.codigo_interno,
+      tipo:
+        inc.motivo === "sem_historico_fechamento"
+          ? "Sem histórico de envio ao financeiro"
+          : "Valores inválidos para o Comparativo 6%",
+      explicacao:
+        inc.motivo === "sem_historico_fechamento"
+          ? "A venda está em etapa financeira mas não tem entrada em 'ocorrência em análise (financeiro)' no histórico."
+          : "Valor negociado ou comissão total inválidos (nulo, zero ou negativo).",
+      valorAfetado: null,
+      acaoRecomendada: "Revisar no Comparativo de Comissão — Padrão 6%.",
+      linkTo: "/comparativo-comissao",
+    });
+  }
+
+  const efetivadas: EfetivacaoVenda[] = (efetivadasRaw ?? []).map((r) => {
+    const { teamId, gestorId } = equipeDoCorretor(r.corretor_id);
+    return {
+      saleId: r.sale_id,
+      imovelLabel: r.imovel_id || r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`,
+      codigoInterno: r.codigo_interno,
+      dataEfetivacao: r.data_fechamento,
+      modalidade: r.modalidade,
+      corretorId: r.corretor_id,
+      teamId,
+      gestorId,
+      valorNegociado: Number(r.valor_negociado),
+      valorTotalComissao: Number(r.valor_total_comissao),
+    };
+  });
+
+  const corretorOptions = Array.from(new Set((sales ?? []).map((s) => s.corretor_id)))
+    .map((id) => ({ id, label: nomePorId.get(id) ?? id }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const gestorIds = new Set<string>();
+  teamsArr.forEach((t) => {
+    if (t.lider_id) gestorIds.add(t.lider_id);
+  });
+  const gestorOptions = Array.from(gestorIds)
+    .map((id) => ({ id, label: nomePorId.get(id) ?? id }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const teamOptions = teamsArr
+    .map((t) => ({ id: t.id, label: t.nome }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return {
+    efetivadas,
+    parcelas,
+    comissoes,
+    divergencias,
+    corretorOptions,
+    gestorOptions,
+    teamOptions,
+  };
+}
