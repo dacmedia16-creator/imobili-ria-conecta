@@ -493,7 +493,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Comissões e repasses ({rows.length})</CardTitle>
+          <CardTitle className="text-base">Comissões calculadas ({rows.length})</CardTitle>
           <ExportButton onClick={doExport} />
         </CardHeader>
         <CardContent>

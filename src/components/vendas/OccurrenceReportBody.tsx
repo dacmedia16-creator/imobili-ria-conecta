@@ -123,6 +123,17 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
             <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">{money(valorNosso)}</span>,
           ]} />
         )}
+        {/* Prêmio/bônus da venda de Lançamento — somado à comissão só na previsão de recebimento
+            (occurrences.premio_valor, "fora da conta percentual normal"), nunca faz parte de "Valor
+            da comissão" acima. Sem esta linha, a previsão de recebimento aparecia maior que a
+            comissão sem nenhuma explicação visível no relatório. */}
+        {!!occ?.premio_valor && (
+          <FormValueRow cols={[
+            null, null,
+            <span className="text-muted-foreground">Prêmio (Lançamento)</span>,
+            <span className="text-base font-bold">{money(occ.premio_valor)}</span>,
+          ]} />
+        )}
       </FormTable>
 
       <FormTable>
