@@ -126,6 +126,8 @@ type DashboardStats = {
   occ_concluidas_total: number;
   comissao_prevista_total: number;
   comissao_concluida_total: number;
+  comissao_parceria_externa_prevista_total: number;
+  comissao_parceria_externa_concluida_total: number;
   comissao_por_corretor: Record<string, number>;
 };
 
@@ -357,6 +359,33 @@ function Dashboard() {
                     <Bar dataKey="concluida" fill="var(--color-concluida)" radius={4} />
                   </BarChart>
                 </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+          {((stats?.comissao_parceria_externa_prevista_total ?? 0) > 0 ||
+            (stats?.comissao_parceria_externa_concluida_total ?? 0) > 0) && (
+            <Card className="mt-3">
+              <CardHeader>
+                <CardTitle className="text-base">Parceria externa (controle à parte)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm text-muted-foreground">
+                <p>
+                  Prevista: R${" "}
+                  {Number(stats?.comissao_parceria_externa_prevista_total ?? 0).toLocaleString(
+                    "pt-BR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                  {" · "}Concluída: R${" "}
+                  {Number(stats?.comissao_parceria_externa_concluida_total ?? 0).toLocaleString(
+                    "pt-BR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </p>
+                <p>
+                  Comissão de parceiro(s) externo(s) confirmado(s) (sem cadastro no sistema) — já
+                  descontada de "Comissão prevista"/"Comissão concluída" acima, nunca é receita da
+                  imobiliária.
+                </p>
               </CardContent>
             </Card>
           )}

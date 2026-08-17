@@ -37,16 +37,24 @@ describe("resolverSelecaoBeneficiario", () => {
     { id: "e8f6eb73", nome: "Virginia Aranha" },
   ];
 
-  it("escolher SEM_CADASTRO_VALUE limpa o vínculo e preserva o nome já digitado", () => {
+  it("escolher SEM_CADASTRO_VALUE limpa o vínculo, preserva o nome já digitado e confirma sem cadastro", () => {
     const r = resolverSelecaoBeneficiario(SEM_CADASTRO_VALUE, pessoas, "Wilson Grecchi");
-    expect(r).toEqual({ user_id: null, nome: "Wilson Grecchi" });
+    expect(r).toEqual({ user_id: null, nome: "Wilson Grecchi", sem_cadastro_confirmado: true });
   });
-  it("escolher uma pessoa da lista grava o user_id e troca o nome pro cadastrado", () => {
+  it("escolher uma pessoa da lista grava o user_id, troca o nome pro cadastrado e limpa a confirmação", () => {
     const r = resolverSelecaoBeneficiario("12c887f7", pessoas, "nome antigo digitado");
-    expect(r).toEqual({ user_id: "12c887f7", nome: "Gustavo Fuentes" });
+    expect(r).toEqual({
+      user_id: "12c887f7",
+      nome: "Gustavo Fuentes",
+      sem_cadastro_confirmado: false,
+    });
   });
   it("id selecionado que não está mais na lista (ex. ficou inativo) preserva o nome atual em vez de apagar", () => {
     const r = resolverSelecaoBeneficiario("id-nao-existe", pessoas, "Nome Antigo");
-    expect(r).toEqual({ user_id: "id-nao-existe", nome: "Nome Antigo" });
+    expect(r).toEqual({
+      user_id: "id-nao-existe",
+      nome: "Nome Antigo",
+      sem_cadastro_confirmado: false,
+    });
   });
 });

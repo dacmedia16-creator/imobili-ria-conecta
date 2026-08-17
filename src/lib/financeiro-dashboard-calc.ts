@@ -45,12 +45,12 @@ export function normalizarNomeParaCorrespondencia(nome: string): string {
  * Por que um beneficiário sem `user_id` está sem vínculo — nunca classifica como "externo" só
  * porque não achou correspondência em profiles (regra explícita: precisa vir de dado auditável).
  *
- * `marcadoExplicitamenteExterno` hoje é SEMPRE false na prática: não existe nenhum campo no schema
- * que marque uma linha de `occurrence_commissions` (o beneficiário individual) como parceria
- * externa — o único conceito de "parceria externa" que existe é `occurrence_partners`/`sales.parceria_*`,
- * que é da OCORRÊNCIA INTEIRA, não de um beneficiário específico. O parâmetro existe pronto pro dia
- * em que um campo assim for criado (ver proposta de modelo em `PROMPT_ADM_MAX_CENTRAL_FINANCEIRA.md`
- * / relatório de auditoria) — até lá, esse ramo nunca é alcançado com o dado real de hoje.
+ * `marcadoExplicitamenteExterno` vem de `occurrence_commissions.sem_cadastro_confirmado` (ver
+ * migration 20260817020000_exige_confirmacao_sem_cadastro) — marcado só quando alguém escolhe
+ * deliberadamente "Sem cadastro / parceiro externo" no seletor de beneficiário, nunca inferido por
+ * nome/papel. Esse indicador é por LINHA de `occurrence_commissions` (um beneficiário específico);
+ * é um conceito diferente de `occurrence_partners`/`sales.parceria_*`, que é da OCORRÊNCIA INTEIRA
+ * (parceria com outra imobiliária/unidade, não um beneficiário individual sem cadastro).
  *
  * `correspondenciasNoNome` = quantos profiles ativos têm o mesmo nome normalizado. 1 = candidato
  * único e inequívoco ("vínculo pendente"); 0 ou 2+ = não dá pra inferir com segurança

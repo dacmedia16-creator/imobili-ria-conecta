@@ -237,7 +237,15 @@ export function LancamentoDetail({ saleId, sale, parties, commissionExtras, onCh
       if (error) { toast.error(error.message); return false; }
     }
     for (const r of commRows) {
-      const payload = { sale_id: saleId, papel: r.papel, nome: r.nome || null, user_id: r.user_id || null, percentual: r.percentual, valor: r.valor };
+      const payload = {
+        sale_id: saleId,
+        papel: r.papel,
+        nome: r.nome || null,
+        user_id: r.user_id || null,
+        percentual: r.percentual,
+        valor: r.valor,
+        sem_cadastro_confirmado: !!r.sem_cadastro_confirmado,
+      };
       const { error } = r._new
         ? await supabase.from("sale_commission_extras").insert(payload)
         : await supabase.from("sale_commission_extras").update(payload).eq("id", r.id);

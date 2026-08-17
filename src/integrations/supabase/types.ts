@@ -249,6 +249,10 @@ export type Database = {
           papel: string
           percentual: number | null
           sale_commission_extra_id: string | null
+          // Adicionada manualmente (não via codegen) — ver migration
+          // 20260817020000_exige_confirmacao_sem_cadastro. Regenerar via `supabase gen types`
+          // normalmente assim que a migration rodar.
+          sem_cadastro_confirmado: boolean
           user_id: string | null
           valor: number | null
         }
@@ -261,6 +265,7 @@ export type Database = {
           papel: string
           percentual?: number | null
           sale_commission_extra_id?: string | null
+          sem_cadastro_confirmado?: boolean
           user_id?: string | null
           valor?: number | null
         }
@@ -273,6 +278,7 @@ export type Database = {
           papel?: string
           percentual?: number | null
           sale_commission_extra_id?: string | null
+          sem_cadastro_confirmado?: boolean
           user_id?: string | null
           valor?: number | null
         }
@@ -629,6 +635,10 @@ export type Database = {
           papel: string | null
           percentual: number | null
           sale_id: string
+          // Adicionada manualmente (não via codegen) — ver migration
+          // 20260817020000_exige_confirmacao_sem_cadastro. Regenerar via `supabase gen types`
+          // normalmente assim que a migration rodar.
+          sem_cadastro_confirmado: boolean
           user_id: string | null
           valor: number | null
         }
@@ -640,6 +650,7 @@ export type Database = {
           papel?: string | null
           percentual?: number | null
           sale_id: string
+          sem_cadastro_confirmado?: boolean
           user_id?: string | null
           valor?: number | null
         }
@@ -651,6 +662,7 @@ export type Database = {
           papel?: string | null
           percentual?: number | null
           sale_id?: string
+          sem_cadastro_confirmado?: boolean
           user_id?: string | null
           valor?: number | null
         }

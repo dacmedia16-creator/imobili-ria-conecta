@@ -17,6 +17,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Search, Plus, Users, Crown, UserPlus, FolderPlus, Pencil, Trash2, X, TrendingUp } from "lucide-react";
+import {
+  fetchComissaoPorBeneficiario,
+  type ComissaoBeneficiarioResumo,
+} from "@/lib/comissao-por-beneficiario";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
@@ -29,6 +33,13 @@ const money = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDi
 /** Sempre dia 1 do mês corrente — mesmo formato que a coluna metas.mes exige (CHECK trava isso no banco). */
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
 const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+/** Estado inicial (e de "sem vendas") do resumo de comissão por beneficiário — mesmo formato em
+ * VisaoGeralCard e DesempenhoDialog, extraído pra não divergir entre os dois. */
+const RESUMO_VAZIO: ComissaoBeneficiarioResumo = {
+  porBeneficiario: {},
+  semVinculo: { quantidade: 0, valor: 0 },
+  parceriaExterna: { quantidade: 0, valor: 0 },
+};
 
 type Team = { id: string; nome: string; cor: string; lider_id: string; parent_team_id: string | null };
 type Profile = { id: string; nome: string; email: string | null };
@@ -287,6 +298,27 @@ function VisaoGeralCard({
     return map;
   }, [teams, members]);
 
+  // "Comissão" já foi soma de sales.valor_total_comissao por sales.corretor_id — atribuía a comissão
+  // INTEIRA da venda a quem cadastrou, não a quem recebe (ver auditoria "comissão por corretor").
+  // Agora soma occurrence_commissions por beneficiário real, mesma fonte de metas_progresso().
+  const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
+  useEffect(() => {
+    const saleIds = allSales.map((s) => s.id);
+    if (saleIds.length === 0) {
+      setComissaoResumo(RESUMO_VAZIO);
+      return;
+    }
+    let cancelado = false;
+    fetchComissaoPorBeneficiario(saleIds)
+      .then((r) => {
+        if (!cancelado) setComissaoResumo(r);
+      })
+      .catch((e: unknown) => console.error("fetchComissaoPorBeneficiario (Visão geral):", e));
+    return () => {
+      cancelado = true;
+    };
+  }, [allSales]);
+
   const ranking = useMemo(() => {
     const ids = new Set<string>([...members.map((m) => m.membro_id), ...allSales.map((s) => s.corretor_id)]);
     return Array.from(ids)
@@ -300,11 +332,11 @@ function VisaoGeralCard({
           total: vendas.length,
           fechadas: fechadas.length,
           negociado: vendas.reduce((s, v) => s + Number(v.valor_negociado ?? 0), 0),
-          comissao: vendas.reduce((s, v) => s + Number(v.valor_total_comissao ?? 0), 0),
+          comissao: comissaoResumo.porBeneficiario[id] ?? 0,
         };
       })
       .sort((a, b) => b.negociado - a.negociado);
-  }, [members, allSales, profiles, teamNameByMembro]);
+  }, [members, allSales, profiles, teamNameByMembro, comissaoResumo]);
 
   const totais = useMemo(() => ({
     equipes: teams.filter((t) => !t.parent_team_id).length,
@@ -325,6 +357,21 @@ function VisaoGeralCard({
           <div><p className="text-xs text-muted-foreground">Valor negociado</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></div>
           <div><p className="text-xs text-muted-foreground">Comissão total</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></div>
         </div>
+        {comissaoResumo.semVinculo.quantidade > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {comissaoResumo.semVinculo.quantidade} parcela(s) de comissão (
+            {money(comissaoResumo.semVinculo.valor)}) sem vínculo de perfil confirmado — pendente de
+            correção, não aparecem no total de nenhum corretor acima.
+          </p>
+        )}
+        {comissaoResumo.parceriaExterna.quantidade > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {comissaoResumo.parceriaExterna.quantidade} parcela(s) de comissão (
+            {money(comissaoResumo.parceriaExterna.valor)}) de parceiro(s) externo(s) confirmado(s)
+            (sem cadastro no sistema) — não entram no ranking por corretor, mas continuam
+            contabilizadas nos totais financeiros e nos relatórios de parceria externa.
+          </p>
+        )}
         {ranking.length > 0 && (
           <Table>
             <TableHeader>
@@ -803,6 +850,9 @@ function DesempenhoDialog({
   const [loading, setLoading] = useState(true);
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [savingMetaKey, setSavingMetaKey] = useState<string | null>(null);
+  // Mesma correção da Visão geral: comissão por occurrence_commissions.user_id, não mais somando
+  // sales.valor_total_comissao por corretor_id (atribuía a comissão inteira a quem cadastrou).
+  const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
 
   const carregarMetas = useCallback(async () => {
     const { data } = await supabase.rpc("metas_progresso", { _mes: mesAtualISO() });
@@ -816,7 +866,13 @@ function DesempenhoDialog({
       const { data } = membroIds.length
         ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds).not("status", "in", "(cancelada,arquivada)")
         : { data: [] as any[] };
-      setSales(data ?? []);
+      const salesData = data ?? [];
+      setSales(salesData);
+      try {
+        setComissaoResumo(await fetchComissaoPorBeneficiario(salesData.map((s) => s.id)));
+      } catch (e: unknown) {
+        console.error("fetchComissaoPorBeneficiario (Desempenho):", e);
+      }
       await carregarMetas();
       setLoading(false);
     })();
@@ -833,11 +889,11 @@ function DesempenhoDialog({
           total: vendas.length,
           fechadas: fechadas.length,
           negociado: vendas.reduce((sum, s) => sum + Number(s.valor_negociado ?? 0), 0),
-          comissao: vendas.reduce((sum, s) => sum + Number(s.valor_total_comissao ?? 0), 0),
+          comissao: comissaoResumo.porBeneficiario[id] ?? 0,
         };
       })
       .sort((a, b) => b.negociado - a.negociado);
-  }, [membroIds, sales, profiles]);
+  }, [membroIds, sales, profiles, comissaoResumo]);
 
   const totais = useMemo(() => ({
     vendas: ranking.reduce((s, r) => s + r.total, 0),
