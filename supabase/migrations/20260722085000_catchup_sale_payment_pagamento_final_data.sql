@@ -1,0 +1,14 @@
+-- CATCH-UP: pagamento_final_data existe em produção (confirmado via information_schema, tipo
+-- atual = text) mas nenhuma migration deste repositório a criava — a migration seguinte
+-- (20260722090000_sale_payment_quando_texto_livre.sql) já assume que ela existe e só converte o
+-- TIPO pra text, quebrando um replay do zero (`supabase db reset`/`supabase start`) num Postgres
+-- limpo com "column pagamento_final_data does not exist".
+--
+-- Motivo mais provável: a coluna foi criada direto no Supabase Studio (ou uma migration que a
+-- criava foi apagada/nunca commitada) antes de 20260722090000. Recriada aqui como DATE — mesmo
+-- tipo dos 3 campos irmãos (entrada_data/parcela1_data/parcela2_data, ver criação original em
+-- 20260630234432) — pra que a migration seguinte, que já existe e já faz a conversão real pra
+-- text, continue sendo o único lugar que decide o tipo final. Puramente aditivo e idempotente
+-- (IF NOT EXISTS): não altera nenhuma linha existente em produção (a coluna já existe lá, então
+-- rodar isso em produção seria um no-op).
+ALTER TABLE public.sale_payment ADD COLUMN IF NOT EXISTS pagamento_final_data date;
