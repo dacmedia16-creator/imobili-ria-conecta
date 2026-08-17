@@ -7,20 +7,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
-import { proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
+import { agruparContagemPorGrupoVenda, proximoResponsavelRoles, type GrupoVenda, type SaleStatus } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target } from "lucide-react";
 
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
 const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
-/** Agrupa os status granulares de venda em etapas macro, só para leitura visual no funil do dashboard. */
-const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
-  { key: "inicio", label: "Rascunho / devolvida", statuses: ["rascunho", "devolvida_ajuste", "ocorrencia_devolvida_gestor"] },
-  { key: "aprovacao", label: "Em aprovação", statuses: ["enviada_revisao", "aprovada_gestor"] },
-  { key: "juridico", label: "Jurídico / contrato", statuses: ["enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
-  { key: "concluida", label: "Concluída", statuses: ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_concluida"] },
-  { key: "encerrada", label: "Cancelada / arquivada", statuses: ["cancelada", "arquivada"] },
+/** As 4 etapas de negócio do funil geral (classificarGrupoVenda, src/lib/status.ts). Rótulos no
+ * plural — são cabeçalhos de série/card agregado, não o rótulo de uma venda individual (esse é
+ * GRUPO_VENDA_LABEL, em status.ts). Ordem de exibição pedida: preparação → futura → confirmada →
+ * encerrada. */
+const FUNIL_GRUPOS: { key: GrupoVenda; label: string }[] = [
+  { key: "preparacao", label: "Em preparação" },
+  { key: "futura", label: "Vendas futuras" },
+  { key: "confirmada", label: "Vendas confirmadas" },
+  { key: "encerrada", label: "Encerradas sem venda" },
 ];
 
 const funilChartConfig = { total: { label: "Vendas", color: "var(--color-chart-1)" } } satisfies ChartConfig;
@@ -105,10 +107,12 @@ function Dashboard() {
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
-  const funilData = FUNIL_STAGES.map(({ key, label, statuses }) => ({
-    key, label, total: statuses.reduce((sum, st) => sum + (stats?.funil[st] ?? 0), 0),
-  }));
-  const totalFunil = funilData.reduce((sum, f) => sum + f.total, 0);
+  const contagemPorGrupo = agruparContagemPorGrupoVenda(stats?.funil ?? {});
+  const funilData = FUNIL_GRUPOS.map(({ key, label }) => ({ key, label, total: contagemPorGrupo[key] }));
+  // Canceladas/arquivadas ("encerrada") não entram no total ativo nem no percentual das vendas
+  // ativas — não viraram negócio, não fazem sentido no denominador de "quanto já avançou".
+  const totalAtivo = contagemPorGrupo.preparacao + contagemPorGrupo.futura + contagemPorGrupo.confirmada;
+  const totalGeral = totalAtivo + contagemPorGrupo.encerrada;
   const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
 
   return (
@@ -127,7 +131,7 @@ function Dashboard() {
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
-      {!loading && totalFunil > 0 && (
+      {!loading && totalGeral > 0 && (
         <Card>
           <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
@@ -139,10 +143,17 @@ function Dashboard() {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => {
-                        const pct = totalFunil > 0 ? Math.round((Number(value) / totalFunil) * 100) : 0;
+                      formatter={(value, _name, _item, _index, payload) => {
+                        // "encerrada" fica fora do % — requisito 6 (não entra no percentual das
+                        // vendas ativas).
+                        const grupo = (payload as unknown as { key?: GrupoVenda } | undefined)?.key;
+                        const pct = grupo !== "encerrada" && totalAtivo > 0
+                          ? Math.round((Number(value) / totalAtivo) * 100)
+                          : null;
                         return (
-                          <span className="font-medium text-foreground">{Number(value)} vendas ({pct}%)</span>
+                          <span className="font-medium text-foreground">
+                            {Number(value)} vendas{pct !== null ? ` (${pct}% das ativas)` : ""}
+                          </span>
                         );
                       }}
                     />
@@ -153,11 +164,16 @@ function Dashboard() {
             </ChartContainer>
             <div className="flex flex-col justify-center gap-1.5">
               {funilData.map(({ key, label, total }) => {
-                const pct = totalFunil > 0 ? Math.round((total / totalFunil) * 100) : 0;
+                const pct = key !== "encerrada" && totalAtivo > 0 ? Math.round((total / totalAtivo) * 100) : null;
                 return (
                   <div key={key} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium">{total} <span className="text-xs text-muted-foreground">({pct}%)</span></span>
+                    <span className="font-medium">
+                      {total}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        {pct !== null ? `(${pct}% das ativas)` : "(fora do total ativo)"}
+                      </span>
+                    </span>
                   </div>
                 );
               })}

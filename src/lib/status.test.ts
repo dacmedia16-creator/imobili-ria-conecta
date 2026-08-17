@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  agruparContagemPorGrupoVenda,
   classificarGrupoVenda,
   fatorComissaoPropria,
   GRUPO_VENDA_LABEL,
@@ -100,6 +101,82 @@ describe("classificarGrupoVenda — Etapa 1 do plano de dashboards (PLANO_SIMPLE
 
   it("requisito 4: valor fora do enum SaleStatus lança erro em vez de retornar undefined silenciosamente", () => {
     expect(() => classificarGrupoVenda("status_inexistente" as SaleStatus)).toThrow(
+      /status_inexistente/,
+    );
+  });
+});
+
+describe("agruparContagemPorGrupoVenda — Etapa 2A: funil geral do dashboard usa classificarGrupoVenda", () => {
+  it("preserva a soma total das contagens ao reagrupar (nenhuma venda é perdida ou duplicada)", () => {
+    const contagemPorStatus: Record<SaleStatus, number> = {
+      rascunho: 3,
+      enviada_revisao: 2,
+      devolvida_ajuste: 1,
+      aprovada_gestor: 0,
+      enviada_juridico: 4,
+      em_elaboracao_contrato: 1,
+      contrato_conferencia_gestor: 0,
+      contrato_conferencia_corretor: 0,
+      contrato_ok_corretor: 0,
+      aguardando_assinatura: 2,
+      contrato_assinado: 5,
+      ocorrencia_pendente: 3,
+      ocorrencia_analise_financeiro: 1,
+      ocorrencia_devolvida_gestor: 2,
+      ocorrencia_concluida: 7,
+      cancelada: 1,
+      arquivada: 2,
+    };
+    const totalEntrada = Object.values(contagemPorStatus).reduce((a, b) => a + b, 0);
+
+    const totais = agruparContagemPorGrupoVenda(contagemPorStatus);
+    const totalSaida = Object.values(totais).reduce((a, b) => a + b, 0);
+
+    expect(totalSaida).toBe(totalEntrada);
+  });
+
+  it("soma corretamente as vendas de cada status dentro do grupo certo", () => {
+    const totais = agruparContagemPorGrupoVenda({
+      rascunho: 3,
+      enviada_revisao: 2,
+      devolvida_ajuste: 1,
+      contrato_assinado: 5,
+      ocorrencia_devolvida_gestor: 2,
+      cancelada: 1,
+      arquivada: 2,
+    });
+
+    expect(totais).toEqual({
+      preparacao: 3,
+      futura: 3, // enviada_revisao (2) + devolvida_ajuste (1)
+      confirmada: 7, // contrato_assinado (5) + ocorrencia_devolvida_gestor (2)
+      encerrada: 3, // cancelada (1) + arquivada (2)
+    });
+  });
+
+  it("requisito 4 (repetido do dashboard): ocorrencia_devolvida_gestor conta em confirmada, não em preparação/futura", () => {
+    const totais = agruparContagemPorGrupoVenda({ ocorrencia_devolvida_gestor: 9 });
+    expect(totais.confirmada).toBe(9);
+    expect(totais.preparacao + totais.futura + totais.encerrada).toBe(0);
+  });
+
+  it("requisito 5 (repetido do dashboard): devolvida_ajuste conta em futura, não em preparação", () => {
+    const totais = agruparContagemPorGrupoVenda({ devolvida_ajuste: 4 });
+    expect(totais.futura).toBe(4);
+    expect(totais.preparacao).toBe(0);
+  });
+
+  it("objeto vazio (dashboard_stats().funil sem nenhuma venda ainda) retorna os 4 grupos zerados, não undefined", () => {
+    expect(agruparContagemPorGrupoVenda({})).toEqual({
+      preparacao: 0,
+      futura: 0,
+      confirmada: 0,
+      encerrada: 0,
+    });
+  });
+
+  it("status desconhecido no objeto de entrada lança erro (mesmo guard de classificarGrupoVenda, sem fallback silencioso)", () => {
+    expect(() => agruparContagemPorGrupoVenda({ status_inexistente: 1 })).toThrow(
       /status_inexistente/,
     );
   });

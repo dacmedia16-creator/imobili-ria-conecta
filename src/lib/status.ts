@@ -124,6 +124,32 @@ export function classificarGrupoVenda(status: SaleStatus): GrupoVenda {
   return grupo;
 }
 
+/**
+ * Reagrupa uma contagem por status bruto (ex.: o campo `funil` de `dashboard_stats()`, que é
+ * `jsonb_object_agg(status, count(*))` agrupado por `sales.status` no banco) nos 4 grupos de
+ * negócio. Usada pelo funil geral do dashboard (Etapa 2A do plano de dashboards) — não lê nem
+ * agrega nada sozinha, só redistribui contagens que a RPC já trouxe.
+ *
+ * Soma-preservante por construção: cada status de `contagemPorStatus` cai em exatamente um dos 4
+ * acumuladores (`classificarGrupoVenda` é exaustivo e nunca falha silenciosamente), então
+ * `Object.values(resultado).reduce(soma) === Object.values(contagemPorStatus).reduce(soma)`.
+ */
+export function agruparContagemPorGrupoVenda(
+  contagemPorStatus: Record<string, number>,
+): Record<GrupoVenda, number> {
+  const totais: Record<GrupoVenda, number> = {
+    preparacao: 0,
+    futura: 0,
+    confirmada: 0,
+    encerrada: 0,
+  };
+  for (const [status, quantidade] of Object.entries(contagemPorStatus)) {
+    const grupo = classificarGrupoVenda(status as SaleStatus);
+    totais[grupo] += quantidade;
+  }
+  return totais;
+}
+
 /** Agrupa os status granulares nas 6 macro-etapas do fluxo, para exibir um stepper visual. */
 export type FlowStageKey = "corretor" | "gestor" | "juridico" | "contrato" | "financeiro" | "concluida";
 export const FLOW_STAGES: { key: FlowStageKey; label: string; statuses: SaleStatus[] }[] = [
