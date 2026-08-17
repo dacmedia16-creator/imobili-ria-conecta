@@ -5,11 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
 import { agruparContagemPorGrupoVenda, proximoResponsavelRoles, type GrupoVenda, type SaleStatus } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
-import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target } from "lucide-react";
+import { PERIODO_LABEL, resolverPeriodo, validarPeriodoSearch, type PeriodoSearch, type PeriodoTipo } from "@/lib/dashboard-periodo";
+import { fetchMovimentacaoPeriodo, type MovimentacaoPeriodo } from "@/lib/dashboard-movimentacao-query";
+import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target, Send, Archive, Info, type LucideIcon } from "lucide-react";
 
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
 const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
@@ -32,8 +36,23 @@ const comissaoChartConfig = {
   concluida: { label: "Concluída", color: "var(--color-chart-2)" },
 } satisfies ChartConfig;
 
+// Campos opcionais aqui (diferente de PeriodoSearch, que é o formato JÁ RESOLVIDO e estrito usado
+// por resolverPeriodo/validarPeriodoSearch) só pra não obrigar todo `navigate({ to: "/dashboard" })`
+// do resto do app a informar periodo/de/ate — a URL sem nenhum search param é um caso normal (1ª
+// visita), e cai em "mes_atual" dentro do componente, não aqui.
+type DashboardSearch = { periodo?: PeriodoTipo; de?: string | null; ate?: string | null };
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
+  // Sanitiza search params da URL (periodo/de/ate) pra Movimentação do período (Etapa 2B) — valor
+  // desconhecido ou ausente cai com segurança em "mes_atual", nunca propaga lixo pro resto da tela.
+  // de/ate só aparecem na URL quando periodo === "personalizado" (chave ausente vira `undefined`,
+  // que o router omite da querystring — diferente de `null`, que apareceria como "?de=null").
+  validateSearch: (raw: Record<string, unknown>): DashboardSearch => {
+    const v = validarPeriodoSearch(raw);
+    if (v.periodo !== "personalizado") return { periodo: v.periodo };
+    return { periodo: v.periodo, de: v.de ?? undefined, ate: v.ate ?? undefined };
+  },
   component: Dashboard,
 });
 
@@ -133,7 +152,7 @@ function Dashboard() {
 
       {!loading && totalGeral > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Situação atual das vendas</CardTitle></CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
               <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
@@ -181,6 +200,11 @@ function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Movimentação do período — Etapa 2B. Só financeiro/admin/super_admin (mesma regra do
+          Painel financeiro logo abaixo). Não depende de `stats`/`loading` do funil: tem seu
+          próprio carregamento, porque vem de uma RPC diferente (dashboard_movimentacao_periodo). */}
+      {isFinanceiro && <MovimentacaoPeriodoSection />}
 
       {/* Corretor — só quem opera como corretor "puro" (sem outros papéis de supervisão) vê essa
           seção; admin/super_admin/gestor/etc que também carregam o papel corretor (ex.: pra
@@ -351,6 +375,184 @@ function DashSection({ title, children }: { title: string; children: React.React
 
 function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
+}
+
+/**
+ * "O que aconteceu no período selecionado?" — separado da "Situação atual" (funil acima) de
+ * propósito: contam coisas diferentes. O funil é status ATUAL; aqui é MOVIMENTO (quando cada venda
+ * entrou pela 1ª vez em cada grupo, via sale_status_history) — por isso uma venda pode aparecer em
+ * "Entraram como vendas futuras" e "Vendas confirmadas" no mesmo período (2 eventos, não 2 baldes
+ * exclusivos). Não soma os 3 cards em um total — seria misturar 3 perguntas diferentes num número
+ * sem sentido.
+ */
+const ERRO_MOVIMENTACAO_PERIODO = "Não foi possível carregar a movimentação do período.";
+
+function MovimentacaoPeriodoSection() {
+  const searchBruto = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // DashboardSearch tem tudo opcional (pra não travar navigate({to:"/dashboard"}) de outras
+  // páginas) — aqui, dentro do componente, sempre trabalhamos com o formato resolvido/estrito.
+  const search: PeriodoSearch = {
+    periodo: searchBruto.periodo ?? "mes_atual",
+    de: searchBruto.de ?? null,
+    ate: searchBruto.ate ?? null,
+  };
+  const periodoResolvido = resolverPeriodo(search, new Date());
+
+  const [dado, setDado] = useState<MovimentacaoPeriodo | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (periodoResolvido.incompleto) {
+      setDado(null);
+      setErro(null);
+      setCarregando(false);
+      return;
+    }
+    let cancelado = false;
+    setCarregando(true);
+    setErro(null);
+    fetchMovimentacaoPeriodo(periodoResolvido.inicioUtc, periodoResolvido.fimExclusivoUtc)
+      .then((r) => {
+        if (!cancelado) setDado(r);
+      })
+      .catch((e: unknown) => {
+        // A mensagem técnica (erro do Postgres/Supabase) só vai pro console — o usuário só vê a
+        // mensagem fixa abaixo, nunca o texto bruto do banco.
+        console.error("dashboard_movimentacao_periodo:", e);
+        if (!cancelado) setErro(ERRO_MOVIMENTACAO_PERIODO);
+      })
+      .finally(() => {
+        if (!cancelado) setCarregando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // periodoResolvido é recalculado a cada render a partir de `search` — dependendo só dos campos
+    // primitivos que realmente mudam o intervalo (em vez do objeto inteiro) evita refetch em
+    // renders que não alteraram nada, sem precisar suprimir exhaustive-deps.
+  }, [periodoResolvido.incompleto, periodoResolvido.inicioUtc, periodoResolvido.fimExclusivoUtc]);
+
+  const mudarPeriodo = (valor: string) => {
+    const periodo = valor as PeriodoTipo;
+    navigate({
+      search: (prev) =>
+        periodo === "personalizado"
+          ? { periodo, de: prev.de ?? undefined, ate: prev.ate ?? undefined }
+          : { periodo },
+    });
+  };
+  const mudarData = (campo: "de" | "ate", valor: string) => {
+    navigate({ search: (prev) => ({ ...prev, periodo: "personalizado", [campo]: valor || undefined }) });
+  };
+
+  const semDataTotal = (dado?.semDataFutura ?? 0) + (dado?.semDataConfirmada ?? 0) + (dado?.semDataEncerrada ?? 0);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle className="text-base">Movimentação do período</CardTitle>
+          <p className="text-xs text-muted-foreground">{periodoResolvido.label}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={search.periodo} onValueChange={mudarPeriodo}>
+            <SelectTrigger className="w-40 shrink-0"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(PERIODO_LABEL) as PeriodoTipo[]).map((k) => (
+                <SelectItem key={k} value={k}>{PERIODO_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {search.periodo === "personalizado" && (
+            <>
+              <Input
+                type="date"
+                value={search.de ?? ""}
+                onChange={(e) => mudarData("de", e.target.value)}
+                className="w-[9.5rem]"
+                aria-label="Data inicial"
+              />
+              <Input
+                type="date"
+                value={search.ate ?? ""}
+                onChange={(e) => mudarData("ate", e.target.value)}
+                className="w-[9.5rem]"
+                aria-label="Data final"
+              />
+            </>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {periodoResolvido.incompleto ? (
+          <p className="text-sm text-muted-foreground">{periodoResolvido.label}</p>
+        ) : carregando ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : erro ? (
+          <p className="text-sm text-destructive">{erro}</p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <MovimentacaoCard
+                icon={Send}
+                label="Entraram como vendas futuras"
+                quantidade={dado?.futurasQuantidade ?? 0}
+                vgv={dado?.futurasVgv}
+              />
+              <MovimentacaoCard
+                icon={CheckCircle2}
+                label="Vendas confirmadas"
+                quantidade={dado?.confirmadasQuantidade ?? 0}
+                vgv={dado?.confirmadasVgv}
+              />
+              <MovimentacaoCard icon={Archive} label="Vendas encerradas" quantidade={dado?.encerradasQuantidade ?? 0} />
+            </div>
+            {semDataTotal > 0 && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {semDataTotal} vendas não possuem marco histórico e não podem ser atribuídas a um período.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MovimentacaoCard({
+  icon: Icon,
+  label,
+  quantidade,
+  vgv,
+}: {
+  icon: LucideIcon;
+  label: string;
+  quantidade: number;
+  vgv?: number;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground/50" : ""}`}>
+            {quantidade}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+          {vgv !== undefined && (
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              VGV: R$ {vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function KpiCard({ icon: Icon, label, value, to }: { icon: any; label: string; value: number | string; to?: string }) {
