@@ -26,6 +26,13 @@
 -- aparece em parceria_por_occ (LEFT JOIN + COALESCE(...,0)) — comportamento idêntico ao de hoje.
 --
 -- Não muda estrutura, parâmetros nem nenhuma outra chave de dashboard_stats().
+--
+-- Renomeada de 20260817010000 para 20260817030000 (git mv, sem alterar o SQL abaixo): o corpo desta
+-- função lê occurrence_commissions.sem_cadastro_confirmado, coluna criada só pela migration
+-- 20260817020000_exige_confirmacao_sem_cadastro.sql — a numeração original (010000, antes de 020000)
+-- faria esta migration falhar em produção por depender de uma coluna que ainda não existe. Renumerada
+-- pra depois de 020000 pra a ordem natural do nome do arquivo já refletir a dependência real; nenhuma
+-- linha executável foi alterada nesta correção, só este comentário foi adicionado.
 create or replace function public.dashboard_stats()
 returns jsonb
 language sql

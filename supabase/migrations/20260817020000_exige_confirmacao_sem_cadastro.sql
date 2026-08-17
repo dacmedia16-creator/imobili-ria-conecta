@@ -1,3 +1,8 @@
+-- ORDEM DE APLICAÇÃO: esta migration precisa rodar ANTES de 20260817030000 (renumerada de
+-- 20260817010000 — git mv, sem alterar SQL executável) — aquela função lê a coluna
+-- sem_cadastro_confirmado criada abaixo. A ordem numérica dos arquivos (020000 < 030000) já garante
+-- isso naturalmente numa aplicação nova via `supabase db push`.
+--
 -- Item 2 da correção de comissão por beneficiário: impedir que uma linha de comissão de papel
 -- interno fique com user_id nulo SEM uma confirmação explícita de que a pessoa realmente não tem
 -- cadastro no sistema.
@@ -175,7 +180,8 @@ $function$;
 -- captador/vendedor/outro) de uma venda do fluxo padrão ficaria sempre com sem_cadastro_confirmado
 -- = false na ocorrência, mesmo quando a extra de origem já foi confirmada como parceiro externo —
 -- quebrando a distinção usada por dashboard_stats() pra separar parceria externa de faturamento
--- (ver migration 20260817010000) pra qualquer venda que não seja de Lançamento. As linhas dos
+-- (ver migration 20260817030000, aplicada DEPOIS desta — dashboard_stats() depende da coluna
+-- sem_cadastro_confirmado criada aqui) pra qualquer venda que não seja de Lançamento. As linhas dos
 -- papéis "fixos" (corretor_captador/vendedor principal, indicador, líder — v_fixed) não precisam
 -- disso: são sempre gente interna, nunca parceiro externo (calcular_distribuicao_venda já trava
 -- isso como inconsistência se um desses ficar sem user_id).
