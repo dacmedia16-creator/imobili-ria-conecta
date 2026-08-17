@@ -28,17 +28,39 @@ function NewLancamento() {
     try {
       const { data, error } = await supabase
         .from("sales")
-        .insert({ corretor_id: user.id, imovel_id: imovelId || null, status: "rascunho", modalidade: "lancamento" } as any)
+        .insert({
+          corretor_id: user.id,
+          imovel_id: imovelId || null,
+          status: "rascunho",
+          modalidade: "lancamento",
+        } as any)
         .select("id")
         .single();
       if (error) throw error;
       // Construtora entra como vendedor_1 (pessoa jurídica) — sale_parties já suporta esse formato,
       // sem precisar de tabela/campo novo só pra isso.
       const { error: partyErr } = await supabase.from("sale_parties").insert([
-        { sale_id: data.id, papel: "vendedor_1", tipo_pessoa: "juridica", razao_social: construtoraNome || null, cnpj: construtoraCnpj || null },
+        {
+          sale_id: data.id,
+          papel: "vendedor_1",
+          tipo_pessoa: "juridica",
+          razao_social: construtoraNome || null,
+          cnpj: construtoraCnpj || null,
+        },
         { sale_id: data.id, papel: "comprador_1", tipo_pessoa: "fisica" },
       ]);
       if (partyErr) throw partyErr;
+      // Fire-and-forget: log de auditoria não pode impedir a navegação se falhar (a venda já foi
+      // criada com sucesso nesse ponto).
+      supabase
+        .from("activity_logs")
+        .insert({
+          sale_id: data.id,
+          autor_id: user.id,
+          acao: "lancamento_criado",
+          payload: { imovel_id: imovelId || null, construtora: construtoraNome || null },
+        })
+        .then(() => {});
       toast.success("Lançamento criado como rascunho");
       router.navigate({ to: "/vendas/$id", params: { id: data.id } });
     } catch (err: any) {
@@ -62,22 +84,41 @@ function NewLancamento() {
         </p>
       </div>
       <Card>
-        <CardHeader><CardTitle>Identificação</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Identificação</CardTitle>
+        </CardHeader>
         <CardContent>
           <form onSubmit={onCreate} className="space-y-4">
             <div>
               <Label htmlFor="imovel">Código do imóvel</Label>
-              <Input id="imovel" value={imovelId} onChange={(e) => setImovelId(e.target.value)} placeholder="Ex: 630601112-229" />
+              <Input
+                id="imovel"
+                value={imovelId}
+                onChange={(e) => setImovelId(e.target.value)}
+                placeholder="Ex: 630601112-229"
+              />
             </div>
             <div>
               <Label htmlFor="construtora-nome">Nome da construtora</Label>
-              <Input id="construtora-nome" value={construtoraNome} onChange={(e) => setConstrutoraNome(e.target.value)} placeholder="Ex: Alphaville" />
+              <Input
+                id="construtora-nome"
+                value={construtoraNome}
+                onChange={(e) => setConstrutoraNome(e.target.value)}
+                placeholder="Ex: Alphaville"
+              />
             </div>
             <div>
               <Label htmlFor="construtora-cnpj">CNPJ da construtora</Label>
-              <Input id="construtora-cnpj" value={construtoraCnpj} onChange={(e) => setConstrutoraCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+              <Input
+                id="construtora-cnpj"
+                value={construtoraCnpj}
+                onChange={(e) => setConstrutoraCnpj(e.target.value)}
+                placeholder="00.000.000/0000-00"
+              />
             </div>
-            <Button type="submit" disabled={loading}>{loading ? "Criando..." : "Criar rascunho"}</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Criando..." : "Criar rascunho"}
+            </Button>
           </form>
         </CardContent>
       </Card>

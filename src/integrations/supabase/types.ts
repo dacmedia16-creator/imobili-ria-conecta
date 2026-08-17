@@ -1364,6 +1364,13 @@ export type Database = {
         }[]
       }
       criar_ocorrencia_completa: { Args: { p_sale_id: string }; Returns: Json }
+      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
+      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
+      // equivalente, e este comentário some junto.
+      concluir_lancamento: {
+        Args: { p_sale_id: string; p_saldo_confirmado: number }
+        Returns: Json
+      }
       criar_ocorrencia_lancamento: {
         Args: { p_sale_id: string }
         Returns: Json
@@ -1458,6 +1465,13 @@ export type Database = {
         }[]
       }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
+      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
+      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
+      // equivalente, e este comentário some junto.
+      salvar_divisao_comissao_lancamento: {
+        Args: { p_linhas: Json; p_sale_id: string }
+        Returns: Json
+      }
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string }
         Returns: boolean
