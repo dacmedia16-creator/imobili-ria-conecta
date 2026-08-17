@@ -38,7 +38,12 @@ declare
   v_ids_mantidos uuid[] := '{}';
   v_id uuid;
 begin
-  select * into v_sale from sales where id = p_sale_id;
+  -- FOR UPDATE: trava a linha de sales pelo resto desta transação — serializa contra
+  -- concluir_lancamento() rodando em paralelo pra mesma venda (que também trava com FOR UPDATE).
+  -- Sem isso, uma edição de comissão e uma conclusão concorrentes poderiam intercalar: a conclusão
+  -- lê o saldo ANTES da edição terminar de gravar, confirma um snapshot que já nasce desatualizado
+  -- assim que a edição commita.
+  select * into v_sale from sales where id = p_sale_id for update;
   if not found then
     raise exception 'Venda não encontrada.' using errcode = 'P0002';
   end if;
@@ -140,7 +145,8 @@ begin
     raise exception 'Apenas o financeiro pode concluir a ocorrência.' using errcode = '42501';
   end if;
 
-  select * into v_sale from sales where id = p_sale_id;
+  -- FOR UPDATE: mesma trava de salvar_divisao_comissao_lancamento() — ver comentário lá.
+  select * into v_sale from sales where id = p_sale_id for update;
   if not found then
     raise exception 'Venda não encontrada.' using errcode = 'P0002';
   end if;
@@ -199,6 +205,14 @@ grant execute on function public.concluir_lancamento(uuid, numeric) to authentic
 
 -- Trigger de segurança no banco — independente das duas RPCs acima, bloqueia a transição mesmo se
 -- alguém contornar concluir_lancamento() com um UPDATE direto em sales.
+--
+-- Exige as 4 condições SIMULTANEAMENTE (revisão pós-commit anterior: a versão original só checava
+-- calculo_valido, então um UPDATE direto com valores matematicamente corretos mas sem passar pela
+-- confirmação explícita do financeiro conseguia concluir mesmo assim — o snapshot de auditoria
+-- ficava null, mas a venda concluía). Agora um UPDATE direto só passa se TAMBÉM preencher os 3
+-- campos de confirmação com um valor que bate com o saldo recalculado — na prática, só
+-- concluir_lancamento() consegue satisfazer isso de forma legítima, porque ele grava os 4 valores
+-- (status + os 3 campos) numa única instrução, todos vindos do MESMO cálculo servidor.
 create or replace function public.validar_distribuicao_antes_concluir_lancamento()
  returns trigger
  language plpgsql
@@ -207,13 +221,28 @@ create or replace function public.validar_distribuicao_antes_concluir_lancamento
 as $function$
 declare
   v_dist jsonb;
+  v_saldo_recalculado numeric;
 begin
   if NEW.modalidade = 'lancamento' and NEW.status::text = 'ocorrencia_concluida' and OLD.status::text is distinct from NEW.status::text then
     v_dist := public.calcular_distribuicao_venda(NEW);
+
     if not coalesce((v_dist->>'calculo_valido')::boolean, false) then
       raise exception 'Não é possível concluir este lançamento: %', (
         select string_agg(x, '; ') from jsonb_array_elements_text(v_dist->'inconsistencias') x
       ) using errcode = '23514';
+    end if;
+
+    v_saldo_recalculado := (v_dist->>'saldo_imobiliaria')::numeric;
+    if NEW.lancamento_saldo_imobiliaria is null or abs(NEW.lancamento_saldo_imobiliaria - v_saldo_recalculado) > 0.01 then
+      raise exception 'Não é possível concluir este lançamento: o saldo da imobiliária/construtora não foi confirmado (ou está desatualizado) — use concluir_lancamento().' using errcode = '23514';
+    end if;
+
+    if NEW.lancamento_saldo_confirmado_em is null then
+      raise exception 'Não é possível concluir este lançamento: falta a data/hora de confirmação do saldo — use concluir_lancamento().' using errcode = '23514';
+    end if;
+
+    if NEW.lancamento_saldo_confirmado_por is null then
+      raise exception 'Não é possível concluir este lançamento: falta o responsável pela confirmação do saldo — use concluir_lancamento().' using errcode = '23514';
     end if;
   end if;
   return NEW;
