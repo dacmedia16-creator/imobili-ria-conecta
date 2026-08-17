@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { money, dateBR } from "@/components/vendas/shared";
 import { RECEBIDO_COLS, fatorComissaoPropria } from "@/lib/status";
+import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
 import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 
@@ -31,6 +32,7 @@ function ComissoesAReceberPage() {
   const [occs, setOccs] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
+  const [beneficiariosExternos, setBeneficiariosExternos] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -61,8 +63,11 @@ function ComissoesAReceberPage() {
     if (occIds.length) {
       const { data: p } = await supabase.from("occurrence_partners").select("occurrence_id, valor").in("occurrence_id", occIds);
       setPartners(p ?? []);
+      const { data: be } = await supabase.from("occurrence_commissions").select("occurrence_id, valor, sem_cadastro_confirmado").in("occurrence_id", occIds);
+      setBeneficiariosExternos(be ?? []);
     } else {
       setPartners([]);
+      setBeneficiariosExternos([]);
     }
     const { data: prof } = await supabase.from("profiles").select("id, nome");
     const names: Record<string, string> = {};
@@ -84,12 +89,19 @@ function ComissoesAReceberPage() {
   }, [sales]);
 
   // Soma da parte que vai pra parceria externa por ocorrência — descontada das parcelas previstas,
-  // já que essa fatia não é nossa mesmo que passe pela nossa conta.
+  // já que essa fatia não é nossa mesmo que passe pela nossa conta. Duas fontes somadas: parceria da
+  // ocorrência inteira (occurrence_partners) e beneficiário individual sem cadastro confirmado
+  // (occurrence_commissions.sem_cadastro_confirmado, ex.: corretor parceiro sem conta no sistema).
   const parceriaPorOcc = useMemo(() => {
     const m: Record<string, number> = {};
     for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
+    for (const [occId, valor] of Object.entries(
+      agruparParceriaExternaPorOcorrencia(beneficiariosExternos),
+    )) {
+      m[occId] = (m[occId] ?? 0) + valor;
+    }
     return m;
-  }, [partners]);
+  }, [partners, beneficiariosExternos]);
 
   const { rows, inconsistentes } = useMemo(() => {
     const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; valorBruto: number; forma: string | null }[] = [];

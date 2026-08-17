@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
 import { STATUS_LABEL, RECEBIDO_COLS, fatorComissaoPropria, type SaleStatus } from "@/lib/status";
+import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -141,14 +142,19 @@ function RelatoriosPage() {
     return { occsAtivas: ativas, inconsistentes: semVenda };
   }, [occs, saleById, incluirCanceladas]);
 
-  // Soma da parte que vai pra parceria externa (imobiliária externa/outra unidade RE/MAX) por
-  // ocorrência — usado pra descontar essa fatia das parcelas previstas no Fluxo de caixa, já que
-  // esse dinheiro não é nosso mesmo que passe pela nossa conta.
+  // Soma da parte que vai pra parceria externa por ocorrência — usado pra descontar essa fatia das
+  // parcelas previstas no Fluxo de caixa, já que esse dinheiro não é nosso mesmo que passe pela nossa
+  // conta. Duas fontes somadas: parceria da ocorrência inteira (occurrence_partners — imobiliária
+  // externa/outra unidade RE/MAX) e beneficiário individual sem cadastro confirmado (comms já traz
+  // sem_cadastro_confirmado, select "*" acima — ex.: corretor parceiro sem conta no sistema).
   const parceriaPorOcc = useMemo(() => {
     const m: Record<string, number> = {};
     for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
+    for (const [occId, valor] of Object.entries(agruparParceriaExternaPorOcorrencia(comms))) {
+      m[occId] = (m[occId] ?? 0) + valor;
+    }
     return m;
-  }, [partners]);
+  }, [partners, comms]);
 
   const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
   const corretorNome = (sale: any) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—");

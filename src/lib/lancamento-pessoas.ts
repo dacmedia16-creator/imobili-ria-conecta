@@ -34,16 +34,26 @@ export function mesclarPessoasAtivas(
 }
 
 /** O que muda no formulário quando o usuário escolhe uma opção no seletor de beneficiário —
- * `SEM_CADASTRO_VALUE` limpa o vínculo e preserva o nome já digitado (pra continuar editável como
- * texto livre); qualquer outro valor busca a pessoa correspondente e passa a travar o nome nela.
- * Chaves em snake_case (`user_id`) de propósito — é o patch aplicado direto na linha do formulário
- * (commRows), que espelha as colunas de `sale_commission_extras`, não um objeto de UI à parte. */
+ * `SEM_CADASTRO_VALUE` limpa o vínculo, preserva o nome já digitado (pra continuar editável como
+ * texto livre) e marca `sem_cadastro_confirmado: true` — é essa marca, não a ausência de user_id
+ * sozinha, que registra "alguém escolheu deliberadamente dizer que esta pessoa não tem cadastro",
+ * em vez de simplesmente nunca ter passado por essa escolha (ver constraint
+ * *_exige_vinculo_ou_confirmacao). Qualquer outro valor busca a pessoa correspondente, trava o nome
+ * nela e limpa a confirmação (linha passa a ter dono de novo). Chaves em snake_case de propósito —
+ * é o patch aplicado direto na linha do formulário, que espelha as colunas de
+ * sale_commission_extras/occurrence_commissions, não um objeto de UI à parte. */
 export function resolverSelecaoBeneficiario(
   valorSelecionado: string,
   pessoasAtivas: PessoaAtiva[],
   nomeAtual: string | null,
-): { user_id: string | null; nome: string | null } {
-  if (valorSelecionado === SEM_CADASTRO_VALUE) return { user_id: null, nome: nomeAtual };
+): { user_id: string | null; nome: string | null; sem_cadastro_confirmado: boolean } {
+  if (valorSelecionado === SEM_CADASTRO_VALUE) {
+    return { user_id: null, nome: nomeAtual, sem_cadastro_confirmado: true };
+  }
   const pessoa = pessoasAtivas.find((p) => p.id === valorSelecionado);
-  return { user_id: valorSelecionado, nome: pessoa ? pessoa.nome : nomeAtual };
+  return {
+    user_id: valorSelecionado,
+    nome: pessoa ? pessoa.nome : nomeAtual,
+    sem_cadastro_confirmado: false,
+  };
 }

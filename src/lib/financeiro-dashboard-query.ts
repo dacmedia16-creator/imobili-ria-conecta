@@ -4,12 +4,17 @@
  * (já restritas a financeiro/admin/super_admin, ver migration 20260813020000) em vez de reescrever
  * a regra de "data de efetivação" — e reaproveita `fatorComissaoPropria`/`RECEBIDO_COLS` de
  * status.ts, a mesma fórmula que Relatórios e Comissões a Receber já usam pra descontar parceria
- * externa. Resolução de equipe/gestor por corretor é uma cópia local do mesmo cálculo já feito em
+ * externa. `fatorComissaoPropria` desconta duas fontes de parceria externa somadas em
+ * `parceriaPorOcc`: `occurrence_partners` (parceria da ocorrência inteira, outra imobiliária/unidade)
+ * e `occurrence_commissions.sem_cadastro_confirmado` (beneficiário individual sem cadastro, ex.:
+ * Wilson Grecchi — ver `agruparParceriaExternaPorOcorrencia`). Nenhuma das duas é receita da
+ * imobiliária. Resolução de equipe/gestor por corretor é uma cópia local do mesmo cálculo já feito em
  * comparativo-comissao-query.ts e vendas.index.tsx — o projeto não tem hoje um helper compartilhado
  * pra isso (2 cópias já existentes), então uma 3ª local segue a convenção real do repo.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { fatorComissaoPropria } from "@/lib/status";
+import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
 import {
   classificarVinculoBeneficiario,
   montarComissaoCalculada,
@@ -154,7 +159,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     supabase
       .from("occurrence_commissions")
       .select(
-        "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id",
+        "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id, sem_cadastro_confirmado",
       ),
     supabase.from("occurrence_partners").select("occurrence_id, valor"),
     supabase.from("sale_commission_extras").select("id"),
@@ -200,12 +205,20 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const occByOccId = new Map((occs ?? []).map((o) => [o.id, o]));
   const extraIds = new Set((extras ?? []).map((e) => e.id));
 
+  // Duas fontes de parceria externa somadas na mesma chave por ocorrência — nenhuma das duas é
+  // receita da imobiliária, ver comentário no topo do arquivo. occurrence_partners é da ocorrência
+  // inteira; occurrence_commissions (sem_cadastro_confirmado) é de um beneficiário específico.
   const parceriaPorOcc = new Map<string, number>();
   for (const p of partners ?? [])
     parceriaPorOcc.set(
       p.occurrence_id,
       (parceriaPorOcc.get(p.occurrence_id) ?? 0) + Number(p.valor ?? 0),
     );
+  for (const [occId, valor] of Object.entries(
+    agruparParceriaExternaPorOcorrencia(commissions ?? []),
+  )) {
+    parceriaPorOcc.set(occId, (parceriaPorOcc.get(occId) ?? 0) + valor);
+  }
 
   const saleLabel = (sale: {
     imovel_id: string | null;
@@ -470,17 +483,19 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         linkTo: `/vendas/${sale.id}`,
       });
     } else if (comissao.semVinculoUsuario) {
-      // Nunca marca como "externo" só por não achar correspondência — hoje não existe campo
-      // algum em occurrence_commissions pra isso, então marcadoExplicitamenteExterno é sempre
-      // false (ver comentário em classificarVinculoBeneficiario). A classificação real vem só de
-      // haver (ou não) exatamente 1 profile com esse nome.
+      // marcadoExplicitamenteExterno vem de occurrence_commissions.sem_cadastro_confirmado —
+      // marcado só quando alguém escolhe deliberadamente "Sem cadastro / parceiro externo" no
+      // seletor (ver migration 20260817020000_exige_confirmacao_sem_cadastro e
+      // lib/lancamento-pessoas.ts). Nunca inferido por nome/papel — só esse indicador explícito
+      // distingue um parceiro externo confirmado (ex.: Wilson Grecchi) de um vínculo esquecido
+      // (ex.: Aline, que tem cadastro e só não foi selecionada).
       const correspondencias = comissao.beneficiarioNome
         ? (contagemPorNomeNormalizado.get(
             normalizarNomeParaCorrespondencia(comissao.beneficiarioNome),
           ) ?? 0)
         : 0;
       const c = classificarVinculoBeneficiario({
-        marcadoExplicitamenteExterno: false,
+        marcadoExplicitamenteExterno: row.sem_cadastro_confirmado === true,
         correspondenciasNoNome: correspondencias,
       });
       divergencias.push({

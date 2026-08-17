@@ -37,6 +37,11 @@ import { DocumentsPanel } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
+import {
+  mesclarPessoasAtivas,
+  resolverSelecaoBeneficiario,
+  SEM_CADASTRO_VALUE,
+} from "@/lib/lancamento-pessoas";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -2903,6 +2908,26 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   const [commissions, setCommissions] = useState<any[]>([]);
   const [formComms, setFormComms] = useState<any[]>([]);
   const [dirtyComms, setDirtyComms] = useState(false);
+  // Pessoas selecionáveis pro campo "Nome" de cada linha de comissão — mesmo padrão de
+  // LancamentoDetail.tsx (3 RPCs combinadas). Antes desta correção, "Nome" aqui era só texto livre:
+  // depois que a venda sai de rascunho/devolvida_ajuste (LancamentoDetail vira somente leitura),
+  // essa era a ÚNICA tela que ainda editava occurrence_commissions — e não tinha como vincular uma
+  // linha a um perfil real, só reescrever o texto. Uma linha criada sem cadastro (ex.: alguém
+  // digitou o nome errado sem selecionar da lista) ficava permanentemente sem dono possível de
+  // corrigir pela interface.
+  const [pessoasAtivas, setPessoasAtivas] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const [{ data: corretores }, { data: gestores }, { data: teamLeaders }] = await Promise.all([
+        supabase.rpc("list_active_corretores"),
+        supabase.rpc("list_active_gestores"),
+        supabase.rpc("list_active_team_leaders"),
+      ]);
+      const norm = (rows: { id: string; nome: string | null }[] | null) =>
+        (rows ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id }));
+      setPessoasAtivas(mesclarPessoasAtivas(norm(corretores), norm(gestores), norm(teamLeaders)));
+    })();
+  }, []);
   const [partners, setPartners] = useState<any[]>([]);
   const [formPartners, setFormPartners] = useState<any[]>([]);
   const [dirtyPartners, setDirtyPartners] = useState(false);
@@ -3119,7 +3144,14 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
           if (error) { toast.error(error.message); return false; }
         }
         for (const r of formComms) {
-          const data = { papel: r.papel, nome: r.nome ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null };
+          const data = {
+            papel: r.papel,
+            nome: r.nome ?? null,
+            percentual: r.percentual ?? null,
+            valor: r.valor ?? null,
+            user_id: r.user_id ?? null,
+            sem_cadastro_confirmado: !!r.sem_cadastro_confirmado,
+          };
           // managed_by_sale só é gravado na criação — nunca muda o "dono" de uma linha já existente
           // por uma edição feita aqui (evita que uma linha manual vire "gerenciada" só por ter sido
           // reeditada na tela, ou vice-versa).
@@ -3421,9 +3453,43 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-4">
+              <div className="md:col-span-4 space-y-1">
                 <Label className="mb-1 block text-xs text-muted-foreground">Nome</Label>
-                <Input value={c.nome ?? ""} onChange={(e) => updComm(c.id, { nome: e.target.value })} disabled={!canWrite} />
+                {(() => {
+                  const foraDaLista = !!c.user_id && !pessoasAtivas.some((p) => p.id === c.user_id);
+                  return (
+                    <Select
+                      value={c.user_id || SEM_CADASTRO_VALUE}
+                      disabled={!canWrite}
+                      onValueChange={(v) =>
+                        updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SEM_CADASTRO_VALUE}>
+                          Sem cadastro / parceiro externo (digitar nome)
+                        </SelectItem>
+                        {foraDaLista && (
+                          <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>
+                        )}
+                        {pessoasAtivas.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
+                <Input
+                  value={c.nome ?? ""}
+                  disabled={!canWrite || !!c.user_id}
+                  placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
+                  onChange={(e) => updComm(c.id, { nome: e.target.value })}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
