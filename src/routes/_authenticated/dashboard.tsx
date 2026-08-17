@@ -5,22 +5,74 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
-import { proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  agruparContagemPorGrupoVenda,
+  proximoResponsavelRoles,
+  type GrupoVenda,
+  type SaleStatus,
+} from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
-import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target } from "lucide-react";
+import {
+  PERIODO_LABEL,
+  resolverPeriodo,
+  validarPeriodoSearch,
+  type PeriodoSearch,
+  type PeriodoTipo,
+} from "@/lib/dashboard-periodo";
+import {
+  fetchMovimentacaoPeriodo,
+  type MovimentacaoPeriodo,
+} from "@/lib/dashboard-movimentacao-query";
+import { fetchResumoGrupoVenda, type ResumoPorGrupo } from "@/lib/dashboard-perfil-query";
+import {
+  Plus,
+  FileText,
+  ClipboardCheck,
+  Gavel,
+  DollarSign,
+  AlertCircle,
+  CheckCircle2,
+  TrendingUp,
+  Target,
+  Send,
+  Archive,
+  Info,
+  type LucideIcon,
+} from "lucide-react";
 
-const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
-const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+const mesAtualISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
+const mesAtualLabel = () =>
+  new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
-/** Agrupa os status granulares de venda em etapas macro, só para leitura visual no funil do dashboard. */
-const FUNIL_STAGES: { key: string; label: string; statuses: SaleStatus[] }[] = [
-  { key: "inicio", label: "Rascunho / devolvida", statuses: ["rascunho", "devolvida_ajuste", "ocorrencia_devolvida_gestor"] },
-  { key: "aprovacao", label: "Em aprovação", statuses: ["enviada_revisao", "aprovada_gestor"] },
-  { key: "juridico", label: "Jurídico / contrato", statuses: ["enviada_juridico", "em_elaboracao_contrato", "contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"] },
-  { key: "concluida", label: "Concluída", statuses: ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_concluida"] },
-  { key: "encerrada", label: "Cancelada / arquivada", statuses: ["cancelada", "arquivada"] },
+/** As 4 etapas de negócio do funil geral (classificarGrupoVenda, src/lib/status.ts). Rótulos no
+ * plural — são cabeçalhos de série/card agregado, não o rótulo de uma venda individual (esse é
+ * GRUPO_VENDA_LABEL, em status.ts). Ordem de exibição pedida: preparação → futura → confirmada →
+ * encerrada. */
+const FUNIL_GRUPOS: { key: GrupoVenda; label: string }[] = [
+  { key: "preparacao", label: "Em preparação" },
+  { key: "futura", label: "Vendas futuras" },
+  { key: "confirmada", label: "Vendas confirmadas" },
+  { key: "encerrada", label: "Encerradas sem venda" },
 ];
 
 const funilChartConfig = { total: { label: "Vendas", color: "var(--color-chart-1)" } } satisfies ChartConfig;
@@ -30,8 +82,23 @@ const comissaoChartConfig = {
   concluida: { label: "Concluída", color: "var(--color-chart-2)" },
 } satisfies ChartConfig;
 
+// Campos opcionais aqui (diferente de PeriodoSearch, que é o formato JÁ RESOLVIDO e estrito usado
+// por resolverPeriodo/validarPeriodoSearch) só pra não obrigar todo `navigate({ to: "/dashboard" })`
+// do resto do app a informar periodo/de/ate — a URL sem nenhum search param é um caso normal (1ª
+// visita), e cai em "mes_atual" dentro do componente, não aqui.
+type DashboardSearch = { periodo?: PeriodoTipo; de?: string | null; ate?: string | null };
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
+  // Sanitiza search params da URL (periodo/de/ate) pra Movimentação do período (Etapa 2B) — valor
+  // desconhecido ou ausente cai com segurança em "mes_atual", nunca propaga lixo pro resto da tela.
+  // de/ate só aparecem na URL quando periodo === "personalizado" (chave ausente vira `undefined`,
+  // que o router omite da querystring — diferente de `null`, que apareceria como "?de=null").
+  validateSearch: (raw: Record<string, unknown>): DashboardSearch => {
+    const v = validarPeriodoSearch(raw);
+    if (v.periodo !== "personalizado") return { periodo: v.periodo };
+    return { periodo: v.periodo, de: v.de ?? undefined, ate: v.ate ?? undefined };
+  },
   component: Dashboard,
 });
 
@@ -105,10 +172,17 @@ function Dashboard() {
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
-  const funilData = FUNIL_STAGES.map(({ key, label, statuses }) => ({
-    key, label, total: statuses.reduce((sum, st) => sum + (stats?.funil[st] ?? 0), 0),
+  const contagemPorGrupo = agruparContagemPorGrupoVenda(stats?.funil ?? {});
+  const funilData = FUNIL_GRUPOS.map(({ key, label }) => ({
+    key,
+    label,
+    total: contagemPorGrupo[key],
   }));
-  const totalFunil = funilData.reduce((sum, f) => sum + f.total, 0);
+  // Canceladas/arquivadas ("encerrada") não entram no total ativo nem no percentual das vendas
+  // ativas — não viraram negócio, não fazem sentido no denominador de "quanto já avançou".
+  const totalAtivo =
+    contagemPorGrupo.preparacao + contagemPorGrupo.futura + contagemPorGrupo.confirmada;
+  const totalGeral = totalAtivo + contagemPorGrupo.encerrada;
   const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
 
   return (
@@ -127,9 +201,11 @@ function Dashboard() {
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
-      {!loading && totalFunil > 0 && (
+      {!loading && totalGeral > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Vendas por etapa</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Situação atual das vendas</CardTitle>
+          </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
               <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
@@ -139,10 +215,18 @@ function Dashboard() {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => {
-                        const pct = totalFunil > 0 ? Math.round((Number(value) / totalFunil) * 100) : 0;
+                      formatter={(value, _name, _item, _index, payload) => {
+                        // "encerrada" fica fora do % — requisito 6 (não entra no percentual das
+                        // vendas ativas).
+                        const grupo = (payload as unknown as { key?: GrupoVenda } | undefined)?.key;
+                        const pct =
+                          grupo !== "encerrada" && totalAtivo > 0
+                            ? Math.round((Number(value) / totalAtivo) * 100)
+                            : null;
                         return (
-                          <span className="font-medium text-foreground">{Number(value)} vendas ({pct}%)</span>
+                          <span className="font-medium text-foreground">
+                            {Number(value)} vendas{pct !== null ? ` (${pct}% das ativas)` : ""}
+                          </span>
                         );
                       }}
                     />
@@ -153,11 +237,19 @@ function Dashboard() {
             </ChartContainer>
             <div className="flex flex-col justify-center gap-1.5">
               {funilData.map(({ key, label, total }) => {
-                const pct = totalFunil > 0 ? Math.round((total / totalFunil) * 100) : 0;
+                const pct =
+                  key !== "encerrada" && totalAtivo > 0
+                    ? Math.round((total / totalAtivo) * 100)
+                    : null;
                 return (
                   <div key={key} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium">{total} <span className="text-xs text-muted-foreground">({pct}%)</span></span>
+                    <span className="font-medium">
+                      {total}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        {pct !== null ? `(${pct}% das ativas)` : "(fora do total ativo)"}
+                      </span>
+                    </span>
                   </div>
                 );
               })}
@@ -165,6 +257,11 @@ function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Movimentação do período — Etapa 2B. Só financeiro/admin/super_admin (mesma regra do
+          Painel financeiro logo abaixo). Não depende de `stats`/`loading` do funil: tem seu
+          próprio carregamento, porque vem de uma RPC diferente (dashboard_movimentacao_periodo). */}
+      {isFinanceiro && <MovimentacaoPeriodoSection />}
 
       {/* Corretor — só quem opera como corretor "puro" (sem outros papéis de supervisão) vê essa
           seção; admin/super_admin/gestor/etc que também carregam o papel corretor (ex.: pra
@@ -182,6 +279,7 @@ function Dashboard() {
               value={`R$ ${Number(stats?.minha_comissao_prevista ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               to="/vendas"
             />
+            {user && <ResumoGrupoVendaCards corretorIds={[user.id]} />}
           </KpiGrid>
           {metaCorretor && (
             <Card className="mt-3">
@@ -216,6 +314,7 @@ function Dashboard() {
             <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.gestor_contratos_conferir ?? 0} to="/vendas" />
             <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={stats?.gestor_ocorrencias_enviar ?? 0} to="/vendas" />
             <KpiCard icon={AlertCircle} label="Devolvidas" value={stats?.gestor_devolvidas ?? 0} to="/vendas" />
+            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
           </KpiGrid>
         </DashSection>
       )}
@@ -335,6 +434,262 @@ function DashSection({ title, children }: { title: string; children: React.React
 
 function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
+}
+
+/**
+ * "O que aconteceu no período selecionado?" — separado da "Situação atual" (funil acima) de
+ * propósito: contam coisas diferentes. O funil é status ATUAL; aqui é MOVIMENTO (quando cada venda
+ * entrou pela 1ª vez em cada grupo, via sale_status_history) — por isso uma venda pode aparecer em
+ * "Entraram como vendas futuras" e "Vendas confirmadas" no mesmo período (2 eventos, não 2 baldes
+ * exclusivos). Não soma os 3 cards em um total — seria misturar 3 perguntas diferentes num número
+ * sem sentido.
+ */
+const ERRO_MOVIMENTACAO_PERIODO = "Não foi possível carregar a movimentação do período.";
+
+function MovimentacaoPeriodoSection() {
+  const searchBruto = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // DashboardSearch tem tudo opcional (pra não travar navigate({to:"/dashboard"}) de outras
+  // páginas) — aqui, dentro do componente, sempre trabalhamos com o formato resolvido/estrito.
+  const search: PeriodoSearch = {
+    periodo: searchBruto.periodo ?? "mes_atual",
+    de: searchBruto.de ?? null,
+    ate: searchBruto.ate ?? null,
+  };
+  const periodoResolvido = resolverPeriodo(search, new Date());
+
+  const [dado, setDado] = useState<MovimentacaoPeriodo | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (periodoResolvido.incompleto) {
+      setDado(null);
+      setErro(null);
+      setCarregando(false);
+      return;
+    }
+    let cancelado = false;
+    setCarregando(true);
+    setErro(null);
+    fetchMovimentacaoPeriodo(periodoResolvido.inicioUtc, periodoResolvido.fimExclusivoUtc)
+      .then((r) => {
+        if (!cancelado) setDado(r);
+      })
+      .catch((e: unknown) => {
+        // A mensagem técnica (erro do Postgres/Supabase) só vai pro console — o usuário só vê a
+        // mensagem fixa abaixo, nunca o texto bruto do banco.
+        console.error("dashboard_movimentacao_periodo:", e);
+        if (!cancelado) setErro(ERRO_MOVIMENTACAO_PERIODO);
+      })
+      .finally(() => {
+        if (!cancelado) setCarregando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // periodoResolvido é recalculado a cada render a partir de `search` — dependendo só dos campos
+    // primitivos que realmente mudam o intervalo (em vez do objeto inteiro) evita refetch em
+    // renders que não alteraram nada, sem precisar suprimir exhaustive-deps.
+  }, [periodoResolvido.incompleto, periodoResolvido.inicioUtc, periodoResolvido.fimExclusivoUtc]);
+
+  const mudarPeriodo = (valor: string) => {
+    const periodo = valor as PeriodoTipo;
+    navigate({
+      search: (prev) =>
+        periodo === "personalizado"
+          ? { periodo, de: prev.de ?? undefined, ate: prev.ate ?? undefined }
+          : { periodo },
+    });
+  };
+  const mudarData = (campo: "de" | "ate", valor: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, periodo: "personalizado", [campo]: valor || undefined }),
+    });
+  };
+
+  const semDataTotal =
+    (dado?.semDataFutura ?? 0) + (dado?.semDataConfirmada ?? 0) + (dado?.semDataEncerrada ?? 0);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle className="text-base">Movimentação do período</CardTitle>
+          <p className="text-xs text-muted-foreground">{periodoResolvido.label}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={search.periodo} onValueChange={mudarPeriodo}>
+            <SelectTrigger className="w-40 shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(PERIODO_LABEL) as PeriodoTipo[]).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {PERIODO_LABEL[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {search.periodo === "personalizado" && (
+            <>
+              <Input
+                type="date"
+                value={search.de ?? ""}
+                onChange={(e) => mudarData("de", e.target.value)}
+                className="w-[9.5rem]"
+                aria-label="Data inicial"
+              />
+              <Input
+                type="date"
+                value={search.ate ?? ""}
+                onChange={(e) => mudarData("ate", e.target.value)}
+                className="w-[9.5rem]"
+                aria-label="Data final"
+              />
+            </>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {periodoResolvido.incompleto ? (
+          <p className="text-sm text-muted-foreground">{periodoResolvido.label}</p>
+        ) : carregando ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : erro ? (
+          <p className="text-sm text-destructive">{erro}</p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <MovimentacaoCard
+                icon={Send}
+                label="Entraram como vendas futuras"
+                quantidade={dado?.futurasQuantidade ?? 0}
+                vgv={dado?.futurasVgv}
+              />
+              <MovimentacaoCard
+                icon={CheckCircle2}
+                label="Vendas confirmadas"
+                quantidade={dado?.confirmadasQuantidade ?? 0}
+                vgv={dado?.confirmadasVgv}
+              />
+              <MovimentacaoCard
+                icon={Archive}
+                label="Vendas encerradas"
+                quantidade={dado?.encerradasQuantidade ?? 0}
+              />
+            </div>
+            {semDataTotal > 0 && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {semDataTotal} vendas não possuem marco histórico e não podem ser atribuídas a um
+                período.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MovimentacaoCard({
+  icon: Icon,
+  label,
+  quantidade,
+  vgv,
+}: {
+  icon: LucideIcon;
+  label: string;
+  quantidade: number;
+  vgv?: number;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div
+          className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div
+            className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground/50" : ""}`}
+          >
+            {quantidade}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+          {vgv !== undefined && (
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              VGV: R$ {vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * "Vendas futuras"/"Vendas confirmadas" (grupo completo, classificarGrupoVenda) escopadas por um
+ * conjunto de corretores — usado no painel do Corretor (`[user.id]`) e do Gestor
+ * (`Array.from(teamIds)`). Etapa 2C: mesma classificação de 4 grupos da Etapa 2A/2B, agora também
+ * nos painéis por perfil, não só no funil geral. Não usa dashboard_stats() nem RPC nova — busca
+ * direta em `sales` (RLS já restringe pelo papel de quem está logado) mais
+ * `agruparVendasPorGrupoComVgv` (dashboard-perfil-query.ts), pura e testada isoladamente.
+ */
+function ResumoGrupoVendaCards({
+  corretorIds,
+  sufixoLabel,
+}: {
+  corretorIds: string[];
+  sufixoLabel?: string;
+}) {
+  const idsKey = [...corretorIds].sort().join(",");
+  const [resumo, setResumo] = useState<ResumoPorGrupo | null>(null);
+
+  useEffect(() => {
+    const ids = idsKey ? idsKey.split(",") : [];
+    if (ids.length === 0) {
+      setResumo(null);
+      return;
+    }
+    let cancelado = false;
+    fetchResumoGrupoVenda(ids)
+      .then((r) => {
+        if (!cancelado) setResumo(r);
+      })
+      .catch((e: unknown) => {
+        // Silencioso na interface de propósito: são 2 cards a mais dentro de um painel que já tem
+        // outros KPIs funcionando (vindos de dashboard_stats()) — um erro aqui não deve quebrar
+        // nem exibir mensagem técnica sobre o resto do painel, só ficar de fora.
+        console.error("fetchResumoGrupoVenda:", e);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [idsKey]);
+
+  if (!resumo) return null;
+
+  const rotulo = (base: string) => (sufixoLabel ? `${base} ${sufixoLabel}` : base);
+
+  return (
+    <>
+      <MovimentacaoCard
+        icon={Send}
+        label={rotulo("Vendas futuras")}
+        quantidade={resumo.futura.quantidade}
+        vgv={resumo.futura.vgv}
+      />
+      <MovimentacaoCard
+        icon={CheckCircle2}
+        label={rotulo("Vendas confirmadas")}
+        quantidade={resumo.confirmada.quantidade}
+        vgv={resumo.confirmada.vgv}
+      />
+    </>
+  );
 }
 
 function KpiCard({ icon: Icon, label, value, to }: { icon: any; label: string; value: number | string; to?: string }) {

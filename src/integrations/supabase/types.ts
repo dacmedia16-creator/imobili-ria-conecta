@@ -1356,6 +1356,13 @@ export type Database = {
         Args: { p_sale_id: string }
         Returns: Json
       }
+      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
+      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
+      // equivalente, e este comentário some junto.
+      dashboard_movimentacao_periodo: {
+        Args: { _fim: string; _inicio: string }
+        Returns: Json
+      }
       dashboard_stats: { Args: never; Returns: Json }
       has_any_role: {
         Args: {

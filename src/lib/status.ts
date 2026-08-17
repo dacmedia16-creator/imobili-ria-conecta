@@ -57,6 +57,99 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   cancelada: "bg-destructive/15 text-destructive",
 };
 
+/**
+ * Classificação de negócio em 4 grupos (Etapa 1 do PLANO_SIMPLES_DASHBOARDS_RELATORIOS_ADM_MAX.md)
+ * — "quantas vendas estão em andamento vs. confirmadas", a pergunta que motivou o plano. Não usada
+ * em nenhum dashboard/RPC ainda (isso é etapa futura, decidida depois desta entrega); existe aqui
+ * só como fonte única, pura e testável.
+ *
+ * `Record<SaleStatus, GrupoVenda>` em vez de switch/if: se o enum `SaleStatus` ganhar um valor novo
+ * sem entrar neste objeto, o TypeScript recusa compilar (erro "Property '...' is missing"). Isso é
+ * o que garante a exaustividade em tempo de compilação — nenhum status pode ficar de fora
+ * silenciosamente. `classificarGrupoVenda` ainda lança erro em runtime se, mesmo assim, chegar um
+ * valor fora do enum (ex.: um cast indevido de string solta em outro lugar do código) — sem esse
+ * guard, `objeto[chaveInexistente]` retornaria `undefined` sem avisar ninguém.
+ */
+export type GrupoVenda = "preparacao" | "futura" | "confirmada" | "encerrada";
+
+export const GRUPO_VENDA_LABEL: Record<GrupoVenda, string> = {
+  preparacao: "Em preparação",
+  futura: "Venda futura",
+  confirmada: "Venda confirmada",
+  encerrada: "Encerrada sem venda",
+};
+
+/**
+ * Regras de negócio confirmadas (não são suposição minha):
+ * - `ocorrencia_devolvida_gestor` fica CONFIRMADA — a venda já tem contrato assinado; a devolução
+ *   da ocorrência é pendência operacional, não cancelamento. Corrige o mesmo erro que hoje existe
+ *   em paralelo em `FUNIL_STAGES` (dashboard.tsx) e no `stage_map` da RPC `visao_executiva_stats`,
+ *   que agrupam esse status junto de "rascunho/devolvida" — nenhum dos dois foi alterado nesta
+ *   etapa, só documentado o problema.
+ * - `devolvida_ajuste` fica FUTURA, não preparação — a venda já saiu das mãos do corretor pelo
+ *   menos uma vez (foi enviada ao gestor); `rascunho` é o único status que nunca foi enviado.
+ */
+const GRUPO_VENDA_POR_STATUS: Record<SaleStatus, GrupoVenda> = {
+  rascunho: "preparacao",
+
+  enviada_revisao: "futura",
+  devolvida_ajuste: "futura",
+  aprovada_gestor: "futura",
+  enviada_juridico: "futura",
+  em_elaboracao_contrato: "futura",
+  contrato_conferencia_gestor: "futura",
+  contrato_conferencia_corretor: "futura",
+  contrato_ok_corretor: "futura",
+  aguardando_assinatura: "futura",
+
+  contrato_assinado: "confirmada",
+  ocorrencia_pendente: "confirmada",
+  ocorrencia_analise_financeiro: "confirmada",
+  ocorrencia_devolvida_gestor: "confirmada",
+  ocorrencia_concluida: "confirmada",
+
+  cancelada: "encerrada",
+  arquivada: "encerrada",
+};
+
+/** Único ponto de acesso à classificação — nunca ler `GRUPO_VENDA_POR_STATUS` direto, pra manter o
+ * guard de runtime como parte do contrato da função. */
+export function classificarGrupoVenda(status: SaleStatus): GrupoVenda {
+  const grupo = GRUPO_VENDA_POR_STATUS[status];
+  if (!grupo) {
+    // Nunca deveria acontecer com um SaleStatus de verdade (o Record acima é exaustivo) — só
+    // dispara se alguém passar um valor fora do enum via cast (`as SaleStatus`) em outro lugar.
+    throw new Error(`classificarGrupoVenda: status de venda sem grupo definido: "${status}"`);
+  }
+  return grupo;
+}
+
+/**
+ * Reagrupa uma contagem por status bruto (ex.: o campo `funil` de `dashboard_stats()`, que é
+ * `jsonb_object_agg(status, count(*))` agrupado por `sales.status` no banco) nos 4 grupos de
+ * negócio. Usada pelo funil geral do dashboard (Etapa 2A do plano de dashboards) — não lê nem
+ * agrega nada sozinha, só redistribui contagens que a RPC já trouxe.
+ *
+ * Soma-preservante por construção: cada status de `contagemPorStatus` cai em exatamente um dos 4
+ * acumuladores (`classificarGrupoVenda` é exaustivo e nunca falha silenciosamente), então
+ * `Object.values(resultado).reduce(soma) === Object.values(contagemPorStatus).reduce(soma)`.
+ */
+export function agruparContagemPorGrupoVenda(
+  contagemPorStatus: Record<string, number>,
+): Record<GrupoVenda, number> {
+  const totais: Record<GrupoVenda, number> = {
+    preparacao: 0,
+    futura: 0,
+    confirmada: 0,
+    encerrada: 0,
+  };
+  for (const [status, quantidade] of Object.entries(contagemPorStatus)) {
+    const grupo = classificarGrupoVenda(status as SaleStatus);
+    totais[grupo] += quantidade;
+  }
+  return totais;
+}
+
 /** Agrupa os status granulares nas 6 macro-etapas do fluxo, para exibir um stepper visual. */
 export type FlowStageKey = "corretor" | "gestor" | "juridico" | "contrato" | "financeiro" | "concluida";
 export const FLOW_STAGES: { key: FlowStageKey; label: string; statuses: SaleStatus[] }[] = [
