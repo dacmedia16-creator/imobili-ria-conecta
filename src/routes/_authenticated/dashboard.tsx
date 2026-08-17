@@ -6,18 +6,63 @@ import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart";
-import { agruparContagemPorGrupoVenda, proximoResponsavelRoles, type GrupoVenda, type SaleStatus } from "@/lib/status";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  agruparContagemPorGrupoVenda,
+  proximoResponsavelRoles,
+  type GrupoVenda,
+  type SaleStatus,
+} from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
-import { PERIODO_LABEL, resolverPeriodo, validarPeriodoSearch, type PeriodoSearch, type PeriodoTipo } from "@/lib/dashboard-periodo";
-import { fetchMovimentacaoPeriodo, type MovimentacaoPeriodo } from "@/lib/dashboard-movimentacao-query";
+import {
+  PERIODO_LABEL,
+  resolverPeriodo,
+  validarPeriodoSearch,
+  type PeriodoSearch,
+  type PeriodoTipo,
+} from "@/lib/dashboard-periodo";
+import {
+  fetchMovimentacaoPeriodo,
+  type MovimentacaoPeriodo,
+} from "@/lib/dashboard-movimentacao-query";
 import { fetchResumoGrupoVenda, type ResumoPorGrupo } from "@/lib/dashboard-perfil-query";
-import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target, Send, Archive, Info, type LucideIcon } from "lucide-react";
+import {
+  Plus,
+  FileText,
+  ClipboardCheck,
+  Gavel,
+  DollarSign,
+  AlertCircle,
+  CheckCircle2,
+  TrendingUp,
+  Target,
+  Send,
+  Archive,
+  Info,
+  type LucideIcon,
+} from "lucide-react";
 
-const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
-const mesAtualLabel = () => new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+const mesAtualISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
+const mesAtualLabel = () =>
+  new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
 /** As 4 etapas de negócio do funil geral (classificarGrupoVenda, src/lib/status.ts). Rótulos no
  * plural — são cabeçalhos de série/card agregado, não o rótulo de uma venda individual (esse é
@@ -128,10 +173,15 @@ function Dashboard() {
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
 
   const contagemPorGrupo = agruparContagemPorGrupoVenda(stats?.funil ?? {});
-  const funilData = FUNIL_GRUPOS.map(({ key, label }) => ({ key, label, total: contagemPorGrupo[key] }));
+  const funilData = FUNIL_GRUPOS.map(({ key, label }) => ({
+    key,
+    label,
+    total: contagemPorGrupo[key],
+  }));
   // Canceladas/arquivadas ("encerrada") não entram no total ativo nem no percentual das vendas
   // ativas — não viraram negócio, não fazem sentido no denominador de "quanto já avançou".
-  const totalAtivo = contagemPorGrupo.preparacao + contagemPorGrupo.futura + contagemPorGrupo.confirmada;
+  const totalAtivo =
+    contagemPorGrupo.preparacao + contagemPorGrupo.futura + contagemPorGrupo.confirmada;
   const totalGeral = totalAtivo + contagemPorGrupo.encerrada;
   const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
 
@@ -153,7 +203,9 @@ function Dashboard() {
 
       {!loading && totalGeral > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Situação atual das vendas</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Situação atual das vendas</CardTitle>
+          </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
             <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
               <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
@@ -167,9 +219,10 @@ function Dashboard() {
                         // "encerrada" fica fora do % — requisito 6 (não entra no percentual das
                         // vendas ativas).
                         const grupo = (payload as unknown as { key?: GrupoVenda } | undefined)?.key;
-                        const pct = grupo !== "encerrada" && totalAtivo > 0
-                          ? Math.round((Number(value) / totalAtivo) * 100)
-                          : null;
+                        const pct =
+                          grupo !== "encerrada" && totalAtivo > 0
+                            ? Math.round((Number(value) / totalAtivo) * 100)
+                            : null;
                         return (
                           <span className="font-medium text-foreground">
                             {Number(value)} vendas{pct !== null ? ` (${pct}% das ativas)` : ""}
@@ -184,7 +237,10 @@ function Dashboard() {
             </ChartContainer>
             <div className="flex flex-col justify-center gap-1.5">
               {funilData.map(({ key, label, total }) => {
-                const pct = key !== "encerrada" && totalAtivo > 0 ? Math.round((total / totalAtivo) * 100) : null;
+                const pct =
+                  key !== "encerrada" && totalAtivo > 0
+                    ? Math.round((total / totalAtivo) * 100)
+                    : null;
                 return (
                   <div key={key} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span className="text-muted-foreground">{label}</span>
@@ -447,10 +503,13 @@ function MovimentacaoPeriodoSection() {
     });
   };
   const mudarData = (campo: "de" | "ate", valor: string) => {
-    navigate({ search: (prev) => ({ ...prev, periodo: "personalizado", [campo]: valor || undefined }) });
+    navigate({
+      search: (prev) => ({ ...prev, periodo: "personalizado", [campo]: valor || undefined }),
+    });
   };
 
-  const semDataTotal = (dado?.semDataFutura ?? 0) + (dado?.semDataConfirmada ?? 0) + (dado?.semDataEncerrada ?? 0);
+  const semDataTotal =
+    (dado?.semDataFutura ?? 0) + (dado?.semDataConfirmada ?? 0) + (dado?.semDataEncerrada ?? 0);
 
   return (
     <Card>
@@ -461,10 +520,14 @@ function MovimentacaoPeriodoSection() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={search.periodo} onValueChange={mudarPeriodo}>
-            <SelectTrigger className="w-40 shrink-0"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-40 shrink-0">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {(Object.keys(PERIODO_LABEL) as PeriodoTipo[]).map((k) => (
-                <SelectItem key={k} value={k}>{PERIODO_LABEL[k]}</SelectItem>
+                <SelectItem key={k} value={k}>
+                  {PERIODO_LABEL[k]}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -510,12 +573,17 @@ function MovimentacaoPeriodoSection() {
                 quantidade={dado?.confirmadasQuantidade ?? 0}
                 vgv={dado?.confirmadasVgv}
               />
-              <MovimentacaoCard icon={Archive} label="Vendas encerradas" quantidade={dado?.encerradasQuantidade ?? 0} />
+              <MovimentacaoCard
+                icon={Archive}
+                label="Vendas encerradas"
+                quantidade={dado?.encerradasQuantidade ?? 0}
+              />
             </div>
             {semDataTotal > 0 && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {semDataTotal} vendas não possuem marco histórico e não podem ser atribuídas a um período.
+                {semDataTotal} vendas não possuem marco histórico e não podem ser atribuídas a um
+                período.
               </p>
             )}
           </>
@@ -539,11 +607,15 @@ function MovimentacaoCard({
   return (
     <Card>
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}>
+        <div
+          className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
+        >
           <Icon className="h-5 w-5" />
         </div>
         <div>
-          <div className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground/50" : ""}`}>
+          <div
+            className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground/50" : ""}`}
+          >
             {quantidade}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">{label}</div>
