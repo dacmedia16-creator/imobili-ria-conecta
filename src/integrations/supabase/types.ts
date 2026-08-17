@@ -1367,6 +1367,13 @@ export type Database = {
       // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
       // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
       // equivalente, e este comentário some junto.
+      criar_lancamento: {
+        Args: { p_construtora_cnpj: string; p_construtora_nome: string; p_imovel_id: string }
+        Returns: string
+      }
+      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
+      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
+      // equivalente, e este comentário some junto.
       concluir_lancamento: {
         Args: { p_sale_id: string; p_saldo_confirmado: number }
         Returns: Json

@@ -26,43 +26,17 @@ function NewLancamento() {
     if (!user) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("sales")
-        .insert({
-          corretor_id: user.id,
-          imovel_id: imovelId || null,
-          status: "rascunho",
-          modalidade: "lancamento",
-        } as any)
-        .select("id")
-        .single();
+      // sales + sale_parties (construtora/comprador) + o log de criação são gravados numa única
+      // transação no banco (ver criar_lancamento em 20260818020000) — não depende mais de 3
+      // chamadas soltas do client nem de um insert "fire-and-forget" que podia falhar em silêncio.
+      const { data: saleId, error } = await supabase.rpc("criar_lancamento", {
+        p_imovel_id: imovelId,
+        p_construtora_nome: construtoraNome,
+        p_construtora_cnpj: construtoraCnpj,
+      });
       if (error) throw error;
-      // Construtora entra como vendedor_1 (pessoa jurídica) — sale_parties já suporta esse formato,
-      // sem precisar de tabela/campo novo só pra isso.
-      const { error: partyErr } = await supabase.from("sale_parties").insert([
-        {
-          sale_id: data.id,
-          papel: "vendedor_1",
-          tipo_pessoa: "juridica",
-          razao_social: construtoraNome || null,
-          cnpj: construtoraCnpj || null,
-        },
-        { sale_id: data.id, papel: "comprador_1", tipo_pessoa: "fisica" },
-      ]);
-      if (partyErr) throw partyErr;
-      // Fire-and-forget: log de auditoria não pode impedir a navegação se falhar (a venda já foi
-      // criada com sucesso nesse ponto).
-      supabase
-        .from("activity_logs")
-        .insert({
-          sale_id: data.id,
-          autor_id: user.id,
-          acao: "lancamento_criado",
-          payload: { imovel_id: imovelId || null, construtora: construtoraNome || null },
-        })
-        .then(() => {});
       toast.success("Lançamento criado como rascunho");
-      router.navigate({ to: "/vendas/$id", params: { id: data.id } });
+      router.navigate({ to: "/vendas/$id", params: { id: saleId } });
     } catch (err: any) {
       if (err.code === "23505" && err.message?.includes("sales_imovel_id_ativa_key")) {
         toast.error("Já existe uma venda em andamento para esse código de imóvel.");
