@@ -13,6 +13,7 @@ import { agruparContagemPorGrupoVenda, proximoResponsavelRoles, type GrupoVenda,
 import { fetchLedMemberIds } from "@/lib/team";
 import { PERIODO_LABEL, resolverPeriodo, validarPeriodoSearch, type PeriodoSearch, type PeriodoTipo } from "@/lib/dashboard-periodo";
 import { fetchMovimentacaoPeriodo, type MovimentacaoPeriodo } from "@/lib/dashboard-movimentacao-query";
+import { fetchResumoGrupoVenda, type ResumoPorGrupo } from "@/lib/dashboard-perfil-query";
 import { Plus, FileText, ClipboardCheck, Gavel, DollarSign, AlertCircle, CheckCircle2, TrendingUp, Target, Send, Archive, Info, type LucideIcon } from "lucide-react";
 
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
@@ -222,6 +223,7 @@ function Dashboard() {
               value={`R$ ${Number(stats?.minha_comissao_prevista ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               to="/vendas"
             />
+            {user && <ResumoGrupoVendaCards corretorIds={[user.id]} />}
           </KpiGrid>
           {metaCorretor && (
             <Card className="mt-3">
@@ -256,6 +258,7 @@ function Dashboard() {
             <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.gestor_contratos_conferir ?? 0} to="/vendas" />
             <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={stats?.gestor_ocorrencias_enviar ?? 0} to="/vendas" />
             <KpiCard icon={AlertCircle} label="Devolvidas" value={stats?.gestor_devolvidas ?? 0} to="/vendas" />
+            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
           </KpiGrid>
         </DashSection>
       )}
@@ -552,6 +555,68 @@ function MovimentacaoCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * "Vendas futuras"/"Vendas confirmadas" (grupo completo, classificarGrupoVenda) escopadas por um
+ * conjunto de corretores — usado no painel do Corretor (`[user.id]`) e do Gestor
+ * (`Array.from(teamIds)`). Etapa 2C: mesma classificação de 4 grupos da Etapa 2A/2B, agora também
+ * nos painéis por perfil, não só no funil geral. Não usa dashboard_stats() nem RPC nova — busca
+ * direta em `sales` (RLS já restringe pelo papel de quem está logado) mais
+ * `agruparVendasPorGrupoComVgv` (dashboard-perfil-query.ts), pura e testada isoladamente.
+ */
+function ResumoGrupoVendaCards({
+  corretorIds,
+  sufixoLabel,
+}: {
+  corretorIds: string[];
+  sufixoLabel?: string;
+}) {
+  const idsKey = [...corretorIds].sort().join(",");
+  const [resumo, setResumo] = useState<ResumoPorGrupo | null>(null);
+
+  useEffect(() => {
+    const ids = idsKey ? idsKey.split(",") : [];
+    if (ids.length === 0) {
+      setResumo(null);
+      return;
+    }
+    let cancelado = false;
+    fetchResumoGrupoVenda(ids)
+      .then((r) => {
+        if (!cancelado) setResumo(r);
+      })
+      .catch((e: unknown) => {
+        // Silencioso na interface de propósito: são 2 cards a mais dentro de um painel que já tem
+        // outros KPIs funcionando (vindos de dashboard_stats()) — um erro aqui não deve quebrar
+        // nem exibir mensagem técnica sobre o resto do painel, só ficar de fora.
+        console.error("fetchResumoGrupoVenda:", e);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [idsKey]);
+
+  if (!resumo) return null;
+
+  const rotulo = (base: string) => (sufixoLabel ? `${base} ${sufixoLabel}` : base);
+
+  return (
+    <>
+      <MovimentacaoCard
+        icon={Send}
+        label={rotulo("Vendas futuras")}
+        quantidade={resumo.futura.quantidade}
+        vgv={resumo.futura.vgv}
+      />
+      <MovimentacaoCard
+        icon={CheckCircle2}
+        label={rotulo("Vendas confirmadas")}
+        quantidade={resumo.confirmada.quantidade}
+        vgv={resumo.confirmada.vgv}
+      />
+    </>
   );
 }
 
