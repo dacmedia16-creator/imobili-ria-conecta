@@ -36,13 +36,33 @@ export function agruparVendasPorGrupoComVgv(
  * Busca status + valor_negociado das vendas de um conjunto de corretores (RLS de `sales` já
  * restringe o que cada papel pode ver — corretor só as próprias, gestor/team_leader só as da
  * equipe que lidera) e agrega por grupo de negócio. Um único corretor_id é só `[corretorId]`.
+ *
+ * `"todas"` (em vez de uma lista de IDs) é pra financeiro/admin/super_admin: esses papéis já
+ * enxergam toda a tabela `sales` via RLS (ver sales_select em
+ * 20260804200100_team_leader_same_perms_as_gestor.sql), então filtrar por `.in("corretor_id", ...)`
+ * seria redundante — e exigiria antes buscar a lista de todos os corretores do sistema só pra
+ * repassar aqui.
  */
-export async function fetchResumoGrupoVenda(corretorIds: string[]): Promise<ResumoPorGrupo> {
-  if (corretorIds.length === 0) return resumoVazio();
-  const { data, error } = await supabase
-    .from("sales")
-    .select("status, valor_negociado")
-    .in("corretor_id", corretorIds);
+export async function fetchResumoGrupoVenda(
+  corretorIds: string[] | "todas",
+): Promise<ResumoPorGrupo> {
+  if (corretorIds !== "todas" && corretorIds.length === 0) return resumoVazio();
+  let query = supabase.from("sales").select("status, valor_negociado");
+  if (corretorIds !== "todas") query = query.in("corretor_id", corretorIds);
+  const { data, error } = await query;
   if (error) throw error;
   return agruparVendasPorGrupoComVgv(data ?? []);
+}
+
+/**
+ * VGV ativo total = VGV em andamento (grupo "futura") + VGV confirmado (grupo "confirmada"),
+ * cada venda contada exatamente uma vez porque vem de `agruparVendasPorGrupoComVgv`
+ * (classificação por status ATUAL, mutuamente exclusiva — ver classificarGrupoVenda). Preparação e
+ * encerrada (cancelada/arquivada) ficam de fora por construção, não somados aqui.
+ */
+export function vgvAtivoTotal(resumo: ResumoPorGrupo): ResumoGrupoVenda {
+  return {
+    quantidade: resumo.futura.quantidade + resumo.confirmada.quantidade,
+    vgv: resumo.futura.vgv + resumo.confirmada.vgv,
+  };
 }
