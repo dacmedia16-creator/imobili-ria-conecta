@@ -8,8 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 export type MovimentacaoPeriodoRaw = {
   futuras_quantidade: number;
   futuras_vgv: number | string;
-  confirmadas_quantidade: number;
-  confirmadas_vgv: number | string;
+  confirmadas_contrato_quantidade: number;
+  confirmadas_contrato_vgv: number | string;
+  confirmadas_lancamento_quantidade: number;
+  confirmadas_lancamento_vgv: number | string;
   encerradas_quantidade: number;
   sem_data_futura: number;
   sem_data_confirmada: number;
@@ -19,8 +21,14 @@ export type MovimentacaoPeriodoRaw = {
 export type MovimentacaoPeriodo = {
   futurasQuantidade: number;
   futurasVgv: number;
-  confirmadasQuantidade: number;
-  confirmadasVgv: number;
+  // "confirmada" se divide por modalidade: contrato = contrato assinado de verdade (venda padrão);
+  // lancamento = enviada direto ao financeiro pela modalidade Lançamento, que nunca passa por
+  // contrato assinado (ver comentário na migration 20260819020000). Misturar os dois num só número
+  // foi o bug reportado pelo usuário na auditoria de 2026-08-18.
+  confirmadasContratoQuantidade: number;
+  confirmadasContratoVgv: number;
+  confirmadasLancamentoQuantidade: number;
+  confirmadasLancamentoVgv: number;
   encerradasQuantidade: number;
   semDataFutura: number;
   semDataConfirmada: number;
@@ -30,8 +38,10 @@ export type MovimentacaoPeriodo = {
 const CAMPOS_ESPERADOS = [
   "futuras_quantidade",
   "futuras_vgv",
-  "confirmadas_quantidade",
-  "confirmadas_vgv",
+  "confirmadas_contrato_quantidade",
+  "confirmadas_contrato_vgv",
+  "confirmadas_lancamento_quantidade",
+  "confirmadas_lancamento_vgv",
   "encerradas_quantidade",
   "sem_data_futura",
   "sem_data_confirmada",
@@ -72,8 +82,10 @@ export function mapearMovimentacaoPeriodo(raw: unknown): MovimentacaoPeriodo {
   return {
     futurasQuantidade: Number(r.futuras_quantidade),
     futurasVgv: arredondarMoeda(Number(r.futuras_vgv)),
-    confirmadasQuantidade: Number(r.confirmadas_quantidade),
-    confirmadasVgv: arredondarMoeda(Number(r.confirmadas_vgv)),
+    confirmadasContratoQuantidade: Number(r.confirmadas_contrato_quantidade),
+    confirmadasContratoVgv: arredondarMoeda(Number(r.confirmadas_contrato_vgv)),
+    confirmadasLancamentoQuantidade: Number(r.confirmadas_lancamento_quantidade),
+    confirmadasLancamentoVgv: arredondarMoeda(Number(r.confirmadas_lancamento_vgv)),
     encerradasQuantidade: Number(r.encerradas_quantidade),
     semDataFutura: Number(r.sem_data_futura),
     semDataConfirmada: Number(r.sem_data_confirmada),

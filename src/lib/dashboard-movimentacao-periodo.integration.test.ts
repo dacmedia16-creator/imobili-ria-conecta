@@ -128,7 +128,7 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
       // teste em paralelo) — a prova de "sem duplicidade" é: a venda de teste soma no VGV de
       // confirmada, e NÃO soma no VGV de futura. Uso o valor_negociado (500000, único o bastante
       // pra não colidir por acaso) como marcador.
-      expect(r.confirmadasVgv).toBeGreaterThanOrEqual(500000);
+      expect(r.confirmadasContratoVgv).toBeGreaterThanOrEqual(500000);
       // Se a venda também tivesse sido contada em futura (bug antigo), futurasVgv teria pelo menos
       // 500000 também — o que provaria duplicidade.
       const outraVendaPoderiaExplicar = r.futurasVgv >= 500000;
@@ -144,7 +144,7 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
       const depois = antes; // mesma leitura, só documentando a intenção do teste abaixo
 
       expect(depois.encerradasQuantidade).toBeGreaterThanOrEqual(1);
-      expect(depois.confirmadasVgv).toBeLessThan(700000);
+      expect(depois.confirmadasContratoVgv).toBeLessThan(700000);
     });
 
     it("3 vendas com 1 transição cada (uma por grupo) somam exatamente 3 no total dos 3 cards — nenhuma sobra nem falta", async () => {
@@ -161,7 +161,10 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
       // com a regra antiga, uma venda que passasse por 2 grupos contaria 2x; aqui cada venda passa
       // por 1 grupo só, então total esperado = 3 vendas = 3 contagens somadas nos 3 cards (não mais).
       const totalReportado =
-        antes.futurasQuantidade + antes.confirmadasQuantidade + antes.encerradasQuantidade;
+        antes.futurasQuantidade +
+        antes.confirmadasContratoQuantidade +
+        antes.confirmadasLancamentoQuantidade +
+        antes.encerradasQuantidade;
       // Não posso comparar == 3 direto (banco compartilhado tem outras vendas na mesma janela fixa
       // de outros testes rodando em paralelo/CI) — comparo o DELTA depois de remover as 3 vendas.
       for (const saleId of [futura, confirmada, encerrada]) {
@@ -171,7 +174,10 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
       createdSaleIds.length = 0;
       const depois = await movimentacao();
       const totalDepois =
-        depois.futurasQuantidade + depois.confirmadasQuantidade + depois.encerradasQuantidade;
+        depois.futurasQuantidade +
+        depois.confirmadasContratoQuantidade +
+        depois.confirmadasLancamentoQuantidade +
+        depois.encerradasQuantidade;
 
       expect(totalReportado - totalDepois).toBe(3);
     });
@@ -200,7 +206,24 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
 
       const r = await movimentacao();
 
-      expect(r.confirmadasVgv).toBeLessThan(999000);
+      expect(r.confirmadasContratoVgv).toBeLessThan(999000);
+    });
+
+    it("venda de Lançamento (rascunho -> ocorrencia_analise_financeiro direto, sem contrato) conta em confirmadasLancamento, nunca em confirmadasContrato", async () => {
+      const saleId = await criarVenda({ valor_negociado: 600000, modalidade: "lancamento" });
+      await transicao(saleId, "ocorrencia_analise_financeiro", dentroDoPeriodo(4));
+
+      const comVenda = await movimentacao();
+      await supabaseAdmin.from("sale_status_history").delete().eq("sale_id", saleId);
+      await supabaseAdmin.from("sales").delete().eq("id", saleId);
+      createdSaleIds.length = 0;
+      const semVenda = await movimentacao();
+
+      expect(comVenda.confirmadasLancamentoQuantidade - semVenda.confirmadasLancamentoQuantidade).toBe(1);
+      expect(comVenda.confirmadasLancamentoVgv - semVenda.confirmadasLancamentoVgv).toBeCloseTo(600000, 2);
+      // Prova de que não vazou pro balde de contrato — se tivesse vazado, o delta de contrato
+      // também seria >= 600000.
+      expect(comVenda.confirmadasContratoVgv - semVenda.confirmadasContratoVgv).toBeLessThan(600000);
     });
   },
 );

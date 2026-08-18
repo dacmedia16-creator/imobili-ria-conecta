@@ -9,8 +9,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const raw: MovimentacaoPeriodoRaw = {
       futuras_quantidade: 5,
       futuras_vgv: 1250000.5,
-      confirmadas_quantidade: 3,
-      confirmadas_vgv: 890000,
+      confirmadas_contrato_quantidade: 3,
+      confirmadas_contrato_vgv: 890000,
+      confirmadas_lancamento_quantidade: 2,
+      confirmadas_lancamento_vgv: 450000,
       encerradas_quantidade: 1,
       sem_data_futura: 2,
       sem_data_confirmada: 1,
@@ -19,8 +21,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     expect(mapearMovimentacaoPeriodo(raw)).toEqual({
       futurasQuantidade: 5,
       futurasVgv: 1250000.5,
-      confirmadasQuantidade: 3,
-      confirmadasVgv: 890000,
+      confirmadasContratoQuantidade: 3,
+      confirmadasContratoVgv: 890000,
+      confirmadasLancamentoQuantidade: 2,
+      confirmadasLancamentoVgv: 450000,
       encerradasQuantidade: 1,
       semDataFutura: 2,
       semDataConfirmada: 1,
@@ -32,8 +36,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const raw: MovimentacaoPeriodoRaw = {
       futuras_quantidade: 2,
       futuras_vgv: "450000.75",
-      confirmadas_quantidade: 0,
-      confirmadas_vgv: "0",
+      confirmadas_contrato_quantidade: 0,
+      confirmadas_contrato_vgv: "0",
+      confirmadas_lancamento_quantidade: 0,
+      confirmadas_lancamento_vgv: "0",
       encerradas_quantidade: 0,
       sem_data_futura: 0,
       sem_data_confirmada: 0,
@@ -41,7 +47,7 @@ describe("mapearMovimentacaoPeriodo", () => {
     };
     const r = mapearMovimentacaoPeriodo(raw);
     expect(r.futurasVgv).toBe(450000.75);
-    expect(r.confirmadasVgv).toBe(0);
+    expect(r.confirmadasContratoVgv).toBe(0);
     expect(typeof r.futurasVgv).toBe("number");
   });
 
@@ -49,8 +55,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const raw: MovimentacaoPeriodoRaw = {
       futuras_quantidade: 0,
       futuras_vgv: 0,
-      confirmadas_quantidade: 0,
-      confirmadas_vgv: 0,
+      confirmadas_contrato_quantidade: 0,
+      confirmadas_contrato_vgv: 0,
+      confirmadas_lancamento_quantidade: 0,
+      confirmadas_lancamento_vgv: 0,
       encerradas_quantidade: 0,
       sem_data_futura: 0,
       sem_data_confirmada: 0,
@@ -63,8 +71,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const raw: MovimentacaoPeriodoRaw = {
       futuras_quantidade: 1,
       futuras_vgv: 1234.566 + 0.001, // ruído de ponto flutuante (não é 1234.567 exato em IEEE754)
-      confirmadas_quantidade: 1,
-      confirmadas_vgv: "890000.126",
+      confirmadas_contrato_quantidade: 1,
+      confirmadas_contrato_vgv: "890000.126",
+      confirmadas_lancamento_quantidade: 0,
+      confirmadas_lancamento_vgv: 0,
       encerradas_quantidade: 0,
       sem_data_futura: 0,
       sem_data_confirmada: 0,
@@ -72,7 +82,7 @@ describe("mapearMovimentacaoPeriodo", () => {
     };
     const r = mapearMovimentacaoPeriodo(raw);
     expect(r.futurasVgv).toBe(1234.57);
-    expect(r.confirmadasVgv).toBe(890000.13);
+    expect(r.confirmadasContratoVgv).toBe(890000.13);
   });
 
   it("resposta null lança erro em vez de virar NaN silenciosamente", () => {
@@ -89,8 +99,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const raw = {
       futuras_quantidade: 5,
       futuras_vgv: 1000,
-      confirmadas_quantidade: 3,
-      confirmadas_vgv: 500,
+      confirmadas_contrato_quantidade: 3,
+      confirmadas_contrato_vgv: 500,
+      confirmadas_lancamento_quantidade: 0,
+      confirmadas_lancamento_vgv: 0,
       encerradas_quantidade: 1,
       sem_data_futura: 0,
       sem_data_confirmada: 0,
@@ -103,8 +115,10 @@ describe("mapearMovimentacaoPeriodo", () => {
     const base: MovimentacaoPeriodoRaw = {
       futuras_quantidade: 5,
       futuras_vgv: 1000,
-      confirmadas_quantidade: 3,
-      confirmadas_vgv: 500,
+      confirmadas_contrato_quantidade: 3,
+      confirmadas_contrato_vgv: 500,
+      confirmadas_lancamento_quantidade: 0,
+      confirmadas_lancamento_vgv: 0,
       encerradas_quantidade: 1,
       sem_data_futura: 0,
       sem_data_confirmada: 0,
@@ -113,8 +127,8 @@ describe("mapearMovimentacaoPeriodo", () => {
     expect(() =>
       mapearMovimentacaoPeriodo({ ...base, futuras_quantidade: "não é número" }),
     ).toThrow(/futuras_quantidade/);
-    expect(() => mapearMovimentacaoPeriodo({ ...base, confirmadas_vgv: null })).toThrow(
-      /confirmadas_vgv/,
+    expect(() => mapearMovimentacaoPeriodo({ ...base, confirmadas_contrato_vgv: null })).toThrow(
+      /confirmadas_contrato_vgv/,
     );
     expect(() => mapearMovimentacaoPeriodo({ ...base, encerradas_quantidade: true })).toThrow(
       /encerradas_quantidade/,
