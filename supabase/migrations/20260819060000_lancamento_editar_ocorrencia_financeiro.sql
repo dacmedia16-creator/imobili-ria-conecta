@@ -292,5 +292,12 @@ begin
 end;
 $function$;
 
+-- "revoke ... from public" sozinho NÃO tira o EXECUTE de anon neste projeto — há um ALTER DEFAULT
+-- PRIVILEGES que concede EXECUTE direto ao role anon (não via public) em toda função nova, mesmo
+-- padrão que já exigiu o "from anon" explícito em criar_lancamento()/salvar_divisao_comissao_
+-- lancamento()/concluir_lancamento() (ver essas migrations). Sem esta linha, usuário não autenticado
+-- consegue CHAMAR a função (a lógica interna ainda bloqueia via has_any_role, mas expõe superfície
+-- de ataque desnecessária numa RPC que mexe em dados financeiros).
 revoke all on function public.editar_ocorrencia_lancamento_financeiro(uuid, jsonb, jsonb, jsonb, text) from public;
+revoke execute on function public.editar_ocorrencia_lancamento_financeiro(uuid, jsonb, jsonb, jsonb, text) from anon;
 grant execute on function public.editar_ocorrencia_lancamento_financeiro(uuid, jsonb, jsonb, jsonb, text) to authenticated;
