@@ -56,8 +56,11 @@ import {
   mesclarPessoasAtivas,
   resolverSelecaoBeneficiario,
   SEM_CADASTRO_VALUE,
+  precisaEscolherBeneficiario,
+  valorSelectBeneficiario,
 } from "@/lib/lancamento-pessoas";
 import { calcularDistribuicaoLancamento } from "@/lib/lancamento-distribuicao";
+import { sanitizeLancamentoResumoPayload } from "@/lib/lancamento-resumo";
 
 /** Diff raso entre dois objetos "planos" (Resumo/Construtora) — só as chaves presentes em `depois`,
  * comparando null/"" como equivalentes a undefined pra não logar troca de tipo sem troca de valor
@@ -353,18 +356,26 @@ export function LancamentoDetail({
   };
 
   // ----- Resumo: campos direto em sales -----
+  // BUG #1 (pré-existente, achado na validação mobile da Etapa 3, corrigido em
+  // fix/lancamento-bloqueadores-preexistentes): data_assinatura/previsao_recebimento_data (colunas
+  // `date`) e midia (CHECK constraint com lista fixa) nunca podem ser "" no banco -- só null ou um
+  // valor válido. Antes, o default aqui era "" quando o valor vindo do banco era null, e como
+  // saveForm() manda o form INTEIRO em todo autosave (não só o campo editado), editar QUALQUER
+  // outro campo do Resumo num Lançamento novo (ex.: só "Valor negociado") já disparava "invalid
+  // input syntax for type date" ou "violates check constraint sales_midia_check" -- travando o
+  // autosave até a pessoa descobrir sozinha que precisa preencher datas/mídia primeiro.
   const initialForm = {
     imovel_id: sale.imovel_id ?? "",
-    data_assinatura: sale.data_assinatura ?? "",
+    data_assinatura: sale.data_assinatura ?? null,
     nota_fiscal_obrigatoria: !!sale.nota_fiscal_obrigatoria,
-    midia: sale.midia ?? "",
+    midia: sale.midia ?? null,
     valor_anunciado: sale.valor_anunciado ?? null,
     valor_negociado: sale.valor_negociado ?? null,
     percentual_comissao: sale.percentual_comissao ?? null,
     valor_total_comissao: sale.valor_total_comissao ?? null,
     premio_valor: sale.premio_valor ?? null,
     previsao_recebimento_valor: sale.previsao_recebimento_valor ?? null,
-    previsao_recebimento_data: sale.previsao_recebimento_data ?? "",
+    previsao_recebimento_data: sale.previsao_recebimento_data ?? null,
     previsao_recebimento_forma: sale.previsao_recebimento_forma ?? "",
     negociacao_observacoes: sale.negociacao_observacoes ?? "",
   };
@@ -373,16 +384,25 @@ export function LancamentoDetail({
   // depois de um save bem-sucedido, nunca a cada tecla (senão nunca haveria diferença pra logar).
   const formBeforeRef = useRef(initialForm);
   const [dirty, setDirty] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const upd = (patch: Partial<typeof form>) => {
     setForm((f) => ({ ...f, ...patch }));
     setDirty(true);
   };
   const saveForm = useCallback(async () => {
-    const { error } = await supabase.from("sales").update(form).eq("id", saleId);
+    // Normaliza de novo aqui (defesa em profundidade) -- mesmo que algum campo volte a virar "" por
+    // outro caminho no futuro, nunca deixa uma string vazia chegar nas colunas date/CHECK-constrained.
+    const payload = sanitizeLancamentoResumoPayload(form);
+    const { error } = await supabase.from("sales").update(payload).eq("id", saleId);
     if (error) {
+      // Erro persistente e visível (não só um toast que some sozinho) -- sem isso, o autosave falha
+      // em silêncio a cada edição seguinte e a pessoa não entende por que "Enviar ao financeiro"
+      // nunca destrava, já que dirty nunca zera enquanto o erro não for corrigido.
+      setFormError(error.message);
       toast.error(error.message);
       return false;
     }
+    setFormError(null);
     const alteracoes = diffCampos(formBeforeRef.current, form);
     if (Object.keys(alteracoes).length > 0 && user) {
       supabase
@@ -523,11 +543,21 @@ export function LancamentoDetail({
 
   const [commRows, setCommRows] = useState<any[]>(() => commissionExtras.map((c) => ({ ...c })));
   const [commDirty, setCommDirty] = useState(false);
+  const [commError, setCommError] = useState<string | null>(null);
   const updComm = (id: string, patch: any) => {
     setCommRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setCommDirty(true);
   };
   const addComm = () => {
+    // BUG #2 (pré-existente, achado na validação mobile da Etapa 3, corrigido em
+    // fix/lancamento-bloqueadores-preexistentes): sem_cadastro_confirmado começa false de propósito
+    // -- é o que faz o Select de "Nome" abaixo mostrar o placeholder "Selecione um beneficiário" em
+    // vez de já aparecer como "Sem cadastro" escolhido sem a pessoa ter clicado em nada. Antes, a
+    // linha nascia parecendo confirmada como parceria externa; agora exige uma escolha explícita
+    // (pessoa real OU "Sem cadastro") antes de salvar -- ver validação em saveComm(). O preview de
+    // previewDistribuicao (calcularDistribuicaoLancamento) não pega esse caso sozinho: ele só recebe
+    // {valor, semCadastroConfirmado} por linha, então uma linha com valor preenchido mas ainda sem
+    // escolha nenhuma passa como "válida" no cálculo -- daí a checagem adicional abaixo.
     setCommRows((rows) => [
       ...rows,
       {
@@ -567,7 +597,20 @@ export function LancamentoDetail({
   );
 
   const saveComm = useCallback(async () => {
+    // Mesma regra que o banco já reforça via CHECK (sale_commission_extras_exige_vinculo_ou_
+    // confirmacao), mas checada aqui ANTES de gastar uma ida ao banco, com mensagem humana em vez do
+    // erro cru do Postgres -- e sem marcar commDirty=false, então "Enviar ao financeiro" continua
+    // corretamente bloqueado até a pessoa resolver.
+    const semEscolha = commRows.find(precisaEscolherBeneficiario);
+    if (semEscolha) {
+      const msg =
+        'Escolha um beneficiário cadastrado ou marque explicitamente "Sem cadastro / parceiro externo" em cada linha da divisão da comissão antes de salvar.';
+      setCommError(msg);
+      toast.error(msg);
+      return false;
+    }
     if (!previewDistribuicao.calculo_valido) {
+      setCommError(previewDistribuicao.inconsistencias[0]);
       toast.error(previewDistribuicao.inconsistencias[0]);
       return false;
     }
@@ -585,6 +628,7 @@ export function LancamentoDetail({
       p_linhas: payload,
     });
     if (error) {
+      setCommError(error.message);
       toast.error(error.message);
       return false;
     }
@@ -594,6 +638,7 @@ export function LancamentoDetail({
     const linhas = (data as any)?.linhas ?? [];
     setCommRows(linhas.map((r: any) => ({ ...r })));
     setDistribuicao(data ?? null);
+    setCommError(null);
     setCommDirty(false);
     await onChange();
     await loadHistorico();
@@ -664,6 +709,11 @@ export function LancamentoDetail({
       {canEdit && (
         <>
           <SaleSection title="Imóvel e negociação">
+            {formError && (
+              <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+                Não foi possível salvar o Resumo: {formError}
+              </p>
+            )}
             <FieldGrid>
               <Field label="Código do imóvel">
                 <Input
@@ -846,6 +896,11 @@ export function LancamentoDetail({
 
           <SaleSection title="Divisão da comissão">
             <div className="space-y-3">
+              {commError && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+                  {commError}
+                </p>
+              )}
               {commRows.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhuma linha adicionada.</p>
               )}
@@ -880,14 +935,14 @@ export function LancamentoDetail({
                         !!c.user_id && !pessoasAtivas.some((p) => p.id === c.user_id);
                       return (
                         <Select
-                          value={c.user_id || SEM_CADASTRO_VALUE}
+                          value={valorSelectBeneficiario(c)}
                           disabled={!canEdit}
                           onValueChange={(v) =>
                             updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue placeholder="Selecione um beneficiário" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={SEM_CADASTRO_VALUE}>

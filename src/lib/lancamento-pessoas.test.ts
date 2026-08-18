@@ -3,6 +3,8 @@ import {
   mesclarPessoasAtivas,
   resolverSelecaoBeneficiario,
   SEM_CADASTRO_VALUE,
+  precisaEscolherBeneficiario,
+  valorSelectBeneficiario,
 } from "./lancamento-pessoas";
 
 describe("mesclarPessoasAtivas", () => {
@@ -56,5 +58,43 @@ describe("resolverSelecaoBeneficiario", () => {
       nome: "Nome Antigo",
       sem_cadastro_confirmado: false,
     });
+  });
+});
+
+// BUG #2 (regressão): linha recém-criada (addComm) não pode nascer parecendo "Sem cadastro"
+// confirmada sem ninguém ter escolhido nada.
+describe("precisaEscolherBeneficiario", () => {
+  it("linha nova (sem user_id, sem confirmação) precisa de escolha", () => {
+    expect(precisaEscolherBeneficiario({ user_id: null, sem_cadastro_confirmado: false })).toBe(
+      true,
+    );
+  });
+  it("linha com pessoa cadastrada não precisa de escolha", () => {
+    expect(
+      precisaEscolherBeneficiario({ user_id: "12c887f7", sem_cadastro_confirmado: false }),
+    ).toBe(false);
+  });
+  it('linha com "Sem cadastro" explicitamente confirmado não precisa de escolha', () => {
+    expect(precisaEscolherBeneficiario({ user_id: null, sem_cadastro_confirmado: true })).toBe(
+      false,
+    );
+  });
+});
+
+describe("valorSelectBeneficiario", () => {
+  it('linha nova retorna undefined (Select mostra o placeholder, não "Sem cadastro" por padrão)', () => {
+    expect(
+      valorSelectBeneficiario({ user_id: null, sem_cadastro_confirmado: false }),
+    ).toBeUndefined();
+  });
+  it("linha com pessoa cadastrada retorna o user_id", () => {
+    expect(valorSelectBeneficiario({ user_id: "12c887f7", sem_cadastro_confirmado: false })).toBe(
+      "12c887f7",
+    );
+  });
+  it('linha com "Sem cadastro" confirmado retorna o sentinel', () => {
+    expect(valorSelectBeneficiario({ user_id: null, sem_cadastro_confirmado: true })).toBe(
+      SEM_CADASTRO_VALUE,
+    );
   });
 });
