@@ -57,3 +57,23 @@ export function resolverSelecaoBeneficiario(
     sem_cadastro_confirmado: false,
   };
 }
+
+type LinhaComissao = { user_id?: string | null; sem_cadastro_confirmado?: boolean };
+
+/** Uma linha "precisa de escolha" quando ninguém nunca interagiu com o Select de Nome — sem
+ * user_id E sem a marca explícita de "Sem cadastro" confirmada. É exatamente o estado em que
+ * addComm() cria uma linha nova. Usado tanto pro valor do <Select> (undefined nesse caso, pra
+ * mostrar o placeholder em vez de já aparecer como "Sem cadastro" escolhido) quanto pra bloquear
+ * o save com uma mensagem humana antes de a linha bater na constraint do banco
+ * (sale_commission_extras_exige_vinculo_ou_confirmacao). */
+export function precisaEscolherBeneficiario(linha: LinhaComissao): boolean {
+  return !linha.user_id && !linha.sem_cadastro_confirmado;
+}
+
+/** Valor a passar pro <Select> de Nome — undefined (mostra o placeholder) quando a linha ainda não
+ * teve uma escolha explícita, nunca SEM_CADASTRO_VALUE por padrão. */
+export function valorSelectBeneficiario(linha: LinhaComissao): string | undefined {
+  if (linha.user_id) return linha.user_id;
+  if (linha.sem_cadastro_confirmado) return SEM_CADASTRO_VALUE;
+  return undefined;
+}

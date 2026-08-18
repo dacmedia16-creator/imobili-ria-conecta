@@ -1,0 +1,116 @@
+import { describe, expect, it } from "vitest";
+import { calcularDistribuicaoLancamento } from "./lancamento-distribuicao";
+
+describe("calcularDistribuicaoLancamento", () => {
+  it("fecha em zero quando a soma das linhas bate exatamente com a comissão bruta (sem sobra pra imobiliária)", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [{ valor: 4000 }, { valor: 2000 }],
+    });
+    expect(r.comissao_bruta).toBe(6000);
+    expect(r.total_pessoas).toBe(6000);
+    expect(r.saldo_imobiliaria).toBe(0);
+    expect(r.diferenca_restante).toBe(0);
+    expect(r.calculo_valido).toBe(true);
+    expect(r.inconsistencias).toEqual([]);
+  });
+
+  it("calcula automaticamente o saldo da imobiliária/construtora como o resto (regra 3 do pedido)", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 236009.3,
+      percentualComissao: 4,
+      valorTotalComissao: null,
+      linhas: [{ valor: 6608.25 }],
+    });
+    expect(r.comissao_bruta).toBe(9440.37);
+    expect(r.total_pessoas).toBe(6608.25);
+    expect(r.saldo_imobiliaria).toBeCloseTo(2832.12, 2);
+    // Por construção algébrica, total_distribuido sempre reconcilia com a comissão bruta quando válido.
+    expect(r.total_distribuido).toBeCloseTo(r.comissao_bruta, 2);
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("bloqueia quando a soma das linhas ultrapassa a comissão bruta em mais de R$0,01", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [{ valor: 4000 }, { valor: 2000.02 }],
+    });
+    expect(r.saldo_imobiliaria).toBeCloseTo(-0.02, 2);
+    expect(r.calculo_valido).toBe(false);
+    expect(r.inconsistencias).toHaveLength(1);
+    expect(r.inconsistencias[0]).toMatch(/ultrapassa a comissão bruta/);
+  });
+
+  it("tolera exatamente R$0,01 de diferença (arredondamento) sem bloquear", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [{ valor: 4000 }, { valor: 2000.01 }],
+    });
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("separa parceria externa (sem_cadastro_confirmado) do total de pessoas, mas soma as duas no saldo da imobiliária", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [{ valor: 3000 }, { valor: 1500, semCadastroConfirmado: true }],
+    });
+    expect(r.total_pessoas).toBe(3000);
+    expect(r.parceria_externa).toBe(1500);
+    expect(r.saldo_imobiliaria).toBe(1500);
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("parceria externa também conta pro bloqueio de excesso, igual uma linha de pessoa", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [{ valor: 5000 }, { valor: 1500, semCadastroConfirmado: true }],
+    });
+    expect(r.calculo_valido).toBe(false);
+  });
+
+  it("rascunho incompleto (sem valor negociado/comissão) nunca é inconsistência, mesmo com linhas cadastradas", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: null,
+      percentualComissao: null,
+      valorTotalComissao: null,
+      linhas: [{ valor: 5000 }],
+    });
+    expect(r.comissao_bruta).toBe(0);
+    expect(r.calculo_valido).toBe(true);
+    expect(r.inconsistencias).toEqual([]);
+  });
+
+  it("rascunho sem nenhuma linha de comissão ainda: saldo inteiro fica com a imobiliária, sem bloquear", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      linhas: [],
+    });
+    expect(r.total_pessoas).toBe(0);
+    expect(r.saldo_imobiliaria).toBe(6000);
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("usa valor_total_comissao quando não há percentual informado", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: null,
+      valorTotalComissao: 7000,
+      linhas: [{ valor: 7000 }],
+    });
+    expect(r.comissao_bruta).toBe(7000);
+    expect(r.saldo_imobiliaria).toBe(0);
+    expect(r.calculo_valido).toBe(true);
+  });
+});

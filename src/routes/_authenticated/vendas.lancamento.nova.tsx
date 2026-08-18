@@ -26,21 +26,17 @@ function NewLancamento() {
     if (!user) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("sales")
-        .insert({ corretor_id: user.id, imovel_id: imovelId || null, status: "rascunho", modalidade: "lancamento" } as any)
-        .select("id")
-        .single();
+      // sales + sale_parties (construtora/comprador) + o log de criação são gravados numa única
+      // transação no banco (ver criar_lancamento em 20260818020000) — não depende mais de 3
+      // chamadas soltas do client nem de um insert "fire-and-forget" que podia falhar em silêncio.
+      const { data: saleId, error } = await supabase.rpc("criar_lancamento", {
+        p_imovel_id: imovelId,
+        p_construtora_nome: construtoraNome,
+        p_construtora_cnpj: construtoraCnpj,
+      });
       if (error) throw error;
-      // Construtora entra como vendedor_1 (pessoa jurídica) — sale_parties já suporta esse formato,
-      // sem precisar de tabela/campo novo só pra isso.
-      const { error: partyErr } = await supabase.from("sale_parties").insert([
-        { sale_id: data.id, papel: "vendedor_1", tipo_pessoa: "juridica", razao_social: construtoraNome || null, cnpj: construtoraCnpj || null },
-        { sale_id: data.id, papel: "comprador_1", tipo_pessoa: "fisica" },
-      ]);
-      if (partyErr) throw partyErr;
       toast.success("Lançamento criado como rascunho");
-      router.navigate({ to: "/vendas/$id", params: { id: data.id } });
+      router.navigate({ to: "/vendas/$id", params: { id: saleId } });
     } catch (err: any) {
       if (err.code === "23505" && err.message?.includes("sales_imovel_id_ativa_key")) {
         toast.error("Já existe uma venda em andamento para esse código de imóvel.");
@@ -62,22 +58,41 @@ function NewLancamento() {
         </p>
       </div>
       <Card>
-        <CardHeader><CardTitle>Identificação</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Identificação</CardTitle>
+        </CardHeader>
         <CardContent>
           <form onSubmit={onCreate} className="space-y-4">
             <div>
               <Label htmlFor="imovel">Código do imóvel</Label>
-              <Input id="imovel" value={imovelId} onChange={(e) => setImovelId(e.target.value)} placeholder="Ex: 630601112-229" />
+              <Input
+                id="imovel"
+                value={imovelId}
+                onChange={(e) => setImovelId(e.target.value)}
+                placeholder="Ex: 630601112-229"
+              />
             </div>
             <div>
               <Label htmlFor="construtora-nome">Nome da construtora</Label>
-              <Input id="construtora-nome" value={construtoraNome} onChange={(e) => setConstrutoraNome(e.target.value)} placeholder="Ex: Alphaville" />
+              <Input
+                id="construtora-nome"
+                value={construtoraNome}
+                onChange={(e) => setConstrutoraNome(e.target.value)}
+                placeholder="Ex: Alphaville"
+              />
             </div>
             <div>
               <Label htmlFor="construtora-cnpj">CNPJ da construtora</Label>
-              <Input id="construtora-cnpj" value={construtoraCnpj} onChange={(e) => setConstrutoraCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+              <Input
+                id="construtora-cnpj"
+                value={construtoraCnpj}
+                onChange={(e) => setConstrutoraCnpj(e.target.value)}
+                placeholder="00.000.000/0000-00"
+              />
             </div>
-            <Button type="submit" disabled={loading}>{loading ? "Criando..." : "Criar rascunho"}</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Criando..." : "Criar rascunho"}
+            </Button>
           </form>
         </CardContent>
       </Card>
