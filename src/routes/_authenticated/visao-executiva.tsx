@@ -345,8 +345,6 @@ function VisaoExecutiva() {
                       id: r.corretor_id,
                       nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
                       vendas: r.vendas_fechadas,
-                      tempo: r.tempo_medio_dias,
-                      devolucao: r.taxa_devolucao,
                       comissao: r.comissao,
                       meta: meta?.meta_comissao ?? null,
                       metaRealizado: meta?.comissao_realizada ?? 0,
@@ -362,8 +360,6 @@ function VisaoExecutiva() {
                       id: r.team_id ?? "sem-equipe",
                       nome: r.team_nome ?? "Sem equipe",
                       vendas: r.vendas_fechadas,
-                      tempo: null,
-                      devolucao: r.taxa_devolucao,
                       comissao: r.comissao,
                       meta: meta?.meta_comissao ?? null,
                       metaRealizado: meta?.comissao_realizada ?? 0,
@@ -508,8 +504,6 @@ function RankingTable({
     id: string;
     nome: string;
     vendas: number;
-    tempo: number | null;
-    devolucao: number;
     comissao: number;
     meta: number | null;
     metaRealizado: number;
@@ -526,8 +520,6 @@ function RankingTable({
         <TableRow>
           <TableHead>Nome</TableHead>
           <TableHead className="text-right">Fechadas</TableHead>
-          <TableHead className="text-right">Tempo médio</TableHead>
-          <TableHead className="text-right">Devolução</TableHead>
           <TableHead className="text-right">Comissão</TableHead>
           <TableHead>Meta do mês</TableHead>
         </TableRow>
@@ -549,14 +541,6 @@ function RankingTable({
               </span>
             </TableCell>
             <TableCell className="text-right">{r.vendas}</TableCell>
-            <TableCell className="text-right text-muted-foreground">
-              {r.tempo != null ? `${r.tempo} dias` : "—"}
-            </TableCell>
-            <TableCell
-              className={`text-right ${r.devolucao > 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}
-            >
-              {r.devolucao}%
-            </TableCell>
             <TableCell className="text-right">{money(r.comissao)}</TableCell>
             <TableCell>
               {r.meta != null ? (
