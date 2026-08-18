@@ -784,11 +784,13 @@ function MovimentacaoPeriodoSection() {
                 icon={Send}
                 label="Terminaram o período em futura"
                 quantidade={dado?.futurasQuantidade ?? 0}
+                vgv={dado?.futurasVgv}
               />
               <MovimentacaoCard
                 icon={CheckCircle2}
                 label="Terminaram o período confirmadas"
                 quantidade={dado?.confirmadasQuantidade ?? 0}
+                vgv={dado?.confirmadasVgv}
               />
               <MovimentacaoCard
                 icon={Archive}
