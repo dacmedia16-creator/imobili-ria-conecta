@@ -1496,6 +1496,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      visao_executiva_detalhe_comissao: {
+        Args: {
+          _corretor_id?: string | null
+          _sem_equipe?: boolean
+          _team_id?: string | null
+        }
+        Returns: Json
+      }
       visao_executiva_stats: { Args: never; Returns: Json }
     }
     Enums: {

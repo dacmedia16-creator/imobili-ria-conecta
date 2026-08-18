@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,8 @@ import {
   PiggyBank,
   CheckCircle2,
   ClipboardList,
+  ArrowLeft,
+  ArrowUpRight,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
@@ -112,6 +114,24 @@ const evoChartConfig = {
   comissao: { label: "Comissão", color: "var(--color-chart-4)" },
 } satisfies ChartConfig;
 
+/** Uma venda que compõe a comissão de uma pessoa (ou de uma equipe) no período — devolvida por
+ * visao_executiva_detalhe_comissao(), mesma janela/regra de "fechada" de visao_executiva_stats(),
+ * pra a soma aqui sempre bater com o número mostrado no ranking. */
+type DetalheLinha = {
+  sale_id: string;
+  codigo_interno: string | null;
+  imovel_id: string | null;
+  modalidade: string;
+  valor_negociado: number;
+  valor_comissao: number;
+  fechado_em: string;
+  corretor_id: string;
+};
+/** O que foi clicado no ranking — decide qual filtro passar pra RPC de detalhe. */
+type DetalheSelecao =
+  | { tipo: "corretor"; id: string; nome: string }
+  | { tipo: "equipe"; teamId: string | null; nome: string };
+
 function VisaoExecutiva() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(["admin", "super_admin"]);
@@ -120,6 +140,7 @@ function VisaoExecutiva() {
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
+  const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
 
   useEffect(() => {
     if (!allowed) {
@@ -327,48 +348,68 @@ function VisaoExecutiva() {
 
       <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Ranking — últimos 30 dias</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="corretor">
-              <TabsList className="mb-3">
-                <TabsTrigger value="corretor">Por corretor</TabsTrigger>
-                <TabsTrigger value="equipe">Por equipe</TabsTrigger>
-              </TabsList>
-              <TabsContent value="corretor">
-                <RankingTable
-                  rows={(stats?.ranking_corretor ?? []).map((r) => {
-                    const meta =
-                      metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
-                    return {
-                      id: r.corretor_id,
-                      nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
-                      vendas: r.vendas_fechadas,
-                      comissao: r.comissao,
-                      meta: meta?.meta_comissao ?? null,
-                      metaRealizado: meta?.comissao_realizada ?? 0,
-                    };
-                  })}
-                />
-              </TabsContent>
-              <TabsContent value="equipe">
-                <RankingTable
-                  rows={(stats?.ranking_equipe ?? []).map((r) => {
-                    const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
-                    return {
-                      id: r.team_id ?? "sem-equipe",
-                      nome: r.team_nome ?? "Sem equipe",
-                      vendas: r.vendas_fechadas,
-                      comissao: r.comissao,
-                      meta: meta?.meta_comissao ?? null,
-                      metaRealizado: meta?.comissao_realizada ?? 0,
-                    };
-                  })}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
+          {detalheSel ? (
+            <DetalheComissao
+              selecao={detalheSel}
+              onVoltar={() => setDetalheSel(null)}
+              profileName={profileName}
+            />
+          ) : (
+            <>
+              <CardHeader>
+                <CardTitle className="text-base">Ranking — últimos 30 dias</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="corretor">
+                  <TabsList className="mb-3">
+                    <TabsTrigger value="corretor">Por corretor</TabsTrigger>
+                    <TabsTrigger value="equipe">Por equipe</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="corretor">
+                    <RankingTable
+                      rows={(stats?.ranking_corretor ?? []).map((r) => {
+                        const meta =
+                          metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
+                        return {
+                          id: r.corretor_id,
+                          nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
+                          vendas: r.vendas_fechadas,
+                          comissao: r.comissao,
+                          meta: meta?.meta_comissao ?? null,
+                          metaRealizado: meta?.comissao_realizada ?? 0,
+                        };
+                      })}
+                      onSelect={(row) =>
+                        setDetalheSel({ tipo: "corretor", id: row.id, nome: row.nome })
+                      }
+                    />
+                  </TabsContent>
+                  <TabsContent value="equipe">
+                    <RankingTable
+                      rows={(stats?.ranking_equipe ?? []).map((r) => {
+                        const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
+                        return {
+                          id: r.team_id ?? "sem-equipe",
+                          nome: r.team_nome ?? "Sem equipe",
+                          vendas: r.vendas_fechadas,
+                          comissao: r.comissao,
+                          meta: meta?.meta_comissao ?? null,
+                          metaRealizado: meta?.comissao_realizada ?? 0,
+                        };
+                      })}
+                      onSelect={(row) =>
+                        setDetalheSel({
+                          tipo: "equipe",
+                          teamId: row.id === "sem-equipe" ? null : row.id,
+                          nome: row.nome,
+                        })
+                      }
+                    />
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </>
+          )}
         </Card>
 
         <Card>
@@ -499,6 +540,7 @@ function ResumoCard({ icon: Icon, label, valor }: { icon: any; label: string; va
 
 function RankingTable({
   rows,
+  onSelect,
 }: {
   rows: {
     id: string;
@@ -508,6 +550,8 @@ function RankingTable({
     meta: number | null;
     metaRealizado: number;
   }[];
+  /** Clique no nome — abre o detalhe das vendas que compõem a comissão dessa linha. */
+  onSelect: (row: { id: string; nome: string }) => void;
 }) {
   // Ranking por valor de comissão (pedido do usuário) — antes era por vendas fechadas, com
   // comissão só como desempate. `vendas` agora só desempata comissões iguais.
@@ -528,7 +572,11 @@ function RankingTable({
         {sorted.map((r, i) => (
           <TableRow key={r.id}>
             <TableCell className="font-medium">
-              <span className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onSelect({ id: r.id, nome: r.nome })}
+                className="inline-flex items-center gap-2 text-primary hover:underline"
+              >
                 {i < 3 && (
                   <span
                     className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
@@ -538,7 +586,7 @@ function RankingTable({
                   </span>
                 )}
                 {r.nome}
-              </span>
+              </button>
             </TableCell>
             <TableCell className="text-right">{r.vendas}</TableCell>
             <TableCell className="text-right">{money(r.comissao)}</TableCell>
@@ -553,6 +601,132 @@ function RankingTable({
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+/** Painel de detalhe — substitui o card do ranking quando um nome é clicado (mantém contexto, dá
+ * pra voltar fácil, sem cobrir a tela com modal). Busca via visao_executiva_detalhe_comissao(),
+ * mesma janela/regra de "fechada" do ranking, pra o total aqui sempre bater com o número de lá. */
+function DetalheComissao({
+  selecao,
+  onVoltar,
+  profileName,
+}: {
+  selecao: DetalheSelecao;
+  onVoltar: () => void;
+  profileName: Record<string, string>;
+}) {
+  const [linhas, setLinhas] = useState<DetalheLinha[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    setLinhas(null);
+    setErro(null);
+    const params =
+      selecao.tipo === "corretor"
+        ? { _corretor_id: selecao.id, _team_id: null, _sem_equipe: false }
+        : {
+            _corretor_id: null,
+            _team_id: selecao.teamId,
+            _sem_equipe: selecao.teamId === null,
+          };
+    supabase.rpc("visao_executiva_detalhe_comissao", params).then(({ data, error }) => {
+      if (cancelado) return;
+      if (error) {
+        console.error("visao_executiva_detalhe_comissao:", error);
+        setErro("Não foi possível carregar as vendas.");
+        return;
+      }
+      setLinhas((data ?? []) as unknown as DetalheLinha[]);
+    });
+    return () => {
+      cancelado = true;
+    };
+    // selecao é um objeto novo a cada clique (nunca é reaproveitado) — comparar pelos campos
+    // primitivos evita reabrir a busca em renders que não trocaram de pessoa/equipe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selecao.tipo, selecao.tipo === "corretor" ? selecao.id : selecao.teamId]);
+
+  const total = (linhas ?? []).reduce((acc, l) => acc + Number(l.valor_comissao), 0);
+  const ehEquipe = selecao.tipo === "equipe";
+
+  return (
+    <>
+      <CardHeader className="space-y-3">
+        <button
+          type="button"
+          onClick={onVoltar}
+          className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Voltar ao ranking
+        </button>
+        <div>
+          <CardTitle className="text-base">{selecao.nome}</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {linhas == null ? "Carregando…" : `${linhas.length} vendas nos últimos 30 dias`}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {erro ? (
+          <p className="py-8 text-center text-sm text-destructive">{erro}</p>
+        ) : linhas == null ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
+        ) : linhas.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Nenhuma venda no período.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Venda</TableHead>
+                {ehEquipe && <TableHead>Corretor</TableHead>}
+                <TableHead>Modalidade</TableHead>
+                <TableHead className="text-right">Fechou em</TableHead>
+                <TableHead className="text-right">Comissão</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {linhas.map((l) => (
+                <TableRow key={l.sale_id}>
+                  <TableCell className="font-medium">
+                    <Link
+                      to="/vendas/$id"
+                      params={{ id: l.sale_id }}
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      {l.imovel_id || l.codigo_interno || `Venda #${l.sale_id.slice(0, 8)}`}
+                      <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  </TableCell>
+                  {ehEquipe && (
+                    <TableCell className="text-muted-foreground">
+                      {profileName[l.corretor_id] ?? `${l.corretor_id.slice(0, 8)}…`}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-muted-foreground">
+                    {l.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {new Date(l.fechado_em).toLocaleDateString("pt-BR")}
+                  </TableCell>
+                  <TableCell className="text-right">{money(l.valor_comissao)}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="border-t-2">
+                <TableCell colSpan={ehEquipe ? 4 : 3} className="font-semibold">
+                  Total
+                </TableCell>
+                <TableCell className="text-right font-semibold">{money(total)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </>
   );
 }
 
