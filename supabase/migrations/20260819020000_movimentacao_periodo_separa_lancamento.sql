@@ -13,6 +13,17 @@
 -- nunca tiveram contrato. Divide o balde "confirmada" em dois, por modalidade; "futura" e
 -- "encerrada" não têm essa ambiguidade hoje (Lançamento nunca passa por "futura", e as únicas
 -- "encerradas" atuais são padrão) -- não precisam de split.
+--
+-- DEPLOY RETROCOMPATÍVEL (decisão do usuário, 2026-08-18): o front-end publicado em produção nesse
+-- momento (main, sem este PR ainda mergeado) lê `confirmadas_quantidade`/`confirmadas_vgv` do
+-- retorno desta função — se essa migration rodasse ANTES do deploy do front-end novo, esses 2 campos
+-- sumiriam da resposta e o card "Movimentação do período" quebraria pra usuário real (mostra a
+-- mensagem de erro) até o deploy do front-end. Pra evitar essa janela, esta função devolve os 2
+-- campos ANTIGOS (mesma semântica de sempre: confirmada = contrato + lancamento somados, sem
+-- separar) JUNTO com os 4 campos NOVOS já separados — um superset, não uma substituição. O front-end
+-- antigo ignora os campos novos que não conhece; o front-end novo (após merge) passa a ler só os
+-- campos novos. Remover os 2 campos antigos deste retorno deverá ser feito numa migration futura
+-- separada, só depois de confirmar (grep no código publicado) que nada mais os lê.
 create or replace function public.dashboard_movimentacao_periodo(_inicio timestamptz, _fim timestamptz)
 returns jsonb
 language plpgsql
@@ -113,6 +124,11 @@ begin
     select jsonb_build_object(
       'futuras_quantidade', (select count(*) from movimentadas where grupo = 'futura'),
       'futuras_vgv', coalesce((select sum(valor_negociado) from movimentadas where grupo = 'futura'), 0),
+      -- Campos ANTIGOS (retrocompatibilidade — ver comentário no topo do arquivo): mesma semântica
+      -- de sempre, contrato + lancamento somados, sem separar. Removidos numa migration futura.
+      'confirmadas_quantidade', (select count(*) from movimentadas where grupo in ('confirmada_contrato', 'confirmada_lancamento')),
+      'confirmadas_vgv', coalesce((select sum(valor_negociado) from movimentadas where grupo in ('confirmada_contrato', 'confirmada_lancamento')), 0),
+      -- Campos NOVOS (o que motivou esta migration): confirmada separada por modalidade.
       'confirmadas_contrato_quantidade', (select count(*) from movimentadas where grupo = 'confirmada_contrato'),
       'confirmadas_contrato_vgv', coalesce((select sum(valor_negociado) from movimentadas where grupo = 'confirmada_contrato'), 0),
       'confirmadas_lancamento_quantidade', (select count(*) from movimentadas where grupo = 'confirmada_lancamento'),
