@@ -609,10 +609,18 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     // 32 vínculos de equipe reais neste ambiente, sempre sobra gente sem equipe; não depende de sorte
     // na amostra pequena. Se um dia não sobrar ninguém, falha alto e explícito (não retorna calado
     // sem checar nada — regra 7 da auditoria: teste não pode voltar sem fazer nenhuma asserção).
+    //
+    // "Sem equipe de verdade" exclui tanto quem é MEMBRO (team_members) quanto quem LIDERA algum time
+    // (teams.lider_id) — desde a correção que faz as vendas do líder contarem pro próprio time, um
+    // líder sem membro nenhum não é mais "sem equipe", é uma equipe de 1 pessoa.
     const { data: comEquipe } = await supabaseAdmin.from("team_members").select("membro_id");
     const idsComEquipe = new Set((comEquipe ?? []).map((m) => m.membro_id));
+    const { data: lideres } = await supabaseAdmin.from("teams").select("lider_id");
+    const idsLideres = new Set((lideres ?? []).map((t) => t.lider_id));
     const { data: todosProfiles } = await supabaseAdmin.from("profiles").select("id");
-    const semEquipeIds = (todosProfiles ?? []).map((p) => p.id).filter((id) => !idsComEquipe.has(id));
+    const semEquipeIds = (todosProfiles ?? [])
+      .map((p) => p.id)
+      .filter((id) => !idsComEquipe.has(id) && !idsLideres.has(id));
     expect(semEquipeIds.length).toBeGreaterThanOrEqual(2); // pré-condição do teste — falha explícita se o ambiente não tiver gente sem equipe suficiente
     const [semEquipeA, semEquipeB] = semEquipeIds;
 
