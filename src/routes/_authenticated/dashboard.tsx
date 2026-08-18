@@ -58,6 +58,8 @@ import {
   Send,
   Archive,
   Info,
+  FileSignature,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
@@ -654,14 +656,20 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
  * "O que aconteceu no período selecionado?" — separado da "Situação atual" (funil acima) de
  * propósito: contam coisas diferentes. O funil é status ATUAL (agora); aqui é MOVIMENTO dentro do
  * período (RPC dashboard_movimentacao_periodo, corrigida em 20260819010000 pra fechar um bug de
- * duplicidade). Cada venda é contada em EXATAMENTE UM dos 3 cards, pelo grupo de negócio do seu
+ * duplicidade). Cada venda é contada em EXATAMENTE UM dos 4 cards, pelo grupo de negócio do seu
  * status MAIS RECENTE dentro da janela do período — se ela entrou em futura e depois avançou pra
  * confirmada no mesmo período, conta só em confirmada; se foi encerrada, conta só em encerrada. Por
- * isso os 3 cards são mutuamente exclusivos (nenhuma venda em 2 ao mesmo tempo), mas ainda assim não
+ * isso os 4 cards são mutuamente exclusivos (nenhuma venda em 2 ao mesmo tempo), mas ainda assim não
  * é o mesmo número da "Situação atual" — aqui é "onde cada venda movimentada terminou dentro do
  * período", lá é "onde cada venda está agora", e os dois podem divergir (ex.: uma venda pode ter
  * avançado pra confirmada em julho e continuar confirmada hoje — ela não teve nenhuma transição em
  * agosto, então não aparece na Movimentação de agosto, mas continua contando na Situação atual).
+ *
+ * "Confirmada" se divide em 2 cards desde 20260819020000: auditoria pedida pelo usuário achou que o
+ * card único misturava contrato assinado de verdade (venda padrão) com venda de Lançamento, que por
+ * desenho pula direto de rascunho pra ocorrencia_analise_financeiro e NUNCA passa por contrato
+ * assinado (parceria com construtora, sem documento/jurídico/contrato). Ver classificarGrupoVenda /
+ * chegouAoJuridico em status.ts pro mesmo conceito aplicado noutros lugares do dashboard.
  */
 const ERRO_MOVIMENTACAO_PERIODO = "Não foi possível carregar a movimentação do período.";
 
@@ -779,7 +787,7 @@ function MovimentacaoPeriodoSection() {
           <p className="text-sm text-destructive">{erro}</p>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MovimentacaoCard
                 icon={Send}
                 label="Terminaram o período em futura"
@@ -787,10 +795,16 @@ function MovimentacaoPeriodoSection() {
                 vgv={dado?.futurasVgv}
               />
               <MovimentacaoCard
-                icon={CheckCircle2}
-                label="Terminaram o período confirmadas"
-                quantidade={dado?.confirmadasQuantidade ?? 0}
-                vgv={dado?.confirmadasVgv}
+                icon={FileSignature}
+                label="Confirmadas por contrato assinado"
+                quantidade={dado?.confirmadasContratoQuantidade ?? 0}
+                vgv={dado?.confirmadasContratoVgv}
+              />
+              <MovimentacaoCard
+                icon={Landmark}
+                label="Lançamento enviado ao financeiro"
+                quantidade={dado?.confirmadasLancamentoQuantidade ?? 0}
+                vgv={dado?.confirmadasLancamentoVgv}
               />
               <MovimentacaoCard
                 icon={Archive}
@@ -802,7 +816,9 @@ function MovimentacaoPeriodoSection() {
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Cada venda conta uma única vez, pelo status mais recente atingido dentro do período
               selecionado — não é o saldo atual (para isso, veja "VGV ativo total" nos painéis
-              abaixo).
+              abaixo). Venda de Lançamento nunca passa por contrato assinado (vai direto pro
+              financeiro em parceria com a construtora) — por isso conta separado das confirmadas
+              por contrato.
             </p>
             {semDataTotal > 0 && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
