@@ -652,11 +652,16 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
 
 /**
  * "O que aconteceu no período selecionado?" — separado da "Situação atual" (funil acima) de
- * propósito: contam coisas diferentes. O funil é status ATUAL; aqui é MOVIMENTO (quando cada venda
- * entrou pela 1ª vez em cada grupo, via sale_status_history) — por isso uma venda pode aparecer em
- * "Entraram como vendas futuras" e "Vendas confirmadas" no mesmo período (2 eventos, não 2 baldes
- * exclusivos). Não soma os 3 cards em um total — seria misturar 3 perguntas diferentes num número
- * sem sentido.
+ * propósito: contam coisas diferentes. O funil é status ATUAL (agora); aqui é MOVIMENTO dentro do
+ * período (RPC dashboard_movimentacao_periodo, corrigida em 20260819010000 pra fechar um bug de
+ * duplicidade). Cada venda é contada em EXATAMENTE UM dos 3 cards, pelo grupo de negócio do seu
+ * status MAIS RECENTE dentro da janela do período — se ela entrou em futura e depois avançou pra
+ * confirmada no mesmo período, conta só em confirmada; se foi encerrada, conta só em encerrada. Por
+ * isso os 3 cards são mutuamente exclusivos (nenhuma venda em 2 ao mesmo tempo), mas ainda assim não
+ * é o mesmo número da "Situação atual" — aqui é "onde cada venda movimentada terminou dentro do
+ * período", lá é "onde cada venda está agora", e os dois podem divergir (ex.: uma venda pode ter
+ * avançado pra confirmada em julho e continuar confirmada hoje — ela não teve nenhuma transição em
+ * agosto, então não aparece na Movimentação de agosto, mas continua contando na Situação atual).
  */
 const ERRO_MOVIMENTACAO_PERIODO = "Não foi possível carregar a movimentação do período.";
 
@@ -777,12 +782,12 @@ function MovimentacaoPeriodoSection() {
             <div className="grid gap-4 sm:grid-cols-3">
               <MovimentacaoCard
                 icon={Send}
-                label="Entraram como futuras no período"
+                label="Terminaram o período em futura"
                 quantidade={dado?.futurasQuantidade ?? 0}
               />
               <MovimentacaoCard
                 icon={CheckCircle2}
-                label="Avançaram para confirmadas no período"
+                label="Terminaram o período confirmadas"
                 quantidade={dado?.confirmadasQuantidade ?? 0}
               />
               <MovimentacaoCard
@@ -793,9 +798,9 @@ function MovimentacaoPeriodoSection() {
             </div>
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Esta seção mostra movimentos históricos. A mesma venda pode aparecer em mais de uma
-              etapa no período; os valores não devem ser somados entre si nem interpretados como
-              saldo atual.
+              Cada venda conta uma única vez, pelo status mais recente atingido dentro do período
+              selecionado — não é o saldo atual (para isso, veja "VGV ativo total" nos painéis
+              abaixo).
             </p>
             {semDataTotal > 0 && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
