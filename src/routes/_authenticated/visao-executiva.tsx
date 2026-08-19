@@ -21,7 +21,7 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { KpiCard, ResumoGrupoVendaCards, comissaoChartConfig } from "@/components/dashboard/shared";
+import { InfoDot, KpiCard, ResumoGrupoVendaCards, comissaoChartConfig } from "@/components/dashboard/shared";
 import {
   Banknote,
   Percent,
@@ -222,36 +222,43 @@ function VisaoExecutiva() {
             icon={Banknote}
             label="VGV"
             valor={money(stats?.resumo_operacional?.vgv ?? 0)}
+            info="Soma do valor negociado das vendas que fecharam nos últimos 30 dias — contrato assinado (modalidade padrão) ou, em Lançamento, avançou pro financeiro."
           />
           <ResumoCard
             icon={Percent}
             label="Comissão bruta da operação"
             valor={money(stats?.resumo_operacional?.comissao_bruta_operacao ?? 0)}
+            info="Soma da comissão bruta de cada venda fechada no período — percentual de comissão sobre o negociado, ou o valor total de comissão gravado na venda. Ainda não desconta nada."
           />
           <ResumoCard
             icon={Handshake}
             label="Parceria externa"
             valor={money(stats?.resumo_operacional?.parceria_externa ?? 0)}
+            info="Parte da comissão bruta que fica com o parceiro externo (outra imobiliária ou unidade RE/MAX) nas vendas fechadas no período — nunca é receita da unidade."
           />
           <ResumoCard
             icon={Building2}
             label="Parte da unidade"
             valor={money(stats?.resumo_operacional?.parte_unidade ?? 0)}
+            info="O que sobra da comissão bruta pra unidade depois de descontar a parceria externa e a comissão de captador/vendedor — ainda antes de descontar gestores, Team Leaders e extras."
           />
           <ResumoCard
             icon={PiggyBank}
             label="Receita líquida da imobiliária"
             valor={money(stats?.resumo_operacional?.receita_liquida_imobiliaria ?? 0)}
+            info="Parte da unidade menos o que foi pago a gestores/Team Leaders e extras atribuídos à imobiliária — o que sobra de fato pra casa nas vendas fechadas no período."
           />
           <ResumoCard
             icon={CheckCircle2}
             label="Quantidade de vendas"
             valor={String(stats?.resumo_operacional?.quantidade_vendas ?? 0)}
+            info="Número de vendas distintas que fecharam (contrato assinado, ou em Lançamento avançou pro financeiro) nos últimos 30 dias."
           />
           <ResumoCard
             icon={ClipboardList}
             label="Quantidade de captações"
             valor={String(stats?.resumo_operacional?.quantidade_captacoes ?? 0)}
+            info="Número de vendas cadastradas (captadas) nos últimos 30 dias, entre as ainda ativas — grupo diferente de 'Quantidade de vendas' (que é sobre fechamento, não cadastro)."
           />
         </div>
       </section>
@@ -579,15 +586,26 @@ function VisaoExecutiva() {
   );
 }
 
-function ResumoCard({ icon: Icon, label, valor }: { icon: any; label: string; valor: string }) {
+function ResumoCard({
+  icon: Icon,
+  label,
+  valor,
+  info,
+}: {
+  icon: any;
+  label: string;
+  valor: string;
+  info?: string;
+}) {
   return (
-    <Card>
+    <Card className="relative">
+      {info && <InfoDot text={info} />}
       <CardContent className="space-y-2 p-4">
         <div className="rounded-md bg-primary/10 p-2 text-primary w-fit">
           <Icon className="h-5 w-5" />
         </div>
         <p className="text-xl font-bold leading-none">{valor}</p>
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground pr-4">{label}</p>
       </CardContent>
     </Card>
   );
