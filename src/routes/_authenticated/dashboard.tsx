@@ -214,22 +214,82 @@ function Dashboard() {
   ];
 
   const gestorItens = separarZerados([
-    { icon: ClipboardCheck, label: "Aguardando revisão", value: stats?.gestor_aguardando_revisao ?? 0 },
-    { icon: FileText, label: "Contratos para conferir", value: stats?.gestor_contratos_conferir ?? 0 },
-    { icon: DollarSign, label: "Ocorrências para enviar", value: stats?.gestor_ocorrencias_enviar ?? 0 },
-    { icon: AlertCircle, label: "Devolvidas", value: stats?.gestor_devolvidas ?? 0 },
+    {
+      icon: ClipboardCheck,
+      label: "Aguardando revisão",
+      value: stats?.gestor_aguardando_revisao ?? 0,
+      info: "Vendas enviadas pelo corretor, aguardando sua primeira revisão como gestor.",
+    },
+    {
+      icon: FileText,
+      label: "Contratos para conferir",
+      value: stats?.gestor_contratos_conferir ?? 0,
+      info: "Vendas com contrato pronto — conferência do corretor ou já aguardando a sua, como gestor.",
+    },
+    {
+      icon: DollarSign,
+      label: "Ocorrências para enviar",
+      value: stats?.gestor_ocorrencias_enviar ?? 0,
+      info: "Ocorrências financeiras pendentes ou devolvidas, aguardando você enviar (ou reenviar) pro financeiro.",
+    },
+    {
+      icon: AlertCircle,
+      label: "Devolvidas",
+      value: stats?.gestor_devolvidas ?? 0,
+      info: "Vendas que voltaram pra ajuste — devolvidas antes do contrato ou na ocorrência financeira.",
+    },
   ]);
   const juridicoItens = separarZerados([
-    { icon: ClipboardCheck, label: "Aprovadas pelo gestor", value: stats?.juridico_aprovadas_gestor ?? 0 },
-    { icon: Gavel, label: "Em elaboração", value: stats?.juridico_em_elaboracao ?? 0 },
-    { icon: FileText, label: "Aguardando assinatura", value: stats?.juridico_aguardando_assinatura ?? 0 },
-    { icon: CheckCircle2, label: "Assinados", value: stats?.juridico_assinados ?? 0 },
+    {
+      icon: ClipboardCheck,
+      label: "Aprovadas pelo gestor",
+      value: stats?.juridico_aprovadas_gestor ?? 0,
+      info: "Vendas aprovadas pelo gestor, prontas pro jurídico começar a elaborar o contrato.",
+    },
+    {
+      icon: Gavel,
+      label: "Em elaboração",
+      value: stats?.juridico_em_elaboracao ?? 0,
+      info: "Vendas com contrato em elaboração pelo jurídico agora.",
+    },
+    {
+      icon: FileText,
+      label: "Aguardando assinatura",
+      value: stats?.juridico_aguardando_assinatura ?? 0,
+      info: "Contratos já elaborados, aguardando assinatura das partes.",
+    },
+    {
+      icon: CheckCircle2,
+      label: "Assinados",
+      value: stats?.juridico_assinados ?? 0,
+      info: "Vendas com contrato assinado — só a modalidade padrão; Lançamento nunca passa por aqui.",
+    },
   ]);
   const financeiroItens = separarZerados([
-    { icon: DollarSign, label: "Ocorrências em análise", value: stats?.fin_ocorrencias_analise ?? 0 },
-    { icon: AlertCircle, label: "Devolvidas por mim", value: stats?.fin_devolvidas ?? 0 },
-    { icon: DollarSign, label: "Pendentes (total)", value: stats?.occ_pendentes_total ?? 0 },
-    { icon: CheckCircle2, label: "Ocorrências concluídas", value: stats?.occ_concluidas_total ?? 0 },
+    {
+      icon: DollarSign,
+      label: "Ocorrências em análise",
+      value: stats?.fin_ocorrencias_analise ?? 0,
+      info: "Vendas com status “ocorrência em análise no financeiro” agora — fila atual de trabalho, não é um total do período.",
+    },
+    {
+      icon: AlertCircle,
+      label: "Devolvidas por mim",
+      value: stats?.fin_devolvidas ?? 0,
+      info: "Ocorrências que você devolveu pro gestor ajustar antes de seguir.",
+    },
+    {
+      icon: DollarSign,
+      label: "Pendentes (total)",
+      value: stats?.occ_pendentes_total ?? 0,
+      info: "Ocorrências financeiras de qualquer fase que ainda não foram concluídas, somando todas as vendas ativas (cancelada/arquivada não entra).",
+    },
+    {
+      icon: CheckCircle2,
+      label: "Ocorrências concluídas",
+      value: stats?.occ_concluidas_total ?? 0,
+      info: "Ocorrências financeiras já concluídas, de vendas ainda ativas — canceladas ou arquivadas não entram nessa contagem.",
+    },
   ]);
 
   return (
@@ -337,30 +397,35 @@ function Dashboard() {
               label="Minhas vendas"
               value={stats?.minhas_vendas ?? 0}
               to="/vendas"
+              info="Todas as vendas em que você é o corretor responsável, em qualquer status."
             />
             <KpiCard
               icon={AlertCircle}
               label="Pendências (rascunho / devolvidas)"
               value={stats?.minhas_pendencias ?? 0}
               to="/vendas"
+              info="Suas vendas em rascunho (ainda não enviadas) ou devolvidas pra ajuste."
             />
             <KpiCard
               icon={FileText}
               label="Contratos para conferir"
               value={stats?.meus_contratos_conferir ?? 0}
               to="/vendas"
+              info="Suas vendas com contrato pronto, aguardando sua conferência antes de seguir pro gestor."
             />
             <KpiCard
               icon={CheckCircle2}
               label="Contratos assinados"
               value={stats?.meus_assinados ?? 0}
               to="/vendas"
+              info="Suas vendas com contrato assinado — inclui as que já foram pro financeiro (em análise, devolvida ou concluída)."
             />
             <KpiCard
               icon={TrendingUp}
               label="Comissão prevista (vendas em andamento)"
               value={`R$ ${Number(stats?.minha_comissao_prevista ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               to="/vendas"
+              info="Soma da comissão total das suas vendas que ainda não foram concluídas nem canceladas/arquivadas."
             />
             {user && <ResumoGrupoVendaCards corretorIds={[user.id]} />}
           </KpiGrid>
@@ -415,17 +480,26 @@ function Dashboard() {
         >
           <KpiGrid>
             {financeiroItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+              <KpiCard
+                key={i.label}
+                icon={i.icon}
+                label={i.label}
+                value={i.value}
+                to="/vendas"
+                info={i.info}
+              />
             ))}
             <KpiCard
               icon={TrendingUp}
               label="Comissão prevista"
               value={`R$ ${Number(stats?.comissao_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              info="Soma da comissão das ocorrências ainda não concluídas, já descontando a parte de parceiro externo sem cadastro no sistema — essa parte nunca é receita da imobiliária."
             />
             <KpiCard
               icon={TrendingUp}
               label="Comissão concluída"
               value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              info="Mesma regra da comissão prevista (desconta parceria externa), mas só das ocorrências já concluídas."
             />
             <ResumoGrupoVendaCards corretorIds="todas" sufixoLabel="da imobiliária" />
           </KpiGrid>
@@ -526,7 +600,14 @@ function Dashboard() {
         >
           <KpiGrid>
             {gestorItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+              <KpiCard
+                key={i.label}
+                icon={i.icon}
+                label={i.label}
+                value={i.value}
+                to="/vendas"
+                info={i.info}
+              />
             ))}
             <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
           </KpiGrid>
@@ -543,7 +624,14 @@ function Dashboard() {
         >
           <KpiGrid>
             {juridicoItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+              <KpiCard
+                key={i.label}
+                icon={i.icon}
+                label={i.label}
+                value={i.value}
+                to="/vendas"
+                info={i.info}
+              />
             ))}
           </KpiGrid>
           <LinhaZerados itens={juridicoItens.zerados} />
@@ -624,7 +712,7 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
 }
 
-type PainelItem = { icon: LucideIcon; label: string; value: number };
+type PainelItem = { icon: LucideIcon; label: string; value: number; info?: string };
 
 /** Separa os KPIs de um painel (gestor/jurídico/financeiro) entre os que têm algo acontecendo e os
  * zerados — os zerados viram uma única linha de texto (LinhaZerados) em vez de um card cada, pra
@@ -849,23 +937,34 @@ function MovimentacaoPeriodoSection() {
                 label="Terminaram o período em futura"
                 quantidade={dado?.futurasQuantidade ?? 0}
                 vgv={dado?.futurasVgv}
+                info='Vendas cujo status mais avançado dentro do período foi "venda futura". Cada
+                  venda conta uma única vez, pelo status mais recente atingido na janela — não é o
+                  total atual (isso é o "VGV ativo total", no painel financeiro).'
               />
               <MovimentacaoCard
                 icon={FileSignature}
                 label="Confirmadas por contrato assinado"
                 quantidade={dado?.confirmadasContratoQuantidade ?? 0}
                 vgv={dado?.confirmadasContratoVgv}
+                info="Vendas que chegaram a contrato assinado dentro do período — modalidade
+                  padrão, com jurídico e contrato. Não inclui vendas de Lançamento, que pulam essa
+                  etapa."
               />
               <MovimentacaoCard
                 icon={Landmark}
                 label="Lançamento enviado ao financeiro"
                 quantidade={dado?.confirmadasLancamentoQuantidade ?? 0}
                 vgv={dado?.confirmadasLancamentoVgv}
+                info="Vendas de Lançamento (parceria com construtora) que avançaram direto pro
+                  financeiro no período — por desenho, pulam contrato assinado, então contam à
+                  parte das confirmadas por contrato."
               />
               <MovimentacaoCard
                 icon={Archive}
                 label="Foram encerradas no período"
                 quantidade={dado?.encerradasQuantidade ?? 0}
+                info="Vendas canceladas ou arquivadas dentro do período. Não entram no VGV ativo
+                  nem no percentual de vendas em andamento — não viraram negócio."
               />
             </div>
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -890,19 +989,58 @@ function MovimentacaoPeriodoSection() {
   );
 }
 
+/** Pontinho "i" no canto do card, com o texto explicando como aquele número foi calculado —
+ * abre no hover (desktop) e no toque/clique (mobile, onde hover não existe). `stopPropagation` e
+ * `preventDefault` no clique evitam disparar a navegação quando o card inteiro é um <Link>
+ * (KpiCard com `to`). */
+function InfoDot({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="group absolute right-1.5 top-1.5">
+      <button
+        type="button"
+        aria-label="Como esse número foi calculado"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        onBlur={() => setOpen(false)}
+        className={`grid h-4 w-4 place-items-center rounded-full transition-colors group-hover:bg-primary group-hover:text-primary-foreground ${
+          open ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}
+      >
+        <Info className="h-2.5 w-2.5" />
+      </button>
+      <div
+        role="tooltip"
+        className={`pointer-events-none absolute right-0 top-6 z-10 w-56 max-w-[70vw] rounded-md bg-primary px-2.5 py-2 text-[11px] leading-snug text-primary-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto ${
+          open ? "opacity-100 pointer-events-auto" : ""
+        }`}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
 function MovimentacaoCard({
   icon: Icon,
   label,
   quantidade,
   vgv,
+  info,
 }: {
   icon: LucideIcon;
   label: string;
   quantidade: number;
   vgv?: number;
+  info?: string;
 }) {
   return (
-    <Card>
+    <Card className="relative">
+      {info && <InfoDot text={info} />}
       <CardContent className="flex items-center gap-3 p-4">
         <div
           className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
@@ -915,7 +1053,7 @@ function MovimentacaoCard({
           >
             {quantidade}
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+          <div className="mt-1 text-xs text-muted-foreground pr-4">{label}</div>
           {vgv !== undefined && (
             <div className="mt-0.5 text-xs text-muted-foreground">
               VGV: R$ {vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -990,18 +1128,24 @@ function ResumoGrupoVendaCards({
         label={rotulo("VGV em andamento — ainda não confirmado")}
         quantidade={resumo.futura.quantidade}
         vgv={resumo.futura.vgv}
+        info="Valor negociado das vendas em preparação ou futura agora — posição atual da
+          carteira, diferente da Movimentação do período (que é histórico de eventos)."
       />
       <MovimentacaoCard
         icon={CheckCircle2}
         label={rotulo("VGV confirmado — contrato assinado ou já avançado ao financeiro")}
         quantidade={resumo.confirmada.quantidade}
         vgv={resumo.confirmada.vgv}
+        info="Valor negociado das vendas com contrato assinado ou já em financeiro (Lançamento) —
+          posição atual, sem duplicidade com “em andamento”."
       />
       <MovimentacaoCard
         icon={DollarSign}
         label={rotulo("VGV ativo total — sem duplicidade")}
         quantidade={ativoTotal.quantidade}
         vgv={ativoTotal.vgv}
+        info="Soma direta de “em andamento” + “confirmado”. Cada venda ativa pertence a
+          exatamente um desses dois grupos pelo status atual, então nunca é contada duas vezes."
       />
     </>
   );
@@ -1012,11 +1156,13 @@ function KpiCard({
   label,
   value,
   to,
+  info,
 }: {
   icon: any;
   label: string;
   value: number | string;
   to?: string;
+  info?: string;
 }) {
   const numeric =
     typeof value === "number"
@@ -1029,7 +1175,8 @@ function KpiCard({
         );
   const isZero = !Number.isNaN(numeric) && numeric === 0;
   const inner = (
-    <Card className={to ? "transition hover:shadow-md" : ""}>
+    <Card className={`relative ${to ? "transition hover:shadow-md" : ""}`}>
+      {info && <InfoDot text={info} />}
       <CardContent className="flex items-center gap-3 p-4">
         <div
           className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
@@ -1042,7 +1189,7 @@ function KpiCard({
           >
             {value}
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+          <div className="mt-1 text-xs text-muted-foreground pr-4">{label}</div>
         </div>
       </CardContent>
     </Card>
