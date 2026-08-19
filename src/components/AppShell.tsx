@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav: NavItem[] = [
     { to: "/dashboard", label: "Dashboard", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
-    { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin"]) },
+    { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin","financeiro"]) },
     { to: "/comparativo-comissao", label: "Comparativo 6%", icon: Percent, show: hasAny(["admin","super_admin","financeiro"]) },
     // Mesma função usada no beforeLoad da rota (financeiro-dashboard-calc.ts) — fonte única, nunca diverge.
     { to: "/financeiro", label: "Central Financeira", icon: Landmark, show: podeAcessarCentralFinanceira(roles) },

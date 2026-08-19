@@ -17,8 +17,11 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { KpiCard, ResumoGrupoVendaCards, comissaoChartConfig } from "@/components/dashboard/shared";
 import {
   Banknote,
   Percent,
@@ -29,6 +32,9 @@ import {
   ClipboardList,
   ArrowLeft,
   ArrowUpRight,
+  TrendingUp,
+  Landmark,
+  Info,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
@@ -72,6 +78,19 @@ type VisaoExecutivaStats = {
   evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
   /** Só vem preenchido pra super_admin — a RPC devolve null pra qualquer outro papel. */
   whatsapp: { eventos: number; enviados: number; falhas: number; eventos_com_falha: number } | null;
+};
+
+/** Subconjunto de dashboard_stats() (mesma RPC que o Dashboard usa) com os números consolidados
+ * que migraram pra cá — "Comissão em carteira", por status da ocorrência, sem janela de tempo
+ * (diferente do "Resumo da operação" acima, que é sempre últimos 30 dias fechados). */
+type ComissaoPorStatusStats = {
+  comissao_prevista_total: number;
+  comissao_concluida_total: number;
+  comissao_parceria_externa_prevista_total: number;
+  comissao_parceria_externa_concluida_total: number;
+  liquido_imobiliaria_prevista_total: number;
+  liquido_imobiliaria_concluida_total: number;
+  comissao_por_corretor: Record<string, number>;
 };
 
 /** Mesmo agrupamento macro do funil em dashboard.tsx — "encerrada" (cancelada/arquivada) fica
@@ -130,9 +149,12 @@ type DetalheSelecao =
 
 function VisaoExecutiva() {
   const { hasAny, loading: authLoading } = useAuth();
-  const allowed = hasAny(["admin", "super_admin"]);
+  // `financeiro` foi adicionado aqui junto com a migração dos cards de comissão/VGV consolidados
+  // do Dashboard pra esta página — sem isso, esse papel perderia acesso aos próprios números.
+  const allowed = hasAny(["admin", "super_admin", "financeiro"]);
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
+  const [comissaoStats, setComissaoStats] = useState<ComissaoPorStatusStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
@@ -145,16 +167,18 @@ function VisaoExecutiva() {
     }
     (async () => {
       setLoading(true);
-      const [statsRes, profRes, metasRes] = await Promise.all([
+      const [statsRes, profRes, metasRes, dashStatsRes] = await Promise.all([
         supabase.rpc("visao_executiva_stats"),
         supabase.from("profiles").select("id, nome"),
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
+        supabase.rpc("dashboard_stats"),
       ]);
       setStats((statsRes.data as unknown as VisaoExecutivaStats) ?? null);
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
       setMetas((metasRes.data as unknown as MetaProgresso) ?? { corretor: [], equipe: [] });
+      setComissaoStats((dashStatsRes.data as unknown as ComissaoPorStatusStats) ?? null);
       setLoading(false);
     })();
   }, [allowed]);
@@ -165,7 +189,7 @@ function VisaoExecutiva() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a administradores.
+          Esta área é restrita a administradores e ao financeiro.
         </CardContent>
       </Card>
     );
@@ -230,6 +254,114 @@ function VisaoExecutiva() {
             valor={String(stats?.resumo_operacional?.quantidade_captacoes ?? 0)}
           />
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Comissão em carteira — por status
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            icon={TrendingUp}
+            label="Comissão prevista"
+            value={money(comissaoStats?.comissao_prevista_total ?? 0)}
+            info="Soma da comissão das ocorrências ainda não concluídas, já descontando a parte de parceiro externo sem cadastro no sistema — essa parte nunca é receita da imobiliária."
+          />
+          <KpiCard
+            icon={TrendingUp}
+            label="Comissão concluída"
+            value={money(comissaoStats?.comissao_concluida_total ?? 0)}
+            info="Mesma regra da comissão prevista (desconta parceria externa), mas só das ocorrências já concluídas."
+          />
+          <KpiCard
+            icon={Landmark}
+            label="Líquido da imobiliária (prevista)"
+            value={money(comissaoStats?.liquido_imobiliaria_prevista_total ?? 0)}
+            info="Comissão das ocorrências ainda não concluídas, descontando TUDO que já foi pago: parte de corretores/gestores/team leaders internos (soma de 'Comissão por corretor' abaixo) e parceria externa. Só sobra o que não foi atribuído a ninguém nomeado — o que fica de fato com a casa."
+          />
+          <KpiCard
+            icon={Landmark}
+            label="Líquido da imobiliária (concluída)"
+            value={money(comissaoStats?.liquido_imobiliaria_concluida_total ?? 0)}
+            info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
+          />
+          <ResumoGrupoVendaCards corretorIds="todas" sufixoLabel="da imobiliária" />
+        </div>
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          "Resumo da operação" acima é sempre dos últimos 30 dias fechados. "Comissão em carteira"
+          é a posição atual por status da ocorrência, sem janela de tempo — os dois nunca vão bater
+          exatamente, e não deveriam: respondem perguntas diferentes.
+        </p>
+        {((comissaoStats?.comissao_prevista_total ?? 0) > 0 ||
+          (comissaoStats?.comissao_concluida_total ?? 0) > 0) && (
+          <Card className="mt-3">
+            <CardHeader>
+              <CardTitle className="text-base">Comissão: prevista x concluída</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={comissaoChartConfig} className="aspect-auto h-[140px] w-full">
+                <BarChart
+                  data={[
+                    {
+                      prevista: comissaoStats?.comissao_prevista_total ?? 0,
+                      concluida: comissaoStats?.comissao_concluida_total ?? 0,
+                    },
+                  ]}
+                  layout="vertical"
+                  margin={{ left: 12 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                  <XAxis
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `R$ ${Number(v).toLocaleString("pt-BR")}`}
+                  />
+                  <YAxis type="category" hide />
+                  <ChartTooltip content={<ChartTooltipContent formatter={(value) => money(Number(value))} />} />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar dataKey="prevista" fill="var(--color-prevista)" radius={4} />
+                  <Bar dataKey="concluida" fill="var(--color-concluida)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
+        {((comissaoStats?.comissao_parceria_externa_prevista_total ?? 0) > 0 ||
+          (comissaoStats?.comissao_parceria_externa_concluida_total ?? 0) > 0) && (
+          <Card className="mt-3">
+            <CardHeader>
+              <CardTitle className="text-base">Parceria externa (controle à parte)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm text-muted-foreground">
+              <p>
+                Prevista: {money(comissaoStats?.comissao_parceria_externa_prevista_total ?? 0)}
+                {" · "}Concluída: {money(comissaoStats?.comissao_parceria_externa_concluida_total ?? 0)}
+              </p>
+              <p>
+                Comissão de parceiro(s) externo(s) confirmado(s) (sem cadastro no sistema) — já
+                descontada de "Comissão prevista"/"Comissão concluída" acima, nunca é receita da
+                imobiliária.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {Object.keys(comissaoStats?.comissao_por_corretor ?? {}).length > 0 && (
+          <Card className="mt-3">
+            <CardHeader>
+              <CardTitle className="text-base">Comissão por corretor</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              {Object.entries(comissaoStats?.comissao_por_corretor ?? {}).map(([cid, valor]) => (
+                <div key={cid} className="flex items-center justify-between rounded-md border p-2">
+                  <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
+                  <span className="font-medium">{money(Number(valor))}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {isSuperAdmin && stats?.whatsapp && stats.whatsapp.eventos > 0 && (
