@@ -54,6 +54,7 @@ import {
   Send,
   Archive,
   Info,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 
@@ -187,6 +188,25 @@ function Dashboard() {
   const totalGeral = totalAtivo + contagemPorGrupo.encerrada;
   const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
 
+  const gestorItens = separarZerados([
+    { icon: ClipboardCheck, label: "Aguardando revisão", value: stats?.gestor_aguardando_revisao ?? 0 },
+    { icon: FileText, label: "Contratos para conferir", value: stats?.gestor_contratos_conferir ?? 0 },
+    { icon: DollarSign, label: "Ocorrências para enviar", value: stats?.gestor_ocorrencias_enviar ?? 0 },
+    { icon: AlertCircle, label: "Devolvidas", value: stats?.gestor_devolvidas ?? 0 },
+  ]);
+  const juridicoItens = separarZerados([
+    { icon: ClipboardCheck, label: "Aprovadas pelo gestor", value: stats?.juridico_aprovadas_gestor ?? 0 },
+    { icon: Gavel, label: "Em elaboração", value: stats?.juridico_em_elaboracao ?? 0 },
+    { icon: FileText, label: "Aguardando assinatura", value: stats?.juridico_aguardando_assinatura ?? 0 },
+    { icon: CheckCircle2, label: "Assinados", value: stats?.juridico_assinados ?? 0 },
+  ]);
+  const financeiroItens = separarZerados([
+    { icon: DollarSign, label: "Ocorrências em análise", value: stats?.fin_ocorrencias_analise ?? 0 },
+    { icon: AlertCircle, label: "Devolvidas por mim", value: stats?.fin_devolvidas ?? 0 },
+    { icon: DollarSign, label: "Pendentes (total)", value: stats?.occ_pendentes_total ?? 0 },
+    { icon: CheckCircle2, label: "Ocorrências concluídas", value: stats?.occ_concluidas_total ?? 0 },
+  ]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -310,40 +330,52 @@ function Dashboard() {
 
       {/* Gestor */}
       {isGestor && (
-        <DashSection title="Painel do gestor">
+        <CollapsibleSection
+          title="Painel do gestor"
+          storageKey="dash-open-gestor"
+          badge={badgeParaItens(gestorItens.comValor, "warn")}
+        >
           <KpiGrid>
-            <KpiCard icon={ClipboardCheck} label="Aguardando revisão" value={stats?.gestor_aguardando_revisao ?? 0} to="/vendas" />
-            <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.gestor_contratos_conferir ?? 0} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Ocorrências para enviar" value={stats?.gestor_ocorrencias_enviar ?? 0} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas" value={stats?.gestor_devolvidas ?? 0} to="/vendas" />
+            {gestorItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
             <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
           </KpiGrid>
-        </DashSection>
+          <LinhaZerados itens={gestorItens.zerados} />
+        </CollapsibleSection>
       )}
 
       {/* Jurídico */}
       {isJuridico && (
-        <DashSection title="Painel do jurídico">
+        <CollapsibleSection
+          title="Painel do jurídico"
+          storageKey="dash-open-juridico"
+          badge={badgeParaItens(juridicoItens.comValor, "warn")}
+        >
           <KpiGrid>
-            <KpiCard icon={ClipboardCheck} label="Aprovadas pelo gestor" value={stats?.juridico_aprovadas_gestor ?? 0} to="/vendas" />
-            <KpiCard icon={Gavel} label="Em elaboração" value={stats?.juridico_em_elaboracao ?? 0} to="/vendas" />
-            <KpiCard icon={FileText} label="Aguardando assinatura" value={stats?.juridico_aguardando_assinatura ?? 0} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Assinados" value={stats?.juridico_assinados ?? 0} to="/vendas" />
+            {juridicoItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
           </KpiGrid>
-        </DashSection>
+          <LinhaZerados itens={juridicoItens.zerados} />
+        </CollapsibleSection>
       )}
 
       {/* Financeiro */}
       {isFinanceiro && (
-        <DashSection title="Painel financeiro">
+        <CollapsibleSection
+          title="Painel financeiro"
+          storageKey="dash-open-financeiro"
+          badge={badgeParaItens(financeiroItens.comValor, "calm")}
+        >
           <KpiGrid>
-            <KpiCard icon={DollarSign} label="Ocorrências em análise" value={stats?.fin_ocorrencias_analise ?? 0} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Devolvidas por mim" value={stats?.fin_devolvidas ?? 0} to="/vendas" />
-            <KpiCard icon={DollarSign} label="Pendentes (total)" value={stats?.occ_pendentes_total ?? 0} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Ocorrências concluídas" value={stats?.occ_concluidas_total ?? 0} to="/vendas" />
+            {financeiroItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
             <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${Number(stats?.comissao_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
             <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
           </KpiGrid>
+          <LinhaZerados itens={financeiroItens.zerados} />
           {((stats?.comissao_prevista_total ?? 0) > 0 || (stats?.comissao_concluida_total ?? 0) > 0) && (
             <Card className="mt-3">
               <CardHeader><CardTitle className="text-base">Comissão: prevista x concluída</CardTitle></CardHeader>
@@ -402,7 +434,7 @@ function Dashboard() {
               </CardContent>
             </Card>
           )}
-        </DashSection>
+        </CollapsibleSection>
       )}
 
       <Card>
@@ -463,6 +495,90 @@ function DashSection({ title, children }: { title: string; children: React.React
 
 function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
+}
+
+type PainelItem = { icon: LucideIcon; label: string; value: number };
+
+/** Separa os KPIs de um painel (gestor/jurídico/financeiro) entre os que têm algo acontecendo e os
+ * zerados — os zerados viram uma única linha de texto (LinhaZerados) em vez de um card cada, pra
+ * não poluir a tela com "0" repetido. */
+function separarZerados(itens: PainelItem[]) {
+  return {
+    comValor: itens.filter((i) => i.value !== 0),
+    zerados: itens.filter((i) => i.value === 0),
+  };
+}
+
+function LinhaZerados({ itens }: { itens: PainelItem[] }) {
+  if (itens.length === 0) return null;
+  return (
+    <p className="mt-2 border-t border-dashed pt-2 text-xs text-muted-foreground">
+      Sem pendência: {itens.map((i) => i.label).join(" · ")}
+    </p>
+  );
+}
+
+/** Badge do cabeçalho do painel — só aparece quando há algo com valor. "warn" (âmbar) pra painéis
+ * de fila de trabalho (gestor/jurídico); "calm" (neutro) pro financeiro, onde nem todo item
+ * com valor é uma pendência (ex.: ocorrências concluídas). */
+function badgeParaItens(comValor: PainelItem[], tone: "warn" | "calm") {
+  if (comValor.length === 0) return undefined;
+  return {
+    label: tone === "warn" ? `${comValor.length} com pendência` : `${comValor.length} ativos`,
+    tone,
+  };
+}
+
+/** Painel recolhível (gestor/jurídico/financeiro) — estado aberto/fechado fica salvo no navegador
+ * por seção, então quem colapsa um painel que não usa não precisa refazer isso a cada visita.
+ * Começa aberto por padrão (nada some na 1ª visita). */
+function CollapsibleSection({
+  title,
+  storageKey,
+  badge,
+  children,
+}: {
+  title: string;
+  storageKey: string;
+  badge?: { label: string; tone: "warn" | "calm" };
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const saved = window.localStorage.getItem(storageKey);
+    return saved === null ? true : saved === "1";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(storageKey, open ? "1" : "0");
+  }, [open, storageKey]);
+
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mb-2 flex w-full items-center gap-2 text-left"
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+        {badge && (
+          <span
+            className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              badge.tone === "warn"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {badge.label}
+          </span>
+        )}
+      </button>
+      {open && children}
+    </section>
+  );
 }
 
 /**
