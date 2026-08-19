@@ -40,7 +40,11 @@ import {
   fetchMovimentacaoPeriodo,
   type MovimentacaoPeriodo,
 } from "@/lib/dashboard-movimentacao-query";
-import { fetchResumoGrupoVenda, type ResumoPorGrupo } from "@/lib/dashboard-perfil-query";
+import {
+  fetchResumoGrupoVenda,
+  vgvAtivoTotal,
+  type ResumoPorGrupo,
+} from "@/lib/dashboard-perfil-query";
 import {
   Plus,
   FileText,
@@ -54,6 +58,8 @@ import {
   Send,
   Archive,
   Info,
+  FileSignature,
+  Landmark,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -76,7 +82,9 @@ const FUNIL_GRUPOS: { key: GrupoVenda; label: string }[] = [
   { key: "encerrada", label: "Encerradas sem venda" },
 ];
 
-const funilChartConfig = { total: { label: "Vendas", color: "var(--color-chart-1)" } } satisfies ChartConfig;
+const funilChartConfig = {
+  total: { label: "Vendas", color: "var(--color-chart-1)" },
+} satisfies ChartConfig;
 
 const comissaoChartConfig = {
   prevista: { label: "Prevista", color: "var(--color-chart-4)" },
@@ -132,14 +140,18 @@ type DashboardStats = {
   comissao_por_corretor: Record<string, number>;
 };
 
-const RECENTES_COLUMNS = "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at";
+const RECENTES_COLUMNS =
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at";
 
 function Dashboard() {
   const { user, roles, hasAny } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentes, setRecentes] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
-  const [metaCorretor, setMetaCorretor] = useState<{ meta_comissao: number; comissao_realizada: number } | null>(null);
+  const [metaCorretor, setMetaCorretor] = useState<{
+    meta_comissao: number;
+    comissao_realizada: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
 
@@ -155,7 +167,11 @@ function Dashboard() {
       setLoading(true);
       const [statsRes, recentesRes, profRes, metasRes] = await Promise.all([
         supabase.rpc("dashboard_stats"),
-        supabase.from("sales").select(RECENTES_COLUMNS).order("updated_at", { ascending: false }).limit(8),
+        supabase
+          .from("sales")
+          .select(RECENTES_COLUMNS)
+          .order("updated_at", { ascending: false })
+          .limit(8),
         supabase.from("profiles").select("id, nome"),
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
       ]);
@@ -164,13 +180,17 @@ function Dashboard() {
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
-      const metasData = metasRes.data as { corretor: { corretor_id: string; meta_comissao: number; comissao_realizada: number }[] } | null;
+      const metasData = metasRes.data as {
+        corretor: { corretor_id: string; meta_comissao: number; comissao_realizada: number }[];
+      } | null;
       setMetaCorretor(metasData?.corretor.find((m) => m.corretor_id === user.id) ?? null);
       setLoading(false);
     })();
   }, [user]);
 
-  const isCorretor = hasAny(["corretor"]) && !hasAny(["gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"]);
+  const isCorretor =
+    hasAny(["corretor"]) &&
+    !hasAny(["gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"]);
   const isGestor = hasAny(["gestor", "team_leader"]);
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
@@ -186,7 +206,12 @@ function Dashboard() {
   const totalAtivo =
     contagemPorGrupo.preparacao + contagemPorGrupo.futura + contagemPorGrupo.confirmada;
   const totalGeral = totalAtivo + contagemPorGrupo.encerrada;
-  const comissaoData = [{ prevista: stats?.comissao_prevista_total ?? 0, concluida: stats?.comissao_concluida_total ?? 0 }];
+  const comissaoData = [
+    {
+      prevista: stats?.comissao_prevista_total ?? 0,
+      concluida: stats?.comissao_concluida_total ?? 0,
+    },
+  ];
 
   const gestorItens = separarZerados([
     { icon: ClipboardCheck, label: "Aguardando revisão", value: stats?.gestor_aguardando_revisao ?? 0 },
@@ -211,12 +236,19 @@ function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Olá, {(user && profileName[user.id]) || user?.email?.split("@")[0]}</h1>
-          <p className="text-sm text-muted-foreground">Perfis: {roles.map(r => ROLE_LABEL[r]).join(", ") || "—"}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Olá, {(user && profileName[user.id]) || user?.email?.split("@")[0]}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Perfis: {roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}
+          </p>
         </div>
         {hasAny(["corretor", "gestor", "team_leader"]) && (
           <Button asChild>
-            <Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link>
+            <Link to="/vendas/nova">
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Venda
+            </Link>
           </Button>
         )}
       </div>
@@ -233,7 +265,13 @@ function Dashboard() {
               <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
                 <CartesianGrid horizontal={false} strokeDasharray="3 3" />
                 <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={140} />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  width={140}
+                />
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
@@ -264,7 +302,10 @@ function Dashboard() {
                     ? Math.round((total / totalAtivo) * 100)
                     : null;
                 return (
-                  <div key={key} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                  <div
+                    key={key}
+                    className="flex items-center justify-between rounded-md border p-2 text-sm"
+                  >
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-medium">
                       {total}{" "}
@@ -291,10 +332,30 @@ function Dashboard() {
       {isCorretor && (
         <DashSection title="Suas vendas">
           <KpiGrid>
-            <KpiCard icon={FileText} label="Minhas vendas" value={stats?.minhas_vendas ?? 0} to="/vendas" />
-            <KpiCard icon={AlertCircle} label="Pendências (rascunho / devolvidas)" value={stats?.minhas_pendencias ?? 0} to="/vendas" />
-            <KpiCard icon={FileText} label="Contratos para conferir" value={stats?.meus_contratos_conferir ?? 0} to="/vendas" />
-            <KpiCard icon={CheckCircle2} label="Contratos assinados" value={stats?.meus_assinados ?? 0} to="/vendas" />
+            <KpiCard
+              icon={FileText}
+              label="Minhas vendas"
+              value={stats?.minhas_vendas ?? 0}
+              to="/vendas"
+            />
+            <KpiCard
+              icon={AlertCircle}
+              label="Pendências (rascunho / devolvidas)"
+              value={stats?.minhas_pendencias ?? 0}
+              to="/vendas"
+            />
+            <KpiCard
+              icon={FileText}
+              label="Contratos para conferir"
+              value={stats?.meus_contratos_conferir ?? 0}
+              to="/vendas"
+            />
+            <KpiCard
+              icon={CheckCircle2}
+              label="Contratos assinados"
+              value={stats?.meus_assinados ?? 0}
+              to="/vendas"
+            />
             <KpiCard
               icon={TrendingUp}
               label="Comissão prevista (vendas em andamento)"
@@ -306,19 +367,36 @@ function Dashboard() {
           {metaCorretor && (
             <Card className="mt-3">
               <CardContent className="flex items-center gap-4 p-4">
-                <div className="rounded-md bg-primary/10 p-2 text-primary"><Target className="h-5 w-5" /></div>
+                <div className="rounded-md bg-primary/10 p-2 text-primary">
+                  <Target className="h-5 w-5" />
+                </div>
                 <div className="flex-1">
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="font-medium">Meta de {mesAtualLabel()}</span>
                     <span className="text-muted-foreground">
-                      R$ {metaCorretor.comissao_realizada.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de R$ {metaCorretor.meta_comissao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      {" "}({metaCorretor.meta_comissao > 0 ? Math.round((metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100) : 0}%)
+                      R${" "}
+                      {metaCorretor.comissao_realizada.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                      })}{" "}
+                      de R${" "}
+                      {metaCorretor.meta_comissao.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                      })}{" "}
+                      (
+                      {metaCorretor.meta_comissao > 0
+                        ? Math.round(
+                            (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100,
+                          )
+                        : 0}
+                      %)
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
                       className={`h-full rounded-full ${metaCorretor.comissao_realizada >= metaCorretor.meta_comissao ? "bg-emerald-500" : "bg-amber-500"}`}
-                      style={{ width: `${Math.min(100, Math.max(0, metaCorretor.meta_comissao > 0 ? (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100 : 0))}%` }}
+                      style={{
+                        width: `${Math.min(100, Math.max(0, metaCorretor.meta_comissao > 0 ? (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100 : 0))}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -372,20 +450,48 @@ function Dashboard() {
             {financeiroItens.comValor.map((i) => (
               <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
             ))}
-            <KpiCard icon={TrendingUp} label="Comissão prevista" value={`R$ ${Number(stats?.comissao_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
-            <KpiCard icon={TrendingUp} label="Comissão concluída" value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+            <KpiCard
+              icon={TrendingUp}
+              label="Comissão prevista"
+              value={`R$ ${Number(stats?.comissao_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+            />
+            <KpiCard
+              icon={TrendingUp}
+              label="Comissão concluída"
+              value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+            />
+            <ResumoGrupoVendaCards corretorIds="todas" sufixoLabel="da imobiliária" />
           </KpiGrid>
           <LinhaZerados itens={financeiroItens.zerados} />
-          {((stats?.comissao_prevista_total ?? 0) > 0 || (stats?.comissao_concluida_total ?? 0) > 0) && (
+          {((stats?.comissao_prevista_total ?? 0) > 0 ||
+            (stats?.comissao_concluida_total ?? 0) > 0) && (
             <Card className="mt-3">
-              <CardHeader><CardTitle className="text-base">Comissão: prevista x concluída</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Comissão: prevista x concluída</CardTitle>
+              </CardHeader>
               <CardContent>
-                <ChartContainer config={comissaoChartConfig} className="aspect-auto h-[140px] w-full">
+                <ChartContainer
+                  config={comissaoChartConfig}
+                  className="aspect-auto h-[140px] w-full"
+                >
                   <BarChart data={comissaoData} layout="vertical" margin={{ left: 12 }}>
                     <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                    <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v) => `R$ ${Number(v).toLocaleString("pt-BR")}`} />
+                    <XAxis
+                      type="number"
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `R$ ${Number(v).toLocaleString("pt-BR")}`}
+                    />
                     <YAxis type="category" hide />
-                    <ChartTooltip content={<ChartTooltipContent formatter={(value) => `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />} />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value) =>
+                            `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                          }
+                        />
+                      }
+                    />
                     <ChartLegend content={<ChartLegendContent />} />
                     <Bar dataKey="prevista" fill="var(--color-prevista)" radius={4} />
                     <Bar dataKey="concluida" fill="var(--color-concluida)" radius={4} />
@@ -423,12 +529,19 @@ function Dashboard() {
           )}
           {Object.keys(stats?.comissao_por_corretor ?? {}).length > 0 && (
             <Card className="mt-3">
-              <CardHeader><CardTitle className="text-base">Comissão por corretor</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">Comissão por corretor</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 {Object.entries(stats?.comissao_por_corretor ?? {}).map(([cid, valor]) => (
-                  <div key={cid} className="flex items-center justify-between rounded-md border p-2">
+                  <div
+                    key={cid}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
                     <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
-                    <span className="font-medium">R$ {Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <span className="font-medium">
+                      R$ {Number(valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
                 ))}
               </CardContent>
@@ -440,20 +553,28 @@ function Dashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Vendas recentes</CardTitle>
-          <Button asChild variant="ghost" size="sm"><Link to="/vendas">Ver todas</Link></Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/vendas">Ver todas</Link>
+          </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {!loading && recentes.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>}
+          {!loading && recentes.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>
+          )}
           {recentes.map((s) => {
             // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila
             // operacional de verdade, não pra quem só está supervisionando o sistema.
-            const minhaVez = !hasAny(["admin", "super_admin"]) && proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
-              papel === "corretor" ? s.corretor_id === user?.id
-              // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
-              // mesmo comentário em vendas.index.tsx.
-              : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
-              : hasAny([papel])
-            );
+            const minhaVez =
+              !hasAny(["admin", "super_admin"]) &&
+              proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+                papel === "corretor"
+                  ? s.corretor_id === user?.id
+                  : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
+                    // mesmo comentário em vendas.index.tsx.
+                    papel === "gestor"
+                    ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
+                    : hasAny([papel]),
+              );
             return (
               <Link
                 key={s.id}
@@ -462,9 +583,13 @@ function Dashboard() {
                 className={`flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
               >
                 <div>
-                  <div className="text-sm font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
+                  <div className="text-sm font-medium">
+                    {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"}
+                    {s.valor_negociado
+                      ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
+                      : "Valor pendente"}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -487,7 +612,9 @@ function Dashboard() {
 function DashSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -583,11 +710,22 @@ function CollapsibleSection({
 
 /**
  * "O que aconteceu no período selecionado?" — separado da "Situação atual" (funil acima) de
- * propósito: contam coisas diferentes. O funil é status ATUAL; aqui é MOVIMENTO (quando cada venda
- * entrou pela 1ª vez em cada grupo, via sale_status_history) — por isso uma venda pode aparecer em
- * "Entraram como vendas futuras" e "Vendas confirmadas" no mesmo período (2 eventos, não 2 baldes
- * exclusivos). Não soma os 3 cards em um total — seria misturar 3 perguntas diferentes num número
- * sem sentido.
+ * propósito: contam coisas diferentes. O funil é status ATUAL (agora); aqui é MOVIMENTO dentro do
+ * período (RPC dashboard_movimentacao_periodo, corrigida em 20260819010000 pra fechar um bug de
+ * duplicidade). Cada venda é contada em EXATAMENTE UM dos 4 cards, pelo grupo de negócio do seu
+ * status MAIS RECENTE dentro da janela do período — se ela entrou em futura e depois avançou pra
+ * confirmada no mesmo período, conta só em confirmada; se foi encerrada, conta só em encerrada. Por
+ * isso os 4 cards são mutuamente exclusivos (nenhuma venda em 2 ao mesmo tempo), mas ainda assim não
+ * é o mesmo número da "Situação atual" — aqui é "onde cada venda movimentada terminou dentro do
+ * período", lá é "onde cada venda está agora", e os dois podem divergir (ex.: uma venda pode ter
+ * avançado pra confirmada em julho e continuar confirmada hoje — ela não teve nenhuma transição em
+ * agosto, então não aparece na Movimentação de agosto, mas continua contando na Situação atual).
+ *
+ * "Confirmada" se divide em 2 cards desde 20260819020000: auditoria pedida pelo usuário achou que o
+ * card único misturava contrato assinado de verdade (venda padrão) com venda de Lançamento, que por
+ * desenho pula direto de rascunho pra ocorrencia_analise_financeiro e NUNCA passa por contrato
+ * assinado (parceria com construtora, sem documento/jurídico/contrato). Ver classificarGrupoVenda /
+ * chegouAoJuridico em status.ts pro mesmo conceito aplicado noutros lugares do dashboard.
  */
 const ERRO_MOVIMENTACAO_PERIODO = "Não foi possível carregar a movimentação do período.";
 
@@ -705,25 +843,39 @@ function MovimentacaoPeriodoSection() {
           <p className="text-sm text-destructive">{erro}</p>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MovimentacaoCard
                 icon={Send}
-                label="Entraram como vendas futuras"
+                label="Terminaram o período em futura"
                 quantidade={dado?.futurasQuantidade ?? 0}
                 vgv={dado?.futurasVgv}
               />
               <MovimentacaoCard
-                icon={CheckCircle2}
-                label="Vendas confirmadas"
-                quantidade={dado?.confirmadasQuantidade ?? 0}
-                vgv={dado?.confirmadasVgv}
+                icon={FileSignature}
+                label="Confirmadas por contrato assinado"
+                quantidade={dado?.confirmadasContratoQuantidade ?? 0}
+                vgv={dado?.confirmadasContratoVgv}
+              />
+              <MovimentacaoCard
+                icon={Landmark}
+                label="Lançamento enviado ao financeiro"
+                quantidade={dado?.confirmadasLancamentoQuantidade ?? 0}
+                vgv={dado?.confirmadasLancamentoVgv}
               />
               <MovimentacaoCard
                 icon={Archive}
-                label="Vendas encerradas"
+                label="Foram encerradas no período"
                 quantidade={dado?.encerradasQuantidade ?? 0}
               />
             </div>
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Cada venda conta uma única vez, pelo status mais recente atingido dentro do período
+              selecionado — não é o saldo atual (para isso, veja "VGV ativo total" nos painéis
+              abaixo). Venda de Lançamento nunca passa por contrato assinado (vai direto pro
+              financeiro em parceria com a construtora) — por isso conta separado das confirmadas
+              por contrato.
+            </p>
             {semDataTotal > 0 && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -776,36 +928,44 @@ function MovimentacaoCard({
 }
 
 /**
- * "Vendas futuras"/"Vendas confirmadas" (grupo completo, classificarGrupoVenda) escopadas por um
- * conjunto de corretores — usado no painel do Corretor (`[user.id]`) e do Gestor
- * (`Array.from(teamIds)`). Etapa 2C: mesma classificação de 4 grupos da Etapa 2A/2B, agora também
- * nos painéis por perfil, não só no funil geral. Não usa dashboard_stats() nem RPC nova — busca
- * direta em `sales` (RLS já restringe pelo papel de quem está logado) mais
- * `agruparVendasPorGrupoComVgv` (dashboard-perfil-query.ts), pura e testada isoladamente.
+ * Posição ATUAL de VGV (não confundir com a Movimentação do período, que é histórico de eventos) —
+ * escopada por um conjunto de corretores, ou `"todas"` pra financeiro/admin/super_admin (que já
+ * enxergam toda a `sales` via RLS). Usado no painel do Corretor (`[user.id]`), do Gestor
+ * (`Array.from(teamIds)`) e do Financeiro (`"todas"`).
+ *
+ * Cada venda pertence a exatamente um grupo pelo status ATUAL (classificarGrupoVenda é exaustivo e
+ * mutuamente exclusivo) — por isso "VGV em andamento" + "VGV confirmado" nunca contam a mesma
+ * venda duas vezes, e "VGV ativo total" (vgvAtivoTotal) é a soma direta dos dois sem risco de
+ * sobreposição. Vendas de Lançamento que pulam contrato_assinado (vão direto de rascunho pra
+ * ocorrencia_analise_financeiro — ver criar_ocorrencia_lancamento_rpc) já caem em "confirmada"
+ * porque a classificação é só por status, não por modalidade nem por caminho percorrido.
+ *
+ * Não usa dashboard_stats() nem RPC nova — busca direta em `sales` (RLS já restringe pelo papel de
+ * quem está logado) mais `agruparVendasPorGrupoComVgv` (dashboard-perfil-query.ts), pura e testada
+ * isoladamente.
  */
 function ResumoGrupoVendaCards({
   corretorIds,
   sufixoLabel,
 }: {
-  corretorIds: string[];
+  corretorIds: string[] | "todas";
   sufixoLabel?: string;
 }) {
-  const idsKey = [...corretorIds].sort().join(",");
+  const idsKey = corretorIds === "todas" ? "todas" : [...corretorIds].sort().join(",");
   const [resumo, setResumo] = useState<ResumoPorGrupo | null>(null);
 
   useEffect(() => {
-    const ids = idsKey ? idsKey.split(",") : [];
-    if (ids.length === 0) {
+    if (idsKey !== "todas" && idsKey === "") {
       setResumo(null);
       return;
     }
     let cancelado = false;
-    fetchResumoGrupoVenda(ids)
+    fetchResumoGrupoVenda(idsKey === "todas" ? "todas" : idsKey.split(","))
       .then((r) => {
         if (!cancelado) setResumo(r);
       })
       .catch((e: unknown) => {
-        // Silencioso na interface de propósito: são 2 cards a mais dentro de um painel que já tem
+        // Silencioso na interface de propósito: são cards a mais dentro de um painel que já tem
         // outros KPIs funcionando (vindos de dashboard_stats()) — um erro aqui não deve quebrar
         // nem exibir mensagem técnica sobre o resto do painel, só ficar de fora.
         console.error("fetchResumoGrupoVenda:", e);
@@ -817,35 +977,71 @@ function ResumoGrupoVendaCards({
 
   if (!resumo) return null;
 
-  const rotulo = (base: string) => (sufixoLabel ? `${base} ${sufixoLabel}` : base);
+  // Insere o sufixo (ex.: "da equipe", "da imobiliária") logo antes do travessão do rótulo
+  // recomendado, mantendo o "— explicação" no final: "VGV em andamento da equipe — ainda não
+  // confirmado".
+  const rotulo = (base: string) => (sufixoLabel ? base.replace(" — ", ` ${sufixoLabel} — `) : base);
+  const ativoTotal = vgvAtivoTotal(resumo);
 
   return (
     <>
       <MovimentacaoCard
         icon={Send}
-        label={rotulo("Vendas futuras")}
+        label={rotulo("VGV em andamento — ainda não confirmado")}
         quantidade={resumo.futura.quantidade}
         vgv={resumo.futura.vgv}
       />
       <MovimentacaoCard
         icon={CheckCircle2}
-        label={rotulo("Vendas confirmadas")}
+        label={rotulo("VGV confirmado — contrato assinado ou já avançado ao financeiro")}
         quantidade={resumo.confirmada.quantidade}
         vgv={resumo.confirmada.vgv}
+      />
+      <MovimentacaoCard
+        icon={DollarSign}
+        label={rotulo("VGV ativo total — sem duplicidade")}
+        quantidade={ativoTotal.quantidade}
+        vgv={ativoTotal.vgv}
       />
     </>
   );
 }
 
-function KpiCard({ icon: Icon, label, value, to }: { icon: any; label: string; value: number | string; to?: string }) {
-  const numeric = typeof value === "number" ? value : Number(String(value).replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", "."));
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  to,
+}: {
+  icon: any;
+  label: string;
+  value: number | string;
+  to?: string;
+}) {
+  const numeric =
+    typeof value === "number"
+      ? value
+      : Number(
+          String(value)
+            .replace(/[^\d,.-]/g, "")
+            .replace(/\./g, "")
+            .replace(",", "."),
+        );
   const isZero = !Number.isNaN(numeric) && numeric === 0;
   const inner = (
     <Card className={to ? "transition hover:shadow-md" : ""}>
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}><Icon className="h-5 w-5" /></div>
+        <div
+          className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
         <div>
-          <div className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}>{value}</div>
+          <div
+            className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}
+          >
+            {value}
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">{label}</div>
         </div>
       </CardContent>

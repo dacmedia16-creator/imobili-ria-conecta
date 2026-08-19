@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agruparVendasPorGrupoComVgv } from "./dashboard-perfil-query";
+import { agruparVendasPorGrupoComVgv, vgvAtivoTotal } from "./dashboard-perfil-query";
 
 describe("agruparVendasPorGrupoComVgv", () => {
   it("array vazio retorna os 4 grupos zerados, não undefined", () => {
@@ -51,5 +51,41 @@ describe("agruparVendasPorGrupoComVgv", () => {
     expect(() =>
       agruparVendasPorGrupoComVgv([{ status: "status_inexistente", valor_negociado: 1000 }]),
     ).toThrow(/status_inexistente/);
+  });
+});
+
+describe("vgvAtivoTotal — VGV ativo total = VGV em andamento + VGV confirmado, sem duplicidade", () => {
+  it("soma quantidade e VGV de futura + confirmada, cada venda contada uma única vez", () => {
+    const resumo = agruparVendasPorGrupoComVgv([
+      { status: "enviada_revisao", valor_negociado: 200000 },
+      { status: "aguardando_assinatura", valor_negociado: 300000 },
+      { status: "contrato_assinado", valor_negociado: 500000 },
+      { status: "ocorrencia_analise_financeiro", valor_negociado: 400000 },
+    ]);
+    expect(vgvAtivoTotal(resumo)).toEqual({ quantidade: 4, vgv: 1400000 });
+  });
+
+  it("exclui preparação e encerrada do total ativo", () => {
+    const resumo = agruparVendasPorGrupoComVgv([
+      { status: "rascunho", valor_negociado: 999999 },
+      { status: "cancelada", valor_negociado: 999999 },
+      { status: "arquivada", valor_negociado: 999999 },
+      { status: "contrato_assinado", valor_negociado: 100000 },
+    ]);
+    expect(vgvAtivoTotal(resumo)).toEqual({ quantidade: 1, vgv: 100000 });
+  });
+
+  it("todos zerados quando não há vendas futuras nem confirmadas", () => {
+    const resumo = agruparVendasPorGrupoComVgv([{ status: "rascunho", valor_negociado: 100000 }]);
+    expect(vgvAtivoTotal(resumo)).toEqual({ quantidade: 0, vgv: 0 });
+  });
+
+  it("venda de Lançamento que pula contrato_assinado (rascunho -> ocorrencia_analise_financeiro) entra em confirmada, não em futura nem duas vezes", () => {
+    const resumo = agruparVendasPorGrupoComVgv([
+      { status: "ocorrencia_analise_financeiro", valor_negociado: 250000 },
+    ]);
+    expect(resumo.futura).toEqual({ quantidade: 0, vgv: 0 });
+    expect(resumo.confirmada).toEqual({ quantidade: 1, vgv: 250000 });
+    expect(vgvAtivoTotal(resumo)).toEqual({ quantidade: 1, vgv: 250000 });
   });
 });
