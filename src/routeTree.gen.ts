@@ -23,6 +23,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedComparativoComissaoRouteImport } from './routes/_authenticated/comparativo-comissao'
 import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_authenticated/comissoes-a-receber'
+import { Route as AuthenticatedComissaoCoordenadorRouteImport } from './routes/_authenticated/comissao-coordenador'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
@@ -102,6 +103,12 @@ const AuthenticatedComissoesAReceberRoute =
     path: '/comissoes-a-receber',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedComissaoCoordenadorRoute =
+  AuthenticatedComissaoCoordenadorRouteImport.update({
+    id: '/comissao-coordenador',
+    path: '/comissao-coordenador',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasIndexRoute =
   AuthenticatedVendasIndexRouteImport.update({
     id: '/vendas/',
@@ -136,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -156,6 +164,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -178,6 +187,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/_authenticated/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/_authenticated/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/_authenticated/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
     | '/dashboard'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
     | '/dashboard'
@@ -241,6 +253,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/_authenticated/comissao-coordenador'
     | '/_authenticated/comissoes-a-receber'
     | '/_authenticated/comparativo-comissao'
     | '/_authenticated/dashboard'
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComissoesAReceberRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comissao-coordenador': {
+      id: '/_authenticated/comissao-coordenador'
+      path: '/comissao-coordenador'
+      fullPath: '/comissao-coordenador'
+      preLoaderRoute: typeof AuthenticatedComissaoCoordenadorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas/': {
       id: '/_authenticated/vendas/'
       path: '/vendas'
@@ -404,6 +424,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedComissaoCoordenadorRoute: typeof AuthenticatedComissaoCoordenadorRoute
   AuthenticatedComissoesAReceberRoute: typeof AuthenticatedComissoesAReceberRoute
   AuthenticatedComparativoComissaoRoute: typeof AuthenticatedComparativoComissaoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -421,6 +442,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedComissaoCoordenadorRoute: AuthenticatedComissaoCoordenadorRoute,
   AuthenticatedComissoesAReceberRoute: AuthenticatedComissoesAReceberRoute,
   AuthenticatedComparativoComissaoRoute: AuthenticatedComparativoComissaoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
