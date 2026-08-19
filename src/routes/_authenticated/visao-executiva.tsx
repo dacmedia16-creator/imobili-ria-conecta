@@ -20,10 +20,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import {
-  FileSignature,
-  Landmark,
-  Gavel,
-  RotateCcw,
   Banknote,
   Percent,
   Handshake,
@@ -192,37 +188,6 @@ function VisaoExecutiva() {
           Gargalos, performance de equipe e evolução do negócio.
         </p>
       </div>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Precisa de ação
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <AlertaCard
-            icon={FileSignature}
-            label="Aguardando assinatura há +7 dias"
-            alerta={stats?.alertas?.assinatura_pendente}
-            critical
-          />
-          <AlertaCard
-            icon={Landmark}
-            label="Ocorrência no financeiro parada +5 dias"
-            alerta={stats?.alertas?.financeiro_parado}
-          />
-          <AlertaCard
-            icon={Gavel}
-            label="Contrato em conferência há +3 dias"
-            alerta={stats?.alertas?.contrato_parado}
-          />
-          <AlertaCard
-            icon={RotateCcw}
-            label="Vendas devolvidas 2× ou mais"
-            alerta={stats?.alertas?.retrabalho}
-            critical
-            sub="Retrabalho — mesma venda voltou várias vezes"
-          />
-        </div>
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -479,48 +444,6 @@ function VisaoExecutiva() {
         </Card>
       </div>
     </div>
-  );
-}
-
-function AlertaCard({
-  icon: Icon,
-  label,
-  alerta,
-  critical,
-  sub,
-}: {
-  icon: any;
-  label: string;
-  alerta?: Alerta;
-  critical?: boolean;
-  sub?: string;
-}) {
-  const n = alerta?.n ?? 0;
-  const isZero = n === 0;
-  return (
-    <Card className={!isZero && critical ? "border-destructive/40" : ""}>
-      <CardContent className="space-y-2 p-4">
-        <div className="flex items-center justify-between">
-          <div
-            className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-          <span
-            className={`text-2xl font-bold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}
-          >
-            {n}
-          </span>
-        </div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">
-          {sub ??
-            (alerta?.max_dias
-              ? `A mais antiga: ${alerta.max_dias} dias parada`
-              : "Nenhuma pendência")}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 
