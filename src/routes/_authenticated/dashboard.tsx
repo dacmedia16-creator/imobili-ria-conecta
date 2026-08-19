@@ -406,39 +406,6 @@ function Dashboard() {
         </DashSection>
       )}
 
-      {/* Gestor */}
-      {isGestor && (
-        <CollapsibleSection
-          title="Painel do gestor"
-          storageKey="dash-open-gestor"
-          badge={badgeParaItens(gestorItens.comValor, "warn")}
-        >
-          <KpiGrid>
-            {gestorItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
-            ))}
-            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
-          </KpiGrid>
-          <LinhaZerados itens={gestorItens.zerados} />
-        </CollapsibleSection>
-      )}
-
-      {/* Jurídico */}
-      {isJuridico && (
-        <CollapsibleSection
-          title="Painel do jurídico"
-          storageKey="dash-open-juridico"
-          badge={badgeParaItens(juridicoItens.comValor, "warn")}
-        >
-          <KpiGrid>
-            {juridicoItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
-            ))}
-          </KpiGrid>
-          <LinhaZerados itens={juridicoItens.zerados} />
-        </CollapsibleSection>
-      )}
-
       {/* Financeiro */}
       {isFinanceiro && (
         <CollapsibleSection
@@ -550,6 +517,39 @@ function Dashboard() {
         </CollapsibleSection>
       )}
 
+      {/* Gestor */}
+      {isGestor && (
+        <CollapsibleSection
+          title="Painel do gestor"
+          storageKey="dash-open-gestor"
+          badge={badgeParaItens(gestorItens.comValor, "warn")}
+        >
+          <KpiGrid>
+            {gestorItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
+            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
+          </KpiGrid>
+          <LinhaZerados itens={gestorItens.zerados} />
+        </CollapsibleSection>
+      )}
+
+      {/* Jurídico */}
+      {isJuridico && (
+        <CollapsibleSection
+          title="Painel do jurídico"
+          storageKey="dash-open-juridico"
+          badge={badgeParaItens(juridicoItens.comValor, "warn")}
+        >
+          <KpiGrid>
+            {juridicoItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
+          </KpiGrid>
+          <LinhaZerados itens={juridicoItens.zerados} />
+        </CollapsibleSection>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Vendas recentes</CardTitle>
@@ -657,8 +657,8 @@ function badgeParaItens(comValor: PainelItem[], tone: "warn" | "calm") {
 }
 
 /** Painel recolhível (gestor/jurídico/financeiro) — estado aberto/fechado fica salvo no navegador
- * por seção, então quem colapsa um painel que não usa não precisa refazer isso a cada visita.
- * Começa aberto por padrão (nada some na 1ª visita). */
+ * por seção, então quem reabre um painel não precisa refazer isso a cada visita. Começa fechado
+ * por padrão — o resumo (título + badge) já mostra se há algo pendente, sem precisar expandir. */
 function CollapsibleSection({
   title,
   storageKey,
@@ -671,9 +671,9 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return false;
     const saved = window.localStorage.getItem(storageKey);
-    return saved === null ? true : saved === "1";
+    return saved === "1";
   });
 
   useEffect(() => {
