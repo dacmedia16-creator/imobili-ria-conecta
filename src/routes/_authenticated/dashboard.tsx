@@ -657,8 +657,8 @@ function badgeParaItens(comValor: PainelItem[], tone: "warn" | "calm") {
 }
 
 /** Painel recolhível (gestor/jurídico/financeiro) — estado aberto/fechado fica salvo no navegador
- * por seção, então quem colapsa um painel que não usa não precisa refazer isso a cada visita.
- * Começa aberto por padrão (nada some na 1ª visita). */
+ * por seção, então quem reabre um painel não precisa refazer isso a cada visita. Começa fechado
+ * por padrão — o resumo (título + badge) já mostra se há algo pendente, sem precisar expandir. */
 function CollapsibleSection({
   title,
   storageKey,
@@ -671,9 +671,9 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return false;
     const saved = window.localStorage.getItem(storageKey);
-    return saved === null ? true : saved === "1";
+    return saved === "1";
   });
 
   useEffect(() => {
