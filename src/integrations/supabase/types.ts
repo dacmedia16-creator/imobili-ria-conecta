@@ -249,9 +249,6 @@ export type Database = {
           papel: string
           percentual: number | null
           sale_commission_extra_id: string | null
-          // Adicionada manualmente (não via codegen) — ver migration
-          // 20260817020000_exige_confirmacao_sem_cadastro. Regenerar via `supabase gen types`
-          // normalmente assim que a migration rodar.
           sem_cadastro_confirmado: boolean
           user_id: string | null
           valor: number | null
@@ -635,9 +632,6 @@ export type Database = {
           papel: string | null
           percentual: number | null
           sale_id: string
-          // Adicionada manualmente (não via codegen) — ver migration
-          // 20260817020000_exige_confirmacao_sem_cadastro. Regenerar via `supabase gen types`
-          // normalmente assim que a migration rodar.
           sem_cadastro_confirmado: boolean
           user_id: string | null
           valor: number | null
@@ -973,6 +967,9 @@ export type Database = {
           indicador_lado: string | null
           indicador_vendedor: string | null
           iptu: string | null
+          lancamento_saldo_confirmado_em: string | null
+          lancamento_saldo_confirmado_por: string | null
+          lancamento_saldo_imobiliaria: number | null
           lider_captador_id: string | null
           lider_captador_nome: string | null
           lider_vendedor_id: string | null
@@ -1051,6 +1048,9 @@ export type Database = {
           indicador_lado?: string | null
           indicador_vendedor?: string | null
           iptu?: string | null
+          lancamento_saldo_confirmado_em?: string | null
+          lancamento_saldo_confirmado_por?: string | null
+          lancamento_saldo_imobiliaria?: number | null
           lider_captador_id?: string | null
           lider_captador_nome?: string | null
           lider_vendedor_id?: string | null
@@ -1129,6 +1129,9 @@ export type Database = {
           indicador_lado?: string | null
           indicador_vendedor?: string | null
           iptu?: string | null
+          lancamento_saldo_confirmado_em?: string | null
+          lancamento_saldo_confirmado_por?: string | null
+          lancamento_saldo_imobiliaria?: number | null
           lider_captador_id?: string | null
           lider_captador_nome?: string | null
           lider_vendedor_id?: string | null
@@ -1363,46 +1366,64 @@ export type Database = {
           sale_id: string
         }[]
       }
-      criar_ocorrencia_completa: { Args: { p_sale_id: string }; Returns: Json }
-      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
-      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
-      // equivalente, e este comentário some junto.
-      criar_lancamento: {
-        Args: { p_construtora_cnpj: string; p_construtora_nome: string; p_imovel_id: string }
-        Returns: string
+      comissao_coordenador_dados: { Args: { p_mes: string }; Returns: Json }
+      comparativo_comissao_6pct: {
+        Args: never
+        Returns: {
+          codigo_interno: string
+          corretor_id: string
+          data_fechamento: string
+          evento_fechamento: string
+          imovel_id: string
+          modalidade: string
+          percentual_comissao: number
+          sale_id: string
+          status: string
+          valor_negociado: number
+          valor_total_comissao: number
+        }[]
       }
-      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
-      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
-      // equivalente, e este comentário some junto.
+      comparativo_comissao_6pct_inconsistencias: {
+        Args: never
+        Returns: {
+          codigo_interno: string
+          modalidade: string
+          motivo: string
+          sale_id: string
+        }[]
+      }
       concluir_lancamento: {
-        Args: { p_sale_id: string; p_saldo_confirmado: number }
+        Args: { p_saldo_confirmado: number; p_sale_id: string }
         Returns: Json
       }
+      criar_lancamento: {
+        Args: {
+          p_construtora_cnpj: string
+          p_construtora_nome: string
+          p_imovel_id: string
+        }
+        Returns: string
+      }
+      criar_ocorrencia_completa: { Args: { p_sale_id: string }; Returns: Json }
       criar_ocorrencia_lancamento: {
         Args: { p_sale_id: string }
         Returns: Json
       }
-      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
-      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
-      // equivalente, e este comentário some junto.
-      editar_ocorrencia_lancamento_financeiro: {
-        Args: {
-          p_sale_id: string
-          p_sale_patch: Json
-          p_occ_patch: Json
-          p_linhas: Json
-          p_motivo: string
-        }
-        Returns: Json
-      }
-      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
-      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
-      // equivalente, e este comentário some junto.
       dashboard_movimentacao_periodo: {
         Args: { _fim: string; _inicio: string }
         Returns: Json
       }
       dashboard_stats: { Args: never; Returns: Json }
+      editar_ocorrencia_lancamento_financeiro: {
+        Args: {
+          p_linhas: Json
+          p_motivo: string
+          p_occ_patch: Json
+          p_sale_id: string
+          p_sale_patch: Json
+        }
+        Returns: Json
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
@@ -1485,9 +1506,6 @@ export type Database = {
         }[]
       }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
-      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
-      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
-      // equivalente, e este comentário some junto.
       salvar_divisao_comissao_lancamento: {
         Args: { p_linhas: Json; p_sale_id: string }
         Returns: Json
@@ -1509,11 +1527,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      validar_previsao_recebimento: {
+        Args: { p_occ: Database["public"]["Tables"]["occurrences"]["Row"] }
+        Returns: Json
+      }
       visao_executiva_detalhe_comissao: {
         Args: {
-          _corretor_id?: string | null
+          _corretor_id?: string
           _sem_equipe?: boolean
-          _team_id?: string | null
+          _team_id?: string
         }
         Returns: Json
       }

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge, Percent, Landmark } from "lucide-react";
+import { Home, FileText, Users, UsersRound, LogOut, Bell, ShieldCheck, BarChart3, Wallet, Menu, Gauge, Percent, Landmark, Receipt } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -64,6 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     { to: "/visao-executiva", label: "Visão Executiva", icon: Gauge, show: hasAny(["admin","super_admin","financeiro"]) },
     { to: "/comparativo-comissao", label: "Comparativo 6%", icon: Percent, show: hasAny(["admin","super_admin","financeiro"]) },
+    { to: "/comissao-coordenador", label: "Comissão por Coordenador", icon: Receipt, show: hasAny(["admin","super_admin","financeiro"]) },
     // Mesma função usada no beforeLoad da rota (financeiro-dashboard-calc.ts) — fonte única, nunca diverge.
     { to: "/financeiro", label: "Central Financeira", icon: Landmark, show: podeAcessarCentralFinanceira(roles) },
     { to: "/equipe", label: "Equipe", icon: UsersRound, show: hasAny(["gestor","team_leader","admin","super_admin"]) },

@@ -698,10 +698,10 @@ function DetalheComissao({
     setErro(null);
     const params =
       selecao.tipo === "corretor"
-        ? { _corretor_id: selecao.id, _team_id: null, _sem_equipe: false }
+        ? { _corretor_id: selecao.id, _team_id: undefined, _sem_equipe: false }
         : {
-            _corretor_id: null,
-            _team_id: selecao.teamId,
+            _corretor_id: undefined,
+            _team_id: selecao.teamId ?? undefined,
             _sem_equipe: selecao.teamId === null,
           };
     supabase.rpc("visao_executiva_detalhe_comissao", params).then(({ data, error }) => {
