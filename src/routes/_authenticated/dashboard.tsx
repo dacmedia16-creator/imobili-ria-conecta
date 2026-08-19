@@ -406,39 +406,6 @@ function Dashboard() {
         </DashSection>
       )}
 
-      {/* Gestor */}
-      {isGestor && (
-        <CollapsibleSection
-          title="Painel do gestor"
-          storageKey="dash-open-gestor"
-          badge={badgeParaItens(gestorItens.comValor, "warn")}
-        >
-          <KpiGrid>
-            {gestorItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
-            ))}
-            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
-          </KpiGrid>
-          <LinhaZerados itens={gestorItens.zerados} />
-        </CollapsibleSection>
-      )}
-
-      {/* Jurídico */}
-      {isJuridico && (
-        <CollapsibleSection
-          title="Painel do jurídico"
-          storageKey="dash-open-juridico"
-          badge={badgeParaItens(juridicoItens.comValor, "warn")}
-        >
-          <KpiGrid>
-            {juridicoItens.comValor.map((i) => (
-              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
-            ))}
-          </KpiGrid>
-          <LinhaZerados itens={juridicoItens.zerados} />
-        </CollapsibleSection>
-      )}
-
       {/* Financeiro */}
       {isFinanceiro && (
         <CollapsibleSection
@@ -547,6 +514,39 @@ function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </CollapsibleSection>
+      )}
+
+      {/* Gestor */}
+      {isGestor && (
+        <CollapsibleSection
+          title="Painel do gestor"
+          storageKey="dash-open-gestor"
+          badge={badgeParaItens(gestorItens.comValor, "warn")}
+        >
+          <KpiGrid>
+            {gestorItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
+            <ResumoGrupoVendaCards corretorIds={Array.from(teamIds)} sufixoLabel="da equipe" />
+          </KpiGrid>
+          <LinhaZerados itens={gestorItens.zerados} />
+        </CollapsibleSection>
+      )}
+
+      {/* Jurídico */}
+      {isJuridico && (
+        <CollapsibleSection
+          title="Painel do jurídico"
+          storageKey="dash-open-juridico"
+          badge={badgeParaItens(juridicoItens.comValor, "warn")}
+        >
+          <KpiGrid>
+            {juridicoItens.comValor.map((i) => (
+              <KpiCard key={i.label} icon={i.icon} label={i.label} value={i.value} to="/vendas" />
+            ))}
+          </KpiGrid>
+          <LinhaZerados itens={juridicoItens.zerados} />
         </CollapsibleSection>
       )}
 
