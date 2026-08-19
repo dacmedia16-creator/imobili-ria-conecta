@@ -137,6 +137,8 @@ type DashboardStats = {
   comissao_concluida_total: number;
   comissao_parceria_externa_prevista_total: number;
   comissao_parceria_externa_concluida_total: number;
+  liquido_imobiliaria_prevista_total: number;
+  liquido_imobiliaria_concluida_total: number;
   comissao_por_corretor: Record<string, number>;
 };
 
@@ -500,6 +502,18 @@ function Dashboard() {
               label="Comissão concluída"
               value={`R$ ${Number(stats?.comissao_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
               info="Mesma regra da comissão prevista (desconta parceria externa), mas só das ocorrências já concluídas."
+            />
+            <KpiCard
+              icon={Landmark}
+              label="Líquido da imobiliária (prevista)"
+              value={`R$ ${Number(stats?.liquido_imobiliaria_prevista_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              info="Comissão das ocorrências ainda não concluídas, descontando TUDO que já foi pago: parte de corretores/gestores/team leaders internos (soma de 'Comissão por corretor' abaixo) e parceria externa. Só sobra o que não foi atribuído a ninguém nomeado — o que fica de fato com a casa."
+            />
+            <KpiCard
+              icon={Landmark}
+              label="Líquido da imobiliária (concluída)"
+              value={`R$ ${Number(stats?.liquido_imobiliaria_concluida_total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+              info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
             />
             <ResumoGrupoVendaCards corretorIds="todas" sufixoLabel="da imobiliária" />
           </KpiGrid>
