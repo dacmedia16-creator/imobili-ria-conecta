@@ -150,14 +150,18 @@ export function LancamentoDetail({
   const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
   const isResend = sale.status === "devolvida_ajuste";
 
-  // Edição da ocorrência já criada pelo financeiro, enquanto está em análise — antes disso, a única
-  // correção possível era "Devolver" pro corretor/coordenador ajustar e reenviar. Chama a RPC
-  // editar_ocorrencia_lancamento_financeiro (migration 20260819060000), que atualiza sales +
+  // Edição da ocorrência já criada pelo financeiro, enquanto está em análise OU já devolvida pro
+  // corretor ajustar (financeiro não precisa esperar o corretor reenviar se puder corrigir direto —
+  // pedido explícito do usuário em 19/08, ampliando o escopo original da migration 20260819060000,
+  // que por engano só cobria 'ocorrencia_analise_financeiro'). Chama a RPC
+  // editar_ocorrencia_lancamento_financeiro (migration 20260819080000), que atualiza sales +
   // sale_commission_extras e resincroniza occurrences/occurrence_commissions numa única transação —
   // nunca escreve direto nessas duas últimas tabelas (calcular_distribuicao_venda, que decide
   // "Comissão bruta"/"Saldo da imobiliária" e o gate do Concluir, sempre lê de sales/
   // sale_commission_extras pra Lançamento, nunca de occurrence_commissions).
-  const canEditFinanceiro = isFinanceiro && sale.status === "ocorrencia_analise_financeiro";
+  const canEditFinanceiro =
+    isFinanceiro &&
+    (sale.status === "ocorrencia_analise_financeiro" || sale.status === "devolvida_ajuste");
   const [editOcc, setEditOcc] = useState(false);
   const [editResumo, setEditResumo] = useState<any>({});
   const [editFinanciamento, setEditFinanciamento] = useState<any>({});
@@ -369,14 +373,16 @@ export function LancamentoDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity]);
 
-  // Ocorrência já criada (qualquer status além de rascunho/devolvida_ajuste) — busca pra exibir a
-  // mesma tela formatada "Ocorrência de compra e venda" que as vendas normais têm, em vez de repetir
-  // os campos do formulário desabilitados.
+  // Ocorrência já criada (qualquer status além de rascunho) — busca pra exibir a mesma tela formatada
+  // "Ocorrência de compra e venda" que as vendas normais têm, em vez de repetir os campos do
+  // formulário desabilitados. Também busca em devolvida_ajuste (a ocorrência já existe desde o
+  // primeiro envio — só o status muda) pra dar pro financeiro/admin ver o relatório e o botão Editar
+  // enquanto o dono ainda não reenviou (canEditFinanceiro acima).
   const [occ, setOcc] = useState<any>(null);
   const [occCommissions, setOccCommissions] = useState<any[]>([]);
   const [loadingOcc, setLoadingOcc] = useState(false);
   useEffect(() => {
-    if (sale.status === "rascunho" || sale.status === "devolvida_ajuste") {
+    if (sale.status === "rascunho") {
       setOcc(null);
       return;
     }
@@ -1671,7 +1677,7 @@ export function LancamentoDetail({
         </div>
       )}
 
-      {!canEdit && !loadingOcc && !occ && sale.status !== "devolvida_ajuste" && (
+      {!canEdit && !loadingOcc && !occ && (
         <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
           Este lançamento já foi enviado ao financeiro e não pode mais ser editado por aqui.
         </div>
