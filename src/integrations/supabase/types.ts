@@ -1385,6 +1385,19 @@ export type Database = {
       // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
       // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
       // equivalente, e este comentário some junto.
+      editar_ocorrencia_lancamento_financeiro: {
+        Args: {
+          p_sale_id: string
+          p_sale_patch: Json
+          p_occ_patch: Json
+          p_linhas: Json
+          p_motivo: string
+        }
+        Returns: Json
+      }
+      // Entrada adicionada manualmente (não via codegen). Regenerar via `supabase gen types`
+      // normalmente na próxima oportunidade — o codegen substitui esta entrada por uma
+      // equivalente, e este comentário some junto.
       dashboard_movimentacao_periodo: {
         Args: { _fim: string; _inicio: string }
         Returns: Json

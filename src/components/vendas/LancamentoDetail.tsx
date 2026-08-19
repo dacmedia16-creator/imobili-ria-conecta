@@ -34,6 +34,7 @@ import {
   RotateCcw,
   AlertTriangle,
   Printer,
+  Pencil,
 } from "lucide-react";
 import {
   MIDIA_OPTIONS,
@@ -148,6 +149,164 @@ export function LancamentoDetail({
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
   const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
   const isResend = sale.status === "devolvida_ajuste";
+
+  // Edição da ocorrência já criada pelo financeiro, enquanto está em análise — antes disso, a única
+  // correção possível era "Devolver" pro corretor/coordenador ajustar e reenviar. Chama a RPC
+  // editar_ocorrencia_lancamento_financeiro (migration 20260819060000), que atualiza sales +
+  // sale_commission_extras e resincroniza occurrences/occurrence_commissions numa única transação —
+  // nunca escreve direto nessas duas últimas tabelas (calcular_distribuicao_venda, que decide
+  // "Comissão bruta"/"Saldo da imobiliária" e o gate do Concluir, sempre lê de sales/
+  // sale_commission_extras pra Lançamento, nunca de occurrence_commissions).
+  const canEditFinanceiro = isFinanceiro && sale.status === "ocorrencia_analise_financeiro";
+  const [editOcc, setEditOcc] = useState(false);
+  const [editResumo, setEditResumo] = useState<any>({});
+  const [editFinanciamento, setEditFinanciamento] = useState<any>({});
+  const [editLinhas, setEditLinhas] = useState<any[]>([]);
+  const [editMotivoOpen, setEditMotivoOpen] = useState(false);
+  const [editMotivo, setEditMotivo] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+
+  const abrirEdicaoFinanceiro = () => {
+    setEditResumo({
+      imovel_id: sale.imovel_id ?? "",
+      data_assinatura: sale.data_assinatura ?? null,
+      tempo_venda_dias: sale.tempo_venda_dias ?? null,
+      nota_fiscal_obrigatoria: !!sale.nota_fiscal_obrigatoria,
+      midia: sale.midia ?? null,
+      valor_anunciado: sale.valor_anunciado ?? null,
+      valor_negociado: sale.valor_negociado ?? null,
+      percentual_comissao: sale.percentual_comissao ?? null,
+      valor_total_comissao: sale.valor_total_comissao ?? null,
+      premio_valor: sale.premio_valor ?? null,
+      previsao_recebimento_valor: sale.previsao_recebimento_valor ?? null,
+      previsao_recebimento_data: sale.previsao_recebimento_data ?? null,
+      previsao_recebimento_forma: sale.previsao_recebimento_forma ?? "",
+      negociacao_observacoes: sale.negociacao_observacoes ?? "",
+    });
+    setEditFinanciamento({
+      financiamento: !!occ?.financiamento,
+      financiamento_valor: occ?.financiamento_valor ?? null,
+      financiamento_banco: occ?.financiamento_banco ?? "",
+      financiamento_correspondente: occ?.financiamento_correspondente ?? "",
+      financiamento_previsao: occ?.financiamento_previsao ?? null,
+      oba_credito: !!occ?.oba_credito,
+    });
+    setEditLinhas(commissionExtras.map((c) => ({ ...c })));
+    setEditOcc(true);
+  };
+  const updEditResumo = (patch: any) => setEditResumo((f: any) => ({ ...f, ...patch }));
+  const updEditFinanciamento = (patch: any) =>
+    setEditFinanciamento((f: any) => ({ ...f, ...patch }));
+  const updEditLinha = (id: string, patch: any) =>
+    setEditLinhas((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const addEditLinha = () =>
+    setEditLinhas((rows) => [
+      ...rows,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        papel: "corretor_vendedor",
+        nome: "",
+        user_id: null,
+        percentual: null,
+        valor: null,
+        sem_cadastro_confirmado: false,
+        _new: true,
+      },
+    ]);
+  const delEditLinha = (id: string) => setEditLinhas((rows) => rows.filter((r) => r.id !== id));
+
+  const editPreviewDist = useMemo(
+    () =>
+      calcularDistribuicaoLancamento({
+        valorNegociado: editResumo.valor_negociado,
+        percentualComissao: editResumo.percentual_comissao,
+        valorTotalComissao: editResumo.valor_total_comissao,
+        linhas: editLinhas.map((c) => ({
+          valor: c.valor,
+          semCadastroConfirmado: !!c.sem_cadastro_confirmado,
+        })),
+      }),
+    [
+      editResumo.valor_negociado,
+      editResumo.percentual_comissao,
+      editResumo.valor_total_comissao,
+      editLinhas,
+    ],
+  );
+
+  const confirmarSalvarEdicaoFinanceiro = async () => {
+    if (!editMotivo.trim()) {
+      toast.error("Motivo é obrigatório.");
+      return;
+    }
+    const semEscolha = editLinhas.find(precisaEscolherBeneficiario);
+    if (semEscolha) {
+      toast.error(
+        'Escolha um beneficiário cadastrado ou marque explicitamente "Sem cadastro / parceiro externo" em cada linha da divisão da comissão antes de salvar.',
+      );
+      return;
+    }
+    setSalvandoEdicao(true);
+    try {
+      const { data, error } = await supabase.rpc("editar_ocorrencia_lancamento_financeiro", {
+        p_sale_id: saleId,
+        p_sale_patch: sanitizeLancamentoResumoPayload(editResumo),
+        p_occ_patch: {
+          financiamento: !!editFinanciamento.financiamento,
+          financiamento_valor: editFinanciamento.financiamento_valor,
+          financiamento_banco: editFinanciamento.financiamento_banco || null,
+          financiamento_correspondente: editFinanciamento.financiamento_correspondente || null,
+          financiamento_previsao: editFinanciamento.financiamento_previsao || null,
+          oba_credito: !!editFinanciamento.oba_credito,
+        },
+        p_linhas: editLinhas.map((r) => ({
+          id: r._new ? null : r.id,
+          papel: r.papel,
+          nome: r.nome || null,
+          user_id: r.user_id || null,
+          percentual: r.percentual,
+          valor: r.valor,
+          sem_cadastro_confirmado: !!r.sem_cadastro_confirmado,
+        })),
+        p_motivo: editMotivo.trim(),
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setDistribuicao(data ?? null);
+      toast.success("Ocorrência atualizada.");
+      setEditMotivoOpen(false);
+      setEditMotivo("");
+      setEditOcc(false);
+      // Fechar o Dialog de motivo e sair do modo de edição no mesmo tick (setEditOcc(false) logo
+      // depois) às vezes deixa o Radix sem rodar a própria limpeza de "pointer-events: none" que ele
+      // aplica no <body> pra travar a página atrás do dialog aberto — a página inteira fica
+      // clicável-zero até um F5. Reforça a limpeza aqui mesmo, depois do próximo paint, sem depender
+      // só do Radix pra isso.
+      requestAnimationFrame(() => {
+        document.body.style.pointerEvents = "";
+      });
+      const { data: o } = await supabase
+        .from("occurrences")
+        .select("*")
+        .eq("sale_id", saleId)
+        .maybeSingle();
+      setOcc(o);
+      if (o) {
+        const { data: c } = await supabase
+          .from("occurrence_commissions")
+          .select("*")
+          .eq("occurrence_id", o.id)
+          .order("created_at");
+        setOccCommissions(c ?? []);
+      }
+      await onChange();
+      await loadHistorico();
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  };
 
   // Motivo da devolução mais recente — mostrado direto no banner (o painel de Histórico abaixo
   // também mostra essa mesma linha, mas com menos destaque).
@@ -1061,9 +1220,15 @@ export function LancamentoDetail({
         <p className="py-8 text-center text-sm text-muted-foreground">Carregando ocorrência...</p>
       )}
 
-      {!canEdit && !loadingOcc && occ && (
+      {!canEdit && !editOcc && !loadingOcc && occ && (
         <div className="rounded-lg border p-4 print:border-0 print:p-0">
-          <div className="mb-3 flex justify-end print:hidden">
+          <div className="mb-3 flex justify-end gap-2 print:hidden">
+            {canEditFinanceiro && (
+              <Button variant="outline" size="sm" onClick={abrirEdicaoFinanceiro}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Editar
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Imprimir / baixar
@@ -1083,6 +1248,364 @@ export function LancamentoDetail({
         </div>
       )}
 
+      {canEditFinanceiro && editOcc && !loadingOcc && occ && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+            <p className="text-sm text-muted-foreground">
+              Editando a ocorrência — nada é salvo até confirmar com um motivo.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditOcc(false)}
+              disabled={salvandoEdicao}
+            >
+              Fechar edição
+            </Button>
+          </div>
+
+          <SaleSection title="Resumo da transação">
+            <FieldGrid>
+              <Field label="Código do imóvel">
+                <Input
+                  value={editResumo.imovel_id ?? ""}
+                  onChange={(e) => updEditResumo({ imovel_id: e.target.value })}
+                />
+              </Field>
+              <Field label="Tempo de venda (dias)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editResumo.tempo_venda_dias ?? ""}
+                  onChange={(e) =>
+                    updEditResumo({
+                      tempo_venda_dias: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="Ex: 45"
+                />
+              </Field>
+              <Field label="Data de assinatura">
+                <Input
+                  type="date"
+                  value={editResumo.data_assinatura ?? ""}
+                  onChange={(e) => updEditResumo({ data_assinatura: e.target.value || null })}
+                />
+              </Field>
+              <Field label="Mídia">
+                <Select
+                  value={editResumo.midia ?? "none"}
+                  onValueChange={(v) => updEditResumo({ midia: v === "none" ? null : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o canal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {MIDIA_OPTIONS.map((m) => (
+                      <SelectItem key={m.key} value={m.key}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Nota fiscal obrigatória">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editResumo.nota_fiscal_obrigatoria}
+                    onCheckedChange={(v) => updEditResumo({ nota_fiscal_obrigatoria: v })}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {editResumo.nota_fiscal_obrigatoria ? "Sim" : "Não"}
+                  </span>
+                </div>
+              </Field>
+              <Field label="Valor anunciado">
+                <CurrencyInput
+                  value={editResumo.valor_anunciado}
+                  onChange={(v) => updEditResumo({ valor_anunciado: v })}
+                />
+              </Field>
+              <Field label="Valor negociado">
+                <CurrencyInput
+                  value={editResumo.valor_negociado}
+                  onChange={(v) => updEditResumo({ valor_negociado: v })}
+                />
+              </Field>
+              <Field label="Percentual de comissão">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editResumo.percentual_comissao ?? ""}
+                  onChange={(e) =>
+                    updEditResumo({
+                      percentual_comissao: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Valor total da comissão">
+                <CurrencyInput
+                  value={editResumo.valor_total_comissao}
+                  onChange={(v) => updEditResumo({ valor_total_comissao: v })}
+                />
+              </Field>
+              <Field label="Prêmio">
+                <CurrencyInput
+                  value={editResumo.premio_valor}
+                  onChange={(v) => updEditResumo({ premio_valor: v })}
+                />
+              </Field>
+              <Field label="Observações" colSpan={2}>
+                <Textarea
+                  value={editResumo.negociacao_observacoes ?? ""}
+                  onChange={(e) => updEditResumo({ negociacao_observacoes: e.target.value })}
+                />
+              </Field>
+            </FieldGrid>
+          </SaleSection>
+
+          <SaleSection title="Previsão de recebimento da comissão">
+            <FieldGrid>
+              <Field label="Valor">
+                <CurrencyInput
+                  value={editResumo.previsao_recebimento_valor}
+                  onChange={(v) => updEditResumo({ previsao_recebimento_valor: v })}
+                />
+              </Field>
+              <Field label="Data">
+                <Input
+                  type="date"
+                  value={editResumo.previsao_recebimento_data ?? ""}
+                  onChange={(e) =>
+                    updEditResumo({ previsao_recebimento_data: e.target.value || null })
+                  }
+                />
+              </Field>
+              <Field label="Forma de pagamento" colSpan={2}>
+                <Input
+                  value={editResumo.previsao_recebimento_forma ?? ""}
+                  placeholder="PIX, TED, boleto..."
+                  onChange={(e) => updEditResumo({ previsao_recebimento_forma: e.target.value })}
+                />
+              </Field>
+            </FieldGrid>
+          </SaleSection>
+
+          <SaleSection title="Financiamento">
+            <FieldGrid>
+              <Field label="Tem financiamento?">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editFinanciamento.financiamento}
+                    onCheckedChange={(v) => updEditFinanciamento({ financiamento: v })}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {editFinanciamento.financiamento ? "Sim" : "Não"}
+                  </span>
+                </div>
+              </Field>
+              <Field label="Valor financiado">
+                <CurrencyInput
+                  value={editFinanciamento.financiamento_valor}
+                  disabled={!editFinanciamento.financiamento}
+                  onChange={(v) => updEditFinanciamento({ financiamento_valor: v })}
+                />
+              </Field>
+              <Field label="Banco">
+                <Input
+                  value={editFinanciamento.financiamento_banco ?? ""}
+                  disabled={!editFinanciamento.financiamento}
+                  onChange={(e) => updEditFinanciamento({ financiamento_banco: e.target.value })}
+                />
+              </Field>
+              <Field label="Correspondente bancário">
+                <Input
+                  value={editFinanciamento.financiamento_correspondente ?? ""}
+                  disabled={!editFinanciamento.financiamento}
+                  onChange={(e) =>
+                    updEditFinanciamento({ financiamento_correspondente: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Previsão de liberação">
+                <Input
+                  type="date"
+                  value={editFinanciamento.financiamento_previsao ?? ""}
+                  disabled={!editFinanciamento.financiamento}
+                  onChange={(e) =>
+                    updEditFinanciamento({ financiamento_previsao: e.target.value || null })
+                  }
+                />
+              </Field>
+              <Field label="Oba Crédito">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!editFinanciamento.oba_credito}
+                    onCheckedChange={(v) => updEditFinanciamento({ oba_credito: v })}
+                    disabled={!editFinanciamento.financiamento}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {editFinanciamento.oba_credito ? "Sim" : "Não"}
+                  </span>
+                </div>
+              </Field>
+            </FieldGrid>
+          </SaleSection>
+
+          <SaleSection title="Divisão de comissão">
+            <div className="space-y-3">
+              {editLinhas.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhuma linha adicionada.</p>
+              )}
+              {editLinhas.map((c) => (
+                <div
+                  key={c.id}
+                  className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12"
+                >
+                  <div className="md:col-span-3">
+                    <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
+                    <Select value={c.papel} onValueChange={(v) => updEditLinha(c.id, { papel: v })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANCAMENTO_COMISSAO_PAPEIS.map((p) => (
+                          <SelectItem key={p.key} value={p.key}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-4 space-y-1">
+                    <Label className="mb-1 block text-xs text-muted-foreground">Nome</Label>
+                    {(() => {
+                      const foraDaLista =
+                        !!c.user_id && !pessoasAtivas.some((p) => p.id === c.user_id);
+                      return (
+                        <Select
+                          value={valorSelectBeneficiario(c)}
+                          onValueChange={(v) =>
+                            updEditLinha(
+                              c.id,
+                              resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome),
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um beneficiário" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SEM_CADASTRO_VALUE}>
+                              Sem cadastro / parceiro externo (digitar nome)
+                            </SelectItem>
+                            {foraDaLista && (
+                              <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>
+                            )}
+                            {pessoasAtivas.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                    <Input
+                      value={c.nome ?? ""}
+                      disabled={!!c.user_id}
+                      placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
+                      onChange={(e) => updEditLinha(c.id, { nome: e.target.value })}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={c.percentual ?? ""}
+                      onChange={(e) =>
+                        updEditLinha(c.id, {
+                          percentual: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="mb-1 block text-xs text-muted-foreground">Valor (R$)</Label>
+                    <CurrencyInput
+                      value={c.valor}
+                      onChange={(v) => updEditLinha(c.id, { valor: v })}
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => delEditLinha(c.id)}
+                      className="w-full"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button size="sm" variant="outline" onClick={addEditLinha}>
+                <Plus className="mr-1 h-4 w-4" />
+                Adicionar linha
+              </Button>
+            </div>
+          </SaleSection>
+
+          <div className="border-t pt-4">
+            <DistribuicaoResumo dist={editPreviewDist} />
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => setEditMotivoOpen(true)} disabled={salvandoEdicao}>
+              {salvandoEdicao ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar edição
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={editMotivoOpen} onOpenChange={setEditMotivoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar edição da ocorrência</DialogTitle>
+            <DialogDescription>
+              Explique o motivo da alteração — fica registrado na auditoria junto com o que mudou.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={editMotivo}
+            onChange={(e) => setEditMotivo(e.target.value)}
+            placeholder="Ex: corretor informou valor negociado errado, corrigido conforme contrato."
+            autoFocus
+          />
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setEditMotivoOpen(false)}
+              disabled={salvandoEdicao}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarSalvarEdicaoFinanceiro}
+              disabled={!editMotivo.trim() || salvandoEdicao}
+            >
+              {salvandoEdicao ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar e salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {canEdit && (
         <div className="flex items-center justify-between gap-3">
           <AutosaveStatus saving={false} dirty={anyDirty} />
@@ -1097,10 +1620,11 @@ export function LancamentoDetail({
         </div>
       )}
 
-      {!canEdit && isFinanceiro && sale.status === "ocorrencia_analise_financeiro" && (
+      {!canEdit && !editOcc && isFinanceiro && sale.status === "ocorrencia_analise_financeiro" && (
         <div className="flex items-center justify-between gap-3 rounded-md border p-3 print:hidden">
           <p className="text-sm text-muted-foreground">
-            Ocorrência em análise — devolva pro corretor/coordenador corrigir, ou conclua.
+            Ocorrência em análise — devolva pro corretor/coordenador corrigir, edite direto, ou
+            conclua.
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setReturnOpen(true)}>
@@ -1118,6 +1642,7 @@ export function LancamentoDetail({
         </div>
       )}
       {!canEdit &&
+        !editOcc &&
         isFinanceiro &&
         sale.status === "ocorrencia_analise_financeiro" &&
         distribuicao &&
