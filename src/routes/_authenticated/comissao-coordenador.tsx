@@ -10,7 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   fetchComissaoPorCoordenador,
   type RelatorioComissaoCoordenador,
@@ -37,16 +44,51 @@ function ultimosMeses(): { value: string; label: string }[] {
   });
 }
 
+function Figure({ label, value, dim }: { label: string; value: number; dim?: boolean }) {
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <span
+        className={`font-mono text-sm font-semibold ${dim ? "font-medium text-muted-foreground" : ""}`}
+      >
+        {money(value)}
+      </span>
+    </span>
+  );
+}
+
+function FigurePair({ comissao, vgv6pct }: { comissao: number; vgv6pct: number }) {
+  return (
+    <span className="flex gap-5">
+      <Figure label="Comissão" value={comissao} />
+      <Figure label="VGV a 6%" value={vgv6pct} dim />
+    </span>
+  );
+}
+
+const HEAD_CLASS = "h-auto py-1 text-right text-[10px] font-semibold uppercase tracking-wide";
+
 function SecaoCard({ secao }: { secao: Secao }) {
+  // Só vale a pena separar coordenação de venda própria quando a pessoa tem os dois — senão o
+  // "sub total" já É a coordenação (ou já É a venda), repetir a linha só some.
+  const temAmbos = secao.subtotalComissaoCoordenacao > 0 && secao.subtotalComissaoCorretor > 0;
+
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between">
+      <div className="mb-1.5 flex items-start justify-between">
         <h3 className="text-sm font-semibold">{secao.nome}</h3>
-        <span className="font-mono text-xs text-muted-foreground">
-          {money(secao.subtotalComissao)} · {money(secao.subtotalVgv6pct)}
-        </span>
+        <FigurePair comissao={secao.subtotalComissao} vgv6pct={secao.subtotalVgv6pct} />
       </div>
       <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="h-auto py-1"></TableHead>
+            <TableHead className={HEAD_CLASS}>Comissão</TableHead>
+            <TableHead className={HEAD_CLASS}>VGV a 6%</TableHead>
+          </TableRow>
+        </TableHeader>
         <TableBody>
           {secao.itens.map((item, i) => (
             <TableRow key={`${item.occurrenceId}-${item.tipo}-${i}`}>
@@ -71,12 +113,36 @@ function SecaoCard({ secao }: { secao: Secao }) {
                   {item.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
                 </Badge>
               </TableCell>
-              <TableCell className="py-1.5 text-right font-mono text-sm">{money(item.valor)}</TableCell>
+              <TableCell className="py-1.5 text-right font-mono text-sm">
+                {money(item.valor)}
+              </TableCell>
               <TableCell className="py-1.5 text-right font-mono text-sm text-muted-foreground">
                 {money(Math.round((item.valor / 0.06) * 100) / 100)}
               </TableCell>
             </TableRow>
           ))}
+          {temAmbos && (
+            <>
+              <TableRow>
+                <TableCell className="py-1 text-xs text-muted-foreground">Coordenação</TableCell>
+                <TableCell className="py-1 text-right font-mono text-xs text-muted-foreground">
+                  {money(secao.subtotalComissaoCoordenacao)}
+                </TableCell>
+                <TableCell className="py-1 text-right font-mono text-xs text-muted-foreground">
+                  {money(secao.subtotalVgv6pctCoordenacao)}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="py-1 text-xs font-medium text-primary">Corretores</TableCell>
+                <TableCell className="py-1 text-right font-mono text-xs font-medium text-primary">
+                  {money(secao.subtotalComissaoCorretor)}
+                </TableCell>
+                <TableCell className="py-1 text-right font-mono text-xs font-medium text-primary">
+                  {money(secao.subtotalVgv6pctCorretor)}
+                </TableCell>
+              </TableRow>
+            </>
+          )}
           <TableRow className="border-t">
             <TableCell className="py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Sub total
@@ -90,6 +156,48 @@ function SecaoCard({ secao }: { secao: Secao }) {
           </TableRow>
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+function BlocoResumo({
+  totalBloco,
+}: {
+  totalBloco: RelatorioComissaoCoordenador["blocos"][number];
+}) {
+  return (
+    <div className="grid grid-cols-3 divide-x rounded-md border bg-muted/30 text-sm">
+      <div className="flex flex-col gap-1 px-4 py-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Coordenação
+        </span>
+        <span className="font-mono text-base font-semibold">
+          {money(totalBloco.comissaoCoordenacao)}
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          VGV a 6%: {money(totalBloco.vgv6pctCoordenacao)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1 px-4 py-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+          Corretores
+        </span>
+        <span className="font-mono text-base font-semibold text-primary">
+          {money(totalBloco.comissaoCorretor)}
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          VGV a 6%: {money(totalBloco.vgv6pctCorretor)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1 px-4 py-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Total do bloco
+        </span>
+        <span className="font-mono text-base font-semibold">{money(totalBloco.comissao)}</span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          VGV a 6%: {money(totalBloco.vgv6pct)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -183,15 +291,14 @@ function ComissaoCoordenador() {
           const totalBloco = relatorio.blocos.find((b) => b.bloco === bloco);
           return (
             <Card key={bloco}>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-start justify-between">
                 <CardTitle>{BLOCO_LABEL[bloco]}</CardTitle>
                 {totalBloco && (
-                  <span className="font-mono text-sm font-semibold">
-                    {money(totalBloco.comissao)} · {money(totalBloco.vgv6pct)}
-                  </span>
+                  <FigurePair comissao={totalBloco.comissao} vgv6pct={totalBloco.vgv6pct} />
                 )}
               </CardHeader>
               <CardContent className="space-y-5">
+                {totalBloco && <BlocoResumo totalBloco={totalBloco} />}
                 {secoesDoBloco.map((secao) => (
                   <SecaoCard key={secao.chave} secao={secao} />
                 ))}
@@ -215,9 +322,11 @@ function ComissaoCoordenador() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        VGV a 6% é a comissão dividida por 0,06 — um VGV equivalente assumindo taxa fixa de 6%, não o
-        valor negociado real da venda. "(coordenação)" é a comissão de supervisão do gestor/team
-        leader sobre a venda de outra pessoa — nunca conta como uma venda própria dele.
+        VGV a 6% é a comissão dividida por 0,06 — um VGV equivalente assumindo taxa fixa de 6%, não
+        o valor negociado real da venda. "(coordenação)" é a comissão de supervisão do gestor/team
+        leader sobre a venda de outra pessoa — nunca conta como uma venda própria dele. Quando a
+        pessoa tem os dois tipos de comissão no mês, a seção mostra "Coordenação" e "Corretores"
+        separados, e o card acima soma essa mesma divisão pro bloco inteiro.
       </p>
     </div>
   );
