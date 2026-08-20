@@ -49,11 +49,25 @@ export type Secao = {
   itens: ItemSecao[];
   subtotalComissao: number;
   subtotalVgv6pct: number;
+  /** Fatia do subtotal que veio de linhas "(coordenação)" — supervisionando venda de outra pessoa. */
+  subtotalComissaoCoordenacao: number;
+  subtotalVgv6pctCoordenacao: number;
+  /** Fatia do subtotal que veio de venda própria (papel corretor_captador/corretor_vendedor). */
+  subtotalComissaoCorretor: number;
+  subtotalVgv6pctCorretor: number;
 };
 
 export type RelatorioComissaoCoordenador = {
   secoes: Secao[];
-  blocos: { bloco: "AGENTES" | "TEAM_LEADERS"; comissao: number; vgv6pct: number }[];
+  blocos: {
+    bloco: "AGENTES" | "TEAM_LEADERS";
+    comissao: number;
+    vgv6pct: number;
+    comissaoCoordenacao: number;
+    vgv6pctCoordenacao: number;
+    comissaoCorretor: number;
+    vgv6pctCorretor: number;
+  }[];
   totalComissao: number;
   totalVgv6pct: number;
 };
@@ -93,20 +107,33 @@ export function agruparComissaoPorCoordenador(
     porOcorrencia.set(l.occurrence_id, arr);
   }
 
-  const isTeamLeader = (userId: string | null) => (userId ? (cargos[userId]?.teamLeader ?? false) : false);
+  const isTeamLeader = (userId: string | null) =>
+    userId ? (cargos[userId]?.teamLeader ?? false) : false;
   const isGestorOuTL = (userId: string | null) =>
-    userId ? (cargos[userId]?.gestor || cargos[userId]?.teamLeader || false) : false;
+    userId ? cargos[userId]?.gestor || cargos[userId]?.teamLeader || false : false;
   const bloco = (userId: string | null): "AGENTES" | "TEAM_LEADERS" =>
     isTeamLeader(userId) ? "TEAM_LEADERS" : "AGENTES";
   // Chave estável por pessoa: user_id quando existe (interno), senão o nome (parceiro externo
   // sem cadastro — não some do relatório, só não tem cargo nem pode virar "vendeu ele mesmo").
-  const chaveDe = (l: { user_id: string | null; nome: string | null }) => l.user_id ?? l.nome ?? "sem cadastro";
+  const chaveDe = (l: { user_id: string | null; nome: string | null }) =>
+    l.user_id ?? l.nome ?? "sem cadastro";
 
   const secoesPorChave = new Map<string, Secao>();
   const getSecao = (chave: string, nome: string, blocoSecao: "AGENTES" | "TEAM_LEADERS") => {
     let s = secoesPorChave.get(chave);
     if (!s) {
-      s = { chave, nome, bloco: blocoSecao, itens: [], subtotalComissao: 0, subtotalVgv6pct: 0 };
+      s = {
+        chave,
+        nome,
+        bloco: blocoSecao,
+        itens: [],
+        subtotalComissao: 0,
+        subtotalVgv6pct: 0,
+        subtotalComissaoCoordenacao: 0,
+        subtotalVgv6pctCoordenacao: 0,
+        subtotalComissaoCorretor: 0,
+        subtotalVgv6pctCorretor: 0,
+      };
       secoesPorChave.set(chave, s);
     }
     return s;
@@ -131,7 +158,10 @@ export function agruparComissaoPorCoordenador(
         dono = coordenacao.find((c) => c.papel === papelLider) ?? null;
       }
       const chave = vendedorEhLiderDeVerdade || !dono ? chaveDe(m) : chaveDe(dono);
-      const nomeSecao = vendedorEhLiderDeVerdade || !dono ? (m.nome ?? "sem cadastro") : (dono.nome ?? "sem cadastro");
+      const nomeSecao =
+        vendedorEhLiderDeVerdade || !dono
+          ? (m.nome ?? "sem cadastro")
+          : (dono.nome ?? "sem cadastro");
       const blocoSecao = vendedorEhLiderDeVerdade || !dono ? bloco(m.user_id) : bloco(dono.user_id);
       const secao = getSecao(chave, nomeSecao, blocoSecao);
       secao.itens.push({
@@ -145,6 +175,8 @@ export function agruparComissaoPorCoordenador(
       });
       secao.subtotalComissao += valor;
       secao.subtotalVgv6pct += vgv6(valor);
+      secao.subtotalComissaoCorretor += valor;
+      secao.subtotalVgv6pctCorretor += vgv6(valor);
     }
 
     for (const c of coordenacao) {
@@ -168,6 +200,8 @@ export function agruparComissaoPorCoordenador(
       });
       secao.subtotalComissao += valor;
       secao.subtotalVgv6pct += vgv6(valor);
+      secao.subtotalComissaoCoordenacao += valor;
+      secao.subtotalVgv6pctCoordenacao += vgv6(valor);
     }
   }
 
@@ -192,11 +226,32 @@ export function agruparComissaoPorCoordenador(
   }
 
   const secoes = [...secoesPorChave.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  const blocosMap = new Map<"AGENTES" | "TEAM_LEADERS", { comissao: number; vgv6pct: number }>();
+  const blocosMap = new Map<
+    "AGENTES" | "TEAM_LEADERS",
+    {
+      comissao: number;
+      vgv6pct: number;
+      comissaoCoordenacao: number;
+      vgv6pctCoordenacao: number;
+      comissaoCorretor: number;
+      vgv6pctCorretor: number;
+    }
+  >();
   for (const s of secoes) {
-    const acc = blocosMap.get(s.bloco) ?? { comissao: 0, vgv6pct: 0 };
+    const acc = blocosMap.get(s.bloco) ?? {
+      comissao: 0,
+      vgv6pct: 0,
+      comissaoCoordenacao: 0,
+      vgv6pctCoordenacao: 0,
+      comissaoCorretor: 0,
+      vgv6pctCorretor: 0,
+    };
     acc.comissao += s.subtotalComissao;
     acc.vgv6pct += s.subtotalVgv6pct;
+    acc.comissaoCoordenacao += s.subtotalComissaoCoordenacao;
+    acc.vgv6pctCoordenacao += s.subtotalVgv6pctCoordenacao;
+    acc.comissaoCorretor += s.subtotalComissaoCorretor;
+    acc.vgv6pctCorretor += s.subtotalVgv6pctCorretor;
     blocosMap.set(s.bloco, acc);
   }
   const blocos = (["AGENTES", "TEAM_LEADERS"] as const)
@@ -213,7 +268,9 @@ export function agruparComissaoPorCoordenador(
 
 /** Busca os dados do mês (RPC) + os cargos (gestor/team_leader) de todo mundo que aparece nas
  * linhas, e já devolve agrupado. `p_mes` no formato "YYYY-MM-01". */
-export async function fetchComissaoPorCoordenador(mesIso: string): Promise<RelatorioComissaoCoordenador> {
+export async function fetchComissaoPorCoordenador(
+  mesIso: string,
+): Promise<RelatorioComissaoCoordenador> {
   const { data, error } = await supabase.rpc("comissao_coordenador_dados", { p_mes: mesIso });
   if (error) throw error;
   const linhas = (data ?? []) as LinhaComissaoCoordenador[];
