@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -252,23 +254,32 @@ function ComissaoCoordenador() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Comissão por Coordenador</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground print:hidden">
             Ocorrências concluídas no mês selecionado, agrupadas pelo gestor/team leader responsável
             por cada venda.
           </p>
+          <p className="hidden text-sm text-muted-foreground print:block">
+            {meses.find((m) => m.value === mes)?.label}
+          </p>
         </div>
-        <Select value={mes} onValueChange={setMes}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {meses.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 print:hidden">
+          <Select value={mes} onValueChange={setMes}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {meses.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimir / baixar
+          </Button>
+        </div>
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
