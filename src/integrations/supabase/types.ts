@@ -1506,6 +1506,7 @@ export type Database = {
         }[]
       }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
+      producao_por_pessoa_dados: { Args: never; Returns: Json }
       salvar_divisao_comissao_lancamento: {
         Args: { p_linhas: Json; p_sale_id: string }
         Returns: Json
