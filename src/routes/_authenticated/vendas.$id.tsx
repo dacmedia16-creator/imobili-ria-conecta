@@ -396,7 +396,7 @@ function SaleDetail() {
       resolvedExtras = [...formExtras];
       for (let i = 0; i < resolvedExtras.length; i++) {
         const r = resolvedExtras[i];
-        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null };
+        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null, lado: r.lado ?? null };
         if (r._new) {
           const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
           if (error) { toast.error(error.message); return false; }
@@ -664,6 +664,16 @@ function SaleDetail() {
     setFormExtras(rows => [...rows, {
       id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
       papel: role, origem: "imobiliaria", percentual: null, valor: null, _new: true,
+    }]);
+    setDirtyExtras(true);
+  };
+  // Mesmo atalho, mas pro botão "+ Outro Gestor/Team Leader" da tela Equipe — já entra marcado com o
+  // lado (capta separa visualmente por card), mas sem papel definido ainda: só vira 'gestor' ou
+  // 'team_leader' quando a pessoa escolhe alguém no Select da linha (ver onValueChange no card).
+  const addLiderLado = (lado: "captador" | "vendedor") => {
+    setFormExtras(rows => [...rows, {
+      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
+      papel: null, origem: "imobiliaria", percentual: null, valor: null, lado, _new: true,
     }]);
     setDirtyExtras(true);
   };
@@ -994,6 +1004,8 @@ function SaleDetail() {
               const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
               const outrosCaptadores = formExtras.filter((r) => r.papel === "corretor_captador");
               const outrosVendedores = formExtras.filter((r) => r.papel === "corretor_vendedor");
+              const outrosLideresCaptador = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "captador");
+              const outrosLideresVendedor = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "vendedor");
               return (
                 <div className="mb-4 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-1)" }}>
@@ -1087,6 +1099,40 @@ function SaleDetail() {
                             </SelectContent>
                           </Select>
                         </Field>
+                        {outrosLideresCaptador.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {outrosLideresCaptador.map((r) => (
+                              <div key={r.id} className="flex flex-wrap items-center gap-2">
+                                <Select
+                                  value={r.user_id || ""}
+                                  onValueChange={(v) => {
+                                    const l = liderOptions.find((o) => o.id === v);
+                                    updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
+                                  }}
+                                  disabled={!editable}
+                                >
+                                  <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectLabel>Gestores</SelectLabel>
+                                      {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                    </SelectGroup>
+                                    <SelectGroup>
+                                      <SelectLabel>Team Leaders</SelectLabel>
+                                      {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {editable && (
+                          <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("captador")}>
+                            <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
+                          </Button>
+                        )}
                       </div>
                     )}
                     <div className="mt-4 border-t pt-3">
@@ -1182,6 +1228,40 @@ function SaleDetail() {
                             </SelectContent>
                           </Select>
                         </Field>
+                        {outrosLideresVendedor.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {outrosLideresVendedor.map((r) => (
+                              <div key={r.id} className="flex flex-wrap items-center gap-2">
+                                <Select
+                                  value={r.user_id || ""}
+                                  onValueChange={(v) => {
+                                    const l = liderOptionsVendedor.find((o) => o.id === v);
+                                    updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
+                                  }}
+                                  disabled={!editable}
+                                >
+                                  <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectLabel>Gestores</SelectLabel>
+                                      {liderOptionsVendedor.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                    </SelectGroup>
+                                    <SelectGroup>
+                                      <SelectLabel>Team Leaders</SelectLabel>
+                                      {liderOptionsVendedor.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {editable && (
+                          <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("vendedor")}>
+                            <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
+                          </Button>
+                        )}
                       </div>
                     )}
                     <div className="mt-4 border-t pt-3">
@@ -1320,7 +1400,12 @@ function SaleDetail() {
               {formExtras.filter((r) => r.papel === "gestor" || r.papel === "team_leader").map((r) => {
                 const rotulo = r.papel === "gestor" ? "Gestor" : "Team Leader";
                 const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : (formSale.team_leader_id ?? "");
-                const opcoesLider = r.papel === "gestor" ? gestorOptions : teamLeaderOptions;
+                // Lado 'vendedor' usa o pool de líderes do time do vendedor (gestorOptionsVendedor/
+                // teamLeaderOptionsVendedor) — sem isso, uma linha adicionada como "Outro Gestor/Team
+                // Leader" do lado vendedor (na Equipe) mostraria aqui as opções do time do captador.
+                const opcoesLider = r.lado === "vendedor"
+                  ? (r.papel === "gestor" ? gestorOptionsVendedor : teamLeaderOptionsVendedor)
+                  : (r.papel === "gestor" ? gestorOptions : teamLeaderOptions);
                 const onSelectLider = (liderId: string) => {
                   const lider = opcoesLider.find((l) => l.id === liderId);
                   // Grava o user_id direto na linha do extra (não só em sales.coordenador_id/team_leader_id)
@@ -1331,8 +1416,9 @@ function SaleDetail() {
                   if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
                   if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
                 };
+                const ladoTxt = r.lado === "captador" ? " (lado captador)" : r.lado === "vendedor" ? " (lado vendedor)" : "";
                 return (
-                  <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
+                  <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""}${ladoTxt} (R$)`} colSpan={2}>
                     <div className="flex flex-wrap items-center gap-2">
                       <Select value={liderAtualId || ""} onValueChange={(v) => onSelectLider(v)} disabled={!editableComissao}>
                         <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o líder cadastrado" /></SelectTrigger>
@@ -1372,7 +1458,7 @@ function SaleDetail() {
               <p className="mb-3 text-xs text-muted-foreground">
                 Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
                 {formSale.parceria_valor != null && (
-                  <> Digite o valor <b>total da parcela (bruto)</b>, incluindo a parte da parceria — "Comissões a Receber" já desconta automaticamente a fatia de {formSale.parceria_nome || "parceria"} (R$ {Number(formSale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) do total da comissão.</>
+                  <> Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria — {formSale.parceria_nome || "o parceiro"} cobra a fatia dele (R$ {Number(formSale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) direto, nunca passa por essa conta.</>
                 )}
               </p>
               <FieldGrid>
@@ -3414,7 +3500,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
         <CardContent className="space-y-4">
           {sale.parceria_valor != null && (
             <p className="-mt-2 text-xs text-muted-foreground">
-              Digite o valor <b>total da parcela (bruto)</b>, incluindo a parte da parceria — "Comissões a Receber" já desconta automaticamente a fatia de {sale.parceria_nome || "parceria"} (R$ {Number(sale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) do total da comissão.
+              Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria — {sale.parceria_nome || "o parceiro"} cobra a fatia dele (R$ {Number(sale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) direto, nunca passa por essa conta.
             </p>
           )}
           <FieldGrid>
