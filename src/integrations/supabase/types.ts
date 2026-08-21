@@ -970,8 +970,10 @@ export type Database = {
           imovel_observacoes: string | null
           indicador: string | null
           indicador_captador: string | null
+          indicador_captador_id: string | null
           indicador_lado: string | null
           indicador_vendedor: string | null
+          indicador_vendedor_id: string | null
           iptu: string | null
           lancamento_saldo_confirmado_em: string | null
           lancamento_saldo_confirmado_por: string | null
@@ -1051,8 +1053,10 @@ export type Database = {
           imovel_observacoes?: string | null
           indicador?: string | null
           indicador_captador?: string | null
+          indicador_captador_id?: string | null
           indicador_lado?: string | null
           indicador_vendedor?: string | null
+          indicador_vendedor_id?: string | null
           iptu?: string | null
           lancamento_saldo_confirmado_em?: string | null
           lancamento_saldo_confirmado_por?: string | null
@@ -1132,8 +1136,10 @@ export type Database = {
           imovel_observacoes?: string | null
           indicador?: string | null
           indicador_captador?: string | null
+          indicador_captador_id?: string | null
           indicador_lado?: string | null
           indicador_vendedor?: string | null
+          indicador_vendedor_id?: string | null
           iptu?: string | null
           lancamento_saldo_confirmado_em?: string | null
           lancamento_saldo_confirmado_por?: string | null

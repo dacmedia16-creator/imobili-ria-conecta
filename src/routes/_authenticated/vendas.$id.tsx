@@ -258,6 +258,17 @@ function SaleDetail() {
       setCorretorOptions((data ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, []);
+  // Indicador: quem indicou o negócio pode ser corretor OU gestor/team leader (achado real — Rodrigo
+  // Becchelli e Rafaela Galbi Farrão Fuentes têm cadastro, mas como gestor, não corretor, então não
+  // apareciam em corretorOptions) — junta as 3 listas de gente ativa, sem restringir por papel nem
+  // por equipe (diferente de Gestor/Team Leader do captador/vendedor, que é só da equipe do lado).
+  const indicadorOptions = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string }>();
+    [...corretorOptions, ...gestoresGerais, ...teamLeadersGerais].forEach((p) => {
+      if (!map.has(p.id)) map.set(p.id, p);
+    });
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [corretorOptions, gestoresGerais, teamLeadersGerais]);
 
   // Painel de atividade: resolve o nome de quem fez cada ação (activity_logs.autor_id) — só busca
   // os perfis que ainda não tem, pra não refazer a mesma consulta a cada load().
@@ -340,7 +351,7 @@ function SaleDetail() {
     const fields = [
       "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
       "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id",
-      "indicador_captador","indicador_vendedor",
+      "indicador_captador","indicador_captador_id","indicador_vendedor","indicador_vendedor_id",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
       "valor_comissao_lider_captador","valor_comissao_lider_vendedor",
@@ -1002,6 +1013,8 @@ function SaleDetail() {
               // nome que continua salvo certinho no banco.
               const captadorForaDaLista = !!formSale.corretor_captador_id && !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
               const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
+              const indicadorCaptadorForaDaLista = !!formSale.indicador_captador_id && !indicadorOptions.some((o) => o.id === formSale.indicador_captador_id);
+              const indicadorVendedorForaDaLista = !!formSale.indicador_vendedor_id && !indicadorOptions.some((o) => o.id === formSale.indicador_vendedor_id);
               const outrosCaptadores = formExtras.filter((r) => r.papel === "corretor_captador");
               const outrosVendedores = formExtras.filter((r) => r.papel === "corretor_vendedor");
               const outrosLideresCaptador = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "captador");
@@ -1137,7 +1150,27 @@ function SaleDetail() {
                     )}
                     <div className="mt-4 border-t pt-3">
                       <Field label="Indicador do captador">
-                        <Input value={formSale.indicador_captador ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador_captador: e.target.value })} placeholder="Nome de quem indicou (opcional)" />
+                        <Select
+                          value={formSale.indicador_captador_id || ""}
+                          onValueChange={(v) => {
+                            if (v === "none") {
+                              updResumo({ indicador_captador_id: null, indicador_captador: null });
+                              return;
+                            }
+                            const c = indicadorOptions.find((o) => o.id === v);
+                            updResumo({ indicador_captador_id: v || null, indicador_captador: c ? c.nome : null });
+                          }}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
+                          <SelectContent>
+                            {formSale.indicador_captador_id && <SelectItem value="none">— (remover)</SelectItem>}
+                            {indicadorCaptadorForaDaLista && formSale.indicador_captador_id && (
+                              <SelectItem value={formSale.indicador_captador_id}>{formSale.indicador_captador} (inativo)</SelectItem>
+                            )}
+                            {indicadorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </Field>
                     </div>
                   </div>
@@ -1266,7 +1299,27 @@ function SaleDetail() {
                     )}
                     <div className="mt-4 border-t pt-3">
                       <Field label="Indicador do vendedor">
-                        <Input value={formSale.indicador_vendedor ?? ""} disabled={!editable} onChange={(e) => updResumo({ indicador_vendedor: e.target.value })} placeholder="Nome de quem indicou (opcional)" />
+                        <Select
+                          value={formSale.indicador_vendedor_id || ""}
+                          onValueChange={(v) => {
+                            if (v === "none") {
+                              updResumo({ indicador_vendedor_id: null, indicador_vendedor: null });
+                              return;
+                            }
+                            const c = indicadorOptions.find((o) => o.id === v);
+                            updResumo({ indicador_vendedor_id: v || null, indicador_vendedor: c ? c.nome : null });
+                          }}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
+                          <SelectContent>
+                            {formSale.indicador_vendedor_id && <SelectItem value="none">— (remover)</SelectItem>}
+                            {indicadorVendedorForaDaLista && formSale.indicador_vendedor_id && (
+                              <SelectItem value={formSale.indicador_vendedor_id}>{formSale.indicador_vendedor} (inativo)</SelectItem>
+                            )}
+                            {indicadorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </Field>
                     </div>
                   </div>
