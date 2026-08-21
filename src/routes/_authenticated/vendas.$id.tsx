@@ -1010,6 +1010,7 @@ function SaleDetail() {
                         <Select
                           value={formSale.corretor_captador_id || ""}
                           onValueChange={(v) => {
+                            if (v === "none") { updResumo({ corretor_captador_id: null, corretor_captador: null }); return; }
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_captador_id: v || null, corretor_captador: c ? c.nome : null });
                           }}
@@ -1017,6 +1018,7 @@ function SaleDetail() {
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                           <SelectContent>
+                            {formSale.corretor_captador_id && <SelectItem value="none">— (remover)</SelectItem>}
                             {captadorForaDaLista && formSale.corretor_captador_id && (
                               <SelectItem value={formSale.corretor_captador_id}>{formSale.corretor_captador} (inativo)</SelectItem>
                             )}
@@ -1099,6 +1101,7 @@ function SaleDetail() {
                         <Select
                           value={formSale.corretor_vendedor_id || ""}
                           onValueChange={(v) => {
+                            if (v === "none") { updResumo({ corretor_vendedor_id: null, corretor_vendedor: null }); return; }
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_vendedor_id: v || null, corretor_vendedor: c ? c.nome : null });
                           }}
@@ -1106,6 +1109,7 @@ function SaleDetail() {
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                           <SelectContent>
+                            {formSale.corretor_vendedor_id && <SelectItem value="none">— (remover)</SelectItem>}
                             {vendedorForaDaLista && formSale.corretor_vendedor_id && (
                               <SelectItem value={formSale.corretor_vendedor_id}>{formSale.corretor_vendedor} (inativo)</SelectItem>
                             )}
