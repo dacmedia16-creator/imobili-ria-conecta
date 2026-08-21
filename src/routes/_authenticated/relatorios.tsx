@@ -13,8 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
-import { STATUS_LABEL, RECEBIDO_COLS, fatorComissaoPropria, type SaleStatus } from "@/lib/status";
-import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
+import { STATUS_LABEL, RECEBIDO_COLS, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +24,17 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 });
 
 const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—");
-const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : "—");
+// Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
+// como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
+// Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.
+const dateBR = (v: any) => {
+  if (!v) return "—";
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
+  }
+  return new Date(v).toLocaleDateString("pt-BR");
+};
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const monthsAgoISO = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
 const inRange = (dateStr: string | null | undefined, from: string, to: string) => {
@@ -142,20 +151,6 @@ function RelatoriosPage() {
     return { occsAtivas: ativas, inconsistentes: semVenda };
   }, [occs, saleById, incluirCanceladas]);
 
-  // Soma da parte que vai pra parceria externa por ocorrência — usado pra descontar essa fatia das
-  // parcelas previstas no Fluxo de caixa, já que esse dinheiro não é nosso mesmo que passe pela nossa
-  // conta. Duas fontes somadas: parceria da ocorrência inteira (occurrence_partners — imobiliária
-  // externa/outra unidade RE/MAX) e beneficiário individual sem cadastro confirmado (comms já traz
-  // sem_cadastro_confirmado, select "*" acima — ex.: corretor parceiro sem conta no sistema).
-  const parceriaPorOcc = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
-    for (const [occId, valor] of Object.entries(agruparParceriaExternaPorOcorrencia(comms))) {
-      m[occId] = (m[occId] ?? 0) + valor;
-    }
-    return m;
-  }, [partners, comms]);
-
   const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
   const corretorNome = (sale: any) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—");
   const matchesCorretor = (sale: any) => !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
@@ -220,7 +215,7 @@ function RelatoriosPage() {
 
         <TabsContent value="caixa">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
-          <FluxoCaixaTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} parceriaPorOcc={parceriaPorOcc} />
+          <FluxoCaixaTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} />
         </TabsContent>
         <TabsContent value="comissoes">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
@@ -255,18 +250,17 @@ function ExportButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange, parceriaPorOcc }: {
+function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange }: {
   occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string; onChange: () => void; parceriaPorOcc: Record<string, number>;
+  dateFrom: string; dateTo: string; onChange: () => void;
 }) {
   const rows = useMemo(() => {
-    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; valorBruto: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
+    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
       if (!matchesCorretor(sale)) continue;
-      // Parcelas são digitadas com o valor bruto total — desconta a parte que vai pra parceria
-      // externa, já que essa fatia não é nossa mesmo que passe pela nossa conta.
-      const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
+      // prev_recebimento{1,2,3}_valor já é a fatia própria — a parceria externa (quando existe) nunca
+      // passa por essa conta, cobrada direto pelo parceiro.
       const parcelas: [string | null, number | null, string | null, string | null, number | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em, o.prev_recebimento_recebido_valor],
         [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em, o.prev_recebimento2_recebido_valor],
@@ -275,11 +269,11 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
       parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
         if (!data || !valor) return;
         if (!inRange(data, dateFrom, dateTo)) return;
-        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor) * fator, valorBruto: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
+        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
       });
     }
     return out.sort((a, b) => a.data.localeCompare(b.data));
-  }, [occs, saleById, matchesCorretor, dateFrom, dateTo, parceriaPorOcc]);
+  }, [occs, saleById, matchesCorretor, dateFrom, dateTo]);
 
   const hoje = todayISO();
   const totalPrevisto = rows.reduce((s, r) => s + r.valor, 0);
@@ -291,7 +285,7 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
 
   const doExport = () => exportCsv(`fluxo-caixa_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
     Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data,
-    ValorBruto: r.valorBruto.toFixed(2), ValorNosso: r.valor.toFixed(2), Forma: r.forma ?? "",
+    Valor: r.valor.toFixed(2), Forma: r.forma ?? "",
     Situacao: situacao(r), RecebidoEm: r.recebidoEm ?? "", ValorRecebido: r.recebidoValor != null ? r.recebidoValor.toFixed(2) : "",
   })));
 
@@ -367,14 +361,7 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
                   <TableCell>{r.parcela}ª</TableCell>
                   <TableCell>{dateBR(r.data)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>
-                    {money(r.valor)}
-                    {r.valorBruto !== r.valor && (
-                      <div className="text-xs text-muted-foreground" title="Descontada a parte da parceria externa">
-                        de {money(r.valorBruto)} bruto
-                      </div>
-                    )}
-                  </TableCell>
+                  <TableCell>{money(r.valor)}</TableCell>
                   <TableCell>
                     {r.recebidoEm ? (
                       <span className="text-emerald-700 dark:text-emerald-400">

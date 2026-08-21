@@ -225,6 +225,7 @@ export function LancamentoDetail({
         valorNegociado: editResumo.valor_negociado,
         percentualComissao: editResumo.percentual_comissao,
         valorTotalComissao: editResumo.valor_total_comissao,
+        premioValor: editResumo.premio_valor,
         linhas: editLinhas.map((c) => ({
           valor: c.valor,
           semCadastroConfirmado: !!c.sem_cadastro_confirmado,
@@ -234,6 +235,7 @@ export function LancamentoDetail({
       editResumo.valor_negociado,
       editResumo.percentual_comissao,
       editResumo.valor_total_comissao,
+      editResumo.premio_valor,
       editLinhas,
     ],
   );
@@ -753,12 +755,13 @@ export function LancamentoDetail({
         valorNegociado: form.valor_negociado,
         percentualComissao: form.percentual_comissao,
         valorTotalComissao: form.valor_total_comissao,
+        premioValor: form.premio_valor,
         linhas: commRows.map((c) => ({
           valor: c.valor,
           semCadastroConfirmado: !!c.sem_cadastro_confirmado,
         })),
       }),
-    [form.valor_negociado, form.percentual_comissao, form.valor_total_comissao, commRows],
+    [form.valor_negociado, form.percentual_comissao, form.valor_total_comissao, form.premio_valor, commRows],
   );
 
   const saveComm = useCallback(async () => {
@@ -1246,6 +1249,7 @@ export function LancamentoDetail({
             commissions={occCommissions}
             partners={[]}
             parties={parties}
+            distribuicao={distribuicao}
             papeis={LANCAMENTO_COMISSAO_PAPEIS}
           />
           <div className="mt-4 border-t pt-4">
@@ -1846,6 +1850,7 @@ function DistribuicaoResumo({ dist }: { dist: any }) {
   return (
     <div className="space-y-1 rounded-md border">
       {linha("Comissão bruta", dist.comissao_bruta)}
+      {dist.premio_valor > 0 && linha("Prêmio", dist.premio_valor)}
       {linha("Total destinado às pessoas", dist.total_pessoas)}
       {linha("Parceria externa (fora do faturamento/ranking)", dist.parceria_externa)}
       {linha("Saldo da imobiliária/construtora (automático)", dist.saldo_imobiliaria, true)}

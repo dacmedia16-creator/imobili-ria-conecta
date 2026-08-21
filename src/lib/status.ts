@@ -484,16 +484,3 @@ export const RECEBIDO_COLS: Record<number, { em: string; valor: string }> = {
   3: { em: "prev_recebimento3_recebido_em", valor: "prev_recebimento3_recebido_valor" },
 };
 
-/**
- * Fração de uma parcela de comissão que é efetivamente da imobiliária, descontando só a parceria
- * externa (imobiliária externa ou outra unidade RE/MAX) — não desconta captador/vendedor/indicador,
- * que são internos e continuam contando como "nossa" comissão. As parcelas previstas (prev_recebimento*)
- * são digitadas com o valor bruto total; sem esse desconto, "Comissões a Receber" contava também a
- * parte que vai pro parceiro. Assume que a parceria é dividida proporcionalmente entre as parcelas
- * (não existe hoje uma alocação por parcela específica).
- */
-export function fatorComissaoPropria(valorComissaoTotal: number | null | undefined, somaParceriaValor: number): number {
-  const total = Number(valorComissaoTotal ?? 0);
-  if (total <= 0 || somaParceriaValor <= 0) return 1;
-  return Math.max(0, 1 - somaParceriaValor / total);
-}

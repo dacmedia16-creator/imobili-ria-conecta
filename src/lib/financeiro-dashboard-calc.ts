@@ -174,10 +174,9 @@ export function classificarFaixaAging(dataPrevista: string, hoje: string): Aging
   return "venc_mais_60";
 }
 
-/** Monta uma linha de parcela já classificada. `fatorComissaoPropria` é o mesmo fator de
- * `src/lib/status.ts` (1 − parceria/comissão total da ocorrência) — calculado uma vez por
- * ocorrência pelo chamador e aplicado a cada uma das 3 parcelas, igual ao resto do sistema
- * (Relatórios, Comissões a Receber), pra nunca divergir de como "nossa parte" já é calculada ali. */
+/** Monta uma linha de parcela já classificada. prev_recebimento{1,2,3}_valor já É a fatia própria da
+ * imobiliária (a parceria externa, quando existe, nunca passa por essa conta — cobrada direto pelo
+ * parceiro) — não há mais desconto de parceria aqui em cima do valor previsto. */
 export function montarParcela(args: {
   saleId: string;
   occId: string;
@@ -196,15 +195,12 @@ export function montarParcela(args: {
   dataPrevista: string;
   formaPrevista: string | null;
   valorBrutoPrevisto: number;
-  fatorComissaoPropria: number;
   dataRecebimento: string | null;
   valorRecebido: number | null;
   hoje: string;
 }): ParcelaRecebimento {
-  const valorLiquidoPrevisto = Number(
-    (args.valorBrutoPrevisto * args.fatorComissaoPropria).toFixed(2),
-  );
-  const valorParceria = Number((args.valorBrutoPrevisto - valorLiquidoPrevisto).toFixed(2));
+  const valorLiquidoPrevisto = args.valorBrutoPrevisto;
+  const valorParceria = 0;
   const situacao = classificarSituacaoParcela({
     cancelada: args.cancelada,
     dataPrevista: args.dataPrevista,

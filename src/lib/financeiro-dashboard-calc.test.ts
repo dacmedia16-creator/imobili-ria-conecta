@@ -59,7 +59,6 @@ function parcelaBase(overrides: Partial<Parameters<typeof montarParcela>[0]> = {
     dataPrevista: "2026-08-20",
     formaPrevista: "PIX",
     valorBrutoPrevisto: 10000,
-    fatorComissaoPropria: 1,
     dataRecebimento: null,
     valorRecebido: null,
     hoje: HOJE,
@@ -291,17 +290,12 @@ describe("classificarFaixaAging — limites de cada faixa", () => {
     expect(classificarFaixaAging("2026-06-16", HOJE)).toBe("venc_mais_60"));
 });
 
-// ---- item 2: desconto de parceria externa ----
-describe("montarParcela — desconto de parceria via fatorComissaoPropria", () => {
-  it("sem parceria (fator 1) → líquido = bruto", () => {
-    const p = parcelaBase({ valorBrutoPrevisto: 10000, fatorComissaoPropria: 1 });
+// ---- item 2: prev_recebimento já é a fatia própria, sem desconto de parceria em cima dela ----
+describe("montarParcela — valor previsto já é a fatia própria", () => {
+  it("líquido previsto = bruto previsto, sem parceria embutida", () => {
+    const p = parcelaBase({ valorBrutoPrevisto: 10000 });
     expect(p.valorLiquidoPrevisto).toBe(10000);
     expect(p.valorParceria).toBe(0);
-  });
-  it("com parceria de 30% → desconta do bruto", () => {
-    const p = parcelaBase({ valorBrutoPrevisto: 10000, fatorComissaoPropria: 0.7 });
-    expect(p.valorLiquidoPrevisto).toBe(7000);
-    expect(p.valorParceria).toBe(3000);
   });
 });
 
@@ -702,7 +696,7 @@ describe("agruparComissoes", () => {
 describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", () => {
   it("previstoImobiliaria do resumo bate com a soma manual das mesmas parcelas ativas", () => {
     const parcelas = [
-      parcelaBase({ occId: "o1", valorBrutoPrevisto: 10000, fatorComissaoPropria: 0.9 }),
+      parcelaBase({ occId: "o1", valorBrutoPrevisto: 10000 }),
     ];
     const resumo = calcularResumo({
       parcelas,
@@ -757,13 +751,11 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
         occId: "o1",
         dataPrevista: "2026-08-10",
         valorBrutoPrevisto: 10000,
-        fatorComissaoPropria: 1,
       }),
       parcelaBase({
         occId: "o2",
         dataPrevista: "2026-08-20",
         valorBrutoPrevisto: 5000,
-        fatorComissaoPropria: 1,
         dataRecebimento: "2026-08-21",
         valorRecebido: 5000,
       }),

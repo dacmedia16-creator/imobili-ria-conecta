@@ -243,6 +243,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          lado: string | null
           managed_by_sale: boolean
           nome: string | null
           occurrence_id: string
@@ -256,6 +257,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          lado?: string | null
           managed_by_sale?: boolean
           nome?: string | null
           occurrence_id: string
@@ -269,6 +271,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          lado?: string | null
           managed_by_sale?: boolean
           nome?: string | null
           occurrence_id?: string
@@ -627,6 +630,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          lado: string | null
           nome: string | null
           origem: string
           papel: string | null
@@ -639,6 +643,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          lado?: string | null
           nome?: string | null
           origem?: string
           papel?: string | null
@@ -651,6 +656,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          lado?: string | null
           nome?: string | null
           origem?: string
           papel?: string | null
