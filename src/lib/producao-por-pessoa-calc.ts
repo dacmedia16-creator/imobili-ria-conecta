@@ -47,6 +47,7 @@ export function gerarPontas(
     const comissaoBruta = Number(r.comissao_bruta ?? 0);
     const base = {
       saleId: r.sale_id,
+      imovelId: r.imovel_id,
       codigoInterno: r.codigo_interno,
       modalidade: r.modalidade,
       concluidaEm: r.concluida_em,

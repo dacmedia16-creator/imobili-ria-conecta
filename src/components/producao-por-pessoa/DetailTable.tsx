@@ -54,7 +54,7 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
                 >
                   <TableCell className="font-medium">
                     <Link to="/vendas/$id" params={{ id: p.saleId }} className="hover:underline">
-                      {p.codigoInterno || `Venda #${p.saleId.slice(0, 8)}`}
+                      {p.imovelId || p.codigoInterno || `Venda #${p.saleId.slice(0, 8)}`}
                     </Link>
                     <Badge
                       variant="outline"

@@ -11,6 +11,7 @@ export type ModalidadeVenda = "padrao" | "lancamento";
  * operação concluída, ainda não dividida em pontas. */
 export type ProducaoRawRow = {
   sale_id: string;
+  imovel_id: string | null;
   codigo_interno: string | null;
   modalidade: ModalidadeVenda;
   concluida_em: string; // timestamptz
@@ -28,6 +29,7 @@ export type TipoParticipacao = "captacao" | "venda";
  * pontas (0,5 + 0,5); uma venda de Lançamento vira 1 ponta única (1,0), sempre "venda". */
 export type ProducaoPonta = {
   saleId: string;
+  imovelId: string | null;
   codigoInterno: string | null;
   modalidade: ModalidadeVenda;
   concluidaEm: string;
