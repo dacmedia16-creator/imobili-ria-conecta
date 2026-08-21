@@ -25,7 +25,17 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 });
 
 const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—");
-const dateBR = (v: any) => (v ? new Date(v).toLocaleDateString("pt-BR") : "—");
+// Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
+// como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
+// Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.
+const dateBR = (v: any) => {
+  if (!v) return "—";
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
+  }
+  return new Date(v).toLocaleDateString("pt-BR");
+};
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const monthsAgoISO = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
 const inRange = (dateStr: string | null | undefined, from: string, to: string) => {
