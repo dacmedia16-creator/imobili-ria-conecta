@@ -669,15 +669,6 @@ function SaleDetail() {
     }]);
     setDirtyExtras(true);
   };
-  // Mesmo atalho, mas pra gestor/team leader — já entra com o papel certo (o campo "Nome" vira
-  // um seletor de líder automaticamente, ver `vinculavel` mais abaixo).
-  const addLider = (role: "gestor" | "team_leader") => {
-    setFormExtras(rows => [...rows, {
-      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
-      papel: role, origem: "imobiliaria", percentual: null, valor: null, _new: true,
-    }]);
-    setDirtyExtras(true);
-  };
   // Mesmo atalho, mas pro botão "+ Outro Gestor/Team Leader" da tela Equipe — já entra marcado com o
   // lado (capta separa visualmente por card), mas sem papel definido ainda: só vira 'gestor' ou
   // 'team_leader' quando a pessoa escolhe alguém no Select da linha (ver onValueChange no card).
@@ -1491,22 +1482,6 @@ function SaleDetail() {
                 );
               })}
             </FieldGrid>
-            {editableComissao && (
-              <div className="mt-2 flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => addCoCorretor("captador")}>
-                  <Plus className="mr-1 h-4 w-4" />Outro captador
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => addCoCorretor("vendedor")}>
-                  <Plus className="mr-1 h-4 w-4" />Outro vendedor
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => addLider("gestor")}>
-                  <Plus className="mr-1 h-4 w-4" />Gestor
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => addLider("team_leader")}>
-                  <Plus className="mr-1 h-4 w-4" />Team Leader
-                </Button>
-              </div>
-            )}
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
                 Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
