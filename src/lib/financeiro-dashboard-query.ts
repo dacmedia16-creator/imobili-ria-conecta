@@ -2,18 +2,19 @@
  * Busca/montagem de dados da Central Financeira — único módulo que fala com o Supabase aqui.
  * Só leitura: nenhuma função faz insert/update/delete. Reaproveita as duas RPCs do Comparativo 6%
  * (já restritas a financeiro/admin/super_admin, ver migration 20260813020000) em vez de reescrever
- * a regra de "data de efetivação" — e reaproveita `fatorComissaoPropria`/`RECEBIDO_COLS` de
- * status.ts, a mesma fórmula que Relatórios e Comissões a Receber já usam pra descontar parceria
- * externa. `fatorComissaoPropria` desconta duas fontes de parceria externa somadas em
- * `parceriaPorOcc`: `occurrence_partners` (parceria da ocorrência inteira, outra imobiliária/unidade)
- * e `occurrence_commissions.sem_cadastro_confirmado` (beneficiário individual sem cadastro, ex.:
- * Wilson Grecchi — ver `agruparParceriaExternaPorOcorrencia`). Nenhuma das duas é receita da
- * imobiliária. Resolução de equipe/gestor por corretor é uma cópia local do mesmo cálculo já feito em
- * comparativo-comissao-query.ts e vendas.index.tsx — o projeto não tem hoje um helper compartilhado
- * pra isso (2 cópias já existentes), então uma 3ª local segue a convenção real do repo.
+ * a regra de "data de efetivação" — e reaproveita `RECEBIDO_COLS` de status.ts. `parceriaPorOcc` soma
+ * duas fontes de parceria externa por ocorrência: `occurrence_partners` (parceria da ocorrência
+ * inteira, outra imobiliária/unidade) e `occurrence_commissions.sem_cadastro_confirmado`
+ * (beneficiário individual sem cadastro, ex.: Wilson Grecchi — ver `agruparParceriaExternaPorOcorrencia`).
+ * Nenhuma das duas é receita da imobiliária, e nenhuma das duas passa pela conta dela — o parceiro
+ * cobra a fatia dele direto, então prev_recebimento{1,2,3}_valor já vem SEM essa parte (nunca precisa
+ * de desconto em cima do valor previsto, só de subtração na comissão esperada pra reconciliar contra
+ * ele — ver comissaoEsperada abaixo). Resolução de equipe/gestor por corretor é uma cópia local do
+ * mesmo cálculo já feito em comparativo-comissao-query.ts e vendas.index.tsx — o projeto não tem hoje
+ * um helper compartilhado pra isso (2 cópias já existentes), então uma 3ª local segue a convenção
+ * real do repo.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { fatorComissaoPropria } from "@/lib/status";
 import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
 import {
   classificarVinculoBeneficiario,
@@ -248,7 +249,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     }
     const cancelada = sale.status === "cancelada" || sale.status === "arquivada";
     const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(sale.corretor_id);
-    const fator = fatorComissaoPropria(occ.valor_comissao, parceriaPorOcc.get(occ.id) ?? 0);
+    const parceriaOcc = parceriaPorOcc.get(occ.id) ?? 0;
     const imovelLabel = saleLabel(sale);
 
     let somaParcelasPrevistas = 0;
@@ -328,7 +329,6 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           dataPrevista: data,
           formaPrevista: forma,
           valorBrutoPrevisto: Number(valor),
-          fatorComissaoPropria: fator,
           dataRecebimento: recebidoEm,
           valorRecebido: recebidoValor != null ? Number(recebidoValor) : null,
           hoje,
@@ -339,8 +339,12 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     // Em vendas de Lançamento, o prêmio/bônus (occurrences.premio_valor) é somado à comissão só na
     // previsão de recebimento, por desenho (comentário oficial da coluna) — nunca comparar a soma das
     // parcelas só contra valor_comissao quando há prêmio, senão toda venda com prêmio vira falso
-    // positivo aqui.
-    const comissaoEsperada = Number(occ.valor_comissao ?? 0) + Number(occ.premio_valor ?? 0);
+    // positivo aqui. Parceria externa (parceriaOcc) é subtraída porque nunca passa pela conta desta
+    // imobiliária — prev_recebimento{1,2,3}_valor já vem só com a fatia própria.
+    const comissaoEsperada = Math.max(
+      Number(occ.valor_comissao ?? 0) + Number(occ.premio_valor ?? 0) - parceriaOcc,
+      0,
+    );
     if (
       (occ.valor_comissao != null || occ.premio_valor != null) &&
       Math.abs(somaParcelasPrevistas - comissaoEsperada) > 0.01
@@ -348,6 +352,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       const premioTxt = occ.premio_valor
         ? ` + premio_valor (R$ ${Number(occ.premio_valor).toFixed(2)})`
         : "";
+      const parceriaTxt = parceriaOcc > 0 ? ` − parceria externa (R$ ${parceriaOcc.toFixed(2)})` : "";
       divergencias.push({
         id: `soma-parcelas-incompativel:${occ.id}`,
         gravidade: "media",
@@ -356,7 +361,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         tipo: "Soma das parcelas incompatível com a comissão da ocorrência",
         explicacao:
           `Soma de prev_recebimento{1,2,3}_valor (R$ ${somaParcelasPrevistas.toFixed(2)}) difere de ` +
-          `occurrences.valor_comissao (R$ ${Number(occ.valor_comissao ?? 0).toFixed(2)})${premioTxt} em R$ ${(somaParcelasPrevistas - comissaoEsperada).toFixed(2)}.`,
+          `occurrences.valor_comissao (R$ ${Number(occ.valor_comissao ?? 0).toFixed(2)})${premioTxt}${parceriaTxt} em R$ ${(somaParcelasPrevistas - comissaoEsperada).toFixed(2)}.`,
         valorAfetado: Number((somaParcelasPrevistas - comissaoEsperada).toFixed(2)),
         acaoRecomendada:
           "Revisar as parcelas previstas ou o valor de comissão/prêmio da ocorrência.",

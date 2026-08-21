@@ -61,12 +61,12 @@ export function agruparComissaoPorBeneficiario(
 
 /**
  * Pura — soma, por ocorrência, a parte de occurrence_commissions confirmada como parceiro externo
- * (`sem_cadastro_confirmado = true`). Usada por quem calcula "quanto da comissão de uma ocorrência
- * é realmente da imobiliária" (ex.: `fatorComissaoPropria` em status.ts, já usado em Relatórios/
- * Comissões a Receber/Central Financeira pra descontar `occurrence_partners`) — essa é a MESMA regra
- * de negócio, só que pro caso de um beneficiário INDIVIDUAL sem cadastro (ex.: Wilson Grecchi),
- * diferente de `occurrence_partners`/`sales.parceria_*`, que é uma parceria da ocorrência inteira com
- * outra imobiliária/unidade. As duas fontes se somam — nenhuma substitui a outra.
+ * (`sem_cadastro_confirmado = true`). Usada por quem precisa saber "quanto da comissão de uma
+ * ocorrência é parceria externa" (ex.: financeiro-dashboard-query.ts, pra subtrair de comissaoEsperada
+ * na conferência da previsão de recebimento) — essa é a MESMA regra de negócio de `occurrence_partners`/
+ * `sales.parceria_*`, só que pro caso de um beneficiário INDIVIDUAL sem cadastro (ex.: Wilson Grecchi),
+ * diferente de `occurrence_partners`, que é uma parceria da ocorrência inteira com outra imobiliária/
+ * unidade. As duas fontes se somam — nenhuma substitui a outra.
  */
 export function agruparParceriaExternaPorOcorrencia(
   linhas: {

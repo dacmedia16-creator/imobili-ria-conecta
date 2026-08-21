@@ -10,8 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { money, dateBR } from "@/components/vendas/shared";
-import { RECEBIDO_COLS, fatorComissaoPropria } from "@/lib/status";
-import { agruparParceriaExternaPorOcorrencia } from "@/lib/comissao-por-beneficiario";
+import { RECEBIDO_COLS } from "@/lib/status";
 import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 
@@ -31,8 +30,6 @@ function ComissoesAReceberPage() {
   const [loading, setLoading] = useState(true);
   const [occs, setOccs] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
-  const [partners, setPartners] = useState<any[]>([]);
-  const [beneficiariosExternos, setBeneficiariosExternos] = useState<any[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -59,16 +56,6 @@ function ComissoesAReceberPage() {
       setSales([]);
     }
 
-    const occIds = (o ?? []).map((r: any) => r.id);
-    if (occIds.length) {
-      const { data: p } = await supabase.from("occurrence_partners").select("occurrence_id, valor").in("occurrence_id", occIds);
-      setPartners(p ?? []);
-      const { data: be } = await supabase.from("occurrence_commissions").select("occurrence_id, valor, sem_cadastro_confirmado").in("occurrence_id", occIds);
-      setBeneficiariosExternos(be ?? []);
-    } else {
-      setPartners([]);
-      setBeneficiariosExternos([]);
-    }
     const { data: prof } = await supabase.from("profiles").select("id, nome");
     const names: Record<string, string> = {};
     for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
@@ -88,23 +75,8 @@ function ComissoesAReceberPage() {
     return m;
   }, [sales]);
 
-  // Soma da parte que vai pra parceria externa por ocorrência — descontada das parcelas previstas,
-  // já que essa fatia não é nossa mesmo que passe pela nossa conta. Duas fontes somadas: parceria da
-  // ocorrência inteira (occurrence_partners) e beneficiário individual sem cadastro confirmado
-  // (occurrence_commissions.sem_cadastro_confirmado, ex.: corretor parceiro sem conta no sistema).
-  const parceriaPorOcc = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const p of partners) m[p.occurrence_id] = (m[p.occurrence_id] ?? 0) + Number(p.valor ?? 0);
-    for (const [occId, valor] of Object.entries(
-      agruparParceriaExternaPorOcorrencia(beneficiariosExternos),
-    )) {
-      m[occId] = (m[occId] ?? 0) + valor;
-    }
-    return m;
-  }, [partners, beneficiariosExternos]);
-
   const { rows, inconsistentes } = useMemo(() => {
-    const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; valorBruto: number; forma: string | null }[] = [];
+    const out: { key: string; occId: string; parcela: number; sale: any; data: string; valor: number; forma: string | null }[] = [];
     const semVenda: any[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
@@ -114,7 +86,8 @@ function ComissoesAReceberPage() {
       // Venda arquivada/cancelada não deve gerar cobrança pendente — a ocorrência continua existindo
       // (histórico), mas a parcela prevista não é mais um recebimento de verdade.
       if (sale.status === "arquivada" || sale.status === "cancelada") continue;
-      const fator = fatorComissaoPropria(o.valor_comissao, parceriaPorOcc[o.id] ?? 0);
+      // prev_recebimento{1,2,3}_valor já é a fatia própria — parceria externa (quando existe) nunca
+      // passa por essa conta, cobrada direto pelo parceiro.
       const parcelas: [string | null, number | null, string | null, string | null][] = [
         [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em],
         [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em],
@@ -122,11 +95,11 @@ function ComissoesAReceberPage() {
       ];
       parcelas.forEach(([data, valor, forma, recebidoEm], i) => {
         if (!data || !valor || recebidoEm) return;
-        out.push({ key: `${o.id}-${i + 1}`, occId: o.id, parcela: i + 1, sale, data, valor: Number(valor) * fator, valorBruto: Number(valor), forma });
+        out.push({ key: `${o.id}-${i + 1}`, occId: o.id, parcela: i + 1, sale, data, valor: Number(valor), forma });
       });
     }
     return { rows: out.sort((a, b) => a.data.localeCompare(b.data)), inconsistentes: semVenda };
-  }, [occs, saleById, parceriaPorOcc]);
+  }, [occs, saleById]);
 
   const hoje = todayISO();
   const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
@@ -179,7 +152,7 @@ function ComissoesAReceberPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Comissões a Receber</h1>
-        <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas — já descontada a parte de eventuais parcerias externas.</p>
+        <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas — já é a fatia própria da imobiliária, sem a parte de eventuais parcerias externas.</p>
       </div>
 
       {inconsistentes.length > 0 && (
@@ -230,14 +203,7 @@ function ComissoesAReceberPage() {
                   <TableCell>{r.parcela}ª</TableCell>
                   <TableCell>{dateBR(r.data)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>
-                    {money(r.valor)}
-                    {r.valorBruto !== r.valor && (
-                      <div className="text-xs text-muted-foreground" title="Descontada a parte da parceria externa">
-                        de {money(r.valorBruto)} bruto
-                      </div>
-                    )}
-                  </TableCell>
+                  <TableCell>{money(r.valor)}</TableCell>
                   <TableCell>
                     <span className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}>
                       {r.data < hoje ? "Vencida" : "A vencer"}
