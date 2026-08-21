@@ -14,6 +14,7 @@ const ROWS: ProducaoRawRow[] = [
   // Carlos fez as duas pontas da mesma venda — reproduz o exemplo do usuário (VGV 80.000 / comissão 4.800).
   {
     sale_id: "sale-1",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "padrao",
     concluida_em: "2026-08-19T13:42:09.901538+00:00",
@@ -27,6 +28,7 @@ const ROWS: ProducaoRawRow[] = [
   // Captador e vendedor são pessoas diferentes.
   {
     sale_id: "sale-2",
+    imovel_id: null,
     codigo_interno: "630591041-111",
     modalidade: "padrao",
     concluida_em: "2026-08-18T20:39:33.343928+00:00",
@@ -40,6 +42,7 @@ const ROWS: ProducaoRawRow[] = [
   // Lançamento — sem captação, pessoa vem de occurrence_commissions.papel = 'corretor_vendedor'.
   {
     sale_id: "sale-3",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
     concluida_em: "2026-08-17T15:08:28.740792+00:00",
@@ -52,6 +55,7 @@ const ROWS: ProducaoRawRow[] = [
   },
   {
     sale_id: "sale-4",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
     concluida_em: "2026-08-17T15:06:20.887427+00:00",
@@ -64,6 +68,7 @@ const ROWS: ProducaoRawRow[] = [
   },
   {
     sale_id: "sale-5",
+    imovel_id: null,
     codigo_interno: "630591260-38",
     modalidade: "padrao",
     concluida_em: "2026-08-17T14:48:28.349733+00:00",
@@ -76,6 +81,7 @@ const ROWS: ProducaoRawRow[] = [
   },
   {
     sale_id: "sale-6",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
     concluida_em: "2026-08-17T14:41:20.180521+00:00",
@@ -88,6 +94,7 @@ const ROWS: ProducaoRawRow[] = [
   },
   {
     sale_id: "sale-7",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "padrao",
     concluida_em: "2026-08-14T18:36:24.185339+00:00",
@@ -100,6 +107,7 @@ const ROWS: ProducaoRawRow[] = [
   },
   {
     sale_id: "sale-8",
+    imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
     concluida_em: "2026-08-13T14:11:27.732472+00:00",
@@ -166,6 +174,12 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
       expect(vgvTotal).toBeCloseTo(row.valor_negociado, 2);
       expect(comissaoTotal).toBeCloseTo(row.comissao_bruta, 2);
     }
+  });
+
+  it("carrega imovel_id junto do codigo_interno, pro fallback de rótulo da UI", () => {
+    const doWanderley = pontas.filter((p) => p.saleId === "sale-2");
+    expect(doWanderley.every((p) => p.imovelId === null)).toBe(true);
+    expect(doWanderley.every((p) => p.codigoInterno === "630591041-111")).toBe(true);
   });
 
   it("resolve a equipe da pessoa em cada ponta", () => {
@@ -235,6 +249,7 @@ describe("gerarPontas — pessoa não vinculada", () => {
     const rowsSemVinculo: ProducaoRawRow[] = [
       {
         sale_id: "sale-9",
+        imovel_id: null,
         codigo_interno: null,
         modalidade: "lancamento",
         concluida_em: "2026-08-01T00:00:00+00:00",
