@@ -113,4 +113,43 @@ describe("calcularDistribuicaoLancamento", () => {
     expect(r.saldo_imobiliaria).toBe(0);
     expect(r.calculo_valido).toBe(true);
   });
+
+  it("prêmio soma à comissão bruta na base do saldo automático (corretores já dividem a % em cima dos dois somados)", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 382524.96,
+      percentualComissao: 4,
+      valorTotalComissao: null,
+      premioValor: 1000,
+      linhas: [{ valor: 7335.45 }, { valor: 3260 }, { valor: 815.05 }],
+    });
+    expect(r.comissao_bruta).toBe(15301);
+    expect(r.premio_valor).toBe(1000);
+    expect(r.total_pessoas).toBeCloseTo(11410.5, 2);
+    expect(r.saldo_imobiliaria).toBeCloseTo(4890.5, 2);
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("sem prêmio preenchido, saldo automático continua igual a antes (compatibilidade)", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      premioValor: null,
+      linhas: [{ valor: 4000 }],
+    });
+    expect(r.premio_valor).toBe(0);
+    expect(r.saldo_imobiliaria).toBe(2000);
+  });
+
+  it("bloqueio de excesso considera comissão bruta + prêmio, e a mensagem menciona o prêmio", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 6,
+      valorTotalComissao: null,
+      premioValor: 500,
+      linhas: [{ valor: 6500.02 }],
+    });
+    expect(r.calculo_valido).toBe(false);
+    expect(r.inconsistencias[0]).toMatch(/comissão bruta \+ prêmio/);
+  });
 });

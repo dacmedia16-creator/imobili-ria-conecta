@@ -68,9 +68,11 @@ export function OccurrenceReportBody({ sale, occ, commissions, partners, parties
   // linhas de commissions, não só a primeira de cada papel (pode haver mais de um "Outro" extra).
   const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   // Fonte única: calcular_distribuicao_venda() (mesma RPC usada no Resumo/Ocorrência/ranking) —
-  // nunca recalcula aqui. Só cai no cálculo local (base REMAX/legado menos soma das comissões) se o
-  // componente for usado sem o prop distribuicao (compatibilidade com chamadas antigas).
-  const valorImobiliaria = distribuicao?.saldo_liquido_imobiliaria ?? (() => {
+  // nunca recalcula aqui. saldo_liquido_imobiliaria é a chave da venda padrão, saldo_imobiliaria a do
+  // Lançamento (já soma o prêmio, ver migration 20260821020000). Só cai no cálculo local (base
+  // REMAX/legado menos soma das comissões, sem prêmio) se o componente for usado sem o prop
+  // distribuicao (compatibilidade com chamadas antigas).
+  const valorImobiliaria = distribuicao?.saldo_liquido_imobiliaria ?? distribuicao?.saldo_imobiliaria ?? (() => {
     const baseImobiliaria = sale.percentual_remax != null ? Number(sale.valor_remax ?? 0) : valorNosso;
     return baseImobiliaria - somaComissoes;
   })();

@@ -18,6 +18,7 @@ export type LancamentoLinhaComissao = {
 
 export type LancamentoDistribuicao = {
   comissao_bruta: number;
+  premio_valor: number;
   total_pessoas: number;
   parceria_externa: number;
   saldo_imobiliaria: number;
@@ -33,6 +34,7 @@ export function calcularDistribuicaoLancamento(input: {
   valorNegociado: number | null;
   percentualComissao: number | null;
   valorTotalComissao: number | null;
+  premioValor?: number | string | null;
   linhas: LancamentoLinhaComissao[];
 }): LancamentoDistribuicao {
   const negociado = input.valorNegociado ?? null;
@@ -41,6 +43,7 @@ export function calcularDistribuicaoLancamento(input: {
       ? (input.percentualComissao / 100) * negociado
       : (input.valorTotalComissao ?? 0),
   );
+  const premioValor = round2(Number(input.premioValor ?? 0));
 
   let totalPessoas = 0;
   let parceriaExterna = 0;
@@ -52,18 +55,23 @@ export function calcularDistribuicaoLancamento(input: {
   totalPessoas = round2(totalPessoas);
   parceriaExterna = round2(parceriaExterna);
 
-  const saldoImobiliaria = round2(comissaoBruta - totalPessoas - parceriaExterna);
+  // O prêmio é dividido junto com a comissão pelos corretores (a % deles já incide sobre os dois
+  // somados), então precisa entrar na base do saldo automático — senão a imobiliária aparenta reter
+  // R$ premioValor a menos do que realmente fica com ela.
+  const baseSaldo = round2(comissaoBruta + premioValor);
+  const saldoImobiliaria = round2(baseSaldo - totalPessoas - parceriaExterna);
   const totalDistribuido = round2(totalPessoas + parceriaExterna + saldoImobiliaria);
 
   const inconsistencias: string[] = [];
-  if (comissaoBruta > 0 && saldoImobiliaria < -0.01) {
+  if (baseSaldo > 0 && saldoImobiliaria < -0.01) {
     inconsistencias.push(
-      `A soma das comissões de pessoas e parceria externa (R$ ${(totalPessoas + parceriaExterna).toFixed(2)}) ultrapassa a comissão bruta (R$ ${comissaoBruta.toFixed(2)}) em R$ ${Math.abs(saldoImobiliaria).toFixed(2)}.`,
+      `A soma das comissões de pessoas e parceria externa (R$ ${(totalPessoas + parceriaExterna).toFixed(2)}) ultrapassa a comissão bruta${premioValor > 0 ? " + prêmio" : ""} (R$ ${baseSaldo.toFixed(2)}) em R$ ${Math.abs(saldoImobiliaria).toFixed(2)}.`,
     );
   }
 
   return {
     comissao_bruta: comissaoBruta,
+    premio_valor: premioValor,
     total_pessoas: totalPessoas,
     parceria_externa: parceriaExterna,
     saldo_imobiliaria: saldoImobiliaria,
