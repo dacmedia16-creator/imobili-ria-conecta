@@ -1010,7 +1010,11 @@ function SaleDetail() {
                         <Select
                           value={formSale.corretor_captador_id || ""}
                           onValueChange={(v) => {
-                            if (v === "none") { updResumo({ corretor_captador_id: null, corretor_captador: null }); return; }
+                            if (v === "none") {
+                              updResumo({ corretor_captador_id: null, corretor_captador: null });
+                              applyComissaoValor("captador", null);
+                              return;
+                            }
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_captador_id: v || null, corretor_captador: c ? c.nome : null });
                           }}
@@ -1101,7 +1105,11 @@ function SaleDetail() {
                         <Select
                           value={formSale.corretor_vendedor_id || ""}
                           onValueChange={(v) => {
-                            if (v === "none") { updResumo({ corretor_vendedor_id: null, corretor_vendedor: null }); return; }
+                            if (v === "none") {
+                              updResumo({ corretor_vendedor_id: null, corretor_vendedor: null });
+                              applyComissaoValor("vendedor", null);
+                              return;
+                            }
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_vendedor_id: v || null, corretor_vendedor: c ? c.nome : null });
                           }}
