@@ -720,6 +720,29 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(Number(linha?.valor)).toBe(4427.5); // continua líquido, não voltou a ser bruto
   });
 
+  it("teste 6b — criar_ocorrencia_completa é idempotente e não duplica a ocorrência", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 6b",
+    });
+
+    const primeira = await supabaseAdmin.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
+    if (primeira.error) throw primeira.error;
+    const segunda = await supabaseAdmin.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
+    if (segunda.error) throw segunda.error;
+
+    const primeiroResultado = primeira.data as { occurrence_id: string; created: boolean };
+    const segundoResultado = segunda.data as { occurrence_id: string; created: boolean };
+    expect(primeiroResultado.created).toBe(true);
+    expect(segundoResultado.created).toBe(false);
+    expect(segundoResultado.occurrence_id).toBe(primeiroResultado.occurrence_id);
+
+    const { count } = await supabaseAdmin
+      .from("occurrences")
+      .select("id", { count: "exact", head: true })
+      .eq("sale_id", saleId);
+    expect(count).toBe(1);
+  });
+
   it("teste 11 — depois de 'Puxar da revisão do gestor', o aviso de desatualização some e linhas manuais continuam intactas", async () => {
     const saleId = await criarVenda({ ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 11" });
     const occId = await criarOcorrenciaCompleta(saleId);
