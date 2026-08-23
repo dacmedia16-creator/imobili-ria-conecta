@@ -21,6 +21,9 @@ export type ProducaoRawRow = {
   captador_nome: string | null;
   vendedor_id: string | null;
   vendedor_nome: string | null;
+  /** Fração da produção atribuída ao vendedor em Lançamento. Ex.: 0,5 para dois vendedores
+   * com a mesma participação. Em vendas padrão é null porque a divisão é por ponta. */
+  vendedor_fracao: number | null;
 };
 
 export type TipoParticipacao = "captacao" | "venda";
@@ -39,7 +42,7 @@ export type ProducaoPonta = {
   pessoaNome: string;
   teamId: string | null;
   teamNome: string | null;
-  /** 0,5 (captação ou venda de venda padrão) ou 1,0 (venda de Lançamento). */
+  /** 0,5 (ponta padrão) ou a fração proporcional do vendedor em um Lançamento. */
   qtd: number;
   vgv: number;
   comissao: number;

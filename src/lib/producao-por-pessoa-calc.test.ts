@@ -24,6 +24,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: "Carlos Eduardo Carneiro",
     vendedor_id: "carlos",
     vendedor_nome: "Carlos Eduardo Carneiro",
+    vendedor_fracao: null,
   },
   // Captador e vendedor são pessoas diferentes.
   {
@@ -38,6 +39,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: "Wanderley Hiro Sato",
     vendedor_id: "orlando",
     vendedor_nome: "Orlando Menck da Silva",
+    vendedor_fracao: null,
   },
   // Lançamento — sem captação, pessoa vem de occurrence_commissions.papel = 'corretor_vendedor'.
   {
@@ -52,6 +54,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: null,
     vendedor_id: "wilson",
     vendedor_nome: "Wilson Grecchi Junior",
+    vendedor_fracao: 1,
   },
   {
     sale_id: "sale-4",
@@ -65,6 +68,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: null,
     vendedor_id: "wilson",
     vendedor_nome: "Wilson Grecchi Junior",
+    vendedor_fracao: 1,
   },
   {
     sale_id: "sale-5",
@@ -78,6 +82,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: "Wellington de Oliveira",
     vendedor_id: "wellington",
     vendedor_nome: "Wellington de Oliveira",
+    vendedor_fracao: null,
   },
   {
     sale_id: "sale-6",
@@ -91,6 +96,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: null,
     vendedor_id: "gustavo",
     vendedor_nome: "Gustavo Fuentes",
+    vendedor_fracao: 1,
   },
   {
     sale_id: "sale-7",
@@ -104,6 +110,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: "Ailton Alexandria",
     vendedor_id: "ailton",
     vendedor_nome: "Ailton Alexandria",
+    vendedor_fracao: null,
   },
   {
     sale_id: "sale-8",
@@ -117,6 +124,7 @@ const ROWS: ProducaoRawRow[] = [
     captador_nome: null,
     vendedor_id: "virginia",
     vendedor_nome: "Virginia Aranha",
+    vendedor_fracao: 1,
   },
 ];
 
@@ -161,6 +169,51 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
     expect(doGustavo[0].qtd).toBe(1);
     expect(doGustavo[0].vgv).toBe(236009.3);
     expect(doGustavo[0].comissao).toBe(9440.37);
+  });
+
+  it("Lançamento com duas vendedoras iguais divide produção, VGV e comissão em 50% para cada", () => {
+    const duasVendedoras: ProducaoRawRow[] = [
+      {
+        sale_id: "sale-multi",
+        imovel_id: null,
+        codigo_interno: "630601276-21",
+        modalidade: "lancamento",
+        concluida_em: "2026-08-20T00:00:00+00:00",
+        valor_negociado: 640000,
+        comissao_bruta: 6397.78,
+        captador_id: null,
+        captador_nome: null,
+        vendedor_id: "giovanna",
+        vendedor_nome: "Giovanna Moretti",
+        vendedor_fracao: 0.5,
+      },
+      {
+        sale_id: "sale-multi",
+        imovel_id: null,
+        codigo_interno: "630601276-21",
+        modalidade: "lancamento",
+        concluida_em: "2026-08-20T00:00:00+00:00",
+        valor_negociado: 640000,
+        comissao_bruta: 6397.78,
+        captador_id: null,
+        captador_nome: null,
+        vendedor_id: "giulia",
+        vendedor_nome: "Giulia Moretti",
+        vendedor_fracao: 0.5,
+      },
+    ];
+    const resultado = gerarPontas(duasVendedoras, new Map(), new Map());
+    expect(resultado).toHaveLength(2);
+    expect(resultado.map((p) => p.qtd)).toEqual([0.5, 0.5]);
+    expect(resultado.map((p) => p.vgv)).toEqual([320000, 320000]);
+    expect(resultado.map((p) => p.comissao)).toEqual([3198.89, 3198.89]);
+    expect(totaisProducao(resultado)).toEqual({
+      qtdVendas: 1,
+      vgv: 640000,
+      comissao: 6397.78,
+      qtdCaptacao: 0,
+      qtdVenda: 1,
+    });
   });
 
   it("cada operação soma exatamente 1 venda / 100% do VGV / 100% da comissão entre as pontas", () => {
@@ -259,6 +312,7 @@ describe("gerarPontas — pessoa não vinculada", () => {
         captador_nome: null,
         vendedor_id: null,
         vendedor_nome: null,
+        vendedor_fracao: 1,
       },
     ];
     const pontas = gerarPontas(rowsSemVinculo, new Map(), new Map());

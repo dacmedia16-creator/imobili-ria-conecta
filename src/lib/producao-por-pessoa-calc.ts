@@ -5,8 +5,8 @@
  * Regra de divisão (validada por simulação em chat com dados reais antes de virar código):
  * - Venda padrão = 1 venda completa, dividida em 2 pontas iguais: captação (0,5) + venda (0,5), cada
  *   uma com metade do VGV e metade da comissão bruta da operação.
- * - Venda de Lançamento = 1 venda inteira só na ponta "venda" (100% do VGV e da comissão) — essa
- *   modalidade não tem captação (sales.corretor_captador_id/corretor_vendedor_id sempre nulos nela).
+ * - Venda de Lançamento = 1 venda inteira distribuída entre os vendedores proporcionalmente à
+ *   comissão de cada um. Com um vendedor, ele recebe 100%; com dois em partes iguais, 50% cada.
  * A soma das pontas de uma operação sempre fecha em 1 venda / 100% do VGV / 100% da comissão —
  * nunca duplica nem perde valor.
  */
@@ -55,6 +55,7 @@ export function gerarPontas(
 
     if (r.modalidade === "lancamento") {
       const { teamId, teamNome } = equipeDe(r.vendedor_id, teamIdByPessoa, teamNomeById);
+      const fracao = Math.max(0, Math.min(1, Number(r.vendedor_fracao ?? 1)));
       pontas.push({
         ...base,
         tipo: "venda",
@@ -62,9 +63,9 @@ export function gerarPontas(
         pessoaNome: r.vendedor_nome ?? "Não vinculado",
         teamId,
         teamNome,
-        qtd: 1,
-        vgv: round2(valorNegociado),
-        comissao: round2(comissaoBruta),
+        qtd: fracao,
+        vgv: round2(valorNegociado * fracao),
+        comissao: round2(comissaoBruta * fracao),
       });
       continue;
     }
