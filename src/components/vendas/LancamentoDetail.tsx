@@ -228,6 +228,7 @@ export function LancamentoDetail({
         premioValor: editResumo.premio_valor,
         linhas: editLinhas.map((c) => ({
           valor: c.valor,
+          percentual: c.percentual,
           semCadastroConfirmado: !!c.sem_cadastro_confirmado,
         })),
       }),
@@ -250,6 +251,10 @@ export function LancamentoDetail({
       toast.error(
         'Escolha um beneficiário cadastrado ou marque explicitamente "Sem cadastro / parceiro externo" em cada linha da divisão da comissão antes de salvar.',
       );
+      return;
+    }
+    if (!editPreviewDist.calculo_valido) {
+      toast.error(editPreviewDist.inconsistencias[0]);
       return;
     }
     setSalvandoEdicao(true);
@@ -758,6 +763,7 @@ export function LancamentoDetail({
         premioValor: form.premio_valor,
         linhas: commRows.map((c) => ({
           valor: c.valor,
+          percentual: c.percentual,
           semCadastroConfirmado: !!c.sem_cadastro_confirmado,
         })),
       }),
@@ -1147,11 +1153,16 @@ export function LancamentoDetail({
                       step="0.001"
                       value={c.percentual ?? ""}
                       disabled={!canEdit}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const percentual = e.target.value ? Number(e.target.value) : null;
+                        const base = previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
                         updComm(c.id, {
-                          percentual: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
+                          percentual,
+                          valor: percentual != null && base > 0
+                            ? Number(((percentual / 100) * base).toFixed(2))
+                            : c.valor,
+                        });
+                      }}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -1159,7 +1170,15 @@ export function LancamentoDetail({
                     <CurrencyInput
                       value={c.valor}
                       disabled={!canEdit}
-                      onChange={(v) => updComm(c.id, { valor: v })}
+                      onChange={(v) => {
+                        const base = previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
+                        updComm(c.id, {
+                          valor: v,
+                          percentual: v != null && base > 0
+                            ? Number(((v / base) * 100).toFixed(3))
+                            : c.percentual,
+                        });
+                      }}
                     />
                   </div>
                   {canEdit && (
@@ -1537,18 +1556,31 @@ export function LancamentoDetail({
                       type="number"
                       step="0.001"
                       value={c.percentual ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const percentual = e.target.value ? Number(e.target.value) : null;
+                        const base = editPreviewDist.comissao_bruta + editPreviewDist.premio_valor;
                         updEditLinha(c.id, {
-                          percentual: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
+                          percentual,
+                          valor: percentual != null && base > 0
+                            ? Number(((percentual / 100) * base).toFixed(2))
+                            : c.valor,
+                        });
+                      }}
                     />
                   </div>
                   <div className="md:col-span-2">
                     <Label className="mb-1 block text-xs text-muted-foreground">Valor (R$)</Label>
                     <CurrencyInput
                       value={c.valor}
-                      onChange={(v) => updEditLinha(c.id, { valor: v })}
+                      onChange={(v) => {
+                        const base = editPreviewDist.comissao_bruta + editPreviewDist.premio_valor;
+                        updEditLinha(c.id, {
+                          valor: v,
+                          percentual: v != null && base > 0
+                            ? Number(((v / base) * 100).toFixed(3))
+                            : c.percentual,
+                        });
+                      }}
                     />
                   </div>
                   <div className="md:col-span-1">

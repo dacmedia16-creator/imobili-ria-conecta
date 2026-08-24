@@ -141,6 +141,28 @@ describe("calcularDistribuicaoLancamento", () => {
     expect(r.saldo_imobiliaria).toBe(2000);
   });
 
+  it("aceita percentual e valor equivalentes sobre comissão bruta + prêmio", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 4,
+      valorTotalComissao: null,
+      premioValor: 1000,
+      linhas: [{ percentual: 45, valor: 2250 }],
+    });
+    expect(r.calculo_valido).toBe(true);
+  });
+
+  it("bloqueia percentual e valor divergentes", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 100000,
+      percentualComissao: 4,
+      valorTotalComissao: null,
+      linhas: [{ percentual: 45, valor: 900 }],
+    });
+    expect(r.calculo_valido).toBe(false);
+    expect(r.inconsistencias[0]).toMatch(/Percentual e valor divergentes/);
+  });
+
   it("bloqueio de excesso considera comissão bruta + prêmio, e a mensagem menciona o prêmio", () => {
     const r = calcularDistribuicaoLancamento({
       valorNegociado: 100000,

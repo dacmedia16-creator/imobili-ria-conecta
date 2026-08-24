@@ -13,6 +13,7 @@
 
 export type LancamentoLinhaComissao = {
   valor: number | string | null;
+  percentual?: number | string | null;
   semCadastroConfirmado?: boolean | null;
 };
 
@@ -63,6 +64,18 @@ export function calcularDistribuicaoLancamento(input: {
   const totalDistribuido = round2(totalPessoas + parceriaExterna + saldoImobiliaria);
 
   const inconsistencias: string[] = [];
+  for (const linha of input.linhas) {
+    const percentual = linha.percentual == null || linha.percentual === "" ? null : Number(linha.percentual);
+    const valor = linha.valor == null || linha.valor === "" ? null : Number(linha.valor);
+    if (percentual != null && valor != null && baseSaldo > 0) {
+      const esperado = round2((percentual / 100) * baseSaldo);
+      if (Math.abs(esperado - valor) > 0.01) {
+        inconsistencias.push(
+          `Percentual e valor divergentes: ${percentual}% corresponde a R$ ${esperado.toFixed(2)}, não a R$ ${valor.toFixed(2)}.`,
+        );
+      }
+    }
+  }
   if (baseSaldo > 0 && saldoImobiliaria < -0.01) {
     inconsistencias.push(
       `A soma das comissões de pessoas e parceria externa (R$ ${(totalPessoas + parceriaExterna).toFixed(2)}) ultrapassa a comissão bruta${premioValor > 0 ? " + prêmio" : ""} (R$ ${baseSaldo.toFixed(2)}) em R$ ${Math.abs(saldoImobiliaria).toFixed(2)}.`,
