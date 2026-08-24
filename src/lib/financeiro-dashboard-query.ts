@@ -95,6 +95,19 @@ async function callRpc<T>(name: string): Promise<T[]> {
   return data ?? [];
 }
 
+function exigirDados<T>(
+  resultado: { data: T | null; error: { message: string } | null },
+  origem: string,
+): T {
+  if (resultado.error) {
+    throw new Error(`Dados financeiros incompletos (${origem}): ${resultado.error.message}`);
+  }
+  if (resultado.data == null) {
+    throw new Error(`Dados financeiros incompletos (${origem}): resposta vazia inesperada.`);
+  }
+  return resultado.data;
+}
+
 function resolverEquipePorCorretor(
   teams: TeamRow[],
   members: TeamMemberRow[],
@@ -140,15 +153,15 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const [
     efetivadasRaw,
     inconsistencias,
-    { data: occs },
-    { data: sales },
-    { data: commissions },
-    { data: partners },
-    { data: extras },
-    { data: profiles },
-    { data: teams },
-    { data: members },
-    { data: coLeaders },
+    occsResult,
+    salesResult,
+    commissionsResult,
+    partnersResult,
+    extrasResult,
+    profilesResult,
+    teamsResult,
+    membersResult,
+    coLeadersResult,
   ] = await Promise.all([
     callRpc<EfetivacaoRawRow>("comparativo_comissao_6pct"),
     callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
@@ -169,6 +182,16 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     supabase.from("team_members").select("membro_id, team_id"),
     supabase.from("team_co_leaders").select("user_id, team_id"),
   ]);
+
+  const occs = exigirDados(occsResult, "ocorrências");
+  const sales = exigirDados(salesResult, "vendas");
+  const commissions = exigirDados(commissionsResult, "comissões");
+  const partners = exigirDados(partnersResult, "parcerias");
+  const extras = exigirDados(extrasResult, "comissões extras");
+  const profiles = exigirDados(profilesResult, "usuários");
+  const teams = exigirDados(teamsResult, "equipes");
+  const members = exigirDados(membersResult, "membros das equipes");
+  const coLeaders = exigirDados(coLeadersResult, "colíderes das equipes");
 
   const nomePorId = new Map<string, string>();
   for (const p of profiles ?? []) nomePorId.set(p.id, p.nome ?? p.id);

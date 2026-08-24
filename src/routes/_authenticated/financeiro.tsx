@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -62,22 +62,26 @@ function CentralFinanceiraPage() {
   const [filtros, setFiltros] = useState<FinanceiroFiltros>(filtrosPadraoFinanceiro());
   const hoje = hojeISO();
 
-  useEffect(() => {
+  const carregar = useCallback(async () => {
     if (!allowed) {
       setLoading(false);
       return;
     }
-    (async () => {
-      setLoading(true);
-      setErro(null);
-      try {
-        setBundle(await fetchFinanceiroBundle());
-      } catch (err) {
-        setErro(err instanceof Error ? err.message : "Falha ao carregar a Central Financeira.");
-      }
+    setLoading(true);
+    setErro(null);
+    try {
+      setBundle(await fetchFinanceiroBundle());
+    } catch (err) {
+      setBundle(null);
+      setErro(err instanceof Error ? err.message : "Falha ao carregar a Central Financeira.");
+    } finally {
       setLoading(false);
-    })();
+    }
   }, [allowed]);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
 
   const parcelasFiltradas = useMemo(
     () => (bundle ? aplicarFiltrosParcelas(bundle.parcelas, filtros) : []),
@@ -172,6 +176,22 @@ function CentralFinanceiraPage() {
     );
   }
 
+  if (erro || !bundle) {
+    return (
+      <Card className="border-destructive/40">
+        <CardContent className="space-y-3 py-8 text-center">
+          <p className="font-medium text-destructive">Não foi possível carregar todos os dados financeiros.</p>
+          <p className="text-sm text-muted-foreground">
+            {erro ?? "A Central Financeira recebeu uma resposta incompleta e não exibirá totais parciais."}
+          </p>
+          <Button type="button" variant="outline" onClick={() => void carregar()}>
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -182,12 +202,6 @@ function CentralFinanceiraPage() {
           previsto/recebeu e a competência calculada por beneficiário.
         </p>
       </div>
-
-      {erro && (
-        <Card className="border-destructive/40">
-          <CardContent className="py-3 text-sm text-destructive">{erro}</CardContent>
-        </Card>
-      )}
 
       <Filters
         filtros={filtros}
