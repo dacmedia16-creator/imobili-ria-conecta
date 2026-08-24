@@ -12,7 +12,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, proximoResponsavelRoles, type SaleStatus } from "@/lib/status";
+import {
+  STATUS_LABEL, VEZ_DE_AGIR_LABEL, proximoResponsavelRoles, statusDaVezDeAgir,
+  vezDeAgir, type SaleStatus, type VezDeAgir,
+} from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
@@ -35,6 +38,7 @@ function SalesList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>("todas");
+  const [vezFilter, setVezFilter] = useState<string>("todas");
   const [diasFilter, setDiasFilter] = useState<number | null>(null);
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
@@ -123,9 +127,10 @@ function SalesList() {
   // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
   // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
   // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{ status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }> => {
-    const filters: { status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] } = {};
+  const buildFilters = useCallback(async (): Promise<{ status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }> => {
+    const filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
+    if (statusFilter === "todas" && vezFilter !== "todas") filters.statuses = statusDaVezDeAgir(vezFilter as VezDeAgir);
     // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
     // uuid que nunca bate em vez de deixar o .in() vazio, que o PostgREST trataria como "sem filtro".
     if (equipeFilter !== "todas") filters.corretorIds = memberIdsByTeam[equipeFilter]?.length ? memberIdsByTeam[equipeFilter] : ["00000000-0000-0000-0000-000000000000"];
@@ -156,11 +161,12 @@ function SalesList() {
       filters.orParts = orParts;
     }
     return filters;
-  }, [statusFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
+  }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = (query: any, filters: { status?: string; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }) => {
+  const applyFilters = (query: any, filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
+    if (filters.statuses) out = out.in("status", filters.statuses);
     // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
     // não pela data de criação — assim o filtro reflete o mesmo recorte que a pessoa já enxerga.
     if (filters.desde) out = out.gte("updated_at", filters.desde);
@@ -314,6 +320,13 @@ function SalesList() {
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={vezFilter} onValueChange={setVezFilter}>
+              <SelectTrigger className="md:w-56"><SelectValue placeholder="Aguardando ação de" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Aguardando ação de...</SelectItem>
+                {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+              </SelectContent>
+            </Select>
             {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && teamOptions.length > 0 && (
               <Select value={equipeFilter} onValueChange={setEquipeFilter}>
                 <SelectTrigger className="md:w-56"><SelectValue placeholder="Equipe" /></SelectTrigger>
@@ -440,6 +453,7 @@ function SalesList() {
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <StatusBadge status={s.status as SaleStatus} />
+                        <VezDeAgirBadge status={s.status as SaleStatus} />
                         {minhaVez && (
                           <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
                             Sua vez
@@ -466,6 +480,7 @@ function SalesList() {
                       {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && <TableHead>Gestor/Líder</TableHead>}
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Vez de agir</TableHead>
                       <TableHead>Nesta etapa</TableHead>
                       <TableHead>Atualizado em</TableHead>
                       <TableHead className="w-10" />
@@ -495,6 +510,7 @@ function SalesList() {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell><VezDeAgirBadge status={s.status as SaleStatus} /></TableCell>
                           <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
                           <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
                           <TableCell>
@@ -554,5 +570,22 @@ function SalesList() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+const VEZ_DE_AGIR_TONE: Record<VezDeAgir, string> = {
+  corretor: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  financeiro: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  juridico: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
+  concluido: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
+};
+
+function VezDeAgirBadge({ status }: { status: SaleStatus }) {
+  const responsavel = vezDeAgir(status);
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VEZ_DE_AGIR_TONE[responsavel]}`}>
+      {VEZ_DE_AGIR_LABEL[responsavel]}
+    </span>
   );
 }

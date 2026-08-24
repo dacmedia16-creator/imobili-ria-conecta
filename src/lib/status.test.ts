@@ -5,10 +5,31 @@ import {
   GRUPO_VENDA_LABEL,
   STATUS_LABEL,
   calcularComposicaoPagamento,
+  statusDaVezDeAgir,
   validarComposicaoPagamento,
+  vezDeAgir,
   type GrupoVenda,
   type SaleStatus,
 } from "./status";
+
+describe("vezDeAgir", () => {
+  it.each([
+    ["devolvida_ajuste", "corretor"],
+    ["enviada_revisao", "gestor"],
+    ["enviada_juridico", "juridico"],
+    ["ocorrencia_analise_financeiro", "financeiro"],
+    ["ocorrencia_concluida", "concluido"],
+    ["cancelada", "concluido"],
+  ] as const)("%s sinaliza %s", (status, responsavel) => {
+    expect(vezDeAgir(status)).toBe(responsavel);
+  });
+
+  it("gera filas completas e sem sobreposição", () => {
+    const filas = (["corretor", "gestor", "juridico", "financeiro", "concluido"] as const).flatMap(statusDaVezDeAgir);
+    expect(filas.sort()).toEqual([...TODOS_OS_STATUS].sort());
+    expect(new Set(filas).size).toBe(TODOS_OS_STATUS.length);
+  });
+});
 
 describe("validarComposicaoPagamento", () => {
   const sale = { valor_negociado: 370000 };

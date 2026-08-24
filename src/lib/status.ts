@@ -281,6 +281,16 @@ export function proximoResponsavel(status: SaleStatus): { titulo: string; papel:
 /** Papel(is) responsável(is) pela próxima ação em cada status — usado para destacar, na lista de
  * vendas, quais vendas estão esperando uma ação do usuário logado ("é a vez dele"). */
 export type ResponsavelRole = "corretor" | "gestor" | "juridico" | "financeiro";
+export type VezDeAgir = ResponsavelRole | "concluido";
+
+export const VEZ_DE_AGIR_LABEL: Record<VezDeAgir, string> = {
+  corretor: "Corretor",
+  gestor: "Gestor",
+  juridico: "Jurídico",
+  financeiro: "Financeiro",
+  concluido: "Processo concluído",
+};
+
 export function proximoResponsavelRoles(status: SaleStatus): ResponsavelRole[] {
   switch (status) {
     case "rascunho":
@@ -304,6 +314,16 @@ export function proximoResponsavelRoles(status: SaleStatus): ResponsavelRole[] {
     default:
       return [];
   }
+}
+
+/** Etiqueta resumida usada na lista para deixar explícito com quem está a próxima ação. */
+export function vezDeAgir(status: SaleStatus): VezDeAgir {
+  return proximoResponsavelRoles(status)[0] ?? "concluido";
+}
+
+/** Status pertencentes a uma fila, usado pelo filtro sem depender da página já carregada. */
+export function statusDaVezDeAgir(responsavel: VezDeAgir): SaleStatus[] {
+  return (Object.keys(STATUS_LABEL) as SaleStatus[]).filter((status) => vezDeAgir(status) === responsavel);
 }
 
 export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
