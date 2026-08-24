@@ -287,6 +287,20 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       const recebidoEm: string | null = o[`prev_recebimento${suf}_recebido_em`];
       const recebidoValor: number | null = o[`prev_recebimento${suf}_recebido_valor`];
 
+      if ((data && valor == null) || (!data && valor != null)) {
+        divergencias.push({
+          id: `parcela-previsao-incompleta:${occ.id}:${n}`,
+          gravidade: "media",
+          saleId: sale.id,
+          imovelLabel,
+          tipo: "Previsão de recebimento sem data ou sem valor",
+          explicacao: `Parcela ${n}ª da venda ${imovelLabel}: ${data ? "tem data prevista mas falta o valor" : "tem valor previsto mas falta a data"}.`,
+          valorAfetado: valor ?? null,
+          acaoRecomendada: "Completar a previsão de recebimento na venda antes do fechamento financeiro.",
+          linkTo: `/vendas/${sale.id}`,
+        });
+      }
+
       // Parcela marcada como recebida com só metade do par (data sem valor, ou valor sem data) —
       // dado inconsistente, independente de a parcela ter previsão completa ou não.
       if ((recebidoEm && recebidoValor == null) || (!recebidoEm && recebidoValor != null)) {
