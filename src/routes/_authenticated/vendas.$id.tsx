@@ -23,6 +23,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import {
   getSaleRoleFlags, isSaleLocked, corretorPodeEditar, gestorPodeEditar, juridicoPodeEditar,
+  gestorPodeEncerrar,
   podeEditarVenda, comissaoValorExcedido,
   podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
@@ -481,6 +482,9 @@ function SaleDetail() {
   const isOwnerGestor = isOwner && isGestor;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
+  const canCloseSale =
+    isAdminLike ||
+    (gestorPodeEncerrar(isGestor, status) && teamIds.has(sale.corretor_id));
 
   const onConfirmDelete = async () => {
     setDeleting(true);
@@ -1852,7 +1856,7 @@ function SaleDetail() {
             </Button>
           )}
 
-          {isAdminLike && status !== "arquivada" && status !== "cancelada" && (
+          {canCloseSale && status !== "arquivada" && status !== "cancelada" && (
             <>
               <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>Arquivar</Button>
               <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => openArchiveDialog("cancelada")}>Cancelar venda</Button>

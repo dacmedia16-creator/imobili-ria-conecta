@@ -5,6 +5,7 @@ import {
   comissaoValorExcedido,
   corretorPodeEditar,
   getSaleRoleFlags,
+  gestorPodeEncerrar,
   gestorPodeEditar,
   isSaleLocked,
   juridicoPodeEditar,
@@ -100,6 +101,17 @@ describe("gestorPodeEditar", () => {
   it("nega fora desses status ou se não for gestor", () => {
     expect(gestorPodeEditar(true, "rascunho")).toBe(false);
     expect(gestorPodeEditar(false, "enviada_revisao")).toBe(false);
+  });
+});
+
+describe("gestorPodeEncerrar", () => {
+  it("permite cancelar ou arquivar somente quando a etapa está com o gestor", () => {
+    expect(gestorPodeEncerrar(true, "enviada_revisao")).toBe(true);
+    expect(gestorPodeEncerrar(true, "contrato_conferencia_gestor")).toBe(true);
+    expect(gestorPodeEncerrar(true, "ocorrencia_devolvida_gestor")).toBe(true);
+    expect(gestorPodeEncerrar(true, "rascunho")).toBe(false);
+    expect(gestorPodeEncerrar(true, "aprovada_gestor")).toBe(false);
+    expect(gestorPodeEncerrar(false, "enviada_revisao")).toBe(false);
   });
 });
 

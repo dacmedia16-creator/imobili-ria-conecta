@@ -48,6 +48,13 @@ export function gestorPodeEditar(isGestor: boolean, status: SaleStatus): boolean
   );
 }
 
+/** O gestor pode encerrar uma venda somente enquanto ela está em uma etapa sob responsabilidade
+ * dele. O vínculo com a própria equipe é validado separadamente na tela e, obrigatoriamente, no
+ * banco (is_lead_of), para a regra não depender apenas do frontend. */
+export function gestorPodeEncerrar(isGestor: boolean, status: SaleStatus): boolean {
+  return gestorPodeEditar(isGestor, status);
+}
+
 export function juridicoPodeEditar(isJuridico: boolean, status: SaleStatus): boolean {
   return (
     isJuridico && (["aprovada_gestor", "em_elaboracao_contrato"] as SaleStatus[]).includes(status)
