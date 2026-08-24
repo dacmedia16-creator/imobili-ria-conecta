@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
@@ -14,7 +14,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   agruparContagemPorGrupoVenda,
   proximoResponsavelRoles,
@@ -22,6 +27,13 @@ import {
   type SaleStatus,
 } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
+import {
+  aplicarFiltrosEfetivacao,
+  aplicarFiltrosParcelas,
+  calcularResumo,
+  filtrosPadraoFinanceiro,
+} from "@/lib/financeiro-dashboard-calc";
+import { fetchFinanceiroBundle, type FinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import {
   PERIODO_LABEL,
   resolverPeriodo,
@@ -33,7 +45,12 @@ import {
   fetchMovimentacaoPeriodo,
   type MovimentacaoPeriodo,
 } from "@/lib/dashboard-movimentacao-query";
-import { InfoDot, KpiCard, MovimentacaoCard, ResumoGrupoVendaCards } from "@/components/dashboard/shared";
+import {
+  InfoDot,
+  KpiCard,
+  MovimentacaoCard,
+  ResumoGrupoVendaCards,
+} from "@/components/dashboard/shared";
 import {
   Plus,
   FileText,
@@ -51,6 +68,8 @@ import {
   Landmark,
   ChevronRight,
   ArrowRight,
+  CalendarDays,
+  CircleDollarSign,
   type LucideIcon,
 } from "lucide-react";
 
@@ -83,7 +102,7 @@ const funilChartConfig = {
 type DashboardSearch = { periodo?: PeriodoTipo; de?: string | null; ate?: string | null };
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard" }] }),
+  head: () => ({ meta: [{ title: "Painel do Gestor" }] }),
   // Sanitiza search params da URL (periodo/de/ate) pra Movimentação do período (Etapa 2B) — valor
   // desconhecido ou ausente cai com segurança em "mes_atual", nunca propaga lixo pro resto da tela.
   // de/ate só aparecem na URL quando periodo === "personalizado" (chave ausente vira `undefined`,
@@ -130,10 +149,20 @@ type DashboardStats = {
 const RECENTES_COLUMNS =
   "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at";
 
+type VendaRecente = {
+  id: string;
+  status: string;
+  valor_negociado: number | null;
+  imovel_id: string | null;
+  codigo_interno: string | null;
+  corretor_id: string;
+  updated_at: string;
+};
+
 function Dashboard() {
   const { user, roles, hasAny } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentes, setRecentes] = useState<any[]>([]);
+  const [recentes, setRecentes] = useState<VendaRecente[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metaCorretor, setMetaCorretor] = useState<{
     meta_comissao: number;
@@ -278,10 +307,14 @@ function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Olá, {(user && profileName[user.id]) || user?.email?.split("@")[0]}
+            {isFinanceiro
+              ? "Painel do gestor"
+              : `Olá, ${(user && profileName[user.id]) || user?.email?.split("@")[0]}`}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Perfis: {roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}
+            {isFinanceiro
+              ? `Olá, ${(user && profileName[user.id]) || user?.email?.split("@")[0]}. Aqui está o que merece sua atenção.`
+              : `Perfis: ${roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}`}
           </p>
         </div>
         {hasAny(["corretor", "gestor", "team_leader"]) && (
@@ -295,6 +328,8 @@ function Dashboard() {
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+
+      {isFinanceiro && <ResumoGestorMes />}
 
       {!loading && totalGeral > 0 && (
         <Card>
@@ -592,6 +627,145 @@ function Dashboard() {
   );
 }
 
+const moeda = (valor: number) =>
+  valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function intervaloMesAtual() {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth();
+  const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+  const mm = String(mes + 1).padStart(2, "0");
+  return {
+    de: `${ano}-${mm}-01`,
+    ate: `${ano}-${mm}-${String(ultimoDia).padStart(2, "0")}`,
+    hoje: `${ano}-${mm}-${String(agora.getDate()).padStart(2, "0")}`,
+    label: agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
+  };
+}
+
+/** Resumo executivo: reaproveita exatamente o bundle, filtros e cálculo da Central Financeira.
+ * Assim o Painel do Gestor não cria uma segunda regra para VGV ou previsão líquida. */
+function ResumoGestorMes() {
+  const [bundle, setBundle] = useState<FinanceiroBundle | null>(null);
+  const [erro, setErro] = useState(false);
+  const periodo = useMemo(intervaloMesAtual, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetchFinanceiroBundle()
+      .then((dados) => {
+        if (!cancelado) setBundle(dados);
+      })
+      .catch((e: unknown) => {
+        console.error("painel-gestor-financeiro:", e);
+        if (!cancelado) setErro(true);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const resumo = useMemo(() => {
+    if (!bundle) return null;
+    const filtros = { ...filtrosPadraoFinanceiro(), dataDe: periodo.de, dataAte: periodo.ate };
+    return calcularResumo({
+      parcelas: aplicarFiltrosParcelas(bundle.parcelas, filtros),
+      comissoes: [],
+      efetivadas: aplicarFiltrosEfetivacao(bundle.efetivadas, filtros),
+      divergenciasAbertas: bundle.divergencias.length,
+      hoje: periodo.hoje,
+    });
+  }, [bundle, periodo]);
+
+  return (
+    <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="grid lg:grid-cols-[1.1fr_2fr]">
+        <div className="border-b bg-slate-950 p-5 text-white lg:border-b-0 lg:border-r">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
+            <CalendarDays className="h-4 w-4" /> Este mês
+          </div>
+          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">{periodo.label}</h2>
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
+            O essencial da operação em uma leitura. Os detalhes continuam disponíveis na Central
+            Financeira.
+          </p>
+          <Button asChild variant="secondary" size="sm" className="mt-5">
+            <Link to="/financeiro">
+              Abrir financeiro <ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+          {erro ? (
+            <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
+              O resumo mensal não pôde ser carregado. Consulte a Central Financeira.
+            </div>
+          ) : !resumo ? (
+            <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
+              Carregando resumo mensal...
+            </div>
+          ) : (
+            <>
+              <ResumoExecutivoCard
+                icon={TrendingUp}
+                label="VGV efetivado"
+                value={moeda(resumo.vgvEfetivado)}
+              />
+              <ResumoExecutivoCard
+                icon={CircleDollarSign}
+                label="Previsto para a imobiliária"
+                value={moeda(resumo.previstoImobiliaria)}
+                hint="Parceria externa já descontada"
+              />
+              <ResumoExecutivoCard
+                icon={Landmark}
+                label="Recebido"
+                value={moeda(resumo.recebidoImobiliaria)}
+              />
+              <ResumoExecutivoCard
+                icon={AlertCircle}
+                label="Divergências abertas"
+                value={String(resumo.divergenciasAbertas)}
+                danger={resumo.divergenciasAbertas > 0}
+                hint="Fila completa, sem filtro de período"
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ResumoExecutivoCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  danger = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint?: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="min-h-36 bg-card p-4">
+      <Icon className={`h-5 w-5 ${danger ? "text-destructive" : "text-muted-foreground"}`} />
+      <p className="mt-5 text-xs font-medium text-muted-foreground">{label}</p>
+      <p
+        className={`mt-1 text-xl font-semibold tracking-tight ${danger ? "text-destructive" : ""}`}
+      >
+        {value}
+      </p>
+      {hint && <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
 function DashSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
@@ -673,7 +847,9 @@ function CollapsibleSection({
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
         />
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h2>
         {badge && (
           <span
             className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -883,4 +1059,3 @@ function MovimentacaoPeriodoSection() {
     </Card>
   );
 }
-

@@ -26,8 +26,9 @@ import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import type { ReactNode } from "react";
 
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
+type NavGroup = { label?: string; items: NavItem[]; compact?: boolean };
 
-function SidebarNav({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => void }) {
+function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
   const { user, roles, signOut } = useAuth();
   const router = useRouter();
 
@@ -45,22 +46,33 @@ function SidebarNav({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () => vo
           <span className="block text-xs text-white/70">Única Escolha</span>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
-        {nav
-          .filter((n) => n.show)
-          .map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              activeOptions={{ exact: n.to === "/" }}
-              onClick={onNavigate}
-              className="flex touch-manipulation items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-sm text-white/85 hover:bg-white/10 hover:text-white"
-              activeProps={{ className: "bg-white/10 border-[#ff3b3b] text-white font-medium" }}
-            >
-              <n.icon className="h-4 w-4" />
-              {n.label}
-            </Link>
-          ))}
+      <nav className="flex-1 space-y-5 overflow-y-auto p-3">
+        {groups.map((group) => {
+          const visible = group.items.filter((n) => n.show);
+          if (visible.length === 0) return null;
+          return (
+            <div key={group.label ?? "principal"} className="space-y-1">
+              {group.label && (
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                  {group.label}
+                </p>
+              )}
+              {visible.map((n) => (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeOptions={{ exact: n.to === "/" }}
+                  onClick={onNavigate}
+                  className={`flex touch-manipulation items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-white/85 hover:bg-white/10 hover:text-white ${group.compact ? "py-1.5 text-xs" : "py-2 text-sm"}`}
+                  activeProps={{ className: "bg-white/10 border-[#ff3b3b] text-white font-medium" }}
+                >
+                  <n.icon className="h-4 w-4" />
+                  {n.label}
+                </Link>
+              ))}
+            </div>
+          );
+        })}
       </nav>
       <div className="border-t border-white/10 p-3 text-xs">
         <div className="mb-1 truncate font-medium text-white">{user?.email}</div>
@@ -84,15 +96,30 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { hasAny, roles } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const nav: NavItem[] = [
-    { to: "/dashboard", label: "Dashboard", icon: Home, show: true },
+  const primaryNav: NavItem[] = [
+    { to: "/dashboard", label: "Início", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     {
+      to: "/financeiro",
+      label: "Financeiro",
+      icon: Landmark,
+      show: podeAcessarCentralFinanceira(roles),
+    },
+    {
       to: "/visao-executiva",
-      label: "Visão Executiva",
+      label: "Desempenho",
       icon: Gauge,
       show: hasAny(["admin", "super_admin", "financeiro"]),
     },
+    {
+      to: "/equipe",
+      label: "Equipes",
+      icon: UsersRound,
+      show: hasAny(["gestor", "team_leader", "admin", "super_admin"]),
+    },
+  ];
+
+  const reportNav: NavItem[] = [
     {
       to: "/comparativo-comissao",
       label: "Comparativo 6%",
@@ -111,19 +138,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: TrendingUp,
       show: hasAny(["admin", "super_admin", "financeiro"]),
     },
-    // Mesma função usada no beforeLoad da rota (financeiro-dashboard-calc.ts) — fonte única, nunca diverge.
-    {
-      to: "/financeiro",
-      label: "Central Financeira",
-      icon: Landmark,
-      show: podeAcessarCentralFinanceira(roles),
-    },
-    {
-      to: "/equipe",
-      label: "Equipe",
-      icon: UsersRound,
-      show: hasAny(["gestor", "team_leader", "admin", "super_admin"]),
-    },
     {
       to: "/relatorios",
       label: "Relatórios",
@@ -136,6 +150,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: Wallet,
       show: hasAny(["financeiro", "admin", "super_admin"]),
     },
+  ];
+
+  const accountNav: NavItem[] = [
     { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
     { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
     {
@@ -146,6 +163,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   ];
 
+  const navGroups: NavGroup[] = [
+    { items: primaryNav },
+    { label: "Relatórios detalhados", items: reportNav, compact: true },
+    { label: "Conta e acesso", items: accountNav, compact: true },
+  ];
+
   // print:min-h-0 — sem isso essa div ficava reservando uma tela cheia de altura vazia na
   // impressão (o menu lateral/cabeçalho já somem com print:hidden, mas o min-h-screen continua
   // valendo pro wrapper), empurrando o conteúdo real (ex.: modal Visão geral) pra segunda página,
@@ -154,7 +177,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background print:min-h-0">
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden">
         <BrandHeroBackground />
-        <SidebarNav nav={nav} />
+        <SidebarNav groups={navGroups} />
       </aside>
 
       <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden">
@@ -180,7 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <BrandHeroBackground />
               <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
               <SheetDescription className="sr-only">Links de navegação do portal</SheetDescription>
-              <SidebarNav nav={nav} onNavigate={() => setMobileNavOpen(false)} />
+              <SidebarNav groups={navGroups} onNavigate={() => setMobileNavOpen(false)} />
             </SheetContent>
           </Sheet>
         </div>
