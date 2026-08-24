@@ -47,6 +47,38 @@ describe("validarComposicaoPagamento", () => {
       tipo_pagamento: "financiamento", entrada_valor: 120000, financiamento_valor: 273000,
     })).toEqual({ tipo: "financiamento", valorVenda: 370000, total: 393000, diferenca: -23000 });
   });
+
+  it("bloqueia valor negativo mesmo quando ele fecha artificialmente a composição", () => {
+    expect(validarComposicaoPagamento(sale, {
+      tipo_pagamento: "financiamento",
+      entrada_valor: -23000,
+      financiamento_valor: 393000,
+    })[0].mensagem).toBe("Os valores da composição não podem ser negativos");
+  });
+
+  it("detecta financiamento repetido no pagamento final", () => {
+    expect(validarComposicaoPagamento({ valor_negociado: 250000 }, {
+      tipo_pagamento: "financiamento",
+      entrada_valor: 130000,
+      financiamento_valor: 120000,
+      pagamento_final_valor: 120000,
+    })[0].mensagem).toContain("R$\u00a0120.000,00 acima");
+  });
+
+  it("não contabiliza valores escritos somente nas observações", () => {
+    expect(validarComposicaoPagamento({ valor_negociado: 276000 }, {
+      tipo_pagamento: "vista",
+      entrada_valor: 46000,
+      observacoes: "5 parcelas de R$ 46.000,00",
+    })[0].mensagem).toContain("R$\u00a0230.000,00 abaixo");
+  });
+
+  it("aceita diferença de até um centavo por tolerância de arredondamento", () => {
+    expect(validarComposicaoPagamento({ valor_negociado: 100 }, {
+      tipo_pagamento: "vista",
+      entrada_valor: 99.99,
+    })).toEqual([]);
+  });
 });
 
 // Fonte única e autoritativa de "todos os SaleStatus que existem": chaves de STATUS_LABEL, que já

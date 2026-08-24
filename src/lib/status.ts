@@ -376,6 +376,14 @@ export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[]
   if (valorVenda <= 0) return [];
   if (!payment) return [{ campo: "pagamento", mensagem: "Falta detalhar a forma de pagamento" }];
 
+  const camposMonetarios = [
+    "entrada_valor", "parcela1_valor", "parcela2_valor", "pagamento_final_valor",
+    "fgts_valor", "financiamento_valor", "consorcio_valor",
+  ];
+  if (camposMonetarios.some((campo) => numeroFinanceiro(payment[campo]) < 0)) {
+    return [{ campo: "pagamento", mensagem: "Os valores da composição não podem ser negativos" }];
+  }
+
   if (tipo === "financiamento" && numeroFinanceiro(payment.financiamento_valor) <= 0) {
     return [{ campo: "pagamento", mensagem: "Informe o valor financiado" }];
   }
