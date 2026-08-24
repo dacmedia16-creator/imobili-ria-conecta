@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado, verificarComissoesDesatualizadas, type OcorrenciaComissaoRow, type SaleExtraRow } from "./sale-financial-calc";
+import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado, deveSincronizarComissaoFixa, verificarComissoesDesatualizadas, type OcorrenciaComissaoRow, type SaleExtraRow } from "./sale-financial-calc";
 
 // Cenário base do pedido: venda R$730.000, comissão 6% (R$43.800), parceria 3% (R$21.900),
 // parte RE/MAX 3% (R$21.900), captador R$4.927,50, vendedor R$4.927,50 (valores fixos em reais,
@@ -179,5 +179,36 @@ describe("verificarComissoesDesatualizadas", () => {
   it("sem distribuição carregada ainda, não acusa nada (evita falso positivo durante o loading)", () => {
     const desatualizado = verificarComissoesDesatualizadas({ sale, distribuicao: null, commissions: [], commissionExtras: [] });
     expect(desatualizado).toBe(false);
+  });
+
+  it("parceria externa com captador interno vazio e R$ 0 não cria comissão sem vínculo", () => {
+    const vendaComParceriaExterna = {
+      ...sale,
+      corretor_captador: null,
+      corretor_captador_id: null,
+      valor_comissao_captador: 0,
+      parceria_tipo: "imobiliaria_externa",
+      parceria_nome: "Bponto Imóveis",
+      parceria_valor: 5550,
+    };
+    const desatualizado = verificarComissoesDesatualizadas({
+      sale: vendaComParceriaExterna,
+      distribuicao: { liquido_captador: 0, liquido_vendedor: null },
+      commissions: [],
+      commissionExtras: [],
+    });
+    expect(desatualizado).toBe(false);
+  });
+});
+
+describe("deveSincronizarComissaoFixa", () => {
+  it("ignora linha totalmente vazia mesmo quando o formulário envia zero", () => {
+    expect(deveSincronizarComissaoFixa(null, 0, null)).toBe(false);
+  });
+
+  it("preserva linha que tenha nome, vínculo ou valor diferente de zero", () => {
+    expect(deveSincronizarComissaoFixa("Captador", 0, null)).toBe(true);
+    expect(deveSincronizarComissaoFixa(null, 0, "user-1")).toBe(true);
+    expect(deveSincronizarComissaoFixa(null, 100, null)).toBe(true);
   });
 });

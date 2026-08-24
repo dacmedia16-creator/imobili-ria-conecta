@@ -103,6 +103,15 @@ export type SaleExtraRow = { id: string; papel: string | null; nome: string | nu
 const PAPEIS_FIXOS = ["corretor_captador", "corretor_vendedor", "indicador_captador", "indicador_vendedor", "lider_captador", "lider_vendedor"] as const;
 
 /**
+ * Uma comissão fixa só existe quando há uma pessoa identificada ou valor efetivamente positivo.
+ * Campos monetários vazios chegam como 0 em algumas vendas com parceria externa; tratá-los como
+ * comissão criaria uma linha sem vínculo e faria a constraint do banco bloquear a ocorrência.
+ */
+export function deveSincronizarComissaoFixa(nome: string | null, valorBruto: number | null, userId: string | null): boolean {
+  return nome != null || Number(valorBruto ?? 0) !== 0 || userId != null;
+}
+
+/**
  * Compara as linhas GERENCIADAS (managed_by_sale=true) de occurrence_commissions contra o que
  * calcular_distribuicao_venda()/sale_commission_extras dizem que deveria estar lá. "Deveria existir"
  * usa a MESMA regra de sync_occurrence_commissions (nome, valor bruto OU user_id não-nulos) — nunca
@@ -129,7 +138,7 @@ export function verificarComissoesDesatualizadas(args: {
   ];
 
   const divergeFixo = checagens.some(({ papel, nome, valorBruto, valorEsperado, userIdEsperado }) => {
-    const deveriaExistir = nome != null || valorBruto != null || userIdEsperado != null;
+    const deveriaExistir = deveSincronizarComissaoFixa(nome, valorBruto, userIdEsperado);
     const row = commissions.find((r) => r.papel === papel && !r.sale_commission_extra_id && r.managed_by_sale === true);
     if (!deveriaExistir) return !!row; // linha automática velha ainda presente = desatualizado
     if (!row) return true; // deveria existir e não tem linha automática = desatualizado
