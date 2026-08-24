@@ -4,9 +4,43 @@ import {
   classificarGrupoVenda,
   GRUPO_VENDA_LABEL,
   STATUS_LABEL,
+  validarComposicaoPagamento,
   type GrupoVenda,
   type SaleStatus,
 } from "./status";
+
+describe("validarComposicaoPagamento", () => {
+  const sale = { valor_negociado: 370000 };
+
+  it("exige o valor da carta quando a modalidade é consórcio", () => {
+    expect(validarComposicaoPagamento(sale, {
+      tipo_pagamento: "consorcio", entrada_valor: 10000, parcela1_valor: 35000,
+    })[0].mensagem).toBe("Informe o valor da carta de consórcio");
+  });
+
+  it("aceita consórcio quando a composição fecha o valor da venda", () => {
+    expect(validarComposicaoPagamento(sale, {
+      tipo_pagamento: "consorcio", entrada_valor: 10000, parcela1_valor: 35000, consorcio_valor: 325000,
+    })).toEqual([]);
+  });
+
+  it("exige valor financiado", () => {
+    expect(validarComposicaoPagamento(sale, { tipo_pagamento: "financiamento" })[0].mensagem)
+      .toBe("Informe o valor financiado");
+  });
+
+  it("informa quanto falta na composição", () => {
+    expect(validarComposicaoPagamento(sale, {
+      tipo_pagamento: "vista", entrada_valor: 45000,
+    })[0].mensagem).toContain("R$\u00a0325.000,00 abaixo");
+  });
+
+  it("informa quanto excede na composição", () => {
+    expect(validarComposicaoPagamento(sale, {
+      tipo_pagamento: "vista", entrada_valor: 400000,
+    })[0].mensagem).toContain("R$\u00a030.000,00 acima");
+  });
+});
 
 // Fonte única e autoritativa de "todos os SaleStatus que existem": chaves de STATUS_LABEL, que já
 // é um Record<SaleStatus, string> exaustivo (o TS não deixaria faltar nenhuma). Evita um array

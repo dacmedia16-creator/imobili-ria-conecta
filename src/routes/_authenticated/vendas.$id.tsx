@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, MIDIA_OPTIONS, validarProntaParaRevisao, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, MIDIA_OPTIONS, validarProntaParaRevisao, validarComposicaoPagamento, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -532,6 +532,7 @@ function SaleDetail() {
   // Gestor só manda pro jurídico com todo documento obrigatório já aprovado (não só enviado) —
   // sem isso, ficava aberto aprovar a venda inteira sem ter revisado nenhum documento de fato.
   const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(parties, docs);
+  const pendenciasPagamento = validarComposicaoPagamento(sale, payment);
 
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
@@ -885,6 +886,7 @@ function SaleDetail() {
     // Dono também é gestor/team leader: em vez de ir para "enviada_revisao" (que ele mesmo teria que
     // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
     if (isOwnerGestor) {
+      if (pendenciasPagamento.length > 0) { toast.error(pendenciasPagamento[0].mensagem); return; }
       if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
       if (distribuicao && !distribuicao.calculo_valido) {
         toast.error(`Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
@@ -900,6 +902,7 @@ function SaleDetail() {
 
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
+    if (pendenciasPagamento.length > 0) { toast.error(pendenciasPagamento[0].mensagem); return; }
     if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
     // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
     // bloqueia isso de qualquer forma (trigger em change_sale_status), mas checar aqui primeiro evita
@@ -2118,7 +2121,10 @@ function SaleDetail() {
                 </>
               )}
               {payment?.tipo_pagamento === "consorcio" && (
-                <ReviewItem label="Consórcio" value={[payment?.consorcio_nome, payment?.consorcio_grupo && `Grupo ${payment.consorcio_grupo}`, payment?.consorcio_cota && `Cota ${payment.consorcio_cota}`].filter(Boolean).join(" — ") || null} />
+                <>
+                  <ReviewItem label="Valor da carta de consórcio" value={money(payment?.consorcio_valor)} />
+                  <ReviewItem label="Consórcio" value={[payment?.consorcio_nome, payment?.consorcio_grupo && `Grupo ${payment.consorcio_grupo}`, payment?.consorcio_cota && `Cota ${payment.consorcio_cota}`].filter(Boolean).join(" — ") || null} />
+                </>
               )}
               <ReviewItem label="Observações" value={payment?.observacoes} />
             </ReviewGroup>

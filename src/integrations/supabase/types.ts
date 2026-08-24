@@ -825,6 +825,7 @@ export type Database = {
           consorcio_cota: string | null
           consorcio_grupo: string | null
           consorcio_nome: string | null
+          consorcio_valor: number | null
           entrada_data: string | null
           entrada_valor: number | null
           fgts: boolean | null
@@ -851,6 +852,7 @@ export type Database = {
           consorcio_cota?: string | null
           consorcio_grupo?: string | null
           consorcio_nome?: string | null
+          consorcio_valor?: number | null
           entrada_data?: string | null
           entrada_valor?: number | null
           fgts?: boolean | null
@@ -877,6 +879,7 @@ export type Database = {
           consorcio_cota?: string | null
           consorcio_grupo?: string | null
           consorcio_nome?: string | null
+          consorcio_valor?: number | null
           entrada_data?: string | null
           entrada_valor?: number | null
           fgts?: boolean | null

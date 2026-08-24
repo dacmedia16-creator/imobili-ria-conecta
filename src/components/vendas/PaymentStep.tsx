@@ -79,6 +79,7 @@ export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver,
                     updP("consorcio_nome", null);
                     updP("consorcio_grupo", null);
                     updP("consorcio_cota", null);
+                    updP("consorcio_valor", null);
                   }
                 }}
                 disabled={!editable}
@@ -108,6 +109,9 @@ export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver,
             )}
             {p.tipo_pagamento === "consorcio" && (
               <>
+                <Field label="Valor da carta de consórcio">
+                  <CurrencyInput value={p.consorcio_valor} onChange={(v) => updP("consorcio_valor", v)} disabled={!editable} />
+                </Field>
                 <Field label="Nome do consórcio">
                   <Input value={p.consorcio_nome ?? ""} disabled={!editable} onChange={(e) => updP("consorcio_nome", e.target.value)} />
                 </Field>

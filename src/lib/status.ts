@@ -350,6 +350,46 @@ export const MIDIA_OPTIONS: { key: string; label: string }[] = [
 
 export type Pendencia = { campo: string; mensagem: string };
 
+const numeroFinanceiro = (valor: unknown): number => {
+  const numero = Number(valor ?? 0);
+  return Number.isFinite(numero) ? numero : 0;
+};
+
+/** Confere se os meios de pagamento detalhados fecham o valor negociado. */
+export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[] {
+  const valorVenda = numeroFinanceiro(sale?.valor_negociado);
+  if (valorVenda <= 0) return [];
+  if (!payment) return [{ campo: "pagamento", mensagem: "Falta detalhar a forma de pagamento" }];
+
+  const tipo = payment.tipo_pagamento ?? "vista";
+  if (tipo === "financiamento" && numeroFinanceiro(payment.financiamento_valor) <= 0) {
+    return [{ campo: "pagamento", mensagem: "Informe o valor financiado" }];
+  }
+  if (tipo === "consorcio" && numeroFinanceiro(payment.consorcio_valor) <= 0) {
+    return [{ campo: "pagamento", mensagem: "Informe o valor da carta de consórcio" }];
+  }
+
+  const total = Number((
+    numeroFinanceiro(payment.entrada_valor) +
+    numeroFinanceiro(payment.parcela1_valor) +
+    numeroFinanceiro(payment.parcela2_valor) +
+    numeroFinanceiro(payment.pagamento_final_valor) +
+    (payment.fgts ? numeroFinanceiro(payment.fgts_valor) : 0) +
+    (tipo === "financiamento" ? numeroFinanceiro(payment.financiamento_valor) : 0) +
+    (tipo === "consorcio" ? numeroFinanceiro(payment.consorcio_valor) : 0)
+  ).toFixed(2));
+  const diferenca = Number((valorVenda - total).toFixed(2));
+  if (Math.abs(diferenca) <= 0.01) return [];
+
+  const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return [{
+    campo: "pagamento",
+    mensagem: diferenca > 0
+      ? `A composição do pagamento está ${moeda(diferenca)} abaixo do valor da venda`
+      : `A composição do pagamento está ${moeda(Math.abs(diferenca))} acima do valor da venda`,
+  }];
+}
+
 /** Toda checagem não-documental feita por validarProntaParaRevisao — mantém o total de checks em sincronia com a função. */
 export const CHECKS_NAO_DOCUMENTAIS = ["imovel", "matricula", "vendedor", "comprador", "valor_negociado", "comissao", "pagamento"] as const;
 
@@ -380,6 +420,8 @@ export function validarProntaParaRevisao(
   if (!sale?.percentual_comissao && !sale?.valor_total_comissao) pend.push({ campo: "comissao", mensagem: "Falta informar o percentual ou o valor total da comissão" });
   if (!payment || (!payment.entrada_valor && !payment.parcela1_valor && !payment.financiamento && !payment.fgts && !sale?.forma_pagamento)) {
     pend.push({ campo: "pagamento", mensagem: "Falta informar a forma de pagamento" });
+  } else {
+    pend.push(...validarComposicaoPagamento(sale, payment));
   }
 
   // Docs obrigatórios — a CNH dispensa RG e CPF, já que contém as duas informações.
@@ -483,4 +525,3 @@ export const RECEBIDO_COLS: Record<number, { em: string; valor: string }> = {
   2: { em: "prev_recebimento2_recebido_em", valor: "prev_recebimento2_recebido_valor" },
   3: { em: "prev_recebimento3_recebido_em", valor: "prev_recebimento3_recebido_valor" },
 };
-
