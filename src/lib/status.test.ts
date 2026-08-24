@@ -4,6 +4,7 @@ import {
   classificarGrupoVenda,
   GRUPO_VENDA_LABEL,
   STATUS_LABEL,
+  calcularComposicaoPagamento,
   validarComposicaoPagamento,
   type GrupoVenda,
   type SaleStatus,
@@ -39,6 +40,12 @@ describe("validarComposicaoPagamento", () => {
     expect(validarComposicaoPagamento(sale, {
       tipo_pagamento: "vista", entrada_valor: 400000,
     })[0].mensagem).toContain("R$\u00a030.000,00 acima");
+  });
+
+  it("expõe total e diferença para orientar o preenchimento na tela", () => {
+    expect(calcularComposicaoPagamento(sale, {
+      tipo_pagamento: "financiamento", entrada_valor: 120000, financiamento_valor: 273000,
+    })).toEqual({ tipo: "financiamento", valorVenda: 370000, total: 393000, diferenca: -23000 });
   });
 });
 

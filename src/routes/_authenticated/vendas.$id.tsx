@@ -1660,10 +1660,11 @@ function SaleDetail() {
       key: "pagamento",
       label: "4. Pagamento",
       content: (
-        <PaymentStep
-          saleId={id}
-          payment={payment}
-          editable={editable}
+          <PaymentStep
+            saleId={id}
+            payment={payment}
+            valorNegociado={formSale.valor_negociado}
+            editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("pagamento", fn)}
           onDirtyChange={(d) => setStepDirty("pagamento", d)}

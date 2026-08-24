@@ -356,12 +356,26 @@ const numeroFinanceiro = (valor: unknown): number => {
 };
 
 /** Confere se os meios de pagamento detalhados fecham o valor negociado. */
-export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[] {
+export function calcularComposicaoPagamento(sale: any, payment: any) {
   const valorVenda = numeroFinanceiro(sale?.valor_negociado);
+  const tipo = payment?.tipo_pagamento ?? "vista";
+  const total = Number((
+    numeroFinanceiro(payment?.entrada_valor) +
+    numeroFinanceiro(payment?.parcela1_valor) +
+    numeroFinanceiro(payment?.parcela2_valor) +
+    numeroFinanceiro(payment?.pagamento_final_valor) +
+    (payment?.fgts ? numeroFinanceiro(payment?.fgts_valor) : 0) +
+    (tipo === "financiamento" ? numeroFinanceiro(payment?.financiamento_valor) : 0) +
+    (tipo === "consorcio" ? numeroFinanceiro(payment?.consorcio_valor) : 0)
+  ).toFixed(2));
+  return { tipo, valorVenda, total, diferenca: Number((valorVenda - total).toFixed(2)) };
+}
+
+export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[] {
+  const { valorVenda, tipo, diferenca } = calcularComposicaoPagamento(sale, payment);
   if (valorVenda <= 0) return [];
   if (!payment) return [{ campo: "pagamento", mensagem: "Falta detalhar a forma de pagamento" }];
 
-  const tipo = payment.tipo_pagamento ?? "vista";
   if (tipo === "financiamento" && numeroFinanceiro(payment.financiamento_valor) <= 0) {
     return [{ campo: "pagamento", mensagem: "Informe o valor financiado" }];
   }
@@ -369,16 +383,6 @@ export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[]
     return [{ campo: "pagamento", mensagem: "Informe o valor da carta de consórcio" }];
   }
 
-  const total = Number((
-    numeroFinanceiro(payment.entrada_valor) +
-    numeroFinanceiro(payment.parcela1_valor) +
-    numeroFinanceiro(payment.parcela2_valor) +
-    numeroFinanceiro(payment.pagamento_final_valor) +
-    (payment.fgts ? numeroFinanceiro(payment.fgts_valor) : 0) +
-    (tipo === "financiamento" ? numeroFinanceiro(payment.financiamento_valor) : 0) +
-    (tipo === "consorcio" ? numeroFinanceiro(payment.consorcio_valor) : 0)
-  ).toFixed(2));
-  const diferenca = Number((valorVenda - total).toFixed(2));
   if (Math.abs(diferenca) <= 0.01) return [];
 
   const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

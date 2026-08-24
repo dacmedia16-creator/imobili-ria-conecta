@@ -7,15 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field, CurrencyInput } from "./shared";
+import { calcularComposicaoPagamento } from "@/lib/status";
 
-export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver, onDirtyChange }: {
-  saleId: string; payment: any; editable: boolean; onSaved: () => void;
+export function PaymentStep({ saleId, payment, valorNegociado, editable, onSaved, registerSaver, onDirtyChange }: {
+  saleId: string; payment: any; valorNegociado: number | null; editable: boolean; onSaved: () => void;
   registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
 }) {
   const [p, setP] = useState<any>(payment ?? {});
   const [dp, setDp] = useState(false);
   const [saving, setSaving] = useState(false);
   const dirty = dp;
+  const composicao = calcularComposicaoPagamento({ valor_negociado: valorNegociado }, p);
+  const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   // Não sincroniza por cima de uma edição local ainda não salva: o pai recarrega os dados da venda
   // (load()) por várias ações que não têm nada a ver com esta aba (upload de contrato, troca de
@@ -58,7 +61,7 @@ export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver,
             <Field label="Parcela 1 — quando"><Input value={p.parcela1_data ?? ""} placeholder="Ex.: 30 dias após a assinatura" onChange={(e) => updP("parcela1_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — valor"><CurrencyInput value={p.parcela2_valor} onChange={(v) => updP("parcela2_valor", v)} disabled={!editable} /></Field>
             <Field label="Parcela 2 — quando"><Input value={p.parcela2_data ?? ""} placeholder="Ex.: Na entrega das chaves" onChange={(e) => updP("parcela2_data", e.target.value || null)} disabled={!editable} /></Field>
-            <Field label="Pagamento final — valor"><CurrencyInput value={p.pagamento_final_valor} onChange={(v) => updP("pagamento_final_valor", v)} disabled={!editable} /></Field>
+            <Field label={p.tipo_pagamento === "financiamento" || p.tipo_pagamento === "consorcio" ? "Pagamento final adicional — não repetir financiamento/consórcio" : "Pagamento final — valor"}><CurrencyInput value={p.pagamento_final_valor} onChange={(v) => updP("pagamento_final_valor", v)} disabled={!editable} /></Field>
             <Field label="Pagamento final — quando"><Input value={p.pagamento_final_data ?? ""} placeholder="Ex.: Na liberação do financiamento" onChange={(e) => updP("pagamento_final_data", e.target.value || null)} disabled={!editable} /></Field>
             <Field label="FGTS"><div className="flex items-center gap-2"><Switch checked={!!p.fgts} onCheckedChange={(v) => updP("fgts", v)} disabled={!editable} /><span className="text-sm">Sim/Não</span></div></Field>
             <Field label="FGTS — valor"><CurrencyInput value={p.fgts_valor} onChange={(v) => updP("fgts_valor", v)} disabled={!editable} /></Field>
@@ -125,6 +128,14 @@ export function PaymentStep({ saleId, payment, editable, onSaved, registerSaver,
             )}
             <Field label="Observações gerais" colSpan={2}><Textarea value={p.observacoes ?? ""} onChange={(e) => updP("observacoes", e.target.value)} disabled={!editable} /></Field>
           </FieldGrid>
+          {composicao.valorVenda > 0 && (
+            <div className={`mt-4 rounded-md border p-3 text-sm ${Math.abs(composicao.diferenca) <= 0.01 ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+              <div>Composição informada: <strong>{moeda(composicao.total)}</strong> de <strong>{moeda(composicao.valorVenda)}</strong></div>
+              {Math.abs(composicao.diferenca) <= 0.01
+                ? <div>Valores conferidos: a composição fecha exatamente.</div>
+                : <div>{composicao.diferenca > 0 ? "Ainda falta" : "Valor excedente"}: <strong>{moeda(Math.abs(composicao.diferenca))}</strong></div>}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
