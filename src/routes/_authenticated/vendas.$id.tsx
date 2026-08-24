@@ -809,7 +809,7 @@ function SaleDetail() {
       // à parte, sem abrir edição geral da venda pra ele.
       const { error: updErr } = await supabase.rpc("update_contrato_pendencia", {
         _sale_id: id,
-        _pendencia_descricao: pendenciaDesc,
+        _pendencia_descricao: pendenciaDesc ?? "",
         _libera_assinatura: contratoLiberaAssinatura,
       });
       if (updErr) { toast.error(updErr.message); return; }

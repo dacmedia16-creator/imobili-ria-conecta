@@ -189,6 +189,7 @@ function MeuAcesso() {
       case "financeiro": return "Você vê todas as vendas e é quem trava/libera a edição via ocorrência.";
       case "admin": return "Você vê e edita tudo. Não pode conceder o papel Admin ou Super Admin — só o Super Admin pode.";
       case "super_admin": return "Acesso total, incluindo conceder ou revogar os papéis Admin e Super Admin.";
+      default: return "Permissões definidas conforme o papel atribuído ao usuário.";
     }
   };
 
