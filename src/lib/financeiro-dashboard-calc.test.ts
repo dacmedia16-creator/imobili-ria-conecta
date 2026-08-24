@@ -161,6 +161,18 @@ describe("diasEntre — datas normalizadas, sem deslocamento de fuso", () => {
 
 // ---- item 3: previsto, recebido, parcial, vencido e a vencer ----
 describe("classificarSituacaoParcela", () => {
+  it("não classifica como recebida quando há data de recebimento sem valor", () => {
+    expect(
+      classificarSituacaoParcela({
+        cancelada: false,
+        dataPrevista: "2026-08-20",
+        valorLiquidoPrevisto: 1000,
+        dataRecebimento: "2026-08-21",
+        valorRecebido: null,
+        hoje: "2026-08-23",
+      }),
+    ).toBe("vencido");
+  });
   it("sem data prevista → sem_previsao", () => {
     expect(
       classificarSituacaoParcela({

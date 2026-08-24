@@ -144,8 +144,7 @@ export function classificarSituacaoParcela(args: {
     args;
   if (cancelada) return "cancelado_arquivado";
   if (!dataPrevista || valorLiquidoPrevisto == null) return "sem_previsao";
-  if (dataRecebimento) {
-    if (valorRecebido == null) return "recebido";
+  if (dataRecebimento && valorRecebido != null) {
     const diferenca = Number((valorRecebido - valorLiquidoPrevisto).toFixed(2));
     if (Math.abs(diferenca) <= 0.01) return "recebido";
     return diferenca < 0 ? "recebido_parcial" : "recebido_diferenca";
@@ -486,8 +485,8 @@ export function calcularResumo(args: {
   );
   const recebidoImobiliaria = Number(
     ativas
-      .filter((p) => p.dataRecebimento)
-      .reduce((s, p) => s + (p.valorRecebido ?? 0), 0)
+      .filter((p) => p.dataRecebimento && p.valorRecebido != null)
+      .reduce((s, p) => s + p.valorRecebido!, 0)
       .toFixed(2),
   );
   const vencido = Number(
