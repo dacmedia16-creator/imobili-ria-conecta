@@ -53,6 +53,7 @@ import {
   money,
 } from "@/components/vendas/shared";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import { PaymentStep } from "@/components/vendas/PaymentStep";
 import {
   mesclarPessoasAtivas,
   resolverSelecaoBeneficiario,
@@ -134,12 +135,14 @@ export function LancamentoDetail({
   saleId,
   sale,
   parties,
+  payment,
   commissionExtras,
   onChange,
 }: {
   saleId: string;
   sale: any;
   parties: Record<string, any>;
+  payment: any;
   commissionExtras: any[];
   onChange: () => void | Promise<void>;
 }) {
@@ -149,6 +152,7 @@ export function LancamentoDetail({
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
   const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
   const isResend = sale.status === "devolvida_ajuste";
+  const [paymentDirty, setPaymentDirty] = useState(false);
 
   // Edição da ocorrência já criada pelo financeiro, enquanto está em análise OU já devolvida pro
   // corretor ajustar (financeiro não precisa esperar o corretor reenviar se puder corrigir direto —
@@ -823,7 +827,7 @@ export function LancamentoDetail({
 
   // ----- Enviar ao financeiro -----
   const [sending, setSending] = useState(false);
-  const anyDirty = dirty || partiesDirty || commDirty;
+  const anyDirty = dirty || partiesDirty || paymentDirty || commDirty;
   const enviarFinanceiro = async () => {
     if (anyDirty) {
       toast.error("Aguarde salvar as últimas alterações antes de enviar (alguns segundos).");
@@ -1067,6 +1071,16 @@ export function LancamentoDetail({
               </Field>
             </FieldGrid>
           </SaleSection>
+
+          <PaymentStep
+            saleId={saleId}
+            payment={payment}
+            valorNegociado={form.valor_negociado}
+            editable={canEdit}
+            onSaved={onChange}
+            registerSaver={() => {}}
+            onDirtyChange={setPaymentDirty}
+          />
 
           <SaleSection title="Divisão da comissão">
             <div className="space-y-3">

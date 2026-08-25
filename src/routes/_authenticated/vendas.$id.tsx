@@ -472,7 +472,7 @@ function SaleDetail() {
   // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
   // ver LancamentoDetail.
   if (sale.modalidade === "lancamento") {
-    return <LancamentoDetail saleId={id} sale={sale} parties={parties} commissionExtras={commissionExtras} onChange={load} />;
+    return <LancamentoDetail saleId={id} sale={sale} parties={parties} payment={payment} commissionExtras={commissionExtras} onChange={load} />;
   }
 
   const status = sale.status as SaleStatus;
