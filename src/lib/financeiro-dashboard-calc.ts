@@ -18,6 +18,7 @@ import type {
   SituacaoParcela,
   SituacaoRecebimentoVenda,
 } from "@/lib/financeiro-dashboard-types";
+import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
 import {
   AGING_A_VENCER_ORDEM,
   AGING_BUCKET_LABEL,
@@ -506,9 +507,19 @@ export function calcularResumo(args: {
         .toFixed(2),
     );
 
+  const efetivadasProprias = efetivadas.map((r) =>
+    metricasSemParceria({
+      vgv: r.valorNegociado,
+      comissaoBruta: r.valorTotalComissao,
+      parceriaExterna: r.parceriaExterna,
+    }),
+  );
+
   return {
-    vgvEfetivado: Number(efetivadas.reduce((s, r) => s + r.valorNegociado, 0).toFixed(2)),
-    comissaoBruta: Number(efetivadas.reduce((s, r) => s + r.valorTotalComissao, 0).toFixed(2)),
+    vgvEfetivado: Number(efetivadasProprias.reduce((s, r) => s + r.vgvProprio, 0).toFixed(2)),
+    comissaoBruta: Number(
+      efetivadasProprias.reduce((s, r) => s + r.comissaoPropria, 0).toFixed(2),
+    ),
     previstoImobiliaria,
     recebidoImobiliaria,
     saldoAReceber: Number((previstoImobiliaria - recebidoImobiliaria).toFixed(2)),

@@ -428,6 +428,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
   const rows = useMemo(() => {
     const out: { sale: any; occ: any; papel: string; nome: string | null; valor: number; percentual: number | null }[] = [];
     for (const c of comms) {
+      if (c.sem_cadastro_confirmado === true) continue;
       const occ = occById[c.occurrence_id];
       if (!occ) continue;
       const sale = saleById[occ.sale_id];
@@ -436,29 +437,18 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
       if (!c.valor) continue;
       out.push({ sale, occ, papel: c.papel, nome: c.nome, valor: Number(c.valor), percentual: c.percentual });
     }
-    for (const p of partners) {
-      const occ = occById[p.occurrence_id];
-      if (!occ) continue;
-      const sale = saleById[occ.sale_id];
-      if (!matchesCorretor(sale)) continue;
-      if (!inRange(occ.data_assinatura ?? occ.created_at, dateFrom, dateTo)) continue;
-      if (!p.valor) continue;
-      out.push({ sale, occ, papel: "parceiro_externo", nome: p.nome, valor: Number(p.valor), percentual: p.percentual });
-    }
     return out.filter((r) => papelFilter === "todos" || r.papel === papelFilter);
   }, [comms, partners, occById, saleById, matchesCorretor, dateFrom, dateTo, papelFilter]);
 
   const papeis = useMemo(() => {
     const s = new Set<string>();
     comms.forEach((c) => s.add(c.papel));
-    if (partners.length) s.add("parceiro_externo");
     return Array.from(s);
   }, [comms, partners]);
 
   const papelLabel: Record<string, string> = {
     corretor_captador: "Corretor captador", indicador_captador: "Indicador do captador", coordenador_captador: "Coordenador captador",
     corretor_vendedor: "Corretor vendedor", indicador_vendedor: "Indicador do vendedor", coordenador_vendedor: "Coordenador vendedor",
-    parceiro_externo: "Parceiro externo",
   };
 
   const total = rows.reduce((s, r) => s + r.valor, 0);
@@ -470,7 +460,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total no período</p><p className="text-xl font-semibold">{money(total)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total REMAX no período (sem parceria)</p><p className="text-xl font-semibold">{money(total)}</p></CardContent></Card>
         <Card><CardContent className="flex items-end justify-between pt-6">
           <div>
             <Label>Papel</Label>

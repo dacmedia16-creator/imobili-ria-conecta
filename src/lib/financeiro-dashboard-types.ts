@@ -196,6 +196,7 @@ export type EfetivacaoVenda = {
   gestorId: string | null;
   valorNegociado: number;
   valorTotalComissao: number;
+  parceriaExterna?: number;
 };
 
 export type ResumoFinanceiro = {

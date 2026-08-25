@@ -25,7 +25,6 @@ import { InfoDot, KpiCard, ResumoGrupoVendaCards, comissaoChartConfig } from "@/
 import {
   Banknote,
   Percent,
-  Handshake,
   Building2,
   PiggyBank,
   CheckCircle2,
@@ -154,6 +153,7 @@ function VisaoExecutiva() {
   const allowed = hasAny(["admin", "super_admin", "financeiro"]);
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
+  const [operacaoRemax, setOperacaoRemax] = useState({ vgv_proprio: 0, comissao_propria: 0 });
   const [comissaoStats, setComissaoStats] = useState<ComissaoPorStatusStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
@@ -167,18 +167,23 @@ function VisaoExecutiva() {
     }
     (async () => {
       setLoading(true);
-      const [statsRes, profRes, metasRes, dashStatsRes] = await Promise.all([
+      const [statsRes, profRes, metasRes, carteiraRes, operacaoRes] = await Promise.all([
         supabase.rpc("visao_executiva_stats"),
         supabase.from("profiles").select("id, nome"),
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
-        supabase.rpc("dashboard_stats"),
+        supabase.rpc("comissoes_carteira_sem_parceria" as never),
+        supabase.rpc("resumo_operacao_sem_parceria_30d" as never),
       ]);
       setStats((statsRes.data as unknown as VisaoExecutivaStats) ?? null);
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
       setMetas((metasRes.data as unknown as MetaProgresso) ?? { corretor: [], equipe: [] });
-      setComissaoStats((dashStatsRes.data as unknown as ComissaoPorStatusStats) ?? null);
+      setComissaoStats((carteiraRes.data as unknown as ComissaoPorStatusStats) ?? null);
+      setOperacaoRemax(
+        (operacaoRes.data as unknown as { vgv_proprio: number; comissao_propria: number }) ??
+          { vgv_proprio: 0, comissao_propria: 0 },
+      );
       setLoading(false);
     })();
   }, [allowed]);
@@ -220,21 +225,15 @@ function VisaoExecutiva() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ResumoCard
             icon={Banknote}
-            label="VGV"
-            valor={money(stats?.resumo_operacional?.vgv ?? 0)}
-            info="Soma do valor negociado das vendas que fecharam nos últimos 30 dias — contrato assinado (modalidade padrão) ou, em Lançamento, avançou pro financeiro."
+            label="VGV atribuído à REMAX"
+            valor={money(operacaoRemax.vgv_proprio)}
+            info="VGV proporcional à comissão que ficou com a REMAX, já excluindo parceria externa."
           />
           <ResumoCard
             icon={Percent}
-            label="Comissão bruta da operação"
-            valor={money(stats?.resumo_operacional?.comissao_bruta_operacao ?? 0)}
-            info="Soma da comissão bruta de cada venda fechada no período — percentual de comissão sobre o negociado, ou o valor total de comissão gravado na venda. Ainda não desconta nada."
-          />
-          <ResumoCard
-            icon={Handshake}
-            label="Parceria externa"
-            valor={money(stats?.resumo_operacional?.parceria_externa ?? 0)}
-            info="Parte da comissão bruta que fica com o parceiro externo (outra imobiliária ou unidade RE/MAX) nas vendas fechadas no período — nunca é receita da unidade."
+            label="Comissão da REMAX"
+            valor={money(operacaoRemax.comissao_propria)}
+            info="Comissão da operação depois de excluir a parceria externa."
           />
           <ResumoCard
             icon={Building2}
@@ -544,38 +543,6 @@ function VisaoExecutiva() {
                     content={<ChartTooltipContent labelFormatter={(l) => mesLabel(String(l))} />}
                   />
                   <Bar dataKey="vendas_fechadas" fill="var(--color-vendas_fechadas)" radius={3} />
-                </BarChart>
-              </ChartContainer>
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Comissão</p>
-              <ChartContainer config={evoChartConfig} className="aspect-auto h-[110px] w-full">
-                <BarChart data={stats?.evolucao_mensal ?? []} margin={{ left: -20 }}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="mes"
-                    tickFormatter={mesLabel}
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={10}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={10}
-                    width={32}
-                    tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        labelFormatter={(l) => mesLabel(String(l))}
-                        formatter={(v) => money(Number(v))}
-                      />
-                    }
-                  />
-                  <Bar dataKey="comissao" fill="var(--color-comissao)" radius={3} />
                 </BarChart>
               </ChartContainer>
             </div>

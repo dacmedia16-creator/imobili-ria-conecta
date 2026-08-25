@@ -101,7 +101,7 @@ export function agruparComissaoPorCoordenador(
   cargos: CargoPorUsuario,
 ): RelatorioComissaoCoordenador {
   const porOcorrencia = new Map<string, LinhaComissaoCoordenador[]>();
-  for (const l of linhas) {
+  for (const l of linhas.filter((linha) => !linha.sem_cadastro_confirmado)) {
     const arr = porOcorrencia.get(l.occurrence_id) ?? [];
     arr.push(l);
     porOcorrencia.set(l.occurrence_id, arr);

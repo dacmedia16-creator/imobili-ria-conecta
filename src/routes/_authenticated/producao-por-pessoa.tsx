@@ -114,8 +114,8 @@ function ProducaoPorPessoaPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produção Gerada por Pessoa</h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Quanto cada pessoa gerou pra operação — VGV e comissão bruta da venda, divididos entre
-            captação e venda. Não é a comissão líquida recebida pelo corretor ou gestor.
+            Quanto cada pessoa gerou para a REMAX — VGV e comissão da unidade já sem parceria
+            externa, divididos entre captação e venda.
           </p>
         </div>
         <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>

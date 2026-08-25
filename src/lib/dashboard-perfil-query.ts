@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { classificarGrupoVenda, type GrupoVenda, type SaleStatus } from "@/lib/status";
+import { fetchMetricasSemParceria } from "@/lib/metricas-sem-parceria-query";
 
 export type ResumoGrupoVenda = { quantidade: number; vgv: number };
 export type ResumoPorGrupo = Record<GrupoVenda, ResumoGrupoVenda>;
@@ -47,11 +48,16 @@ export async function fetchResumoGrupoVenda(
   corretorIds: string[] | "todas",
 ): Promise<ResumoPorGrupo> {
   if (corretorIds !== "todas" && corretorIds.length === 0) return resumoVazio();
-  let query = supabase.from("sales").select("status, valor_negociado");
+  let query = supabase.from("sales").select("id, status, valor_negociado");
   if (corretorIds !== "todas") query = query.in("corretor_id", corretorIds);
-  const { data, error } = await query;
+  const [{ data, error }, metricas] = await Promise.all([query, fetchMetricasSemParceria()]);
   if (error) throw error;
-  return agruparVendasPorGrupoComVgv(data ?? []);
+  return agruparVendasPorGrupoComVgv(
+    (data ?? []).map((v) => ({
+      status: v.status,
+      valor_negociado: metricas.get(v.id)?.vgvProprio ?? 0,
+    })),
+  );
 }
 
 /**

@@ -757,6 +757,22 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
     expect(resumo.vgvEfetivado).toBe(150000);
     expect(resumo.comissaoBruta).toBe(9000);
   });
+  it("exclui parceria externa da comissão e rateia o VGV da REMAX", () => {
+    const resumo = calcularResumo({
+      parcelas: [],
+      comissoes: [],
+      efetivadas: [{
+        saleId: "s-parceria", imovelLabel: "Casa", codigoInterno: null,
+        dataEfetivacao: "2026-08-05", modalidade: "padrao", corretorId: "c1",
+        teamId: null, gestorId: null, valorNegociado: 500000,
+        valorTotalComissao: 30000, parceriaExterna: 15000,
+      }],
+      divergenciasAbertas: 0,
+      hoje: HOJE,
+    });
+    expect(resumo.vgvEfetivado).toBe(250000);
+    expect(resumo.comissaoBruta).toBe(15000);
+  });
   it("gráfico previsto x recebido por mês soma o mesmo total das parcelas do resumo", () => {
     const parcelas = [
       parcelaBase({

@@ -710,7 +710,7 @@ function ResumoGestorMes() {
             <>
               <ResumoExecutivoCard
                 icon={TrendingUp}
-                label="VGV efetivado"
+                label="VGV atribuído à REMAX"
                 value={moeda(resumo.vgvEfetivado)}
               />
               <ResumoExecutivoCard
@@ -1007,7 +1007,6 @@ function MovimentacaoPeriodoSection() {
                 icon={Send}
                 label="Terminaram o período em futura"
                 quantidade={dado?.futurasQuantidade ?? 0}
-                vgv={dado?.futurasVgv}
                 info='Vendas cujo status mais avançado dentro do período foi "venda futura". Cada
                   venda conta uma única vez, pelo status mais recente atingido na janela — não é o
                   total atual (isso é o "VGV ativo total", no painel financeiro).'
@@ -1016,7 +1015,6 @@ function MovimentacaoPeriodoSection() {
                 icon={FileSignature}
                 label="Confirmadas por contrato assinado"
                 quantidade={dado?.confirmadasContratoQuantidade ?? 0}
-                vgv={dado?.confirmadasContratoVgv}
                 info="Vendas que chegaram a contrato assinado dentro do período — modalidade
                   padrão, com jurídico e contrato. Não inclui vendas de Lançamento, que pulam essa
                   etapa."
@@ -1025,7 +1023,6 @@ function MovimentacaoPeriodoSection() {
                 icon={Landmark}
                 label="Lançamento enviado ao financeiro"
                 quantidade={dado?.confirmadasLancamentoQuantidade ?? 0}
-                vgv={dado?.confirmadasLancamentoVgv}
                 info="Vendas de Lançamento (parceria com construtora) que avançaram direto pro
                   financeiro no período — por desenho, pulam contrato assinado, então contam à
                   parte das confirmadas por contrato."

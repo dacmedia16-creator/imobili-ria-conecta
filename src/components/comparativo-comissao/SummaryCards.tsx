@@ -18,8 +18,8 @@ export function SummaryCards({ resumo }: { resumo: ResumoComparativo }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <Card1 label="Quantidade de vendas" valor={String(resumo.quantidade)} />
-      <Card1 label="VGV real total" valor={formatMoney(resumo.vgvRealTotal)} />
-      <Card1 label="Comissão total" valor={formatMoney(resumo.comissaoTotal)} />
+      <Card1 label="VGV REMAX total" valor={formatMoney(resumo.vgvRealTotal)} />
+      <Card1 label="Comissão REMAX total" valor={formatMoney(resumo.comissaoTotal)} />
       <Card1 label="Percentual médio ponderado" valor={formatPercent(resumo.percentualMedioPonderado)} />
       <Card1 label="VGV equivalente a 6%" valor={formatMoney(resumo.vgvEquivalente6Total)} />
       <Card1 label="Diferença (real − equivalente 6%)" valor={formatMoney(resumo.diferencaTotal)} tone={diferencaTone} />

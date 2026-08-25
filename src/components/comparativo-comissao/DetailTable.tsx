@@ -15,7 +15,7 @@ const MODALIDADE_LABEL: Record<string, string> = { padrao: "Venda tradicional", 
 const COLUNAS: { campo: OrdenacaoCampo; label: string; numerica?: boolean }[] = [
   { campo: "data", label: "Efetivação" },
   { campo: "valor_negociado", label: "Valor do imóvel", numerica: true },
-  { campo: "valor_comissao", label: "Comissão real", numerica: true },
+  { campo: "valor_comissao", label: "Comissão REMAX", numerica: true },
   { campo: "percentual_real", label: "% real", numerica: true },
   { campo: "vgv_equivalente", label: "VGV equiv. 6%", numerica: true },
   { campo: "diferenca", label: "Diferença", numerica: true },

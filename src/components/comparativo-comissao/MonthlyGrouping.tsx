@@ -48,7 +48,7 @@ function GrupoTable({ rows, labelHeader }: { rows: { label: string; g: GrupoMens
             <TableHead>{labelHeader}</TableHead>
             <TableHead className="text-right">Vendas</TableHead>
             <TableHead className="text-right">VGV real</TableHead>
-            <TableHead className="text-right">Comissão total</TableHead>
+            <TableHead className="text-right">Comissão REMAX</TableHead>
             <TableHead className="text-right">% médio ponderado</TableHead>
             <TableHead className="text-right">VGV equiv. 6%</TableHead>
             <TableHead className="text-right">Diferença</TableHead>

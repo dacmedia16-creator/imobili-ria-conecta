@@ -29,14 +29,14 @@ export function SummaryCards({ resumo }: { resumo: ResumoFinanceiro }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <Card1
-        label="VGV efetivado"
+        label="VGV atribuído à REMAX"
         valor={money(resumo.vgvEfetivado) ?? "—"}
-        info="Soma do valor negociado das vendas que efetivaram (contrato assinado, ou em Lançamento avançou pro financeiro) dentro do período e filtros aplicados."
+        info="VGV proporcional à comissão que ficou com a REMAX nas vendas efetivadas. A participação de parceria externa já foi excluída."
       />
       <Card1
-        label="Comissão bruta das vendas"
+        label="Comissão própria das vendas"
         valor={money(resumo.comissaoBruta) ?? "—"}
-        info="Soma do valor total de comissão gravado em cada venda efetivada no período — ainda não desconta parceria externa nem divide entre beneficiários."
+        info="Comissão da operação após excluir parceria externa, antes da divisão entre os beneficiários internos."
       />
       <Card1
         label="Comissões calculadas (beneficiários)"

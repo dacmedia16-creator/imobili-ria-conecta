@@ -467,6 +467,9 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const efetivacaoBySaleId = new Map((efetivadasRaw ?? []).map((r) => [r.sale_id, r]));
   const comissoes: ComissaoCalculada[] = [];
   for (const row of commissions ?? []) {
+    // Parceiro externo é controle apartado: nunca entra em comissão calculada, ranking ou total
+    // principal da unidade. O valor continua disponível em parceriaPorOcc para reconciliação.
+    if (row.sem_cadastro_confirmado === true) continue;
     const occ = occByOccId.get(row.occurrence_id);
     if (!occ) continue;
     const sale = saleById.get(occ.sale_id);
@@ -595,6 +598,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
 
   const efetivadas: EfetivacaoVenda[] = (efetivadasRaw ?? []).map((r) => {
     const { teamId, gestorId } = equipeDoCorretor(r.corretor_id);
+    const occ = occBySaleId.get(r.sale_id);
     return {
       saleId: r.sale_id,
       imovelLabel: r.imovel_id || r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`,
@@ -606,6 +610,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       gestorId,
       valorNegociado: Number(r.valor_negociado),
       valorTotalComissao: Number(r.valor_total_comissao),
+      parceriaExterna: occ ? (parceriaPorOcc.get(occ.id) ?? 0) : 0,
     };
   });
 

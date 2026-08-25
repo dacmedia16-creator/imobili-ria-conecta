@@ -9,6 +9,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { calcularComparativo, elegivelParaComparativo } from "@/lib/comparativo-comissao-calc";
 import type { ComparativoRawRow, ComparativoRowComCalculo, InconsistenciaRow } from "@/lib/comparativo-comissao-types";
+import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 type TeamMemberRow = { membro_id: string; team_id: string };
@@ -68,12 +69,22 @@ export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]
     const team = teamId ? teamById.get(teamId) ?? null : null;
     const gestorId = team?.lider_id ?? null;
 
+    const proprias = metricasSemParceria({
+      vgv: raw.valor_negociado,
+      comissaoBruta: raw.valor_total_comissao,
+      parceriaExterna: raw.parceria_externa,
+    });
+    const rowSemParceria = {
+      ...raw,
+      valor_negociado: proprias.vgvProprio,
+      valor_total_comissao: proprias.comissaoPropria,
+    };
     const calculo = calcularComparativo({
-      valorNegociado: raw.valor_negociado, valorTotalComissao: raw.valor_total_comissao, percentualCadastrado: raw.percentual_comissao,
+      valorNegociado: rowSemParceria.valor_negociado, valorTotalComissao: rowSemParceria.valor_total_comissao, percentualCadastrado: raw.percentual_comissao,
     });
 
     rows.push({
-      ...raw,
+      ...rowSemParceria,
       corretorNome: nomePorId.get(raw.corretor_id) ?? raw.corretor_id,
       teamId,
       teamNome: team?.nome ?? null,

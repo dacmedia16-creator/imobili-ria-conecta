@@ -256,7 +256,7 @@ function ComissaoCoordenador() {
           <h1 className="text-2xl font-semibold tracking-tight">Comissão por Coordenador</h1>
           <p className="text-sm text-muted-foreground print:hidden">
             Ocorrências concluídas no mês selecionado, agrupadas pelo gestor/team leader responsável
-            por cada venda.
+            por cada venda. Parcerias externas não entram nos valores.
           </p>
           <p className="hidden text-sm text-muted-foreground print:block">
             {meses.find((m) => m.value === mes)?.label}

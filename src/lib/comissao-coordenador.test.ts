@@ -50,6 +50,17 @@ describe("agruparComissaoPorCoordenador — dados reais de agosto/2026 (fixture 
     expect(r.totalVgv6pct).toBeCloseTo(1179000.83, 2);
   });
 
+  it("não inclui parceiro externo confirmado no relatório nem nos totais", () => {
+    const externo: LinhaComissaoCoordenador = {
+      occurrence_id: "occ-externa", modalidade: "padrao", papel: "corretor_vendedor",
+      user_id: null, nome: "Imobiliária parceira", valor: 10000,
+      sem_cadastro_confirmado: true,
+    };
+    const comExterno = agruparComissaoPorCoordenador([...LINHAS, externo], CARGOS);
+    expect(comExterno.totalComissao).toBeCloseTo(r.totalComissao, 2);
+    expect(comExterno.secoes.some((s) => s.nome === "Imobiliária parceira")).toBe(false);
+  });
+
   it("separa AGENTES x TEAM LEADERS nos totais certos", () => {
     const agentes = r.blocos.find((b) => b.bloco === "AGENTES")!;
     const teamLeaders = r.blocos.find((b) => b.bloco === "TEAM_LEADERS")!;

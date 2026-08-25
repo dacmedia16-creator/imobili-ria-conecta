@@ -94,7 +94,7 @@ function ComparativoComissaoPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Comparativo de Comissão — Padrão 6%</h1>
         <p className="text-sm text-muted-foreground">
-          Comparação entre o valor real das vendas e o VGV equivalente considerando comissão-padrão de 6%.
+          Comparação da produção atribuída à REMAX, já sem parceria externa, considerando comissão-padrão de 6%.
         </p>
       </div>
 

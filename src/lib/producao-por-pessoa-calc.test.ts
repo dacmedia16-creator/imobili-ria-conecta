@@ -128,6 +128,20 @@ const ROWS: ProducaoRawRow[] = [
   },
 ];
 
+describe("parceria externa", () => {
+  it("rateia VGV e comissão antes de dividir a produção entre as pontas", () => {
+    const [captacao, venda] = gerarPontas([{
+      sale_id: "parceria", imovel_id: null, codigo_interno: null, modalidade: "padrao",
+      concluida_em: "2026-08-20T00:00:00Z", valor_negociado: 500000,
+      comissao_bruta: 30000, parceria_externa: 15000,
+      captador_id: "a", captador_nome: "A", vendedor_id: "b", vendedor_nome: "B",
+      vendedor_fracao: null,
+    }], new Map(), new Map());
+    expect(captacao.vgv + venda.vgv).toBe(250000);
+    expect(captacao.comissao + venda.comissao).toBe(15000);
+  });
+});
+
 const TEAM_ID_POR_PESSOA = new Map<string, string>([
   ["carlos", "t-gabriel"],
   ["wanderley", "t-salvador"],

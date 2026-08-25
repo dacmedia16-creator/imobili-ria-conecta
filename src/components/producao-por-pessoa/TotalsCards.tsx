@@ -17,8 +17,8 @@ export function TotalsCards({ totais }: { totais: TotaisProducao }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <Card1 label="Vendas equivalentes" valor={formatQtd(totais.qtdVendas)} />
-      <Card1 label="VGV gerado" valor={formatMoney(totais.vgv)} />
-      <Card1 label="Comissão gerada" valor={formatMoney(totais.comissao)} />
+      <Card1 label="VGV REMAX gerado" valor={formatMoney(totais.vgv)} />
+      <Card1 label="Comissão REMAX gerada" valor={formatMoney(totais.comissao)} />
       <Card1 label="Qtd. na ponta captação" valor={formatQtd(totais.qtdCaptacao)} />
       <Card1 label="Qtd. na ponta venda" valor={formatQtd(totais.qtdVenda)} />
     </div>

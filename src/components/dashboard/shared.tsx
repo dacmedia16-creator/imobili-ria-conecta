@@ -196,23 +196,21 @@ export function ResumoGrupoVendaCards({
     <>
       <MovimentacaoCard
         icon={Send}
-        label={rotulo("VGV em andamento — ainda não confirmado")}
+        label={rotulo("VGV REMAX em andamento — ainda não confirmado")}
         quantidade={resumo.futura.quantidade}
         vgv={resumo.futura.vgv}
-        info="Valor negociado das vendas em preparação ou futura agora — posição atual da
-          carteira, diferente da Movimentação do período (que é histórico de eventos)."
+        info="VGV atribuído à REMAX, já sem parceria externa, das vendas em preparação ou futura."
       />
       <MovimentacaoCard
         icon={CheckCircle2}
-        label={rotulo("VGV confirmado — contrato assinado ou já avançado ao financeiro")}
+        label={rotulo("VGV REMAX confirmado — contrato assinado ou já avançado ao financeiro")}
         quantidade={resumo.confirmada.quantidade}
         vgv={resumo.confirmada.vgv}
-        info="Valor negociado das vendas com contrato assinado ou já em financeiro (Lançamento) —
-          posição atual, sem duplicidade com “em andamento”."
+        info="VGV atribuído à REMAX, já sem parceria externa, das vendas confirmadas."
       />
       <MovimentacaoCard
         icon={DollarSign}
-        label={rotulo("VGV ativo total — sem duplicidade")}
+        label={rotulo("VGV REMAX ativo total — sem duplicidade")}
         quantidade={ativoTotal.quantidade}
         vgv={ativoTotal.vgv}
         info="Soma direta de “em andamento” + “confirmado”. Cada venda ativa pertence a

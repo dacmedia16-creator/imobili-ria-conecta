@@ -17,6 +17,7 @@ import type {
   ResumoPessoa,
   TotaisProducao,
 } from "@/lib/producao-por-pessoa-types";
+import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -43,8 +44,13 @@ export function gerarPontas(
   const pontas: ProducaoPonta[] = [];
 
   for (const r of rows) {
-    const valorNegociado = Number(r.valor_negociado ?? 0);
-    const comissaoBruta = Number(r.comissao_bruta ?? 0);
+    const proprias = metricasSemParceria({
+      vgv: r.valor_negociado,
+      comissaoBruta: r.comissao_bruta,
+      parceriaExterna: r.parceria_externa,
+    });
+    const valorNegociado = proprias.vgvProprio;
+    const comissaoBruta = proprias.comissaoPropria;
     const base = {
       saleId: r.sale_id,
       imovelId: r.imovel_id,

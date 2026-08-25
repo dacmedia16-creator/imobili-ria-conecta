@@ -21,6 +21,7 @@ import {
   fetchComissaoPorBeneficiario,
   type ComissaoBeneficiarioResumo,
 } from "@/lib/comissao-por-beneficiario";
+import { fetchMetricasSemParceria } from "@/lib/metricas-sem-parceria-query";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
@@ -302,6 +303,7 @@ function VisaoGeralCard({
   // INTEIRA da venda a quem cadastrou, não a quem recebe (ver auditoria "comissão por corretor").
   // Agora soma occurrence_commissions por beneficiário real, mesma fonte de metas_progresso().
   const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
+  const [vgvProprio, setVgvProprio] = useState<Map<string, number>>(new Map());
   useEffect(() => {
     const saleIds = allSales.map((s) => s.id);
     if (saleIds.length === 0) {
@@ -309,9 +311,12 @@ function VisaoGeralCard({
       return;
     }
     let cancelado = false;
-    fetchComissaoPorBeneficiario(saleIds)
-      .then((r) => {
-        if (!cancelado) setComissaoResumo(r);
+    Promise.all([fetchComissaoPorBeneficiario(saleIds), fetchMetricasSemParceria()])
+      .then(([r, metricas]) => {
+        if (!cancelado) {
+          setComissaoResumo(r);
+          setVgvProprio(new Map([...metricas].map(([id, m]) => [id, m.vgvProprio])));
+        }
       })
       .catch((e: unknown) => console.error("fetchComissaoPorBeneficiario (Visão geral):", e));
     return () => {
@@ -331,12 +336,12 @@ function VisaoGeralCard({
           equipe: teamNameByMembro[id] ?? "Sem equipe",
           total: vendas.length,
           fechadas: fechadas.length,
-          negociado: vendas.reduce((s, v) => s + Number(v.valor_negociado ?? 0), 0),
+          negociado: vendas.reduce((s, v) => s + (vgvProprio.get(v.id) ?? 0), 0),
           comissao: comissaoResumo.porBeneficiario[id] ?? 0,
         };
       })
       .sort((a, b) => b.negociado - a.negociado);
-  }, [members, allSales, profiles, teamNameByMembro, comissaoResumo]);
+  }, [members, allSales, profiles, teamNameByMembro, comissaoResumo, vgvProprio]);
 
   const totais = useMemo(() => ({
     equipes: teams.filter((t) => !t.parent_team_id).length,
@@ -354,8 +359,8 @@ function VisaoGeralCard({
           <div><p className="text-xs text-muted-foreground">Equipes</p><p className="text-xl font-semibold">{totais.equipes}</p></div>
           <div><p className="text-xs text-muted-foreground">Corretores</p><p className="text-xl font-semibold">{totais.corretores}</p></div>
           <div><p className="text-xs text-muted-foreground">Vendas</p><p className="text-xl font-semibold">{totais.vendas}</p></div>
-          <div><p className="text-xs text-muted-foreground">Valor negociado</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Comissão total</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></div>
+          <div><p className="text-xs text-muted-foreground">VGV REMAX (sem parceria)</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Comissão interna (sem parceria)</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></div>
         </div>
         {comissaoResumo.semVinculo.quantidade > 0 && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -380,7 +385,7 @@ function VisaoGeralCard({
                 <TableHead>Equipe</TableHead>
                 <TableHead>Vendas</TableHead>
                 <TableHead>Fechadas</TableHead>
-                <TableHead>Valor negociado</TableHead>
+                <TableHead>VGV REMAX</TableHead>
                 <TableHead>Comissão</TableHead>
               </TableRow>
             </TableHeader>

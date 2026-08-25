@@ -24,6 +24,7 @@ export type ComparativoRawRow = {
   corretor_id: string;
   valor_negociado: number;
   valor_total_comissao: number;
+  parceria_externa?: number;
   percentual_comissao: number | null;
   data_fechamento: string; // date (YYYY-MM-DD) — data de efetivação
   evento_fechamento: EventoFechamento;
