@@ -15,7 +15,9 @@ ALTER TABLE public.profiles
     instagram_url IS NULL OR instagram_url ~* '^https://(www\.)?instagram\.com/'
   );
 
-CREATE OR REPLACE FUNCTION public.list_public_specialists(
+DROP FUNCTION IF EXISTS public.list_public_specialists(text, bigint);
+
+CREATE FUNCTION public.list_public_specialists(
   _search text DEFAULT NULL,
   _region_id bigint DEFAULT NULL
 )
