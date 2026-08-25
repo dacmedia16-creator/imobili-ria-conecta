@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Ache um especialista</title>
+  <path fill="#12213f" d="M64 8 111 31v31c0 29-19 48-47 58C36 110 17 91 17 62V31L64 8Z"/>
+  <path fill="#e5262b" d="M64 15 104 35v8L64 23 24 43v-8l40-20Z"/>
+  <circle cx="57" cy="58" r="21" fill="#fff"/>
+  <circle cx="57" cy="58" r="11" fill="none" stroke="#4d6fe0" stroke-width="7"/>
+  <path d="m72 73 20 20" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+  <path d="m72 73 20 20" fill="none" stroke="#e5262b" stroke-width="6" stroke-linecap="round"/>
+  <path d="M35 95c6-10 15-15 27-15 7 0 13 2 18 5" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+</svg>
