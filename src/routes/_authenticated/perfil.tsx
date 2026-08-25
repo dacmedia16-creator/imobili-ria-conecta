@@ -30,6 +30,9 @@ type TeamInfo = {
 
 function MeuAcesso() {
   const { user, roles, hasAny } = useAuth();
+  const canUsePositioning = roles.some((role) =>
+    (["corretor", "gestor", "team_leader"] as AppRole[]).includes(role),
+  );
   const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -86,7 +89,7 @@ function MeuAcesso() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !roles.includes("corretor")) return;
+    if (!user || !canUsePositioning) return;
     (async () => {
       const [{ data: regions, error: regionsError }, { data: selected, error: selectedError }, { data: suggestions }] = await Promise.all([
         supabase.from("positioning_regions").select("id, cidade, zona, nome, tipo").eq("ativo", true).order("cidade").order("zona").order("nome"),
@@ -101,7 +104,7 @@ function MeuAcesso() {
       setSelectedRegionIds((selected ?? []).map((row) => row.region_id));
       setMySuggestions(suggestions ?? []);
     })();
-  }, [roles, user]);
+  }, [canUsePositioning, user]);
 
   const alternarNotifCampo = async (
     r: AppRole,
@@ -352,7 +355,7 @@ function MeuAcesso() {
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.</p>
           </div>
-          {roles.includes("corretor") && (
+          {canUsePositioning && (
             <div className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2">
               <div>
                 <Label className="mb-1.5 block text-xs text-muted-foreground">Página pessoal (opcional)</Label>
@@ -373,7 +376,7 @@ function MeuAcesso() {
         </CardContent>
       </Card>
 
-      {roles.includes("corretor") && (
+      {canUsePositioning && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
