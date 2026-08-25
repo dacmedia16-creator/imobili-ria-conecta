@@ -76,6 +76,25 @@ function HubHex() {
   );
 }
 
+function PositioningBanner() {
+  return (
+    <Link to="/perfil" className="positioning-banner">
+      <span className="positioning-pin" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+          <circle cx="12" cy="10" r="2.6" />
+        </svg>
+      </span>
+      <span className="positioning-copy">
+        <b>Novo no MAX HUB</b>
+        <strong>Sistema de Posicionamento</strong>
+        <span>Escolha suas regiões e apareça na página pública de especialistas.</span>
+      </span>
+      <span className="positioning-cta">Entre agora e atualize seus dados →</span>
+    </Link>
+  );
+}
+
 function FrontPage() {
   return (
     <div className="hubpage">
@@ -250,6 +269,38 @@ function FrontPage() {
         .hubpage .footbar p { margin: 0; color: var(--navy-2); font-weight: 600; font-size: clamp(0.6rem, 1.15vw, 1.15rem); }
         .hubpage a.card-link { text-decoration: none; }
 
+        .hubpage .positioning-banner {
+          display: flex; align-items: center; gap: 16px;
+          color: #fff; text-decoration: none;
+          background: linear-gradient(115deg, #0d1b39 0%, #172e61 58%, #b71928 100%);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 18px; padding: 14px 18px;
+          box-shadow: 0 18px 38px -22px rgba(10, 21, 48, 0.75);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .hubpage .positioning-banner:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 22px 42px -22px rgba(10, 21, 48, 0.88);
+        }
+        .hubpage .positioning-pin {
+          display: grid; place-items: center; flex: none;
+          width: 50px; height: 50px; border-radius: 15px;
+          background: linear-gradient(145deg, #f23d43, #c71928);
+          box-shadow: 0 8px 20px -9px rgba(255, 55, 65, 0.9);
+        }
+        .hubpage .positioning-pin svg { width: 28px; height: 28px; stroke: #fff; stroke-width: 1.8; }
+        .hubpage .positioning-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+        .hubpage .positioning-copy b {
+          color: #ffbdc1; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+        }
+        .hubpage .positioning-copy strong { margin-top: 2px; font-size: 1.08rem; line-height: 1.15; }
+        .hubpage .positioning-copy > span { margin-top: 3px; color: rgba(255, 255, 255, 0.75); font-size: 0.8rem; }
+        .hubpage .positioning-cta {
+          flex: none; border-radius: 999px; background: #fff; color: #b71928;
+          padding: 10px 16px; font-size: 0.76rem; font-weight: 800; white-space: nowrap;
+        }
+        .hubpage .stage > .positioning-banner { max-width: 1120px; margin: 0 auto 16px; }
+
         /* ---------- lista mobile (<860px) ---------- */
         .hubpage .mobile-stage { display: block; max-width: 560px; margin: 0 auto; padding: 0 18px 32px; }
         @media (min-width: 860px) { .hubpage .mobile-stage { display: none; } }
@@ -265,6 +316,15 @@ function FrontPage() {
         .hubpage .mhero h1 .navy { color: var(--navy); }
         .hubpage .mhero h1 .red { color: var(--red); }
         .hubpage .mhero p { margin: 0.5rem 0 0; color: var(--gray); font-size: 0.9rem; }
+
+        .hubpage .mobile-stage .positioning-banner {
+          margin-top: 20px; align-items: flex-start; flex-wrap: wrap; gap: 11px; padding: 14px;
+        }
+        .hubpage .mobile-stage .positioning-pin { width: 44px; height: 44px; border-radius: 13px; }
+        .hubpage .mobile-stage .positioning-copy { min-width: calc(100% - 58px); }
+        .hubpage .mobile-stage .positioning-copy strong { font-size: 1rem; }
+        .hubpage .mobile-stage .positioning-copy > span { font-size: 0.76rem; line-height: 1.3; }
+        .hubpage .mobile-stage .positioning-cta { width: 100%; padding: 9px 12px; text-align: center; }
 
         .hubpage .mhub { position: relative; width: 172px; height: 172px; margin: 26px auto 0; }
 
@@ -293,6 +353,7 @@ function FrontPage() {
 
       {/* ---------- poster (tablet/desktop) ---------- */}
       <div className="stage">
+        <PositioningBanner />
         <div className="canvas">
           <div className="dotgrid" />
           <div className="corner-navy" />
@@ -390,6 +451,8 @@ function FrontPage() {
           <h1 className="display"><span className="navy">Hub</span> <span className="red">MAX</span></h1>
           <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
         </div>
+
+        <PositioningBanner />
 
         <div className="mhub"><HubHex /></div>
 
