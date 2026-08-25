@@ -40,6 +40,13 @@ function ultimosNDiasRange(n: number) {
   d.setDate(d.getDate() - n);
   return { de: d.toISOString().slice(0, 10), ate };
 }
+function anoAtualRange() {
+  const hoje = new Date();
+  return {
+    de: `${hoje.getFullYear()}-01-01`,
+    ate: hoje.toISOString().slice(0, 10),
+  };
+}
 
 export function Filters({
   filtros,
@@ -101,14 +108,14 @@ export function Filters({
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">{periodoLabel}</p>
+        <p className="text-xs text-muted-foreground">Período de referência: {periodoLabel}</p>
 
         <div
           className={`${open ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-end`}
         >
           <div className="flex flex-wrap items-center gap-2">
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Período — de</Label>
+              <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
               <Input
                 type="date"
                 value={filtros.dataDe}
@@ -151,6 +158,14 @@ export function Filters({
               onClick={() => aplicarAtalho(ultimosNDiasRange(90))}
             >
               Últimos 90 dias
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => aplicarAtalho(anoAtualRange())}
+            >
+              Ano atual
             </Button>
           </div>
 

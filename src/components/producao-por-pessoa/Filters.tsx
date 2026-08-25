@@ -10,9 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SlidersHorizontal, ChevronDown } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, X } from "lucide-react";
 import type { FiltrosProducao } from "@/lib/producao-por-pessoa-types";
-import { anoAtualRange, mesAtualRange, ultimosNDiasRange } from "@/lib/producao-por-pessoa-filters";
+import { anoAtualRange, filtrosPadrao, mesAtualRange, ultimosNDiasRange } from "@/lib/producao-por-pessoa-filters";
 
 const TIPO_LABEL: Record<FiltrosProducao["tipo"], string> = {
   todas: "Captação + venda",
@@ -42,20 +42,26 @@ export function Filters({
     <Card>
       <CardHeader className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">Filtros</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 md:hidden"
-            onClick={() => setOpen((v) => !v)}
-          >
-            <SlidersHorizontal className="mr-1 h-4 w-4" />
-            Filtros
-            <ChevronDown
-              className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          </Button>
+          <span className="text-sm font-medium">Filtros do relatório</span>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => onChange(filtrosPadrao())}>
+              <X className="mr-1 h-4 w-4" />
+              Limpar filtros
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 md:hidden"
+              onClick={() => setOpen((v) => !v)}
+            >
+              <SlidersHorizontal className="mr-1 h-4 w-4" />
+              Filtros
+              <ChevronDown
+                className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </div>
         </div>
 
         <div
@@ -63,7 +69,7 @@ export function Filters({
         >
           <div className="flex flex-wrap items-center gap-2">
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Conclusão — de</Label>
+              <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
               <Input
                 type="date"
                 value={filtros.dataDe}

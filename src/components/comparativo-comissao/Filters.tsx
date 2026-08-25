@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SlidersHorizontal, ChevronDown } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, X } from "lucide-react";
 import type { ComparativoFiltros, SituacaoFiltro } from "@/lib/comparativo-comissao-types";
-import { anoAtualRange, mesAtualRange, ultimosNDiasRange } from "@/lib/comparativo-comissao-filters";
+import { anoAtualRange, filtrosPadrao, mesAtualRange, ultimosNDiasRange } from "@/lib/comparativo-comissao-filters";
 
 const SITUACAO_LABEL: Record<SituacaoFiltro, string> = {
   todas: "Todas as situações", abaixo: "Abaixo de 6%", igual: "Igual a 6%", acima: "Acima de 6%",
@@ -28,24 +28,30 @@ export function Filters({
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
             placeholder="Buscar por código ou identificação do imóvel"
             value={filtros.busca}
             onChange={(e) => set("busca", e.target.value)}
-            className="flex-1 md:max-w-sm"
+            className="w-full sm:flex-1 sm:max-w-sm"
           />
-          <Button type="button" variant="outline" size="sm" className="shrink-0 md:hidden" onClick={() => setOpen((v) => !v)}>
-            <SlidersHorizontal className="mr-1 h-4 w-4" />
-            Filtros
-            <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => onChange(filtrosPadrao())}>
+              <X className="mr-1 h-4 w-4" />
+              Limpar filtros
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="shrink-0 md:hidden" onClick={() => setOpen((v) => !v)}>
+              <SlidersHorizontal className="mr-1 h-4 w-4" />
+              Filtros
+              <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
         </div>
 
         <div className={`${open ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-end`}>
           <div className="flex flex-wrap items-center gap-2">
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Efetivação — de</Label>
+              <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
               <Input type="date" value={filtros.dataDe} onChange={(e) => set("dataDe", e.target.value)} className="w-[9.5rem]" />
             </div>
             <div>

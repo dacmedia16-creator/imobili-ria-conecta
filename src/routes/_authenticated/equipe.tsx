@@ -359,8 +359,8 @@ function VisaoGeralCard({
           <div><p className="text-xs text-muted-foreground">Equipes</p><p className="text-xl font-semibold">{totais.equipes}</p></div>
           <div><p className="text-xs text-muted-foreground">Corretores</p><p className="text-xl font-semibold">{totais.corretores}</p></div>
           <div><p className="text-xs text-muted-foreground">Vendas</p><p className="text-xl font-semibold">{totais.vendas}</p></div>
-          <div><p className="text-xs text-muted-foreground">VGV REMAX (sem parceria)</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Comissão interna (sem parceria)</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></div>
+          <div><p className="text-xs text-muted-foreground">VGV atribuído à REMAX</p><p className="text-xl font-semibold">{money(totais.negociado)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Comissão gerada pela REMAX</p><p className="text-xl font-semibold">{money(totais.comissao)}</p></div>
         </div>
         {comissaoResumo.semVinculo.quantidade > 0 && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -373,8 +373,8 @@ function VisaoGeralCard({
           <p className="text-xs text-muted-foreground">
             {comissaoResumo.parceriaExterna.quantidade} parcela(s) de comissão (
             {money(comissaoResumo.parceriaExterna.valor)}) de parceiro(s) externo(s) confirmado(s)
-            (sem cadastro no sistema) — não entram no ranking por corretor, mas continuam
-            contabilizadas nos totais financeiros e nos relatórios de parceria externa.
+            (sem cadastro no sistema) — não entram no ranking nem nos totais da REMAX e permanecem
+            somente no controle separado de parcerias externas.
           </p>
         )}
         {ranking.length > 0 && (
@@ -385,8 +385,8 @@ function VisaoGeralCard({
                 <TableHead>Equipe</TableHead>
                 <TableHead>Vendas</TableHead>
                 <TableHead>Fechadas</TableHead>
-                <TableHead>VGV REMAX</TableHead>
-                <TableHead>Comissão</TableHead>
+                <TableHead>VGV atribuído à REMAX</TableHead>
+                <TableHead>Comissão gerada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

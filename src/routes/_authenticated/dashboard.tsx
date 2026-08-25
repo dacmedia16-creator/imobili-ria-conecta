@@ -687,8 +687,8 @@ function ResumoGestorMes() {
           </div>
           <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">{periodo.label}</h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
-            O essencial da operação em uma leitura. Os detalhes continuam disponíveis na Central
-            Financeira.
+            O essencial da operação em uma leitura. Os detalhes continuam disponíveis no
+            Financeiro.
           </p>
           <Button asChild variant="secondary" size="sm" className="mt-5">
             <Link to="/financeiro">
@@ -712,6 +712,7 @@ function ResumoGestorMes() {
                 icon={TrendingUp}
                 label="VGV atribuído à REMAX"
                 value={moeda(resumo.vgvEfetivado)}
+                hint="VGV proporcional das vendas do mês, sem parceria externa"
               />
               <ResumoExecutivoCard
                 icon={CircleDollarSign}
@@ -721,8 +722,9 @@ function ResumoGestorMes() {
               />
               <ResumoExecutivoCard
                 icon={Landmark}
-                label="Recebido"
+                label="Recebido no mês"
                 value={moeda(resumo.recebidoImobiliaria)}
+                hint="Dinheiro efetivamente recebido pela REMAX no mês"
               />
               <ResumoExecutivoCard
                 icon={AlertCircle}
@@ -975,20 +977,26 @@ function MovimentacaoPeriodoSection() {
           </Select>
           {search.periodo === "personalizado" && (
             <>
-              <Input
-                type="date"
-                value={search.de ?? ""}
-                onChange={(e) => mudarData("de", e.target.value)}
-                className="w-[9.5rem]"
-                aria-label="Data inicial"
-              />
-              <Input
-                type="date"
-                value={search.ate ?? ""}
-                onChange={(e) => mudarData("ate", e.target.value)}
-                className="w-[9.5rem]"
-                aria-label="Data final"
-              />
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span className="block">De</span>
+                <Input
+                  type="date"
+                  value={search.de ?? ""}
+                  onChange={(e) => mudarData("de", e.target.value)}
+                  className="w-[9.5rem] text-foreground"
+                  aria-label="Data inicial"
+                />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span className="block">Até</span>
+                <Input
+                  type="date"
+                  value={search.ate ?? ""}
+                  onChange={(e) => mudarData("ate", e.target.value)}
+                  className="w-[9.5rem] text-foreground"
+                  aria-label="Data final"
+                />
+              </label>
             </>
           )}
         </div>

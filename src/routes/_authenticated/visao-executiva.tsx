@@ -212,7 +212,7 @@ function VisaoExecutiva() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Visão Executiva</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Desempenho</h1>
         <p className="text-sm text-muted-foreground">
           Gargalos, performance de equipe e evolução do negócio.
         </p>
@@ -231,13 +231,13 @@ function VisaoExecutiva() {
           />
           <ResumoCard
             icon={Percent}
-            label="Comissão da REMAX"
+            label="Comissão gerada pela REMAX"
             valor={money(operacaoRemax.comissao_propria)}
             info="Comissão da operação depois de excluir a parceria externa."
           />
           <ResumoCard
             icon={Building2}
-            label="Parte da unidade"
+            label="Comissão destinada à unidade"
             valor={money(stats?.resumo_operacional?.parte_unidade ?? 0)}
             info="O que sobra da comissão bruta pra unidade depois de descontar a parceria externa e a comissão de captador/vendedor — ainda antes de descontar gestores, Team Leaders e extras."
           />
@@ -264,30 +264,30 @@ function VisaoExecutiva() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Comissão em carteira — por status
+          Comissões em carteira — posição atual
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             icon={TrendingUp}
-            label="Comissão prevista"
+            label="Comissão de vendas em andamento"
             value={money(comissaoStats?.comissao_prevista_total ?? 0)}
             info="Soma da comissão das ocorrências ainda não concluídas, já descontando a parte de parceiro externo sem cadastro no sistema — essa parte nunca é receita da imobiliária."
           />
           <KpiCard
             icon={TrendingUp}
-            label="Comissão concluída"
+            label="Comissão de vendas concluídas"
             value={money(comissaoStats?.comissao_concluida_total ?? 0)}
             info="Mesma regra da comissão prevista (desconta parceria externa), mas só das ocorrências já concluídas."
           />
           <KpiCard
             icon={Landmark}
-            label="Líquido da imobiliária (prevista)"
+            label="Líquido da imobiliária em andamento"
             value={money(comissaoStats?.liquido_imobiliaria_prevista_total ?? 0)}
             info="Comissão das ocorrências ainda não concluídas, descontando TUDO que já foi pago: parte de corretores/gestores/team leaders internos (soma de 'Comissão por corretor' abaixo) e parceria externa. Só sobra o que não foi atribuído a ninguém nomeado — o que fica de fato com a casa."
           />
           <KpiCard
             icon={Landmark}
-            label="Líquido da imobiliária (concluída)"
+            label="Líquido da imobiliária concluído"
             value={money(comissaoStats?.liquido_imobiliaria_concluida_total ?? 0)}
             info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
           />
