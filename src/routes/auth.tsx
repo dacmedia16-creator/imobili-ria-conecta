@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -127,6 +127,11 @@ function AuthPage() {
                 <p className="mt-4 text-center text-xs text-muted-foreground">
                   Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
                 </p>
+                <div className="mt-4 border-t pt-4 text-center">
+                  <Link to="/especialistas" className="text-sm font-medium text-primary hover:underline">
+                    Encontrar um especialista por região
+                  </Link>
+                </div>
               </>
             ) : linkEnviado ? (
               <div className="space-y-4 text-center">

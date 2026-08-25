@@ -512,6 +512,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          public_profile_enabled: boolean
           telefone: string | null
           updated_at: string
         }
@@ -522,6 +523,7 @@ export type Database = {
           email?: string | null
           id: string
           nome?: string
+          public_profile_enabled?: boolean
           telefone?: string | null
           updated_at?: string
         }
@@ -532,10 +534,74 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          public_profile_enabled?: boolean
           telefone?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      positioning_regions: {
+        Row: {
+          ativo: boolean
+          cidade: string
+          created_at: string
+          id: number
+          nome: string
+          tipo: string
+          zona: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          cidade: string
+          created_at?: string
+          id?: number
+          nome: string
+          tipo?: string
+          zona?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          cidade?: string
+          created_at?: string
+          id?: number
+          nome?: string
+          tipo?: string
+          zona?: string | null
+        }
+        Relationships: []
+      }
+      corretor_positioning_regions: {
+        Row: {
+          corretor_id: string
+          created_at: string
+          region_id: number
+        }
+        Insert: {
+          corretor_id: string
+          created_at?: string
+          region_id: number
+        }
+        Update: {
+          corretor_id?: string
+          created_at?: string
+          region_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corretor_positioning_regions_corretor_id_fkey"
+            columns: ["corretor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corretor_positioning_regions_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "positioning_regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sale_bank_accounts: {
         Row: {
@@ -1520,11 +1586,36 @@ export type Database = {
           nome: string
         }[]
       }
+      list_public_positioning_regions: {
+        Args: never
+        Returns: {
+          cidade: string
+          corretores: number
+          id: number
+          nome: string
+          tipo: string
+          zona: string | null
+        }[]
+      }
+      list_public_specialists: {
+        Args: { _region_id?: number; _search?: string }
+        Returns: {
+          avatar_url: string | null
+          id: string
+          nome: string
+          regioes: Json
+          telefone: string
+        }[]
+      }
       metas_progresso: { Args: { _mes: string }; Returns: Json }
       producao_por_pessoa_dados: { Args: never; Returns: Json }
       salvar_divisao_comissao_lancamento: {
         Args: { p_linhas: Json; p_sale_id: string }
         Returns: Json
+      }
+      save_my_positioning: {
+        Args: { _public_enabled: boolean; _region_ids: number[] }
+        Returns: undefined
       }
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string }

@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ShieldCheck, MessageCircle, KeyRound } from "lucide-react";
+import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { groupRegions, type PositioningRegion } from "@/lib/positioning";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -30,6 +32,11 @@ function MeuAcesso() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [savingTelefone, setSavingTelefone] = useState(false);
+  const [positioningRegions, setPositioningRegions] = useState<PositioningRegion[]>([]);
+  const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
+  const [publicProfileEnabled, setPublicProfileEnabled] = useState(false);
+  const [positioningSearch, setPositioningSearch] = useState("");
+  const [savingPositioning, setSavingPositioning] = useState(false);
   const [notifPorPapel, setNotifPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [notifAtualizacaoPorPapel, setNotifAtualizacaoPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
@@ -45,10 +52,11 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, public_profile_enabled").eq("id", user.id).maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setAvatarUrl(data?.avatar_url ?? null);
+      setPublicProfileEnabled(data?.public_profile_enabled ?? false);
     })();
     (async () => {
       const { data } = await supabase
@@ -65,6 +73,22 @@ function MeuAcesso() {
       setNotifAtualizacaoPorPapel(mapAtualizacao);
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !roles.includes("corretor")) return;
+    (async () => {
+      const [{ data: regions, error: regionsError }, { data: selected, error: selectedError }] = await Promise.all([
+        supabase.from("positioning_regions").select("id, cidade, zona, nome, tipo").eq("ativo", true).order("cidade").order("zona").order("nome"),
+        supabase.from("corretor_positioning_regions").select("region_id").eq("corretor_id", user.id),
+      ]);
+      if (regionsError || selectedError) {
+        toast.error("Não foi possível carregar seu posicionamento.");
+        return;
+      }
+      setPositioningRegions(regions ?? []);
+      setSelectedRegionIds((selected ?? []).map((row) => row.region_id));
+    })();
+  }, [roles, user]);
 
   const alternarNotifCampo = async (
     r: AppRole,
@@ -97,6 +121,41 @@ function MeuAcesso() {
       else toast.success("Telefone salvo");
     } finally {
       setSavingTelefone(false);
+    }
+  };
+
+  const alternarRegiao = (id: number, checked: boolean) => {
+    setSelectedRegionIds((current) => {
+      if (!checked) return current.filter((item) => item !== id);
+      if (current.includes(id)) return current;
+      if (current.length >= 20) {
+        toast.error("Você pode selecionar até 20 regiões.");
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const salvarPosicionamento = async () => {
+    if (!user) return;
+    if (publicProfileEnabled && !telefone.trim()) {
+      toast.error("Preencha e salve seu WhatsApp antes de publicar o perfil.");
+      return;
+    }
+    if (publicProfileEnabled && selectedRegionIds.length === 0) {
+      toast.error("Selecione pelo menos uma região antes de publicar o perfil.");
+      return;
+    }
+    setSavingPositioning(true);
+    try {
+      const { error } = await supabase.rpc("save_my_positioning", {
+        _region_ids: selectedRegionIds,
+        _public_enabled: publicProfileEnabled,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success(publicProfileEnabled ? "Posicionamento salvo e perfil público ativado" : "Posicionamento salvo");
+    } finally {
+      setSavingPositioning(false);
     }
   };
 
@@ -248,6 +307,71 @@ function MeuAcesso() {
           </div>
         </CardContent>
       </Card>
+
+      {roles.includes("corretor") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className="h-4 w-4" /> Meu posicionamento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <p className="text-xs text-muted-foreground">
+              Escolha os bairros e condomínios em que você atua ou quer se posicionar. Essas informações só aparecem na vitrine quando você autorizar.
+            </p>
+            <Input
+              value={positioningSearch}
+              onChange={(event) => setPositioningSearch(event.target.value)}
+              placeholder="Buscar bairro, condomínio, cidade ou zona"
+              className="max-w-lg"
+            />
+            <div className="max-h-80 space-y-4 overflow-y-auto rounded-md border p-3">
+              {groupRegions(positioningRegions.filter((region) => {
+                const query = positioningSearch.trim().toLocaleLowerCase("pt-BR");
+                if (!query) return true;
+                return [region.nome, region.cidade, region.zona ?? ""].some((value) => value.toLocaleLowerCase("pt-BR").includes(query));
+              })).map((group) => (
+                <div key={group.label}>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {group.items.map((region) => (
+                      <label key={region.id} className="flex cursor-pointer items-start gap-2 rounded-md border p-2.5 hover:bg-muted/50">
+                        <Checkbox
+                          checked={selectedRegionIds.includes(region.id)}
+                          onCheckedChange={(checked) => alternarRegiao(region.id, checked === true)}
+                        />
+                        <span>
+                          <span className="block font-medium">{region.nome}</span>
+                          <span className="text-xs capitalize text-muted-foreground">{region.tipo}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {positioningRegions.length === 0 && <p className="text-muted-foreground">Nenhuma região cadastrada.</p>}
+            </div>
+            <div className="text-xs text-muted-foreground">{selectedRegionIds.length} de 20 regiões selecionadas</div>
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div>
+                <Label htmlFor="public-profile" className="font-medium">Exibir meu perfil publicamente</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ao ativar, você autoriza a exibição do seu nome, foto, WhatsApp e regiões de atuação na página pública de especialistas.
+                </p>
+              </div>
+              <Switch id="public-profile" checked={publicProfileEnabled} onCheckedChange={setPublicProfileEnabled} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={salvarPosicionamento} disabled={savingPositioning}>
+                {savingPositioning ? "Salvando..." : "Salvar posicionamento"}
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/especialistas" target="_blank">Ver página pública <ExternalLink className="ml-1 h-3.5 w-3.5" /></Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
