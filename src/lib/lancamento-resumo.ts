@@ -17,6 +17,8 @@ const CAMPOS_STRING_VAZIA_VIRA_NULL = [
   "data_assinatura",
   "midia",
   "previsao_recebimento_data",
+  "previsao_recebimento2_data",
+  "previsao_recebimento3_data",
 ] as const;
 
 export function sanitizeLancamentoResumoPayload<T extends Record<string, unknown>>(form: T): T {

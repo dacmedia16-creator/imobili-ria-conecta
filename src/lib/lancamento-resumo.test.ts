@@ -16,6 +16,14 @@ describe("sanitizeLancamentoResumoPayload", () => {
     const r = sanitizeLancamentoResumoPayload({ previsao_recebimento_data: "" });
     expect(r.previsao_recebimento_data).toBeNull();
   });
+  it("converte as datas vazias da 2ª e 3ª parcelas para null", () => {
+    const r = sanitizeLancamentoResumoPayload({
+      previsao_recebimento2_data: "",
+      previsao_recebimento3_data: "",
+    });
+    expect(r.previsao_recebimento2_data).toBeNull();
+    expect(r.previsao_recebimento3_data).toBeNull();
+  });
   it("preserva valores válidos sem alteração", () => {
     const r = sanitizeLancamentoResumoPayload({
       data_assinatura: "2026-08-17",

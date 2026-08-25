@@ -189,6 +189,12 @@ export function LancamentoDetail({
       previsao_recebimento_valor: sale.previsao_recebimento_valor ?? null,
       previsao_recebimento_data: sale.previsao_recebimento_data ?? null,
       previsao_recebimento_forma: sale.previsao_recebimento_forma ?? "",
+      previsao_recebimento2_valor: sale.previsao_recebimento2_valor ?? null,
+      previsao_recebimento2_data: sale.previsao_recebimento2_data ?? null,
+      previsao_recebimento2_forma: sale.previsao_recebimento2_forma ?? "",
+      previsao_recebimento3_valor: sale.previsao_recebimento3_valor ?? null,
+      previsao_recebimento3_data: sale.previsao_recebimento3_data ?? null,
+      previsao_recebimento3_forma: sale.previsao_recebimento3_forma ?? "",
       negociacao_observacoes: sale.negociacao_observacoes ?? "",
     });
     setEditFinanciamento({
@@ -553,6 +559,12 @@ export function LancamentoDetail({
     previsao_recebimento_valor: sale.previsao_recebimento_valor ?? null,
     previsao_recebimento_data: sale.previsao_recebimento_data ?? null,
     previsao_recebimento_forma: sale.previsao_recebimento_forma ?? "",
+    previsao_recebimento2_valor: sale.previsao_recebimento2_valor ?? null,
+    previsao_recebimento2_data: sale.previsao_recebimento2_data ?? null,
+    previsao_recebimento2_forma: sale.previsao_recebimento2_forma ?? "",
+    previsao_recebimento3_valor: sale.previsao_recebimento3_valor ?? null,
+    previsao_recebimento3_data: sale.previsao_recebimento3_data ?? null,
+    previsao_recebimento3_forma: sale.previsao_recebimento3_forma ?? "",
     negociacao_observacoes: sale.negociacao_observacoes ?? "",
   };
   const [form, setForm] = useState(() => initialForm);
@@ -771,7 +783,13 @@ export function LancamentoDetail({
           semCadastroConfirmado: !!c.sem_cadastro_confirmado,
         })),
       }),
-    [form.valor_negociado, form.percentual_comissao, form.valor_total_comissao, form.premio_valor, commRows],
+    [
+      form.valor_negociado,
+      form.percentual_comissao,
+      form.valor_total_comissao,
+      form.premio_valor,
+      commRows,
+    ],
   );
 
   const saveComm = useCallback(async () => {
@@ -1169,12 +1187,14 @@ export function LancamentoDetail({
                       disabled={!canEdit}
                       onChange={(e) => {
                         const percentual = e.target.value ? Number(e.target.value) : null;
-                        const base = previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
+                        const base =
+                          previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
                         updComm(c.id, {
                           percentual,
-                          valor: percentual != null && base > 0
-                            ? Number(((percentual / 100) * base).toFixed(2))
-                            : c.valor,
+                          valor:
+                            percentual != null && base > 0
+                              ? Number(((percentual / 100) * base).toFixed(2))
+                              : c.valor,
                         });
                       }}
                     />
@@ -1185,12 +1205,14 @@ export function LancamentoDetail({
                       value={c.valor}
                       disabled={!canEdit}
                       onChange={(v) => {
-                        const base = previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
+                        const base =
+                          previewDistribuicao.comissao_bruta + previewDistribuicao.premio_valor;
                         updComm(c.id, {
                           valor: v,
-                          percentual: v != null && base > 0
-                            ? Number(((v / base) * 100).toFixed(3))
-                            : c.percentual,
+                          percentual:
+                            v != null && base > 0
+                              ? Number(((v / base) * 100).toFixed(3))
+                              : c.percentual,
                         });
                       }}
                     />
@@ -1220,16 +1242,20 @@ export function LancamentoDetail({
             </div>
           </SaleSection>
 
-          <SaleSection title="Previsão de recebimento">
+          <SaleSection title="Previsão de recebimento da comissão">
+            <p className="mb-3 text-sm text-muted-foreground">
+              Informe até três recebimentos. Em cada parcela, preencha valor, data e forma de
+              pagamento.
+            </p>
             <FieldGrid>
-              <Field label="Valor">
+              <Field label="1ª parcela — valor">
                 <CurrencyInput
                   value={form.previsao_recebimento_valor}
                   disabled={!canEdit}
                   onChange={(v) => upd({ previsao_recebimento_valor: v })}
                 />
               </Field>
-              <Field label="Data">
+              <Field label="1ª parcela — data">
                 <Input
                   type="date"
                   value={form.previsao_recebimento_data ?? ""}
@@ -1237,11 +1263,57 @@ export function LancamentoDetail({
                   onChange={(e) => upd({ previsao_recebimento_data: e.target.value || null })}
                 />
               </Field>
-              <Field label="Forma de pagamento">
+              <Field label="1ª parcela — forma de pagamento" colSpan={2}>
                 <Input
                   value={form.previsao_recebimento_forma ?? ""}
                   disabled={!canEdit}
                   onChange={(e) => upd({ previsao_recebimento_forma: e.target.value })}
+                />
+              </Field>
+              <Field label="2ª parcela — valor">
+                <CurrencyInput
+                  value={form.previsao_recebimento2_valor}
+                  disabled={!canEdit}
+                  onChange={(v) => upd({ previsao_recebimento2_valor: v })}
+                />
+              </Field>
+              <Field label="2ª parcela — data">
+                <Input
+                  type="date"
+                  value={form.previsao_recebimento2_data ?? ""}
+                  disabled={!canEdit}
+                  onChange={(e) => upd({ previsao_recebimento2_data: e.target.value || null })}
+                />
+              </Field>
+              <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+                <Input
+                  value={form.previsao_recebimento2_forma ?? ""}
+                  disabled={!canEdit}
+                  placeholder="PIX, TED, boleto..."
+                  onChange={(e) => upd({ previsao_recebimento2_forma: e.target.value })}
+                />
+              </Field>
+              <Field label="3ª parcela — valor">
+                <CurrencyInput
+                  value={form.previsao_recebimento3_valor}
+                  disabled={!canEdit}
+                  onChange={(v) => upd({ previsao_recebimento3_valor: v })}
+                />
+              </Field>
+              <Field label="3ª parcela — data">
+                <Input
+                  type="date"
+                  value={form.previsao_recebimento3_data ?? ""}
+                  disabled={!canEdit}
+                  onChange={(e) => upd({ previsao_recebimento3_data: e.target.value || null })}
+                />
+              </Field>
+              <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+                <Input
+                  value={form.previsao_recebimento3_forma ?? ""}
+                  disabled={!canEdit}
+                  placeholder="PIX, TED, boleto..."
+                  onChange={(e) => upd({ previsao_recebimento3_forma: e.target.value })}
                 />
               </Field>
             </FieldGrid>
@@ -1411,14 +1483,18 @@ export function LancamentoDetail({
           </SaleSection>
 
           <SaleSection title="Previsão de recebimento da comissão">
+            <p className="mb-3 text-sm text-muted-foreground">
+              Informe até três recebimentos. Em cada parcela, preencha valor, data e forma de
+              pagamento.
+            </p>
             <FieldGrid>
-              <Field label="Valor">
+              <Field label="1ª parcela — valor">
                 <CurrencyInput
                   value={editResumo.previsao_recebimento_valor}
                   onChange={(v) => updEditResumo({ previsao_recebimento_valor: v })}
                 />
               </Field>
-              <Field label="Data">
+              <Field label="1ª parcela — data">
                 <Input
                   type="date"
                   value={editResumo.previsao_recebimento_data ?? ""}
@@ -1427,11 +1503,55 @@ export function LancamentoDetail({
                   }
                 />
               </Field>
-              <Field label="Forma de pagamento" colSpan={2}>
+              <Field label="1ª parcela — forma de pagamento" colSpan={2}>
                 <Input
                   value={editResumo.previsao_recebimento_forma ?? ""}
                   placeholder="PIX, TED, boleto..."
                   onChange={(e) => updEditResumo({ previsao_recebimento_forma: e.target.value })}
+                />
+              </Field>
+              <Field label="2ª parcela — valor">
+                <CurrencyInput
+                  value={editResumo.previsao_recebimento2_valor}
+                  onChange={(v) => updEditResumo({ previsao_recebimento2_valor: v })}
+                />
+              </Field>
+              <Field label="2ª parcela — data">
+                <Input
+                  type="date"
+                  value={editResumo.previsao_recebimento2_data ?? ""}
+                  onChange={(e) =>
+                    updEditResumo({ previsao_recebimento2_data: e.target.value || null })
+                  }
+                />
+              </Field>
+              <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+                <Input
+                  value={editResumo.previsao_recebimento2_forma ?? ""}
+                  placeholder="PIX, TED, boleto..."
+                  onChange={(e) => updEditResumo({ previsao_recebimento2_forma: e.target.value })}
+                />
+              </Field>
+              <Field label="3ª parcela — valor">
+                <CurrencyInput
+                  value={editResumo.previsao_recebimento3_valor}
+                  onChange={(v) => updEditResumo({ previsao_recebimento3_valor: v })}
+                />
+              </Field>
+              <Field label="3ª parcela — data">
+                <Input
+                  type="date"
+                  value={editResumo.previsao_recebimento3_data ?? ""}
+                  onChange={(e) =>
+                    updEditResumo({ previsao_recebimento3_data: e.target.value || null })
+                  }
+                />
+              </Field>
+              <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+                <Input
+                  value={editResumo.previsao_recebimento3_forma ?? ""}
+                  placeholder="PIX, TED, boleto..."
+                  onChange={(e) => updEditResumo({ previsao_recebimento3_forma: e.target.value })}
                 />
               </Field>
             </FieldGrid>
@@ -1575,9 +1695,10 @@ export function LancamentoDetail({
                         const base = editPreviewDist.comissao_bruta + editPreviewDist.premio_valor;
                         updEditLinha(c.id, {
                           percentual,
-                          valor: percentual != null && base > 0
-                            ? Number(((percentual / 100) * base).toFixed(2))
-                            : c.valor,
+                          valor:
+                            percentual != null && base > 0
+                              ? Number(((percentual / 100) * base).toFixed(2))
+                              : c.valor,
                         });
                       }}
                     />
@@ -1590,9 +1711,10 @@ export function LancamentoDetail({
                         const base = editPreviewDist.comissao_bruta + editPreviewDist.premio_valor;
                         updEditLinha(c.id, {
                           valor: v,
-                          percentual: v != null && base > 0
-                            ? Number(((v / base) * 100).toFixed(3))
-                            : c.percentual,
+                          percentual:
+                            v != null && base > 0
+                              ? Number(((v / base) * 100).toFixed(3))
+                              : c.percentual,
                         });
                       }}
                     />
