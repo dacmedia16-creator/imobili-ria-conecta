@@ -140,13 +140,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
     {
       to: "/relatorios",
-      label: "Relatórios",
+      label: "Relatórios financeiros",
       icon: BarChart3,
       show: hasAny(["financeiro", "admin", "super_admin"]),
     },
     {
       to: "/comissoes-a-receber",
-      label: "Comissões a Receber",
+      label: "Baixa de recebimentos",
       icon: Wallet,
       show: hasAny(["financeiro", "admin", "super_admin"]),
     },

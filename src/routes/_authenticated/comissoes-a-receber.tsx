@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/comissoes-a-receber")({
-  head: () => ({ meta: [{ title: "Comissões a Receber" }] }),
+  head: () => ({ meta: [{ title: "Baixa de recebimentos" }] }),
   component: ComissoesAReceberPage,
 });
 
@@ -151,8 +151,8 @@ function ComissoesAReceberPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Comissões a Receber</h1>
-        <p className="text-sm text-muted-foreground">Parcelas de comissão ainda não confirmadas como recebidas — já é a fatia própria da imobiliária, sem a parte de eventuais parcerias externas.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Baixa de recebimentos</h1>
+        <p className="text-sm text-muted-foreground">Área operacional para confirmar parcelas recebidas. Os valores já mostram somente a fatia própria da imobiliária, sem parcerias externas.</p>
       </div>
 
       {inconsistentes.length > 0 && (

@@ -206,12 +206,14 @@ function RelatoriosPage() {
       )}
 
       <Tabs defaultValue="caixa">
-        <TabsList>
-          <TabsTrigger value="caixa">Fluxo de caixa</TabsTrigger>
-          <TabsTrigger value="comissoes">Comissões</TabsTrigger>
-          <TabsTrigger value="financiamentos">Financiamentos</TabsTrigger>
-          <TabsTrigger value="funil">Funil de ocorrências</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList>
+            <TabsTrigger value="caixa" className="shrink-0">Fluxo de caixa</TabsTrigger>
+            <TabsTrigger value="comissoes" className="shrink-0">Comissões</TabsTrigger>
+            <TabsTrigger value="financiamentos" className="shrink-0">Financiamentos</TabsTrigger>
+            <TabsTrigger value="funil" className="shrink-0">Funil de ocorrências</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="caixa">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
