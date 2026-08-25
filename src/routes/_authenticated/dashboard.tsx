@@ -715,9 +715,9 @@ function ResumoGestorMes() {
               />
               <ResumoExecutivoCard
                 icon={CircleDollarSign}
-                label="Previsto para a imobiliária"
-                value={moeda(resumo.previstoImobiliaria)}
-                hint="Parceria externa já descontada"
+                label="Comissão gerada no mês"
+                value={moeda(resumo.comissaoBruta)}
+                hint="Vendas efetivadas no mês, com parceria externa descontada"
               />
               <ResumoExecutivoCard
                 icon={Landmark}

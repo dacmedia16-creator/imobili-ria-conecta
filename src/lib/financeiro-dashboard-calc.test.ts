@@ -720,6 +720,37 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
     const somaManual = parcelas.reduce((s, p) => s + p.valorLiquidoPrevisto, 0);
     expect(resumo.previstoImobiliaria).toBeCloseTo(somaManual, 2);
   });
+  it("comissão gerada depende das vendas efetivadas, não do vencimento das parcelas", () => {
+    const resumo = calcularResumo({
+      parcelas: [
+        parcelaBase({
+          dataPrevista: "2026-09-10",
+          valorBrutoPrevisto: 2000,
+        }),
+      ],
+      comissoes: [],
+      efetivadas: [
+        {
+          saleId: "s-agosto",
+          imovelLabel: "Casa agosto",
+          codigoInterno: null,
+          dataEfetivacao: "2026-08-20",
+          modalidade: "padrao",
+          corretorId: "c1",
+          teamId: null,
+          gestorId: null,
+          valorNegociado: 100000,
+          valorTotalComissao: 6000,
+          parceriaExterna: 1500,
+        },
+      ],
+      divergenciasAbertas: 0,
+      hoje: HOJE,
+    });
+
+    expect(resumo.comissaoBruta).toBe(4500);
+    expect(resumo.previstoImobiliaria).toBe(2000);
+  });
   it("vgvEfetivado/comissaoBruta do resumo somam exatamente as EfetivacaoVenda passadas", () => {
     const efetivadas: EfetivacaoVenda[] = [
       {
