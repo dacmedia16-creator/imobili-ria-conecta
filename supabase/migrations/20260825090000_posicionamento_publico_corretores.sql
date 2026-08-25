@@ -2,6 +2,8 @@
 -- A vitrine nunca consulta profiles diretamente: as RPCs abaixo devolvem somente
 -- nome, foto, WhatsApp e regioes de quem deu consentimento explicito.
 
+BEGIN;
+
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS public_profile_enabled boolean NOT NULL DEFAULT false;
 
@@ -270,3 +272,5 @@ INSERT INTO public.positioning_regions (cidade, zona, nome, tipo) VALUES
   ('Araçoiaba da Serra',NULL,'Araçoiaba da Serra','cidade')
 ON CONFLICT (cidade, nome, tipo) DO UPDATE
 SET zona = EXCLUDED.zona, ativo = true;
+
+COMMIT;
