@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Search, MapPin, MessageCircle, ArrowLeft, Users } from "lucide-react";
+import { Search, MapPin, MessageCircle, ArrowLeft, Users, Phone, Globe, Instagram } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,21 @@ function SpecialistsPage() {
                           {region.nome}
                         </span>
                       ))}
+                    </div>
+                    <div className="mt-5 space-y-2 text-sm text-slate-600">
+                      <a href={whatsappSpecialistUrl(specialist)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
+                        <Phone className="h-4 w-4 shrink-0" /> <span>{specialist.telefone}</span>
+                      </a>
+                      {specialist.pagina_pessoal_url && (
+                        <a href={specialist.pagina_pessoal_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
+                          <Globe className="h-4 w-4 shrink-0" /> <span>Página pessoal</span>
+                        </a>
+                      )}
+                      {specialist.instagram_url && (
+                        <a href={specialist.instagram_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
+                          <Instagram className="h-4 w-4 shrink-0" /> <span>Instagram</span>
+                        </a>
+                      )}
                     </div>
                     <Button className="mt-6 w-full bg-[#128c4a] hover:bg-[#0f7a40]" asChild>
                       <a

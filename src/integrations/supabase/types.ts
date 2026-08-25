@@ -513,6 +513,8 @@ export type Database = {
           id: string
           nome: string
           public_profile_enabled: boolean
+          pagina_pessoal_url: string | null
+          instagram_url: string | null
           telefone: string | null
           updated_at: string
         }
@@ -524,6 +526,8 @@ export type Database = {
           id: string
           nome?: string
           public_profile_enabled?: boolean
+          pagina_pessoal_url?: string | null
+          instagram_url?: string | null
           telefone?: string | null
           updated_at?: string
         }
@@ -535,6 +539,8 @@ export type Database = {
           id?: string
           nome?: string
           public_profile_enabled?: boolean
+          pagina_pessoal_url?: string | null
+          instagram_url?: string | null
           telefone?: string | null
           updated_at?: string
         }

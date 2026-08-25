@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { groupRegions, type PositioningRegion } from "@/lib/positioning";
+import { groupRegions, normalizeExternalUrl, normalizeInstagramUrl, type PositioningRegion } from "@/lib/positioning";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -34,6 +34,9 @@ function MeuAcesso() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [savingTelefone, setSavingTelefone] = useState(false);
+  const [paginaPessoal, setPaginaPessoal] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [savingPublicContacts, setSavingPublicContacts] = useState(false);
   const [positioningRegions, setPositioningRegions] = useState<PositioningRegion[]>([]);
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
   const [publicProfileEnabled, setPublicProfileEnabled] = useState(false);
@@ -58,11 +61,13 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, public_profile_enabled").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, public_profile_enabled, pagina_pessoal_url, instagram_url").eq("id", user.id).maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setAvatarUrl(data?.avatar_url ?? null);
       setPublicProfileEnabled(data?.public_profile_enabled ?? false);
+      setPaginaPessoal(data?.pagina_pessoal_url ?? "");
+      setInstagram(data?.instagram_url ?? "");
     })();
     (async () => {
       const { data } = await supabase
@@ -130,6 +135,22 @@ function MeuAcesso() {
     } finally {
       setSavingTelefone(false);
     }
+  };
+
+  const salvarContatosPublicos = async () => {
+    if (!user) return;
+    const paginaUrl = normalizeExternalUrl(paginaPessoal);
+    const instagramUrl = normalizeInstagramUrl(instagram);
+    if (paginaPessoal.trim() && !paginaUrl) { toast.error("Informe uma página pessoal válida."); return; }
+    if (instagram.trim() && !instagramUrl) { toast.error("Informe um usuário ou link válido do Instagram."); return; }
+    setSavingPublicContacts(true);
+    try {
+      const { error } = await supabase.from("profiles").update({ pagina_pessoal_url: paginaUrl, instagram_url: instagramUrl }).eq("id", user.id);
+      if (error) { toast.error(error.message); return; }
+      setPaginaPessoal(paginaUrl ?? "");
+      setInstagram(instagramUrl ?? "");
+      toast.success("Links públicos salvos");
+    } finally { setSavingPublicContacts(false); }
   };
 
   const alternarRegiao = (id: number, checked: boolean) => {
@@ -331,6 +352,24 @@ function MeuAcesso() {
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.</p>
           </div>
+          {roles.includes("corretor") && (
+            <div className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2">
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">Página pessoal (opcional)</Label>
+                <Input placeholder="https://seusite.com.br" value={paginaPessoal} onChange={(e) => setPaginaPessoal(e.target.value)} />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">Instagram (opcional)</Label>
+                <Input placeholder="@seuusuario" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <Button size="sm" variant="outline" onClick={salvarContatosPublicos} disabled={savingPublicContacts}>
+                  {savingPublicContacts ? "Salvando..." : "Salvar links públicos"}
+                </Button>
+                <p className="mt-1.5 text-xs text-muted-foreground">Esses links só aparecem na vitrine se o perfil público estiver ativado.</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -394,7 +433,7 @@ function MeuAcesso() {
               <div>
                 <Label htmlFor="public-profile" className="font-medium">Exibir meu perfil publicamente</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Ao ativar, você autoriza a exibição do seu nome, foto, WhatsApp e regiões de atuação na página pública de especialistas.
+                  Ao ativar, você autoriza a exibição do seu nome, foto, telefone/WhatsApp, regiões de atuação, página pessoal e Instagram na página pública de especialistas.
                 </p>
               </div>
               <Switch id="public-profile" checked={publicProfileEnabled} onCheckedChange={setPublicProfileEnabled} />

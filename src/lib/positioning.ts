@@ -14,8 +14,37 @@ export type PublicSpecialist = {
   nome: string;
   avatar_url: string | null;
   telefone: string;
+  pagina_pessoal_url: string | null;
+  instagram_url: string | null;
   regioes: PublicSpecialistRegion[];
 };
+
+export function normalizeExternalUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeInstagramUrl(value: string): string | null {
+  const trimmed = value.trim().replace(/^@/, "");
+  if (!trimmed) return null;
+  if (/^[a-zA-Z0-9._]{1,30}$/.test(trimmed)) return `https://www.instagram.com/${trimmed}/`;
+  const normalized = normalizeExternalUrl(trimmed);
+  if (!normalized) return null;
+  try {
+    const url = new URL(normalized);
+    if (!["instagram.com", "www.instagram.com"].includes(url.hostname.toLowerCase())) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export function whatsappDigits(telefone: string): string {
   const digits = telefone.replace(/\D/g, "");
