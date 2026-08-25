@@ -353,7 +353,13 @@ function VisaoGeralCard({
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Visão geral</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Visão geral — histórico ativo</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Considera todas as vendas não canceladas nem arquivadas, sem filtro de período. Parcerias
+          externas não entram no VGV, na comissão nem no ranking da REMAX.
+        </p>
+      </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-5">
           <div><p className="text-xs text-muted-foreground">Equipes</p><p className="text-xl font-semibold">{totais.equipes}</p></div>
@@ -938,7 +944,13 @@ function DesempenhoDialog({
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
-        <DialogHeader><DialogTitle>Desempenho — {team.nome}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Desempenho — {team.nome}</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Vendas e fechadas mostram o histórico ativo da equipe. Comissão, meta e progresso usam
+            o mês atual.
+          </p>
+        </DialogHeader>
         {loading ? (
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : (

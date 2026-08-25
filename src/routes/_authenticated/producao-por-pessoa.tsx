@@ -21,7 +21,7 @@ import { SummaryTable } from "@/components/producao-por-pessoa/SummaryTable";
 import { DetailTable } from "@/components/producao-por-pessoa/DetailTable";
 
 export const Route = createFileRoute("/_authenticated/producao-por-pessoa")({
-  head: () => ({ meta: [{ title: "Produção Gerada por Pessoa" }] }),
+  head: () => ({ meta: [{ title: "Produção concluída por pessoa" }] }),
   // Mesma proteção em 3 camadas do Comparativo 6%: rota (aqui), componente (useAuth) e RPC
   // (producao_por_pessoa_dados, checada no banco independente da RLS).
   beforeLoad: async () => {
@@ -112,10 +112,10 @@ function ProducaoPorPessoaPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Produção Gerada por Pessoa</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Produção concluída por pessoa</h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Quanto cada pessoa gerou para a REMAX — VGV e comissão da unidade já sem parceria
-            externa, divididos entre captação e venda.
+            Mostra somente operações concluídas pelo Financeiro, usando a data da conclusão. O VGV
+            e a comissão da unidade aparecem sem parceria externa e divididos entre captação e venda.
           </p>
         </div>
         <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
@@ -144,8 +144,8 @@ function ProducaoPorPessoaPage() {
         Cada venda completa equivale a 1 venda: numa venda padrão, 0,5 pra quem captou + 0,5 pra
         quem vendeu, cada ponta com metade do VGV e da comissão gerada pela operação; numa venda de
         Lançamento (sem captação), 1 venda inteira na ponta de venda. A soma das pontas nunca
-        duplica o VGV nem a comissão da operação. Só entram operações com ocorrência concluída, não
-        canceladas/arquivadas.
+        duplica o VGV nem a comissão da operação. O período considera a data em que o Financeiro
+        concluiu a ocorrência; operações em análise, devolvidas, canceladas ou arquivadas não entram.
       </p>
     </div>
   );

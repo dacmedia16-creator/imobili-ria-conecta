@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
-  head: () => ({ meta: [{ title: "Visão Executiva" }] }),
+  head: () => ({ meta: [{ title: "Desempenho" }] }),
   component: VisaoExecutiva,
 });
 
@@ -214,7 +214,8 @@ function VisaoExecutiva() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Desempenho</h1>
         <p className="text-sm text-muted-foreground">
-          Gargalos, performance de equipe e evolução do negócio.
+          Indicadores e rankings dos últimos 30 dias, usando as regras financeiras oficiais da
+          operação e excluindo parcerias externas dos totais da REMAX.
         </p>
       </div>
 
