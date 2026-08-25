@@ -480,6 +480,9 @@ function SaleDetail() {
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
+  const gestorDaEquipeRascunho =
+    isGestor && status === "rascunho" && teamIds.has(sale.corretor_id);
+  const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
   const canCloseSale =
@@ -893,7 +896,7 @@ function SaleDetail() {
     if (pendencias.length > 0) { toast.error("Corrija as pendências antes de enviar"); return; }
     // Dono também é gestor/team leader: em vez de ir para "enviada_revisao" (que ele mesmo teria que
     // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
-    if (isOwnerGestor) {
+    if (envioDiretoJuridico) {
       if (pendenciasPagamento.length > 0) { toast.error(pendenciasPagamento[0].mensagem); return; }
       if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
       if (distribuicao && !distribuicao.calculo_valido) {
@@ -1719,7 +1722,7 @@ function SaleDetail() {
   // repetida no rodapé da última etapa do wizard, no lugar do "Próximo" (que ali não faz nada).
   // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
   const primaryAction: { label: string; icon: typeof Send; onClick: () => void; disabled?: boolean } | null =
-    isOwner && (status === "rascunho" || status === "devolvida_ajuste") ? { label: isOwnerGestor ? "Enviar ao jurídico" : "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
+    ((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho) ? { label: envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
     isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico } :
     isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
     isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog } :
@@ -1763,8 +1766,8 @@ function SaleDetail() {
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Corretor: envio inicial ou reenvio após devolução (dono que também é gestor/team leader pula a revisão e já manda pro jurídico) */}
-          {isOwner && (status === "rascunho" || status === "devolvida_ajuste") && (
-            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />{isOwnerGestor ? "Enviar ao jurídico" : "Enviar ao gestor"}</Button>
+          {((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho) && (
+            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />{envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor"}</Button>
           )}
 
           {/* Gestor: revisão inicial */}
@@ -2275,17 +2278,17 @@ function SaleDetail() {
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{isOwnerGestor ? "Conferência antes de enviar ao jurídico" : "Conferência antes de enviar"}</DialogTitle>
+            <DialogTitle>{envioDiretoJuridico ? "Conferência antes de enviar ao jurídico" : "Conferência antes de enviar"}</DialogTitle>
             <DialogDescription>
-              {isOwnerGestor
-                ? "Você também é gestor/team leader desta venda — a revisão do gestor é dispensada. Revise antes de encaminhar direto ao jurídico."
+              {envioDiretoJuridico
+                ? "Você é gestor/team leader responsável por esta venda — revise antes de encaminhar direto ao jurídico."
                 : "Revise o que foi preenchido antes de enviar para o gestor."}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
             {pendencias.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                <CheckCircle2 className="mr-2 inline h-4 w-4" />{isOwnerGestor ? "Venda pronta para enviar ao jurídico." : "Venda pronta para revisão."}
+                <CheckCircle2 className="mr-2 inline h-4 w-4" />{envioDiretoJuridico ? "Venda pronta para enviar ao jurídico." : "Venda pronta para revisão."}
               </div>
             ) : (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -2296,7 +2299,7 @@ function SaleDetail() {
               </div>
             )}
 
-            {isOwnerGestor && docsPendentesAprovacao.length > 0 && (
+            {envioDiretoJuridico && docsPendentesAprovacao.length > 0 && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />{docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.
                 <ul className="mt-2 space-y-1 pl-2">
@@ -2305,14 +2308,14 @@ function SaleDetail() {
               </div>
             )}
 
-            {isOwnerGestor && comissaoExcedida && (
+            {envioDiretoJuridico && comissaoExcedida && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />
                 A soma da comissão do captador ({money(formSale.valor_comissao_captador)}) e do vendedor ({money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão ({money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de enviar ao jurídico.
               </div>
             )}
 
-            {isOwnerGestor && distribuicao && !distribuicao.calculo_valido && (
+            {envioDiretoJuridico && distribuicao && !distribuicao.calculo_valido && (
               <div className="rounded-md bg-destructive/10 p-3 text-destructive">
                 <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:</p>
                 <ul className="mt-2 list-disc space-y-1 pl-6">
@@ -2361,7 +2364,7 @@ function SaleDetail() {
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
-                {isOwnerGestor ? (
+                {envioDiretoJuridico ? (
                   <ReviewItem label="Aprovados" value={`${docsApproved}/${requiredTypes.length}`} />
                 ) : (
                   <ReviewItem label="Anexados" value={`${docs.length}`} />
@@ -2373,9 +2376,9 @@ function SaleDetail() {
             <Button variant="ghost" onClick={() => setReviewOpen(false)}>Cancelar</Button>
             <Button
               onClick={confirmSendForReview}
-              disabled={pendencias.length > 0 || (isOwnerGestor && (docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)))}
+              disabled={pendencias.length > 0 || (envioDiretoJuridico && (docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)))}
             >
-              {isOwnerGestor ? "Confirmar e enviar ao jurídico" : "Confirmar envio"}
+              {envioDiretoJuridico ? "Confirmar e enviar ao jurídico" : "Confirmar envio"}
             </Button>
           </DialogFooter>
         </DialogContent>
