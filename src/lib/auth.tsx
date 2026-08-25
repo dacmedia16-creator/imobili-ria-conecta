@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  IMPERSONATION_EVENT,
+  impersonationMatchesSession,
+  readOperationalImpersonation,
+  writeOperationalImpersonation,
+  type OperationalImpersonation,
+} from "@/lib/user-impersonation";
 
 export type AppRole = "corretor" | "gestor" | "team_leader" | "juridico" | "financeiro" | "admin" | "super_admin" | "lancamento";
 
@@ -13,6 +20,8 @@ type AuthCtx = {
   hasAny: (r: AppRole[]) => boolean;
   signOut: () => Promise<void>;
   refreshRoles: () => Promise<void>;
+  impersonation: OperationalImpersonation | null;
+  restoreSuperAdmin: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
@@ -21,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [impersonation, setImpersonation] = useState<OperationalImpersonation | null>(null);
 
   const loadRoles = async (uid: string | undefined) => {
     if (!uid) { setRoles([]); return; }
@@ -40,6 +50,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const sync = () => setImpersonation(readOperationalImpersonation());
+    sync();
+    window.addEventListener(IMPERSONATION_EVENT, sync);
+    return () => window.removeEventListener(IMPERSONATION_EVENT, sync);
+  }, []);
+
+  const restoreSuperAdmin = async () => {
+    const state = readOperationalImpersonation();
+    if (!state) throw new Error("Não há sessão administrativa para restaurar.");
+    const { error } = await supabase.auth.setSession({
+      access_token: state.actorAccessToken,
+      refresh_token: state.actorRefreshToken,
+    });
+    if (error) throw error;
+    writeOperationalImpersonation(null);
+    setImpersonation(null);
+  };
+
   const value: AuthCtx = {
     session,
     user: session?.user ?? null,
@@ -49,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasAny: (rs) => rs.some((r) => roles.includes(r)),
     signOut: async () => { await supabase.auth.signOut(); },
     refreshRoles: async () => loadRoles(session?.user.id),
+    impersonation: impersonationMatchesSession(impersonation, session) ? impersonation : null,
+    restoreSuperAdmin,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

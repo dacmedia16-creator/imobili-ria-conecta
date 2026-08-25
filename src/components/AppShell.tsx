@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -20,20 +21,38 @@ import {
   Receipt,
   TrendingUp,
   MapPinned,
+  ShieldAlert,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import type { ReactNode } from "react";
+import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
+import { toast } from "sonner";
 
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
 type NavGroup = { label?: string; items: NavItem[]; compact?: boolean };
 
 function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
-  const { user, roles, signOut } = useAuth();
+  const { user, roles, signOut, impersonation, restoreSuperAdmin } = useAuth();
   const router = useRouter();
+  const endImpersonationFn = useServerFn(endOperationalImpersonation);
 
   const handleSignOut = async () => {
+    if (impersonation) {
+      try {
+        await endImpersonationFn({ data: { auditId: impersonation.auditId } });
+      } catch (error) {
+        console.error("Falha ao encerrar auditoria da impersonação", error);
+      }
+      try {
+        await restoreSuperAdmin();
+        window.location.href = "/admin/usuarios";
+      } catch (error: any) {
+        toast.error(error?.message ?? "Não foi possível retornar ao Super Admin.");
+      }
+      return;
+    }
     await signOut();
     router.navigate({ to: "/auth", replace: true });
   };
@@ -86,7 +105,7 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
           className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white"
           onClick={handleSignOut}
         >
-          <LogOut className="h-4 w-4" /> Sair
+          <LogOut className="h-4 w-4" /> {impersonation ? "Retornar ao Super Admin" : "Sair"}
         </Button>
       </div>
     </div>
@@ -94,8 +113,26 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { hasAny, roles } = useAuth();
+  const { hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const router = useRouter();
+  const endImpersonationFn = useServerFn(endOperationalImpersonation);
+
+  const leaveImpersonation = async () => {
+    if (!impersonation) return;
+    try {
+      await endImpersonationFn({ data: { auditId: impersonation.auditId } });
+    } catch (error) {
+      console.error("Falha ao encerrar auditoria da impersonação", error);
+    }
+    try {
+      await restoreSuperAdmin();
+      router.navigate({ to: "/admin/usuarios", replace: true });
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Não foi possível retornar ao Super Admin.");
+    }
+  };
 
   const primaryNav: NavItem[] = [
     { to: "/dashboard", label: "Início", icon: Home, show: true },
@@ -182,12 +219,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   // com a primeira saindo em branco.
   return (
     <div className="min-h-screen bg-background print:min-h-0">
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden">
+      {impersonation && (
+        <div className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-lg print:hidden">
+          <ShieldAlert className="h-4 w-4" />
+          <span>Modo operacional: você está como {impersonation.targetName}. As ações alteram dados reais.</span>
+          <Button size="sm" variant="secondary" onClick={leaveImpersonation}>Retornar ao Super Admin</Button>
+        </div>
+      )}
+      <aside className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${impersonation ? "pt-12" : ""}`}>
         <BrandHeroBackground />
         <SidebarNav groups={navGroups} />
       </aside>
 
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden">
+      <header className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}>
         <div className="flex items-center gap-2">
           <img src="/remax-icon.png" alt="RE/MAX" className="h-7 w-7" />
           <span className="font-semibold tracking-tight">RE/MAX Portal</span>
@@ -216,7 +260,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="md:pl-60 print:pl-0">
+      <main className={`md:pl-60 print:pl-0 ${impersonation ? "pt-12" : ""}`}>
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden justify-end md:flex print:hidden">
             <NotificationBell />

@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { createUser, listLastSignIns, resetUserPassword, updateUser } from "@/lib/admin-users.functions";
+import { finalizeOperationalImpersonation, startOperationalImpersonation } from "@/lib/user-impersonation.functions";
+import { writeOperationalImpersonation } from "@/lib/user-impersonation";
 import { agingInfo } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil, Search, Crown } from "lucide-react";
+import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil, Search, Crown, LogIn } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
@@ -65,6 +67,50 @@ function AdminUsers() {
   const listLastSignInsFn = useServerFn(listLastSignIns);
   const resetPasswordFn = useServerFn(resetUserPassword);
   const updateUserFn = useServerFn(updateUser);
+  const startImpersonationFn = useServerFn(startOperationalImpersonation);
+  const finalizeImpersonationFn = useServerFn(finalizeOperationalImpersonation);
+  const [enteringAs, setEnteringAs] = useState<string | null>(null);
+
+  const enterAsUser = async (target: any) => {
+    if (!user || !isSuper || target.id === user.id || target.ativo === false) return;
+    const confirmed = window.confirm(
+      `Entrar como ${target.nome || target.email}?\n\nVocê terá exatamente as permissões desse usuário. Criações, edições e exclusões afetarão dados reais e serão auditadas.`,
+    );
+    if (!confirmed) return;
+    setEnteringAs(target.id);
+    let saved = false;
+    try {
+      const { data: current } = await supabase.auth.getSession();
+      if (!current.session) throw new Error("Sua sessão de Super Admin expirou.");
+      const result = await startImpersonationFn({ data: { targetUserId: target.id } });
+      writeOperationalImpersonation({
+        auditId: result.auditId,
+        actorUserId: current.session.user.id,
+        actorEmail: current.session.user.email ?? "Super Admin",
+        targetUserId: result.target.id,
+        targetName: result.target.name,
+        targetEmail: result.target.email,
+        startedAt: new Date().toISOString(),
+        actorAccessToken: current.session.access_token,
+        actorRefreshToken: current.session.refresh_token,
+      });
+      saved = true;
+      const { error } = await supabase.auth.verifyOtp({ token_hash: result.tokenHash, type: "magiclink" });
+      if (error) throw error;
+      await finalizeImpersonationFn({ data: { auditId: result.auditId } });
+      window.location.href = "/dashboard";
+    } catch (error: any) {
+      if (saved) {
+        const state = JSON.parse(window.localStorage.getItem("adm-max:operational-impersonation:v1") || "null");
+        if (state?.actorAccessToken && state?.actorRefreshToken) {
+          await supabase.auth.setSession({ access_token: state.actorAccessToken, refresh_token: state.actorRefreshToken }).catch(() => {});
+        }
+        writeOperationalImpersonation(null);
+      }
+      toast.error(error?.message ?? "Não foi possível entrar como esse usuário.");
+      setEnteringAs(null);
+    }
+  };
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("id, nome, email, ativo, avatar_url");
@@ -233,6 +279,11 @@ function AdminUsers() {
             {canEditThis && (
               <Button size="sm" variant="ghost" onClick={() => setEditingRoles((m) => ({ ...m, [u.id]: !m[u.id] }))}>
                 {isEditingRoles ? "Fechar" : "Editar papéis"}
+              </Button>
+            )}
+            {isSuper && u.id !== user?.id && u.ativo !== false && (
+              <Button size="sm" variant="destructive" onClick={() => enterAsUser(u)} disabled={enteringAs === u.id}>
+                <LogIn className="mr-1.5 h-4 w-4" />{enteringAs === u.id ? "Entrando..." : "Entrar como usuário"}
               </Button>
             )}
             {canEditThis && (
