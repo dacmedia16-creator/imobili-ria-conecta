@@ -52,6 +52,12 @@ type InconsistenciaRawRow = {
   motivo: string;
 };
 
+type DistribuicaoRawRow = {
+  sale_id: string;
+  saldo_inicial_imobiliaria: number;
+  saldo_liquido_imobiliaria: number;
+};
+
 /** occurrences, tipado à mão: o select usa uma `const` com a lista de colunas (não um literal
  * inline), e o gerador de tipos do supabase-js só infere colunas a partir de um literal de string
  * no próprio call site — com uma variável, cai no overload genérico (`GenericStringError`). Mesmo
@@ -153,6 +159,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const [
     efetivadasRaw,
     inconsistencias,
+    distribuicoes,
     occsResult,
     salesResult,
     commissionsResult,
@@ -165,6 +172,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   ] = await Promise.all([
     callRpc<EfetivacaoRawRow>("comparativo_comissao_6pct"),
     callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
+    callRpc<DistribuicaoRawRow>("financeiro_distribuicao_vendas"),
     supabase.from("occurrences").select(OCC_COLUMNS) as unknown as Promise<{
       data: OccRow[] | null;
       error: { message: string } | null;
@@ -243,6 +251,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   )) {
     parceriaPorOcc.set(occId, (parceriaPorOcc.get(occId) ?? 0) + valor);
   }
+
+  const distribuicaoPorVenda = new Map(distribuicoes.map((r) => [r.sale_id, r]));
 
   const saleLabel = (sale: {
     imovel_id: string | null;
@@ -599,6 +609,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const efetivadas: EfetivacaoVenda[] = (efetivadasRaw ?? []).map((r) => {
     const { teamId, gestorId } = equipeDoCorretor(r.corretor_id);
     const occ = occBySaleId.get(r.sale_id);
+    const distribuicao = distribuicaoPorVenda.get(r.sale_id);
     return {
       saleId: r.sale_id,
       imovelLabel: r.imovel_id || r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`,
@@ -611,6 +622,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       valorNegociado: Number(r.valor_negociado),
       valorTotalComissao: Number(r.valor_total_comissao),
       parceriaExterna: occ ? (parceriaPorOcc.get(occ.id) ?? 0) : 0,
+      saldoInicialImobiliaria: Number(distribuicao?.saldo_inicial_imobiliaria ?? 0),
+      receitaLiquidaImobiliaria: Number(distribuicao?.saldo_liquido_imobiliaria ?? 0),
     };
   });
 

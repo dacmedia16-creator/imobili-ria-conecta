@@ -197,11 +197,17 @@ export type EfetivacaoVenda = {
   valorNegociado: number;
   valorTotalComissao: number;
   parceriaExterna?: number;
+  /** Mesma fonte de Desempenho: calcular_distribuicao_venda(sales). */
+  saldoInicialImobiliaria?: number;
+  receitaLiquidaImobiliaria?: number;
 };
 
 export type ResumoFinanceiro = {
   vgvEfetivado: number;
   comissaoBruta: number;
+  repassesInternos: number;
+  receitaLiquidaImobiliaria: number;
+  parceriaExterna: number;
   previstoImobiliaria: number;
   recebidoImobiliaria: number;
   saldoAReceber: number;

@@ -514,11 +514,32 @@ export function calcularResumo(args: {
       parceriaExterna: r.parceriaExterna,
     }),
   );
+  const receitaLiquidaImobiliaria = Number(
+    efetivadas.reduce((s, r) => s + Number(r.receitaLiquidaImobiliaria ?? 0), 0).toFixed(2),
+  );
+  const repassesInternos = Number(
+    efetivadas
+      .reduce(
+        (s, r) =>
+          s +
+          Math.max(
+            0,
+            Number(r.saldoInicialImobiliaria ?? 0) - Number(r.receitaLiquidaImobiliaria ?? 0),
+          ),
+        0,
+      )
+      .toFixed(2),
+  );
 
   return {
     vgvEfetivado: Number(efetivadasProprias.reduce((s, r) => s + r.vgvProprio, 0).toFixed(2)),
     comissaoBruta: Number(
       efetivadasProprias.reduce((s, r) => s + r.comissaoPropria, 0).toFixed(2),
+    ),
+    repassesInternos,
+    receitaLiquidaImobiliaria,
+    parceriaExterna: Number(
+      efetivadas.reduce((s, r) => s + Number(r.parceriaExterna ?? 0), 0).toFixed(2),
     ),
     previstoImobiliaria,
     recebidoImobiliaria,

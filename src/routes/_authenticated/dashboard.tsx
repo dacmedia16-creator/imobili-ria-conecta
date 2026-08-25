@@ -697,7 +697,7 @@ function ResumoGestorMes() {
           </Button>
         </div>
 
-        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
           {erro ? (
             <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
               O resumo mensal não pôde ser carregado. Consulte a Central Financeira.
@@ -719,6 +719,12 @@ function ResumoGestorMes() {
                 label="Comissão gerada no mês"
                 value={moeda(resumo.comissaoBruta)}
                 hint="Vendas efetivadas no mês, com parceria externa descontada"
+              />
+              <ResumoExecutivoCard
+                icon={PiggyBank}
+                label="Receita líquida da imobiliária"
+                value={moeda(resumo.receitaLiquidaImobiliaria)}
+                hint="O que sobra depois dos repasses internos e das parcerias"
               />
               <ResumoExecutivoCard
                 icon={Landmark}

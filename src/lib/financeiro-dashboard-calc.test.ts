@@ -804,6 +804,25 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
     expect(resumo.vgvEfetivado).toBe(250000);
     expect(resumo.comissaoBruta).toBe(15000);
   });
+  it("mostra receita líquida e repasses internos usando a distribuição oficial da venda", () => {
+    const resumo = calcularResumo({
+      parcelas: [],
+      comissoes: [],
+      efetivadas: [{
+        saleId: "s-liquida", imovelLabel: "Casa", codigoInterno: null,
+        dataEfetivacao: "2026-08-05", modalidade: "padrao", corretorId: "c1",
+        teamId: null, gestorId: null, valorNegociado: 500000,
+        valorTotalComissao: 30000, parceriaExterna: 10000,
+        saldoInicialImobiliaria: 9000, receitaLiquidaImobiliaria: 7000,
+      }],
+      divergenciasAbertas: 0,
+      hoje: HOJE,
+    });
+
+    expect(resumo.parceriaExterna).toBe(10000);
+    expect(resumo.repassesInternos).toBe(2000);
+    expect(resumo.receitaLiquidaImobiliaria).toBe(7000);
+  });
   it("gráfico previsto x recebido por mês soma o mesmo total das parcelas do resumo", () => {
     const parcelas = [
       parcelaBase({

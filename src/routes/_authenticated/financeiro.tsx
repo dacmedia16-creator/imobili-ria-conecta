@@ -28,7 +28,7 @@ import { AgingPanel } from "@/components/financeiro/AgingPanel";
 import { DivergenciasList } from "@/components/financeiro/DivergenciasList";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
-  head: () => ({ meta: [{ title: "Central Financeira" }] }),
+  head: () => ({ meta: [{ title: "Financeiro" }] }),
   // Mesma proteção em 3 camadas do Comparativo 6%: rota (aqui), componente (useAuth) e RPC no
   // banco (comparativo_comissao_6pct* já barram quem não é financeiro/admin/super_admin — as
   // consultas diretas às tabelas usam RLS, que já restringe can_view_sale por papel).
@@ -195,11 +195,9 @@ function CentralFinanceiraPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Central Financeira</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Financeiro</h1>
         <p className="text-sm text-muted-foreground">
-          Visão única de recebimentos, comissões calculadas, previsão e divergências. Fase 1 — só
-          leitura; nenhum valor aqui é "pago ao corretor/gestor", só o que a imobiliária tem
-          previsto/recebeu e a competência calculada por beneficiário.
+          Produção gerada, receita líquida, caixa e próximos recebimentos em uma única visão.
         </p>
       </div>
 
