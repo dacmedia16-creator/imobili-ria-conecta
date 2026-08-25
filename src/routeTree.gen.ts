@@ -26,6 +26,7 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
+import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
@@ -122,6 +123,12 @@ const AuthenticatedVisaoExecutivaRoute =
     path: '/visao-executiva',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminPosicionamentoRoute =
+  AuthenticatedAdminPosicionamentoRouteImport.update({
+    id: '/admin/posicionamento',
+    path: '/admin/posicionamento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUsuariosRoute =
   AuthenticatedAdminUsuariosRouteImport.update({
     id: '/admin/usuarios',
@@ -168,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -191,6 +199,7 @@ export interface FileRoutesByTo {
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -216,6 +225,7 @@ export interface FileRoutesById {
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/_authenticated/vendas/nova': typeof AuthenticatedVendasNovaRoute
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/producao-por-pessoa'
     | '/relatorios'
     | '/visao-executiva'
+    | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/producao-por-pessoa'
     | '/relatorios'
     | '/visao-executiva'
+    | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
@@ -288,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
     | '/_authenticated/visao-executiva'
+    | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/vendas/$id'
     | '/_authenticated/vendas/nova'
@@ -425,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/posicionamento': {
+      id: '/_authenticated/admin/posicionamento'
+      path: '/admin/posicionamento'
+      fullPath: '/admin/posicionamento'
+      preLoaderRoute: typeof AuthenticatedAdminPosicionamentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/usuarios': {
       id: '/_authenticated/admin/usuarios'
       path: '/admin/usuarios'
@@ -475,6 +495,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
+  AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
   AuthenticatedVendasNovaRoute: typeof AuthenticatedVendasNovaRoute
@@ -494,6 +515,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
+  AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedVendasIdRoute: AuthenticatedVendasIdRoute,
   AuthenticatedVendasNovaRoute: AuthenticatedVendasNovaRoute,

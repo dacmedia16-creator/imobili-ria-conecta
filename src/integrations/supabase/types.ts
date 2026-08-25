@@ -570,6 +570,48 @@ export type Database = {
         }
         Relationships: []
       }
+      positioning_region_suggestions: {
+        Row: {
+          cidade: string
+          created_at: string
+          id: string
+          nome: string
+          region_id: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          suggested_by: string
+          tipo: string
+          zona: string | null
+        }
+        Insert: {
+          cidade: string
+          created_at?: string
+          id?: string
+          nome: string
+          region_id?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suggested_by: string
+          tipo: string
+          zona?: string | null
+        }
+        Update: {
+          cidade?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          region_id?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suggested_by?: string
+          tipo?: string
+          zona?: string | null
+        }
+        Relationships: []
+      }
       corretor_positioning_regions: {
         Row: {
           corretor_id: string
@@ -1616,6 +1658,21 @@ export type Database = {
       save_my_positioning: {
         Args: { _public_enabled: boolean; _region_ids: number[] }
         Returns: undefined
+      }
+      submit_positioning_region_suggestion: {
+        Args: { _cidade: string; _nome: string; _tipo: string; _zona: string }
+        Returns: string
+      }
+      review_positioning_region_suggestion: {
+        Args: {
+          _cidade?: string
+          _decision: string
+          _nome?: string
+          _suggestion_id: string
+          _tipo?: string
+          _zona?: string
+        }
+        Returns: number
       }
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string }

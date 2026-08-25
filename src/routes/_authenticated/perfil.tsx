@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +39,10 @@ function MeuAcesso() {
   const [publicProfileEnabled, setPublicProfileEnabled] = useState(false);
   const [positioningSearch, setPositioningSearch] = useState("");
   const [savingPositioning, setSavingPositioning] = useState(false);
+  const [suggestionOpen, setSuggestionOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState({ nome: "", cidade: "Sorocaba", zona: "", tipo: "bairro" });
+  const [mySuggestions, setMySuggestions] = useState<{ id: string; nome: string; cidade: string; status: string }[]>([]);
+  const [savingSuggestion, setSavingSuggestion] = useState(false);
   const [notifPorPapel, setNotifPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [notifAtualizacaoPorPapel, setNotifAtualizacaoPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
@@ -77,9 +83,10 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user || !roles.includes("corretor")) return;
     (async () => {
-      const [{ data: regions, error: regionsError }, { data: selected, error: selectedError }] = await Promise.all([
+      const [{ data: regions, error: regionsError }, { data: selected, error: selectedError }, { data: suggestions }] = await Promise.all([
         supabase.from("positioning_regions").select("id, cidade, zona, nome, tipo").eq("ativo", true).order("cidade").order("zona").order("nome"),
         supabase.from("corretor_positioning_regions").select("region_id").eq("corretor_id", user.id),
+        supabase.from("positioning_region_suggestions").select("id, nome, cidade, status").eq("suggested_by", user.id).order("created_at", { ascending: false }),
       ]);
       if (regionsError || selectedError) {
         toast.error("Não foi possível carregar seu posicionamento.");
@@ -87,6 +94,7 @@ function MeuAcesso() {
       }
       setPositioningRegions(regions ?? []);
       setSelectedRegionIds((selected ?? []).map((row) => row.region_id));
+      setMySuggestions(suggestions ?? []);
     })();
   }, [roles, user]);
 
@@ -157,6 +165,24 @@ function MeuAcesso() {
     } finally {
       setSavingPositioning(false);
     }
+  };
+
+  const enviarSugestao = async () => {
+    if (!suggestion.nome.trim() || !suggestion.cidade.trim()) {
+      toast.error("Preencha o nome e a cidade."); return;
+    }
+    setSavingSuggestion(true);
+    try {
+      const { data, error } = await supabase.rpc("submit_positioning_region_suggestion", {
+        _nome: suggestion.nome.trim(), _cidade: suggestion.cidade.trim(),
+        _zona: suggestion.zona.trim(), _tipo: suggestion.tipo,
+      });
+      if (error) { toast.error(error.message); return; }
+      setMySuggestions((current) => [{ id: data, nome: suggestion.nome.trim(), cidade: suggestion.cidade.trim(), status: "pendente" }, ...current]);
+      setSuggestion({ nome: "", cidade: "Sorocaba", zona: "", tipo: "bairro" });
+      setSuggestionOpen(false);
+      toast.success("Sugestão enviada para análise");
+    } finally { setSavingSuggestion(false); }
   };
 
   const trocarSenha = async () => {
@@ -352,6 +378,18 @@ function MeuAcesso() {
               {positioningRegions.length === 0 && <p className="text-muted-foreground">Nenhuma região cadastrada.</p>}
             </div>
             <div className="text-xs text-muted-foreground">{selectedRegionIds.length} de 20 regiões selecionadas</div>
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 p-3">
+              <span className="text-xs text-muted-foreground">Não encontrou o bairro ou condomínio?</span>
+              <Button size="sm" variant="outline" onClick={() => setSuggestionOpen(true)}>Sugerir nova região</Button>
+            </div>
+            {mySuggestions.length > 0 && (
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <b className="text-foreground">Minhas sugestões:</b>{" "}
+                {mySuggestions.slice(0, 5).map((item, index) => (
+                  <span key={item.id}>{index > 0 ? " • " : ""}{item.nome} ({item.status})</span>
+                ))}
+              </div>
+            )}
             <div className="flex items-start justify-between gap-4 rounded-md border p-3">
               <div>
                 <Label htmlFor="public-profile" className="font-medium">Exibir meu perfil publicamente</Label>
@@ -372,6 +410,19 @@ function MeuAcesso() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={suggestionOpen} onOpenChange={setSuggestionOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Sugerir bairro ou condomínio</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div><Label>Nome</Label><Input value={suggestion.nome} onChange={(e) => setSuggestion((s) => ({ ...s, nome: e.target.value }))} placeholder="Ex.: Alphaville Nova Esplanada" /></div>
+            <div><Label>Cidade</Label><Input value={suggestion.cidade} onChange={(e) => setSuggestion((s) => ({ ...s, cidade: e.target.value }))} /></div>
+            <div><Label>Zona (opcional)</Label><Input value={suggestion.zona} onChange={(e) => setSuggestion((s) => ({ ...s, zona: e.target.value }))} placeholder="Ex.: Sul" /></div>
+            <div><Label>Tipo</Label><Select value={suggestion.tipo} onValueChange={(tipo) => setSuggestion((s) => ({ ...s, tipo }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bairro">Bairro</SelectItem><SelectItem value="condominio">Condomínio</SelectItem><SelectItem value="cidade">Cidade</SelectItem><SelectItem value="grupo">Grupo de condomínios</SelectItem></SelectContent></Select></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setSuggestionOpen(false)}>Cancelar</Button><Button onClick={enviarSugestao} disabled={savingSuggestion}>{savingSuggestion ? "Enviando..." : "Enviar sugestão"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

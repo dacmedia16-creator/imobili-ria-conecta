@@ -19,6 +19,7 @@ import {
   Landmark,
   Receipt,
   TrendingUp,
+  MapPinned,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
@@ -160,6 +161,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       label: "Usuários",
       icon: Users,
       show: hasAny(["admin", "super_admin", "gestor", "team_leader"]),
+    },
+    {
+      to: "/admin/posicionamento",
+      label: "Sugestões de regiões",
+      icon: MapPinned,
+      show: hasAny(["admin", "super_admin"]),
     },
   ];
 
