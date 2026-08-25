@@ -70,6 +70,7 @@ import {
   ArrowRight,
   CalendarDays,
   CircleDollarSign,
+  PiggyBank,
   type LucideIcon,
 } from "lucide-react";
 
