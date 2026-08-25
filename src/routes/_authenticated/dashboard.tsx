@@ -698,7 +698,7 @@ function ResumoGestorMes() {
           </Button>
         </div>
 
-        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
           {erro ? (
             <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
               O resumo mensal não pôde ser carregado. Consulte a Central Financeira.
@@ -732,13 +732,6 @@ function ResumoGestorMes() {
                 label="Recebido no mês"
                 value={moeda(resumo.recebidoImobiliaria)}
                 hint="Dinheiro efetivamente recebido pela REMAX no mês"
-              />
-              <ResumoExecutivoCard
-                icon={AlertCircle}
-                label="Divergências abertas"
-                value={String(resumo.divergenciasAbertas)}
-                danger={resumo.divergenciasAbertas > 0}
-                hint="Fila completa, sem filtro de período"
               />
             </>
           )}
