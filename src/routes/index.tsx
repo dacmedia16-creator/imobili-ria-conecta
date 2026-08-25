@@ -248,6 +248,20 @@ function FrontPage() {
         .hubpage .footbar .fdiv { width: 2px; align-self: stretch; background: #9aa4c2; }
         .hubpage .footbar p { margin: 0; color: var(--navy-2); font-weight: 600; font-size: clamp(0.6rem, 1.15vw, 1.15rem); }
         .hubpage a.card-link { text-decoration: none; }
+        .hubpage .specialist-cta {
+          position: absolute; right: 8.4%; bottom: 10.4%; z-index: 3;
+          display: inline-flex; align-items: center; gap: 0.65rem;
+          padding: 0.72rem 1.15rem; border-radius: 999px;
+          background: linear-gradient(135deg, var(--navy-2), var(--navy));
+          color: #fff; text-decoration: none; font-size: clamp(0.68rem, 1vw, 1rem); font-weight: 750;
+          box-shadow: 0 14px 30px -13px rgba(18, 33, 63, 0.65);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        .hubpage .specialist-cta svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .specialist-cta .cta-arrow { color: #ff5257; font-size: 1.15em; line-height: 1; transition: transform 0.2s ease; }
+        .hubpage .specialist-cta:hover { transform: translateY(-2px); box-shadow: 0 18px 34px -13px rgba(18, 33, 63, 0.78); background: linear-gradient(135deg, #263b6d, var(--navy)); }
+        .hubpage .specialist-cta:hover .cta-arrow { transform: translateX(3px); }
+        .hubpage .specialist-cta:focus-visible { outline: 3px solid #5b84ff; outline-offset: 4px; }
 
         /* ---------- lista mobile (<860px) ---------- */
         .hubpage .mobile-stage { display: block; max-width: 560px; margin: 0 auto; padding: 0 18px 32px; }
@@ -288,6 +302,13 @@ function FrontPage() {
         }
         .hubpage .mfoot .fico svg { width: 55%; height: 55%; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mfoot p { margin: 0; color: var(--navy-2); font-weight: 600; font-size: 0.85rem; line-height: 1.3; }
+        .hubpage .mobile-stage .specialist-cta {
+          position: static; width: 100%; justify-content: center;
+          margin-top: 20px; padding: 14px 18px; font-size: 0.95rem;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hubpage .specialist-cta, .hubpage .specialist-cta .cta-arrow { transition: none; }
+        }
       `}</style>
 
       {/* ---------- poster (tablet/desktop) ---------- */}
@@ -371,6 +392,16 @@ function FrontPage() {
             <span className="fdiv" />
             <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
           </div>
+
+          <a className="specialist-cta" href="/especialistas">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-4-4" />
+              <path d="M11 8.5v5M8.5 11h5" />
+            </svg>
+            <span>Ache um especialista</span>
+            <span className="cta-arrow" aria-hidden="true">→</span>
+          </a>
         </div>
       </div>
 
@@ -412,6 +443,16 @@ function FrontPage() {
             ),
           )}
         </div>
+
+        <a className="specialist-cta" href="/especialistas">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+            <path d="M11 8.5v5M8.5 11h5" />
+          </svg>
+          <span>Ache um especialista</span>
+          <span className="cta-arrow" aria-hidden="true">→</span>
+        </a>
 
         <div className="mfoot">
           <span className="fico">
