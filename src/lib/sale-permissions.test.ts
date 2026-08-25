@@ -102,6 +102,12 @@ describe("gestorPodeEditar", () => {
     expect(gestorPodeEditar(true, "rascunho")).toBe(false);
     expect(gestorPodeEditar(false, "enviada_revisao")).toBe(false);
   });
+
+  it("permite rascunho somente ao gestor da equipe do dono", () => {
+    expect(gestorPodeEditar(true, "rascunho", true)).toBe(true);
+    expect(gestorPodeEditar(true, "rascunho", false)).toBe(false);
+    expect(gestorPodeEditar(false, "rascunho", true)).toBe(false);
+  });
 });
 
 describe("gestorPodeEncerrar", () => {

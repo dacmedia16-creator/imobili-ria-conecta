@@ -506,7 +506,11 @@ function SaleDetail() {
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = corretorPodeEditar(isOwner, status);
-  const gestorEdits = gestorPodeEditar(isGestor, status);
+  const gestorEdits = gestorPodeEditar(
+    isGestor,
+    status,
+    teamIds.has(sale.corretor_id),
+  );
   const juridicoEdits = juridicoPodeEditar(isJuridico, status);
   const editable = podeEditarVenda({ corretorEdits, gestorEdits, juridicoEdits, isFinanceiro, isAdminLike, locked });
   // Divisão da comissão é trava mais estrita que o resto do Resumo: nunca é o corretor quem edita

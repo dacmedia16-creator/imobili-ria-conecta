@@ -31,10 +31,16 @@ export function corretorPodeEditar(isOwner: boolean, status: SaleStatus): boolea
   return isOwner && (status === "rascunho" || status === "devolvida_ajuste");
 }
 
-export function gestorPodeEditar(isGestor: boolean, status: SaleStatus): boolean {
+export function gestorPodeEditar(
+  isGestor: boolean,
+  status: SaleStatus,
+  donoPertenceEquipe = false,
+): boolean {
   return (
     isGestor &&
-    (
+    (status === "rascunho"
+      ? donoPertenceEquipe
+      : (
       [
         "enviada_revisao",
         "contrato_conferencia_gestor",
@@ -44,7 +50,7 @@ export function gestorPodeEditar(isGestor: boolean, status: SaleStatus): boolean
         "ocorrencia_pendente",
         "ocorrencia_devolvida_gestor",
       ] as SaleStatus[]
-    ).includes(status)
+    ).includes(status))
   );
 }
 
@@ -52,7 +58,7 @@ export function gestorPodeEditar(isGestor: boolean, status: SaleStatus): boolean
  * dele. O vínculo com a própria equipe é validado separadamente na tela e, obrigatoriamente, no
  * banco (is_lead_of), para a regra não depender apenas do frontend. */
 export function gestorPodeEncerrar(isGestor: boolean, status: SaleStatus): boolean {
-  return gestorPodeEditar(isGestor, status);
+  return gestorPodeEditar(isGestor, status, false);
 }
 
 export function juridicoPodeEditar(isJuridico: boolean, status: SaleStatus): boolean {
