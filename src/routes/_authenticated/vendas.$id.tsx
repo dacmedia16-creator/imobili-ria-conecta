@@ -1423,107 +1423,66 @@ function SaleDetail() {
             <FieldGrid>
               <Field label="% da REMAX (sobre o valor negociado)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editableComissao} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
               <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editableComissao} onChange={applyRemaxValor} /></Field>
-              <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-              <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
-              {formSale.lider_captador_id && (
-                <Field label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
+              {/* Cada lado da operação tem sua própria coluna. Assim, participantes adicionais
+                  aparecem junto de quem representam, em vez de virarem uma lista solta no rodapé. */}
+              <div className="space-y-4">
+                <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
+                {formExtras.filter((r) => r.papel === "corretor_captador").map((r) => (
+                  <Field key={r.id} label={`Comissão corretor captador — ${r.nome || "Selecione na Equipe"} (R$)`}>
+                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
+                  </Field>
+                ))}
+                {formSale.lider_captador_id && (
+                  <Field label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}>
+                    <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
+                  </Field>
+                )}
+                {formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader") && r.lado === "captador").map((r) => (
+                  <Field key={r.id} label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do captador — ${r.nome || "Selecione na Equipe"} (R$)`}>
+                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
+                  </Field>
+                ))}
+                {formSale.indicador_captador && (
+                  <Field label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}>
+                    <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
+                  </Field>
+                )}
+                <Field label="Líquido do captador (R$)">
+                  <CurrencyInput value={distribuicao?.liquido_captador ?? null} disabled onChange={() => {}} />
                 </Field>
-              )}
-              {formSale.lider_vendedor_id && (
-                <Field label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
+              </div>
+              <div className="space-y-4">
+                <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
+                {formExtras.filter((r) => r.papel === "corretor_vendedor").map((r) => (
+                  <Field key={r.id} label={`Comissão corretor vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}>
+                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
+                  </Field>
+                ))}
+                {formSale.lider_vendedor_id && (
+                  <Field label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}>
+                    <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
+                  </Field>
+                )}
+                {formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader") && r.lado === "vendedor").map((r) => (
+                  <Field key={r.id} label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}>
+                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
+                  </Field>
+                ))}
+                {formSale.indicador_vendedor && (
+                  <Field label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}>
+                    <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
+                  </Field>
+                )}
+                <Field label="Líquido do vendedor (R$)">
+                  <CurrencyInput value={distribuicao?.liquido_vendedor ?? null} disabled onChange={() => {}} />
                 </Field>
-              )}
-              {formSale.indicador_captador && (
-                <Field label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
-                </Field>
-              )}
-              {formSale.indicador_vendedor && (
-                <Field label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}>
-                  <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
-                </Field>
-              )}
-              <Field label="Líquido do captador (R$)">
-                <CurrencyInput value={distribuicao?.liquido_captador ?? null} disabled onChange={() => {}} />
-              </Field>
-              <Field label="Líquido do vendedor (R$)">
-                <CurrencyInput value={distribuicao?.liquido_vendedor ?? null} disabled onChange={() => {}} />
-              </Field>
+              </div>
               <Field label="Valor para a imobiliária (R$)" colSpan={2}>
                 <CurrencyInput value={distribuicao?.saldo_liquido_imobiliaria ?? null} disabled onChange={() => {}} />
               </Field>
               {(dirtyResumo || dirtyExtras) && (
                 <p className="col-span-full text-xs text-muted-foreground">Líquidos e valor da imobiliária recalculam depois que as alterações forem salvas.</p>
               )}
-              {formExtras.filter((r) => r.papel === "corretor_captador" || r.papel === "corretor_vendedor").map((r) => {
-                const rotulo = r.papel === "corretor_captador" ? "Outro corretor captador" : "Outro corretor vendedor";
-                const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
-                return (
-                  <Field key={r.id} label={`${rotulo}${r.nome ? ` — ${r.nome}` : ""} (R$)`} colSpan={2}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Select
-                        value={r.user_id || ""}
-                        onValueChange={(v) => {
-                          const c = corretorOptions.find((o) => o.id === v);
-                          updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
-                        }}
-                        disabled={!editableComissao}
-                      >
-                        <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
-                        <SelectContent>
-                          {foraDaLista && r.user_id && (
-                            <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>
-                          )}
-                          {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
-                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
-                    </div>
-                  </Field>
-                );
-              })}
-              {formExtras.filter((r) => r.papel === "gestor" || r.papel === "team_leader").map((r) => {
-                const rotulo = r.papel === "gestor" ? "Gestor" : "Team Leader";
-                // Cada linha adicional precisa manter a própria pessoa selecionada. Usar os campos
-                // globais coordenador_id/team_leader_id fazia todas as linhas extras do mesmo papel
-                // apontarem para o mesmo líder e podia esconder/trocar a pessoa ao revisar a comissão.
-                const liderAtualId = r.user_id ?? "";
-                // Lado 'vendedor' usa o pool de líderes do time do vendedor (gestorOptionsVendedor/
-                // teamLeaderOptionsVendedor) — sem isso, uma linha adicionada como "Outro Gestor/Team
-                // Leader" do lado vendedor (na Equipe) mostraria aqui as opções do time do captador.
-                const opcoesLider = liderOptionsTodos;
-                const onSelectLider = (liderId: string) => {
-                  const lider = opcoesLider.find((l) => l.id === liderId);
-                  // Grava o user_id direto na linha do extra (não só em sales.coordenador_id/team_leader_id)
-                  // — sync_occurrence_commissions/createOcc já caem pro campo antigo como respaldo se isso
-                  // faltar, mas depender só do respaldo deixa a comissão sem dono se esse campo nunca foi
-                  // preenchido (ex.: venda antiga, ou gestor trocado só aqui sem passar pelo Resumo geral).
-                  updExtra(r.id, { nome: lider ? lider.nome : r.nome, user_id: liderId || null });
-                };
-                const ladoTxt = r.lado === "captador" ? " (lado captador)" : r.lado === "vendedor" ? " (lado vendedor)" : "";
-                return (
-                  <Field key={r.id} label={`Comissão ${rotulo}${r.nome ? ` — ${r.nome}` : ""}${ladoTxt} (R$)`} colSpan={2}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Select value={liderAtualId || ""} onValueChange={(v) => onSelectLider(v)} disabled={!editableComissao}>
-                        <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o líder cadastrado" /></SelectTrigger>
-                        <SelectContent>
-                          {opcoesLider.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {/* Origem de gestor/team leader é sempre "imobiliária" (regra 4) — não é uma escolha,
-                          por isso não tem Select aqui (diferente de "outro captador/vendedor" logo abaixo). */}
-                      <span className="w-36 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground" title="Gestor/Team Leader sempre sai do saldo da imobiliária">
-                        Imobiliária
-                      </span>
-                      <div className="w-32"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></div>
-                      {editableComissao && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
-                    </div>
-                  </Field>
-                );
-              })}
             </FieldGrid>
             <div className="mt-4 border-t pt-4">
               <p className="mb-3 text-xs text-muted-foreground">
