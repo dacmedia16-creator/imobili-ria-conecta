@@ -3589,7 +3589,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
             <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12">
               <div className="md:col-span-3">
                 <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v, user_id: userIdParaExtra(v, sale) })} disabled={!canWrite}>
+                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v })} disabled={!canWrite}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMISSAO_PAPEIS.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
