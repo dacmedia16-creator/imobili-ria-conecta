@@ -50,7 +50,7 @@ echo "[6/8] Gerando build"
 npm run build
 
 echo "[7/8] Verificando funções críticas no build"
-for marker in "especialistas" "meu-posicionamento" "vendas" "financeiro"; do
+for marker in "especialistas" "perfil" "vendas" "financeiro"; do
   grep -RqsF -- "${marker}" .output/public .output/server \
     || fail "a função crítica '${marker}' não foi encontrada no build."
 done
