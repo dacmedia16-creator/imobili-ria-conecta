@@ -359,6 +359,7 @@ function SaleDetail() {
     const fields = [
       "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
       "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id",
+      "parceria_externa_captacao","parceria_externa_venda",
       "indicador_captador","indicador_captador_id","indicador_vendedor","indicador_vendedor_id",
       "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
       "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
@@ -554,6 +555,28 @@ function SaleDetail() {
 
   // ---- Resumo (buffered) save ----
   const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
+
+  const setParceriaExternaLado = (lado: "captador" | "vendedor", ativa: boolean) => {
+    const sufixo = lado === "captador" ? "captador" : "vendedor";
+    updResumo({
+      [`parceria_externa_${lado === "captador" ? "captacao" : "venda"}`]: ativa,
+      ...(ativa ? {
+        [`corretor_${sufixo}`]: null,
+        [`corretor_${sufixo}_id`]: null,
+        [`lider_${sufixo}_nome`]: null,
+        [`lider_${sufixo}_id`]: null,
+        [`indicador_${sufixo}`]: null,
+        [`indicador_${sufixo}_id`]: null,
+        [`valor_comissao_${sufixo}`]: null,
+        [`valor_comissao_lider_${sufixo}`]: null,
+        [`valor_comissao_indicador_${sufixo}`]: null,
+      } : {}),
+    });
+    if (ativa) {
+      setFormExtras((rows) => rows.filter((r) => r.lado !== lado && r.papel !== `corretor_${sufixo}`));
+      setDirtyExtras(true);
+    }
+  };
   const COMISSAO_ROLES = ["captador", "vendedor"] as const;
   type ComissaoRole = (typeof COMISSAO_ROLES)[number];
   // Imobiliária = total menos captador, vendedor e a parceria externa (quando houver — o valor dela
@@ -1031,6 +1054,8 @@ function SaleDetail() {
               const outrosVendedores = formExtras.filter((r) => r.papel === "corretor_vendedor");
               const outrosLideresCaptador = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "captador");
               const outrosLideresVendedor = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "vendedor");
+              const captacaoExterna = !!formSale.parceria_externa_captacao;
+              const vendaExterna = !!formSale.parceria_externa_venda;
               return (
                 <div className="mb-4 grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-1)" }}>
@@ -1055,7 +1080,7 @@ function SaleDetail() {
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_captador_id: v || null, corretor_captador: c ? c.nome : null });
                           }}
-                          disabled={!editable}
+                          disabled={!editable || captacaoExterna}
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                           <SelectContent>
@@ -1080,7 +1105,7 @@ function SaleDetail() {
                                   const c = corretorOptions.find((o) => o.id === v);
                                   updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
                                 }}
-                                disabled={!editable}
+                                disabled={!editable || captacaoExterna}
                               >
                                 <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                                 <SelectContent>
@@ -1094,7 +1119,7 @@ function SaleDetail() {
                         })}
                       </div>
                     )}
-                    {editable && (
+                    {editable && !captacaoExterna && (
                       <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("captador")}>
                         <Plus className="mr-1 h-4 w-4" />Outro captador
                       </Button>
@@ -1108,7 +1133,7 @@ function SaleDetail() {
                               const l = liderOptionsTodos.find((o) => o.id === v);
                               updResumo({ lider_captador_id: v === "none" ? null : v, lider_captador_nome: l ? l.nome : null });
                             }}
-                            disabled={!editable}
+                            disabled={!editable || captacaoExterna}
                           >
                             <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
@@ -1130,7 +1155,7 @@ function SaleDetail() {
                                     const l = liderOptionsTodos.find((o) => o.id === v);
                                     updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
                                   }}
-                                  disabled={!editable}
+                                  disabled={!editable || captacaoExterna}
                                 >
                                   <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                                   <SelectContent>
@@ -1145,7 +1170,7 @@ function SaleDetail() {
                             ))}
                           </div>
                         )}
-                        {editable && (
+                        {editable && !captacaoExterna && (
                           <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("captador")}>
                             <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
                           </Button>
@@ -1164,7 +1189,7 @@ function SaleDetail() {
                             const c = indicadorOptions.find((o) => o.id === v);
                             updResumo({ indicador_captador_id: v || null, indicador_captador: c ? c.nome : null });
                           }}
-                          disabled={!editable}
+                          disabled={!editable || captacaoExterna}
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
                           <SelectContent>
@@ -1176,6 +1201,13 @@ function SaleDetail() {
                           </SelectContent>
                         </Select>
                       </Field>
+                    </div>
+                    <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                      <div>
+                        <Label htmlFor="parceria-externa-captacao">Parceria externa na captação</Label>
+                        <p className="text-xs text-muted-foreground">Não selecionar corretor, gestor ou indicador interno deste lado.</p>
+                      </div>
+                      <Switch id="parceria-externa-captacao" checked={captacaoExterna} disabled={!editable} onCheckedChange={(v) => setParceriaExternaLado("captador", v)} />
                     </div>
                   </div>
                   <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-4)" }}>
@@ -1196,7 +1228,7 @@ function SaleDetail() {
                             const c = corretorOptions.find((o) => o.id === v);
                             updResumo({ corretor_vendedor_id: v || null, corretor_vendedor: c ? c.nome : null });
                           }}
-                          disabled={!editable}
+                          disabled={!editable || vendaExterna}
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                           <SelectContent>
@@ -1221,7 +1253,7 @@ function SaleDetail() {
                                   const c = corretorOptions.find((o) => o.id === v);
                                   updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
                                 }}
-                                disabled={!editable}
+                                disabled={!editable || vendaExterna}
                               >
                                 <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
                                 <SelectContent>
@@ -1235,7 +1267,7 @@ function SaleDetail() {
                         })}
                       </div>
                     )}
-                    {editable && (
+                    {editable && !vendaExterna && (
                       <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("vendedor")}>
                         <Plus className="mr-1 h-4 w-4" />Outro vendedor
                       </Button>
@@ -1249,7 +1281,7 @@ function SaleDetail() {
                               const l = liderOptionsTodos.find((o) => o.id === v);
                               updResumo({ lider_vendedor_id: v === "none" ? null : v, lider_vendedor_nome: l ? l.nome : null });
                             }}
-                            disabled={!editable}
+                            disabled={!editable || vendaExterna}
                           >
                             <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
@@ -1271,7 +1303,7 @@ function SaleDetail() {
                                     const l = liderOptionsTodos.find((o) => o.id === v);
                                     updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
                                   }}
-                                  disabled={!editable}
+                                  disabled={!editable || vendaExterna}
                                 >
                                   <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                                   <SelectContent>
@@ -1286,7 +1318,7 @@ function SaleDetail() {
                             ))}
                           </div>
                         )}
-                        {editable && (
+                        {editable && !vendaExterna && (
                           <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("vendedor")}>
                             <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
                           </Button>
@@ -1305,7 +1337,7 @@ function SaleDetail() {
                             const c = indicadorOptions.find((o) => o.id === v);
                             updResumo({ indicador_vendedor_id: v || null, indicador_vendedor: c ? c.nome : null });
                           }}
-                          disabled={!editable}
+                          disabled={!editable || vendaExterna}
                         >
                           <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
                           <SelectContent>
@@ -1317,6 +1349,13 @@ function SaleDetail() {
                           </SelectContent>
                         </Select>
                       </Field>
+                    </div>
+                    <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                      <div>
+                        <Label htmlFor="parceria-externa-venda">Parceria externa na venda</Label>
+                        <p className="text-xs text-muted-foreground">Não selecionar corretor, gestor ou indicador interno deste lado.</p>
+                      </div>
+                      <Switch id="parceria-externa-venda" checked={vendaExterna} disabled={!editable} onCheckedChange={(v) => setParceriaExternaLado("vendedor", v)} />
                     </div>
                   </div>
                 </div>

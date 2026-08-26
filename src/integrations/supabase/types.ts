@@ -1109,6 +1109,8 @@ export type Database = {
           parceria_conta: string | null
           parceria_cpf_cnpj: string | null
           parceria_nome: string | null
+          parceria_externa_captacao: boolean
+          parceria_externa_venda: boolean
           parceria_percentual: number | null
           parceria_pix: string | null
           parceria_tipo: string | null
@@ -1192,6 +1194,8 @@ export type Database = {
           parceria_conta?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
+          parceria_externa_captacao?: boolean
+          parceria_externa_venda?: boolean
           parceria_percentual?: number | null
           parceria_pix?: string | null
           parceria_tipo?: string | null
@@ -1275,6 +1279,8 @@ export type Database = {
           parceria_conta?: string | null
           parceria_cpf_cnpj?: string | null
           parceria_nome?: string | null
+          parceria_externa_captacao?: boolean
+          parceria_externa_venda?: boolean
           parceria_percentual?: number | null
           parceria_pix?: string | null
           parceria_tipo?: string | null
