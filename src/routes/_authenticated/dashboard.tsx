@@ -328,6 +328,26 @@ function Dashboard() {
         )}
       </div>
 
+      {hasAny(["corretor", "gestor", "team_leader"]) && (
+        <Link
+          to="/perfil"
+          className="group flex flex-col gap-4 overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-slate-950 via-blue-950 to-red-800 p-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row sm:items-center"
+        >
+          <span className="flex w-36 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 p-3 shadow-lg shadow-slate-950/20">
+            <img src="/remax-logo-white.png" alt="RE/MAX Única Escolha" className="h-12 w-full object-contain" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold uppercase tracking-[0.16em] text-red-200">Novo no MAX HUB</span>
+            <span className="mt-1 block text-lg font-semibold">Sistema de Posicionamento</span>
+            <span className="mt-1 block text-sm text-white/75">Escolha suas regiões e apareça na página pública de especialistas.</span>
+          </span>
+          <span className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-red-700 transition group-hover:bg-red-50">
+            Entre agora e atualize seus dados
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </Link>
+      )}
+
       {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
       {isFinanceiro && <ResumoGestorMes />}
