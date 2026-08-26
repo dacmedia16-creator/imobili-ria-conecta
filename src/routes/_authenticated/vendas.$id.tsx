@@ -1457,7 +1457,10 @@ function SaleDetail() {
               })}
               {formExtras.filter((r) => r.papel === "gestor" || r.papel === "team_leader").map((r) => {
                 const rotulo = r.papel === "gestor" ? "Gestor" : "Team Leader";
-                const liderAtualId = r.papel === "gestor" ? (formSale.coordenador_id ?? "") : (formSale.team_leader_id ?? "");
+                // Cada linha adicional precisa manter a própria pessoa selecionada. Usar os campos
+                // globais coordenador_id/team_leader_id fazia todas as linhas extras do mesmo papel
+                // apontarem para o mesmo líder e podia esconder/trocar a pessoa ao revisar a comissão.
+                const liderAtualId = r.user_id ?? "";
                 // Lado 'vendedor' usa o pool de líderes do time do vendedor (gestorOptionsVendedor/
                 // teamLeaderOptionsVendedor) — sem isso, uma linha adicionada como "Outro Gestor/Team
                 // Leader" do lado vendedor (na Equipe) mostraria aqui as opções do time do captador.
@@ -1471,8 +1474,6 @@ function SaleDetail() {
                   // faltar, mas depender só do respaldo deixa a comissão sem dono se esse campo nunca foi
                   // preenchido (ex.: venda antiga, ou gestor trocado só aqui sem passar pelo Resumo geral).
                   updExtra(r.id, { nome: lider ? lider.nome : r.nome, user_id: liderId || null });
-                  if (r.papel === "gestor") updResumo({ coordenador_id: liderId || null });
-                  if (r.papel === "team_leader") updResumo({ team_leader_id: liderId || null });
                 };
                 const ladoTxt = r.lado === "captador" ? " (lado captador)" : r.lado === "vendedor" ? " (lado vendedor)" : "";
                 return (
