@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "preview:cf": "vite build && wrangler dev --config .output/server/wrangler.json",
     "deploy": "vite build && nitro deploy --prebuilt",
+    "deploy:safe": "bash scripts/deploy-safe.sh",
+    "deploy:check": "bash scripts/deploy-safe.sh --check-only",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run"
