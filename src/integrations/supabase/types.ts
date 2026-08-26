@@ -1634,6 +1634,13 @@ export type Database = {
           nome: string
         }[]
       }
+      list_active_users: {
+        Args: never
+        Returns: {
+          id: string
+          nome: string
+        }[]
+      }
       list_public_positioning_regions: {
         Args: never
         Returns: {

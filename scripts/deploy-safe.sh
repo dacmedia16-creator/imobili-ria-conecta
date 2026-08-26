@@ -50,7 +50,7 @@ echo "[6/8] Gerando build"
 npm run build
 
 echo "[7/8] Verificando funções críticas no build"
-for marker in "especialistas" "posicionamento" "vendas" "financeiro"; do
+for marker in "especialistas" "meu-posicionamento" "vendas" "financeiro"; do
   grep -RqsF -- "${marker}" .output/public .output/server \
     || fail "a função crítica '${marker}' não foi encontrada no build."
 done
@@ -89,4 +89,6 @@ if ! smoke_test; then
   exit 1
 fi
 
+mkdir -p .deploy
+printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${LOCAL_HEAD}" "${PRODUCTION_URL}" >> .deploy/history.log
 echo "DEPLOY APROVADO: commit ${LOCAL_HEAD} publicado e validado em ${PRODUCTION_URL}."

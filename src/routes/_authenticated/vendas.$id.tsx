@@ -250,26 +250,33 @@ function SaleDetail() {
     return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [gestorOptionsVendedor, teamLeaderOptionsVendedor]);
 
-  // Corretor captador/vendedor: lista todos os corretores ativos da imobiliária (sem filtrar por
-  // equipe — co-listagem entre times é comum, diferente de Gestor/Team Leader que é só da equipe).
+  // A função exercida nesta venda não precisa coincidir com o papel global do cadastro. Por isso,
+  // corretor, captador, vendedor e gestor podem ser escolhidos entre todos os usuários ativos.
   const [corretorOptions, setCorretorOptions] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc("list_active_corretores");
+      const { data } = await supabase.rpc("list_active_users");
       setCorretorOptions((data ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id })));
     })();
   }, []);
+  const todosUsuariosComoLideres = useMemo(() => {
+    const gestoresIds = new Set(gestoresGerais.map((p) => p.id));
+    const teamLeadersIds = new Set(teamLeadersGerais.map((p) => p.id));
+    return corretorOptions.map((p) => ({
+      ...p,
+      // Para extras, o papel define apenas a natureza da comissão nesta venda. Preservamos o papel
+      // real quando conhecido; qualquer outro usuário selecionado atua como gestor nesta venda.
+      papel: (teamLeadersIds.has(p.id) && !gestoresIds.has(p.id) ? "team_leader" : "gestor") as "gestor" | "team_leader",
+    }));
+  }, [corretorOptions, gestoresGerais, teamLeadersGerais]);
+  const liderOptionsTodos = useMemo(() => {
+    return [...todosUsuariosComoLideres].sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [todosUsuariosComoLideres]);
   // Indicador: quem indicou o negócio pode ser corretor OU gestor/team leader (achado real — Rodrigo
   // Becchelli e Rafaela Galbi Farrão Fuentes têm cadastro, mas como gestor, não corretor, então não
   // apareciam em corretorOptions) — junta as 3 listas de gente ativa, sem restringir por papel nem
   // por equipe (diferente de Gestor/Team Leader do captador/vendedor, que é só da equipe do lado).
-  const indicadorOptions = useMemo(() => {
-    const map = new Map<string, { id: string; nome: string }>();
-    [...corretorOptions, ...gestoresGerais, ...teamLeadersGerais].forEach((p) => {
-      if (!map.has(p.id)) map.set(p.id, p);
-    });
-    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [corretorOptions, gestoresGerais, teamLeadersGerais]);
+  const indicadorOptions = corretorOptions;
 
   // Painel de atividade: resolve o nome de quem fez cada ação (activity_logs.autor_id) — só busca
   // os perfis que ainda não tem, pra não refazer a mesma consulta a cada load().
@@ -1092,13 +1099,13 @@ function SaleDetail() {
                         <Plus className="mr-1 h-4 w-4" />Outro captador
                       </Button>
                     )}
-                    {liderOptions.length > 0 && (
+                    {liderOptionsTodos.length > 0 && (
                       <div className="mt-4 border-t pt-3">
                         <Field label="Gestor/Team Leader do captador">
                           <Select
                             value={formSale.lider_captador_id || "none"}
                             onValueChange={(v) => {
-                              const l = liderOptions.find((o) => o.id === v);
+                              const l = liderOptionsTodos.find((o) => o.id === v);
                               updResumo({ lider_captador_id: v === "none" ? null : v, lider_captador_nome: l ? l.nome : null });
                             }}
                             disabled={!editable}
@@ -1107,12 +1114,8 @@ function SaleDetail() {
                             <SelectContent>
                               <SelectItem value="none">—</SelectItem>
                               <SelectGroup>
-                                <SelectLabel>Gestores</SelectLabel>
-                                {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                              </SelectGroup>
-                              <SelectGroup>
-                                <SelectLabel>Team Leaders</SelectLabel>
-                                {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                <SelectLabel>Usuários ativos</SelectLabel>
+                                {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                               </SelectGroup>
                             </SelectContent>
                           </Select>
@@ -1124,7 +1127,7 @@ function SaleDetail() {
                                 <Select
                                   value={r.user_id || ""}
                                   onValueChange={(v) => {
-                                    const l = liderOptions.find((o) => o.id === v);
+                                    const l = liderOptionsTodos.find((o) => o.id === v);
                                     updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
                                   }}
                                   disabled={!editable}
@@ -1132,12 +1135,8 @@ function SaleDetail() {
                                   <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                                   <SelectContent>
                                     <SelectGroup>
-                                      <SelectLabel>Gestores</SelectLabel>
-                                      {liderOptions.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                                    </SelectGroup>
-                                    <SelectGroup>
-                                      <SelectLabel>Team Leaders</SelectLabel>
-                                      {liderOptions.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                      <SelectLabel>Usuários ativos</SelectLabel>
+                                      {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                                     </SelectGroup>
                                   </SelectContent>
                                 </Select>
@@ -1241,13 +1240,13 @@ function SaleDetail() {
                         <Plus className="mr-1 h-4 w-4" />Outro vendedor
                       </Button>
                     )}
-                    {liderOptionsVendedor.length > 0 && (
+                    {liderOptionsTodos.length > 0 && (
                       <div className="mt-4 border-t pt-3">
                         <Field label="Gestor/Team Leader do vendedor">
                           <Select
                             value={formSale.lider_vendedor_id || "none"}
                             onValueChange={(v) => {
-                              const l = liderOptionsVendedor.find((o) => o.id === v);
+                              const l = liderOptionsTodos.find((o) => o.id === v);
                               updResumo({ lider_vendedor_id: v === "none" ? null : v, lider_vendedor_nome: l ? l.nome : null });
                             }}
                             disabled={!editable}
@@ -1256,12 +1255,8 @@ function SaleDetail() {
                             <SelectContent>
                               <SelectItem value="none">—</SelectItem>
                               <SelectGroup>
-                                <SelectLabel>Gestores</SelectLabel>
-                                {liderOptionsVendedor.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                              </SelectGroup>
-                              <SelectGroup>
-                                <SelectLabel>Team Leaders</SelectLabel>
-                                {liderOptionsVendedor.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                <SelectLabel>Usuários ativos</SelectLabel>
+                                {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                               </SelectGroup>
                             </SelectContent>
                           </Select>
@@ -1273,7 +1268,7 @@ function SaleDetail() {
                                 <Select
                                   value={r.user_id || ""}
                                   onValueChange={(v) => {
-                                    const l = liderOptionsVendedor.find((o) => o.id === v);
+                                    const l = liderOptionsTodos.find((o) => o.id === v);
                                     updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
                                   }}
                                   disabled={!editable}
@@ -1281,12 +1276,8 @@ function SaleDetail() {
                                   <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
                                   <SelectContent>
                                     <SelectGroup>
-                                      <SelectLabel>Gestores</SelectLabel>
-                                      {liderOptionsVendedor.filter((l) => l.papel === "gestor").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                                    </SelectGroup>
-                                    <SelectGroup>
-                                      <SelectLabel>Team Leaders</SelectLabel>
-                                      {liderOptionsVendedor.filter((l) => l.papel === "team_leader").map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+                                      <SelectLabel>Usuários ativos</SelectLabel>
+                                      {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
                                     </SelectGroup>
                                   </SelectContent>
                                 </Select>
@@ -1464,9 +1455,7 @@ function SaleDetail() {
                 // Lado 'vendedor' usa o pool de líderes do time do vendedor (gestorOptionsVendedor/
                 // teamLeaderOptionsVendedor) — sem isso, uma linha adicionada como "Outro Gestor/Team
                 // Leader" do lado vendedor (na Equipe) mostraria aqui as opções do time do captador.
-                const opcoesLider = r.lado === "vendedor"
-                  ? (r.papel === "gestor" ? gestorOptionsVendedor : teamLeaderOptionsVendedor)
-                  : (r.papel === "gestor" ? gestorOptions : teamLeaderOptions);
+                const opcoesLider = liderOptionsTodos;
                 const onSelectLider = (liderId: string) => {
                   const lider = opcoesLider.find((l) => l.id === liderId);
                   // Grava o user_id direto na linha do extra (não só em sales.coordenador_id/team_leader_id)
