@@ -219,6 +219,29 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(dist.saldo_inicial_imobiliaria).toBe(12045);
   });
 
+  it("regra 3b — valor REMAX em reais prevalece sobre percentual arredondado", async () => {
+    const saleId = await criarVenda({
+      valor_negociado: 675000,
+      percentual_comissao: 4.844,
+      valor_total_comissao: 32700,
+      percentual_remax: 2.422,
+      valor_remax: 16350,
+      parceria_tipo: "imobiliaria_externa",
+      parceria_percentual: 2.422,
+      parceria_valor: 16350,
+      valor_comissao_captador: 0,
+      valor_comissao_vendedor: 7360,
+      valor_comissao_lider_vendedor: 3270,
+    });
+    await criarExtra(saleId, { papel: "gestor", origem: "imobiliaria", valor: 817.5, nome: "Gestor Teste", user_id: PROFILES[4] });
+    const dist = await distribuicao(saleId);
+    expect(dist.parte_remax).toBe(16350);
+    expect(dist.parceria_externa).toBe(16350);
+    expect(dist.saldo_liquido_imobiliaria).toBe(4902.5);
+    expect(dist.diferenca_restante).toBe(0);
+    expect(dist.calculo_valido).toBe(true);
+  });
+
   // ---- Regra 4: valores variáveis de captador e vendedor ----
   it("regra 4 — captador e vendedor são valores livres em reais, nunca um percentual fixo", async () => {
     const saleAId = await criarVenda({ ...CENARIO_BASE, valor_comissao_captador: 3000, valor_comissao_vendedor: 7000 });
