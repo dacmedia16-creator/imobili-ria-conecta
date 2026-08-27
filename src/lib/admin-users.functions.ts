@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { canResetAnotherUsersPassword, type UserManagementRole } from "@/lib/admin-user-permissions";
 import { z } from "zod";
 
 const ROLES = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"] as const;
@@ -115,8 +116,9 @@ export const createUser = createServerFn({ method: "POST" })
     return { id: newId, email: data.email };
   });
 
-/** Redefine a senha de outro usuário — só admin/super_admin (mais restrito que criar usuário,
- * que gestor também pode). Força troca no próximo login, igual à criação de usuário. */
+/** Redefine a senha de outro usuário. Admin/super admin podem redefinir qualquer conta;
+ * gestor/team leader, somente corretores que pertencem à própria equipe. Força troca no próximo
+ * login, igual à criação de usuário. */
 export const resetUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => resetPasswordSchema.parse(input))
@@ -132,8 +134,28 @@ export const resetUserPassword = createServerFn({ method: "POST" })
       .eq("user_id", callerId);
     if (rolesErr) throw new Error(rolesErr.message);
     const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
-    if (!callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r))) {
-      throw new Error("Apenas admin ou super admin podem redefinir a senha de outro usuário.");
+    const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
+    const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
+    if (!isAdminLike && !isTeamLead) {
+      throw new Error("Você não tem permissão para redefinir a senha de outro usuário.");
+    }
+
+    if (!isAdminLike) {
+      const [{ data: leads, error: leadErr }, { data: targetRoles, error: targetRolesErr }] = await Promise.all([
+        supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId }),
+        supabase.from("user_roles").select("role").eq("user_id", data.userId),
+      ]);
+      if (leadErr) throw new Error(leadErr.message);
+      if (targetRolesErr) throw new Error(targetRolesErr.message);
+
+      const targetRoleNames = (targetRoles ?? []).map((r: any) => r.role as UserManagementRole);
+      if (!canResetAnotherUsersPassword({
+        callerRoles: callerRoles as UserManagementRole[],
+        targetRoles: targetRoleNames,
+        isLeadOfTarget: Boolean(leads),
+      })) {
+        throw new Error("Você só pode redefinir a senha de corretores da sua própria equipe.");
+      }
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -147,6 +169,14 @@ export const resetUserPassword = createServerFn({ method: "POST" })
       user_metadata: { ...existing.user.user_metadata, must_change_password: true },
     });
     if (updErr) throw new Error(updErr.message);
+
+    // Auditoria sem armazenar ou expor a senha temporária.
+    await supabaseAdmin.from("activity_logs").insert({
+      autor_id: callerId,
+      sale_id: null,
+      acao: "user_password_reset",
+      payload: { target_user: data.userId },
+    });
 
     return { ok: true };
   });

@@ -236,6 +236,10 @@ function AdminUsers() {
   const renderUserCard = (u: any, badge?: "Líder" | "Líder auxiliar") => {
     const userRoles = rolesByUser[u.id] ?? [];
     const canEditThis = isAdminLike && u.id !== user?.id;
+    // Gestor/team leader só vê a própria equipe e só pode redefinir senha de corretor. A mesma
+    // regra é repetida e validada no servidor; este controle é apenas a apresentação da interface.
+    const canResetPassword = u.id !== user?.id
+      && (isAdminLike || (canManage && userRoles.includes("corretor")));
     // Editar dados básicos (nome/e-mail/telefone) — além de admin/super admin, gestor e team leader
     // também podem corrigir cadastro errado, mas só de quem já está na própria equipe (a lista
     // `visibleUsers` já filtra isso pra quem não é admin-like).
@@ -286,7 +290,7 @@ function AdminUsers() {
                 <LogIn className="mr-1.5 h-4 w-4" />{enteringAs === u.id ? "Entrando..." : "Entrar como usuário"}
               </Button>
             )}
-            {canEditThis && (
+            {canResetPassword && (
               <Button size="sm" variant="ghost" onClick={() => setResetPasswordFor({ id: u.id, email: u.email, nome: u.nome })}>
                 <KeyRound className="mr-1.5 h-4 w-4" />Redefinir senha
               </Button>
