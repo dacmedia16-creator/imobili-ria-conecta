@@ -1491,6 +1491,10 @@ export type Database = {
         Args: { _motivo?: string; _new_status: string; _sale_id: string }
         Returns: undefined
       }
+      marcar_contrato_assinado_e_criar_ocorrencia: {
+        Args: { _sale_id: string }
+        Returns: undefined
+      }
       cliente_historico: {
         Args: { _cliente_id: string; _excluir_sale_id?: string }
         Returns: {

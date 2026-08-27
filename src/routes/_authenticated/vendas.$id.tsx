@@ -757,24 +757,24 @@ function SaleDetail() {
   // atualização) e cobre o corretor e o gestor da equipe sem precisar de nenhuma chamada extra aqui.
   const changeStatus = async (next: SaleStatus, motivo?: string) => {
     if (!(await flushAllDirty())) return;
-    const { error } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: next, _motivo: motivo });
+    // Marcar o contrato e preparar a ocorrência precisam ser uma única transação. Antes eram duas
+    // RPCs: se a segunda falhasse, a venda ficava presa em contrato_assinado e o erro era descartado.
+    const { error } = next === "contrato_assinado"
+      ? await supabase.rpc("marcar_contrato_assinado_e_criar_ocorrencia", { _sale_id: id })
+      : await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: next, _motivo: motivo });
     if (error) {
       toast.error(error.message);
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
     if (next === "contrato_assinado") {
-      // contrato_assinado avança automaticamente pra ocorrencia_pendente, e as duas etapas têm o
-      // mesmo responsável (gestor) — notifica só o status final, senão o gestor toma dois avisos
-      // (sino + WhatsApp) pela mesma ação de marcar o contrato como assinado.
-      const { error: e2 } = await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: "ocorrencia_pendente", _motivo: "Automático: contrato assinado" });
-      if (!e2) {
-        notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
-      }
+      // As duas etapas já foram confirmadas atomicamente no banco; notifica apenas o status final.
+      notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
     } else {
       notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     }
-    toast.success(`Status alterado para "${STATUS_LABEL[next]}"`);
+    const finalStatus = next === "contrato_assinado" ? "ocorrencia_pendente" : next;
+    toast.success(`Status alterado para "${STATUS_LABEL[finalStatus]}"`);
     load();
   };
 
@@ -1829,6 +1829,12 @@ function SaleDetail() {
           )}
 
           {/* Gestor: enviar ocorrência ao financeiro */}
+          {isGestor && status === "contrato_assinado" && (
+            <Button onClick={() => changeStatus("ocorrencia_pendente")}>
+              <FileCheck className="mr-2 h-4 w-4" />Criar ocorrência e continuar
+            </Button>
+          )}
+
           {isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
             <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
               <DollarSign className="mr-2 h-4 w-4" />Enviar ocorrência ao financeiro
