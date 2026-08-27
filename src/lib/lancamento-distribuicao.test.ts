@@ -114,6 +114,18 @@ describe("calcularDistribuicaoLancamento", () => {
     expect(r.calculo_valido).toBe(true);
   });
 
+  it("valor em reais prevalece quando o percentual arredondado diverge", () => {
+    const r = calcularDistribuicaoLancamento({
+      valorNegociado: 675000,
+      percentualComissao: 4.844,
+      valorTotalComissao: 32700,
+      linhas: [],
+    });
+    expect(r.comissao_bruta).toBe(32700);
+    expect(r.total_distribuido).toBe(32700);
+    expect(r.calculo_valido).toBe(true);
+  });
+
   it("prêmio soma à comissão bruta na base do saldo automático (corretores já dividem a % em cima dos dois somados)", () => {
     const r = calcularDistribuicaoLancamento({
       valorNegociado: 382524.96,

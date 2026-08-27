@@ -1059,25 +1059,32 @@ export function LancamentoDetail({
                 <CurrencyInput
                   value={form.valor_negociado}
                   disabled={!canEdit}
-                  onChange={(v) => upd({ valor_negociado: v })}
+                  onChange={(v) => upd({
+                    valor_negociado: v,
+                    percentual_comissao: form.valor_total_comissao != null && v != null && v > 0
+                      ? Number(((Number(form.valor_total_comissao) / v) * 100).toFixed(6))
+                      : null,
+                  })}
                 />
               </Field>
-              <Field label="Percentual de comissão">
+              <Field label="Percentual de comissão (referência)">
                 <Input
                   type="number"
                   step="0.01"
                   value={form.percentual_comissao ?? ""}
-                  disabled={!canEdit}
-                  onChange={(e) =>
-                    upd({ percentual_comissao: e.target.value ? Number(e.target.value) : null })
-                  }
+                  disabled
                 />
               </Field>
               <Field label="Valor total da comissão">
                 <CurrencyInput
                   value={form.valor_total_comissao}
                   disabled={!canEdit}
-                  onChange={(v) => upd({ valor_total_comissao: v })}
+                  onChange={(v) => upd({
+                    valor_total_comissao: v,
+                    percentual_comissao: v != null && Number(form.valor_negociado ?? 0) > 0
+                      ? Number(((v / Number(form.valor_negociado)) * 100).toFixed(6))
+                      : null,
+                  })}
                 />
               </Field>
               <Field label="Prêmio">
@@ -1446,25 +1453,31 @@ export function LancamentoDetail({
               <Field label="Valor negociado">
                 <CurrencyInput
                   value={editResumo.valor_negociado}
-                  onChange={(v) => updEditResumo({ valor_negociado: v })}
+                  onChange={(v) => updEditResumo({
+                    valor_negociado: v,
+                    percentual_comissao: editResumo.valor_total_comissao != null && v != null && v > 0
+                      ? Number(((Number(editResumo.valor_total_comissao) / v) * 100).toFixed(6))
+                      : null,
+                  })}
                 />
               </Field>
-              <Field label="Percentual de comissão">
+              <Field label="Percentual de comissão (referência)">
                 <Input
                   type="number"
                   step="0.01"
                   value={editResumo.percentual_comissao ?? ""}
-                  onChange={(e) =>
-                    updEditResumo({
-                      percentual_comissao: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
+                  disabled
                 />
               </Field>
               <Field label="Valor total da comissão">
                 <CurrencyInput
                   value={editResumo.valor_total_comissao}
-                  onChange={(v) => updEditResumo({ valor_total_comissao: v })}
+                  onChange={(v) => updEditResumo({
+                    valor_total_comissao: v,
+                    percentual_comissao: v != null && Number(editResumo.valor_negociado ?? 0) > 0
+                      ? Number(((v / Number(editResumo.valor_negociado)) * 100).toFixed(6))
+                      : null,
+                  })}
                 />
               </Field>
               <Field label="Prêmio">

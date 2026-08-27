@@ -27,18 +27,20 @@ export function recalcImobiliaria(patch: FieldBag, formSale: FieldBag): number {
 }
 
 /**
- * Único ponto que muda "Valor negociado" no Resumo. O percentual que o usuário digitou continua o
- * mesmo, só o valor em reais é recalculado em cima do novo negociado — igual à convenção já usada nos
- * campos de REMAX e parceria (percentual sobre o negociado, não sobre o total da comissão). Captador,
- * vendedor, indicador e líder nunca são tocados aqui: são valores em reais digitados direto, sem
- * percentual vinculado ao negociado.
+ * Único ponto que muda "Valor negociado" no Resumo. A comissão em reais é a fonte oficial e nunca
+ * é recalculada pelo percentual; o percentual é apenas uma referência derivada do valor oficial.
+ * Parceria e REMAX continuam com suas regras próprias, percentuais sobre o valor negociado.
  */
 export function calcularPatchValorNegociado(formSale: FieldBag, v: number | null): FieldBag {
   const negociado = v != null ? Number(v) : null;
   const patch: FieldBag = { valor_negociado: negociado };
   const pctSobreNegociado = (percentual: number | null | undefined) =>
     percentual != null && negociado != null && negociado > 0 ? Number(((percentual / 100) * negociado).toFixed(2)) : null;
-  if (formSale.percentual_comissao != null) patch.valor_total_comissao = pctSobreNegociado(formSale.percentual_comissao);
+  if (formSale.valor_total_comissao != null && negociado != null && negociado > 0) {
+    patch.percentual_comissao = Number(((Number(formSale.valor_total_comissao) / negociado) * 100).toFixed(6));
+  } else if (negociado == null || negociado <= 0) {
+    patch.percentual_comissao = null;
+  }
   if (formSale.parceria_percentual != null) patch.parceria_valor = pctSobreNegociado(formSale.parceria_percentual);
   if (formSale.percentual_remax != null) patch.valor_remax = pctSobreNegociado(formSale.percentual_remax);
   // Campo legado (sem % da REMAX preenchido) — recalcula com o novo total/parceria pra não ficar
@@ -47,12 +49,14 @@ export function calcularPatchValorNegociado(formSale: FieldBag, v: number | null
   return patch;
 }
 
-/** Mesma regra do lado da Ocorrência: só valor_comissao recalcula sobre o novo negociado. */
+/** Mesma regra do lado da Ocorrência: valor em reais prevalece e o percentual é derivado. */
 export function calcularPatchOccValorNegociado(formOcc: FieldBag, v: number | null): FieldBag {
   const negociado = v != null ? Number(v) : null;
   const patch: FieldBag = { valor_negociado: negociado };
-  if (formOcc.percentual_comissao != null) {
-    patch.valor_comissao = negociado != null && negociado > 0 ? Number(((formOcc.percentual_comissao / 100) * negociado).toFixed(2)) : null;
+  if (formOcc.valor_comissao != null && negociado != null && negociado > 0) {
+    patch.percentual_comissao = Number(((Number(formOcc.valor_comissao) / negociado) * 100).toFixed(6));
+  } else if (negociado == null || negociado <= 0) {
+    patch.percentual_comissao = null;
   }
   return patch;
 }

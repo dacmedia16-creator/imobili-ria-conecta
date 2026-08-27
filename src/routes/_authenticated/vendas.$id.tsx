@@ -1372,18 +1372,12 @@ function SaleDetail() {
             <FieldGrid>
               <Field label="Valor anunciado (R$)"><CurrencyInput value={formSale.valor_anunciado} disabled={!editable} onChange={(v) => updResumo({ valor_anunciado: v })} /></Field>
               <Field label="Valor negociado (R$)"><CurrencyInput value={formSale.valor_negociado} disabled={!editable} onChange={applyValorNegociado} /></Field>
-              <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.percentual_comissao ?? ""} disabled={!editable} onChange={(e) => {
-                const p = e.target.value ? Number(e.target.value) : null;
-                const neg = Number(formSale.valor_negociado ?? 0);
-                const patch: any = { percentual_comissao: p };
-                if (p != null && neg > 0) patch.valor_total_comissao = Number(((p / 100) * neg).toFixed(2));
-                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-                updResumo(patch);
-              }} /></Field>
+              <Field label="% Comissão (referência)"><Input type="number" step="0.000001" value={formSale.percentual_comissao ?? ""} disabled /></Field>
               <Field label="Valor total da comissão (R$)"><CurrencyInput value={formSale.valor_total_comissao} disabled={!editable} onChange={(v) => {
                 const neg = Number(formSale.valor_negociado ?? 0);
                 const patch: any = { valor_total_comissao: v };
-                if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(3));
+                if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
+                else patch.percentual_comissao = null;
                 patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
                 updResumo(patch);
               }} /></Field>
@@ -3464,17 +3458,12 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
             <Field label="Nota fiscal obrigatória"><div className="flex items-center gap-2"><Switch checked={!!formOcc.nota_fiscal_obrigatoria} onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}</span></div></Field>
             <Field label="Valor anunciado"><CurrencyInput value={formOcc.valor_anunciado} disabled={!canWrite} onChange={(v) => updOcc({ valor_anunciado: v })} /></Field>
             <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={applyOccValorNegociado} /></Field>
-            <Field label="% Comissão"><Input type="number" step="0.001" value={formOcc.percentual_comissao ?? ""} disabled={!canWrite} onChange={(e) => {
-              const p = e.target.value ? Number(e.target.value) : null;
-              const neg = Number(formOcc.valor_negociado ?? 0);
-              const patch: any = { percentual_comissao: p };
-              if (p != null && neg > 0) patch.valor_comissao = Number(((p / 100) * neg).toFixed(2));
-              updOcc(patch);
-            }} /></Field>
+            <Field label="% Comissão (referência)"><Input type="number" step="0.000001" value={formOcc.percentual_comissao ?? ""} disabled /></Field>
             <Field label="Valor da comissão (total)"><CurrencyInput value={formOcc.valor_comissao} disabled={!canWrite} onChange={(v) => {
               const neg = Number(formOcc.valor_negociado ?? 0);
               const patch: any = { valor_comissao: v };
-              if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(3));
+              if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
+              else patch.percentual_comissao = null;
               updOcc(patch);
             }} /></Field>
           </FieldGrid>

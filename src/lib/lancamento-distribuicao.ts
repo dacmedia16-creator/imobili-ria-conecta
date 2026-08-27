@@ -40,9 +40,11 @@ export function calcularDistribuicaoLancamento(input: {
 }): LancamentoDistribuicao {
   const negociado = input.valorNegociado ?? null;
   const comissaoBruta = round2(
-    input.percentualComissao != null && negociado != null && negociado > 0
-      ? (input.percentualComissao / 100) * negociado
-      : (input.valorTotalComissao ?? 0),
+    input.valorTotalComissao != null
+      ? input.valorTotalComissao
+      : input.percentualComissao != null && negociado != null && negociado > 0
+        ? (input.percentualComissao / 100) * negociado
+        : 0,
   );
   const premioValor = round2(Number(input.premioValor ?? 0));
 

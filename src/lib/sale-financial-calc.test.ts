@@ -37,11 +37,12 @@ describe("recalcImobiliaria — regra 3/5: saldo inicial da imobiliária", () =>
   });
 });
 
-describe("calcularPatchValorNegociado — regra 11: alteração do valor negociado", () => {
-  it("recalcula comissão, parceria e REMAX em reais mantendo os percentuais digitados (cenário base)", () => {
+describe("calcularPatchValorNegociado — comissão em reais como fonte oficial", () => {
+  it("preserva a comissão em reais e deriva o percentual de referência", () => {
     const patch = calcularPatchValorNegociado(CENARIO_BASE, 730000);
     expect(patch.valor_negociado).toBe(730000);
-    expect(patch.valor_total_comissao).toBe(43800);
+    expect(patch).not.toHaveProperty("valor_total_comissao");
+    expect(patch.percentual_comissao).toBe(6);
     expect(patch.parceria_valor).toBe(21900);
     expect(patch.valor_remax).toBe(21900);
     expect(patch.valor_comissao_imobiliaria).toBe(12045);
@@ -60,46 +61,50 @@ describe("calcularPatchValorNegociado — regra 11: alteração do valor negocia
     expect(patch).not.toHaveProperty("valor_comissao_lider_captador");
   });
 
-  it("recalcula em cima do NOVO negociado, não do antigo — muda de 730.000 para 800.000 mantendo 6%/3%/3%", () => {
+  it("ao mudar o negociado, preserva a comissão em reais e recalcula somente sua referência percentual", () => {
     const patch = calcularPatchValorNegociado(CENARIO_BASE, 800000);
-    expect(patch.valor_total_comissao).toBe(48000); // 6% de 800.000
+    expect(patch).not.toHaveProperty("valor_total_comissao");
+    expect(patch.percentual_comissao).toBe(5.475); // 43.800 / 800.000
     expect(patch.parceria_valor).toBe(24000); // 3% de 800.000
     expect(patch.valor_remax).toBe(24000); // 3% de 800.000
   });
 
-  it("campo sem percentual definido (venda legada) não é recalculado — fica com o valor fixo anterior", () => {
+  it("valor fixo legado também gera o percentual apenas como referência", () => {
     const formSale = { valor_negociado: 500000, percentual_comissao: null, valor_total_comissao: 30000, parceria_percentual: null, percentual_remax: null };
     const patch = calcularPatchValorNegociado(formSale, 600000);
     expect(patch).not.toHaveProperty("valor_total_comissao");
+    expect(patch.percentual_comissao).toBe(5);
     expect(patch).not.toHaveProperty("parceria_valor");
     expect(patch).not.toHaveProperty("valor_remax");
     expect(patch.valor_negociado).toBe(600000);
   });
 
-  it("negociado limpo (null) zera os valores em reais derivados de percentual", () => {
+  it("negociado limpo zera apenas referências derivadas, sem apagar a comissão oficial", () => {
     const patch = calcularPatchValorNegociado(CENARIO_BASE, null);
     expect(patch.valor_negociado).toBeNull();
-    expect(patch.valor_total_comissao).toBeNull();
+    expect(patch).not.toHaveProperty("valor_total_comissao");
+    expect(patch.percentual_comissao).toBeNull();
     expect(patch.parceria_valor).toBeNull();
     expect(patch.valor_remax).toBeNull();
   });
 
-  it("arredonda pra 2 casas decimais (regra 18)", () => {
-    const formSale = { valor_negociado: null, percentual_comissao: 5.5, valor_total_comissao: null, parceria_percentual: null, percentual_remax: null };
-    const patch = calcularPatchValorNegociado(formSale, 333333.33);
-    // 5.5% de 333333.33 = 18333.33315 -> arredonda pra 18333.33
-    expect(patch.valor_total_comissao).toBe(18333.33);
+  it("caso real: R$ 32.700 prevalece e 4,844444% fica só como referência", () => {
+    const formSale = { valor_negociado: 675000, percentual_comissao: 4.844, valor_total_comissao: 32700, parceria_percentual: null, percentual_remax: null };
+    const patch = calcularPatchValorNegociado(formSale, 675000);
+    expect(patch).not.toHaveProperty("valor_total_comissao");
+    expect(patch.percentual_comissao).toBe(4.844444);
   });
 });
 
-describe("calcularPatchOccValorNegociado — regra 11 no lado da Ocorrência", () => {
-  it("recalcula valor_comissao mantendo o percentual", () => {
-    const patch = calcularPatchOccValorNegociado({ percentual_comissao: 6 }, 730000);
-    expect(patch.valor_comissao).toBe(43800);
+describe("calcularPatchOccValorNegociado — valor em reais prevalece", () => {
+  it("preserva o valor da comissão e deriva o percentual", () => {
+    const patch = calcularPatchOccValorNegociado({ percentual_comissao: 4.844, valor_comissao: 32700 }, 675000);
+    expect(patch).not.toHaveProperty("valor_comissao");
+    expect(patch.percentual_comissao).toBe(4.844444);
   });
 
   it("sem percentual definido, não mexe em valor_comissao", () => {
-    const patch = calcularPatchOccValorNegociado({ percentual_comissao: null }, 730000);
+    const patch = calcularPatchOccValorNegociado({ percentual_comissao: null, valor_comissao: null }, 730000);
     expect(patch).not.toHaveProperty("valor_comissao");
   });
 });
