@@ -116,6 +116,14 @@ type MetaProgressoRow = {
   comissao_realizada: number;
 };
 type MetaProgresso = { corretor: MetaProgressoRow[]; equipe: MetaProgressoRow[] };
+type ResumoDesempenho = {
+  vgv_proprio: number;
+  comissao_propria: number;
+  parte_unidade: number;
+  receita_liquida_imobiliaria: number;
+  quantidade_vendas: number;
+  evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
+};
 const mesLabel = (m: string) => {
   const [ano, mes] = m.split("-");
   return new Date(Number(ano), Number(mes) - 1, 1)
@@ -153,7 +161,14 @@ function VisaoExecutiva() {
   const allowed = hasAny(["admin", "super_admin", "financeiro"]);
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
-  const [operacaoRemax, setOperacaoRemax] = useState({ vgv_proprio: 0, comissao_propria: 0 });
+  const [operacaoRemax, setOperacaoRemax] = useState<ResumoDesempenho>({
+    vgv_proprio: 0,
+    comissao_propria: 0,
+    parte_unidade: 0,
+    receita_liquida_imobiliaria: 0,
+    quantidade_vendas: 0,
+    evolucao_mensal: [],
+  });
   const [comissaoStats, setComissaoStats] = useState<ComissaoPorStatusStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
@@ -172,17 +187,29 @@ function VisaoExecutiva() {
         supabase.from("profiles").select("id, nome"),
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
         supabase.rpc("comissoes_carteira_sem_parceria" as never),
-        supabase.rpc("resumo_operacao_sem_parceria_30d" as never),
+        supabase.rpc("resumo_desempenho_30d" as never),
       ]);
-      setStats((statsRes.data as unknown as VisaoExecutivaStats) ?? null);
+      const resumoCorreto = operacaoRes.data as unknown as ResumoDesempenho | null;
+      const statsBase = (statsRes.data as unknown as VisaoExecutivaStats) ?? null;
+      setStats(
+        statsBase && resumoCorreto
+          ? { ...statsBase, evolucao_mensal: resumoCorreto.evolucao_mensal }
+          : statsBase,
+      );
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
       setMetas((metasRes.data as unknown as MetaProgresso) ?? { corretor: [], equipe: [] });
       setComissaoStats((carteiraRes.data as unknown as ComissaoPorStatusStats) ?? null);
       setOperacaoRemax(
-        (operacaoRes.data as unknown as { vgv_proprio: number; comissao_propria: number }) ??
-          { vgv_proprio: 0, comissao_propria: 0 },
+        (operacaoRes.data as unknown as ResumoDesempenho) ?? {
+          vgv_proprio: 0,
+          comissao_propria: 0,
+          parte_unidade: 0,
+          receita_liquida_imobiliaria: 0,
+          quantidade_vendas: 0,
+          evolucao_mensal: [],
+        },
       );
       setLoading(false);
     })();
@@ -239,20 +266,20 @@ function VisaoExecutiva() {
           <ResumoCard
             icon={Building2}
             label="Comissão destinada à unidade"
-            valor={money(stats?.resumo_operacional?.parte_unidade ?? 0)}
+            valor={money(operacaoRemax.parte_unidade)}
             info="O que sobra da comissão bruta pra unidade depois de descontar a parceria externa e a comissão de captador/vendedor — ainda antes de descontar gestores, Team Leaders e extras."
           />
           <ResumoCard
             icon={PiggyBank}
             label="Receita líquida da imobiliária"
-            valor={money(stats?.resumo_operacional?.receita_liquida_imobiliaria ?? 0)}
+            valor={money(operacaoRemax.receita_liquida_imobiliaria)}
             info="Parte da unidade menos o que foi pago a gestores/Team Leaders e extras atribuídos à imobiliária — o que sobra de fato pra casa nas vendas fechadas no período."
           />
           <ResumoCard
             icon={CheckCircle2}
             label="Quantidade de vendas"
-            valor={String(stats?.resumo_operacional?.quantidade_vendas ?? 0)}
-            info="Número de vendas distintas que fecharam (contrato assinado, ou em Lançamento avançou pro financeiro) nos últimos 30 dias."
+            valor={String(operacaoRemax.quantidade_vendas)}
+            info="Número de vendas distintas efetivamente enviadas ao Financeiro nos últimos 30 dias."
           />
           <ResumoCard
             icon={ClipboardList}
