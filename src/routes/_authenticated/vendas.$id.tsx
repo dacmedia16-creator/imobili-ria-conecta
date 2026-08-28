@@ -381,17 +381,9 @@ function SaleDetail() {
       const orig = sale?.[k];
       if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
     }
-    // corretor_id define quem enxerga a venda (RLS) e é fixado em quem criou o rascunho — se o
-    // captador/vendedor real for outra pessoa (ex: gestor cadastrando em nome do corretor), esse
-    // dono nunca acompanhava a troca e a venda ficava invisível pro corretor real e pro líder dele.
-    if (patch.corretor_captador_id !== undefined || patch.corretor_vendedor_id !== undefined) {
-      const novoDono =
-        patch.corretor_vendedor_id ?? formSale?.corretor_vendedor_id ??
-        patch.corretor_captador_id ?? formSale?.corretor_captador_id;
-      if (novoDono && novoDono !== sale.corretor_id) {
-        patch.corretor_id = novoDono;
-      }
-    }
+    // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
+    // vendedor são participações comerciais independentes e nunca podem transferir silenciosamente
+    // a propriedade nem bloquear o criador durante o preenchimento.
     if (Object.keys(patch).length > 0) {
       const { error } = await supabase.from("sales").update(patch).eq("id", id);
       if (error) {
