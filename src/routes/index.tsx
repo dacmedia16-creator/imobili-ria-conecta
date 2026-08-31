@@ -95,7 +95,14 @@ function SingleLoginBanner() {
         <strong>Uma conta. Todos os sistemas MAX.</strong>
         <span>Com o Login Único, você entra uma vez com o Google e acessa os sistemas liberados para você.</span>
       </span>
-      <span className="single-login-status"><span aria-hidden="true" /> Login Único disponível</span>
+      <span className="single-login-actions">
+        <a href="https://conta-max-poc.dacmedia16.workers.dev/logout" className="single-login-switch">
+          Trocar conta
+        </a>
+        <a href="https://conta-max-poc.dacmedia16.workers.dev/logout" className="single-login-status">
+          <span aria-hidden="true" /> Sair da Conta MAX
+        </a>
+      </span>
     </div>
   );
 }
@@ -304,6 +311,20 @@ function FrontPage() {
           border: 1px solid rgba(255, 255, 255, 0.24);
           padding: 10px 16px; font-size: 0.76rem; font-weight: 800; white-space: nowrap;
         }
+        .hubpage .single-login-actions {
+          display: flex; flex: none; align-items: center; gap: 8px;
+        }
+        .hubpage .single-login-actions a { text-decoration: none; }
+        .hubpage .single-login-switch {
+          display: inline-flex; align-items: center; justify-content: center;
+          border: 1px solid rgba(255, 255, 255, 0.32); border-radius: 999px;
+          color: #fff; font-size: 0.72rem; font-weight: 800; padding: 8px 12px;
+          transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .hubpage .single-login-switch:hover,
+        .hubpage .single-login-switch:focus-visible {
+          background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.62);
+        }
         .hubpage .single-login-status > span {
           width: 8px; height: 8px; border-radius: 999px; background: #6ee7a8;
           box-shadow: 0 0 0 4px rgba(110, 231, 168, 0.14);
@@ -333,7 +354,9 @@ function FrontPage() {
         .hubpage .mobile-stage .single-login-copy { min-width: calc(100% - 58px); }
         .hubpage .mobile-stage .single-login-copy strong { font-size: 1rem; }
         .hubpage .mobile-stage .single-login-copy > span { font-size: 0.76rem; line-height: 1.3; }
-        .hubpage .mobile-stage .single-login-status { width: 100%; justify-content: center; padding: 9px 12px; }
+        .hubpage .mobile-stage .single-login-actions { width: 100%; }
+        .hubpage .mobile-stage .single-login-actions a { flex: 1; }
+        .hubpage .mobile-stage .single-login-status { justify-content: center; padding: 9px 12px; }
 
         .hubpage .mhub { position: relative; width: 172px; height: 172px; margin: 26px auto 0; }
 
