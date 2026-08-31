@@ -27,7 +27,7 @@ type ServiceCard = {
 
 const CARDS: ServiceCard[] = [
   { id: "adm", title: "Sistema ADM MAX", lines: ["Gestão administrativa", "Subir Contratos"], icon: "/hub/adm.png", color: "navy", href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max", pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" }, delay: "0s" },
-  { id: "estudo", title: "Estudo de Mercado MAX", lines: ["Análise estratégica", "de mercado"], icon: "/hub/estudo.png", color: "blue", href: "https://www.estudodemercadomax.com.br/", pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" }, delay: "0.35s" },
+  { id: "estudo", title: "Estudo de Mercado MAX", lines: ["Análise estratégica", "de mercado"], icon: "/hub/estudo.png", color: "blue", href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=estudo-mercado-max", pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" }, delay: "0.35s" },
   { id: "academia", title: "Academia Única MAX", lines: ["Treinamento e", "desenvolvimento"], icon: "/hub/academia.png", color: "blue", pos: { left: "9.7%", top: "65.1%", width: "25.8%", height: "10.6%" }, delay: "0.7s" },
   { id: "60dias", title: "60 Dias MAX", lines: ["Acompanhamento e", "performance inicial"], icon: "/hub/60dias.png", color: "red", pos: { left: "65.2%", top: "30.7%", width: "23.2%", height: "10.6%" }, delay: "1.05s" },
   { id: "recruta", title: "Recruta MAX", lines: ["Captação e seleção", "de talentos"], icon: "/hub/recruta.png", color: "blue", pos: { left: "67%", top: "48.1%", width: "21.7%", height: "10.6%" }, delay: "1.4s" },
