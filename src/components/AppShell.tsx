@@ -54,7 +54,7 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
       return;
     }
     await signOut();
-    router.navigate({ to: "/auth", replace: true });
+    window.location.assign("https://conta-max-poc.dacmedia16.workers.dev/logout");
   };
 
   return (
@@ -105,7 +105,7 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
           className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white"
           onClick={handleSignOut}
         >
-          <LogOut className="h-4 w-4" /> {impersonation ? "Retornar ao Super Admin" : "Sair"}
+          <LogOut className="h-4 w-4" /> {impersonation ? "Retornar ao Super Admin" : "Sair da Conta MAX"}
         </Button>
       </div>
     </div>
