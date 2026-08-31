@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ContaMaxRouteImport } from './routes/conta-max'
 import { Route as EspecialistasRouteImport } from './routes/especialistas'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
@@ -45,6 +46,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContaMaxRoute = ContaMaxRouteImport.update({
+  id: '/conta-max',
+  path: '/conta-max',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EspecialistasRoute = EspecialistasRouteImport.update({
@@ -161,6 +167,7 @@ const AuthenticatedVendasLancamentoNovaRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/conta-max': typeof ContaMaxRoute
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/conta-max': typeof ContaMaxRoute
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/conta-max': typeof ContaMaxRoute
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/conta-max'
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/conta-max'
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
@@ -286,6 +297,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/conta-max'
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ContaMaxRoute: typeof ContaMaxRoute
   EspecialistasRoute: typeof EspecialistasRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conta-max': {
+      id: '/conta-max'
+      path: '/conta-max'
+      fullPath: '/conta-max'
+      preLoaderRoute: typeof ContaMaxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/especialistas': {
@@ -531,6 +551,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ContaMaxRoute: ContaMaxRoute,
   EspecialistasRoute: EspecialistasRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
