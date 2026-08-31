@@ -550,7 +550,9 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           ) ?? 0)
         : 0;
       const c = classificarVinculoBeneficiario({
-        marcadoExplicitamenteExterno: row.sem_cadastro_confirmado === true,
+        // Linhas explicitamente externas já foram excluídas deste laço acima; qualquer linha que
+        // chega aqui sem usuário é, portanto, um vínculo pendente de revisão.
+        marcadoExplicitamenteExterno: false,
         correspondenciasNoNome: correspondencias,
       });
       divergencias.push({

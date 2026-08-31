@@ -1667,7 +1667,9 @@ export type Database = {
         Returns: {
           avatar_url: string | null
           id: string
+          instagram_url: string | null
           nome: string
+          pagina_pessoal_url: string | null
           regioes: Json
           telefone: string
         }[]
