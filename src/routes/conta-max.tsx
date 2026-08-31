@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/conta-max")({
@@ -10,8 +10,11 @@ export const Route = createFileRoute("/conta-max")({
 function ContaMaxBridge() {
   const router = useRouter();
   const [message, setMessage] = useState("Validando seu acesso pela Conta MAX…");
+  const requestStarted = useRef(false);
 
   useEffect(() => {
+    if (requestStarted.current) return;
+    requestStarted.current = true;
     const ticket = new URLSearchParams(window.location.search).get("ticket");
     if (!ticket) {
       setMessage("O passe de acesso não foi encontrado.");

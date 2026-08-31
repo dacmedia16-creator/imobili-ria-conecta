@@ -28,39 +28,30 @@ Deno.serve(async req => {
   if (useError) return response({ error: "ticket_reused" }, 409);
   let { data: link } = await admin.from("conta_max_identity_links").select("adm_user_id").eq("workos_user_id", payload.sub).eq("active", true).maybeSingle();
   if (!link) {
-    const { data: linkedId } = await admin.rpc("link_conta_max_identity_by_email", { p_workos_user_id: payload.sub, p_email: payload.email });
-    let admUserId = linkedId as string | null;
+    const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (usersError) return response({ error: "identity_lookup_failed" }, 500);
+    const matches = usersPage.users.filter(user => String(user.email ?? "").trim().toLowerCase() === payload.email);
+    if (matches.length !== 1) return response({ error: matches.length === 0 ? "account_email_not_found" : "account_email_ambiguous" }, 403);
+    const admUserId = matches[0].id;
 
-    if (!admUserId) {
-      const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (usersError) return response({ error: "identity_not_linked" }, 403);
-      const matches = usersPage.users.filter(user => String(user.email ?? "").trim().toLowerCase() === payload.email);
-      if (matches.length !== 1) return response({ error: "identity_not_linked" }, 403);
-      admUserId = matches[0].id;
+    const { data: conflictingLink, error: conflictLookupError } = await admin.from("conta_max_identity_links")
+      .select("adm_user_id")
+      .eq("workos_user_id", payload.sub)
+      .maybeSingle();
+    if (conflictLookupError) return response({ error: "identity_lookup_failed" }, 500);
+    if (conflictingLink && conflictingLink.adm_user_id !== admUserId) return response({ error: "identity_conflict" }, 403);
 
-      // A Conta MAX pode recriar o identificador WorkOS da mesma identidade.
-      // Só rotacione o vínculo quando o e-mail verificado resolve uma única
-      // conta do ADM e o novo identificador não pertence a outro usuário.
-      const { data: conflictingLink } = await admin.from("conta_max_identity_links")
-        .select("adm_user_id")
-        .eq("workos_user_id", payload.sub)
-        .maybeSingle();
-      if (conflictingLink && conflictingLink.adm_user_id !== admUserId) {
-        return response({ error: "identity_not_linked" }, 403);
-      }
+    const { data: existingAdmLink, error: existingLinkError } = await admin.from("conta_max_identity_links")
+      .select("id")
+      .eq("adm_user_id", admUserId)
+      .maybeSingle();
+    if (existingLinkError) return response({ error: "identity_lookup_failed" }, 500);
 
-      const { data: existingAdmLink, error: existingLinkError } = await admin.from("conta_max_identity_links")
-        .select("id")
-        .eq("adm_user_id", admUserId)
-        .maybeSingle();
-      if (existingLinkError) return response({ error: "identity_not_linked" }, 403);
-
-      const linkMutation = existingAdmLink
-        ? admin.from("conta_max_identity_links").update({ workos_user_id: payload.sub, active: true, revoked_at: null }).eq("id", existingAdmLink.id)
-        : admin.from("conta_max_identity_links").insert({ workos_user_id: payload.sub, adm_user_id: admUserId, active: true });
-      const { error: linkMutationError } = await linkMutation;
-      if (linkMutationError) return response({ error: "identity_not_linked" }, 403);
-    }
+    const linkMutation = existingAdmLink
+      ? admin.from("conta_max_identity_links").update({ workos_user_id: payload.sub, active: true, revoked_at: null }).eq("id", existingAdmLink.id)
+      : admin.from("conta_max_identity_links").insert({ workos_user_id: payload.sub, adm_user_id: admUserId, active: true });
+    const { error: linkMutationError } = await linkMutation;
+    if (linkMutationError) return response({ error: "identity_link_failed" }, 500);
     link = { adm_user_id: admUserId };
   }
   const { data: userData, error: userError } = await admin.auth.admin.getUserById(link.adm_user_id); if (userError || !userData.user?.email) return response({ error: "linked_user_unavailable" }, 403);
