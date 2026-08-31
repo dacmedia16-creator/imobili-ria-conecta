@@ -1,7 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const encoder = new TextEncoder();
-const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type, apikey, x-client-info", "Content-Type": "application/json" };
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+};
 function bytes(value: string) { const base64 = value.replaceAll("-", "+").replaceAll("_", "/"); const binary = atob(base64 + "=".repeat((4 - base64.length % 4) % 4)); return Uint8Array.from(binary, c => c.charCodeAt(0)); }
 async function verify(ticket: string, secret: string) {
   try {
