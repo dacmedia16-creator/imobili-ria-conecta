@@ -40,8 +40,10 @@ import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import {
   mesclarPessoasAtivas,
+  precisaEscolherBeneficiario,
   resolverSelecaoBeneficiario,
   SEM_CADASTRO_VALUE,
+  valorSelectBeneficiario,
 } from "@/lib/lancamento-pessoas";
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
@@ -3165,7 +3167,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     // managed_by_sale: false — linha criada à mão pelo financeiro, sync_occurrence_commissions nunca
     // deve sobrescrever/apagar ela (só linhas geradas a partir da Resumo/sale_commission_extras têm
     // managed_by_sale: true, ver pullFromSaleSplit abaixo).
-    setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, managed_by_sale: false, _new: true }]);
+    setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, user_id: null, sem_cadastro_confirmado: false, managed_by_sale: false, _new: true }]);
     setDirtyComms(true);
   };
   // Traz captador/vendedor/indicador/líder/extras com os valores já definidos na revisão do gestor
@@ -3272,6 +3274,11 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
         }
       }
       if (dirtyComms) {
+        const semEscolha = formComms.find(precisaEscolherBeneficiario);
+        if (semEscolha) {
+          toast.error('Escolha uma pessoa cadastrada ou marque explicitamente "Sem cadastro / parceiro externo" antes de salvar a comissão.');
+          return false;
+        }
         const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
         const removed = commissions.filter(r => !currentIds.has(r.id));
         for (const r of removed) {
@@ -3589,14 +3596,14 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                   const foraDaLista = !!c.user_id && !pessoasAtivas.some((p) => p.id === c.user_id);
                   return (
                     <Select
-                      value={c.user_id || SEM_CADASTRO_VALUE}
+                      value={valorSelectBeneficiario(c)}
                       disabled={!canWrite}
                       onValueChange={(v) =>
                         updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Selecione uma pessoa" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={SEM_CADASTRO_VALUE}>
