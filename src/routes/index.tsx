@@ -78,12 +78,10 @@ function HubHex() {
 
 function SingleLoginBanner() {
   return (
-    <a
-      href="https://conta-max-poc.dacmedia16.workers.dev/login"
+    <div
       className="single-login-banner"
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Entrar pela Conta MAX com o Login Único"
+      role="status"
+      aria-label="Login Único da Conta MAX disponível"
     >
       <span className="single-login-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none">
@@ -97,8 +95,8 @@ function SingleLoginBanner() {
         <strong>Uma conta. Todos os sistemas MAX.</strong>
         <span>Com o Login Único, você entra uma vez com o Google e acessa os sistemas liberados para você.</span>
       </span>
-      <span className="single-login-cta">Entrar com a Conta MAX →</span>
-    </a>
+      <span className="single-login-status"><span aria-hidden="true" /> Login Único disponível</span>
+    </div>
   );
 }
 
@@ -285,13 +283,8 @@ function FrontPage() {
           border: 1px solid rgba(255, 255, 255, 0.18);
           border-radius: 18px; padding: 14px 18px;
           box-shadow: 0 20px 44px -20px rgba(10, 21, 48, 0.88), 0 0 0 1px rgba(77, 111, 224, 0.12);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          cursor: default;
         }
-        .hubpage .single-login-banner:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 25px 50px -20px rgba(10, 21, 48, 0.95), 0 0 0 1px rgba(91, 132, 255, 0.22);
-        }
-        .hubpage .single-login-banner:focus-visible { outline: 3px solid #5b84ff; outline-offset: 3px; }
         .hubpage .single-login-icon {
           display: grid; place-items: center; flex: none;
           width: 50px; height: 50px; border-radius: 15px;
@@ -305,10 +298,15 @@ function FrontPage() {
         }
         .hubpage .single-login-copy strong { margin-top: 2px; font-size: 1.08rem; line-height: 1.15; }
         .hubpage .single-login-copy > span { margin-top: 3px; color: rgba(255, 255, 255, 0.78); font-size: 0.8rem; }
-        .hubpage .single-login-cta {
-          flex: none; border-radius: 999px; background: #fff; color: #173875;
+        .hubpage .single-login-status {
+          display: inline-flex; align-items: center; gap: 7px;
+          flex: none; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.24);
           padding: 10px 16px; font-size: 0.76rem; font-weight: 800; white-space: nowrap;
-          box-shadow: 0 8px 18px -10px rgba(0, 0, 0, 0.65);
+        }
+        .hubpage .single-login-status > span {
+          width: 8px; height: 8px; border-radius: 999px; background: #6ee7a8;
+          box-shadow: 0 0 0 4px rgba(110, 231, 168, 0.14);
         }
         .hubpage .stage > .single-login-banner { max-width: 1120px; margin: 0 auto 16px; }
 
@@ -335,7 +333,7 @@ function FrontPage() {
         .hubpage .mobile-stage .single-login-copy { min-width: calc(100% - 58px); }
         .hubpage .mobile-stage .single-login-copy strong { font-size: 1rem; }
         .hubpage .mobile-stage .single-login-copy > span { font-size: 0.76rem; line-height: 1.3; }
-        .hubpage .mobile-stage .single-login-cta { width: 100%; padding: 9px 12px; text-align: center; }
+        .hubpage .mobile-stage .single-login-status { width: 100%; justify-content: center; padding: 9px 12px; }
 
         .hubpage .mhub { position: relative; width: 172px; height: 172px; margin: 26px auto 0; }
 
