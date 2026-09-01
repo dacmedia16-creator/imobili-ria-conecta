@@ -1,5 +1,5 @@
 /**
- * Busca/agregação de dados do "Produção Gerada por Pessoa" — único módulo que fala com o Supabase.
+ * Busca/agregação de dados do "Produção por Pessoa" — único módulo que fala com o Supabase.
  * Só leitura. A RPC producao_por_pessoa_dados já barra qualquer papel fora de
  * admin/super_admin/financeiro (ver migration), então um erro dela aqui normalmente significa "sem
  * permissão" — tratado como lista vazia pelo chamador.

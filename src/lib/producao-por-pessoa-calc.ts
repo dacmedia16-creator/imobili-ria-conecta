@@ -56,7 +56,7 @@ export function gerarPontas(
       imovelId: r.imovel_id,
       codigoInterno: r.codigo_interno,
       modalidade: r.modalidade,
-      concluidaEm: r.concluida_em,
+      efetivadaEm: r.efetivada_em,
     };
 
     if (r.modalidade === "lancamento") {
@@ -162,9 +162,9 @@ export function aplicarFiltrosProducao(
   filtros: FiltrosProducao,
 ): ProducaoPonta[] {
   return pontas.filter((p) => {
-    const dataConclusao = p.concluidaEm.slice(0, 10);
-    if (filtros.dataDe && dataConclusao < filtros.dataDe) return false;
-    if (filtros.dataAte && dataConclusao > filtros.dataAte) return false;
+    const dataEfetivacao = p.efetivadaEm.slice(0, 10);
+    if (filtros.dataDe && dataEfetivacao < filtros.dataDe) return false;
+    if (filtros.dataAte && dataEfetivacao > filtros.dataAte) return false;
     if (filtros.pessoaId && p.pessoaId !== filtros.pessoaId) return false;
     if (filtros.teamId && p.teamId !== filtros.teamId) return false;
     if (filtros.tipo !== "todas" && p.tipo !== filtros.tipo) return false;

@@ -8,13 +8,13 @@
 export type ModalidadeVenda = "padrao" | "lancamento";
 
 /** Linha bruta por venda, como devolvida pela RPC producao_por_pessoa_dados() — uma linha por
- * operação concluída, ainda não dividida em pontas. */
+ * operação efetivada (enviada ao Financeiro), ainda não dividida em pontas. */
 export type ProducaoRawRow = {
   sale_id: string;
   imovel_id: string | null;
   codigo_interno: string | null;
   modalidade: ModalidadeVenda;
-  concluida_em: string; // timestamptz
+  efetivada_em: string; // timestamptz da primeira entrada em análise financeira
   valor_negociado: number;
   comissao_bruta: number;
   parceria_externa?: number;
@@ -36,7 +36,7 @@ export type ProducaoPonta = {
   imovelId: string | null;
   codigoInterno: string | null;
   modalidade: ModalidadeVenda;
-  concluidaEm: string;
+  efetivadaEm: string;
   tipo: TipoParticipacao;
   /** null = pessoa não vinculada a uma conta (dado incompleto/legado) — aparece como "Não vinculado". */
   pessoaId: string | null;
@@ -50,7 +50,7 @@ export type ProducaoPonta = {
 };
 
 export type FiltrosProducao = {
-  dataDe: string; // YYYY-MM-DD, contra a data de conclusão da ocorrência
+  dataDe: string; // YYYY-MM-DD, contra a data da primeira entrada em análise financeira
   dataAte: string; // YYYY-MM-DD
   pessoaId: string | null; // null = todas
   teamId: string | null; // null = todas

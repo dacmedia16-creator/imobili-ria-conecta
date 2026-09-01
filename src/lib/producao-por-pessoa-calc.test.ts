@@ -17,7 +17,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "padrao",
-    concluida_em: "2026-08-19T13:42:09.901538+00:00",
+    efetivada_em: "2026-08-19T13:42:09.901538+00:00",
     valor_negociado: 80000,
     comissao_bruta: 4800,
     captador_id: "carlos",
@@ -32,7 +32,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: "630591041-111",
     modalidade: "padrao",
-    concluida_em: "2026-08-18T20:39:33.343928+00:00",
+    efetivada_em: "2026-08-18T20:39:33.343928+00:00",
     valor_negociado: 325000,
     comissao_bruta: 19500,
     captador_id: "wanderley",
@@ -47,7 +47,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
-    concluida_em: "2026-08-17T15:08:28.740792+00:00",
+    efetivada_em: "2026-08-17T15:08:28.740792+00:00",
     valor_negociado: 519845.41,
     comissao_bruta: 20793.82,
     captador_id: null,
@@ -61,7 +61,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
-    concluida_em: "2026-08-17T15:06:20.887427+00:00",
+    efetivada_em: "2026-08-17T15:06:20.887427+00:00",
     valor_negociado: 286840.16,
     comissao_bruta: 11473.61,
     captador_id: null,
@@ -75,7 +75,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: "630591260-38",
     modalidade: "padrao",
-    concluida_em: "2026-08-17T14:48:28.349733+00:00",
+    efetivada_em: "2026-08-17T14:48:28.349733+00:00",
     valor_negociado: 200000,
     comissao_bruta: 12000,
     captador_id: "wellington",
@@ -89,7 +89,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
-    concluida_em: "2026-08-17T14:41:20.180521+00:00",
+    efetivada_em: "2026-08-17T14:41:20.180521+00:00",
     valor_negociado: 236009.3,
     comissao_bruta: 9440.37,
     captador_id: null,
@@ -103,7 +103,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "padrao",
-    concluida_em: "2026-08-14T18:36:24.185339+00:00",
+    efetivada_em: "2026-08-14T18:36:24.185339+00:00",
     valor_negociado: 315000,
     comissao_bruta: 18900,
     captador_id: "ailton",
@@ -117,7 +117,7 @@ const ROWS: ProducaoRawRow[] = [
     imovel_id: null,
     codigo_interno: null,
     modalidade: "lancamento",
-    concluida_em: "2026-08-13T14:11:27.732472+00:00",
+    efetivada_em: "2026-08-13T14:11:27.732472+00:00",
     valor_negociado: 283736.7,
     comissao_bruta: 11349.47,
     captador_id: null,
@@ -130,13 +130,27 @@ const ROWS: ProducaoRawRow[] = [
 
 describe("parceria externa", () => {
   it("rateia VGV e comissão antes de dividir a produção entre as pontas", () => {
-    const [captacao, venda] = gerarPontas([{
-      sale_id: "parceria", imovel_id: null, codigo_interno: null, modalidade: "padrao",
-      concluida_em: "2026-08-20T00:00:00Z", valor_negociado: 500000,
-      comissao_bruta: 30000, parceria_externa: 15000,
-      captador_id: "a", captador_nome: "A", vendedor_id: "b", vendedor_nome: "B",
-      vendedor_fracao: null,
-    }], new Map(), new Map());
+    const [captacao, venda] = gerarPontas(
+      [
+        {
+          sale_id: "parceria",
+          imovel_id: null,
+          codigo_interno: null,
+          modalidade: "padrao",
+          efetivada_em: "2026-08-20T00:00:00Z",
+          valor_negociado: 500000,
+          comissao_bruta: 30000,
+          parceria_externa: 15000,
+          captador_id: "a",
+          captador_nome: "A",
+          vendedor_id: "b",
+          vendedor_nome: "B",
+          vendedor_fracao: null,
+        },
+      ],
+      new Map(),
+      new Map(),
+    );
     expect(captacao.vgv + venda.vgv).toBe(250000);
     expect(captacao.comissao + venda.comissao).toBe(15000);
   });
@@ -192,7 +206,7 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
         imovel_id: null,
         codigo_interno: "630601276-21",
         modalidade: "lancamento",
-        concluida_em: "2026-08-20T00:00:00+00:00",
+        efetivada_em: "2026-08-20T00:00:00+00:00",
         valor_negociado: 640000,
         comissao_bruta: 6397.78,
         captador_id: null,
@@ -206,7 +220,7 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
         imovel_id: null,
         codigo_interno: "630601276-21",
         modalidade: "lancamento",
-        concluida_em: "2026-08-20T00:00:00+00:00",
+        efetivada_em: "2026-08-20T00:00:00+00:00",
         valor_negociado: 640000,
         comissao_bruta: 6397.78,
         captador_id: null,
@@ -319,7 +333,7 @@ describe("gerarPontas — pessoa não vinculada", () => {
         imovel_id: null,
         codigo_interno: null,
         modalidade: "lancamento",
-        concluida_em: "2026-08-01T00:00:00+00:00",
+        efetivada_em: "2026-08-01T00:00:00+00:00",
         valor_negociado: 100000,
         comissao_bruta: 5000,
         captador_id: null,
@@ -363,7 +377,7 @@ describe("aplicarFiltrosProducao — mesma fixture", () => {
     expect(soCaptacao).toHaveLength(4); // 4 vendas padrão, uma ponta de captação cada
   });
 
-  it("filtra por período (data de conclusão)", () => {
+  it("filtra pelo período em que a venda entrou em análise financeira", () => {
     const filtradas = aplicarFiltrosProducao(pontas, {
       ...base,
       dataDe: "2026-08-18",
