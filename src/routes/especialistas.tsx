@@ -159,9 +159,11 @@ function SpecialistsPage() {
                       ))}
                     </div>
                     <div className="mt-5 space-y-2 text-sm text-slate-600">
-                      <a href={whatsappSpecialistUrl(specialist)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
-                        <Phone className="h-4 w-4 shrink-0" /> <span>{specialist.telefone}</span>
-                      </a>
+                      {specialist.telefone && (
+                        <a href={whatsappSpecialistUrl(specialist)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
+                          <Phone className="h-4 w-4 shrink-0" /> <span>{specialist.telefone}</span>
+                        </a>
+                      )}
                       {specialist.pagina_pessoal_url && (
                         <a href={specialist.pagina_pessoal_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-[#1a58a8] hover:underline">
                           <Globe className="h-4 w-4 shrink-0" /> <span>Página pessoal</span>
@@ -173,15 +175,13 @@ function SpecialistsPage() {
                         </a>
                       )}
                     </div>
-                    <Button className="mt-6 w-full bg-[#128c4a] hover:bg-[#0f7a40]" asChild>
-                      <a
-                        href={whatsappSpecialistUrl(specialist, activeRegion?.nome)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MessageCircle className="mr-2 h-4 w-4" /> Falar pelo WhatsApp
-                      </a>
-                    </Button>
+                    {specialist.telefone && (
+                      <Button className="mt-6 w-full bg-[#128c4a] hover:bg-[#0f7a40]" asChild>
+                        <a href={whatsappSpecialistUrl(specialist, activeRegion?.nome)} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle className="mr-2 h-4 w-4" /> Falar pelo WhatsApp
+                        </a>
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

@@ -1671,7 +1671,7 @@ export type Database = {
           nome: string
           pagina_pessoal_url: string | null
           regioes: Json
-          telefone: string
+          telefone: string | null
         }[]
       }
       metas_progresso: { Args: { _mes: string }; Returns: Json }

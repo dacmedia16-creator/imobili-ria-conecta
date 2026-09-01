@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupRegions, normalizeExternalUrl, normalizeInstagramUrl, parseSpecialistRegions, whatsappDigits, whatsappSpecialistUrl } from "./positioning";
+import { addPositioningRegion, groupRegions, MAX_POSITIONING_REGIONS, normalizeExternalUrl, normalizeInstagramUrl, parseSpecialistRegions, whatsappDigits, whatsappSpecialistUrl } from "./positioning";
 
 describe("positioning", () => {
   it("normaliza WhatsApp brasileiro sem duplicar o DDI", () => {
@@ -31,5 +31,12 @@ describe("positioning", () => {
       { id: 2, cidade: "Votorantim", zona: null, nome: "Votorantim", tipo: "cidade" },
     ]);
     expect(groups.map((g) => g.label)).toEqual(["Sorocaba — Sul", "Votorantim"]);
+  });
+
+  it("limita o posicionamento do corretor a dois locais", () => {
+    expect(MAX_POSITIONING_REGIONS).toBe(2);
+    expect(addPositioningRegion([1], 2)).toEqual({ ids: [1, 2], limitReached: false });
+    expect(addPositioningRegion([1, 2], 3)).toEqual({ ids: [1, 2], limitReached: true });
+    expect(addPositioningRegion([1, 2], 2)).toEqual({ ids: [1, 2], limitReached: false });
   });
 });

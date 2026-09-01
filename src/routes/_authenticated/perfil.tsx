@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { groupRegions, normalizeExternalUrl, normalizeInstagramUrl, type PositioningRegion } from "@/lib/positioning";
+import { addPositioningRegion, groupRegions, MAX_POSITIONING_REGIONS, normalizeExternalUrl, normalizeInstagramUrl, type PositioningRegion } from "@/lib/positioning";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -42,7 +42,6 @@ function MeuAcesso() {
   const [savingPublicContacts, setSavingPublicContacts] = useState(false);
   const [positioningRegions, setPositioningRegions] = useState<PositioningRegion[]>([]);
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
-  const [publicProfileEnabled, setPublicProfileEnabled] = useState(false);
   const [positioningSearch, setPositioningSearch] = useState("");
   const [savingPositioning, setSavingPositioning] = useState(false);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
@@ -64,11 +63,10 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, public_profile_enabled, pagina_pessoal_url, instagram_url").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url").eq("id", user.id).maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setAvatarUrl(data?.avatar_url ?? null);
-      setPublicProfileEnabled(data?.public_profile_enabled ?? false);
       setPaginaPessoal(data?.pagina_pessoal_url ?? "");
       setInstagram(data?.instagram_url ?? "");
     })();
@@ -160,32 +158,22 @@ function MeuAcesso() {
     setSelectedRegionIds((current) => {
       if (!checked) return current.filter((item) => item !== id);
       if (current.includes(id)) return current;
-      if (current.length >= 20) {
-        toast.error("Você pode selecionar até 20 regiões.");
-        return current;
-      }
-      return [...current, id];
+      const next = addPositioningRegion(current, id);
+      if (next.limitReached) toast.error(`Você pode selecionar até ${MAX_POSITIONING_REGIONS} locais.`);
+      return next.ids;
     });
   };
 
   const salvarPosicionamento = async () => {
     if (!user) return;
-    if (publicProfileEnabled && !telefone.trim()) {
-      toast.error("Preencha e salve seu WhatsApp antes de publicar o perfil.");
-      return;
-    }
-    if (publicProfileEnabled && selectedRegionIds.length === 0) {
-      toast.error("Selecione pelo menos uma região antes de publicar o perfil.");
-      return;
-    }
     setSavingPositioning(true);
     try {
       const { error } = await supabase.rpc("save_my_positioning", {
         _region_ids: selectedRegionIds,
-        _public_enabled: publicProfileEnabled,
+        _public_enabled: true,
       });
       if (error) { toast.error(error.message); return; }
-      toast.success(publicProfileEnabled ? "Posicionamento salvo e perfil público ativado" : "Posicionamento salvo");
+      toast.success("Posicionamento salvo");
     } finally {
       setSavingPositioning(false);
     }
@@ -385,7 +373,7 @@ function MeuAcesso() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-xs text-muted-foreground">
-              Escolha os bairros e condomínios em que você atua ou quer se posicionar. Essas informações só aparecem na vitrine quando você autorizar.
+              Escolha até dois bairros, condomínios ou cidades em que você atua ou quer se posicionar. Todos os corretores ativos aparecem na vitrine pública.
             </p>
             <Input
               value={positioningSearch}
@@ -419,7 +407,7 @@ function MeuAcesso() {
               ))}
               {positioningRegions.length === 0 && <p className="text-muted-foreground">Nenhuma região cadastrada.</p>}
             </div>
-            <div className="text-xs text-muted-foreground">{selectedRegionIds.length} de 20 regiões selecionadas</div>
+            <div className="text-xs text-muted-foreground">{selectedRegionIds.length} de {MAX_POSITIONING_REGIONS} locais selecionados</div>
             <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 p-3">
               <span className="text-xs text-muted-foreground">Não encontrou o bairro ou condomínio?</span>
               <Button size="sm" variant="outline" onClick={() => setSuggestionOpen(true)}>Sugerir nova região</Button>
@@ -432,15 +420,6 @@ function MeuAcesso() {
                 ))}
               </div>
             )}
-            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-              <div>
-                <Label htmlFor="public-profile" className="font-medium">Exibir meu perfil publicamente</Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Ao ativar, você autoriza a exibição do seu nome, foto, telefone/WhatsApp, regiões de atuação, página pessoal e Instagram na página pública de especialistas.
-                </p>
-              </div>
-              <Switch id="public-profile" checked={publicProfileEnabled} onCheckedChange={setPublicProfileEnabled} />
-            </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={salvarPosicionamento} disabled={savingPositioning}>
                 {savingPositioning ? "Salvando..." : "Salvar posicionamento"}
