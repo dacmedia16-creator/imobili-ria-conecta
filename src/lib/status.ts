@@ -83,9 +83,7 @@ export const GRUPO_VENDA_LABEL: Record<GrupoVenda, string> = {
  * Regras de negócio confirmadas (não são suposição minha):
  * - `ocorrencia_devolvida_gestor` fica CONFIRMADA — a venda já tem contrato assinado; a devolução
  *   da ocorrência é pendência operacional, não cancelamento. Corrige o mesmo erro que hoje existe
- *   em paralelo em `FUNIL_STAGES` (dashboard.tsx) e no `stage_map` da RPC `visao_executiva_stats`,
- *   que agrupam esse status junto de "rascunho/devolvida" — nenhum dos dois foi alterado nesta
- *   etapa, só documentado o problema.
+ *   no funil operacional. Indicadores comerciais históricos usam a fonte canônica separada.
  * - `devolvida_ajuste` fica FUTURA, não preparação — a venda já saiu das mãos do corretor pelo
  *   menos uma vez (foi enviada ao gestor); `rascunho` é o único status que nunca foi enviado.
  */

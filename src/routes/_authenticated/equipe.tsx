@@ -21,8 +21,11 @@ import {
   fetchComissaoPorBeneficiario,
   type ComissaoBeneficiarioResumo,
 } from "@/lib/comissao-por-beneficiario";
-import { fetchMetricasSemParceria } from "@/lib/metricas-sem-parceria-query";
-import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
+import {
+  fetchAtribuicaoComercialResumo,
+  fetchVendasComerciaisValidas,
+  type AtribuicaoComercialResumo,
+} from "@/lib/vendas-comerciais-query";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
@@ -305,7 +308,7 @@ function VisaoGeralCard({
   // INTEIRA da venda a quem cadastrou, não a quem recebe (ver auditoria "comissão por corretor").
   // Agora soma occurrence_commissions por beneficiário real, mesma fonte de metas_progresso().
   const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
-  const [vgvProprio, setVgvProprio] = useState<Map<string, number>>(new Map());
+  const [atribuicao, setAtribuicao] = useState<AtribuicaoComercialResumo[]>([]);
   useEffect(() => {
     const saleIds = allSales.filter((s) => s.venda_comercial_valida).map((s) => s.id);
     if (saleIds.length === 0) {
@@ -313,11 +316,11 @@ function VisaoGeralCard({
       return;
     }
     let cancelado = false;
-    Promise.all([fetchComissaoPorBeneficiario(saleIds), fetchMetricasSemParceria()])
-      .then(([r, metricas]) => {
+    Promise.all([fetchComissaoPorBeneficiario(saleIds), fetchAtribuicaoComercialResumo()])
+      .then(([r, atribuicoes]) => {
         if (!cancelado) {
           setComissaoResumo(r);
-          setVgvProprio(new Map([...metricas].map(([id, m]) => [id, m.vgvProprio])));
+          setAtribuicao(atribuicoes);
         }
       })
       .catch((e: unknown) => console.error("fetchComissaoPorBeneficiario (Visão geral):", e));
@@ -327,23 +330,25 @@ function VisaoGeralCard({
   }, [allSales]);
 
   const ranking = useMemo(() => {
-    const ids = new Set<string>([...members.map((m) => m.membro_id), ...allSales.map((s) => s.corretor_id)]);
+    const porPessoa = new Map(atribuicao.map((a) => [a.user_id, a]));
+    const teamNameById = new Map(teams.map((t) => [t.id, t.nome]));
+    const ids = new Set<string>([...members.map((m) => m.membro_id), ...allSales.map((s) => s.corretor_id), ...atribuicao.map((a) => a.user_id)]);
     return Array.from(ids)
       .map((id) => {
         const vendas = allSales.filter((s) => s.corretor_id === id);
-        const fechadas = vendas.filter((s) => s.venda_comercial_valida);
+        const comercial = porPessoa.get(id);
         return {
           id,
           nome: profiles[id]?.nome || profiles[id]?.email || id,
-          equipe: teamNameByMembro[id] ?? "Sem equipe",
+          equipe: (comercial?.team_id && teamNameById.get(comercial.team_id)) || teamNameByMembro[id] || "Sem equipe",
           total: vendas.length,
-          fechadas: fechadas.length,
-          negociado: fechadas.reduce((s, v) => s + (vgvProprio.get(v.id) ?? 0), 0),
-          comissao: comissaoResumo.porBeneficiario[id] ?? 0,
+          fechadas: Number(comercial?.vendas ?? 0),
+          negociado: Number(comercial?.vgv ?? 0),
+          comissao: Number(comercial?.comissao ?? 0),
         };
       })
       .sort((a, b) => b.negociado - a.negociado);
-  }, [members, allSales, profiles, teamNameByMembro, comissaoResumo, vgvProprio]);
+  }, [members, allSales, profiles, teamNameByMembro, atribuicao, teams]);
 
   const totais = useMemo(() => ({
     equipes: teams.filter((t) => !t.parent_team_id).length,
@@ -865,7 +870,7 @@ function DesempenhoDialog({
   const [savingMetaKey, setSavingMetaKey] = useState<string | null>(null);
   // Mesma correção da Visão geral: comissão por occurrence_commissions.user_id, não mais somando
   // sales.valor_total_comissao por corretor_id (atribuía a comissão inteira a quem cadastrou).
-  const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
+  const [atribuicao, setAtribuicao] = useState<AtribuicaoComercialResumo[]>([]);
 
   const carregarMetas = useCallback(async () => {
     const { data } = await supabase.rpc("metas_progresso", { _mes: mesAtualISO() });
@@ -876,37 +881,35 @@ function DesempenhoDialog({
     (async () => {
       setLoading(true);
       // Mesma regra da Visão geral: cancelada/arquivada não compõe o desempenho do time nem do corretor.
-      const [{ data }, vendasValidas] = await Promise.all([membroIds.length
+      const [{ data }, vendasValidas, atribuicoes] = await Promise.all([membroIds.length
         ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds).not("status", "in", "(cancelada,arquivada)")
-        : Promise.resolve({ data: [] as any[] }), fetchVendasComerciaisValidas()]);
+        : Promise.resolve({ data: [] as any[] }), fetchVendasComerciaisValidas(), fetchAtribuicaoComercialResumo()]);
       const idsValidos = new Set(vendasValidas.map((v) => v.sale_id));
       const salesData = (data ?? []).filter((s: any) => idsValidos.has(s.id));
       setSales(salesData);
-      try {
-        setComissaoResumo(await fetchComissaoPorBeneficiario(salesData.map((s) => s.id)));
-      } catch (e: unknown) {
-        console.error("fetchComissaoPorBeneficiario (Desempenho):", e);
-      }
+      setAtribuicao(atribuicoes);
       await carregarMetas();
       setLoading(false);
     })();
   }, [membroIds, carregarMetas]);
 
   const ranking = useMemo(() => {
+    const porPessoa = new Map(atribuicao.map((a) => [a.user_id, a]));
     return membroIds
       .map((id) => {
         const vendas = sales.filter((s) => s.corretor_id === id);
+        const comercial = porPessoa.get(id);
         return {
           id,
           nome: profiles[id]?.nome || profiles[id]?.email || id,
-          total: vendas.length,
-          fechadas: vendas.length,
-          negociado: vendas.reduce((sum, s) => sum + Number(s.valor_negociado ?? 0), 0),
-          comissao: comissaoResumo.porBeneficiario[id] ?? 0,
+          total: Number(comercial?.vendas ?? 0),
+          fechadas: Number(comercial?.vendas ?? 0),
+          negociado: Number(comercial?.vgv ?? 0),
+          comissao: Number(comercial?.comissao ?? 0),
         };
       })
       .sort((a, b) => b.negociado - a.negociado);
-  }, [membroIds, sales, profiles, comissaoResumo]);
+  }, [membroIds, sales, profiles, atribuicao]);
 
   const totais = useMemo(() => ({
     vendas: ranking.reduce((s, r) => s + r.total, 0),

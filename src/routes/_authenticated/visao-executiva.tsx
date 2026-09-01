@@ -164,9 +164,8 @@ const evoChartConfig = {
   comissao: { label: "Comissão", color: "var(--color-chart-4)" },
 } satisfies ChartConfig;
 
-/** Uma venda que compõe a comissão de uma pessoa (ou de uma equipe) no período — devolvida por
- * visao_executiva_detalhe_comissao(), mesma janela/regra de "fechada" de visao_executiva_stats(),
- * pra a soma aqui sempre bater com o número mostrado no ranking. */
+/** Uma venda que compõe a comissão de uma pessoa (ou equipe) no período, usando a mesma fonte
+ * canônica do ranking para manter detalhe e total consistentes. */
 type DetalheLinha = {
   sale_id: string;
   codigo_interno: string | null;
@@ -862,9 +861,8 @@ function RankingTable({
   );
 }
 
-/** Painel de detalhe — substitui o card do ranking quando um nome é clicado (mantém contexto, dá
- * pra voltar fácil, sem cobrir a tela com modal). Busca via visao_executiva_detalhe_comissao(),
- * mesma janela/regra de "fechada" do ranking, pra o total aqui sempre bater com o número de lá. */
+/** Painel de detalhe — substitui o card do ranking quando um nome é clicado e usa a mesma
+ * atribuição comercial do ranking para o total sempre conferir. */
 function DetalheComissao({
   selecao,
   onVoltar,
@@ -897,7 +895,7 @@ function DetalheComissao({
     supabase.rpc("desempenho_detalhe_periodo" as never, params as never).then(({ data, error }) => {
       if (cancelado) return;
       if (error) {
-        console.error("visao_executiva_detalhe_comissao:", error);
+        console.error("desempenho_detalhe_periodo:", error);
         setErro("Não foi possível carregar as vendas.");
         return;
       }
