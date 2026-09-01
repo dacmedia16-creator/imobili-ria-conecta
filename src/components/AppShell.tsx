@@ -147,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       to: "/visao-executiva",
       label: "Desempenho",
       icon: Gauge,
-      show: hasAny(["admin", "super_admin", "financeiro"]),
+      show: hasAny(["gestor", "team_leader", "admin", "super_admin", "financeiro"]),
     },
     {
       to: "/equipe",
