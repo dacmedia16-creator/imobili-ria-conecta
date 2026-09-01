@@ -17,6 +17,7 @@ import { STATUS_LABEL, RECEBIDO_COLS, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
+import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
@@ -54,6 +55,7 @@ function RelatoriosPage() {
   const [occs, setOccs] = useState<any[]>([]);
   const [comms, setComms] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
+  const [vendaComercialEm, setVendaComercialEm] = useState<Record<string, string>>({});
   const [profileName, setProfileName] = useState<Record<string, string>>({});
 
   const [dateFrom, setDateFrom] = useState(monthsAgoISO(3));
@@ -73,12 +75,14 @@ function RelatoriosPage() {
   // previsão ainda definida) entram como uma condição incondicional à parte.
   const load = useCallback(async () => {
     setLoading(true);
+    const vendasValidas = await fetchVendasComerciaisValidas();
+    setVendaComercialEm(Object.fromEntries(vendasValidas.map((v) => [v.sale_id, v.venda_em])));
     // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
     // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
     // exata do dia final — quase nunca, o que na prática anulava essa condição.
     const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
     const timestampWindow = (col: string) => `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
-    const occFilter = [
+    const occFilterParts = [
       dateWindow("prev_recebimento_data"),
       dateWindow("prev_recebimento2_data"),
       dateWindow("prev_recebimento3_data"),
@@ -86,7 +90,9 @@ function RelatoriosPage() {
       timestampWindow("created_at"),
       dateWindow("financiamento_previsao"),
       "and(financiamento.is.true,financiamento_previsao.is.null)",
-    ].join(",");
+    ];
+    if (vendasValidas.length) occFilterParts.push(`sale_id.in.(${vendasValidas.map((v) => v.sale_id).join(",")})`);
+    const occFilter = occFilterParts.join(",");
     const { data: o } = await supabase
       .from("occurrences")
       .select("id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
@@ -220,8 +226,8 @@ function RelatoriosPage() {
           <FluxoCaixaTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} />
         </TabsContent>
         <TabsContent value="comissoes">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de assinatura</b> da ocorrência (ou data de criação, se não houver assinatura registrada).{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
-          <ComissoesTab occs={occsAtivas} comms={comms} partners={partners} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data comercial da venda</b>, usando a assinatura válida mais recente (ou a entrada no Financeiro para lançamento).{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
+          <ComissoesTab occs={occsAtivas} comms={comms} partners={partners} saleById={saleById} vendaComercialEm={vendaComercialEm} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
         <TabsContent value="financiamentos">
           <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>previsão de liberação do crédito</b>.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
@@ -415,8 +421,9 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   );
 }
 
-function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
+function ComissoesTab({ occs, comms, partners, saleById, vendaComercialEm, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
   occs: any[]; comms: any[]; partners: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
+  vendaComercialEm: Record<string, string>;
   dateFrom: string; dateTo: string;
 }) {
   const [papelFilter, setPapelFilter] = useState("todos");
@@ -435,12 +442,12 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
       if (!occ) continue;
       const sale = saleById[occ.sale_id];
       if (!matchesCorretor(sale)) continue;
-      if (!inRange(occ.data_assinatura ?? occ.created_at, dateFrom, dateTo)) continue;
+      if (!inRange(vendaComercialEm[occ.sale_id], dateFrom, dateTo)) continue;
       if (!c.valor) continue;
       out.push({ sale, occ, papel: c.papel, nome: c.nome, valor: Number(c.valor), percentual: c.percentual });
     }
     return out.filter((r) => papelFilter === "todos" || r.papel === papelFilter);
-  }, [comms, partners, occById, saleById, matchesCorretor, dateFrom, dateTo, papelFilter]);
+  }, [comms, partners, occById, saleById, vendaComercialEm, matchesCorretor, dateFrom, dateTo, papelFilter]);
 
   const papeis = useMemo(() => {
     const s = new Set<string>();
@@ -456,7 +463,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
   const total = rows.reduce((s, r) => s + r.valor, 0);
 
   const doExport = () => exportCsv(`comissoes_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Papel: papelLabel[r.papel] ?? r.papel, Beneficiario: r.nome ?? "", Percentual: r.percentual ?? "", Valor: r.valor.toFixed(2), DataAssinatura: r.occ.data_assinatura ?? "",
+    Imovel: saleLabel(r.sale), Papel: papelLabel[r.papel] ?? r.papel, Beneficiario: r.nome ?? "", Percentual: r.percentual ?? "", Valor: r.valor.toFixed(2), DataVendaComercial: vendaComercialEm[r.occ.sale_id]?.slice(0, 10) ?? "",
   })));
 
   return (
@@ -490,7 +497,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
                 <TableHead>Beneficiário</TableHead>
                 <TableHead>%</TableHead>
                 <TableHead>Valor</TableHead>
-                <TableHead>Assinatura</TableHead>
+                <TableHead>Venda comercial</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -504,7 +511,7 @@ function ComissoesTab({ occs, comms, partners, saleById, saleLabel, corretorNome
                   <TableCell>{r.nome ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{r.percentual != null ? `${r.percentual}%` : "—"}</TableCell>
                   <TableCell>{money(r.valor)}</TableCell>
-                  <TableCell className="text-muted-foreground">{dateBR(r.occ.data_assinatura)}</TableCell>
+                  <TableCell className="text-muted-foreground">{dateBR(vendaComercialEm[r.occ.sale_id])}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

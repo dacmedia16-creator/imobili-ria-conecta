@@ -22,6 +22,7 @@ import {
   type ComissaoBeneficiarioResumo,
 } from "@/lib/comissao-por-beneficiario";
 import { fetchMetricasSemParceria } from "@/lib/metricas-sem-parceria-query";
+import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
@@ -29,7 +30,6 @@ export const Route = createFileRoute("/_authenticated/equipe")({
 });
 
 const TEAM_COLORS = ["#22c55e", "#06b6d4", "#6366f1", "#3b82f6", "#f59e0b", "#ef4444", "#ec4899", "#f97316"];
-const FECHADAS = ["contrato_assinado", "ocorrencia_concluida"];
 const money = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 /** Sempre dia 1 do mês corrente — mesmo formato que a coluna metas.mes exige (CHECK trava isso no banco). */
 const mesAtualISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
@@ -69,7 +69,7 @@ function EquipesPage() {
   const load = useCallback(async () => {
     if (!allowed) { setLoading(false); return; }
     setLoading(true);
-    const [{ data: t }, { data: tm }, { data: cl }, salesRes] = await Promise.all([
+    const [{ data: t }, { data: tm }, { data: cl }, salesRes, vendasValidas] = await Promise.all([
       supabase.from("teams").select("id, nome, cor, lider_id, parent_team_id").order("created_at", { ascending: true }),
       supabase.from("team_members").select("team_id, membro_id"),
       supabase.from("team_co_leaders").select("team_id, user_id"),
@@ -78,11 +78,13 @@ function EquipesPage() {
         // do ranking) — ela some do ranking, mas continua acessível na própria tela da venda.
         ? supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").not("status", "in", "(cancelada,arquivada)")
         : Promise.resolve({ data: [] as any[] }),
+      isAdminLike ? fetchVendasComerciaisValidas() : Promise.resolve([]),
     ]);
     setTeams(t ?? []);
     setMembers(tm ?? []);
     setCoLeaders(cl ?? []);
-    setAllSales(salesRes.data ?? []);
+    const idsValidos = new Set(vendasValidas.map((v) => v.sale_id));
+    setAllSales((salesRes.data ?? []).map((s: any) => ({ ...s, venda_comercial_valida: idsValidos.has(s.id) })));
 
     const ids = new Set<string>();
     (t ?? []).forEach((x: any) => ids.add(x.lider_id));
@@ -305,7 +307,7 @@ function VisaoGeralCard({
   const [comissaoResumo, setComissaoResumo] = useState<ComissaoBeneficiarioResumo>(RESUMO_VAZIO);
   const [vgvProprio, setVgvProprio] = useState<Map<string, number>>(new Map());
   useEffect(() => {
-    const saleIds = allSales.map((s) => s.id);
+    const saleIds = allSales.filter((s) => s.venda_comercial_valida).map((s) => s.id);
     if (saleIds.length === 0) {
       setComissaoResumo(RESUMO_VAZIO);
       return;
@@ -329,14 +331,14 @@ function VisaoGeralCard({
     return Array.from(ids)
       .map((id) => {
         const vendas = allSales.filter((s) => s.corretor_id === id);
-        const fechadas = vendas.filter((s) => FECHADAS.includes(s.status));
+        const fechadas = vendas.filter((s) => s.venda_comercial_valida);
         return {
           id,
           nome: profiles[id]?.nome || profiles[id]?.email || id,
           equipe: teamNameByMembro[id] ?? "Sem equipe",
           total: vendas.length,
           fechadas: fechadas.length,
-          negociado: vendas.reduce((s, v) => s + (vgvProprio.get(v.id) ?? 0), 0),
+          negociado: fechadas.reduce((s, v) => s + (vgvProprio.get(v.id) ?? 0), 0),
           comissao: comissaoResumo.porBeneficiario[id] ?? 0,
         };
       })
@@ -874,10 +876,11 @@ function DesempenhoDialog({
     (async () => {
       setLoading(true);
       // Mesma regra da Visão geral: cancelada/arquivada não compõe o desempenho do time nem do corretor.
-      const { data } = membroIds.length
+      const [{ data }, vendasValidas] = await Promise.all([membroIds.length
         ? await supabase.from("sales").select("id, corretor_id, status, valor_negociado, valor_total_comissao").in("corretor_id", membroIds).not("status", "in", "(cancelada,arquivada)")
-        : { data: [] as any[] };
-      const salesData = data ?? [];
+        : Promise.resolve({ data: [] as any[] }), fetchVendasComerciaisValidas()]);
+      const idsValidos = new Set(vendasValidas.map((v) => v.sale_id));
+      const salesData = (data ?? []).filter((s: any) => idsValidos.has(s.id));
       setSales(salesData);
       try {
         setComissaoResumo(await fetchComissaoPorBeneficiario(salesData.map((s) => s.id)));
@@ -893,12 +896,11 @@ function DesempenhoDialog({
     return membroIds
       .map((id) => {
         const vendas = sales.filter((s) => s.corretor_id === id);
-        const fechadas = vendas.filter((s) => FECHADAS.includes(s.status));
         return {
           id,
           nome: profiles[id]?.nome || profiles[id]?.email || id,
           total: vendas.length,
-          fechadas: fechadas.length,
+          fechadas: vendas.length,
           negociado: vendas.reduce((sum, s) => sum + Number(s.valor_negociado ?? 0), 0),
           comissao: comissaoResumo.porBeneficiario[id] ?? 0,
         };
