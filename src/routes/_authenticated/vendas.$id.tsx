@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { podeBaixarDocumentosVenda } from "@/lib/document-access";
 import {
   getSaleRoleFlags, isSaleLocked, corretorPodeEditar, gestorPodeEditar, juridicoPodeEditar,
   gestorPodeEncerrar,
@@ -991,7 +992,7 @@ function SaleDetail() {
           canModerate={isGestor || isJuridico}
           canUseAi={isOwner}
           canManageContratos={isGestor || isJuridico || isFinanceiro}
-          canDownloadAll={isGestor || isJuridico || isFinanceiro || isAdminLike}
+          canDownloadAll={podeBaixarDocumentosVenda({ podeVisualizar: true, status })}
           onChange={load}
           activeParte={docParte}
           onActiveParteChange={setDocParte}
