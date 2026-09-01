@@ -4,6 +4,9 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -21,7 +24,12 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { InfoDot, KpiCard, ResumoGrupoVendaCards, comissaoChartConfig } from "@/components/dashboard/shared";
+import {
+  InfoDot,
+  KpiCard,
+  ResumoGrupoVendaCards,
+  comissaoChartConfig,
+} from "@/components/dashboard/shared";
 import {
   Banknote,
   Percent,
@@ -34,7 +42,9 @@ import {
   TrendingUp,
   Landmark,
   Info,
+  type LucideIcon,
 } from "lucide-react";
+import { mesAnteriorRange, mesAtualRange, mesRange } from "@/lib/producao-por-pessoa-filters";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -64,7 +74,7 @@ type VisaoExecutivaStats = {
     comissao: number;
     taxa_devolucao: number;
   }[];
-  /** Indicadores da operação (não por pessoa) — mesma janela de 30 dias do ranking. */
+  /** Indicadores da operação (não por pessoa) — mesmo mês selecionado no ranking. */
   resumo_operacional: {
     vgv: number;
     comissao_bruta_operacao: number;
@@ -81,7 +91,7 @@ type VisaoExecutivaStats = {
 
 /** Subconjunto de dashboard_stats() (mesma RPC que o Dashboard usa) com os números consolidados
  * que migraram pra cá — "Comissão em carteira", por status da ocorrência, sem janela de tempo
- * (diferente do "Resumo da operação" acima, que é sempre últimos 30 dias fechados). */
+ * (diferente do "Resumo da operação" acima, que respeita o mês selecionado). */
 type ComissaoPorStatusStats = {
   comissao_prevista_total: number;
   comissao_concluida_total: number;
@@ -109,6 +119,15 @@ const mesAtualISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 };
 
+const mesInicial = () => mesAtualISO().slice(0, 7);
+const periodoLabel = (mes: string) => {
+  const [ano, numeroMes] = mes.split("-").map(Number);
+  return new Date(ano, numeroMes - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
 type MetaProgressoRow = {
   corretor_id?: string;
   team_id?: string;
@@ -122,7 +141,11 @@ type ResumoDesempenho = {
   parte_unidade: number;
   receita_liquida_imobiliaria: number;
   quantidade_vendas: number;
-  evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
+};
+type RankingPeriodo = {
+  ranking_corretor: VisaoExecutivaStats["ranking_corretor"];
+  ranking_equipe: VisaoExecutivaStats["ranking_equipe"];
+  quantidade_captacoes: number;
 };
 const mesLabel = (m: string) => {
   const [ano, mes] = m.split("-");
@@ -167,13 +190,13 @@ function VisaoExecutiva() {
     parte_unidade: 0,
     receita_liquida_imobiliaria: 0,
     quantidade_vendas: 0,
-    evolucao_mensal: [],
   });
   const [comissaoStats, setComissaoStats] = useState<ComissaoPorStatusStats | null>(null);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
+  const [mes, setMes] = useState(mesInicial);
 
   useEffect(() => {
     if (!allowed) {
@@ -182,18 +205,43 @@ function VisaoExecutiva() {
     }
     (async () => {
       setLoading(true);
-      const [statsRes, profRes, metasRes, carteiraRes, operacaoRes] = await Promise.all([
-        supabase.rpc("visao_executiva_stats"),
-        supabase.from("profiles").select("id, nome"),
-        supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
-        supabase.rpc("comissoes_carteira_sem_parceria" as never),
-        supabase.rpc("resumo_desempenho_30d" as never),
-      ]);
+      const periodo = mesRange(mes);
+      const [statsRes, profRes, metasRes, carteiraRes, operacaoRes, rankingRes] = await Promise.all(
+        [
+          supabase.rpc("visao_executiva_stats"),
+          supabase.from("profiles").select("id, nome"),
+          supabase.rpc("metas_progresso", { _mes: `${mes}-01` }),
+          supabase.rpc("comissoes_carteira_sem_parceria" as never),
+          supabase.rpc(
+            "resumo_desempenho_periodo" as never,
+            {
+              _de: periodo.de,
+              _ate: periodo.ate,
+            } as never,
+          ),
+          supabase.rpc(
+            "desempenho_ranking_periodo" as never,
+            {
+              _de: periodo.de,
+              _ate: periodo.ate,
+            } as never,
+          ),
+        ],
+      );
       const resumoCorreto = operacaoRes.data as unknown as ResumoDesempenho | null;
+      const rankingPeriodo = rankingRes.data as unknown as RankingPeriodo | null;
       const statsBase = (statsRes.data as unknown as VisaoExecutivaStats) ?? null;
       setStats(
-        statsBase && resumoCorreto
-          ? { ...statsBase, evolucao_mensal: resumoCorreto.evolucao_mensal }
+        statsBase && rankingPeriodo
+          ? {
+              ...statsBase,
+              ranking_corretor: rankingPeriodo.ranking_corretor,
+              ranking_equipe: rankingPeriodo.ranking_equipe,
+              resumo_operacional: {
+                ...statsBase.resumo_operacional,
+                quantidade_captacoes: rankingPeriodo.quantidade_captacoes,
+              },
+            }
           : statsBase,
       );
       const names: Record<string, string> = {};
@@ -208,12 +256,11 @@ function VisaoExecutiva() {
           parte_unidade: 0,
           receita_liquida_imobiliaria: 0,
           quantidade_vendas: 0,
-          evolucao_mensal: [],
         },
       );
       setLoading(false);
     })();
-  }, [allowed]);
+  }, [allowed, mes]);
 
   if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -241,14 +288,44 @@ function VisaoExecutiva() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Desempenho</h1>
         <p className="text-sm text-muted-foreground">
-          Indicadores e rankings dos últimos 30 dias, usando as regras financeiras oficiais da
-          operação e excluindo parcerias externas dos totais da REMAX.
+          Indicadores e rankings por mês, usando as regras financeiras oficiais da operação e
+          excluindo parcerias externas dos totais da REMAX.
         </p>
       </div>
 
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMes(mesAtualRange().de.slice(0, 7))}
+            >
+              Mês atual
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMes(mesAnteriorRange().de.slice(0, 7))}
+            >
+              Mês anterior
+            </Button>
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Selecionar mês</Label>
+            <Input
+              type="month"
+              value={mes}
+              onChange={(e) => e.target.value && setMes(e.target.value)}
+              className="w-[10.5rem]"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Resumo da operação — últimos 30 dias
+          Resumo da operação — {periodoLabel(mes)}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ResumoCard
@@ -279,13 +356,13 @@ function VisaoExecutiva() {
             icon={CheckCircle2}
             label="Quantidade de vendas"
             valor={String(operacaoRemax.quantidade_vendas)}
-            info="Número de vendas distintas efetivamente enviadas ao Financeiro nos últimos 30 dias."
+            info={`Número de vendas distintas efetivamente enviadas ao Financeiro em ${periodoLabel(mes)}.`}
           />
           <ResumoCard
             icon={ClipboardList}
             label="Quantidade de captações"
             valor={String(stats?.resumo_operacional?.quantidade_captacoes ?? 0)}
-            info="Número de vendas cadastradas (captadas) nos últimos 30 dias, entre as ainda ativas — grupo diferente de 'Quantidade de vendas' (que é sobre fechamento, não cadastro)."
+            info={`Número de vendas cadastradas (captadas) em ${periodoLabel(mes)}, entre as ainda ativas — grupo diferente de 'Quantidade de vendas' (que é sobre fechamento, não cadastro).`}
           />
         </div>
       </section>
@@ -323,9 +400,9 @@ function VisaoExecutiva() {
         </div>
         <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          "Resumo da operação" acima é sempre dos últimos 30 dias fechados. "Comissão em carteira"
-          é a posição atual por status da ocorrência, sem janela de tempo — os dois nunca vão bater
-          exatamente, e não deveriam: respondem perguntas diferentes.
+          "Resumo da operação" acima considera o mês selecionado. "Comissão em carteira" é a posição
+          atual por status da ocorrência, sem janela de tempo — os dois nunca vão bater exatamente,
+          pois respondem perguntas diferentes.
         </p>
         {((comissaoStats?.comissao_prevista_total ?? 0) > 0 ||
           (comissaoStats?.comissao_concluida_total ?? 0) > 0) && (
@@ -353,7 +430,9 @@ function VisaoExecutiva() {
                     tickFormatter={(v) => `R$ ${Number(v).toLocaleString("pt-BR")}`}
                   />
                   <YAxis type="category" hide />
-                  <ChartTooltip content={<ChartTooltipContent formatter={(value) => money(Number(value))} />} />
+                  <ChartTooltip
+                    content={<ChartTooltipContent formatter={(value) => money(Number(value))} />}
+                  />
                   <ChartLegend content={<ChartLegendContent />} />
                   <Bar dataKey="prevista" fill="var(--color-prevista)" radius={4} />
                   <Bar dataKey="concluida" fill="var(--color-concluida)" radius={4} />
@@ -371,7 +450,8 @@ function VisaoExecutiva() {
             <CardContent className="space-y-1 text-sm text-muted-foreground">
               <p>
                 Prevista: {money(comissaoStats?.comissao_parceria_externa_prevista_total ?? 0)}
-                {" · "}Concluída: {money(comissaoStats?.comissao_parceria_externa_concluida_total ?? 0)}
+                {" · "}Concluída:{" "}
+                {money(comissaoStats?.comissao_parceria_externa_concluida_total ?? 0)}
               </p>
               <p>
                 Comissão de parceiro(s) externo(s) confirmado(s) (sem cadastro no sistema) — já
@@ -484,11 +564,12 @@ function VisaoExecutiva() {
               selecao={detalheSel}
               onVoltar={() => setDetalheSel(null)}
               profileName={profileName}
+              mes={mes}
             />
           ) : (
             <>
               <CardHeader>
-                <CardTitle className="text-base">Ranking — últimos 30 dias</CardTitle>
+                <CardTitle className="text-base">Ranking — {periodoLabel(mes)}</CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="corretor">
@@ -587,7 +668,7 @@ function ResumoCard({
   valor,
   info,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   valor: string;
   info?: string;
@@ -679,10 +760,12 @@ function DetalheComissao({
   selecao,
   onVoltar,
   profileName,
+  mes,
 }: {
   selecao: DetalheSelecao;
   onVoltar: () => void;
   profileName: Record<string, string>;
+  mes: string;
 }) {
   const [linhas, setLinhas] = useState<DetalheLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -691,15 +774,18 @@ function DetalheComissao({
     let cancelado = false;
     setLinhas(null);
     setErro(null);
+    const periodo = mesRange(mes);
+    const paramsBase = { _de: periodo.de, _ate: periodo.ate };
     const params =
       selecao.tipo === "corretor"
-        ? { _corretor_id: selecao.id, _team_id: undefined, _sem_equipe: false }
+        ? { ...paramsBase, _corretor_id: selecao.id, _team_id: undefined, _sem_equipe: false }
         : {
+            ...paramsBase,
             _corretor_id: undefined,
             _team_id: selecao.teamId ?? undefined,
             _sem_equipe: selecao.teamId === null,
           };
-    supabase.rpc("visao_executiva_detalhe_comissao", params).then(({ data, error }) => {
+    supabase.rpc("desempenho_detalhe_periodo" as never, params as never).then(({ data, error }) => {
       if (cancelado) return;
       if (error) {
         console.error("visao_executiva_detalhe_comissao:", error);
@@ -714,7 +800,7 @@ function DetalheComissao({
     // selecao é um objeto novo a cada clique (nunca é reaproveitado) — comparar pelos campos
     // primitivos evita reabrir a busca em renders que não trocaram de pessoa/equipe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selecao.tipo, selecao.tipo === "corretor" ? selecao.id : selecao.teamId]);
+  }, [mes, selecao.tipo, selecao.tipo === "corretor" ? selecao.id : selecao.teamId]);
 
   const total = (linhas ?? []).reduce((acc, l) => acc + Number(l.valor_comissao), 0);
   const ehEquipe = selecao.tipo === "equipe";
@@ -733,7 +819,7 @@ function DetalheComissao({
         <div>
           <CardTitle className="text-base">{selecao.nome}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            {linhas == null ? "Carregando…" : `${linhas.length} vendas nos últimos 30 dias`}
+            {linhas == null ? "Carregando…" : `${linhas.length} vendas em ${periodoLabel(mes)}`}
           </p>
         </div>
       </CardHeader>
