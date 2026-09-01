@@ -172,7 +172,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
     {
       to: "/producao-por-pessoa",
-      label: "Produção concluída por pessoa",
+      label: "Produção por pessoa",
       icon: TrendingUp,
       show: hasAny(["admin", "super_admin", "financeiro"]),
     },

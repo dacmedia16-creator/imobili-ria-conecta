@@ -15,12 +15,13 @@ export const Route = createFileRoute("/_authenticated/vendas/nova")({
 });
 
 function NewSale() {
-  const { user } = useAuth();
+  const { user, hasAny, loading: authLoading } = useAuth();
   const router = useRouter();
   const [imovelId, setImovelId] = useState("");
   const [tipoPessoaVendedor, setTipoPessoaVendedor] = useState<"fisica" | "juridica">("fisica");
   const [tipoPessoaComprador, setTipoPessoaComprador] = useState<"fisica" | "juridica">("fisica");
   const [loading, setLoading] = useState(false);
+  const allowed = hasAny(["corretor", "gestor", "team_leader"]);
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,11 +54,24 @@ function NewSale() {
     }
   };
 
+  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+
+  if (!allowed) {
+    return (
+      <Card className="mx-auto max-w-2xl">
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          Somente corretores, gestores e Team Leaders podem criar uma venda comum. Para registrar
+          um Lançamento, use a opção específica disponível para os perfis autorizados.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Nova venda</h1>
-        <p className="text-sm text-muted-foreground">Comece informando o imóvel. Você poderá preencher todos os dados depois.</p>
+        <p className="text-sm text-muted-foreground">Venda comum para corretor, gestor ou Team Leader. Comece informando o imóvel; os demais dados poderão ser preenchidos depois.</p>
       </div>
       <Card>
         <CardHeader><CardTitle>Identificação do imóvel</CardTitle></CardHeader>

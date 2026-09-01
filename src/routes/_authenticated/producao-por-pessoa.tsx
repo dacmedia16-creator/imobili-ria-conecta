@@ -114,9 +114,9 @@ function ProducaoPorPessoaPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produção por pessoa</h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Mostra as vendas com contrato assinado que já foram enviadas ao Financeiro, usando a
-            data do primeiro envio. O VGV e a comissão da unidade aparecem sem parceria externa e
-            divididos entre captação e venda.
+            Mostra as vendas comerciais válidas no período: contrato assinado na modalidade padrão
+            ou entrada no Financeiro para Lançamento. O VGV e a comissão da unidade aparecem sem
+            parceria externa e divididos entre captação e venda.
           </p>
         </div>
         <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
@@ -145,9 +145,9 @@ function ProducaoPorPessoaPage() {
         Cada venda completa equivale a 1 venda: numa venda padrão, 0,5 pra quem captou + 0,5 pra
         quem vendeu, cada ponta com metade do VGV e da comissão gerada pela operação; numa venda de
         Lançamento (sem captação), 1 venda inteira na ponta de venda. A soma das pontas nunca
-        duplica o VGV nem a comissão da operação. O período considera a data em que o Financeiro
-        recebeu a ocorrência; vendas em análise ou devolvidas ao gestor continuam entrando, enquanto
-        canceladas, arquivadas ou ainda não enviadas ao Financeiro ficam de fora.
+        duplica o VGV nem a comissão da operação. O período usa a data da assinatura válida mais
+        recente; se a venda voltar para uma etapa anterior, deixa de contar até ser assinada novamente.
+        Lançamentos usam a entrada no Financeiro. Vendas canceladas ou arquivadas ficam de fora.
       </p>
     </div>
   );

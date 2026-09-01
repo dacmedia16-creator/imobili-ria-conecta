@@ -167,7 +167,7 @@ function RelatoriosPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita ao Financeiro. Se você acredita que deveria ter acesso, peça ao administrador.
+          Esta área é restrita ao Financeiro e a administradores. Se você acredita que deveria ter acesso, peça ao administrador.
         </CardContent>
       </Card>
     );

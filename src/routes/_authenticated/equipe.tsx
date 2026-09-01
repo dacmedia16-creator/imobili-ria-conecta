@@ -952,8 +952,8 @@ function DesempenhoDialog({
         <DialogHeader>
           <DialogTitle>Desempenho — {team.nome}</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Vendas e fechadas mostram o histórico ativo da equipe. Comissão, meta e progresso usam
-            o mês atual.
+            Vendas mostram os contratos assinados válidos da equipe. Comissão, meta e progresso
+            consideram o mês atual; vendas canceladas, arquivadas ou que voltaram de etapa não contam.
           </p>
         </DialogHeader>
         {loading ? (

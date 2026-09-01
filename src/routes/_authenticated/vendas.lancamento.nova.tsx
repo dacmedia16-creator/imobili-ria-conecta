@@ -14,12 +14,13 @@ export const Route = createFileRoute("/_authenticated/vendas/lancamento/nova")({
 });
 
 function NewLancamento() {
-  const { user } = useAuth();
+  const { user, hasAny, loading: authLoading } = useAuth();
   const router = useRouter();
   const [imovelId, setImovelId] = useState("");
   const [construtoraNome, setConstrutoraNome] = useState("");
   const [construtoraCnpj, setConstrutoraCnpj] = useState("");
   const [loading, setLoading] = useState(false);
+  const allowed = hasAny(["lancamento", "corretor", "gestor", "team_leader"]);
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,13 +49,27 @@ function NewLancamento() {
     }
   };
 
+  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+
+  if (!allowed) {
+    return (
+      <Card className="mx-auto max-w-2xl">
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          Você não possui um perfil autorizado para criar Lançamentos. Perfis autorizados:
+          Lançamento, corretor, gestor ou Team Leader.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Novo Lançamento</h1>
         <p className="text-sm text-muted-foreground">
-          Venda em parceria com construtora — sem documentos, sem jurídico. Comece identificando o
-          imóvel e a construtora, o restante você preenche na próxima tela.
+          Fluxo específico para venda em parceria com construtora — sem documentos e sem etapa do
+          Jurídico. Pode ser criado pelos perfis Lançamento, corretor, gestor ou Team Leader.
+          Comece identificando o imóvel e a construtora; o restante é preenchido na próxima tela.
         </p>
       </div>
       <Card>

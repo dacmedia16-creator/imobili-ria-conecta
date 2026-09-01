@@ -441,7 +441,7 @@ function VisaoExecutiva() {
             icon={CheckCircle2}
             label="Quantidade de vendas"
             valor={String(operacaoRemax.quantidade_vendas)}
-            info={`Número de vendas distintas efetivamente enviadas ao Financeiro em ${periodoDesempenhoLabel(periodo)}.`}
+            info={`Número de vendas comerciais válidas em ${periodoDesempenhoLabel(periodo)}: contrato assinado na modalidade padrão ou entrada no Financeiro para Lançamento.`}
           />
           <ResumoCard
             icon={ClipboardList}

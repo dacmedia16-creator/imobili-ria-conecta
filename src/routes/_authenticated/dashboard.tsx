@@ -103,7 +103,7 @@ const funilChartConfig = {
 type DashboardSearch = { periodo?: PeriodoTipo; de?: string | null; ate?: string | null };
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Painel do Gestor" }] }),
+  head: () => ({ meta: [{ title: "Início — ADM MAX" }] }),
   // Sanitiza search params da URL (periodo/de/ate) pra Movimentação do período (Etapa 2B) — valor
   // desconhecido ou ausente cai com segurança em "mes_atual", nunca propaga lixo pro resto da tela.
   // de/ate só aparecem na URL quando periodo === "personalizado" (chave ausente vira `undefined`,
@@ -211,6 +211,9 @@ function Dashboard() {
   const isGestor = hasAny(["gestor", "team_leader"]);
   const isJuridico = hasAny(["juridico"]);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
+  const isAdmin = hasAny(["admin", "super_admin"]);
+  const isPerfilFinanceiro = hasAny(["financeiro"]) && !isAdmin;
+  const nomeUsuario = (user && profileName[user.id]) || user?.email?.split("@")[0];
 
   const contagemPorGrupo = agruparContagemPorGrupoVenda(stats?.funil ?? {});
   const funilData = FUNIL_GRUPOS.map(({ key, label }) => ({
@@ -308,13 +311,11 @@ function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {isFinanceiro
-              ? "Painel do gestor"
-              : `Olá, ${(user && profileName[user.id]) || user?.email?.split("@")[0]}`}
+            {isAdmin ? "Painel administrativo" : isPerfilFinanceiro ? "Painel financeiro" : `Olá, ${nomeUsuario}`}
           </h1>
           <p className="text-sm text-muted-foreground">
             {isFinanceiro
-              ? `Olá, ${(user && profileName[user.id]) || user?.email?.split("@")[0]}. Aqui está o que merece sua atenção.`
+              ? `Olá, ${nomeUsuario}. Aqui está o que merece sua atenção.`
               : `Perfis: ${roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}`}
           </p>
         </div>
