@@ -12,7 +12,13 @@ import {
 } from "@/components/ui/select";
 import { SlidersHorizontal, ChevronDown, X } from "lucide-react";
 import type { FiltrosProducao } from "@/lib/producao-por-pessoa-types";
-import { anoAtualRange, filtrosPadrao, mesAtualRange, ultimosNDiasRange } from "@/lib/producao-por-pessoa-filters";
+import {
+  filtrosPadrao,
+  mesAnteriorRange,
+  mesAtualRange,
+  mesRange,
+  mesSelecionado,
+} from "@/lib/producao-por-pessoa-filters";
 
 const TIPO_LABEL: Record<FiltrosProducao["tipo"], string> = {
   todas: "Captação + venda",
@@ -44,7 +50,12 @@ export function Filters({
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium">Filtros do relatório</span>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => onChange(filtrosPadrao())}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange(filtrosPadrao())}
+            >
               <X className="mr-1 h-4 w-4" />
               Limpar filtros
             </Button>
@@ -67,27 +78,6 @@ export function Filters({
         <div
           className={`${open ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-end`}
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
-              <Input
-                type="date"
-                value={filtros.dataDe}
-                onChange={(e) => set("dataDe", e.target.value)}
-                className="w-[9.5rem]"
-              />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">até</Label>
-              <Input
-                type="date"
-                value={filtros.dataAte}
-                onChange={(e) => set("dataAte", e.target.value)}
-                className="w-[9.5rem]"
-              />
-            </div>
-          </div>
-
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -101,26 +91,20 @@ export function Filters({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => aplicarAtalho(ultimosNDiasRange(30))}
+              onClick={() => aplicarAtalho(mesAnteriorRange())}
             >
-              Últimos 30 dias
+              Mês anterior
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => aplicarAtalho(ultimosNDiasRange(90))}
-            >
-              Últimos 90 dias
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => aplicarAtalho(anoAtualRange())}
-            >
-              Ano atual
-            </Button>
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Selecionar mês</Label>
+            <Input
+              type="month"
+              value={mesSelecionado(filtros)}
+              onChange={(e) => e.target.value && aplicarAtalho(mesRange(e.target.value))}
+              className="w-[10.5rem]"
+            />
           </div>
 
           <div>

@@ -5,29 +5,32 @@
  */
 import type { FiltrosProducao } from "@/lib/producao-por-pessoa-types";
 
-const hojeISO = () => new Date().toISOString().slice(0, 10);
 const pad2 = (n: number) => String(n).padStart(2, "0");
-const isoDe = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
-export function anoAtualRange(): { de: string; ate: string } {
-  const ano = new Date().getFullYear();
-  return { de: `${ano}-01-01`, ate: hojeISO() };
+export function mesRange(mes: string): { de: string; ate: string } {
+  const [ano, numeroMes] = mes.split("-").map(Number);
+  const ultimoDia = new Date(ano, numeroMes, 0).getDate();
+  return { de: `${mes}-01`, ate: `${mes}-${pad2(ultimoDia)}` };
 }
 
 export function mesAtualRange(): { de: string; ate: string } {
   const d = new Date();
-  return { de: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`, ate: hojeISO() };
+  return mesRange(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
 }
 
-export function ultimosNDiasRange(n: number): { de: string; ate: string } {
-  const ate = new Date();
-  const de = new Date();
-  de.setDate(de.getDate() - n);
-  return { de: isoDe(de), ate: isoDe(ate) };
+export function mesAnteriorRange(): { de: string; ate: string } {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return mesRange(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
 }
 
-/** Filtro inicial da página: ano atual — nunca recalculado depois do primeiro render. */
+export function mesSelecionado(filtros: Pick<FiltrosProducao, "dataDe" | "dataAte">): string {
+  return filtros.dataDe.slice(0, 7);
+}
+
+/** Filtro inicial da página: mês atual — nunca recalculado depois do primeiro render. */
 export function filtrosPadrao(): FiltrosProducao {
-  const { de, ate } = anoAtualRange();
+  const { de, ate } = mesAtualRange();
   return { dataDe: de, dataAte: ate, pessoaId: null, teamId: null, tipo: "todas" };
 }
