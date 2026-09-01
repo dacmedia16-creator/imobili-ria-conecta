@@ -72,6 +72,8 @@ type VisaoExecutivaStats = {
     tempo_medio_dias: number | null;
     taxa_devolucao: number;
     comissao: number;
+    gestao_lancamento?: boolean;
+    corretora_lancamento?: boolean;
   }[];
   ranking_equipe: {
     team_id: string | null;
@@ -684,7 +686,7 @@ function VisaoExecutiva() {
                             metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
                           return {
                             id: r.corretor_id,
-                            nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
+                            nome: `${profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`}${r.gestao_lancamento ? ` — ${r.corretora_lancamento ? "Corretora / " : ""}Gestão de lançamentos` : ""}`,
                             vendas: r.vendas_fechadas,
                             comissao: r.comissao,
                             meta: meta?.meta_comissao ?? null,
