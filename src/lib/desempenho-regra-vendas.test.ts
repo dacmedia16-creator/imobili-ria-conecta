@@ -2,11 +2,22 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20260901183500_alinha_desempenho_contrato_assinado.sql", import.meta.url),
+  new URL(
+    "../../supabase/migrations/20260901203000_centraliza_venda_comercial_valida.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 
 describe("regra de vendas do resumo Desempenho", () => {
+  it("centraliza a definição comercial de venda válida", () => {
+    expect(migration).toContain("create or replace function public.vendas_comerciais_validas()");
+    expect(migration.match(/from public\.vendas_comerciais_validas\(\)/g)).toHaveLength(3);
+    expect(migration).toContain("create or replace function public.resumo_desempenho_periodo");
+    expect(migration).toContain("create or replace function public.desempenho_ranking_periodo");
+    expect(migration).toContain("create or replace function public.desempenho_detalhe_periodo");
+  });
+
   it("conta a venda desde contrato assinado e mantém os estágios posteriores", () => {
     for (const status of [
       "contrato_assinado",
@@ -19,12 +30,22 @@ describe("regra de vendas do resumo Desempenho", () => {
     }
   });
 
-  it("usa o primeiro evento de confirmação para não duplicar nem trocar o mês da venda", () => {
-    expect(migration).toContain("select distinct on (h.sale_id)");
-    expect(migration).toContain("order by h.sale_id, h.created_at asc");
+  it("usa a assinatura mais recente quando houve retorno para uma etapa anterior", () => {
+    expect(migration).toContain(
+      "max(h.created_at) filter (where h.para::text = 'contrato_assinado')",
+    );
+    expect(migration).toContain("s.status::text in (");
+    expect(migration).toContain("'contrato_assinado',");
+    expect(migration).toContain("'ocorrencia_concluida'");
+  });
+
+  it("mantém lançamento pela entrada no financeiro sem confundir com venda padrão", () => {
+    expect(migration).toContain("s.modalidade::text = 'lancamento'");
+    expect(migration).toContain("h.para::text = 'ocorrencia_analise_financeiro'");
   });
 
   it("não volta a exigir exclusivamente análise financeira", () => {
-    expect(migration).not.toContain("where h.para::text = 'ocorrencia_analise_financeiro'");
+    expect(migration).not.toContain("with efetivadas as (");
+    expect(migration).toContain("when s.modalidade::text = 'lancamento'");
   });
 });
