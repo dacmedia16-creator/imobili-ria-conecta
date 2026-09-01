@@ -46,6 +46,11 @@ import {
   periodoDesempenhoLabel,
   type IntervaloDesempenho,
 } from "@/lib/desempenho-periodo";
+import {
+  podeAlternarVisaoDesempenho,
+  visaoInicialDesempenho,
+  type VisaoDesempenho,
+} from "@/lib/desempenho-visao";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -176,10 +181,14 @@ type DetalheSelecao =
   | { tipo: "equipe"; teamId: string | null; nome: string };
 
 function VisaoExecutiva() {
-  const { hasAny, loading: authLoading } = useAuth();
+  const { hasAny, roles, loading: authLoading } = useAuth();
   // `financeiro` foi adicionado aqui junto com a migração dos cards de comissão/VGV consolidados
   // do Dashboard pra esta página — sem isso, esse papel perderia acesso aos próprios números.
-  const allowed = hasAny(["admin", "super_admin", "financeiro"]);
+  const allowed = hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]);
+  const podeAlternarVisao = podeAlternarVisaoDesempenho(roles);
+  const [visaoEscolhida, setVisaoEscolhida] = useState<VisaoDesempenho | null>(null);
+  const visao = visaoEscolhida ?? visaoInicialDesempenho(roles);
+  const usaConsolidadoEmpresa = podeAlternarVisao && visao === "empresa";
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
   const [operacaoRemax, setOperacaoRemax] = useState<ResumoDesempenho>({
@@ -197,6 +206,8 @@ function VisaoExecutiva() {
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
 
+  useEffect(() => setDetalheSel(null), [visao]);
+
   useEffect(() => {
     if (!allowed) {
       setLoading(false);
@@ -211,27 +222,47 @@ function VisaoExecutiva() {
       const [contextoRes, profRes, metasRes, carteiraRes, operacaoRes, rankingRes] =
         await Promise.all([
           supabase.rpc(
-            "desempenho_contexto_periodo" as never,
+            (podeAlternarVisao
+              ? usaConsolidadoEmpresa
+                ? "desempenho_empresa_contexto_periodo"
+                : "desempenho_equipe_contexto_periodo"
+              : "desempenho_contexto_periodo") as never,
             { _de: periodo.de, _ate: periodo.ate } as never,
           ),
           supabase.from("profiles").select("id, nome"),
           supabase.rpc(
-            "metas_progresso_periodo" as never,
+            (podeAlternarVisao
+              ? usaConsolidadoEmpresa
+                ? "desempenho_empresa_metas_periodo"
+                : "desempenho_equipe_metas_periodo"
+              : "metas_progresso_periodo") as never,
             { _de: periodo.de, _ate: periodo.ate } as never,
           ),
           supabase.rpc(
-            "comissoes_carteira_periodo" as never,
+            (podeAlternarVisao
+              ? usaConsolidadoEmpresa
+                ? "desempenho_empresa_carteira_periodo"
+                : "desempenho_equipe_carteira_periodo"
+              : "comissoes_carteira_periodo") as never,
             { _de: periodo.de, _ate: periodo.ate } as never,
           ),
           supabase.rpc(
-            "resumo_desempenho_periodo" as never,
+            (podeAlternarVisao
+              ? usaConsolidadoEmpresa
+                ? "desempenho_empresa_resumo_periodo"
+                : "desempenho_equipe_resumo_periodo"
+              : "resumo_desempenho_periodo") as never,
             {
               _de: periodo.de,
               _ate: periodo.ate,
             } as never,
           ),
           supabase.rpc(
-            "desempenho_ranking_periodo" as never,
+            (podeAlternarVisao
+              ? usaConsolidadoEmpresa
+                ? "desempenho_empresa_ranking_periodo"
+                : "desempenho_equipe_ranking_periodo"
+              : "desempenho_ranking_periodo") as never,
             {
               _de: periodo.de,
               _ate: periodo.ate,
@@ -281,7 +312,7 @@ function VisaoExecutiva() {
       );
       setLoading(false);
     })();
-  }, [allowed, periodo]);
+  }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa]);
 
   if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -289,7 +320,7 @@ function VisaoExecutiva() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a administradores e ao financeiro.
+          Esta área é restrita a lideranças, administradores e ao financeiro.
         </CardContent>
       </Card>
     );
@@ -313,6 +344,15 @@ function VisaoExecutiva() {
           excluindo parcerias externas dos totais da REMAX.
         </p>
       </div>
+
+      {podeAlternarVisao && (
+        <Tabs value={visao} onValueChange={(value) => setVisaoEscolhida(value as VisaoDesempenho)}>
+          <TabsList aria-label="Visão de desempenho">
+            <TabsTrigger value="equipe">Minha equipe</TabsTrigger>
+            <TabsTrigger value="empresa">Empresa</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
@@ -364,7 +404,8 @@ function VisaoExecutiva() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Resumo da operação — {periodoDesempenhoLabel(periodo)}
+          {visao === "equipe" ? "Resumo da minha equipe" : "Resumo da operação"} —{" "}
+          {periodoDesempenhoLabel(periodo)}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ResumoCard
@@ -379,18 +420,22 @@ function VisaoExecutiva() {
             valor={money(operacaoRemax.comissao_propria)}
             info="Comissão da operação depois de excluir a parceria externa."
           />
-          <ResumoCard
-            icon={Building2}
-            label="Comissão destinada à unidade"
-            valor={money(operacaoRemax.parte_unidade)}
-            info="O que sobra da comissão bruta pra unidade depois de descontar a parceria externa e a comissão de captador/vendedor — ainda antes de descontar gestores, Team Leaders e extras."
-          />
-          <ResumoCard
-            icon={PiggyBank}
-            label="Receita líquida da imobiliária"
-            valor={money(operacaoRemax.receita_liquida_imobiliaria)}
-            info="Parte da unidade menos o que foi pago a gestores/Team Leaders e extras atribuídos à imobiliária — o que sobra de fato pra casa nas vendas fechadas no período."
-          />
+          {!podeAlternarVisao && (
+            <>
+              <ResumoCard
+                icon={Building2}
+                label="Comissão destinada à unidade"
+                valor={money(operacaoRemax.parte_unidade)}
+                info="O que sobra da comissão bruta pra unidade depois de descontar a parceria externa e a comissão de captador/vendedor — ainda antes de descontar gestores, Team Leaders e extras."
+              />
+              <ResumoCard
+                icon={PiggyBank}
+                label="Receita líquida da imobiliária"
+                valor={money(operacaoRemax.receita_liquida_imobiliaria)}
+                info="Parte da unidade menos o que foi pago a gestores/Team Leaders e extras atribuídos à imobiliária — o que sobra de fato pra casa nas vendas fechadas no período."
+              />
+            </>
+          )}
           <ResumoCard
             icon={CheckCircle2}
             label="Quantidade de vendas"
@@ -423,18 +468,22 @@ function VisaoExecutiva() {
             value={money(comissaoStats?.comissao_concluida_total ?? 0)}
             info="Mesma regra da comissão prevista (desconta parceria externa), mas só das ocorrências já concluídas."
           />
-          <KpiCard
-            icon={Landmark}
-            label="Líquido da imobiliária em andamento"
-            value={money(comissaoStats?.liquido_imobiliaria_prevista_total ?? 0)}
-            info="Comissão das ocorrências ainda não concluídas, descontando TUDO que já foi pago: parte de corretores/gestores/team leaders internos (soma de 'Comissão por corretor' abaixo) e parceria externa. Só sobra o que não foi atribuído a ninguém nomeado — o que fica de fato com a casa."
-          />
-          <KpiCard
-            icon={Landmark}
-            label="Líquido da imobiliária concluído"
-            value={money(comissaoStats?.liquido_imobiliaria_concluida_total ?? 0)}
-            info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
-          />
+          {!podeAlternarVisao && (
+            <>
+              <KpiCard
+                icon={Landmark}
+                label="Líquido da imobiliária em andamento"
+                value={money(comissaoStats?.liquido_imobiliaria_prevista_total ?? 0)}
+                info="Comissão das ocorrências ainda não concluídas, descontando TUDO que já foi pago: parte de corretores/gestores/team leaders internos (soma de 'Comissão por corretor' abaixo) e parceria externa. Só sobra o que não foi atribuído a ninguém nomeado — o que fica de fato com a casa."
+              />
+              <KpiCard
+                icon={Landmark}
+                label="Líquido da imobiliária concluído"
+                value={money(comissaoStats?.liquido_imobiliaria_concluida_total ?? 0)}
+                info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
+              />
+            </>
+          )}
         </div>
         <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -616,52 +665,64 @@ function VisaoExecutiva() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="corretor">
+                <Tabs
+                  defaultValue={podeAlternarVisao && visao === "empresa" ? "equipe" : "corretor"}
+                >
                   <TabsList className="mb-3">
-                    <TabsTrigger value="corretor">Por corretor</TabsTrigger>
-                    <TabsTrigger value="equipe">Por equipe</TabsTrigger>
+                    {(!podeAlternarVisao || visao === "equipe") && (
+                      <TabsTrigger value="corretor">Por corretor</TabsTrigger>
+                    )}
+                    {(!podeAlternarVisao || visao === "empresa") && (
+                      <TabsTrigger value="equipe">Por equipe</TabsTrigger>
+                    )}
                   </TabsList>
-                  <TabsContent value="corretor">
-                    <RankingTable
-                      rows={(stats?.ranking_corretor ?? []).map((r) => {
-                        const meta =
-                          metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
-                        return {
-                          id: r.corretor_id,
-                          nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
-                          vendas: r.vendas_fechadas,
-                          comissao: r.comissao,
-                          meta: meta?.meta_comissao ?? null,
-                          metaRealizado: meta?.comissao_realizada ?? 0,
-                        };
-                      })}
-                      onSelect={(row) =>
-                        setDetalheSel({ tipo: "corretor", id: row.id, nome: row.nome })
-                      }
-                    />
-                  </TabsContent>
-                  <TabsContent value="equipe">
-                    <RankingTable
-                      rows={(stats?.ranking_equipe ?? []).map((r) => {
-                        const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
-                        return {
-                          id: r.team_id ?? "sem-equipe",
-                          nome: r.team_nome ?? "Sem equipe",
-                          vendas: r.vendas_fechadas,
-                          comissao: r.comissao,
-                          meta: meta?.meta_comissao ?? null,
-                          metaRealizado: meta?.comissao_realizada ?? 0,
-                        };
-                      })}
-                      onSelect={(row) =>
-                        setDetalheSel({
-                          tipo: "equipe",
-                          teamId: row.id === "sem-equipe" ? null : row.id,
-                          nome: row.nome,
-                        })
-                      }
-                    />
-                  </TabsContent>
+                  {(!podeAlternarVisao || visao === "equipe") && (
+                    <TabsContent value="corretor">
+                      <RankingTable
+                        rows={(stats?.ranking_corretor ?? []).map((r) => {
+                          const meta =
+                            metas.corretor.find((m) => m.corretor_id === r.corretor_id) ?? null;
+                          return {
+                            id: r.corretor_id,
+                            nome: profileName[r.corretor_id] ?? `${r.corretor_id.slice(0, 8)}…`,
+                            vendas: r.vendas_fechadas,
+                            comissao: r.comissao,
+                            meta: meta?.meta_comissao ?? null,
+                            metaRealizado: meta?.comissao_realizada ?? 0,
+                          };
+                        })}
+                        onSelect={(row) =>
+                          setDetalheSel({ tipo: "corretor", id: row.id, nome: row.nome })
+                        }
+                      />
+                    </TabsContent>
+                  )}
+                  {(!podeAlternarVisao || visao === "empresa") && (
+                    <TabsContent value="equipe">
+                      <RankingTable
+                        rows={(stats?.ranking_equipe ?? []).map((r) => {
+                          const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
+                          return {
+                            id: r.team_id ?? "sem-equipe",
+                            nome: r.team_nome ?? "Sem equipe",
+                            vendas: r.vendas_fechadas,
+                            comissao: r.comissao,
+                            meta: meta?.meta_comissao ?? null,
+                            metaRealizado: meta?.comissao_realizada ?? 0,
+                          };
+                        })}
+                        onSelect={(row) => {
+                          if (!podeAlternarVisao) {
+                            setDetalheSel({
+                              tipo: "equipe",
+                              teamId: row.id === "sem-equipe" ? null : row.id,
+                              nome: row.nome,
+                            });
+                          }
+                        }}
+                      />
+                    </TabsContent>
+                  )}
                 </Tabs>
               </CardContent>
             </>
