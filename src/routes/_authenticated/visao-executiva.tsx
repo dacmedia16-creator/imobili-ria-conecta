@@ -24,12 +24,7 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  InfoDot,
-  KpiCard,
-  ResumoGrupoVendaCards,
-  comissaoChartConfig,
-} from "@/components/dashboard/shared";
+import { InfoDot, KpiCard, comissaoChartConfig } from "@/components/dashboard/shared";
 import {
   Banknote,
   Percent,
@@ -45,6 +40,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { mesAnteriorRange, mesAtualRange, mesRange } from "@/lib/producao-por-pessoa-filters";
+import {
+  intervaloInicialDesempenho,
+  intervaloValido,
+  periodoDesempenhoLabel,
+  type IntervaloDesempenho,
+} from "@/lib/desempenho-periodo";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -120,13 +121,6 @@ const mesAtualISO = () => {
 };
 
 const mesInicial = () => mesAtualISO().slice(0, 7);
-const periodoLabel = (mes: string) => {
-  const [ano, numeroMes] = mes.split("-").map(Number);
-  return new Date(ano, numeroMes - 1, 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-};
 
 type MetaProgressoRow = {
   corretor_id?: string;
@@ -147,6 +141,10 @@ type RankingPeriodo = {
   ranking_equipe: VisaoExecutivaStats["ranking_equipe"];
   quantidade_captacoes: number;
 };
+type ContextoPeriodo = Pick<
+  VisaoExecutivaStats,
+  "tempo_por_etapa" | "evolucao_mensal" | "whatsapp"
+>;
 const mesLabel = (m: string) => {
   const [ano, mes] = m.split("-");
   return new Date(Number(ano), Number(mes) - 1, 1)
@@ -196,7 +194,8 @@ function VisaoExecutiva() {
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
-  const [mes, setMes] = useState(mesInicial);
+  const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
+  const mes = periodo.de.slice(0, 7) || mesInicial();
 
   useEffect(() => {
     if (!allowed) {
@@ -205,13 +204,25 @@ function VisaoExecutiva() {
     }
     (async () => {
       setLoading(true);
-      const periodo = mesRange(mes);
-      const [statsRes, profRes, metasRes, carteiraRes, operacaoRes, rankingRes] = await Promise.all(
-        [
-          supabase.rpc("visao_executiva_stats"),
+      if (!intervaloValido(periodo)) {
+        setLoading(false);
+        return;
+      }
+      const [contextoRes, profRes, metasRes, carteiraRes, operacaoRes, rankingRes] =
+        await Promise.all([
+          supabase.rpc(
+            "desempenho_contexto_periodo" as never,
+            { _de: periodo.de, _ate: periodo.ate } as never,
+          ),
           supabase.from("profiles").select("id, nome"),
-          supabase.rpc("metas_progresso", { _mes: `${mes}-01` }),
-          supabase.rpc("comissoes_carteira_sem_parceria" as never),
+          supabase.rpc(
+            "metas_progresso_periodo" as never,
+            { _de: periodo.de, _ate: periodo.ate } as never,
+          ),
+          supabase.rpc(
+            "comissoes_carteira_periodo" as never,
+            { _de: periodo.de, _ate: periodo.ate } as never,
+          ),
           supabase.rpc(
             "resumo_desempenho_periodo" as never,
             {
@@ -226,23 +237,33 @@ function VisaoExecutiva() {
               _ate: periodo.ate,
             } as never,
           ),
-        ],
-      );
+        ]);
       const resumoCorreto = operacaoRes.data as unknown as ResumoDesempenho | null;
       const rankingPeriodo = rankingRes.data as unknown as RankingPeriodo | null;
-      const statsBase = (statsRes.data as unknown as VisaoExecutivaStats) ?? null;
+      const contexto = contextoRes.data as unknown as ContextoPeriodo | null;
       setStats(
-        statsBase && rankingPeriodo
+        contexto && rankingPeriodo
           ? {
-              ...statsBase,
+              ...contexto,
+              alertas: {
+                assinatura_pendente: { n: 0 },
+                financeiro_parado: { n: 0 },
+                contrato_parado: { n: 0 },
+                retrabalho: { n: 0 },
+              },
               ranking_corretor: rankingPeriodo.ranking_corretor,
               ranking_equipe: rankingPeriodo.ranking_equipe,
               resumo_operacional: {
-                ...statsBase.resumo_operacional,
+                vgv: 0,
+                comissao_bruta_operacao: 0,
+                parceria_externa: 0,
+                parte_unidade: 0,
+                receita_liquida_imobiliaria: 0,
+                quantidade_vendas: 0,
                 quantidade_captacoes: rankingPeriodo.quantidade_captacoes,
               },
             }
-          : statsBase,
+          : null,
       );
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
@@ -260,7 +281,7 @@ function VisaoExecutiva() {
       );
       setLoading(false);
     })();
-  }, [allowed, mes]);
+  }, [allowed, periodo]);
 
   if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -288,7 +309,7 @@ function VisaoExecutiva() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Desempenho</h1>
         <p className="text-sm text-muted-foreground">
-          Indicadores e rankings por mês, usando as regras financeiras oficiais da operação e
+          Indicadores e rankings por período, usando as regras financeiras oficiais da operação e
           excluindo parcerias externas dos totais da REMAX.
         </p>
       </div>
@@ -296,18 +317,10 @@ function VisaoExecutiva() {
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setMes(mesAtualRange().de.slice(0, 7))}
-            >
+            <Button type="button" variant="outline" onClick={() => setPeriodo(mesAtualRange())}>
               Mês atual
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setMes(mesAnteriorRange().de.slice(0, 7))}
-            >
+            <Button type="button" variant="outline" onClick={() => setPeriodo(mesAnteriorRange())}>
               Mês anterior
             </Button>
           </div>
@@ -316,16 +329,42 @@ function VisaoExecutiva() {
             <Input
               type="month"
               value={mes}
-              onChange={(e) => e.target.value && setMes(e.target.value)}
+              onChange={(e) => e.target.value && setPeriodo(mesRange(e.target.value))}
+              className="w-[10.5rem]"
+            />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Data inicial</Label>
+            <Input
+              type="date"
+              value={periodo.de}
+              max={periodo.ate}
+              onChange={(e) => setPeriodo((atual) => ({ ...atual, de: e.target.value }))}
+              className="w-[10.5rem]"
+            />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Data final</Label>
+            <Input
+              type="date"
+              value={periodo.ate}
+              min={periodo.de}
+              onChange={(e) => setPeriodo((atual) => ({ ...atual, ate: e.target.value }))}
               className="w-[10.5rem]"
             />
           </div>
         </CardContent>
       </Card>
 
+      {!intervaloValido(periodo) && (
+        <p role="alert" className="text-sm text-destructive">
+          A data final deve ser igual ou posterior à data inicial.
+        </p>
+      )}
+
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Resumo da operação — {periodoLabel(mes)}
+          Resumo da operação — {periodoDesempenhoLabel(periodo)}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ResumoCard
@@ -356,20 +395,20 @@ function VisaoExecutiva() {
             icon={CheckCircle2}
             label="Quantidade de vendas"
             valor={String(operacaoRemax.quantidade_vendas)}
-            info={`Número de vendas distintas efetivamente enviadas ao Financeiro em ${periodoLabel(mes)}.`}
+            info={`Número de vendas distintas efetivamente enviadas ao Financeiro em ${periodoDesempenhoLabel(periodo)}.`}
           />
           <ResumoCard
             icon={ClipboardList}
             label="Quantidade de captações"
             valor={String(stats?.resumo_operacional?.quantidade_captacoes ?? 0)}
-            info={`Número de vendas cadastradas (captadas) em ${periodoLabel(mes)}, entre as ainda ativas — grupo diferente de 'Quantidade de vendas' (que é sobre fechamento, não cadastro).`}
+            info={`Número de vendas cadastradas (captadas) em ${periodoDesempenhoLabel(periodo)}, entre as ainda ativas — grupo diferente de 'Quantidade de vendas' (que é sobre fechamento, não cadastro).`}
           />
         </div>
       </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Comissões em carteira — posição atual
+          Comissões em carteira — {periodoDesempenhoLabel(periodo)}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
@@ -396,13 +435,12 @@ function VisaoExecutiva() {
             value={money(comissaoStats?.liquido_imobiliaria_concluida_total ?? 0)}
             info="Mesma regra do líquido previsto (desconta todos os beneficiários internos + parceria externa), mas só das ocorrências já concluídas."
           />
-          <ResumoGrupoVendaCards corretorIds="todas" sufixoLabel="da imobiliária" />
         </div>
         <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          "Resumo da operação" acima considera o mês selecionado. "Comissão em carteira" é a posição
-          atual por status da ocorrência, sem janela de tempo — os dois nunca vão bater exatamente,
-          pois respondem perguntas diferentes.
+          Todos os valores desta tela consideram o período selecionado. Em "Comissões em carteira",
+          prevista e concluída representam o status atual das vendas que entraram no Financeiro
+          dentro desse intervalo.
         </p>
         {((comissaoStats?.comissao_prevista_total ?? 0) > 0 ||
           (comissaoStats?.comissao_concluida_total ?? 0) > 0) && (
@@ -481,7 +519,9 @@ function VisaoExecutiva() {
       {isSuperAdmin && stats?.whatsapp && stats.whatsapp.eventos > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Saúde do WhatsApp — últimos 30 dias</CardTitle>
+            <CardTitle className="text-base">
+              Saúde do WhatsApp — {periodoDesempenhoLabel(periodo)}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-4 sm:grid-cols-4">
             <div>
@@ -521,7 +561,9 @@ function VisaoExecutiva() {
       {etapas.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Tempo médio por etapa do funil</CardTitle>
+            <CardTitle className="text-base">
+              Tempo médio por etapa — {periodoDesempenhoLabel(periodo)}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
             {etapas.map((e) => (
@@ -564,12 +606,14 @@ function VisaoExecutiva() {
               selecao={detalheSel}
               onVoltar={() => setDetalheSel(null)}
               profileName={profileName}
-              mes={mes}
+              periodo={periodo}
             />
           ) : (
             <>
               <CardHeader>
-                <CardTitle className="text-base">Ranking — {periodoLabel(mes)}</CardTitle>
+                <CardTitle className="text-base">
+                  Ranking — {periodoDesempenhoLabel(periodo)}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="corretor">
@@ -626,7 +670,9 @@ function VisaoExecutiva() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Evolução mensal</CardTitle>
+            <CardTitle className="text-base">
+              Evolução mensal — {periodoDesempenhoLabel(periodo)}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -714,7 +760,7 @@ function RankingTable({
           <TableHead>Nome</TableHead>
           <TableHead className="text-right">Fechadas</TableHead>
           <TableHead className="text-right">Comissão</TableHead>
-          <TableHead>Meta do mês</TableHead>
+          <TableHead>Meta do período</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -760,21 +806,21 @@ function DetalheComissao({
   selecao,
   onVoltar,
   profileName,
-  mes,
+  periodo,
 }: {
   selecao: DetalheSelecao;
   onVoltar: () => void;
   profileName: Record<string, string>;
-  mes: string;
+  periodo: IntervaloDesempenho;
 }) {
   const [linhas, setLinhas] = useState<DetalheLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const selecaoId = selecao.tipo === "corretor" ? selecao.id : selecao.teamId;
 
   useEffect(() => {
     let cancelado = false;
     setLinhas(null);
     setErro(null);
-    const periodo = mesRange(mes);
     const paramsBase = { _de: periodo.de, _ate: periodo.ate };
     const params =
       selecao.tipo === "corretor"
@@ -800,7 +846,7 @@ function DetalheComissao({
     // selecao é um objeto novo a cada clique (nunca é reaproveitado) — comparar pelos campos
     // primitivos evita reabrir a busca em renders que não trocaram de pessoa/equipe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, selecao.tipo, selecao.tipo === "corretor" ? selecao.id : selecao.teamId]);
+  }, [periodo.de, periodo.ate, selecao.tipo, selecaoId]);
 
   const total = (linhas ?? []).reduce((acc, l) => acc + Number(l.valor_comissao), 0);
   const ehEquipe = selecao.tipo === "equipe";
@@ -819,7 +865,9 @@ function DetalheComissao({
         <div>
           <CardTitle className="text-base">{selecao.nome}</CardTitle>
           <p className="text-xs text-muted-foreground">
-            {linhas == null ? "Carregando…" : `${linhas.length} vendas em ${periodoLabel(mes)}`}
+            {linhas == null
+              ? "Carregando…"
+              : `${linhas.length} vendas em ${periodoDesempenhoLabel(periodo)}`}
           </p>
         </div>
       </CardHeader>
