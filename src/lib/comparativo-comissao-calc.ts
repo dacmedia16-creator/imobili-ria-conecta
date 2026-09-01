@@ -4,7 +4,13 @@
  * sem montar o componente.
  */
 import type {
-  ComparativoCalculado, ComparativoRowComCalculo, EventoFechamento, GrupoMensal, GrupoSecundario, ResumoComparativo, SituacaoComissao,
+  ComparativoCalculado,
+  ComparativoRowComCalculo,
+  EventoFechamento,
+  GrupoMensal,
+  GrupoSecundario,
+  ResumoComparativo,
+  SituacaoComissao,
 } from "@/lib/comparativo-comissao-types";
 
 /** Padrão de comparação — comissão de 6% sobre o valor negociado. */
@@ -16,10 +22,14 @@ const TOLERANCIA_SITUACAO_PP = 0.001;
  * arredondamento de digitação, não uma divergência real. */
 const TOLERANCIA_DIVERGENCIA_PP = 0.01;
 
-const numOrNull = (v: number | null | undefined): number | null => (v == null || Number.isNaN(v) ? null : Number(v));
+const numOrNull = (v: number | null | undefined): number | null =>
+  v == null || Number.isNaN(v) ? null : Number(v);
 
 /** percentualReal = valorNegociado > 0 ? (valorTotalComissao / valorNegociado) * 100 : null */
-export function percentualReal(valorNegociado: number | null | undefined, valorTotalComissao: number | null | undefined): number | null {
+export function percentualReal(
+  valorNegociado: number | null | undefined,
+  valorTotalComissao: number | null | undefined,
+): number | null {
   const negociado = numOrNull(valorNegociado);
   const comissao = numOrNull(valorTotalComissao) ?? 0;
   if (negociado == null || negociado <= 0) return null;
@@ -35,14 +45,20 @@ export function vgvEquivalente6(valorTotalComissao: number | null | undefined): 
 
 /** diferencaVgv = valorNegociado - vgvEquivalente6 (precisa dos dois valores válidos — um
  * valorNegociado zero/negativo não é um VGV real comparável, mesma regra de percentualReal). */
-export function diferencaVgv(valorNegociado: number | null | undefined, vgvEq: number | null): number | null {
+export function diferencaVgv(
+  valorNegociado: number | null | undefined,
+  vgvEq: number | null,
+): number | null {
   const negociado = numOrNull(valorNegociado);
   if (negociado == null || negociado <= 0 || vgvEq == null) return null;
   return negociado - vgvEq;
 }
 
 /** percentualReducao = valorNegociado > 0 ? (diferencaVgv / valorNegociado) * 100 : null */
-export function percentualReducao(valorNegociado: number | null | undefined, diferenca: number | null): number | null {
+export function percentualReducao(
+  valorNegociado: number | null | undefined,
+  diferenca: number | null,
+): number | null {
   const negociado = numOrNull(valorNegociado);
   if (negociado == null || negociado <= 0 || diferenca == null) return null;
   return (diferenca / negociado) * 100;
@@ -57,7 +73,10 @@ export function situacaoDe(pctReal: number | null): SituacaoComissao | null {
 
 /** true quando sales.percentual_comissao (cadastrado) diverge do percentual calculado a partir dos
  * valores em reais — sinaliza pra revisão manual, nunca corrige nada aqui. */
-export function divergenciaCadastro(percentualCadastrado: number | null | undefined, pctReal: number | null): boolean {
+export function divergenciaCadastro(
+  percentualCadastrado: number | null | undefined,
+  pctReal: number | null,
+): boolean {
   const cadastrado = numOrNull(percentualCadastrado);
   if (cadastrado == null || pctReal == null) return false;
   return Math.abs(cadastrado - pctReal) > TOLERANCIA_DIVERGENCIA_PP;
@@ -85,14 +104,18 @@ export function calcularComparativo(args: {
 
 /** Percentual médio PONDERADO de um conjunto de vendas — nunca a média simples dos percentuais
  * individuais. null quando não há VGV real pra dividir (conjunto vazio ou soma zero). */
-export function percentualMedioPonderado(rows: { valor_negociado: number; valor_total_comissao: number }[]): number | null {
+export function percentualMedioPonderado(
+  rows: { valor_negociado: number; valor_total_comissao: number }[],
+): number | null {
   const somaNegociado = rows.reduce((s, r) => s + Number(r.valor_negociado ?? 0), 0);
   if (somaNegociado <= 0) return null;
   const somaComissao = rows.reduce((s, r) => s + Number(r.valor_total_comissao ?? 0), 0);
   return (somaComissao / somaNegociado) * 100;
 }
 
-function agregar<T extends { valor_negociado: number; valor_total_comissao: number; diferencaVgv: number | null }>(rows: T[]) {
+function agregar<
+  T extends { valor_negociado: number; valor_total_comissao: number; diferencaVgv: number | null },
+>(rows: T[]) {
   const vgvReal = rows.reduce((s, r) => s + Number(r.valor_negociado ?? 0), 0);
   const comissaoTotal = rows.reduce((s, r) => s + Number(r.valor_total_comissao ?? 0), 0);
   const vgvEq = comissaoTotal > 0 ? comissaoTotal / (PERCENTUAL_PADRAO / 100) : 0;
@@ -124,7 +147,8 @@ export function agruparPorMes(rows: ComparativoRowComCalculo[]): GrupoMensal[] {
   for (const r of rows) {
     const mes = r.data_fechamento.slice(0, 7);
     const bucket = porMes.get(mes);
-    if (bucket) bucket.push(r); else porMes.set(mes, [r]);
+    if (bucket) bucket.push(r);
+    else porMes.set(mes, [r]);
   }
   return Array.from(porMes.entries())
     .sort(([a], [b]) => a.localeCompare(b))
@@ -147,7 +171,8 @@ export function agruparPor(
   for (const r of rows) {
     const [chave, label] = chaveELabel(r);
     const bucket = grupos.get(chave);
-    if (bucket) bucket.rows.push(r); else grupos.set(chave, { label, rows: [r] });
+    if (bucket) bucket.rows.push(r);
+    else grupos.set(chave, { label, rows: [r] });
   }
   return Array.from(grupos.entries())
     .map(([chave, { label, rows: bucket }]) => ({ chave, label, ...agregar(bucket) }))
@@ -160,22 +185,23 @@ const STATUS_EXCLUIDOS = new Set(["cancelada", "arquivada"]);
  * created_at entre as transições que bateram nesse status. Evita contar de novo se a venda foi
  * devolvida e reenviada mais de uma vez (reenvio nunca muda a data original de efetivação). null
  * quando a venda nunca chegou lá. */
-export function primeiraDataDeStatus(historico: { para: string; created_at: string }[], status: string): string | null {
+export function primeiraDataDeStatus(
+  historico: { para: string; created_at: string }[],
+  status: string,
+): string | null {
   const datas = historico.filter((h) => h.para === status).map((h) => h.created_at);
   if (!datas.length) return null;
   return datas.reduce((min, d) => (d < min ? d : min));
 }
 
-/** Evento único que comprova a efetivação da venda — regra de negócio confirmada: assinatura e
- * etapas anteriores concluídas E ocorrência efetivamente enviada ao financeiro. Vale igual pra
- * venda tradicional e Lançamento, sem distinção por modalidade — 'contrato_assinado' sozinho não
- * basta (ainda existe a etapa de preenchimento da ocorrência pelo gestor antes do envio real ao
- * financeiro; ver migration 20260813020000_corrige_efetivacao_comparativo_comissao). */
-export const EVENTO_EFETIVACAO: EventoFechamento = "ocorrencia_analise_financeiro";
+/** Eventos aceitos pela regra comercial canônica. */
+export const EVENTOS_VENDA_COMERCIAL = new Set<EventoFechamento>([
+  "contrato_assinado",
+  "ocorrencia_analise_financeiro",
+]);
 
-/** "Vendas que devem entrar": não cancelada/arquivada, tem valor negociado e comissão válidos
- * (>0), e tem data de efetivação do evento certo — 'ocorrencia_analise_financeiro', nunca aceita
- * 'contrato_assinado' sozinho como substituto. A RPC comparativo_comissao_6pct já garante isso em
+/** "Vendas que devem entrar": venda comercial válida, com valor negociado e comissão válidos.
+ * A RPC comparativo_comissao_6pct já garante isso em
  * SQL; esta função é a mesma regra em JS, usada como defesa — o frontend nunca aceita uma linha
  * que viole a regra, mesmo que uma resposta inesperada chegue. */
 export function elegivelParaComparativo(row: {
@@ -187,7 +213,7 @@ export function elegivelParaComparativo(row: {
 }): boolean {
   if (STATUS_EXCLUIDOS.has(row.status)) return false;
   if (row.dataFechamento == null || row.eventoFechamento == null) return false;
-  if (row.eventoFechamento !== EVENTO_EFETIVACAO) return false;
+  if (!EVENTOS_VENDA_COMERCIAL.has(row.eventoFechamento)) return false;
   if (!(Number(row.valorNegociado ?? 0) > 0)) return false;
   if (!(Number(row.valorTotalComissao ?? 0) > 0)) return false;
   return true;
@@ -203,7 +229,11 @@ export function elegivelParaComparativo(row: {
  * testado/documentado: a filtragem de verdade acontece na RPC, este módulo nunca lê
  * sale_status_history pra decidir inconsistência (InconsistenciaRow não carrega status/histórico). */
 const STATUS_INDICA_ENVIO_FINANCEIRO = new Set([
-  "contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor", "ocorrencia_concluida",
+  "contrato_assinado",
+  "ocorrencia_pendente",
+  "ocorrencia_analise_financeiro",
+  "ocorrencia_devolvida_gestor",
+  "ocorrencia_concluida",
 ]);
 export function statusIndicaEnvioFinanceiro(status: string): boolean {
   return STATUS_INDICA_ENVIO_FINANCEIRO.has(status);

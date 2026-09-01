@@ -182,7 +182,7 @@ export type FinanceiroFiltros = {
   incluirCanceladas: boolean;
 };
 
-/** Uma venda efetivada (mesma regra do Comparativo 6%: 1ª entrada em `ocorrencia_analise_financeiro`)
+/** Uma venda comercial válida (contrato assinado; Lançamento usa a entrada no Financeiro)
  * — nível "venda", não "beneficiário". Alimenta só os cards de VGV/comissão bruta da Visão Geral;
  * a divisão por beneficiário é sempre ComissaoCalculada, nunca esta. */
 export type EfetivacaoVenda = {

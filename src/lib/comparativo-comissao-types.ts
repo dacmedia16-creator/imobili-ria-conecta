@@ -3,17 +3,12 @@
  * nenhum tipo aqui é persistido de volta no banco, só usados pra exibição.
  */
 
-/** Evento de sale_status_history que comprova a efetivação da venda — regra de negócio
- * confirmada: assinatura/etapas anteriores concluídas E ocorrência efetivamente enviada ao
- * financeiro. É SEMPRE 'ocorrencia_analise_financeiro', igual pras duas modalidades
- * (tradicional e Lançamento) — 'contrato_assinado' sozinho não basta, porque ainda existe uma
- * etapa de preenchimento da ocorrência pelo gestor entre ele e o envio real ao financeiro. Ver
- * migration 20260813020000_corrige_efetivacao_comparativo_comissao. */
-export type EventoFechamento = "ocorrencia_analise_financeiro";
+/** Evento comercial canônico: venda padrão entra em contrato_assinado; Lançamento, que não passa
+ * por assinatura no fluxo atual, entra quando é enviado ao Financeiro. */
+export type EventoFechamento = "contrato_assinado" | "ocorrencia_analise_financeiro";
 
-/** Uma linha já ELEGÍVEL (efetivada), como devolvida pela RPC comparativo_comissao_6pct() — a
- * própria RPC só retorna quem passa em todas as regras (status não cancelada/arquivada, valores
- * válidos, e tem a primeira entrada em 'ocorrencia_analise_financeiro' no histórico); nada é
+/** Uma linha já ELEGÍVEL, como devolvida pela RPC comparativo_comissao_6pct() — a
+ * própria RPC só retorna vendas comerciais válidas com valores válidos; nada é
  * filtrado depois no frontend além da revalidação defensiva (ver elegivelParaComparativo). */
 export type ComparativoRawRow = {
   sale_id: string;
@@ -26,7 +21,7 @@ export type ComparativoRawRow = {
   valor_total_comissao: number;
   parceria_externa?: number;
   percentual_comissao: number | null;
-  data_fechamento: string; // date (YYYY-MM-DD) — data de efetivação
+  data_fechamento: string; // date (YYYY-MM-DD) — data comercial da venda
   evento_fechamento: EventoFechamento;
 };
 
@@ -73,7 +68,13 @@ export type ComparativoRowComCalculo = ComparativoRow & ComparativoCalculado;
 export type ModalidadeFiltro = "todas" | "padrao" | "lancamento";
 export type SituacaoFiltro = "todas" | SituacaoComissao;
 export type AgrupamentoSecundario = "corretor" | "equipe" | "gestor";
-export type OrdenacaoCampo = "data" | "valor_negociado" | "valor_comissao" | "percentual_real" | "vgv_equivalente" | "diferenca";
+export type OrdenacaoCampo =
+  | "data"
+  | "valor_negociado"
+  | "valor_comissao"
+  | "percentual_real"
+  | "vgv_equivalente"
+  | "diferenca";
 export type OrdenacaoDirecao = "asc" | "desc";
 
 export type ComparativoFiltros = {

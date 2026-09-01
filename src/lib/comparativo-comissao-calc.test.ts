@@ -1,8 +1,19 @@
 import { describe, it, expect } from "vitest";
 import {
-  calcularComparativo, percentualReal, vgvEquivalente6, diferencaVgv, percentualReducao, situacaoDe,
-  divergenciaCadastro, percentualMedioPonderado, resumoComparativo, agruparPorMes, primeiraDataDeStatus,
-  elegivelParaComparativo, statusIndicaEnvioFinanceiro, podeAcessarComparativo6pct,
+  calcularComparativo,
+  percentualReal,
+  vgvEquivalente6,
+  diferencaVgv,
+  percentualReducao,
+  situacaoDe,
+  divergenciaCadastro,
+  percentualMedioPonderado,
+  resumoComparativo,
+  agruparPorMes,
+  primeiraDataDeStatus,
+  elegivelParaComparativo,
+  statusIndicaEnvioFinanceiro,
+  podeAcessarComparativo6pct,
 } from "./comparativo-comissao-calc";
 import type { ComparativoRowComCalculo } from "./comparativo-comissao-types";
 
@@ -129,19 +140,41 @@ describe("percentualMedioPonderado — nunca a média simples dos percentuais in
 });
 
 const rowBase: ComparativoRowComCalculo = {
-  sale_id: "s1", codigo_interno: "COD-1", imovel_id: "IMV-1", modalidade: "padrao", status: "ocorrencia_analise_financeiro",
-  corretor_id: "c1", valor_negociado: 200000, valor_total_comissao: 8000, percentual_comissao: 4,
-  data_fechamento: "2026-03-15", evento_fechamento: "ocorrencia_analise_financeiro", corretorNome: "Fulano", teamId: "t1", teamNome: "Equipe A",
-  gestorId: "g1", gestorNome: "Gestor A",
-  percentualReal: 4, vgvEquivalente6: 133333.33, diferencaVgv: 66666.67, percentualReducao: 33.33,
-  situacao: "abaixo", divergenciaCadastro: false,
+  sale_id: "s1",
+  codigo_interno: "COD-1",
+  imovel_id: "IMV-1",
+  modalidade: "padrao",
+  status: "ocorrencia_analise_financeiro",
+  corretor_id: "c1",
+  valor_negociado: 200000,
+  valor_total_comissao: 8000,
+  percentual_comissao: 4,
+  data_fechamento: "2026-03-15",
+  evento_fechamento: "ocorrencia_analise_financeiro",
+  corretorNome: "Fulano",
+  teamId: "t1",
+  teamNome: "Equipe A",
+  gestorId: "g1",
+  gestorNome: "Gestor A",
+  percentualReal: 4,
+  vgvEquivalente6: 133333.33,
+  diferencaVgv: 66666.67,
+  percentualReducao: 33.33,
+  situacao: "abaixo",
+  divergenciaCadastro: false,
 };
 
 describe("resumoComparativo — agregação de várias vendas", () => {
   it("soma VGV/comissão e pondera o percentual médio corretamente", () => {
     const rows: ComparativoRowComCalculo[] = [
       rowBase,
-      { ...rowBase, sale_id: "s2", valor_negociado: 900000, valor_total_comissao: 18000, percentualReal: 2 },
+      {
+        ...rowBase,
+        sale_id: "s2",
+        valor_negociado: 900000,
+        valor_total_comissao: 18000,
+        percentualReal: 2,
+      },
     ];
     const resumo = resumoComparativo(rows);
     expect(resumo.quantidade).toBe(2);
@@ -157,9 +190,27 @@ describe("resumoComparativo — agregação de várias vendas", () => {
 describe("agruparPorMes — totais mensais", () => {
   it("agrupa por mês da data de fechamento e pondera o percentual por grupo, em ordem cronológica", () => {
     const rows: ComparativoRowComCalculo[] = [
-      { ...rowBase, sale_id: "s1", data_fechamento: "2026-02-10", valor_negociado: 100000, valor_total_comissao: 6000 },
-      { ...rowBase, sale_id: "s2", data_fechamento: "2026-02-20", valor_negociado: 300000, valor_total_comissao: 12000 },
-      { ...rowBase, sale_id: "s3", data_fechamento: "2026-01-05", valor_negociado: 200000, valor_total_comissao: 12000 },
+      {
+        ...rowBase,
+        sale_id: "s1",
+        data_fechamento: "2026-02-10",
+        valor_negociado: 100000,
+        valor_total_comissao: 6000,
+      },
+      {
+        ...rowBase,
+        sale_id: "s2",
+        data_fechamento: "2026-02-20",
+        valor_negociado: 300000,
+        valor_total_comissao: 12000,
+      },
+      {
+        ...rowBase,
+        sale_id: "s3",
+        data_fechamento: "2026-01-05",
+        valor_negociado: 200000,
+        valor_total_comissao: 12000,
+      },
     ];
     const grupos = agruparPorMes(rows);
     expect(grupos.map((g) => g.mes)).toEqual(["2026-01", "2026-02"]);
@@ -171,16 +222,23 @@ describe("agruparPorMes — totais mensais", () => {
   });
 });
 
-// ---- 8: regra única de efetivação (ocorrencia_analise_financeiro), igual pras duas modalidades ----
+// ---- 8: regra comercial canônica (assinatura; lançamento entra pelo Financeiro) ----
 describe("elegivelParaComparativo — venda tradicional", () => {
   const base = {
-    status: "ocorrencia_analise_financeiro", dataFechamento: "2026-03-15",
-    eventoFechamento: "ocorrencia_analise_financeiro" as const, valorNegociado: 200000, valorTotalComissao: 8000,
+    status: "ocorrencia_analise_financeiro",
+    dataFechamento: "2026-03-15",
+    eventoFechamento: "ocorrencia_analise_financeiro" as const,
+    valorNegociado: 200000,
+    valorTotalComissao: 8000,
   };
-  it("tradicional com apenas contrato_assinado (sem ocorrencia_analise_financeiro) NÃO entra", () => {
-    // contrato_assinado sozinho não basta — ainda falta o gestor preencher e enviar a ocorrência
-    // ao financeiro. Sem esse evento no histórico, dataFechamento/eventoFechamento vêm nulos.
-    expect(elegivelParaComparativo({ ...base, status: "contrato_assinado", dataFechamento: null, eventoFechamento: null })).toBe(false);
+  it("tradicional entra desde contrato_assinado", () => {
+    expect(
+      elegivelParaComparativo({
+        ...base,
+        status: "contrato_assinado",
+        eventoFechamento: "contrato_assinado",
+      }),
+    ).toBe(true);
   });
   it("tradicional COM primeira entrada em ocorrencia_analise_financeiro entra", () => {
     expect(elegivelParaComparativo(base)).toBe(true);
@@ -191,8 +249,10 @@ describe("elegivelParaComparativo — venda tradicional", () => {
   it("exclui arquivada", () => {
     expect(elegivelParaComparativo({ ...base, status: "arquivada" })).toBe(false);
   });
-  it("rejeita mesmo com data preenchida se o evento não é ocorrencia_analise_financeiro (nunca aceita contrato_assinado como substituto, mesmo simulando uma resposta inesperada em runtime)", () => {
-    expect(elegivelParaComparativo({ ...base, eventoFechamento: "contrato_assinado" as unknown as typeof base.eventoFechamento })).toBe(false);
+  it("rejeita evento fora da regra comercial", () => {
+    expect(
+      elegivelParaComparativo({ ...base, eventoFechamento: "aguardando_assinatura" as never }),
+    ).toBe(false);
   });
   it("exclui sem valor negociado válido (nulo, zero ou negativo)", () => {
     expect(elegivelParaComparativo({ ...base, valorNegociado: null })).toBe(false);
@@ -208,14 +268,19 @@ describe("elegivelParaComparativo — venda tradicional", () => {
 
 describe("elegivelParaComparativo — Lançamento (mesma regra, sem exigir contrato_assinado)", () => {
   const base = {
-    status: "ocorrencia_concluida", dataFechamento: "2026-03-15",
-    eventoFechamento: "ocorrencia_analise_financeiro" as const, valorNegociado: 200000, valorTotalComissao: 8000,
+    status: "ocorrencia_concluida",
+    dataFechamento: "2026-03-15",
+    eventoFechamento: "ocorrencia_analise_financeiro" as const,
+    valorNegociado: 200000,
+    valorTotalComissao: 8000,
   };
   it("Lançamento com primeira entrada em ocorrencia_analise_financeiro entra", () => {
     expect(elegivelParaComparativo(base)).toBe(true);
   });
   it("venda sem o evento fica fora dos cálculos", () => {
-    expect(elegivelParaComparativo({ ...base, dataFechamento: null, eventoFechamento: null })).toBe(false);
+    expect(elegivelParaComparativo({ ...base, dataFechamento: null, eventoFechamento: null })).toBe(
+      false,
+    );
   });
 });
 
@@ -238,16 +303,24 @@ describe("primeiraDataDeStatus — data de fechamento, uma linha por venda", () 
       { para: "ocorrencia_analise_financeiro", created_at: "2026-08-11T19:59:37" }, // reenvio
       { para: "ocorrencia_concluida", created_at: "2026-08-13T14:11:27" },
     ];
-    expect(primeiraDataDeStatus(historico, "ocorrencia_analise_financeiro")).toBe("2026-08-11T19:13:16");
+    expect(primeiraDataDeStatus(historico, "ocorrencia_analise_financeiro")).toBe(
+      "2026-08-11T19:13:16",
+    );
   });
 
   it("null quando a venda nunca entrou nesse status (não usa created_at/updated_at da venda)", () => {
-    const historico = [{ para: "rascunho", created_at: "2026-01-01" }, { para: "enviada_revisao", created_at: "2026-01-05" }];
+    const historico = [
+      { para: "rascunho", created_at: "2026-01-01" },
+      { para: "enviada_revisao", created_at: "2026-01-05" },
+    ];
     expect(primeiraDataDeStatus(historico, "contrato_assinado")).toBeNull();
   });
 
   it("sempre devolve uma única data (string), nunca uma lista — mesmo com N reentradas no mesmo status", () => {
-    const historico = Array.from({ length: 5 }, (_, i) => ({ para: "contrato_assinado", created_at: `2026-0${i + 1}-01` }));
+    const historico = Array.from({ length: 5 }, (_, i) => ({
+      para: "contrato_assinado",
+      created_at: `2026-0${i + 1}-01`,
+    }));
     const resultado = primeiraDataDeStatus(historico, "contrato_assinado");
     expect(typeof resultado).toBe("string");
     expect(resultado).toBe("2026-01-01");
@@ -264,10 +337,15 @@ describe("statusIndicaEnvioFinanceiro — TESTE-VITEST e outros casos", () => {
     // de verdade ficar parada aí, já que o avanço é automático), mas ela nunca é aceita no
     // Comparativo por faltar o evento.
     expect(statusIndicaEnvioFinanceiro("contrato_assinado")).toBe(true);
-    expect(elegivelParaComparativo({
-      status: "contrato_assinado", dataFechamento: null, eventoFechamento: null,
-      valorNegociado: 1000, valorTotalComissao: 100,
-    })).toBe(false);
+    expect(
+      elegivelParaComparativo({
+        status: "contrato_assinado",
+        dataFechamento: null,
+        eventoFechamento: null,
+        valorNegociado: 1000,
+        valorTotalComissao: 100,
+      }),
+    ).toBe(false);
   });
   it("status antes da assinatura não indicam envio ao financeiro — não é inconsistência", () => {
     expect(statusIndicaEnvioFinanceiro("rascunho")).toBe(false);
@@ -291,9 +369,12 @@ describe("podeAcessarComparativo6pct — controle de acesso", () => {
   it.each([["admin"], ["super_admin"], ["financeiro"]] as const)("libera %s", (papel) => {
     expect(podeAcessarComparativo6pct([papel])).toBe(true);
   });
-  it.each([["corretor"], ["gestor"], ["team_leader"], ["juridico"], ["lancamento"]] as const)("bloqueia %s", (papel) => {
-    expect(podeAcessarComparativo6pct([papel])).toBe(false);
-  });
+  it.each([["corretor"], ["gestor"], ["team_leader"], ["juridico"], ["lancamento"]] as const)(
+    "bloqueia %s",
+    (papel) => {
+      expect(podeAcessarComparativo6pct([papel])).toBe(false);
+    },
+  );
   it("bloqueia usuário sem nenhum papel", () => {
     expect(podeAcessarComparativo6pct([])).toBe(false);
   });
