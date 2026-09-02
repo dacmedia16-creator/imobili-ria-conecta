@@ -2798,6 +2798,44 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState("");
 
+  const baixarDocumentoRelatorio = async (doc: any) => {
+    const { data, error } = await supabase.storage
+      .from("sale-documents")
+      .createSignedUrl(doc.storage_path, 300, { download: doc.file_name });
+    if (error || !data?.signedUrl) { toast.error("Falha ao preparar o download"); return; }
+    const link = document.createElement("a");
+    link.href = data.signedUrl;
+    link.download = doc.file_name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const imprimirDocumentoRelatorio = async (doc: any) => {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) { toast.error("Permita pop-ups para imprimir"); return; }
+    const { data, error } = await supabase.storage
+      .from("sale-documents")
+      .createSignedUrl(doc.storage_path, 300);
+    if (error || !data?.signedUrl) {
+      printWindow.close();
+      toast.error("Falha ao preparar a impressão");
+      return;
+    }
+    const image = /\.(jpe?g|png|gif|webp|bmp)$/i.test(doc.file_name);
+    const safeName = String(doc.file_name).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[char] ?? char);
+    printWindow.document.write(`<!doctype html><html><head><title>${safeName}</title><style>
+      html,body{margin:0;height:100%;font-family:sans-serif} img{display:block;max-width:100%;max-height:100vh;margin:auto;object-fit:contain}
+      iframe{width:100%;height:100vh;border:0}@media print{h1{display:none}}
+    </style></head><body><h1>${safeName}</h1>${image
+      ? `<img src="${data.signedUrl}" alt="${safeName}">`
+      : `<iframe src="${data.signedUrl}" title="${safeName}"></iframe>`}</body></html>`);
+    printWindow.document.close();
+    printWindow.onload = () => { printWindow.focus(); setTimeout(() => printWindow.print(), 400); };
+  };
+
   const openReopenDialog = () => { setReopenMotivo(""); setReopenOpen(true); };
   const reopen = async () => {
     if (!occ) return;
@@ -2889,10 +2927,18 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
             {docs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>}
             {docs.map((d) => (
               <div key={d.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-                <span>{d.file_name}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                  {d.status}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
+                <div className="ml-2 flex shrink-0 items-center gap-1">
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                    {d.status}
+                  </span>
+                  <Button size="icon" variant="ghost" aria-label={`Baixar ${d.file_name}`} title="Baixar" onClick={() => baixarDocumentoRelatorio(d)}>
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" aria-label={`Imprimir ${d.file_name}`} title="Imprimir" onClick={() => imprimirDocumentoRelatorio(d)}>
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
