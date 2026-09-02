@@ -21,7 +21,8 @@ import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { resumirVendas } from "@/lib/vendas-resumo";
+import { idsDeContratosAssinadosNoPeriodo, resumirVendas } from "@/lib/vendas-resumo";
+import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 import { periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
@@ -173,14 +174,14 @@ function SalesList() {
     return filters;
   }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = (query: any, filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }) => {
+  const applyFilters = (query: any, filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }, incluirPeriodo = true) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     if (filters.statuses) out = out.in("status", filters.statuses);
     // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
     // não pela data de criação — assim o filtro reflete o mesmo recorte que a pessoa já enxerga.
-    if (filters.desde) out = out.gte("updated_at", filters.desde);
-    if (filters.ate) out = out.lte("updated_at", filters.ate);
+    if (incluirPeriodo && filters.desde) out = out.gte("updated_at", filters.desde);
+    if (incluirPeriodo && filters.ate) out = out.lte("updated_at", filters.ate);
     if (filters.orParts) out = out.or(filters.orParts.join(","));
     if (filters.corretorIds) out = out.in("corretor_id", filters.corretorIds);
     return out;
@@ -202,12 +203,28 @@ function SalesList() {
       supabase.from("sales").select("status, modalidade, valor_negociado").limit(5000),
       filters,
     );
-    const [{ count }, { data: valores }] = await Promise.all([countQuery, sumQuery]);
+    const vendasComerciais = await fetchVendasComerciaisValidas();
+    const idsAssinadosNoPeriodo = idsDeContratosAssinadosNoPeriodo(vendasComerciais, filters);
+    const contratosQuery = idsAssinadosNoPeriodo.length
+      ? applyFilters(
+          supabase
+            .from("sales")
+            .select("status, modalidade, valor_negociado")
+            .in("id", idsAssinadosNoPeriodo)
+            .limit(5000),
+          filters,
+          false,
+        )
+      : Promise.resolve({ data: [], error: null });
+    const [{ count }, { data: valores }, { data: contratos, error: contratosError }] =
+      await Promise.all([countQuery, sumQuery, contratosQuery]);
+    if (contratosError) throw contratosError;
     const resumo = resumirVendas(valores ?? []);
+    const resumoContratos = resumirVendas(contratos ?? []);
     setTotalCount(count ?? 0);
     setTotalValor(resumo.valorTotal);
-    setContratosAssinadosCount(resumo.quantidadeComContratoAssinado);
-    setContratosAssinadosValor(resumo.valorComContratoAssinado);
+    setContratosAssinadosCount(resumoContratos.quantidadeComContratoAssinado);
+    setContratosAssinadosValor(resumoContratos.valorComContratoAssinado);
   }, [buildFilters]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
@@ -399,7 +416,7 @@ function SalesList() {
               {totalCount} {totalCount === 1 ? "venda encontrada" : "vendas encontradas"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
-              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda com contrato assinado" : "vendas com contrato assinado"}
+              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "contrato assinado no período" : "contratos assinados no período"}
               {` · R$ ${contratosAssinadosValor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em vendas assinadas`}
             </p>
           )}

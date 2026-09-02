@@ -12,6 +12,26 @@ export type VendaParaResumo = {
   valor_negociado?: number | string | null;
 };
 
+type PeriodoResumoContratos = {
+  desde?: string;
+  ate?: string;
+};
+
+export function idsDeContratosAssinadosNoPeriodo(
+  vendas: Array<{ sale_id: string; venda_em: string }>,
+  periodo: PeriodoResumoContratos,
+) {
+  const desde = periodo.desde ? new Date(periodo.desde).getTime() : null;
+  const ate = periodo.ate ? new Date(periodo.ate).getTime() : null;
+
+  return vendas
+    .filter((venda) => {
+      const assinatura = new Date(venda.venda_em).getTime();
+      return (desde === null || assinatura >= desde) && (ate === null || assinatura <= ate);
+    })
+    .map((venda) => venda.sale_id);
+}
+
 export function resumirVendas(vendas: VendaParaResumo[]) {
   return vendas.reduce(
     (resumo, venda) => {

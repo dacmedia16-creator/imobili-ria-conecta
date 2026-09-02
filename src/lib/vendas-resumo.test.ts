@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { resumirVendas } from "./vendas-resumo";
+import { idsDeContratosAssinadosNoPeriodo, resumirVendas } from "./vendas-resumo";
+
+describe("idsDeContratosAssinadosNoPeriodo", () => {
+  it("seleciona pela data real da assinatura, inclusive nos limites do período", () => {
+    expect(
+      idsDeContratosAssinadosNoPeriodo(
+        [
+          { sale_id: "julho", venda_em: "2026-07-31T23:59:59.999Z" },
+          { sale_id: "inicio", venda_em: "2026-08-01T00:00:00.000Z" },
+          { sale_id: "fim", venda_em: "2026-08-31T23:59:59.999Z" },
+          { sale_id: "setembro", venda_em: "2026-09-01T00:00:00.000Z" },
+        ],
+        { desde: "2026-08-01T00:00:00.000Z", ate: "2026-08-31T23:59:59.999Z" },
+      ),
+    ).toEqual(["inicio", "fim"]);
+  });
+
+  it("mantém todas as vendas comerciais quando não há período", () => {
+    expect(
+      idsDeContratosAssinadosNoPeriodo(
+        [
+          { sale_id: "a", venda_em: "2026-07-01T00:00:00.000Z" },
+          { sale_id: "b", venda_em: "2026-08-01T00:00:00.000Z" },
+        ],
+        {},
+      ),
+    ).toEqual(["a", "b"]);
+  });
+});
 
 describe("resumirVendas", () => {
   it("separa quantidade e VGV das vendas padrão que já têm contrato assinado", () => {
