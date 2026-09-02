@@ -76,31 +76,41 @@ export function gerarPontas(
       continue;
     }
 
-    const captacao = equipeDe(r.captador_id, teamIdByPessoa, teamNomeById);
-    pontas.push({
-      ...base,
-      tipo: "captacao",
-      pessoaId: r.captador_id,
-      pessoaNome: r.captador_nome ?? "Não vinculado",
-      teamId: captacao.teamId,
-      teamNome: captacao.teamNome,
-      qtd: 0.5,
-      vgv: round2(valorNegociado * 0.5),
-      comissao: round2(comissaoBruta * 0.5),
-    });
+    const ladosInternos = Number(!r.parceria_externa_captacao) + Number(!r.parceria_externa_venda);
+    const divisorMetricas = Math.max(ladosInternos, 1);
 
-    const venda = equipeDe(r.vendedor_id, teamIdByPessoa, teamNomeById);
-    pontas.push({
-      ...base,
-      tipo: "venda",
-      pessoaId: r.vendedor_id,
-      pessoaNome: r.vendedor_nome ?? "Não vinculado",
-      teamId: venda.teamId,
-      teamNome: venda.teamNome,
-      qtd: 0.5,
-      vgv: round2(valorNegociado * 0.5),
-      comissao: round2(comissaoBruta * 0.5),
-    });
+    // Uma parceria externa substitui deliberadamente a pessoa interna daquele lado. Ela não é
+    // "sem vínculo" e não pode gerar uma ponta fictícia no relatório. As métricas próprias da
+    // unidade (já sem a parceria) ficam distribuídas somente entre os lados internos restantes.
+    if (!r.parceria_externa_captacao) {
+      const captacao = equipeDe(r.captador_id, teamIdByPessoa, teamNomeById);
+      pontas.push({
+        ...base,
+        tipo: "captacao",
+        pessoaId: r.captador_id,
+        pessoaNome: r.captador_nome ?? "Não vinculado",
+        teamId: captacao.teamId,
+        teamNome: captacao.teamNome,
+        qtd: 0.5,
+        vgv: round2(valorNegociado / divisorMetricas),
+        comissao: round2(comissaoBruta / divisorMetricas),
+      });
+    }
+
+    if (!r.parceria_externa_venda) {
+      const venda = equipeDe(r.vendedor_id, teamIdByPessoa, teamNomeById);
+      pontas.push({
+        ...base,
+        tipo: "venda",
+        pessoaId: r.vendedor_id,
+        pessoaNome: r.vendedor_nome ?? "Não vinculado",
+        teamId: venda.teamId,
+        teamNome: venda.teamNome,
+        qtd: 0.5,
+        vgv: round2(valorNegociado / divisorMetricas),
+        comissao: round2(comissaoBruta / divisorMetricas),
+      });
+    }
   }
 
   return pontas;

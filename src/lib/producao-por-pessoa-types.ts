@@ -18,6 +18,8 @@ export type ProducaoRawRow = {
   valor_negociado: number;
   comissao_bruta: number;
   parceria_externa?: number;
+  parceria_externa_captacao?: boolean;
+  parceria_externa_venda?: boolean;
   captador_id: string | null;
   captador_nome: string | null;
   vendedor_id: string | null;

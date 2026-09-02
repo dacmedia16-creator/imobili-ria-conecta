@@ -129,6 +129,52 @@ const ROWS: ProducaoRawRow[] = [
 ];
 
 describe("parceria externa", () => {
+  it("não cria vendedor sem vínculo quando a ponta de venda é parceria externa", () => {
+    const pontas = gerarPontas(
+      [
+        {
+          ...ROWS[0],
+          sale_id: "parceria-venda",
+          valor_negociado: 400000,
+          comissao_bruta: 24000,
+          parceria_externa: 12000,
+          parceria_externa_venda: true,
+          vendedor_id: null,
+          vendedor_nome: null,
+        },
+      ],
+      new Map(),
+      new Map(),
+    );
+
+    expect(pontas).toHaveLength(1);
+    expect(pontas[0]).toMatchObject({ tipo: "captacao", qtd: 0.5, vgv: 200000, comissao: 12000 });
+    expect(pontas.some((p) => p.pessoaNome === "Não vinculado")).toBe(false);
+  });
+
+  it("não cria captador sem vínculo quando a ponta de captação é parceria externa", () => {
+    const pontas = gerarPontas(
+      [
+        {
+          ...ROWS[0],
+          sale_id: "parceria-captacao",
+          valor_negociado: 185000,
+          comissao_bruta: 11100,
+          parceria_externa: 5550,
+          parceria_externa_captacao: true,
+          captador_id: null,
+          captador_nome: null,
+        },
+      ],
+      new Map(),
+      new Map(),
+    );
+
+    expect(pontas).toHaveLength(1);
+    expect(pontas[0]).toMatchObject({ tipo: "venda", qtd: 0.5, vgv: 92500, comissao: 5550 });
+    expect(pontas.some((p) => p.pessoaNome === "Não vinculado")).toBe(false);
+  });
+
   it("rateia VGV e comissão antes de dividir a produção entre as pontas", () => {
     const [captacao, venda] = gerarPontas(
       [
