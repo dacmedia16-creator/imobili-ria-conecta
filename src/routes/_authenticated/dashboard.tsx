@@ -34,6 +34,7 @@ import {
   filtrosPadraoFinanceiro,
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle, type FinanceiroBundle } from "@/lib/financeiro-dashboard-query";
+import { intervaloResumoMensal } from "@/lib/dashboard-resumo-mensal";
 import {
   PERIODO_LABEL,
   resolverPeriodo,
@@ -68,6 +69,7 @@ import {
   Landmark,
   ChevronRight,
   ArrowRight,
+  ChevronLeft,
   CalendarDays,
   CircleDollarSign,
   PiggyBank,
@@ -652,26 +654,13 @@ function Dashboard() {
 const moeda = (valor: number) =>
   valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-function intervaloMesAtual() {
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth();
-  const ultimoDia = new Date(ano, mes + 1, 0).getDate();
-  const mm = String(mes + 1).padStart(2, "0");
-  return {
-    de: `${ano}-${mm}-01`,
-    ate: `${ano}-${mm}-${String(ultimoDia).padStart(2, "0")}`,
-    hoje: `${ano}-${mm}-${String(agora.getDate()).padStart(2, "0")}`,
-    label: agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
-  };
-}
-
 /** Resumo executivo: reaproveita exatamente o bundle, filtros e cálculo da Central Financeira.
  * Assim o Painel do Gestor não cria uma segunda regra para VGV ou previsão líquida. */
 function ResumoGestorMes() {
   const [bundle, setBundle] = useState<FinanceiroBundle | null>(null);
   const [erro, setErro] = useState(false);
-  const periodo = useMemo(intervaloMesAtual, []);
+  const [deslocamentoMes, setDeslocamentoMes] = useState<0 | -1>(0);
+  const periodo = useMemo(() => intervaloResumoMensal(deslocamentoMes), [deslocamentoMes]);
 
   useEffect(() => {
     let cancelado = false;
@@ -705,18 +694,37 @@ function ResumoGestorMes() {
       <div className="grid lg:grid-cols-[1.1fr_2fr]">
         <div className="border-b bg-slate-950 p-5 text-white lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/60">
-            <CalendarDays className="h-4 w-4" /> Este mês
+            <CalendarDays className="h-4 w-4" />
+            {deslocamentoMes === 0 ? "Este mês" : "Mês anterior"}
           </div>
-          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">{periodo.label}</h2>
+          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">
+            {periodo.label}
+          </h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
             O essencial da operação em uma leitura. Os detalhes continuam disponíveis no
             Financeiro.
           </p>
-          <Button asChild variant="secondary" size="sm" className="mt-5">
-            <Link to="/financeiro">
-              Abrir financeiro <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              onClick={() => setDeslocamentoMes((atual) => (atual === 0 ? -1 : 0))}
+            >
+              {deslocamentoMes === 0 ? (
+                <ChevronLeft className="mr-1 h-4 w-4" />
+              ) : (
+                <CalendarDays className="mr-1 h-4 w-4" />
+              )}
+              {deslocamentoMes === 0 ? "Mês anterior" : "Mês atual"}
+            </Button>
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/financeiro">
+                Abrir financeiro <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
