@@ -285,8 +285,6 @@ function SalesList() {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     if (filters.statuses) out = out.in("status", filters.statuses);
-    // Filtra por "atualizado em" (mesma coluna exibida na tabela e usada pra ordenar a lista),
-    // não pela data de criação — assim o filtro reflete o mesmo recorte que a pessoa já enxerga.
     if (incluirPeriodo && filters.desde) out = out.gte("updated_at", filters.desde);
     if (incluirPeriodo && filters.ate) out = out.lte("updated_at", filters.ate);
     if (filters.orParts) out = out.or(filters.orParts.join(","));
@@ -294,15 +292,37 @@ function SalesList() {
     return out;
   };
 
+  const aplicarDataReal = async (rows: any[], filters: { desde?: string; ate?: string }) => {
+    if (!rows.length) return [];
+    const { data: occurrences } = await supabase
+      .from("occurrences")
+      .select("sale_id, data_assinatura")
+      .in("sale_id", rows.map((row) => row.id));
+    const assinaturaPorVenda = new Map(
+      (occurrences ?? []).map((occ) => [occ.sale_id, occ.data_assinatura]),
+    );
+    const desde = filters.desde?.slice(0, 10);
+    const ate = filters.ate?.slice(0, 10);
+    return rows
+      .map((row) => ({
+        ...row,
+        data_venda: assinaturaPorVenda.get(row.id) ?? row.created_at.slice(0, 10),
+      }))
+      .filter((row) => (!desde || row.data_venda >= desde) && (!ate || row.data_venda <= ate))
+      .sort((a, b) => b.data_venda.localeCompare(a.data_venda));
+  };
+
   const fetchPage = useCallback(
     async (from: number) => {
       const filters = await buildFilters();
       const query = applyFilters(
-        supabase.from("sales").select(SALE_COLUMNS).order("updated_at", { ascending: false }),
+        supabase.from("sales").select(SALE_COLUMNS).order("created_at", { ascending: false }),
         filters,
+        false,
       );
-      const { data } = await query.range(from, from + PAGE_SIZE - 1);
-      return data ?? [];
+      const { data } = await query.limit(5000);
+      const rows = await aplicarDataReal(data ?? [], filters);
+      return rows.slice(from, from + PAGE_SIZE);
     },
     [buildFilters],
   );
@@ -311,13 +331,10 @@ function SalesList() {
   // página carregada) — só a coluna valor_negociado, então a soma sai barata mesmo pra bases maiores.
   const fetchSummary = useCallback(async () => {
     const filters = await buildFilters();
-    const countQuery = applyFilters(
-      supabase.from("sales").select("id", { count: "exact", head: true }),
+    const salesQuery = applyFilters(
+      supabase.from("sales").select("id, valor_negociado, created_at").limit(5000),
       filters,
-    );
-    const sumQuery = applyFilters(
-      supabase.from("sales").select("valor_negociado").limit(5000),
-      filters,
+      false,
     );
     const resumoFinanceiroPromise =
       dataDe && dataAte
@@ -339,14 +356,14 @@ function SalesList() {
             }),
           )
         : Promise.resolve(null);
-    const [{ count }, { data: valores }, resumoFinanceiro] = await Promise.all([
-      countQuery,
-      sumQuery,
+    const [{ data: vendasResumo }, resumoFinanceiro] = await Promise.all([
+      salesQuery,
       resumoFinanceiroPromise,
     ]);
-    setTotalCount(count ?? 0);
+    const valores = await aplicarDataReal(vendasResumo ?? [], filters);
+    setTotalCount(valores.length);
     setTotalValor(
-      (valores ?? []).reduce(
+      valores.reduce(
         (sum: number, venda: any) => sum + (Number(venda.valor_negociado) || 0),
         0,
       ),
@@ -604,7 +621,7 @@ function SalesList() {
                   setDiasFilter(null);
                 }}
                 className="w-[9.5rem]"
-                aria-label="Atualizado de"
+                aria-label="Data da venda de"
               />
               <span className="text-sm text-muted-foreground">até</span>
               <Input
@@ -615,7 +632,7 @@ function SalesList() {
                   setDiasFilter(null);
                 }}
                 className="w-[9.5rem]"
-                aria-label="Atualizado até"
+                aria-label="Data da venda até"
               />
               {(dataDe || dataAte) && (
                 <Button
@@ -794,7 +811,7 @@ function SalesList() {
                             : "Valor pendente"}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(s.updated_at).toLocaleDateString("pt-BR")}
+                          {new Date(`${s.data_venda}T12:00:00`).toLocaleDateString("pt-BR")}
                         </span>
                       </div>
                     </div>
@@ -814,7 +831,7 @@ function SalesList() {
                       <TableHead>Status</TableHead>
                       <TableHead>Vez de agir</TableHead>
                       <TableHead>Nesta etapa</TableHead>
-                      <TableHead>Atualizado em</TableHead>
+                      <TableHead>Data da venda</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
@@ -863,7 +880,7 @@ function SalesList() {
                             <AgingBadge since={stageSince[s.id] ?? s.created_at} />
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {new Date(s.updated_at).toLocaleDateString("pt-BR")}
+                            {new Date(`${s.data_venda}T12:00:00`).toLocaleDateString("pt-BR")}
                           </TableCell>
                           <TableCell>
                             {canDelete && (
