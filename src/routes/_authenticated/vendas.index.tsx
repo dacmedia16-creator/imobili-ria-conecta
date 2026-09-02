@@ -21,6 +21,7 @@ import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
@@ -57,6 +58,12 @@ function SalesList() {
   const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
   const [equipeFilter, setEquipeFilter] = useState<string>("todas");
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
+
+  const aplicarPeriodo = (periodo: { de: string; ate: string }) => {
+    setDiasFilter(null);
+    setDataDe(periodo.de);
+    setDataAte(periodo.ate);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -359,17 +366,12 @@ function SalesList() {
               )}
             </div>
             <div className="flex gap-2">
-              {[30, 60, 90].map((dias) => (
-                <Button
-                  key={dias}
-                  type="button"
-                  variant={diasFilter === dias ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => { setDiasFilter((d) => (d === dias ? null : dias)); setDataDe(""); setDataAte(""); }}
-                >
-                  {dias} dias
-                </Button>
-              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => aplicarPeriodo(periodoMesAtual())}>
+                Mês atual
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => aplicarPeriodo(periodoMesAnterior())}>
+                Mês anterior
+              </Button>
             </div>
             {podeTerFila && (
               <Button
