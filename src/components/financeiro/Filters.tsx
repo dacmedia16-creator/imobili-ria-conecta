@@ -34,11 +34,11 @@ function mesAtualRange() {
   const ate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
   return { de, ate };
 }
-function ultimosNDiasRange(n: number) {
-  const ate = new Date().toISOString().slice(0, 10);
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return { de: d.toISOString().slice(0, 10), ate };
+function mesAnteriorRange() {
+  const hoje = new Date();
+  const de = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1).toISOString().slice(0, 10);
+  const ate = new Date(hoje.getFullYear(), hoje.getMonth(), 0).toISOString().slice(0, 10);
+  return { de, ate };
 }
 function anoAtualRange() {
   const hoje = new Date();
@@ -147,17 +147,9 @@ export function Filters({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => aplicarAtalho(ultimosNDiasRange(30))}
+              onClick={() => aplicarAtalho(mesAnteriorRange())}
             >
-              Últimos 30 dias
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => aplicarAtalho(ultimosNDiasRange(90))}
-            >
-              Últimos 90 dias
+              Mês anterior
             </Button>
             <Button
               type="button"
