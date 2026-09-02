@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { idsDeContratosAssinadosNoPeriodo, resumirVendas } from "./vendas-resumo";
+import {
+  idsDeContratosAssinadosNoPeriodo,
+  resolverResumoOpcional,
+  resumirVendas,
+} from "./vendas-resumo";
+
+describe("resolverResumoOpcional", () => {
+  it("preserva o resumo quando a consulta é permitida", async () => {
+    await expect(resolverResumoOpcional(Promise.resolve({ quantidade: 2 }))).resolves.toEqual({
+      quantidade: 2,
+    });
+  });
+
+  it("retorna vazio quando o perfil não pode consultar o resumo financeiro", async () => {
+    await expect(
+      resolverResumoOpcional(Promise.reject(new Error("Acesso restrito ao financeiro"))),
+    ).resolves.toBeNull();
+  });
+});
 
 describe("idsDeContratosAssinadosNoPeriodo", () => {
   it("seleciona pela data real da assinatura, inclusive nos limites do período", () => {

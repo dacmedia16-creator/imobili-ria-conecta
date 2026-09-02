@@ -4,24 +4,60 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
 import {
-  STATUS_LABEL, VEZ_DE_AGIR_LABEL, proximoResponsavelRoles, statusDaVezDeAgir,
-  vezDeAgir, type SaleStatus, type VezDeAgir,
+  STATUS_LABEL,
+  VEZ_DE_AGIR_LABEL,
+  proximoResponsavelRoles,
+  statusDaVezDeAgir,
+  vezDeAgir,
+  type SaleStatus,
+  type VezDeAgir,
 } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { ArrowRight, Building2, House, Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  House,
+  Plus,
+  Trash2,
+  SlidersHorizontal,
+  ChevronDown,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { periodoInicialVendas, periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
@@ -31,6 +67,7 @@ import {
   filtrosPadraoFinanceiro,
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
+import { resolverResumoOpcional } from "@/lib/vendas-resumo";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
@@ -39,7 +76,8 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 });
 
 const PAGE_SIZE = 30;
-const SALE_COLUMNS = "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id";
+const SALE_COLUMNS =
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id";
 
 function SalesList() {
   const { user, roles, hasAny } = useAuth();
@@ -99,22 +137,40 @@ function SalesList() {
         supabase.from("team_members").select("membro_id, team_id"),
         supabase.from("team_co_leaders").select("user_id, team_id"),
       ]);
-      const byId: Record<string, { nome: string; parent_team_id: string | null; lider_id: string | null }> = {};
-      (teams ?? []).forEach((t: any) => { byId[t.id] = t; });
+      const byId: Record<
+        string,
+        { nome: string; parent_team_id: string | null; lider_id: string | null }
+      > = {};
+      (teams ?? []).forEach((t: any) => {
+        byId[t.id] = t;
+      });
       const byTeam: Record<string, string[]> = {};
       // Líder e líder(es) auxiliar(es) também entram no filtro por equipe, não só quem está em
       // team_members — sem isso, uma venda cujo dono é o próprio líder (ex: papel Lançamento
       // acumulado com Gestor, que sobe a venda em nome próprio, não como membro de ninguém) sumia
       // do filtro por não estar em team_members.
-      (teams ?? []).forEach((t: any) => { if (t.lider_id) (byTeam[t.id] ??= []).push(t.lider_id); });
-      (coLeaders ?? []).forEach((c: any) => { (byTeam[c.team_id] ??= []).push(c.user_id); });
-      (members ?? []).forEach((m: any) => { (byTeam[m.team_id] ??= []).push(m.membro_id); });
-      const topTeams = [...(teams ?? [])].filter((t: any) => !t.parent_team_id).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+      (teams ?? []).forEach((t: any) => {
+        if (t.lider_id) (byTeam[t.id] ??= []).push(t.lider_id);
+      });
+      (coLeaders ?? []).forEach((c: any) => {
+        (byTeam[c.team_id] ??= []).push(c.user_id);
+      });
+      (members ?? []).forEach((m: any) => {
+        (byTeam[m.team_id] ??= []).push(m.membro_id);
+      });
+      const topTeams = [...(teams ?? [])]
+        .filter((t: any) => !t.parent_team_id)
+        .sort((a: any, b: any) => a.nome.localeCompare(b.nome));
       const options: { id: string; label: string }[] = [];
       for (const top of topTeams) {
-        const subs = (teams ?? []).filter((t: any) => t.parent_team_id === top.id).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+        const subs = (teams ?? [])
+          .filter((t: any) => t.parent_team_id === top.id)
+          .sort((a: any, b: any) => a.nome.localeCompare(b.nome));
         for (const t of [top, ...subs]) {
-          options.push({ id: t.id, label: t.parent_team_id ? `${byId[t.parent_team_id]?.nome ?? ""} → ${t.nome}` : t.nome });
+          options.push({
+            id: t.id,
+            label: t.parent_team_id ? `${byId[t.parent_team_id]?.nome ?? ""} → ${t.nome}` : t.nome,
+          });
         }
       }
       setTeamOptions(options);
@@ -125,9 +181,15 @@ function SalesList() {
       // cada corretor é na coluna "Gestor/Líder", já que quem vê vendas de várias equipes ao mesmo
       // tempo (jurídico/financeiro/admin) não tem como saber isso de cabeça.
       const teamIdByCorretor: Record<string, string> = {};
-      (members ?? []).forEach((m: any) => { if (!teamIdByCorretor[m.membro_id]) teamIdByCorretor[m.membro_id] = m.team_id; });
-      (teams ?? []).forEach((t: any) => { if (t.lider_id && !teamIdByCorretor[t.lider_id]) teamIdByCorretor[t.lider_id] = t.id; });
-      (coLeaders ?? []).forEach((c: any) => { if (!teamIdByCorretor[c.user_id]) teamIdByCorretor[c.user_id] = c.team_id; });
+      (members ?? []).forEach((m: any) => {
+        if (!teamIdByCorretor[m.membro_id]) teamIdByCorretor[m.membro_id] = m.team_id;
+      });
+      (teams ?? []).forEach((t: any) => {
+        if (t.lider_id && !teamIdByCorretor[t.lider_id]) teamIdByCorretor[t.lider_id] = t.id;
+      });
+      (coLeaders ?? []).forEach((c: any) => {
+        if (!teamIdByCorretor[c.user_id]) teamIdByCorretor[c.user_id] = c.team_id;
+      });
       const liderByCorretor: Record<string, string> = {};
       for (const [corretorId, teamId] of Object.entries(teamIdByCorretor)) {
         const liderId = byId[teamId]?.lider_id;
@@ -151,13 +213,31 @@ function SalesList() {
   // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
   // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
   // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{ status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }> => {
-    const filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] } = {};
+  const buildFilters = useCallback(async (): Promise<{
+    status?: string;
+    statuses?: SaleStatus[];
+    orParts?: string[];
+    desde?: string;
+    ate?: string;
+    corretorIds?: string[];
+  }> => {
+    const filters: {
+      status?: string;
+      statuses?: SaleStatus[];
+      orParts?: string[];
+      desde?: string;
+      ate?: string;
+      corretorIds?: string[];
+    } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
-    if (statusFilter === "todas" && vezFilter !== "todas") filters.statuses = statusDaVezDeAgir(vezFilter as VezDeAgir);
+    if (statusFilter === "todas" && vezFilter !== "todas")
+      filters.statuses = statusDaVezDeAgir(vezFilter as VezDeAgir);
     // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
     // uuid que nunca bate em vez de deixar o .in() vazio, que o PostgREST trataria como "sem filtro".
-    if (equipeFilter !== "todas") filters.corretorIds = memberIdsByTeam[equipeFilter]?.length ? memberIdsByTeam[equipeFilter] : ["00000000-0000-0000-0000-000000000000"];
+    if (equipeFilter !== "todas")
+      filters.corretorIds = memberIdsByTeam[equipeFilter]?.length
+        ? memberIdsByTeam[equipeFilter]
+        : ["00000000-0000-0000-0000-000000000000"];
     // Chip de dias e período customizado (De/Até) são mutualmente exclusivos — os handlers do
     // chip e dos inputs de data já zeram um ao escolher o outro, então só um dos dois se aplica aqui.
     if (diasFilter) {
@@ -173,7 +253,10 @@ function SalesList() {
     // não quebrar a query. O ilike em si (comparação por método, não string crua) não precisa disso.
     const qSafe = q.replace(/[,()]/g, "").trim();
     if (qSafe) {
-      const { data: matchingParties } = await supabase.from("sale_parties").select("sale_id").ilike("nome", `%${qSafe}%`);
+      const { data: matchingParties } = await supabase
+        .from("sale_parties")
+        .select("sale_id")
+        .ilike("nome", `%${qSafe}%`);
       const partySaleIds = Array.from(new Set((matchingParties ?? []).map((p: any) => p.sale_id)));
       const orParts = [
         `imovel_id.ilike.%${qSafe}%`,
@@ -187,7 +270,18 @@ function SalesList() {
     return filters;
   }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = (query: any, filters: { status?: string; statuses?: SaleStatus[]; orParts?: string[]; desde?: string; ate?: string; corretorIds?: string[] }, incluirPeriodo = true) => {
+  const applyFilters = (
+    query: any,
+    filters: {
+      status?: string;
+      statuses?: SaleStatus[];
+      orParts?: string[];
+      desde?: string;
+      ate?: string;
+      corretorIds?: string[];
+    },
+    incluirPeriodo = true,
+  ) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     if (filters.statuses) out = out.in("status", filters.statuses);
@@ -200,43 +294,63 @@ function SalesList() {
     return out;
   };
 
-  const fetchPage = useCallback(async (from: number) => {
-    const filters = await buildFilters();
-    const query = applyFilters(supabase.from("sales").select(SALE_COLUMNS).order("updated_at", { ascending: false }), filters);
-    const { data } = await query.range(from, from + PAGE_SIZE - 1);
-    return data ?? [];
-  }, [buildFilters]);
+  const fetchPage = useCallback(
+    async (from: number) => {
+      const filters = await buildFilters();
+      const query = applyFilters(
+        supabase.from("sales").select(SALE_COLUMNS).order("updated_at", { ascending: false }),
+        filters,
+      );
+      const { data } = await query.range(from, from + PAGE_SIZE - 1);
+      return data ?? [];
+    },
+    [buildFilters],
+  );
 
   // Contador + soma do valor negociado de TODAS as vendas que batem no filtro atual (não só a
   // página carregada) — só a coluna valor_negociado, então a soma sai barata mesmo pra bases maiores.
   const fetchSummary = useCallback(async () => {
     const filters = await buildFilters();
-    const countQuery = applyFilters(supabase.from("sales").select("id", { count: "exact", head: true }), filters);
-    const sumQuery = applyFilters(supabase.from("sales").select("valor_negociado").limit(5000), filters);
-    const resumoFinanceiroPromise = dataDe && dataAte
-      ? fetchFinanceiroBundle().then((bundle) => {
-          const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
-            ...filtrosPadraoFinanceiro(),
-            dataDe,
-            dataAte,
-          });
-          const resumo = calcularResumo({
-            parcelas: [],
-            comissoes: [],
-            efetivadas,
-            divergenciasAbertas: bundle.divergencias.length,
-            hoje: dataAte,
-          });
-          return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
-        })
-      : Promise.resolve(null);
+    const countQuery = applyFilters(
+      supabase.from("sales").select("id", { count: "exact", head: true }),
+      filters,
+    );
+    const sumQuery = applyFilters(
+      supabase.from("sales").select("valor_negociado").limit(5000),
+      filters,
+    );
+    const resumoFinanceiroPromise =
+      dataDe && dataAte
+        ? resolverResumoOpcional(
+            fetchFinanceiroBundle().then((bundle) => {
+              const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
+                ...filtrosPadraoFinanceiro(),
+                dataDe,
+                dataAte,
+              });
+              const resumo = calcularResumo({
+                parcelas: [],
+                comissoes: [],
+                efetivadas,
+                divergenciasAbertas: bundle.divergencias.length,
+                hoje: dataAte,
+              });
+              return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
+            }),
+          )
+        : Promise.resolve(null);
     const [{ count }, { data: valores }, resumoFinanceiro] = await Promise.all([
       countQuery,
       sumQuery,
       resumoFinanceiroPromise,
     ]);
     setTotalCount(count ?? 0);
-    setTotalValor((valores ?? []).reduce((sum: number, venda: any) => sum + (Number(venda.valor_negociado) || 0), 0));
+    setTotalValor(
+      (valores ?? []).reduce(
+        (sum: number, venda: any) => sum + (Number(venda.valor_negociado) || 0),
+        0,
+      ),
+    );
     setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
     setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
   }, [buildFilters, dataDe, dataAte]);
@@ -276,7 +390,9 @@ function SalesList() {
     setLoading(false);
   }, [fetchPage, fetchSummary]);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useEffect(() => {
+    load();
+  }, [load, refreshKey]);
 
   const loadMore = async () => {
     const myRequestId = ++requestIdRef.current;
@@ -296,7 +412,9 @@ function SalesList() {
     try {
       const { orphanedFiles } = await deleteSaleCascade(toDelete.id);
       if (orphanedFiles.length > 0) {
-        toast.warning(`Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`);
+        toast.warning(
+          `Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`,
+        );
       } else {
         toast.success("Venda excluída");
       }
@@ -313,30 +431,48 @@ function SalesList() {
   // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila operacional
   // de verdade, não pra quem só está supervisionando o sistema.
   const isOverseer = hasAny(["admin", "super_admin"]);
-  const podeTerFila = !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
-  const saleIsMinhaVez = useCallback((s: any) => {
-    if (isOverseer) return false;
-    return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
-      papel === "corretor" ? s.corretor_id === user?.id
-      // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — sem esse filtro,
-      // quem também é jurídico/financeiro (e por isso enxerga vendas de times que não lidera) via
-      // o badge acender pra toda venda parada numa etapa do gestor, mesmo fora da própria equipe.
-      : papel === "gestor" ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
-      : hasAny([papel])
-    );
-  }, [isOverseer, user?.id, hasAny, teamIds]);
+  const podeTerFila =
+    !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
+  const saleIsMinhaVez = useCallback(
+    (s: any) => {
+      if (isOverseer) return false;
+      return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
+        papel === "corretor"
+          ? s.corretor_id === user?.id
+          : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — sem esse filtro,
+            // quem também é jurídico/financeiro (e por isso enxerga vendas de times que não lidera) via
+            // o badge acender pra toda venda parada numa etapa do gestor, mesmo fora da própria equipe.
+            papel === "gestor"
+            ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
+            : hasAny([papel]),
+      );
+    },
+    [isOverseer, user?.id, hasAny, teamIds],
+  );
   const displayedSales = soMinhaVez ? sales.filter(saleIsMinhaVez) : sales;
   const registrarAction = registrarVendaAction(roles);
 
-  const registrarVendaButton = registrarAction === "venda_padrao" ? (
-    <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Registrar venda</Link></Button>
-  ) : registrarAction === "lancamento" ? (
-    <Button asChild><Link to="/vendas/lancamento/nova"><Plus className="mr-2 h-4 w-4" />Registrar venda</Link></Button>
-  ) : registrarAction === "escolher" ? (
-    <Button type="button" onClick={() => setTipoVendaOpen(true)}>
-      <Plus className="mr-2 h-4 w-4" />Registrar venda
-    </Button>
-  ) : null;
+  const registrarVendaButton =
+    registrarAction === "venda_padrao" ? (
+      <Button asChild>
+        <Link to="/vendas/nova">
+          <Plus className="mr-2 h-4 w-4" />
+          Registrar venda
+        </Link>
+      </Button>
+    ) : registrarAction === "lancamento" ? (
+      <Button asChild>
+        <Link to="/vendas/lancamento/nova">
+          <Plus className="mr-2 h-4 w-4" />
+          Registrar venda
+        </Link>
+      </Button>
+    ) : registrarAction === "escolher" ? (
+      <Button type="button" onClick={() => setTipoVendaOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" />
+        Registrar venda
+      </Button>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -350,7 +486,8 @@ function SalesList() {
           <DialogHeader>
             <DialogTitle>Qual tipo de venda você quer registrar?</DialogTitle>
             <DialogDescription>
-              Escolha o fluxo correto antes de criar o rascunho. O tipo não poderá ser alterado depois.
+              Escolha o fluxo correto antes de criar o rascunho. O tipo não poderá ser alterado
+              depois.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -360,11 +497,15 @@ function SalesList() {
               className="group rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="mb-3 flex items-center justify-between">
-                <span className="rounded-md bg-primary/10 p-2 text-primary"><House className="h-5 w-5" /></span>
+                <span className="rounded-md bg-primary/10 p-2 text-primary">
+                  <House className="h-5 w-5" />
+                </span>
                 <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
               </div>
               <p className="font-semibold">Venda padrão</p>
-              <p className="mt-1 text-sm text-muted-foreground">Fluxo completo, com documentos e Jurídico.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fluxo completo, com documentos e Jurídico.
+              </p>
             </Link>
             <Link
               to="/vendas/lancamento/nova"
@@ -372,11 +513,15 @@ function SalesList() {
               className="group rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="mb-3 flex items-center justify-between">
-                <span className="rounded-md bg-primary/10 p-2 text-primary"><Building2 className="h-5 w-5" /></span>
+                <span className="rounded-md bg-primary/10 p-2 text-primary">
+                  <Building2 className="h-5 w-5" />
+                </span>
                 <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
               </div>
               <p className="font-semibold">Lançamento</p>
-              <p className="mt-1 text-sm text-muted-foreground">Fluxo simplificado para venda com construtora.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fluxo simplificado para venda com construtora.
+              </p>
             </Link>
           </div>
         </DialogContent>
@@ -385,7 +530,12 @@ function SalesList() {
       <Card>
         <CardHeader className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <Input placeholder="Buscar por código, imóvel ou pessoa envolvida" value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 md:max-w-sm" />
+            <Input
+              placeholder="Buscar por código, imóvel ou pessoa envolvida"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="flex-1 md:max-w-sm"
+            />
             <Button
               type="button"
               variant="outline"
@@ -395,38 +545,64 @@ function SalesList() {
             >
               <SlidersHorizontal className="mr-1 h-4 w-4" />
               Filtros
-              <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              />
             </Button>
           </div>
-          <div className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}>
+          <div
+            className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}
+          >
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="md:w-64"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="md:w-64">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todos os status</SelectItem>
-                {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={vezFilter} onValueChange={setVezFilter}>
-              <SelectTrigger className="md:w-56"><SelectValue placeholder="Aguardando ação de" /></SelectTrigger>
+              <SelectTrigger className="md:w-56">
+                <SelectValue placeholder="Aguardando ação de" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Aguardando ação de...</SelectItem>
-                {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+                {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && teamOptions.length > 0 && (
-              <Select value={equipeFilter} onValueChange={setEquipeFilter}>
-                <SelectTrigger className="md:w-56"><SelectValue placeholder="Equipe" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as equipes</SelectItem>
-                  {teamOptions.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
+            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
+              teamOptions.length > 0 && (
+                <Select value={equipeFilter} onValueChange={setEquipeFilter}>
+                  <SelectTrigger className="md:w-56">
+                    <SelectValue placeholder="Equipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as equipes</SelectItem>
+                    {teamOptions.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"
                 value={dataDe}
-                onChange={(e) => { setDataDe(e.target.value); setDiasFilter(null); }}
+                onChange={(e) => {
+                  setDataDe(e.target.value);
+                  setDiasFilter(null);
+                }}
                 className="w-[9.5rem]"
                 aria-label="Atualizado de"
               />
@@ -434,21 +610,42 @@ function SalesList() {
               <Input
                 type="date"
                 value={dataAte}
-                onChange={(e) => { setDataAte(e.target.value); setDiasFilter(null); }}
+                onChange={(e) => {
+                  setDataAte(e.target.value);
+                  setDiasFilter(null);
+                }}
                 className="w-[9.5rem]"
                 aria-label="Atualizado até"
               />
               {(dataDe || dataAte) && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setDataDe(""); setDataAte(""); }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDataDe("");
+                    setDataAte("");
+                  }}
+                >
                   Limpar
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant={mesAtualSelecionado ? "default" : "outline"} size="sm" onClick={() => aplicarPeriodo(periodoAtual)}>
+              <Button
+                type="button"
+                variant={mesAtualSelecionado ? "default" : "outline"}
+                size="sm"
+                onClick={() => aplicarPeriodo(periodoAtual)}
+              >
                 Mês atual
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => aplicarPeriodo(periodoMesAnterior())}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => aplicarPeriodo(periodoMesAnterior())}
+              >
                 Mês anterior
               </Button>
             </div>
@@ -466,36 +663,74 @@ function SalesList() {
           </div>
           {!loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
-              {totalCount} {totalCount === 1 ? "venda atualizada no período" : "vendas atualizadas no período"}
+              {totalCount}{" "}
+              {totalCount === 1 ? "venda atualizada no período" : "vendas atualizadas no período"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
-              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda efetivada no período" : "vendas efetivadas no período"}
+              {contratosAssinadosCount}{" "}
+              {contratosAssinadosCount === 1
+                ? "venda efetivada no período"
+                : "vendas efetivadas no período"}
               {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX`}
             </p>
           )}
         </CardHeader>
         <CardContent>
-          {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
+          {loading && (
+            <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
+          )}
           {!loading && sales.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              {hasAny(["corretor"]) && !hasAny(["gestor","team_leader","juridico","financeiro","admin","super_admin"]) && (
-                <>Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.</>
+              {hasAny(["corretor"]) &&
+                !hasAny([
+                  "gestor",
+                  "team_leader",
+                  "juridico",
+                  "financeiro",
+                  "admin",
+                  "super_admin",
+                ]) && (
+                  <>
+                    Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.
+                  </>
+                )}
+              {hasAny(["lancamento"]) &&
+                !hasAny([
+                  "corretor",
+                  "gestor",
+                  "team_leader",
+                  "juridico",
+                  "financeiro",
+                  "admin",
+                  "super_admin",
+                ]) && (
+                  <>
+                    Você ainda não criou nenhum lançamento. Clique em <b>Novo Lançamento</b> para
+                    começar.
+                  </>
+                )}
+              {hasAny(["gestor", "team_leader"]) &&
+                !hasAny(["financeiro", "admin", "super_admin"]) && (
+                  <>
+                    Nenhuma venda visível. Peça ao administrador para vincular corretores à sua
+                    equipe.
+                  </>
+                )}
+              {hasAny(["juridico"]) && !hasAny(["financeiro", "admin", "super_admin"]) && (
+                <>
+                  Nenhuma venda aprovada pelo gestor ainda. Você só enxerga vendas a partir dessa
+                  etapa.
+                </>
               )}
-              {hasAny(["lancamento"]) && !hasAny(["corretor","gestor","team_leader","juridico","financeiro","admin","super_admin"]) && (
-                <>Você ainda não criou nenhum lançamento. Clique em <b>Novo Lançamento</b> para começar.</>
+              {hasAny(["financeiro", "admin", "super_admin"]) && (
+                <>Nenhuma venda encontrada com o filtro atual.</>
               )}
-              {hasAny(["gestor","team_leader"]) && !hasAny(["financeiro","admin","super_admin"]) && (
-                <>Nenhuma venda visível. Peça ao administrador para vincular corretores à sua equipe.</>
-              )}
-              {hasAny(["juridico"]) && !hasAny(["financeiro","admin","super_admin"]) && (
-                <>Nenhuma venda aprovada pelo gestor ainda. Você só enxerga vendas a partir dessa etapa.</>
-              )}
-              {hasAny(["financeiro","admin","super_admin"]) && (<>Nenhuma venda encontrada com o filtro atual.</>)}
             </div>
           )}
           {!loading && sales.length > 0 && displayedSales.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma venda esperando sua ação na página carregada. {hasMore && "Carregue mais vendas ou desative o filtro pra ver o restante."}
+              Nenhuma venda esperando sua ação na página carregada.{" "}
+              {hasMore && "Carregue mais vendas ou desative o filtro pra ver o restante."}
             </p>
           )}
           {!loading && displayedSales.length > 0 && (
@@ -515,12 +750,15 @@ function SalesList() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</div>
+                          <div className="truncate font-medium">
+                            {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
+                          </div>
                           <div className="truncate text-sm text-muted-foreground">
                             {profileName[s.corretor_id] ?? "—"}
-                            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && liderIdByCorretor[s.corretor_id] && (
-                              <> · {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</>
-                            )}
+                            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
+                              liderIdByCorretor[s.corretor_id] && (
+                                <> · {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</>
+                              )}
                           </div>
                         </div>
                         {canDelete && (
@@ -528,7 +766,11 @@ function SalesList() {
                             variant="ghost"
                             size="icon"
                             className="-mr-2 -mt-1 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setToDelete(s);
+                            }}
                             aria-label="Excluir venda"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -547,9 +789,13 @@ function SalesList() {
                       </div>
                       <div className="mt-2 flex items-center justify-between text-sm">
                         <span className="font-medium">
-                          {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Valor pendente"}
+                          {s.valor_negociado
+                            ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
+                            : "Valor pendente"}
                         </span>
-                        <span className="text-xs text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(s.updated_at).toLocaleDateString("pt-BR")}
+                        </span>
                       </div>
                     </div>
                   );
@@ -561,7 +807,9 @@ function SalesList() {
                     <TableRow>
                       <TableHead>Imóvel / código</TableHead>
                       <TableHead>Corretor</TableHead>
-                      {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && <TableHead>Gestor/Líder</TableHead>}
+                      {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
+                        <TableHead>Gestor/Líder</TableHead>
+                      )}
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Vez de agir</TableHead>
@@ -575,14 +823,28 @@ function SalesList() {
                       const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
                       const minhaVez = saleIsMinhaVez(s);
                       return (
-                        <TableRow key={s.id} className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`} onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}>
-                          <TableCell className="font-medium">{s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}</TableCell>
-                          <TableCell className="text-muted-foreground">{profileName[s.corretor_id] ?? "—"}</TableCell>
+                        <TableRow
+                          key={s.id}
+                          className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+                          onClick={() =>
+                            router.navigate({ to: "/vendas/$id", params: { id: s.id } })
+                          }
+                        >
+                          <TableCell className="font-medium">
+                            {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {profileName[s.corretor_id] ?? "—"}
+                          </TableCell>
                           {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
-                            <TableCell className="text-muted-foreground">{profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}
+                            </TableCell>
                           )}
                           <TableCell className="text-muted-foreground">
-                            {s.valor_negociado ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}` : "Pendente"}
+                            {s.valor_negociado
+                              ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
+                              : "Pendente"}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -594,16 +856,26 @@ function SalesList() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell><VezDeAgirBadge status={s.status as SaleStatus} /></TableCell>
-                          <TableCell><AgingBadge since={stageSince[s.id] ?? s.created_at} /></TableCell>
-                          <TableCell className="text-muted-foreground">{new Date(s.updated_at).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell>
+                            <VezDeAgirBadge status={s.status as SaleStatus} />
+                          </TableCell>
+                          <TableCell>
+                            <AgingBadge since={stageSince[s.id] ?? s.created_at} />
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {new Date(s.updated_at).toLocaleDateString("pt-BR")}
+                          </TableCell>
                           <TableCell>
                             {canDelete && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setToDelete(s); }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setToDelete(s);
+                                }}
                                 aria-label="Excluir venda"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -635,8 +907,14 @@ function SalesList() {
             <AlertDialogDescription>
               {toDelete && (
                 <>
-                  <b>{toDelete.imovel_id || toDelete.codigo_interno || `Venda #${toDelete.id.slice(0, 8)}`}</b>
-                  {" "}será excluída permanentemente. Todos os documentos, partes, pagamentos, comentários e ocorrências relacionados serão removidos. Essa ação não pode ser desfeita.
+                  <b>
+                    {toDelete.imovel_id ||
+                      toDelete.codigo_interno ||
+                      `Venda #${toDelete.id.slice(0, 8)}`}
+                  </b>{" "}
+                  será excluída permanentemente. Todos os documentos, partes, pagamentos,
+                  comentários e ocorrências relacionados serão removidos. Essa ação não pode ser
+                  desfeita.
                 </>
               )}
             </AlertDialogDescription>
@@ -668,7 +946,9 @@ const VEZ_DE_AGIR_TONE: Record<VezDeAgir, string> = {
 function VezDeAgirBadge({ status }: { status: SaleStatus }) {
   const responsavel = vezDeAgir(status);
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VEZ_DE_AGIR_TONE[responsavel]}`}>
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VEZ_DE_AGIR_TONE[responsavel]}`}
+    >
       {VEZ_DE_AGIR_LABEL[responsavel]}
     </span>
   );

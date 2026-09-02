@@ -12,6 +12,14 @@ export type VendaParaResumo = {
   valor_negociado?: number | string | null;
 };
 
+export async function resolverResumoOpcional<T>(consulta: Promise<T>): Promise<T | null> {
+  try {
+    return await consulta;
+  } catch {
+    return null;
+  }
+}
+
 type PeriodoResumoContratos = {
   desde?: string;
   ate?: string;
