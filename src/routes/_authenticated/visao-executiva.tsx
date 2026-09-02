@@ -257,56 +257,70 @@ function VisaoExecutiva() {
         setLoading(false);
         return;
       }
-      const [contextoRes, profRes, metasRes, carteiraRes, operacaoRes, rankingRes] =
-        await Promise.all([
-          supabase.rpc(
-            (podeAlternarVisao
-              ? usaConsolidadoEmpresa
-                ? "desempenho_empresa_contexto_periodo"
-                : "desempenho_equipe_contexto_periodo"
-              : "desempenho_contexto_periodo") as never,
-            { _de: periodo.de, _ate: periodo.ate } as never,
-          ),
-          supabase.from("profiles").select("id, nome"),
-          supabase.rpc(
-            (podeAlternarVisao
-              ? usaConsolidadoEmpresa
-                ? "desempenho_empresa_metas_periodo"
-                : "desempenho_equipe_metas_periodo"
-              : "metas_progresso_periodo") as never,
-            { _de: periodo.de, _ate: periodo.ate } as never,
-          ),
-          supabase.rpc(
-            (podeAlternarVisao
-              ? usaConsolidadoEmpresa
-                ? "desempenho_empresa_carteira_periodo"
-                : "desempenho_equipe_carteira_periodo"
-              : "comissoes_carteira_periodo") as never,
-            { _de: periodo.de, _ate: periodo.ate } as never,
-          ),
-          supabase.rpc(
-            (podeAlternarVisao
-              ? usaConsolidadoEmpresa
-                ? "desempenho_empresa_resumo_periodo"
-                : "desempenho_equipe_resumo_periodo"
-              : "resumo_desempenho_periodo") as never,
-            {
-              _de: periodo.de,
-              _ate: periodo.ate,
-            } as never,
-          ),
-          supabase.rpc(
-            (podeAlternarVisao
-              ? usaConsolidadoEmpresa
-                ? "desempenho_empresa_ranking_periodo"
-                : "desempenho_equipe_ranking_periodo"
-              : "desempenho_ranking_periodo") as never,
-            {
-              _de: periodo.de,
-              _ate: periodo.ate,
-            } as never,
-          ),
-        ]);
+      const [
+        contextoRes,
+        profRes,
+        metasRes,
+        carteiraRes,
+        operacaoRes,
+        rankingRes,
+        rankingPessoalRes,
+      ] = await Promise.all([
+        supabase.rpc(
+          (podeAlternarVisao
+            ? usaConsolidadoEmpresa
+              ? "desempenho_empresa_contexto_periodo"
+              : "desempenho_equipe_contexto_periodo"
+            : "desempenho_contexto_periodo") as never,
+          { _de: periodo.de, _ate: periodo.ate } as never,
+        ),
+        supabase.from("profiles").select("id, nome"),
+        supabase.rpc(
+          (podeAlternarVisao
+            ? usaConsolidadoEmpresa
+              ? "desempenho_empresa_metas_periodo"
+              : "desempenho_equipe_metas_periodo"
+            : "metas_progresso_periodo") as never,
+          { _de: periodo.de, _ate: periodo.ate } as never,
+        ),
+        supabase.rpc(
+          (podeAlternarVisao
+            ? usaConsolidadoEmpresa
+              ? "desempenho_empresa_carteira_periodo"
+              : "desempenho_equipe_carteira_periodo"
+            : "comissoes_carteira_periodo") as never,
+          { _de: periodo.de, _ate: periodo.ate } as never,
+        ),
+        supabase.rpc(
+          (podeAlternarVisao
+            ? usaConsolidadoEmpresa
+              ? "desempenho_empresa_resumo_periodo"
+              : "desempenho_equipe_resumo_periodo"
+            : "resumo_desempenho_periodo") as never,
+          {
+            _de: periodo.de,
+            _ate: periodo.ate,
+          } as never,
+        ),
+        supabase.rpc(
+          (podeAlternarVisao
+            ? usaConsolidadoEmpresa
+              ? "desempenho_empresa_ranking_periodo"
+              : "desempenho_equipe_ranking_periodo"
+            : "desempenho_ranking_periodo") as never,
+          {
+            _de: periodo.de,
+            _ate: periodo.ate,
+          } as never,
+        ),
+        supabase.rpc(
+          "desempenho_ranking_corretor_proprio_periodo" as never,
+          {
+            _de: periodo.de,
+            _ate: periodo.ate,
+          } as never,
+        ),
+      ]);
       const resumoCorreto = operacaoRes.data as unknown as ResumoDesempenho | null;
       const rankingPeriodo = rankingRes.data as unknown as RankingPeriodo | null;
       const contexto = contextoRes.data as unknown as ContextoPeriodo | null;
@@ -320,7 +334,10 @@ function VisaoExecutiva() {
                 contrato_parado: { n: 0 },
                 retrabalho: { n: 0 },
               },
-              ranking_corretor: rankingPeriodo.ranking_corretor,
+              ranking_corretor: usaConsolidadoEmpresa
+                ? rankingPeriodo.ranking_corretor
+                : ((rankingPessoalRes.data ??
+                    []) as unknown as VisaoExecutivaStats["ranking_corretor"]),
               ranking_equipe: rankingPeriodo.ranking_equipe,
               resumo_operacional: {
                 vgv: 0,
@@ -931,7 +948,18 @@ function DetalheComissao({
             _team_id: selecao.teamId ?? undefined,
             _sem_equipe: selecao.teamId === null,
           };
-    supabase.rpc("desempenho_detalhe_periodo" as never, params as never).then(({ data, error }) => {
+    const detalheRequest =
+      selecao.tipo === "corretor"
+        ? supabase.rpc(
+            "desempenho_detalhe_corretor_proprio_periodo" as never,
+            {
+              _de: periodo.de,
+              _ate: periodo.ate,
+              _corretor_id: selecao.id,
+            } as never,
+          )
+        : supabase.rpc("desempenho_detalhe_periodo" as never, params as never);
+    detalheRequest.then(({ data, error }) => {
       if (cancelado) return;
       if (error) {
         console.error("desempenho_detalhe_periodo:", error);
