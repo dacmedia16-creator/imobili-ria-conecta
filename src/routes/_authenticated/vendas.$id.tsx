@@ -29,7 +29,7 @@ import {
   podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado, userIdParaExtra, verificarComissoesDesatualizadas } from "@/lib/sale-financial-calc";
+import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado, podeEditarComissaoNaOcorrencia, userIdParaExtra, verificarComissoesDesatualizadas } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money, dateBR, DocStatusBadge } from "@/components/vendas/shared";
@@ -3327,12 +3327,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
           return false;
         }
         const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
-        const removed = commissions.filter(r => !currentIds.has(r.id));
+        const removed = commissions.filter(r => podeEditarComissaoNaOcorrencia(r) && !currentIds.has(r.id));
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_commissions").delete().eq("id", r.id);
           if (error) { toast.error(error.message); return false; }
         }
         for (const r of formComms) {
+          // Uma linha automática é somente um espelho da revisão do gestor. Mesmo que um buffer
+          // antigo tente enviá-la, nunca grava alterações pela Ocorrência; a fonte oficial é sales.
+          if (!r._new && !podeEditarComissaoNaOcorrencia(r)) continue;
           const data = {
             papel: r.papel,
             nome: r.nome ?? null,
@@ -3630,7 +3633,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
             <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12">
               <div className="md:col-span-3">
                 <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v })} disabled={!canWrite}>
+                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMISSAO_PAPEIS.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -3644,7 +3647,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                   return (
                     <Select
                       value={valorSelectBeneficiario(c)}
-                      disabled={!canWrite}
+                      disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
                       onValueChange={(v) =>
                         updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
                       }
@@ -3670,23 +3673,28 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                 })()}
                 <Input
                   value={c.nome ?? ""}
-                  disabled={!canWrite || !!c.user_id}
+                  disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c) || !!c.user_id}
                   placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
                   onChange={(e) => updComm(c.id, { nome: e.target.value })}
                 />
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
-                <Input type="number" step="0.001" value={c.percentual ?? ""} onChange={(e) => updComm(c.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} />
+                <Input type="number" step="0.001" value={c.percentual ?? ""} onChange={(e) => updComm(c.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} />
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">Valor (R$)</Label>
-                <CurrencyInput value={c.valor} onChange={(v) => updComm(c.id, { valor: v })} disabled={!canWrite} />
+                <CurrencyInput value={c.valor} onChange={(v) => updComm(c.id, { valor: v })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} />
               </div>
-              {canWrite && (
+              {canWrite && podeEditarComissaoNaOcorrencia(c) && (
                 <div className="md:col-span-1">
                   <Button variant="ghost" size="sm" onClick={() => delCommission(c.id)} className="w-full">×</Button>
                 </div>
+              )}
+              {c.managed_by_sale && (
+                <p className="text-xs text-muted-foreground md:col-span-12">
+                  Valor automático da revisão do gestor. Para alterar, edite a divisão da comissão na aba Resumo.
+                </p>
               )}
             </div>
           ))}

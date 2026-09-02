@@ -104,6 +104,15 @@ export type OcorrenciaComissaoRow = {
 };
 export type SaleExtraRow = { id: string; papel: string | null; nome: string | null; valor: number | null; user_id: string | null };
 
+/**
+ * Linhas geradas pela revisão do gestor têm uma única fonte oficial: a venda. Na ocorrência elas
+ * são apenas um espelho e não podem ser editadas, senão os dois registros passam a mostrar valores
+ * diferentes. Linhas manuais do Financeiro continuam editáveis normalmente.
+ */
+export function podeEditarComissaoNaOcorrencia(row: Pick<OcorrenciaComissaoRow, "managed_by_sale">): boolean {
+  return row.managed_by_sale !== true;
+}
+
 const PAPEIS_FIXOS = ["corretor_captador", "corretor_vendedor", "indicador_captador", "indicador_vendedor", "lider_captador", "lider_vendedor"] as const;
 
 /**

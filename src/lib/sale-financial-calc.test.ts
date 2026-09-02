@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado, deveSincronizarComissaoFixa, verificarComissoesDesatualizadas, type OcorrenciaComissaoRow, type SaleExtraRow } from "./sale-financial-calc";
+import { recalcImobiliaria, calcularPatchValorNegociado, calcularPatchOccValorNegociado, deveSincronizarComissaoFixa, podeEditarComissaoNaOcorrencia, verificarComissoesDesatualizadas, type OcorrenciaComissaoRow, type SaleExtraRow } from "./sale-financial-calc";
 
 // Cenário base do pedido: venda R$730.000, comissão 6% (R$43.800), parceria 3% (R$21.900),
 // parte RE/MAX 3% (R$21.900), captador R$4.927,50, vendedor R$4.927,50 (valores fixos em reais,
@@ -215,5 +215,15 @@ describe("deveSincronizarComissaoFixa", () => {
     expect(deveSincronizarComissaoFixa("Captador", 0, null)).toBe(true);
     expect(deveSincronizarComissaoFixa(null, 0, "user-1")).toBe(true);
     expect(deveSincronizarComissaoFixa(null, 100, null)).toBe(true);
+  });
+});
+
+describe("podeEditarComissaoNaOcorrencia", () => {
+  it("bloqueia a edição de uma linha automática espelhada da venda", () => {
+    expect(podeEditarComissaoNaOcorrencia({ managed_by_sale: true })).toBe(false);
+  });
+
+  it("mantém editável uma linha manual criada pelo Financeiro", () => {
+    expect(podeEditarComissaoNaOcorrencia({ managed_by_sale: false })).toBe(true);
   });
 });
