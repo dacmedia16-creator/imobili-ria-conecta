@@ -787,6 +787,67 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(Number(vendedor?.percentual)).toBe(22.5);
   });
 
+  it("teste 6aa — previsão preenchida depois sincroniza enquanto a ocorrência está pendente", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE,
+      status: "ocorrencia_pendente",
+      previsao_recebimento_valor: null,
+      previsao_recebimento_data: null,
+      previsao_recebimento_forma: null,
+    });
+    const occId = await criarOcorrenciaCompleta(saleId);
+
+    const { error: updateError } = await supabaseAdmin
+      .from("sales")
+      .update({
+        previsao_recebimento_valor: 7800,
+        previsao_recebimento_data: "2026-09-02",
+        previsao_recebimento_forma: "PIX",
+      })
+      .eq("id", saleId);
+    if (updateError) throw updateError;
+
+    const { data: occ, error: occError } = await supabaseAdmin
+      .from("occurrences")
+      .select("prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma")
+      .eq("id", occId)
+      .single();
+    if (occError) throw occError;
+    expect(Number(occ.prev_recebimento_valor)).toBe(7800);
+    expect(occ.prev_recebimento_data).toBe("2026-09-02");
+    expect(occ.prev_recebimento_forma).toBe("PIX");
+  });
+
+  it("teste 6ab — alteração posterior não sobrescreve previsão já recebida pelo Financeiro", async () => {
+    const saleId = await criarVenda({
+      ...CENARIO_BASE,
+      status: "ocorrencia_analise_financeiro",
+      previsao_recebimento_valor: 7800,
+      previsao_recebimento_data: "2026-09-02",
+      previsao_recebimento_forma: "PIX",
+    });
+    const occId = await criarOcorrenciaCompleta(saleId);
+    const { error: ajusteError } = await supabaseAdmin
+      .from("occurrences")
+      .update({ prev_recebimento_valor: 7600 })
+      .eq("id", occId);
+    if (ajusteError) throw ajusteError;
+
+    const { error: updateError } = await supabaseAdmin
+      .from("sales")
+      .update({ previsao_recebimento_valor: 8000 })
+      .eq("id", saleId);
+    if (updateError) throw updateError;
+
+    const { data: occ, error: occError } = await supabaseAdmin
+      .from("occurrences")
+      .select("prev_recebimento_valor")
+      .eq("id", occId)
+      .single();
+    if (occError) throw occError;
+    expect(Number(occ.prev_recebimento_valor)).toBe(7600);
+  });
+
   it("teste 6b — criar_ocorrencia_completa é idempotente e não duplica a ocorrência", async () => {
     const saleId = await criarVenda({
       ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 6b",
