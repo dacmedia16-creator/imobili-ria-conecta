@@ -743,6 +743,50 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(Number(linha?.valor)).toBe(4427.5); // continua líquido, não voltou a ser bruto
   });
 
+  it("teste 6a — mudar a comissão da venda sincroniza a base e os percentuais da ocorrência", async () => {
+    const saleId = await criarVenda({
+      valor_negociado: 185000,
+      percentual_comissao: 6,
+      valor_total_comissao: 11170,
+      corretor_captador_id: PROFILES[1],
+      corretor_captador: "Captador Teste 6a",
+      valor_comissao_captador: 277.5,
+      corretor_vendedor_id: PROFILES[2],
+      corretor_vendedor: "Vendedor Teste 6a",
+      valor_comissao_vendedor: 2497.5,
+    });
+    const occId = await criarOcorrenciaCompleta(saleId);
+
+    const { error: updateError } = await supabaseAdmin
+      .from("sales")
+      .update({ valor_total_comissao: 11100 })
+      .eq("id", saleId);
+    if (updateError) throw updateError;
+
+    const { data: occAtual, error: occError } = await supabaseAdmin
+      .from("occurrences")
+      .select("valor_negociado, percentual_comissao, valor_comissao")
+      .eq("id", occId)
+      .single();
+    if (occError) throw occError;
+    expect(Number(occAtual.valor_negociado)).toBe(185000);
+    expect(Number(occAtual.percentual_comissao)).toBe(6);
+    expect(Number(occAtual.valor_comissao)).toBe(11100);
+
+    const { data: linhas, error: linhasError } = await supabaseAdmin
+      .from("occurrence_commissions")
+      .select("papel, valor, percentual")
+      .eq("occurrence_id", occId)
+      .eq("managed_by_sale", true);
+    if (linhasError) throw linhasError;
+    const captador = linhas?.find((linha) => linha.papel === "corretor_captador");
+    const vendedor = linhas?.find((linha) => linha.papel === "corretor_vendedor");
+    expect(Number(captador?.valor)).toBe(277.5);
+    expect(Number(captador?.percentual)).toBe(2.5);
+    expect(Number(vendedor?.valor)).toBe(2497.5);
+    expect(Number(vendedor?.percentual)).toBe(22.5);
+  });
+
   it("teste 6b — criar_ocorrencia_completa é idempotente e não duplica a ocorrência", async () => {
     const saleId = await criarVenda({
       ...CENARIO_BASE, corretor_captador_id: PROFILES[1], corretor_captador: "Captador Teste 6b",
