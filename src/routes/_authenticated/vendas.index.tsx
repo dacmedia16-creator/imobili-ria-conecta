@@ -10,6 +10,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
 import {
@@ -18,7 +21,7 @@ import {
 } from "@/lib/status";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { ArrowRight, Building2, House, Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { periodoInicialVendas, periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
@@ -28,6 +31,7 @@ import {
   filtrosPadraoFinanceiro,
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
+import { registrarVendaAction } from "@/lib/registrar-venda";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
@@ -38,7 +42,7 @@ const PAGE_SIZE = 30;
 const SALE_COLUMNS = "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id";
 
 function SalesList() {
-  const { user, hasAny } = useAuth();
+  const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
   const [sales, setSales] = useState<any[]>([]);
@@ -67,6 +71,7 @@ function SalesList() {
   const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
   const [equipeFilter, setEquipeFilter] = useState<string>("todas");
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
+  const [tipoVendaOpen, setTipoVendaOpen] = useState(false);
 
   const aplicarPeriodo = (periodo: { de: string; ate: string }) => {
     setDiasFilter(null);
@@ -321,22 +326,61 @@ function SalesList() {
     );
   }, [isOverseer, user?.id, hasAny, teamIds]);
   const displayedSales = soMinhaVez ? sales.filter(saleIsMinhaVez) : sales;
+  const registrarAction = registrarVendaAction(roles);
+
+  const registrarVendaButton = registrarAction === "venda_padrao" ? (
+    <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Registrar venda</Link></Button>
+  ) : registrarAction === "lancamento" ? (
+    <Button asChild><Link to="/vendas/lancamento/nova"><Plus className="mr-2 h-4 w-4" />Registrar venda</Link></Button>
+  ) : registrarAction === "escolher" ? (
+    <Button type="button" onClick={() => setTipoVendaOpen(true)}>
+      <Plus className="mr-2 h-4 w-4" />Registrar venda
+    </Button>
+  ) : null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
-        <div className="flex gap-2">
-          {hasAny(["corretor", "gestor", "team_leader"]) && (
-            <Button asChild><Link to="/vendas/nova"><Plus className="mr-2 h-4 w-4" />Nova Venda</Link></Button>
-          )}
-          {hasAny(["lancamento"]) && (
-            <Button asChild variant={hasAny(["corretor", "gestor", "team_leader"]) ? "outline" : "default"}>
-              <Link to="/vendas/lancamento/nova"><Plus className="mr-2 h-4 w-4" />Novo Lançamento</Link>
-            </Button>
-          )}
-        </div>
+        {registrarVendaButton}
       </div>
+
+      <Dialog open={tipoVendaOpen} onOpenChange={setTipoVendaOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Qual tipo de venda você quer registrar?</DialogTitle>
+            <DialogDescription>
+              Escolha o fluxo correto antes de criar o rascunho. O tipo não poderá ser alterado depois.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              to="/vendas/nova"
+              onClick={() => setTipoVendaOpen(false)}
+              className="group rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="rounded-md bg-primary/10 p-2 text-primary"><House className="h-5 w-5" /></span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+              </div>
+              <p className="font-semibold">Venda padrão</p>
+              <p className="mt-1 text-sm text-muted-foreground">Fluxo completo, com documentos e Jurídico.</p>
+            </Link>
+            <Link
+              to="/vendas/lancamento/nova"
+              onClick={() => setTipoVendaOpen(false)}
+              className="group rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="rounded-md bg-primary/10 p-2 text-primary"><Building2 className="h-5 w-5" /></span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+              </div>
+              <p className="font-semibold">Lançamento</p>
+              <p className="mt-1 text-sm text-muted-foreground">Fluxo simplificado para venda com construtora.</p>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="flex flex-col gap-3">
