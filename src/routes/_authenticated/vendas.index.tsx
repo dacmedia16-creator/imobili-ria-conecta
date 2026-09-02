@@ -21,6 +21,7 @@ import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { resumirVendas } from "@/lib/vendas-resumo";
 import { periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
@@ -52,6 +53,8 @@ function SalesList() {
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [totalValor, setTotalValor] = useState(0);
+  const [contratosAssinadosCount, setContratosAssinadosCount] = useState(0);
+  const [contratosAssinadosValor, setContratosAssinadosValor] = useState(0);
   const [soMinhaVez, setSoMinhaVez] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
@@ -195,10 +198,16 @@ function SalesList() {
   const fetchSummary = useCallback(async () => {
     const filters = await buildFilters();
     const countQuery = applyFilters(supabase.from("sales").select("id", { count: "exact", head: true }), filters);
-    const sumQuery = applyFilters(supabase.from("sales").select("valor_negociado").limit(5000), filters);
+    const sumQuery = applyFilters(
+      supabase.from("sales").select("status, modalidade, valor_negociado").limit(5000),
+      filters,
+    );
     const [{ count }, { data: valores }] = await Promise.all([countQuery, sumQuery]);
+    const resumo = resumirVendas(valores ?? []);
     setTotalCount(count ?? 0);
-    setTotalValor((valores ?? []).reduce((sum: number, r: any) => sum + (Number(r.valor_negociado) || 0), 0));
+    setTotalValor(resumo.valorTotal);
+    setContratosAssinadosCount(resumo.quantidadeComContratoAssinado);
+    setContratosAssinadosValor(resumo.valorComContratoAssinado);
   }, [buildFilters]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
@@ -389,6 +398,9 @@ function SalesList() {
             <p className="text-sm text-muted-foreground">
               {totalCount} {totalCount === 1 ? "venda encontrada" : "vendas encontradas"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
+              <br />
+              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda com contrato assinado" : "vendas com contrato assinado"}
+              {` · R$ ${contratosAssinadosValor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em vendas assinadas`}
             </p>
           )}
         </CardHeader>
