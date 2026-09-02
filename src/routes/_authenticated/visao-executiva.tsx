@@ -182,13 +182,15 @@ type DetalheSelecao =
   | { tipo: "equipe"; teamId: string | null; nome: string };
 
 function VisaoExecutiva() {
-  const { hasAny, roles, loading: authLoading } = useAuth();
+  const { user, hasAny, roles, loading: authLoading } = useAuth();
   // `financeiro` foi adicionado aqui junto com a migração dos cards de comissão/VGV consolidados
   // do Dashboard pra esta página — sem isso, esse papel perderia acesso aos próprios números.
   const allowed = hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]);
-  const podeAlternarVisao = podeAlternarVisaoDesempenho(roles);
+  const ehLider = hasAny(["gestor", "team_leader"]);
+  const [temEquipe, setTemEquipe] = useState<boolean | null>(null);
+  const podeAlternarVisao = podeAlternarVisaoDesempenho(roles, temEquipe);
   const [visaoEscolhida, setVisaoEscolhida] = useState<VisaoDesempenho | null>(null);
-  const visao = visaoEscolhida ?? visaoInicialDesempenho(roles);
+  const visao = visaoEscolhida ?? visaoInicialDesempenho(roles, temEquipe);
   const usaConsolidadoEmpresa = podeAlternarVisao && visao === "empresa";
   const isSuperAdmin = hasAny(["super_admin"]);
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
@@ -206,6 +208,41 @@ function VisaoExecutiva() {
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
+
+  useEffect(() => {
+    if (!ehLider || !user?.id) {
+      setTemEquipe(false);
+      return;
+    }
+
+    let ativo = true;
+    (async () => {
+      setTemEquipe(null);
+      const [liderRes, coLiderRes] = await Promise.all([
+        supabase.from("teams").select("id").eq("lider_id", user.id).limit(1),
+        supabase.from("team_co_leaders").select("team_id").eq("user_id", user.id).limit(1),
+      ]);
+      if (!ativo) return;
+      if (liderRes.error || coLiderRes.error) {
+        console.error(
+          "Não foi possível verificar a equipe do usuário",
+          liderRes.error ?? coLiderRes.error,
+        );
+        // Em falha de leitura, preserva o comportamento anterior em vez de retirar acesso válido.
+        setTemEquipe(true);
+        return;
+      }
+      setTemEquipe((liderRes.data?.length ?? 0) > 0 || (coLiderRes.data?.length ?? 0) > 0);
+    })();
+
+    return () => {
+      ativo = false;
+    };
+  }, [ehLider, user?.id]);
+
+  useEffect(() => {
+    if (!podeAlternarVisao) setVisaoEscolhida(null);
+  }, [podeAlternarVisao]);
 
   useEffect(() => setDetalheSel(null), [visao]);
 
@@ -315,7 +352,9 @@ function VisaoExecutiva() {
     })();
   }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa]);
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (authLoading || loading || (ehLider && temEquipe === null)) {
+    return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  }
 
   if (!allowed) {
     return (
