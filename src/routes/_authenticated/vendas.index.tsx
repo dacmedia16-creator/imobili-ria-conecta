@@ -21,7 +21,7 @@ import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
+import { periodoInicialVendas, periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
 import {
   aplicarFiltrosEfetivacao,
   calcularResumo,
@@ -40,6 +40,7 @@ const SALE_COLUMNS = "id, status, valor_negociado, imovel_id, codigo_interno, co
 function SalesList() {
   const { user, hasAny } = useAuth();
   const router = useRouter();
+  const periodoInicialRef = useRef(periodoInicialVendas());
   const [sales, setSales] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -47,8 +48,8 @@ function SalesList() {
   const [statusFilter, setStatusFilter] = useState<string>("todas");
   const [vezFilter, setVezFilter] = useState<string>("todas");
   const [diasFilter, setDiasFilter] = useState<number | null>(null);
-  const [dataDe, setDataDe] = useState("");
-  const [dataAte, setDataAte] = useState("");
+  const [dataDe, setDataDe] = useState(periodoInicialRef.current.de);
+  const [dataAte, setDataAte] = useState(periodoInicialRef.current.ate);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
@@ -72,6 +73,9 @@ function SalesList() {
     setDataDe(periodo.de);
     setDataAte(periodo.ate);
   };
+
+  const periodoAtual = periodoMesAtual();
+  const mesAtualSelecionado = dataDe === periodoAtual.de && dataAte === periodoAtual.ate;
 
   useEffect(() => {
     if (!user) return;
@@ -397,7 +401,7 @@ function SalesList() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => aplicarPeriodo(periodoMesAtual())}>
+              <Button type="button" variant={mesAtualSelecionado ? "default" : "outline"} size="sm" onClick={() => aplicarPeriodo(periodoAtual)}>
                 Mês atual
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => aplicarPeriodo(periodoMesAnterior())}>
@@ -418,7 +422,7 @@ function SalesList() {
           </div>
           {!loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
-              {totalCount} {totalCount === 1 ? "venda encontrada" : "vendas encontradas"}
+              {totalCount} {totalCount === 1 ? "venda atualizada no período" : "vendas atualizadas no período"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
               {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda efetivada no período" : "vendas efetivadas no período"}

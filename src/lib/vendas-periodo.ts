@@ -11,6 +11,10 @@ export function periodoMesAtual(agora = new Date()) {
   };
 }
 
+export function periodoInicialVendas(agora = new Date()) {
+  return periodoMesAtual(agora);
+}
+
 export function periodoMesAnterior(agora = new Date()) {
   const ano = agora.getFullYear();
   const mes = agora.getMonth();
