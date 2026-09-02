@@ -18,6 +18,7 @@ import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
+import { periodoMensalRelatorios, type AtalhoPeriodoRelatorios } from "@/lib/relatorios-periodo";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
@@ -64,6 +65,17 @@ function RelatoriosPage() {
   // Desmarcado por padrão: vendas canceladas/arquivadas não compõem os totais ativos (fluxo de
   // caixa, comissões, financiamentos) a menos que o usuário explicitamente peça pra revisar histórico.
   const [incluirCanceladas, setIncluirCanceladas] = useState(false);
+
+  const aplicarAtalhoPeriodo = (periodo: AtalhoPeriodoRelatorios) => {
+    const intervalo = periodoMensalRelatorios(periodo);
+    setDateFrom(intervalo.de);
+    setDateTo(intervalo.ate);
+  };
+
+  const atalhoAtivo = (periodo: AtalhoPeriodoRelatorios) => {
+    const intervalo = periodoMensalRelatorios(periodo);
+    return dateFrom === intervalo.de && dateTo === intervalo.ate;
+  };
 
   // O filtro de período existe na tela há tempo, mas nunca bateu de verdade na consulta — a busca
   // baixava sales/occurrences inteiras e só cortava por data no client, sem limite algum. Cada aba
@@ -182,6 +194,25 @@ function RelatoriosPage() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <div>
+            <Label>Atalhos</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={atalhoAtivo("mes_atual") ? "default" : "outline"}
+                onClick={() => aplicarAtalhoPeriodo("mes_atual")}
+              >
+                Mês atual
+              </Button>
+              <Button
+                type="button"
+                variant={atalhoAtivo("mes_anterior") ? "default" : "outline"}
+                onClick={() => aplicarAtalhoPeriodo("mes_anterior")}
+              >
+                Mês anterior
+              </Button>
+            </div>
+          </div>
           <div>
             <Label>Período — de</Label>
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
