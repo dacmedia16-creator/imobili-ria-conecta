@@ -21,9 +21,13 @@ import { fetchLedMemberIds } from "@/lib/team";
 import { Plus, Trash2, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { idsDeContratosAssinadosNoPeriodo, resumirVendas } from "@/lib/vendas-resumo";
-import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 import { periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
+import {
+  aplicarFiltrosEfetivacao,
+  calcularResumo,
+  filtrosPadraoFinanceiro,
+} from "@/lib/financeiro-dashboard-calc";
+import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
@@ -199,33 +203,34 @@ function SalesList() {
   const fetchSummary = useCallback(async () => {
     const filters = await buildFilters();
     const countQuery = applyFilters(supabase.from("sales").select("id", { count: "exact", head: true }), filters);
-    const sumQuery = applyFilters(
-      supabase.from("sales").select("status, modalidade, valor_negociado").limit(5000),
-      filters,
-    );
-    const vendasComerciais = await fetchVendasComerciaisValidas();
-    const idsAssinadosNoPeriodo = idsDeContratosAssinadosNoPeriodo(vendasComerciais, filters);
-    const contratosQuery = idsAssinadosNoPeriodo.length
-      ? applyFilters(
-          supabase
-            .from("sales")
-            .select("status, modalidade, valor_negociado")
-            .in("id", idsAssinadosNoPeriodo)
-            .limit(5000),
-          filters,
-          false,
-        )
-      : Promise.resolve({ data: [], error: null });
-    const [{ count }, { data: valores }, { data: contratos, error: contratosError }] =
-      await Promise.all([countQuery, sumQuery, contratosQuery]);
-    if (contratosError) throw contratosError;
-    const resumo = resumirVendas(valores ?? []);
-    const resumoContratos = resumirVendas(contratos ?? []);
+    const sumQuery = applyFilters(supabase.from("sales").select("valor_negociado").limit(5000), filters);
+    const resumoFinanceiroPromise = dataDe && dataAte
+      ? fetchFinanceiroBundle().then((bundle) => {
+          const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
+            ...filtrosPadraoFinanceiro(),
+            dataDe,
+            dataAte,
+          });
+          const resumo = calcularResumo({
+            parcelas: [],
+            comissoes: [],
+            efetivadas,
+            divergenciasAbertas: bundle.divergencias.length,
+            hoje: dataAte,
+          });
+          return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
+        })
+      : Promise.resolve(null);
+    const [{ count }, { data: valores }, resumoFinanceiro] = await Promise.all([
+      countQuery,
+      sumQuery,
+      resumoFinanceiroPromise,
+    ]);
     setTotalCount(count ?? 0);
-    setTotalValor(resumo.valorTotal);
-    setContratosAssinadosCount(resumoContratos.quantidadeComContratoAssinado);
-    setContratosAssinadosValor(resumoContratos.valorComContratoAssinado);
-  }, [buildFilters]);
+    setTotalValor((valores ?? []).reduce((sum: number, venda: any) => sum + (Number(venda.valor_negociado) || 0), 0));
+    setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
+    setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
+  }, [buildFilters, dataDe, dataAte]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[]) => {
@@ -417,7 +422,7 @@ function SalesList() {
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
               {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "contrato assinado no período" : "contratos assinados no período"}
-              {` · R$ ${contratosAssinadosValor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em vendas assinadas`}
+              {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX`}
             </p>
           )}
         </CardHeader>
