@@ -421,7 +421,7 @@ function SalesList() {
               {totalCount} {totalCount === 1 ? "venda encontrada" : "vendas encontradas"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
-              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "contrato assinado no período" : "contratos assinados no período"}
+              {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda efetivada no período" : "vendas efetivadas no período"}
               {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX`}
             </p>
           )}
