@@ -3225,7 +3225,18 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   // indicador/extras daquele lado), restaurando a dupla contagem que a RPC existe pra evitar. Grava
   // direto no banco (não fica num buffer local esperando "Salvar") — managed_by_sale já protege
   // qualquer linha manual de ser tocada por esse sync.
+  //
+  // Exige que não haja edição de comissão pendente: como o sync grava direto no banco e load() só
+  // atualiza formComms quando !dirtyComms (pra não apagar o que a pessoa está digitando), clicar aqui
+  // com edição pendente deixava as linhas da tela referenciando ids que o sync já tinha alterado no
+  // banco — o autosave seguinte tentava salvar em cima disso e ficava repetindo erro (violação da
+  // constraint de papel único) até a pessoa notar e apagar as linhas na mão. Bug real, reportado pela
+  // Aline em produção (18/08/2026).
   const pullFromSaleSplit = async () => {
+    if (dirtyComms) {
+      toast.error("Salve ou descarte as edições de comissão antes de puxar da revisão do gestor.");
+      return;
+    }
     const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
     if (error) { toast.error(error.message); return; }
     toast.success("Comissões sincronizadas com a revisão do gestor.");
