@@ -1,3 +1,4 @@
+import { visibleOccurrenceCommissions } from "@/lib/occurrence-commissions";
 import { COMISSAO_PAPEIS, PARCERIA_TIPOS } from "@/lib/status";
 import { money, dateBR } from "./shared";
 import type {
@@ -89,9 +90,12 @@ export function OccurrenceReportBody({
   const compradores = Object.entries(parties)
     .filter(([papel]) => papel.startsWith("comprador"))
     .map(([, p]) => ({ ...p, nome: p.nome || p.razao_social, cpf_cnpj: p.cpf_cnpj || p.cnpj }));
-  // Todas as linhas daquele papel, não só a primeira — find() escondia um segundo captador/vendedor,
-  // mais de um gestor/Team Leader, ou outros extras repetidos do mesmo papel.
-  const commByPapel = (papel: string) => commissions.filter((c) => c.papel === papel);
+  // Migrações antigas podiam deixar a linha manual original junto da versão sincronizada pela
+  // venda. Quando existe a versão atual, oculta apenas a linha fixa legada; extras vinculados
+  // continuam aparecendo normalmente.
+  const visibleCommissions = visibleOccurrenceCommissions(commissions);
+  // Todas as linhas visíveis daquele papel, não só a primeira — um papel pode ter extras válidos.
+  const commByPapel = (papel: string) => visibleCommissions.filter((c) => c.papel === papel);
 
   // Valor da comissão total é bruto (inclui a parte da parceria externa, quando houver) — a linha
   // extra abaixo mostra só o que fica pra nossa imobiliária, descontada essa fatia.
@@ -99,9 +103,8 @@ export function OccurrenceReportBody({
   const totalComissao = Number(occ?.valor_comissao ?? sale.valor_total_comissao ?? 0);
   const valorNosso = totalComissao - somaParceria;
   // Imobiliária = o que sobra depois de pagar todo mundo listado na tabela abaixo (captador,
-  // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro) — soma TODAS as
-  // linhas de commissions, não só a primeira de cada papel (pode haver mais de um "Outro" extra).
-  const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
+  // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro).
+  const somaComissoes = visibleCommissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
   // Fonte única: calcular_distribuicao_venda() (mesma RPC usada no Resumo/Ocorrência/ranking) —
   // nunca recalcula aqui. saldo_liquido_imobiliaria é a chave da venda padrão, saldo_imobiliaria a do
   // Lançamento (já soma o prêmio, ver migration 20260821020000). Só cai no cálculo local (base
