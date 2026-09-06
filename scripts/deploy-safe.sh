@@ -41,12 +41,13 @@ REMOTE_HEAD="$(git rev-parse "origin/${EXPECTED_BRANCH}")"
 [[ "${LOCAL_HEAD}" == "${REMOTE_HEAD}" ]] || fail "o código local diverge do GitHub. Local ${LOCAL_HEAD:0:8}; GitHub ${REMOTE_HEAD:0:8}."
 
 echo "[4/8] Instalando dependências reproduzíveis"
-npm ci
+# Usa cache local quando disponível e evita consultas de auditoria/funding que não alteram o gate.
+npm ci --prefer-offline --no-audit --no-fund
 
 echo "[5/8] Executando testes"
 npm test
 
-echo "[6/8] Gerando build"
+echo "[6/8] Gerando build único"
 npm run build
 
 echo "[7/8] Verificando funções críticas no build"
@@ -70,7 +71,8 @@ let input=""; process.stdin.on("data", d => input += d); process.stdin.on("end",
   } catch {}
 });')"
 
-npm run deploy
+# O build já foi aprovado no passo 6. Publica exatamente esse artefato, sem recompilar.
+npm run deploy:prebuilt
 
 smoke_test() {
   # O proxy do ambiente bloqueia CONNECT para o próprio domínio público e gerava falso negativo,
