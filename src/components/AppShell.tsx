@@ -74,7 +74,7 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
           return (
             <div key={group.label ?? "principal"} className="space-y-1">
               {group.label && (
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/65">
                   {group.label}
                 </p>
               )}
@@ -84,8 +84,10 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
                   to={n.to}
                   activeOptions={{ exact: n.to === "/" }}
                   onClick={onNavigate}
-                  className={`flex touch-manipulation items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-white/85 hover:bg-white/10 hover:text-white ${group.compact ? "py-1.5 text-xs" : "py-2 text-sm"}`}
-                  activeProps={{ className: "bg-white/10 border-[#ff3b3b] text-white font-medium" }}
+                  className={`flex touch-manipulation items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${group.compact ? "py-1.5 text-xs" : "py-2 text-sm"}`}
+                  activeProps={{
+                    className: "bg-[#3453a4]/55 border-[#ff3b3b] text-white font-medium",
+                  }}
                 >
                   <n.icon className="h-4 w-4" />
                   {n.label}
@@ -237,6 +239,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${impersonation ? "pt-12" : ""}`}
       >
         <BrandHeroBackground />
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
         <SidebarNav groups={navGroups} />
       </aside>
 
@@ -263,6 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="w-72 overflow-hidden border-0 p-0 text-white [&>button]:text-white"
             >
               <BrandHeroBackground />
+              <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
               <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
               <SheetDescription className="sr-only">Links de navegação do portal</SheetDescription>
               <SidebarNav groups={navGroups} onNavigate={() => setMobileNavOpen(false)} />
