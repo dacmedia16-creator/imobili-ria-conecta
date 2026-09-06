@@ -6,6 +6,7 @@ import {
   deveSincronizarComissaoFixa,
   podeEditarComissaoNaOcorrencia,
   verificarComissoesDesatualizadas,
+  comissaoExtraApareceNoTopo,
   type OcorrenciaComissaoRow,
   type SaleExtraRow,
 } from "./sale-financial-calc";
@@ -366,6 +367,24 @@ describe("deveSincronizarComissaoFixa", () => {
     expect(deveSincronizarComissaoFixa("Captador", 0, null)).toBe(true);
     expect(deveSincronizarComissaoFixa(null, 0, "user-1")).toBe(true);
     expect(deveSincronizarComissaoFixa(null, 100, null)).toBe(true);
+  });
+});
+
+describe("comissaoExtraApareceNoTopo — extras nunca ficam invisíveis", () => {
+  it("mantém gestor/team leader sem lado na seção genérica para revisão", () => {
+    expect(comissaoExtraApareceNoTopo({ papel: "gestor", lado: null })).toBe(false);
+    expect(comissaoExtraApareceNoTopo({ papel: "team_leader", lado: null })).toBe(false);
+  });
+
+  it("move gestor/team leader para o topo somente quando o lado está definido", () => {
+    expect(comissaoExtraApareceNoTopo({ papel: "gestor", lado: "captador" })).toBe(true);
+    expect(comissaoExtraApareceNoTopo({ papel: "team_leader", lado: "vendedor" })).toBe(true);
+  });
+
+  it("mantém os outros corretores no topo e os demais papéis na seção genérica", () => {
+    expect(comissaoExtraApareceNoTopo({ papel: "corretor_captador", lado: null })).toBe(true);
+    expect(comissaoExtraApareceNoTopo({ papel: "corretor_vendedor", lado: null })).toBe(true);
+    expect(comissaoExtraApareceNoTopo({ papel: "outro", lado: null })).toBe(false);
   });
 });
 

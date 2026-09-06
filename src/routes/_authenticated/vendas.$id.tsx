@@ -121,6 +121,7 @@ import {
   podeEditarComissaoNaOcorrencia,
   userIdParaExtra,
   verificarComissoesDesatualizadas,
+  comissaoExtraApareceNoTopo,
 } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -1193,14 +1194,6 @@ function SaleDetail() {
     ]);
     setDirtyExtras(true);
   };
-  // Partes extras com um desses papéis ganham campo fixo lá em cima (junto do resto da comissão)
-  // em vez de aparecer na lista genérica de "Partes extras" mais abaixo.
-  const PAPEIS_FIXOS_NO_TOPO = new Set([
-    "corretor_captador",
-    "corretor_vendedor",
-    "gestor",
-    "team_leader",
-  ]);
   const delExtra = (rowId: string) => {
     setFormExtras((rows) => rows.filter((r) => r.id !== rowId));
     setDirtyExtras(true);
@@ -2756,15 +2749,14 @@ function SaleDetail() {
                             </Button>
                           )}
                         </div>
-                        {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel ?? ""))
-                          .length === 0 && (
+                        {formExtras.filter((r) => !comissaoExtraApareceNoTopo(r)).length === 0 && (
                           <p className="text-sm text-muted-foreground">
                             Nenhuma parte extra adicionada.
                           </p>
                         )}
                         <div className="space-y-2">
                           {formExtras
-                            .filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel ?? ""))
+                            .filter((r) => !comissaoExtraApareceNoTopo(r))
                             .map((r) => {
                               return (
                                 <div
@@ -2808,22 +2800,46 @@ function SaleDetail() {
                                       </SelectContent>
                                     </Select>
                                   </Field>
-                                  <Field label="Origem">
-                                    <Select
-                                      value={r.origem}
-                                      onValueChange={(v) => updExtra(r.id, { origem: v })}
-                                      disabled={!editableComissao}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="imobiliaria">Imobiliária</SelectItem>
-                                        <SelectItem value="captador">Captador</SelectItem>
-                                        <SelectItem value="vendedor">Vendedor</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </Field>
+                                  {r.papel === "gestor" || r.papel === "team_leader" ? (
+                                    <Field label="Lado">
+                                      <Select
+                                        value={r.lado ?? "none"}
+                                        onValueChange={(v) =>
+                                          updExtra(r.id, {
+                                            lado: v === "none" ? null : v,
+                                            origem: "imobiliaria",
+                                          })
+                                        }
+                                        disabled={!editableComissao}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="none">Sem lado — revisar</SelectItem>
+                                          <SelectItem value="captador">Captador</SelectItem>
+                                          <SelectItem value="vendedor">Vendedor</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </Field>
+                                  ) : (
+                                    <Field label="Origem">
+                                      <Select
+                                        value={r.origem}
+                                        onValueChange={(v) => updExtra(r.id, { origem: v })}
+                                        disabled={!editableComissao}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="imobiliaria">Imobiliária</SelectItem>
+                                          <SelectItem value="captador">Captador</SelectItem>
+                                          <SelectItem value="vendedor">Vendedor</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </Field>
+                                  )}
                                   <Field label="% (sobre a origem)">
                                     <Input
                                       type="number"
@@ -2857,6 +2873,13 @@ function SaleDetail() {
                                       </Button>
                                     </div>
                                   )}
+                                  {(r.papel === "gestor" || r.papel === "team_leader") &&
+                                    !r.lado && (
+                                      <p className="col-span-full rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                                        Registro antigo sem lado definido. Revise, escolha o lado
+                                        correto ou remova esta comissão antes de avançar.
+                                      </p>
+                                    )}
                                 </div>
                               );
                             })}

@@ -103,6 +103,22 @@ export function papelDaExtra(papel: string | null): string {
   return papel && EXTRA_ORIGEM_PAPEIS.has(papel) ? papel : "outro";
 }
 
+/**
+ * Extras só saem da seção genérica quando realmente possuem um campo visível na divisão superior.
+ * Gestor/Team Leader antigos podem ter `lado = null`; escondê-los da lista genérica e filtrá-los dos
+ * dois lados criava uma comissão invisível que ainda era sincronizada para a Ocorrência.
+ */
+export function comissaoExtraApareceNoTopo(extra: {
+  papel?: string | null;
+  lado?: string | null;
+}): boolean {
+  if (extra.papel === "corretor_captador" || extra.papel === "corretor_vendedor") return true;
+  if (extra.papel === "gestor" || extra.papel === "team_leader") {
+    return extra.lado === "captador" || extra.lado === "vendedor";
+  }
+  return false;
+}
+
 // Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
 // "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
 // PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso

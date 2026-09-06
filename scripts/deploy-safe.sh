@@ -73,8 +73,10 @@ let input=""; process.stdin.on("data", d => input += d); process.stdin.on("end",
 npm run deploy
 
 smoke_test() {
-  curl --fail --silent --show-error --location --max-time 30 "${PRODUCTION_URL}/" >/dev/null \
-    && curl --fail --silent --show-error --location --max-time 30 "${PRODUCTION_URL}/especialistas" >/dev/null
+  # O proxy do ambiente bloqueia CONNECT para o próprio domínio público e gerava falso negativo,
+  # revertendo um deploy saudável. Estes smoke tests são públicos e devem validar a rota direta.
+  curl --noproxy '*' --fail --silent --show-error --location --max-time 30 "${PRODUCTION_URL}/" >/dev/null \
+    && curl --noproxy '*' --fail --silent --show-error --location --max-time 30 "${PRODUCTION_URL}/especialistas" >/dev/null
 }
 
 if ! smoke_test; then
