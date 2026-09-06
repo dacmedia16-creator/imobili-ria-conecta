@@ -11,7 +11,11 @@ const AUTOSAVE_DELAY_MS = 1200;
 // Salva sozinho X ms depois da última alteração, sem precisar de clique em "Salvar".
 // O delay evita gravar valor pela metade enquanto a pessoa ainda está digitando, e o
 // savingRef evita disparar um novo save por cima de um que ainda não terminou.
-export function useAutosave(dirty: boolean, deps: readonly unknown[], saveFn: () => Promise<boolean>) {
+export function useAutosave(
+  dirty: boolean,
+  deps: readonly unknown[],
+  saveFn: () => Promise<boolean>,
+) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   useEffect(() => {
@@ -20,23 +24,42 @@ export function useAutosave(dirty: boolean, deps: readonly unknown[], saveFn: ()
     timerRef.current = setTimeout(async () => {
       if (savingRef.current) return;
       savingRef.current = true;
-      try { await saveFn(); } finally { savingRef.current = false; }
+      try {
+        await saveFn();
+      } finally {
+        savingRef.current = false;
+      }
     }, AUTOSAVE_DELAY_MS);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty, ...deps]);
 }
 
 export function AutosaveStatus({ saving, dirty }: { saving: boolean; dirty: boolean }) {
-  if (saving) return <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Salvando...</div>;
-  if (dirty) return <div className="text-xs text-muted-foreground">Alterações pendentes — salvando em instantes...</div>;
+  if (saving)
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Salvando...
+      </div>
+    );
+  if (dirty)
+    return (
+      <div className="text-xs text-muted-foreground">
+        Alterações pendentes — salvando em instantes...
+      </div>
+    );
   return null;
 }
 
 export function SaleSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
   );
@@ -44,7 +67,15 @@ export function SaleSection({ title, children }: { title: string; children: Reac
 export function FieldGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>;
 }
-export function Field({ label, children, colSpan }: { label: string; children: React.ReactNode; colSpan?: number }) {
+export function Field({
+  label,
+  children,
+  colSpan,
+}: {
+  label: string;
+  children: React.ReactNode;
+  colSpan?: number;
+}) {
   return (
     <div className={colSpan === 2 ? "md:col-span-2" : ""}>
       <Label className="mb-1.5 block text-xs text-muted-foreground">{label}</Label>
@@ -53,10 +84,19 @@ export function Field({ label, children, colSpan }: { label: string; children: R
   );
 }
 
-const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const brl = (cents: number) =>
+  (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 /** Campo de valor em reais: digita-se em centavos (estilo maquininha) e formata como "R$ 1.234,56". */
-export function CurrencyInput({ value, onChange, disabled }: { value: number | null | undefined; onChange: (v: number | null) => void; disabled?: boolean }) {
+export function CurrencyInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  disabled?: boolean;
+}) {
   const [display, setDisplay] = useState(() => (value != null ? brl(Math.round(value * 100)) : ""));
 
   useEffect(() => {
@@ -71,7 +111,11 @@ export function CurrencyInput({ value, onChange, disabled }: { value: number | n
       value={display}
       onChange={(e) => {
         const digits = e.target.value.replace(/\D/g, "");
-        if (!digits) { setDisplay(""); onChange(null); return; }
+        if (!digits) {
+          setDisplay("");
+          onChange(null);
+          return;
+        }
         const cents = parseInt(digits, 10);
         setDisplay(brl(cents));
         onChange(cents / 100);
@@ -80,16 +124,18 @@ export function CurrencyInput({ value, onChange, disabled }: { value: number | n
   );
 }
 
-export const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null);
+export const money = (v: unknown) =>
+  v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
 // Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
 // como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
 // Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.
-export const dateBR = (v: any) => {
+export const dateBR = (v: unknown) => {
   if (!v) return null;
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
     const [y, m, d] = v.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
   }
+  if (!(typeof v === "string" || typeof v === "number" || v instanceof Date)) return null;
   return new Date(v).toLocaleDateString("pt-BR");
 };
 
@@ -100,6 +146,15 @@ export function DocStatusBadge({ status }: { status: string }) {
     aprovado: "bg-emerald-100 text-emerald-900",
     recusado: "bg-destructive/15 text-destructive",
   };
-  const label: Record<string, string> = { pendente: "Pendente", enviado: "Enviado", aprovado: "Aprovado", recusado: "Recusado" };
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone[status]}`}>{label[status]}</span>;
+  const label: Record<string, string> = {
+    pendente: "Pendente",
+    enviado: "Enviado",
+    aprovado: "Aprovado",
+    recusado: "Recusado",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone[status]}`}>
+      {label[status]}
+    </span>
+  );
 }

@@ -22,7 +22,9 @@ function ContaMaxBridge() {
     }
 
     void (async () => {
-      const { data, error } = await supabase.functions.invoke("conta-max-bridge", { body: { ticket } });
+      const { data, error } = await supabase.functions.invoke("conta-max-bridge", {
+        body: { ticket },
+      });
       if (error || !data?.access_token || !data?.refresh_token) {
         setMessage("Não foi possível entrar pela Conta MAX. Use o login normal abaixo.");
         return;
@@ -44,7 +46,9 @@ function ContaMaxBridge() {
       <section className="w-full max-w-md rounded-xl border bg-background p-6 text-center shadow-sm">
         <h1 className="text-xl font-semibold">ADM MAX</h1>
         <p className="mt-3 text-muted-foreground">{message}</p>
-        <Link className="mt-5 inline-block underline" to="/auth">Entrar pelo login normal</Link>
+        <Link className="mt-5 inline-block underline" to="/auth">
+          Entrar pelo login normal
+        </Link>
       </section>
     </main>
   );

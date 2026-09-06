@@ -21,7 +21,8 @@ export function readOperationalImpersonation(): OperationalImpersonation | null 
     const raw = window.localStorage.getItem(IMPERSONATION_STORAGE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as OperationalImpersonation;
-    if (!value.auditId || !value.actorUserId || !value.targetUserId || !value.actorRefreshToken) return null;
+    if (!value.auditId || !value.actorUserId || !value.targetUserId || !value.actorRefreshToken)
+      return null;
     return value;
   } catch {
     return null;
@@ -35,7 +36,9 @@ export function writeOperationalImpersonation(value: OperationalImpersonation | 
   window.dispatchEvent(new CustomEvent(IMPERSONATION_EVENT));
 }
 
-export function impersonationMatchesSession(value: OperationalImpersonation | null, session: Session | null) {
+export function impersonationMatchesSession(
+  value: OperationalImpersonation | null,
+  session: Session | null,
+) {
   return !!value && !!session && session.user.id === value.targetUserId;
 }
-

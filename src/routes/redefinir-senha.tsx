@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
@@ -41,8 +42,8 @@ function RedefinirSenhaPage() {
       if (error) throw error;
       toast.success("Senha redefinida!");
       router.navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao redefinir a senha");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao redefinir a senha"));
     } finally {
       setLoading(false);
     }
@@ -51,7 +52,11 @@ function RedefinirSenhaPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
       <BrandHeroBackground />
-      <img src="/remax-logo-white.png" alt="RE/MAX Imóveis — Única Escolha" className="relative z-10 mb-6 h-14 w-auto" />
+      <img
+        src="/remax-logo-white.png"
+        alt="RE/MAX Imóveis — Única Escolha"
+        className="relative z-10 mb-6 h-14 w-auto"
+      />
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <KeyRound className="mx-auto h-8 w-8 text-primary" />
@@ -62,11 +67,25 @@ function RedefinirSenhaPage() {
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <Label htmlFor="nova-senha">Nova senha</Label>
-              <Input id="nova-senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={8} />
+              <Input
+                id="nova-senha"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                required
+                minLength={8}
+              />
             </div>
             <div>
               <Label htmlFor="confirmar-senha">Confirmar nova senha</Label>
-              <Input id="confirmar-senha" type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} required minLength={8} />
+              <Input
+                id="confirmar-senha"
+                type="password"
+                value={confirmacao}
+                onChange={(e) => setConfirmacao(e.target.value)}
+                required
+                minLength={8}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Salvando..." : "Redefinir senha"}

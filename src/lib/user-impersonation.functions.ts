@@ -1,11 +1,40 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const startSchema = z.object({ targetUserId: z.string().uuid() });
 const auditSchema = z.object({ auditId: z.string().uuid() });
 
-async function requireSuperAdmin(supabase: any, userId: string) {
+type ImpersonationSessionRow = {
+  id: string;
+  actor_user_id: string;
+  target_user_id: string;
+  auth_session_id: string | null;
+  status: string;
+  requested_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+};
+
+type ImpersonationDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Tables"> & {
+    Tables: Database["public"]["Tables"] & {
+      operational_impersonation_sessions: {
+        Row: ImpersonationSessionRow;
+        Insert: Pick<ImpersonationSessionRow, "actor_user_id" | "target_user_id"> &
+          Partial<Omit<ImpersonationSessionRow, "actor_user_id" | "target_user_id">>;
+        Update: Partial<ImpersonationSessionRow>;
+        Relationships: [];
+      };
+    };
+  };
+};
+
+type ImpersonationClient = SupabaseClient<ImpersonationDatabase>;
+
+async function requireSuperAdmin(supabase: SupabaseClient<Database>, userId: string) {
   const { data, error } = await supabase
     .from("user_roles")
     .select("role")
@@ -24,7 +53,7 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
     if (data.targetUserId === actorUserId) throw new Error("Escolha outro usuário.");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as any;
+    const admin = supabaseAdmin as ImpersonationClient;
     const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("id, nome, email, ativo")
@@ -33,8 +62,11 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
     if (profileError || !profile) throw new Error("Usuário não encontrado.");
     if (profile.ativo === false) throw new Error("Não é possível entrar como um usuário inativo.");
 
-    const { data: targetAuth, error: targetError } = await admin.auth.admin.getUserById(data.targetUserId);
-    if (targetError || !targetAuth?.user?.email) throw new Error("O usuário não possui um acesso válido.");
+    const { data: targetAuth, error: targetError } = await admin.auth.admin.getUserById(
+      data.targetUserId,
+    );
+    if (targetError || !targetAuth?.user?.email)
+      throw new Error("O usuário não possui um acesso válido.");
 
     const { data: generated, error: linkError } = await admin.auth.admin.generateLink({
       type: "magiclink",
@@ -67,7 +99,7 @@ export const finalizeOperationalImpersonation = createServerFn({ method: "POST" 
     if (!authSessionId) throw new Error("Sessão autenticada sem identificador de auditoria.");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as any;
+    const admin = supabaseAdmin as ImpersonationClient;
     const { data: row } = await admin
       .from("operational_impersonation_sessions")
       .select("id, target_user_id, status")
@@ -78,7 +110,11 @@ export const finalizeOperationalImpersonation = createServerFn({ method: "POST" 
     }
     const { error } = await admin
       .from("operational_impersonation_sessions")
-      .update({ status: "active", auth_session_id: authSessionId, started_at: new Date().toISOString() })
+      .update({
+        status: "active",
+        auth_session_id: authSessionId,
+        started_at: new Date().toISOString(),
+      })
       .eq("id", data.auditId)
       .eq("status", "pending");
     if (error) throw new Error(error.message);
@@ -91,8 +127,9 @@ export const endOperationalImpersonation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { userId: targetUserId, claims } = context;
     const authSessionId = typeof claims.session_id === "string" ? claims.session_id : null;
+    if (!authSessionId) throw new Error("Sessão autenticada sem identificador de auditoria.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as any;
+    const admin = supabaseAdmin as ImpersonationClient;
     const { error } = await admin
       .from("operational_impersonation_sessions")
       .update({ status: "ended", ended_at: new Date().toISOString() })
@@ -103,4 +140,3 @@ export const endOperationalImpersonation = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
-

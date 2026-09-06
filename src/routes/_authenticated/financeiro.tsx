@@ -180,9 +180,12 @@ function CentralFinanceiraPage() {
     return (
       <Card className="border-destructive/40">
         <CardContent className="space-y-3 py-8 text-center">
-          <p className="font-medium text-destructive">Não foi possível carregar todos os dados financeiros.</p>
+          <p className="font-medium text-destructive">
+            Não foi possível carregar todos os dados financeiros.
+          </p>
           <p className="text-sm text-muted-foreground">
-            {erro ?? "A Central Financeira recebeu uma resposta incompleta e não exibirá totais parciais."}
+            {erro ??
+              "A Central Financeira recebeu uma resposta incompleta e não exibirá totais parciais."}
           </p>
           <Button type="button" variant="outline" onClick={() => void carregar()}>
             Tentar novamente

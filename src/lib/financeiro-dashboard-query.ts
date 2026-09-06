@@ -92,8 +92,7 @@ type OccRow = {
 // Mesmo motivo do "as any" em comparativo-comissao-query.ts: as RPCs existem no banco mas nunca
 // foram regeneradas em src/integrations/supabase/types.ts (arquivo gerado). Some sozinho na próxima geração.
 async function callRpc<T>(name: string): Promise<T[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = (await supabase.rpc(name as any)) as {
+  const { data, error } = (await supabase.rpc(name as never)) as {
     data: T[] | null;
     error: { message: string } | null;
   };
@@ -289,13 +288,13 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     const parcelasDaVenda: { dataRecebimento: string | null }[] = [];
     ([1, 2, 3] as const).forEach((n) => {
       const suf = n === 1 ? "" : String(n);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const o = occ as any;
-      const data: string | null = o[`prev_recebimento${suf}_data`];
-      const valor: number | null = o[`prev_recebimento${suf}_valor`];
-      const forma: string | null = o[`prev_recebimento${suf}_forma`];
-      const recebidoEm: string | null = o[`prev_recebimento${suf}_recebido_em`];
-      const recebidoValor: number | null = o[`prev_recebimento${suf}_recebido_valor`];
+
+      const o = occ as Record<string, unknown>;
+      const data = o[`prev_recebimento${suf}_data`] as string | null;
+      const valor = o[`prev_recebimento${suf}_valor`] as number | null;
+      const forma = o[`prev_recebimento${suf}_forma`] as string | null;
+      const recebidoEm = o[`prev_recebimento${suf}_recebido_em`] as string | null;
+      const recebidoValor = o[`prev_recebimento${suf}_recebido_valor`] as number | null;
 
       if ((data && valor == null) || (!data && valor != null)) {
         divergencias.push({
@@ -306,7 +305,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           tipo: "Previsão de recebimento sem data ou sem valor",
           explicacao: `Parcela ${n}ª da venda ${imovelLabel}: ${data ? "tem data prevista mas falta o valor" : "tem valor previsto mas falta a data"}.`,
           valorAfetado: valor ?? null,
-          acaoRecomendada: "Completar a previsão de recebimento na venda antes do fechamento financeiro.",
+          acaoRecomendada:
+            "Completar a previsão de recebimento na venda antes do fechamento financeiro.",
           linkTo: `/vendas/${sale.id}`,
         });
       }
@@ -399,7 +399,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       const premioTxt = occ.premio_valor
         ? ` + premio_valor (R$ ${Number(occ.premio_valor).toFixed(2)})`
         : "";
-      const parceriaTxt = parceriaOcc > 0 ? ` − parceria externa (R$ ${parceriaOcc.toFixed(2)})` : "";
+      const parceriaTxt =
+        parceriaOcc > 0 ? ` − parceria externa (R$ ${parceriaOcc.toFixed(2)})` : "";
       divergencias.push({
         id: `soma-parcelas-incompativel:${occ.id}`,
         gravidade: "media",
@@ -491,11 +492,11 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     const parcelasDaVenda = ([1, 2, 3] as const)
       .map((n) => {
         const suf = n === 1 ? "" : String(n);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const o = occ as any;
+
+        const o = occ as Record<string, unknown>;
         return {
-          data: o[`prev_recebimento${suf}_data`],
-          valor: o[`prev_recebimento${suf}_valor`],
+          data: o[`prev_recebimento${suf}_data`] as string | null,
+          valor: o[`prev_recebimento${suf}_valor`] as number | null,
           dataRecebimento: o[`prev_recebimento${suf}_recebido_em`] as string | null,
         };
       })

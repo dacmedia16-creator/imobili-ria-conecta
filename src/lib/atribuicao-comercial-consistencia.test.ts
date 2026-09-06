@@ -2,10 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  new URL("../../supabase/migrations/20260901222000_centraliza_atribuicao_comercial.sql", import.meta.url),
+  new URL(
+    "../../supabase/migrations/20260901222000_centraliza_atribuicao_comercial.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
-const equipes = readFileSync(new URL("../routes/_authenticated/equipe.tsx", import.meta.url), "utf8");
+const equipes = readFileSync(
+  new URL("../routes/_authenticated/equipe.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("atribuição comercial única", () => {
   it("separa gestão de lançamento do resultado de equipe", () => {
@@ -15,7 +21,9 @@ describe("atribuição comercial única", () => {
   });
 
   it("metas e detalhes consomem a fonte central", () => {
-    expect(migration.match(/public\.participacoes_comerciais_validas\(\)/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(
+      migration.match(/public\.participacoes_comerciais_validas\(\)/g)?.length,
+    ).toBeGreaterThanOrEqual(3);
     expect(migration).toContain("create or replace function public.metas_progresso_periodo");
     expect(migration).toContain("create or replace function public.desempenho_detalhe_periodo");
   });
@@ -31,6 +39,7 @@ describe("atribuição comercial única", () => {
       "visao_executiva_detalhe_comissao",
       "resumo_operacao_sem_parceria_30d",
       "comissoes_carteira_sem_parceria",
-    ]) expect(migration).toContain(`drop function if exists public.${nome}`);
+    ])
+      expect(migration).toContain(`drop function if exists public.${nome}`);
   });
 });

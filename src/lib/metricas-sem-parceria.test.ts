@@ -12,7 +12,9 @@ describe("metricasSemParceria", () => {
   });
 
   it("rateia o VGV pela parte própria da comissão", () => {
-    expect(metricasSemParceria({ vgv: 500000, comissaoBruta: 30000, parceriaExterna: 15000 })).toEqual({
+    expect(
+      metricasSemParceria({ vgv: 500000, comissaoBruta: 30000, parceriaExterna: 15000 }),
+    ).toEqual({
       vgvProprio: 250000,
       comissaoPropria: 15000,
       parceriaExterna: 15000,
@@ -21,7 +23,9 @@ describe("metricasSemParceria", () => {
   });
 
   it("nunca produz valores negativos se a parceria estiver inconsistente", () => {
-    expect(metricasSemParceria({ vgv: 500000, comissaoBruta: 30000, parceriaExterna: 40000 })).toEqual({
+    expect(
+      metricasSemParceria({ vgv: 500000, comissaoBruta: 30000, parceriaExterna: 40000 }),
+    ).toEqual({
       vgvProprio: 0,
       comissaoPropria: 0,
       parceriaExterna: 30000,

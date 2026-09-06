@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -38,8 +39,8 @@ function AuthPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       router.navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao autenticar");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao autenticar"));
     } finally {
       setLoading(false);
     }
@@ -54,8 +55,8 @@ function AuthPage() {
       });
       if (error) throw error;
       setLinkEnviado(true);
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao enviar o link de recuperação");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao enviar o link de recuperação"));
     } finally {
       setRecuperando(false);
     }
@@ -65,22 +66,37 @@ function AuthPage() {
     <div className="flex min-h-screen">
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex">
         <BrandHeroBackground />
-        <img src="/remax-logo-white.png" alt="RE/MAX Imóveis — Única Escolha" className="relative z-10 h-14 w-auto self-start" />
+        <img
+          src="/remax-logo-white.png"
+          alt="RE/MAX Imóveis — Única Escolha"
+          className="relative z-10 h-14 w-auto self-start"
+        />
         <div className="relative z-10 max-w-sm space-y-3">
-          <h1 className="text-3xl font-semibold leading-tight">Da negociação ao contrato assinado, em um só lugar.</h1>
+          <h1 className="text-3xl font-semibold leading-tight">
+            Da negociação ao contrato assinado, em um só lugar.
+          </h1>
           <p className="text-sm text-white/80">
-            Gerencie vendas, contratos e comissões com o fluxo de aprovação completo — corretor, gestor, jurídico e financeiro.
+            Gerencie vendas, contratos e comissões com o fluxo de aprovação completo — corretor,
+            gestor, jurídico e financeiro.
           </p>
         </div>
-        <p className="relative z-10 text-xs text-white/60">© {new Date().getFullYear()} RE/MAX Imóveis Única Escolha</p>
+        <p className="relative z-10 text-xs text-white/60">
+          © {new Date().getFullYear()} RE/MAX Imóveis Única Escolha
+        </p>
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
         <Card className="w-full max-w-lg border-0 shadow-lg lg:border lg:shadow-sm">
           <CardHeader className="space-y-3 px-8 pt-8 text-center">
-            <img src="/remax-logo.png" alt="RE/MAX Imóveis — Única Escolha" className="mx-auto h-12 w-auto lg:hidden" />
+            <img
+              src="/remax-logo.png"
+              alt="RE/MAX Imóveis — Única Escolha"
+              className="mx-auto h-12 w-auto lg:hidden"
+            />
             <CardTitle className="text-xl">Portal Interno</CardTitle>
-            <CardDescription>{modo === "login" ? "Acesse com sua conta corporativa" : "Recuperar senha"}</CardDescription>
+            <CardDescription>
+              {modo === "login" ? "Acesse com sua conta corporativa" : "Recuperar senha"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="px-8 pb-8">
             {modo === "login" ? (
@@ -88,7 +104,13 @@ function AuthPage() {
                 <form onSubmit={onSubmit} className="space-y-5">
                   <div>
                     <Label htmlFor="email">E-mail</Label>
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
                   <div>
                     <Label htmlFor="password">Senha</Label>
@@ -109,12 +131,19 @@ function AuthPage() {
                         aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                         tabIndex={-1}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setModo("recuperar"); setLinkEnviado(false); }}
+                      onClick={() => {
+                        setModo("recuperar");
+                        setLinkEnviado(false);
+                      }}
                       className="mt-1.5 text-xs text-primary hover:underline"
                     >
                       Esqueci minha senha
@@ -128,7 +157,10 @@ function AuthPage() {
                   Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
                 </p>
                 <div className="mt-4 border-t pt-4 text-center">
-                  <Link to="/especialistas" className="text-sm font-medium text-primary hover:underline">
+                  <Link
+                    to="/especialistas"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
                     Encontrar um especialista por região
                   </Link>
                 </div>
@@ -136,7 +168,8 @@ function AuthPage() {
             ) : linkEnviado ? (
               <div className="space-y-4 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Se <b>{email}</b> estiver cadastrado, enviamos um link para redefinir a senha. Confira sua caixa de entrada (e o spam).
+                  Se <b>{email}</b> estiver cadastrado, enviamos um link para redefinir a senha.
+                  Confira sua caixa de entrada (e o spam).
                 </p>
                 <button
                   type="button"
@@ -150,7 +183,13 @@ function AuthPage() {
               <form onSubmit={onRecuperar} className="space-y-5">
                 <div>
                   <Label htmlFor="email-recuperar">E-mail</Label>
-                  <Input id="email-recuperar" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input
+                    id="email-recuperar"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={recuperando}>
                   {recuperando ? "Enviando..." : "Enviar link de recuperação"}

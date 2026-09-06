@@ -11,16 +11,20 @@ export async function fetchLedMemberIds(userId: string): Promise<Set<string>> {
     supabase.from("team_co_leaders").select("team_id").eq("user_id", userId),
   ]);
   const byId: Record<string, { lider_id: string; parent_team_id: string | null }> = {};
-  (teams ?? []).forEach((t: any) => { byId[t.id] = t; });
-  const coLeaderTeamIds = new Set((coLeaderRows ?? []).map((r: any) => r.team_id));
+  (teams ?? []).forEach((t) => {
+    byId[t.id] = t;
+  });
+  const coLeaderTeamIds = new Set((coLeaderRows ?? []).map((r) => r.team_id));
   const myTeamIds = (teams ?? [])
-    .filter((t: any) =>
-      t.lider_id === userId
-      || coLeaderTeamIds.has(t.id)
-      || (t.parent_team_id && (byId[t.parent_team_id]?.lider_id === userId || coLeaderTeamIds.has(t.parent_team_id))),
+    .filter(
+      (t) =>
+        t.lider_id === userId ||
+        coLeaderTeamIds.has(t.id) ||
+        (t.parent_team_id &&
+          (byId[t.parent_team_id]?.lider_id === userId || coLeaderTeamIds.has(t.parent_team_id))),
     )
-    .map((t: any) => t.id);
+    .map((t) => t.id);
   if (myTeamIds.length === 0) return new Set();
   const { data } = await supabase.from("team_members").select("membro_id").in("team_id", myTeamIds);
-  return new Set((data ?? []).map((r: any) => r.membro_id));
+  return new Set((data ?? []).map((r) => r.membro_id));
 }

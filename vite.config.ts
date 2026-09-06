@@ -20,9 +20,7 @@ const wranglerConfig = readFileSync(
 function requirePublicBuildVar(name: "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY") {
   const viteName = `VITE_${name}`;
   const configuredValue = process.env[viteName] ?? process.env[name];
-  const tomlValue = wranglerConfig.match(
-    new RegExp(`^${name}\\s*=\\s*["']([^"']+)["']`, "m"),
-  )?.[1];
+  const tomlValue = wranglerConfig.match(new RegExp(`^${name}\\s*=\\s*["']([^"']+)["']`, "m"))?.[1];
   const value = configuredValue ?? tomlValue;
 
   if (!value) {

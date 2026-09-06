@@ -26,21 +26,91 @@ type ServiceCard = {
 };
 
 const CARDS: ServiceCard[] = [
-  { id: "adm", title: "Sistema ADM MAX", lines: ["Gestão administrativa", "Subir Contratos"], icon: "/hub/adm.png", color: "navy", href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max", pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" }, delay: "0s" },
-  { id: "estudo", title: "Estudo de Mercado MAX", lines: ["Análise estratégica", "de mercado"], icon: "/hub/estudo.png", color: "blue", href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=estudo-mercado-max", pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" }, delay: "0.35s" },
-  { id: "academia", title: "Academia Única MAX", lines: ["Treinamento e", "desenvolvimento"], icon: "/hub/academia.png", color: "blue", pos: { left: "9.7%", top: "65.1%", width: "25.8%", height: "10.6%" }, delay: "0.7s" },
-  { id: "60dias", title: "60 Dias MAX", lines: ["Acompanhamento e", "performance inicial"], icon: "/hub/60dias.png", color: "red", pos: { left: "65.2%", top: "30.7%", width: "23.2%", height: "10.6%" }, delay: "1.05s" },
-  { id: "recruta", title: "Recruta MAX", lines: ["Captação e seleção", "de talentos"], icon: "/hub/recruta.png", color: "blue", pos: { left: "67%", top: "48.1%", width: "21.7%", height: "10.6%" }, delay: "1.4s" },
-  { id: "locacao", title: "Locação MAX", lines: ["Gestão do setor", "de locação"], icon: "/hub/locacao.png", color: "blue", pos: { left: "65.2%", top: "65.1%", width: "23.2%", height: "10.6%" }, delay: "1.75s" },
-  { id: "visita", title: "Visita MAX", lines: ["Registro e proteção", "de visitas"], icon: "/hub/visita.png", color: "blue", href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=visita-max", pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" }, delay: "2.1s" },
-  { id: "especialistas", title: "Ache um especialista", lines: ["Encontre corretores", "por região"], icon: "/hub/especialistas.svg", color: "red", href: "/especialistas", pos: { left: "67%", top: "78.2%", width: "23.2%", height: "10.6%" }, delay: "2.45s" },
+  {
+    id: "adm",
+    title: "Sistema ADM MAX",
+    lines: ["Gestão administrativa", "Subir Contratos"],
+    icon: "/hub/adm.png",
+    color: "navy",
+    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max",
+    pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" },
+    delay: "0s",
+  },
+  {
+    id: "estudo",
+    title: "Estudo de Mercado MAX",
+    lines: ["Análise estratégica", "de mercado"],
+    icon: "/hub/estudo.png",
+    color: "blue",
+    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=estudo-mercado-max",
+    pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" },
+    delay: "0.35s",
+  },
+  {
+    id: "academia",
+    title: "Academia Única MAX",
+    lines: ["Treinamento e", "desenvolvimento"],
+    icon: "/hub/academia.png",
+    color: "blue",
+    pos: { left: "9.7%", top: "65.1%", width: "25.8%", height: "10.6%" },
+    delay: "0.7s",
+  },
+  {
+    id: "60dias",
+    title: "60 Dias MAX",
+    lines: ["Acompanhamento e", "performance inicial"],
+    icon: "/hub/60dias.png",
+    color: "red",
+    pos: { left: "65.2%", top: "30.7%", width: "23.2%", height: "10.6%" },
+    delay: "1.05s",
+  },
+  {
+    id: "recruta",
+    title: "Recruta MAX",
+    lines: ["Captação e seleção", "de talentos"],
+    icon: "/hub/recruta.png",
+    color: "blue",
+    pos: { left: "67%", top: "48.1%", width: "21.7%", height: "10.6%" },
+    delay: "1.4s",
+  },
+  {
+    id: "locacao",
+    title: "Locação MAX",
+    lines: ["Gestão do setor", "de locação"],
+    icon: "/hub/locacao.png",
+    color: "blue",
+    pos: { left: "65.2%", top: "65.1%", width: "23.2%", height: "10.6%" },
+    delay: "1.75s",
+  },
+  {
+    id: "visita",
+    title: "Visita MAX",
+    lines: ["Registro e proteção", "de visitas"],
+    icon: "/hub/visita.png",
+    color: "blue",
+    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=visita-max",
+    pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" },
+    delay: "2.1s",
+  },
+  {
+    id: "especialistas",
+    title: "Ache um especialista",
+    lines: ["Encontre corretores", "por região"],
+    icon: "/hub/especialistas.svg",
+    color: "red",
+    href: "/especialistas",
+    pos: { left: "67%", top: "78.2%", width: "23.2%", height: "10.6%" },
+    delay: "2.45s",
+  },
 ];
 
 function CardIcon({ card }: { card: ServiceCard }) {
   return (
     <span className={`icon-wrap ${card.color}`}>
       <span className="icon-ping" style={{ animationDelay: card.delay }} />
-      <span className="icon"><img src={card.icon} alt={card.title} style={{ animationDelay: card.delay }} /></span>
+      <span className="icon">
+        <img src={card.icon} alt={card.title} style={{ animationDelay: card.delay }} />
+      </span>
     </span>
   );
 }
@@ -70,7 +140,11 @@ function HubHex() {
         <span className="max display">MAX</span>
         <span className="hub2 display">HUB</span>
         <span className="underline" />
-        <span className="caption">PLATAFORMA<br />INTEGRADA</span>
+        <span className="caption">
+          PLATAFORMA
+          <br />
+          INTEGRADA
+        </span>
       </div>
     </>
   );
@@ -93,13 +167,22 @@ function SingleLoginBanner() {
       <span className="single-login-copy">
         <b>Novidade no Ecossistema MAX</b>
         <strong>Uma conta. Todos os sistemas MAX.</strong>
-        <span>Com o Login Único, você entra uma vez com o Google e acessa os sistemas liberados para você.</span>
+        <span>
+          Com o Login Único, você entra uma vez com o Google e acessa os sistemas liberados para
+          você.
+        </span>
       </span>
       <span className="single-login-actions">
-        <a href="https://conta-max-poc.dacmedia16.workers.dev/logout" className="single-login-switch">
+        <a
+          href="https://conta-max-poc.dacmedia16.workers.dev/logout"
+          className="single-login-switch"
+        >
           Trocar conta
         </a>
-        <a href="https://conta-max-poc.dacmedia16.workers.dev/logout" className="single-login-status">
+        <a
+          href="https://conta-max-poc.dacmedia16.workers.dev/logout"
+          className="single-login-status"
+        >
           <span aria-hidden="true" /> Sair da Conta MAX
         </a>
       </span>
@@ -397,7 +480,9 @@ function FrontPage() {
           </Link>
 
           <div className="titleblock">
-            <h1 className="display"><span className="navy">Hub</span> <span className="red">MAX</span></h1>
+            <h1 className="display">
+              <span className="navy">Hub</span> <span className="red">MAX</span>
+            </h1>
             <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
           </div>
 
@@ -432,17 +517,30 @@ function FrontPage() {
             </g>
           </svg>
 
-          <div className="hub"><HubHex /></div>
+          <div className="hub">
+            <HubHex />
+          </div>
 
           {CARDS.map((c) =>
             c.href ? (
-              <a key={c.id} className="card-link" href={c.href} {...(c.href.startsWith("/") ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
+              <a
+                key={c.id}
+                className="card-link"
+                href={c.href}
+                {...(c.href.startsWith("/")
+                  ? {}
+                  : { target: "_blank", rel: "noopener noreferrer" })}
+              >
                 <div className="card" style={c.pos}>
                   <span className="access-badge">Acessar →</span>
                   <CardIcon card={c} />
                   <span className="txt">
                     <h3>{c.title}</h3>
-                    <p>{c.lines[0]}<br />{c.lines[1]}</p>
+                    <p>
+                      {c.lines[0]}
+                      <br />
+                      {c.lines[1]}
+                    </p>
                   </span>
                 </div>
               </a>
@@ -453,7 +551,11 @@ function FrontPage() {
                   <CardIcon card={c} />
                   <span className="txt">
                     <h3>{c.title}</h3>
-                    <p>{c.lines[0]}<br />{c.lines[1]}</p>
+                    <p>
+                      {c.lines[0]}
+                      <br />
+                      {c.lines[1]}
+                    </p>
                   </span>
                 </div>
               </div>
@@ -462,12 +564,14 @@ function FrontPage() {
 
           <div className="footbar">
             <span className="fico">
-              <svg viewBox="0 0 24 24"><path d="M3 18 9 11l4 3 8-9" /><path d="M15 4h6v6" /></svg>
+              <svg viewBox="0 0 24 24">
+                <path d="M3 18 9 11l4 3 8-9" />
+                <path d="M15 4h6v6" />
+              </svg>
             </span>
             <span className="fdiv" />
             <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
           </div>
-
         </div>
       </div>
 
@@ -480,23 +584,36 @@ function FrontPage() {
         </div>
 
         <div className="mhero">
-          <h1 className="display"><span className="navy">Hub</span> <span className="red">MAX</span></h1>
+          <h1 className="display">
+            <span className="navy">Hub</span> <span className="red">MAX</span>
+          </h1>
           <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
         </div>
 
         <SingleLoginBanner />
 
-        <div className="mhub"><HubHex /></div>
+        <div className="mhub">
+          <HubHex />
+        </div>
 
         <div className="mlist">
           {CARDS.map((c) =>
             c.href ? (
-              <a key={c.id} className="mcard" href={c.href} {...(c.href.startsWith("/") ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
+              <a
+                key={c.id}
+                className="mcard"
+                href={c.href}
+                {...(c.href.startsWith("/")
+                  ? {}
+                  : { target: "_blank", rel: "noopener noreferrer" })}
+              >
                 <span className="access-badge">Acessar →</span>
                 <CardIcon card={c} />
                 <span className="txt">
                   <h3>{c.title}</h3>
-                  <p>{c.lines[0]} {c.lines[1]}</p>
+                  <p>
+                    {c.lines[0]} {c.lines[1]}
+                  </p>
                 </span>
               </a>
             ) : (
@@ -505,7 +622,9 @@ function FrontPage() {
                 <CardIcon card={c} />
                 <span className="txt">
                   <h3>{c.title}</h3>
-                  <p>{c.lines[0]} {c.lines[1]}</p>
+                  <p>
+                    {c.lines[0]} {c.lines[1]}
+                  </p>
                 </span>
               </div>
             ),
@@ -514,14 +633,18 @@ function FrontPage() {
 
         <div className="mfoot">
           <span className="fico">
-            <svg viewBox="0 0 24 24"><path d="M3 18 9 11l4 3 8-9" /><path d="M15 4h6v6" /></svg>
+            <svg viewBox="0 0 24 24">
+              <path d="M3 18 9 11l4 3 8-9" />
+              <path d="M15 4h6v6" />
+            </svg>
           </span>
           <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
         </div>
       </div>
 
       <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground">
-        Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. © {new Date().getFullYear()} RE/MAX Imóveis Única Escolha
+        Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
+        {new Date().getFullYear()} RE/MAX Imóveis Única Escolha
       </p>
     </div>
   );

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { addPositioningRegion, groupRegions, MAX_POSITIONING_REGIONS, normalizeExternalUrl, normalizeInstagramUrl, parseSpecialistRegions, whatsappDigits, whatsappSpecialistUrl } from "./positioning";
+import {
+  addPositioningRegion,
+  groupRegions,
+  MAX_POSITIONING_REGIONS,
+  normalizeExternalUrl,
+  normalizeInstagramUrl,
+  parseSpecialistRegions,
+  whatsappDigits,
+  whatsappSpecialistUrl,
+} from "./positioning";
 
 describe("positioning", () => {
   it("normaliza WhatsApp brasileiro sem duplicar o DDI", () => {
@@ -8,7 +17,18 @@ describe("positioning", () => {
   });
 
   it("monta mensagem contextualizada para o especialista", () => {
-    const url = whatsappSpecialistUrl({ id: "1", nome: "Ana", avatar_url: null, telefone: "15999990000", pagina_pessoal_url: null, instagram_url: null, regioes: [] }, "Campolim");
+    const url = whatsappSpecialistUrl(
+      {
+        id: "1",
+        nome: "Ana",
+        avatar_url: null,
+        telefone: "15999990000",
+        pagina_pessoal_url: null,
+        instagram_url: null,
+        regioes: [],
+      },
+      "Campolim",
+    );
     expect(url).toContain("https://wa.me/5515999990000");
     expect(decodeURIComponent(url)).toContain("região de Campolim");
   });
@@ -21,7 +41,12 @@ describe("positioning", () => {
   });
 
   it("descarta regiões públicas malformadas", () => {
-    expect(parseSpecialistRegions([{ id: 1, nome: "Campolim", cidade: "Sorocaba", zona: "Sul", tipo: "bairro" }, null])).toHaveLength(1);
+    expect(
+      parseSpecialistRegions([
+        { id: 1, nome: "Campolim", cidade: "Sorocaba", zona: "Sul", tipo: "bairro" },
+        null,
+      ]),
+    ).toHaveLength(1);
     expect(parseSpecialistRegions("Campolim")).toEqual([]);
   });
 

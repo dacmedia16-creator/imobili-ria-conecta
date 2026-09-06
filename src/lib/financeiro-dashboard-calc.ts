@@ -533,9 +533,7 @@ export function calcularResumo(args: {
 
   return {
     vgvEfetivado: Number(efetivadasProprias.reduce((s, r) => s + r.vgvProprio, 0).toFixed(2)),
-    comissaoBruta: Number(
-      efetivadasProprias.reduce((s, r) => s + r.comissaoPropria, 0).toFixed(2),
-    ),
+    comissaoBruta: Number(efetivadasProprias.reduce((s, r) => s + r.comissaoPropria, 0).toFixed(2)),
     repassesInternos,
     receitaLiquidaImobiliaria,
     parceriaExterna: Number(

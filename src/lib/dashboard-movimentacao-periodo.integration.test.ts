@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { mapearMovimentacaoPeriodo } from "./dashboard-movimentacao-query";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, TablesInsert } from "@/integrations/supabase/types";
 
 type SaleStatus = Database["public"]["Enums"]["sale_status"];
 
@@ -84,8 +84,7 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
 
     const codigoTeste = () => `TESTE-MOVIMENTACAO-${randomUUID()}`;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async function criarVenda(overrides: Record<string, any> = {}) {
+    async function criarVenda(overrides: Partial<TablesInsert<"sales">> = {}) {
       const { data, error } = await supabaseAdmin
         .from("sales")
         .insert({
@@ -219,11 +218,18 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)(
       createdSaleIds.length = 0;
       const semVenda = await movimentacao();
 
-      expect(comVenda.confirmadasLancamentoQuantidade - semVenda.confirmadasLancamentoQuantidade).toBe(1);
-      expect(comVenda.confirmadasLancamentoVgv - semVenda.confirmadasLancamentoVgv).toBeCloseTo(600000, 2);
+      expect(
+        comVenda.confirmadasLancamentoQuantidade - semVenda.confirmadasLancamentoQuantidade,
+      ).toBe(1);
+      expect(comVenda.confirmadasLancamentoVgv - semVenda.confirmadasLancamentoVgv).toBeCloseTo(
+        600000,
+        2,
+      );
       // Prova de que não vazou pro balde de contrato — se tivesse vazado, o delta de contrato
       // também seria >= 600000.
-      expect(comVenda.confirmadasContratoVgv - semVenda.confirmadasContratoVgv).toBeLessThan(600000);
+      expect(comVenda.confirmadasContratoVgv - semVenda.confirmadasContratoVgv).toBeLessThan(
+        600000,
+      );
     });
   },
 );

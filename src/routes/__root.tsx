@@ -75,9 +75,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "RE/MAX Única Escolha — Portal Interno" },
-      { name: "description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
+      {
+        name: "description",
+        content:
+          "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
+      },
       { property: "og:title", content: "RE/MAX Única Escolha — Portal Interno" },
-      { property: "og:description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
+      {
+        property: "og:description",
+        content:
+          "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
+      },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://unicaescolha.com.br" },
       { property: "og:image", content: "https://unicaescolha.com.br/og-image.png" },
@@ -86,7 +94,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "RE/MAX Única Escolha — Portal Interno" },
-      { name: "twitter:description", content: "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda." },
+      {
+        name: "twitter:description",
+        content:
+          "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
+      },
       { name: "twitter:image", content: "https://unicaescolha.com.br/og-image.png" },
       { name: "theme-color", content: "#0b1330" },
       { name: "mobile-web-app-capable", content: "yes" },

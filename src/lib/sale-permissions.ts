@@ -41,16 +41,16 @@ export function gestorPodeEditar(
     (status === "rascunho"
       ? donoPertenceEquipe
       : (
-      [
-        "enviada_revisao",
-        "contrato_conferencia_gestor",
-        "contrato_ok_corretor",
-        "aguardando_assinatura",
-        "contrato_assinado",
-        "ocorrencia_pendente",
-        "ocorrencia_devolvida_gestor",
-      ] as SaleStatus[]
-    ).includes(status))
+          [
+            "enviada_revisao",
+            "contrato_conferencia_gestor",
+            "contrato_ok_corretor",
+            "aguardando_assinatura",
+            "contrato_assinado",
+            "ocorrencia_pendente",
+            "ocorrencia_devolvida_gestor",
+          ] as SaleStatus[]
+        ).includes(status))
   );
 }
 

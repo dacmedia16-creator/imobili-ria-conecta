@@ -313,7 +313,11 @@ function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {isAdmin ? "Painel administrativo" : isPerfilFinanceiro ? "Painel financeiro" : `Olá, ${nomeUsuario}`}
+            {isAdmin
+              ? "Painel administrativo"
+              : isPerfilFinanceiro
+                ? "Painel financeiro"
+                : `Olá, ${nomeUsuario}`}
           </h1>
           <p className="text-sm text-muted-foreground">
             {isFinanceiro
@@ -337,12 +341,20 @@ function Dashboard() {
           className="group flex flex-col gap-4 overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-slate-950 via-blue-950 to-red-800 p-5 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row sm:items-center"
         >
           <span className="flex w-36 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 p-3 shadow-lg shadow-slate-950/20">
-            <img src="/remax-logo-white.png" alt="RE/MAX Única Escolha" className="h-12 w-full object-contain" />
+            <img
+              src="/remax-logo-white.png"
+              alt="RE/MAX Única Escolha"
+              className="h-12 w-full object-contain"
+            />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-xs font-bold uppercase tracking-[0.16em] text-red-200">Novo no MAX HUB</span>
+            <span className="block text-xs font-bold uppercase tracking-[0.16em] text-red-200">
+              Novo no MAX HUB
+            </span>
             <span className="mt-1 block text-lg font-semibold">Sistema de Posicionamento</span>
-            <span className="mt-1 block text-sm text-white/75">Escolha suas regiões e apareça na página pública de especialistas.</span>
+            <span className="mt-1 block text-sm text-white/75">
+              Escolha suas regiões e apareça na página pública de especialistas.
+            </span>
           </span>
           <span className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-red-700 transition group-hover:bg-red-50">
             Entre agora e atualize seus dados
@@ -697,12 +709,9 @@ function ResumoGestorMes() {
             <CalendarDays className="h-4 w-4" />
             {deslocamentoMes === 0 ? "Este mês" : "Mês anterior"}
           </div>
-          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">
-            {periodo.label}
-          </h2>
+          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">{periodo.label}</h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
-            O essencial da operação em uma leitura. Os detalhes continuam disponíveis no
-            Financeiro.
+            O essencial da operação em uma leitura. Os detalhes continuam disponíveis no Financeiro.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button

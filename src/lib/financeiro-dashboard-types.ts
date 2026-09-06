@@ -85,9 +85,7 @@ export type GravidadeDivergencia = "alta" | "media" | "baixa";
 /** Por que um beneficiário sem `user_id` está sem vínculo — nunca inferido só pela ausência de
  * correspondência (ver classificarVinculoBeneficiario em financeiro-dashboard-calc.ts). */
 export type ClassificacaoVinculoBeneficiario =
-  | "vinculo_pendente"
-  | "externo_explicito"
-  | "sem_correspondencia";
+  "vinculo_pendente" | "externo_explicito" | "sem_correspondencia";
 
 export type DivergenciaFinanceira = {
   id: string;
@@ -161,12 +159,7 @@ export type GrupoComissao = {
 
 export type ModalidadeFiltroFin = "todas" | "padrao" | "lancamento";
 export type SituacaoRecebimentoFiltro =
-  | "todas"
-  | "recebido"
-  | "parcial"
-  | "a_vencer"
-  | "vencido"
-  | "sem_previsao";
+  "todas" | "recebido" | "parcial" | "a_vencer" | "vencido" | "sem_previsao";
 export type AgrupamentoComissao = "beneficiario" | "gestor" | "equipe" | "papel" | "mes" | "geral";
 
 export type FinanceiroFiltros = {

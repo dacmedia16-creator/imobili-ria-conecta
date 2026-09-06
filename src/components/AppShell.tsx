@@ -29,6 +29,7 @@ import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import type { ReactNode } from "react";
 import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
 type NavGroup = { label?: string; items: NavItem[]; compact?: boolean };
@@ -48,8 +49,8 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
       try {
         await restoreSuperAdmin();
         window.location.href = "/admin/usuarios";
-      } catch (error: any) {
-        toast.error(error?.message ?? "Não foi possível retornar ao Super Admin.");
+      } catch (error: unknown) {
+        toast.error(errorMessage(error, "Não foi possível retornar ao Super Admin."));
       }
       return;
     }
@@ -105,7 +106,8 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
           className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white"
           onClick={handleSignOut}
         >
-          <LogOut className="h-4 w-4" /> {impersonation ? "Retornar ao Super Admin" : "Sair da Conta MAX"}
+          <LogOut className="h-4 w-4" />{" "}
+          {impersonation ? "Retornar ao Super Admin" : "Sair da Conta MAX"}
         </Button>
       </div>
     </div>
@@ -129,8 +131,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       await restoreSuperAdmin();
       router.navigate({ to: "/admin/usuarios", replace: true });
       window.location.reload();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Não foi possível retornar ao Super Admin.");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Não foi possível retornar ao Super Admin."));
     }
   };
 
@@ -222,16 +224,25 @@ export function AppShell({ children }: { children: ReactNode }) {
       {impersonation && (
         <div className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-lg print:hidden">
           <ShieldAlert className="h-4 w-4" />
-          <span>Modo operacional: você está como {impersonation.targetName}. As ações alteram dados reais.</span>
-          <Button size="sm" variant="secondary" onClick={leaveImpersonation}>Retornar ao Super Admin</Button>
+          <span>
+            Modo operacional: você está como {impersonation.targetName}. As ações alteram dados
+            reais.
+          </span>
+          <Button size="sm" variant="secondary" onClick={leaveImpersonation}>
+            Retornar ao Super Admin
+          </Button>
         </div>
       )}
-      <aside className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${impersonation ? "pt-12" : ""}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${impersonation ? "pt-12" : ""}`}
+      >
         <BrandHeroBackground />
         <SidebarNav groups={navGroups} />
       </aside>
 
-      <header className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}>
+      <header
+        className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}
+      >
         <div className="flex items-center gap-2">
           <img src="/remax-icon.png" alt="RE/MAX" className="h-7 w-7" />
           <span className="font-semibold tracking-tight">RE/MAX Portal</span>

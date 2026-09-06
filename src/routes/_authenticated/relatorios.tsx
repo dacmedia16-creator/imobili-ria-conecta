@@ -7,55 +7,146 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
-import { STATUS_LABEL, RECEBIDO_COLS, type SaleStatus } from "@/lib/status";
+import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 import { periodoMensalRelatorios, type AtalhoPeriodoRelatorios } from "@/lib/relatorios-periodo";
+import type {
+  OccurrenceCommissionRow,
+  OccurrencePartnerRow,
+  OccurrenceRow,
+  OccurrenceUpdate,
+  SaleRow,
+} from "@/lib/database.types";
+
+type ReportSale = Pick<
+  SaleRow,
+  | "id"
+  | "status"
+  | "imovel_id"
+  | "codigo_interno"
+  | "corretor_id"
+  | "valor_negociado"
+  | "valor_total_comissao"
+  | "updated_at"
+  | "created_at"
+>;
+type ReportOccurrence = Pick<
+  OccurrenceRow,
+  | "id"
+  | "sale_id"
+  | "valor_comissao"
+  | "prev_recebimento_valor"
+  | "prev_recebimento_data"
+  | "prev_recebimento_forma"
+  | "prev_recebimento_recebido_em"
+  | "prev_recebimento_recebido_valor"
+  | "prev_recebimento2_valor"
+  | "prev_recebimento2_data"
+  | "prev_recebimento2_forma"
+  | "prev_recebimento2_recebido_em"
+  | "prev_recebimento2_recebido_valor"
+  | "prev_recebimento3_valor"
+  | "prev_recebimento3_data"
+  | "prev_recebimento3_forma"
+  | "prev_recebimento3_recebido_em"
+  | "prev_recebimento3_recebido_valor"
+  | "data_assinatura"
+  | "created_at"
+  | "financiamento"
+  | "financiamento_previsao"
+  | "financiamento_banco"
+  | "financiamento_correspondente"
+  | "financiamento_valor"
+  | "reopened_at"
+  | "reopen_reason"
+>;
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
   component: RelatoriosPage,
 });
 
-const money = (v: any) => (v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—");
+const money = (v: unknown) =>
+  v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
 // Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
 // como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
 // Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.
-const dateBR = (v: any) => {
+const dateBR = (v: unknown) => {
   if (!v) return "—";
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
     const [y, m, d] = v.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
   }
+  if (!(typeof v === "string" || typeof v === "number" || v instanceof Date)) return "—";
   return new Date(v).toLocaleDateString("pt-BR");
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const monthsAgoISO = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return d.toISOString().slice(0, 10); };
+const recebimentoPatch = (
+  parcela: number,
+  data: string | null,
+  valor: number | null,
+): OccurrenceUpdate =>
+  parcela === 1
+    ? { prev_recebimento_recebido_em: data, prev_recebimento_recebido_valor: valor }
+    : parcela === 2
+      ? { prev_recebimento2_recebido_em: data, prev_recebimento2_recebido_valor: valor }
+      : { prev_recebimento3_recebido_em: data, prev_recebimento3_recebido_valor: valor };
+const monthsAgoISO = (n: number) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return d.toISOString().slice(0, 10);
+};
 const inRange = (dateStr: string | null | undefined, from: string, to: string) => {
   if (!dateStr) return false;
   const d = dateStr.slice(0, 10);
   return (!from || d >= from) && (!to || d <= to);
 };
 
-const FUNIL_STATUSES: SaleStatus[] = ["ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor", "ocorrencia_concluida"];
+const FUNIL_STATUSES: SaleStatus[] = [
+  "ocorrencia_pendente",
+  "ocorrencia_analise_financeiro",
+  "ocorrencia_devolvida_gestor",
+  "ocorrencia_concluida",
+];
 
 function RelatoriosPage() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(["financeiro", "admin", "super_admin"]);
 
   const [loading, setLoading] = useState(true);
-  const [sales, setSales] = useState<any[]>([]);
-  const [occs, setOccs] = useState<any[]>([]);
-  const [comms, setComms] = useState<any[]>([]);
-  const [partners, setPartners] = useState<any[]>([]);
+  const [sales, setSales] = useState<ReportSale[]>([]);
+  const [occs, setOccs] = useState<ReportOccurrence[]>([]);
+  const [comms, setComms] = useState<OccurrenceCommissionRow[]>([]);
+  const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [vendaComercialEm, setVendaComercialEm] = useState<Record<string, string>>({});
   const [profileName, setProfileName] = useState<Record<string, string>>({});
 
@@ -93,7 +184,8 @@ function RelatoriosPage() {
     // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
     // exata do dia final — quase nunca, o que na prática anulava essa condição.
     const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
-    const timestampWindow = (col: string) => `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
+    const timestampWindow = (col: string) =>
+      `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
     const occFilterParts = [
       dateWindow("prev_recebimento_data"),
       dateWindow("prev_recebimento2_data"),
@@ -103,26 +195,33 @@ function RelatoriosPage() {
       dateWindow("financiamento_previsao"),
       "and(financiamento.is.true,financiamento_previsao.is.null)",
     ];
-    if (vendasValidas.length) occFilterParts.push(`sale_id.in.(${vendasValidas.map((v) => v.sale_id).join(",")})`);
+    if (vendasValidas.length)
+      occFilterParts.push(`sale_id.in.(${vendasValidas.map((v) => v.sale_id).join(",")})`);
     const occFilter = occFilterParts.join(",");
     const { data: o } = await supabase
       .from("occurrences")
-      .select("id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason")
+      .select(
+        "id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason",
+      )
       .or(occFilter);
     setOccs(o ?? []);
 
     // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
     // nome/label das ocorrências já trazidas acima — union das duas necessidades.
-    const occSaleIds = Array.from(new Set((o ?? []).map((r: any) => r.sale_id)));
+    const occSaleIds = Array.from(new Set((o ?? []).map((r) => r.sale_id)));
     const updatedAtWindow = timestampWindow("updated_at");
-    const salesFilter = occSaleIds.length ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})` : updatedAtWindow;
+    const salesFilter = occSaleIds.length
+      ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})`
+      : updatedAtWindow;
     const { data: s } = await supabase
       .from("sales")
-      .select("id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at")
+      .select(
+        "id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at",
+      )
       .or(salesFilter);
     setSales(s ?? []);
 
-    const occIds = (o ?? []).map((r: any) => r.id);
+    const occIds = (o ?? []).map((r) => r.id);
     if (occIds.length) {
       const [{ data: c }, { data: p }] = await Promise.all([
         supabase.from("occurrence_commissions").select("*").in("occurrence_id", occIds),
@@ -142,12 +241,15 @@ function RelatoriosPage() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => {
-    if (!allowed) { setLoading(false); return; }
+    if (!allowed) {
+      setLoading(false);
+      return;
+    }
     load();
   }, [allowed, load]);
 
   const saleById = useMemo(() => {
-    const m: Record<string, any> = {};
+    const m: Record<string, ReportSale> = {};
     for (const s of sales) m[s.id] = s;
     return m;
   }, [sales]);
@@ -158,28 +260,37 @@ function RelatoriosPage() {
   // Ocorrência cujo sale_id não resolve em nenhuma venda carregada é tratada como inconsistência:
   // nunca entra nos totais ativos, mesmo com "Incluir canceladas/arquivadas" marcado.
   const { occsAtivas, inconsistentes } = useMemo(() => {
-    const ativas: any[] = [];
-    const semVenda: any[] = [];
+    const ativas: ReportOccurrence[] = [];
+    const semVenda: ReportOccurrence[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
-      if (!sale) { semVenda.push(o); continue; }
-      if (!incluirCanceladas && (sale.status === "cancelada" || sale.status === "arquivada")) continue;
+      if (!sale) {
+        semVenda.push(o);
+        continue;
+      }
+      if (!incluirCanceladas && (sale.status === "cancelada" || sale.status === "arquivada"))
+        continue;
       ativas.push(o);
     }
     return { occsAtivas: ativas, inconsistentes: semVenda };
   }, [occs, saleById, incluirCanceladas]);
 
-  const saleLabel = (sale: any) => sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
-  const corretorNome = (sale: any) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—");
-  const matchesCorretor = (sale: any) => !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
+  const saleLabel = (sale: ReportSale | undefined) =>
+    sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
+  const corretorNome = (sale: ReportSale | undefined) =>
+    sale ? (profileName[sale.corretor_id] ?? "—") : "—";
+  const matchesCorretor = (sale: ReportSale | undefined) =>
+    !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando relatórios...</p>;
+  if (authLoading || loading)
+    return <p className="text-sm text-muted-foreground">Carregando relatórios...</p>;
 
   if (!allowed) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita ao Financeiro e a administradores. Se você acredita que deveria ter acesso, peça ao administrador.
+          Esta área é restrita ao Financeiro e a administradores. Se você acredita que deveria ter
+          acesso, peça ao administrador.
         </CardContent>
       </Card>
     );
@@ -189,7 +300,9 @@ function RelatoriosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Relatórios — Financeiro</h1>
-        <p className="text-sm text-muted-foreground">Visão consolidada de comissões, recebimentos, financiamentos e ocorrências.</p>
+        <p className="text-sm text-muted-foreground">
+          Visão consolidada de comissões, recebimentos, financiamentos e ocorrências.
+        </p>
       </div>
 
       <Card>
@@ -223,11 +336,22 @@ function RelatoriosPage() {
           </div>
           <div className="min-w-48 flex-1">
             <Label>Corretor</Label>
-            <Input placeholder="Filtrar por nome do corretor" value={corretorQ} onChange={(e) => setCorretorQ(e.target.value)} />
+            <Input
+              placeholder="Filtrar por nome do corretor"
+              value={corretorQ}
+              onChange={(e) => setCorretorQ(e.target.value)}
+            />
           </div>
           <div className="flex items-center gap-2 pb-2">
-            <Checkbox id="incluir-canceladas" checked={incluirCanceladas} onCheckedChange={(v) => setIncluirCanceladas(!!v)} />
-            <Label htmlFor="incluir-canceladas" className="cursor-pointer text-sm font-normal text-muted-foreground">
+            <Checkbox
+              id="incluir-canceladas"
+              checked={incluirCanceladas}
+              onCheckedChange={(v) => setIncluirCanceladas(!!v)}
+            />
+            <Label
+              htmlFor="incluir-canceladas"
+              className="cursor-pointer text-sm font-normal text-muted-foreground"
+            >
               Incluir vendas canceladas/arquivadas (histórico)
             </Label>
           </div>
@@ -237,7 +361,8 @@ function RelatoriosPage() {
       {inconsistentes.length > 0 && (
         <Card className="border-destructive/40">
           <CardContent className="py-3 text-sm text-destructive">
-            {inconsistentes.length} ocorrência(s) sem venda correspondente carregada — excluída(s) de todos os totais desta página por segurança. Verifique com o suporte técnico.
+            {inconsistentes.length} ocorrência(s) sem venda correspondente carregada — excluída(s)
+            de todos os totais desta página por segurança. Verifique com o suporte técnico.
           </CardContent>
         </Card>
       )}
@@ -245,28 +370,84 @@ function RelatoriosPage() {
       <Tabs defaultValue="caixa">
         <div className="overflow-x-auto">
           <TabsList>
-            <TabsTrigger value="caixa" className="shrink-0">Fluxo de caixa</TabsTrigger>
-            <TabsTrigger value="comissoes" className="shrink-0">Comissões</TabsTrigger>
-            <TabsTrigger value="financiamentos" className="shrink-0">Financiamentos</TabsTrigger>
-            <TabsTrigger value="funil" className="shrink-0">Funil de ocorrências</TabsTrigger>
+            <TabsTrigger value="caixa" className="shrink-0">
+              Fluxo de caixa
+            </TabsTrigger>
+            <TabsTrigger value="comissoes" className="shrink-0">
+              Comissões
+            </TabsTrigger>
+            <TabsTrigger value="financiamentos" className="shrink-0">
+              Financiamentos
+            </TabsTrigger>
+            <TabsTrigger value="funil" className="shrink-0">
+              Funil de ocorrências
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="caixa">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
-          <FluxoCaixaTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} onChange={load} />
+          <p className="mb-3 text-xs text-muted-foreground">
+            "Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.
+            {!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}
+          </p>
+          <FluxoCaixaTab
+            occs={occsAtivas}
+            saleById={saleById}
+            saleLabel={saleLabel}
+            corretorNome={corretorNome}
+            matchesCorretor={matchesCorretor}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onChange={load}
+          />
         </TabsContent>
         <TabsContent value="comissoes">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>data comercial da venda</b>, usando a assinatura válida mais recente (ou a entrada no Financeiro para lançamento).{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
-          <ComissoesTab occs={occsAtivas} comms={comms} partners={partners} saleById={saleById} vendaComercialEm={vendaComercialEm} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">
+            "Período" aqui filtra pela <b>data comercial da venda</b>, usando a assinatura válida
+            mais recente (ou a entrada no Financeiro para lançamento).
+            {!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}
+          </p>
+          <ComissoesTab
+            occs={occsAtivas}
+            comms={comms}
+            partners={partners}
+            saleById={saleById}
+            vendaComercialEm={vendaComercialEm}
+            saleLabel={saleLabel}
+            corretorNome={corretorNome}
+            matchesCorretor={matchesCorretor}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+          />
         </TabsContent>
         <TabsContent value="financiamentos">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>previsão de liberação do crédito</b>.{!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}</p>
-          <FinanciamentosTab occs={occsAtivas} saleById={saleById} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">
+            "Período" aqui filtra pela <b>previsão de liberação do crédito</b>.
+            {!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}
+          </p>
+          <FinanciamentosTab
+            occs={occsAtivas}
+            saleById={saleById}
+            saleLabel={saleLabel}
+            corretorNome={corretorNome}
+            matchesCorretor={matchesCorretor}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+          />
         </TabsContent>
         <TabsContent value="funil">
-          <p className="mb-3 text-xs text-muted-foreground">"Período" aqui filtra pela <b>última atualização</b> da venda.</p>
-          <FunilTab sales={sales} occs={occs} saleLabel={saleLabel} corretorNome={corretorNome} matchesCorretor={matchesCorretor} dateFrom={dateFrom} dateTo={dateTo} />
+          <p className="mb-3 text-xs text-muted-foreground">
+            "Período" aqui filtra pela <b>última atualização</b> da venda.
+          </p>
+          <FunilTab
+            sales={sales}
+            occs={occs}
+            saleLabel={saleLabel}
+            corretorNome={corretorNome}
+            matchesCorretor={matchesCorretor}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -276,7 +457,9 @@ function RelatoriosPage() {
 function EmptyRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
   return (
     <TableRow>
-      <TableCell colSpan={colSpan} className="py-8 text-center text-sm text-muted-foreground">{children}</TableCell>
+      <TableCell colSpan={colSpan} className="py-8 text-center text-sm text-muted-foreground">
+        {children}
+      </TableCell>
     </TableRow>
   );
 }
@@ -284,31 +467,89 @@ function EmptyRow({ colSpan, children }: { colSpan: number; children: React.Reac
 function ExportButton({ onClick }: { onClick: () => void }) {
   return (
     <Button variant="outline" size="sm" onClick={onClick}>
-      <Download className="mr-2 h-4 w-4" />Exportar CSV
+      <Download className="mr-2 h-4 w-4" />
+      Exportar CSV
     </Button>
   );
 }
 
-function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo, onChange }: {
-  occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string; onChange: () => void;
+function FluxoCaixaTab({
+  occs,
+  saleById,
+  saleLabel,
+  corretorNome,
+  matchesCorretor,
+  dateFrom,
+  dateTo,
+  onChange,
+}: {
+  occs: ReportOccurrence[];
+  saleById: Record<string, ReportSale>;
+  saleLabel: (s: ReportSale | undefined) => string;
+  corretorNome: (s: ReportSale | undefined) => string;
+  matchesCorretor: (s: ReportSale | undefined) => boolean;
+  dateFrom: string;
+  dateTo: string;
+  onChange: () => void;
 }) {
   const rows = useMemo(() => {
-    const out: { sale: any; occId: string; parcela: number; data: string; valor: number; forma: string | null; recebidoEm: string | null; recebidoValor: number | null }[] = [];
+    const out: {
+      sale: ReportSale;
+      occId: string;
+      parcela: number;
+      data: string;
+      valor: number;
+      forma: string | null;
+      recebidoEm: string | null;
+      recebidoValor: number | null;
+    }[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
       if (!matchesCorretor(sale)) continue;
       // prev_recebimento{1,2,3}_valor já é a fatia própria — a parceria externa (quando existe) nunca
       // passa por essa conta, cobrada direto pelo parceiro.
-      const parcelas: [string | null, number | null, string | null, string | null, number | null][] = [
-        [o.prev_recebimento_data, o.prev_recebimento_valor, o.prev_recebimento_forma, o.prev_recebimento_recebido_em, o.prev_recebimento_recebido_valor],
-        [o.prev_recebimento2_data, o.prev_recebimento2_valor, o.prev_recebimento2_forma, o.prev_recebimento2_recebido_em, o.prev_recebimento2_recebido_valor],
-        [o.prev_recebimento3_data, o.prev_recebimento3_valor, o.prev_recebimento3_forma, o.prev_recebimento3_recebido_em, o.prev_recebimento3_recebido_valor],
+      const parcelas: [
+        string | null,
+        number | null,
+        string | null,
+        string | null,
+        number | null,
+      ][] = [
+        [
+          o.prev_recebimento_data,
+          o.prev_recebimento_valor,
+          o.prev_recebimento_forma,
+          o.prev_recebimento_recebido_em,
+          o.prev_recebimento_recebido_valor,
+        ],
+        [
+          o.prev_recebimento2_data,
+          o.prev_recebimento2_valor,
+          o.prev_recebimento2_forma,
+          o.prev_recebimento2_recebido_em,
+          o.prev_recebimento2_recebido_valor,
+        ],
+        [
+          o.prev_recebimento3_data,
+          o.prev_recebimento3_valor,
+          o.prev_recebimento3_forma,
+          o.prev_recebimento3_recebido_em,
+          o.prev_recebimento3_recebido_valor,
+        ],
       ];
       parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
         if (!data || !valor) return;
         if (!inRange(data, dateFrom, dateTo)) return;
-        out.push({ sale, occId: o.id, parcela: i + 1, data, valor: Number(valor), forma, recebidoEm, recebidoValor: recebidoValor != null ? Number(recebidoValor) : null });
+        out.push({
+          sale,
+          occId: o.id,
+          parcela: i + 1,
+          data,
+          valor: Number(valor),
+          forma,
+          recebidoEm,
+          recebidoValor: recebidoValor != null ? Number(recebidoValor) : null,
+        });
       });
     }
     return out.sort((a, b) => a.data.localeCompare(b.data));
@@ -316,17 +557,34 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
 
   const hoje = todayISO();
   const totalPrevisto = rows.reduce((s, r) => s + r.valor, 0);
-  const totalRecebido = rows.filter((r) => r.recebidoEm).reduce((s, r) => s + (r.recebidoValor ?? 0), 0);
-  const totalVencido = rows.filter((r) => !r.recebidoEm && r.data < hoje).reduce((s, r) => s + r.valor, 0);
-  const totalAVencer = rows.filter((r) => !r.recebidoEm && r.data >= hoje).reduce((s, r) => s + r.valor, 0);
+  const totalRecebido = rows
+    .filter((r) => r.recebidoEm)
+    .reduce((s, r) => s + (r.recebidoValor ?? 0), 0);
+  const totalVencido = rows
+    .filter((r) => !r.recebidoEm && r.data < hoje)
+    .reduce((s, r) => s + r.valor, 0);
+  const totalAVencer = rows
+    .filter((r) => !r.recebidoEm && r.data >= hoje)
+    .reduce((s, r) => s + r.valor, 0);
 
-  const situacao = (r: (typeof rows)[number]) => (r.recebidoEm ? "Recebida" : r.data < hoje ? "Vencida" : "A vencer");
+  const situacao = (r: (typeof rows)[number]) =>
+    r.recebidoEm ? "Recebida" : r.data < hoje ? "Vencida" : "A vencer";
 
-  const doExport = () => exportCsv(`fluxo-caixa_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Parcela: r.parcela, Data: r.data,
-    Valor: r.valor.toFixed(2), Forma: r.forma ?? "",
-    Situacao: situacao(r), RecebidoEm: r.recebidoEm ?? "", ValorRecebido: r.recebidoValor != null ? r.recebidoValor.toFixed(2) : "",
-  })));
+  const doExport = () =>
+    exportCsv(
+      `fluxo-caixa_${dateFrom}_a_${dateTo}.csv`,
+      rows.map((r) => ({
+        Imovel: saleLabel(r.sale),
+        Corretor: corretorNome(r.sale),
+        Parcela: r.parcela,
+        Data: r.data,
+        Valor: r.valor.toFixed(2),
+        Forma: r.forma ?? "",
+        Situacao: situacao(r),
+        RecebidoEm: r.recebidoEm ?? "",
+        ValorRecebido: r.recebidoValor != null ? r.recebidoValor.toFixed(2) : "",
+      })),
+    );
 
   const [marcando, setMarcando] = useState<{ occId: string; parcela: number } | null>(null);
   const [recValor, setRecValor] = useState<number | null>(null);
@@ -343,9 +601,14 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
     if (!marcando) return;
     setSaving(true);
     try {
-      const cols = RECEBIDO_COLS[marcando.parcela];
-      const { error } = await supabase.from("occurrences").update({ [cols.em]: recData, [cols.valor]: recValor } as any).eq("id", marcando.occId);
-      if (error) { toast.error(error.message); return; }
+      const { error } = await supabase
+        .from("occurrences")
+        .update(recebimentoPatch(marcando.parcela, recData, recValor))
+        .eq("id", marcando.occId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Recebimento registrado");
       setMarcando(null);
       onChange();
@@ -355,9 +618,14 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   };
 
   const desfazerRecebido = async (occId: string, parcela: number) => {
-    const cols = RECEBIDO_COLS[parcela];
-    const { error } = await supabase.from("occurrences").update({ [cols.em]: null, [cols.valor]: null } as any).eq("id", occId);
-    if (error) { toast.error(error.message); return; }
+    const { error } = await supabase
+      .from("occurrences")
+      .update(recebimentoPatch(parcela, null, null))
+      .eq("id", occId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Desfeito");
     onChange();
   };
@@ -365,10 +633,32 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total previsto no período (nossa parte)</p><p className="text-xl font-semibold">{money(totalPrevisto)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Recebido</p><p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(totalRecebido)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Vencido (não recebido)</p><p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">A vencer</p><p className="text-xl font-semibold">{money(totalAVencer)}</p></CardContent></Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Total previsto no período (nossa parte)</p>
+            <p className="text-xl font-semibold">{money(totalPrevisto)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Recebido</p>
+            <p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">
+              {money(totalRecebido)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Vencido (não recebido)</p>
+            <p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">A vencer</p>
+            <p className="text-xl font-semibold">{money(totalAVencer)}</p>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -390,11 +680,21 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <EmptyRow colSpan={8}>Nenhuma parcela prevista no período/filtro selecionado.</EmptyRow>}
+              {rows.length === 0 && (
+                <EmptyRow colSpan={8}>
+                  Nenhuma parcela prevista no período/filtro selecionado.
+                </EmptyRow>
+              )}
               {rows.map((r, i) => (
                 <TableRow key={i}>
                   <TableCell className="font-medium">
-                    {r.sale ? <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">{saleLabel(r.sale)}</Link> : "—"}
+                    {r.sale ? (
+                      <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                        {saleLabel(r.sale)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
                   <TableCell>{r.parcela}ª</TableCell>
@@ -404,19 +704,30 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
                   <TableCell>
                     {r.recebidoEm ? (
                       <span className="text-emerald-700 dark:text-emerald-400">
-                        Recebida em {dateBR(r.recebidoEm)}{r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
+                        Recebida em {dateBR(r.recebidoEm)}
+                        {r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
                       </span>
                     ) : (
-                      <span className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}>
+                      <span
+                        className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}
+                      >
                         {r.data < hoje ? "Vencida" : "A vencer"}
                       </span>
                     )}
                   </TableCell>
                   <TableCell>
                     {r.recebidoEm ? (
-                      <Button size="sm" variant="ghost" onClick={() => desfazerRecebido(r.occId, r.parcela)}>Desfazer</Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => desfazerRecebido(r.occId, r.parcela)}
+                      >
+                        Desfazer
+                      </Button>
                     ) : (
-                      <Button size="sm" variant="outline" onClick={() => abrirMarcar(r)}>Marcar recebido</Button>
+                      <Button size="sm" variant="outline" onClick={() => abrirMarcar(r)}>
+                        Marcar recebido
+                      </Button>
                     )}
                   </TableCell>
                 </TableRow>
@@ -426,11 +737,18 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
         </CardContent>
       </Card>
 
-      <Dialog open={!!marcando} onOpenChange={(o) => { if (!saving && !o) setMarcando(null); }}>
+      <Dialog
+        open={!!marcando}
+        onOpenChange={(o) => {
+          if (!saving && !o) setMarcando(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar recebimento</DialogTitle>
-            <DialogDescription>Confirme o valor e a data em que a comissão foi efetivamente recebida.</DialogDescription>
+            <DialogDescription>
+              Confirme o valor e a data em que a comissão foi efetivamente recebida.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -438,13 +756,19 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
               <CurrencyInput value={recValor} onChange={setRecValor} />
             </div>
             <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">Data do recebimento</Label>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">
+                Data do recebimento
+              </Label>
               <Input type="date" value={recData} onChange={(e) => setRecData(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setMarcando(null)} disabled={saving}>Cancelar</Button>
-            <Button onClick={confirmarRecebido} disabled={saving || !recData}>{saving ? "Salvando..." : "Confirmar"}</Button>
+            <Button variant="ghost" onClick={() => setMarcando(null)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarRecebido} disabled={saving || !recData}>
+              {saving ? "Salvando..." : "Confirmar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -452,21 +776,46 @@ function FluxoCaixaTab({ occs, saleById, saleLabel, corretorNome, matchesCorreto
   );
 }
 
-function ComissoesTab({ occs, comms, partners, saleById, vendaComercialEm, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
-  occs: any[]; comms: any[]; partners: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
+function ComissoesTab({
+  occs,
+  comms,
+  partners,
+  saleById,
+  vendaComercialEm,
+  saleLabel,
+  corretorNome,
+  matchesCorretor,
+  dateFrom,
+  dateTo,
+}: {
+  occs: ReportOccurrence[];
+  comms: OccurrenceCommissionRow[];
+  partners: OccurrencePartnerRow[];
+  saleById: Record<string, ReportSale>;
+  saleLabel: (s: ReportSale | undefined) => string;
+  corretorNome: (s: ReportSale | undefined) => string;
+  matchesCorretor: (s: ReportSale | undefined) => boolean;
   vendaComercialEm: Record<string, string>;
-  dateFrom: string; dateTo: string;
+  dateFrom: string;
+  dateTo: string;
 }) {
   const [papelFilter, setPapelFilter] = useState("todos");
 
   const occById = useMemo(() => {
-    const m: Record<string, any> = {};
+    const m: Record<string, ReportOccurrence> = {};
     for (const o of occs) m[o.id] = o;
     return m;
   }, [occs]);
 
   const rows = useMemo(() => {
-    const out: { sale: any; occ: any; papel: string; nome: string | null; valor: number; percentual: number | null }[] = [];
+    const out: {
+      sale: ReportSale;
+      occ: ReportOccurrence;
+      papel: string;
+      nome: string | null;
+      valor: number;
+      percentual: number | null;
+    }[] = [];
     for (const c of comms) {
       if (c.sem_cadastro_confirmado === true) continue;
       const occ = occById[c.occurrence_id];
@@ -475,44 +824,77 @@ function ComissoesTab({ occs, comms, partners, saleById, vendaComercialEm, saleL
       if (!matchesCorretor(sale)) continue;
       if (!inRange(vendaComercialEm[occ.sale_id], dateFrom, dateTo)) continue;
       if (!c.valor) continue;
-      out.push({ sale, occ, papel: c.papel, nome: c.nome, valor: Number(c.valor), percentual: c.percentual });
+      out.push({
+        sale,
+        occ,
+        papel: c.papel,
+        nome: c.nome,
+        valor: Number(c.valor),
+        percentual: c.percentual,
+      });
     }
     return out.filter((r) => papelFilter === "todos" || r.papel === papelFilter);
-  }, [comms, partners, occById, saleById, vendaComercialEm, matchesCorretor, dateFrom, dateTo, papelFilter]);
+  }, [comms, occById, saleById, vendaComercialEm, matchesCorretor, dateFrom, dateTo, papelFilter]);
 
   const papeis = useMemo(() => {
     const s = new Set<string>();
     comms.forEach((c) => s.add(c.papel));
     return Array.from(s);
-  }, [comms, partners]);
+  }, [comms]);
 
   const papelLabel: Record<string, string> = {
-    corretor_captador: "Corretor captador", indicador_captador: "Indicador do captador", coordenador_captador: "Coordenador captador",
-    corretor_vendedor: "Corretor vendedor", indicador_vendedor: "Indicador do vendedor", coordenador_vendedor: "Coordenador vendedor",
+    corretor_captador: "Corretor captador",
+    indicador_captador: "Indicador do captador",
+    coordenador_captador: "Coordenador captador",
+    corretor_vendedor: "Corretor vendedor",
+    indicador_vendedor: "Indicador do vendedor",
+    coordenador_vendedor: "Coordenador vendedor",
   };
 
   const total = rows.reduce((s, r) => s + r.valor, 0);
 
-  const doExport = () => exportCsv(`comissoes_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Papel: papelLabel[r.papel] ?? r.papel, Beneficiario: r.nome ?? "", Percentual: r.percentual ?? "", Valor: r.valor.toFixed(2), DataVendaComercial: vendaComercialEm[r.occ.sale_id]?.slice(0, 10) ?? "",
-  })));
+  const doExport = () =>
+    exportCsv(
+      `comissoes_${dateFrom}_a_${dateTo}.csv`,
+      rows.map((r) => ({
+        Imovel: saleLabel(r.sale),
+        Papel: papelLabel[r.papel] ?? r.papel,
+        Beneficiario: r.nome ?? "",
+        Percentual: r.percentual ?? "",
+        Valor: r.valor.toFixed(2),
+        DataVendaComercial: vendaComercialEm[r.occ.sale_id]?.slice(0, 10) ?? "",
+      })),
+    );
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total REMAX no período (sem parceria)</p><p className="text-xl font-semibold">{money(total)}</p></CardContent></Card>
-        <Card><CardContent className="flex items-end justify-between pt-6">
-          <div>
-            <Label>Papel</Label>
-            <Select value={papelFilter} onValueChange={setPapelFilter}>
-              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os papéis</SelectItem>
-                {papeis.map((p) => <SelectItem key={p} value={p}>{papelLabel[p] ?? p}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Total REMAX no período (sem parceria)</p>
+            <p className="text-xl font-semibold">{money(total)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-end justify-between pt-6">
+            <div>
+              <Label>Papel</Label>
+              <Select value={papelFilter} onValueChange={setPapelFilter}>
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os papéis</SelectItem>
+                  {papeis.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {papelLabel[p] ?? p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -532,17 +914,33 @@ function ComissoesTab({ occs, comms, partners, saleById, vendaComercialEm, saleL
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <EmptyRow colSpan={6}>Nenhuma comissão encontrada no período/filtro selecionado.</EmptyRow>}
+              {rows.length === 0 && (
+                <EmptyRow colSpan={6}>
+                  Nenhuma comissão encontrada no período/filtro selecionado.
+                </EmptyRow>
+              )}
               {rows.map((r, i) => (
                 <TableRow key={i}>
                   <TableCell className="font-medium">
-                    {r.sale ? <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">{saleLabel(r.sale)}</Link> : "—"}
+                    {r.sale ? (
+                      <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                        {saleLabel(r.sale)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{papelLabel[r.papel] ?? r.papel}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {papelLabel[r.papel] ?? r.papel}
+                  </TableCell>
                   <TableCell>{r.nome ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.percentual != null ? `${r.percentual}%` : "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.percentual != null ? `${r.percentual}%` : "—"}
+                  </TableCell>
                   <TableCell>{money(r.valor)}</TableCell>
-                  <TableCell className="text-muted-foreground">{dateBR(vendaComercialEm[r.occ.sale_id])}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {dateBR(vendaComercialEm[r.occ.sale_id])}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -553,50 +951,94 @@ function ComissoesTab({ occs, comms, partners, saleById, vendaComercialEm, saleL
   );
 }
 
-function FinanciamentosTab({ occs, saleById, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
-  occs: any[]; saleById: Record<string, any>; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string;
+function FinanciamentosTab({
+  occs,
+  saleById,
+  saleLabel,
+  corretorNome,
+  matchesCorretor,
+  dateFrom,
+  dateTo,
+}: {
+  occs: ReportOccurrence[];
+  saleById: Record<string, ReportSale>;
+  saleLabel: (s: ReportSale | undefined) => string;
+  corretorNome: (s: ReportSale | undefined) => string;
+  matchesCorretor: (s: ReportSale | undefined) => boolean;
+  dateFrom: string;
+  dateTo: string;
 }) {
   const [bancoQ, setBancoQ] = useState("");
   const [somenteAbertos, setSomenteAbertos] = useState(true);
 
   const rows = useMemo(() => {
-    return occs.filter((o) => {
-      if (!o.financiamento) return false;
-      const sale = saleById[o.sale_id];
-      if (!matchesCorretor(sale)) return false;
-      if (somenteAbertos && sale?.status === "ocorrencia_concluida") return false;
-      if (o.financiamento_previsao && !inRange(o.financiamento_previsao, dateFrom, dateTo)) return false;
-      if (bancoQ && !(o.financiamento_banco ?? "").toLowerCase().includes(bancoQ.toLowerCase())) return false;
-      return true;
-    }).map((o) => ({ occ: o, sale: saleById[o.sale_id] }));
+    return occs
+      .filter((o) => {
+        if (!o.financiamento) return false;
+        const sale = saleById[o.sale_id];
+        if (!matchesCorretor(sale)) return false;
+        if (somenteAbertos && sale?.status === "ocorrencia_concluida") return false;
+        if (o.financiamento_previsao && !inRange(o.financiamento_previsao, dateFrom, dateTo))
+          return false;
+        if (bancoQ && !(o.financiamento_banco ?? "").toLowerCase().includes(bancoQ.toLowerCase()))
+          return false;
+        return true;
+      })
+      .map((o) => ({ occ: o, sale: saleById[o.sale_id] }));
   }, [occs, saleById, matchesCorretor, dateFrom, dateTo, bancoQ, somenteAbertos]);
 
   const total = rows.reduce((s, r) => s + Number(r.occ.financiamento_valor ?? 0), 0);
 
-  const doExport = () => exportCsv(`financiamentos_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Banco: r.occ.financiamento_banco ?? "", Correspondente: r.occ.financiamento_correspondente ?? "",
-    ValorFinanciado: Number(r.occ.financiamento_valor ?? 0).toFixed(2), PrevisaoLiberacao: r.occ.financiamento_previsao ?? "", StatusVenda: r.sale ? STATUS_LABEL[r.sale.status as SaleStatus] : "",
-  })));
+  const doExport = () =>
+    exportCsv(
+      `financiamentos_${dateFrom}_a_${dateTo}.csv`,
+      rows.map((r) => ({
+        Imovel: saleLabel(r.sale),
+        Corretor: corretorNome(r.sale),
+        Banco: r.occ.financiamento_banco ?? "",
+        Correspondente: r.occ.financiamento_correspondente ?? "",
+        ValorFinanciado: Number(r.occ.financiamento_valor ?? 0).toFixed(2),
+        PrevisaoLiberacao: r.occ.financiamento_previsao ?? "",
+        StatusVenda: r.sale ? STATUS_LABEL[r.sale.status as SaleStatus] : "",
+      })),
+    );
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Valor total financiado (filtro atual)</p><p className="text-xl font-semibold">{money(total)}</p></CardContent></Card>
-        <Card><CardContent className="pt-6">
-          <Label>Banco / correspondente</Label>
-          <Input placeholder="Filtrar por nome" value={bancoQ} onChange={(e) => setBancoQ(e.target.value)} />
-        </CardContent></Card>
-        <Card><CardContent className="pt-6">
-          <Label>Situação</Label>
-          <Select value={somenteAbertos ? "abertos" : "todos"} onValueChange={(v) => setSomenteAbertos(v === "abertos")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="abertos">Somente em aberto</SelectItem>
-              <SelectItem value="todos">Todos (inclusive concluídos)</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Valor total financiado (filtro atual)</p>
+            <p className="text-xl font-semibold">{money(total)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Label>Banco / correspondente</Label>
+            <Input
+              placeholder="Filtrar por nome"
+              value={bancoQ}
+              onChange={(e) => setBancoQ(e.target.value)}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Label>Situação</Label>
+            <Select
+              value={somenteAbertos ? "abertos" : "todos"}
+              onValueChange={(v) => setSomenteAbertos(v === "abertos")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="abertos">Somente em aberto</SelectItem>
+                <SelectItem value="todos">Todos (inclusive concluídos)</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -617,18 +1059,32 @@ function FinanciamentosTab({ occs, saleById, saleLabel, corretorNome, matchesCor
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <EmptyRow colSpan={7}>Nenhum financiamento encontrado no período/filtro selecionado.</EmptyRow>}
+              {rows.length === 0 && (
+                <EmptyRow colSpan={7}>
+                  Nenhum financiamento encontrado no período/filtro selecionado.
+                </EmptyRow>
+              )}
               {rows.map((r) => (
                 <TableRow key={r.occ.id}>
                   <TableCell className="font-medium">
-                    {r.sale ? <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">{saleLabel(r.sale)}</Link> : "—"}
+                    {r.sale ? (
+                      <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                        {saleLabel(r.sale)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
                   <TableCell>{r.occ.financiamento_banco ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.occ.financiamento_correspondente ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.occ.financiamento_correspondente ?? "—"}
+                  </TableCell>
                   <TableCell>{money(r.occ.financiamento_valor)}</TableCell>
                   <TableCell>{dateBR(r.occ.financiamento_previsao)}</TableCell>
-                  <TableCell>{r.sale ? <StatusBadge status={r.sale.status as SaleStatus} /> : "—"}</TableCell>
+                  <TableCell>
+                    {r.sale ? <StatusBadge status={r.sale.status as SaleStatus} /> : "—"}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -639,12 +1095,25 @@ function FinanciamentosTab({ occs, saleById, saleLabel, corretorNome, matchesCor
   );
 }
 
-function FunilTab({ sales, occs, saleLabel, corretorNome, matchesCorretor, dateFrom, dateTo }: {
-  sales: any[]; occs: any[]; saleLabel: (s: any) => string; corretorNome: (s: any) => string; matchesCorretor: (s: any) => boolean;
-  dateFrom: string; dateTo: string;
+function FunilTab({
+  sales,
+  occs,
+  saleLabel,
+  corretorNome,
+  matchesCorretor,
+  dateFrom,
+  dateTo,
+}: {
+  sales: ReportSale[];
+  occs: ReportOccurrence[];
+  saleLabel: (s: ReportSale | undefined) => string;
+  corretorNome: (s: ReportSale | undefined) => string;
+  matchesCorretor: (s: ReportSale | undefined) => boolean;
+  dateFrom: string;
+  dateTo: string;
 }) {
   const occBySaleId = useMemo(() => {
-    const m: Record<string, any> = {};
+    const m: Record<string, ReportOccurrence> = {};
     for (const o of occs) m[o.sale_id] = o;
     return m;
   }, [occs]);
@@ -666,28 +1135,42 @@ function FunilTab({ sales, occs, saleLabel, corretorNome, matchesCorretor, dateF
 
   const reabertas = rows.filter((r) => r.occ?.reopened_at).length;
 
-  const doExport = () => exportCsv(`funil-ocorrencias_${dateFrom}_a_${dateTo}.csv`, rows.map((r) => ({
-    Imovel: saleLabel(r.sale), Corretor: corretorNome(r.sale), Status: STATUS_LABEL[r.sale.status as SaleStatus],
-    AtualizadoEm: r.sale.updated_at, Reaberta: r.occ?.reopened_at ? "Sim" : "Não", MotivoReabertura: r.occ?.reopen_reason ?? "",
-  })));
+  const doExport = () =>
+    exportCsv(
+      `funil-ocorrencias_${dateFrom}_a_${dateTo}.csv`,
+      rows.map((r) => ({
+        Imovel: saleLabel(r.sale),
+        Corretor: corretorNome(r.sale),
+        Status: STATUS_LABEL[r.sale.status as SaleStatus],
+        AtualizadoEm: r.sale.updated_at,
+        Reaberta: r.occ?.reopened_at ? "Sim" : "Não",
+        MotivoReabertura: r.occ?.reopen_reason ?? "",
+      })),
+    );
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-5">
         {FUNIL_STATUSES.map((st) => (
-          <Card key={st}><CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">{STATUS_LABEL[st]}</p>
-            <p className="text-xl font-semibold">{counts[st] ?? 0}</p>
-          </CardContent></Card>
+          <Card key={st}>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">{STATUS_LABEL[st]}</p>
+              <p className="text-xl font-semibold">{counts[st] ?? 0}</p>
+            </CardContent>
+          </Card>
         ))}
-        <Card><CardContent className="pt-6">
-          <p className="text-xs text-muted-foreground">Reabertas no período</p>
-          <p className="text-xl font-semibold text-amber-700 dark:text-amber-400">{reabertas}</p>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Reabertas no período</p>
+            <p className="text-xl font-semibold text-amber-700 dark:text-amber-400">{reabertas}</p>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Vendas na etapa financeiro/ocorrência ({rows.length})</CardTitle>
+          <CardTitle className="text-base">
+            Vendas na etapa financeiro/ocorrência ({rows.length})
+          </CardTitle>
           <ExportButton onClick={doExport} />
         </CardHeader>
         <CardContent>
@@ -702,16 +1185,37 @@ function FunilTab({ sales, occs, saleLabel, corretorNome, matchesCorretor, dateF
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && <EmptyRow colSpan={5}>Nenhuma venda encontrada no período/filtro selecionado.</EmptyRow>}
+              {rows.length === 0 && (
+                <EmptyRow colSpan={5}>
+                  Nenhuma venda encontrada no período/filtro selecionado.
+                </EmptyRow>
+              )}
               {rows.map((r) => (
                 <TableRow key={r.sale.id}>
                   <TableCell className="font-medium">
-                    <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">{saleLabel(r.sale)}</Link>
+                    <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                      {saleLabel(r.sale)}
+                    </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
-                  <TableCell><StatusBadge status={r.sale.status as SaleStatus} /></TableCell>
-                  <TableCell className="text-muted-foreground">{dateBR(r.sale.updated_at)}</TableCell>
-                  <TableCell>{r.occ?.reopened_at ? <span className="text-amber-700 dark:text-amber-400" title={r.occ.reopen_reason ?? ""}>Sim</span> : "—"}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={r.sale.status as SaleStatus} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {dateBR(r.sale.updated_at)}
+                  </TableCell>
+                  <TableCell>
+                    {r.occ?.reopened_at ? (
+                      <span
+                        className="text-amber-700 dark:text-amber-400"
+                        title={r.occ.reopen_reason ?? ""}
+                      >
+                        Sim
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -34,7 +34,16 @@ type Props = {
   nextDisabled?: boolean;
 };
 
-export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastStepAction, hideNav, nextDisabled }: Props) {
+export function Wizard({
+  steps,
+  current,
+  onChange,
+  onBeforeLeave,
+  dirty,
+  lastStepAction,
+  hideNav,
+  nextDisabled,
+}: Props) {
   const enabled = useMemo(() => steps.filter((s) => !s.disabled), [steps]);
   const idx = Math.max(
     0,
@@ -56,7 +65,6 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
     const step = enabled[i];
     if (step) requestChange(step.key);
   };
-
 
   return (
     <div className="space-y-4">
@@ -125,7 +133,6 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
         <Progress value={progress} className="mt-2 h-1" />
       </div>
 
-
       {/* Step content */}
       <div className="pt-2">{active?.content}</div>
 
@@ -141,13 +148,16 @@ export function Wizard({ steps, current, onChange, onBeforeLeave, dirty, lastSte
           {idx >= enabled.length - 1 && lastStepAction ? (
             lastStepAction
           ) : (
-            <Button variant="default" onClick={() => go(idx + 1)} disabled={idx >= enabled.length - 1 || nextDisabled}>
+            <Button
+              variant="default"
+              onClick={() => go(idx + 1)}
+              disabled={idx >= enabled.length - 1 || nextDisabled}
+            >
               {dirty ? "Salvar e avançar" : "Próximo"} <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           )}
         </div>
       )}
-
     </div>
   );
 }

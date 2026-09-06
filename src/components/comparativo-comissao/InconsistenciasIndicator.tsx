@@ -8,7 +8,10 @@ const MOTIVO_LABEL: Record<MotivoInconsistencia, string> = {
   valores_invalidos: "Valor negociado ou comissão inválido",
 };
 
-const MODALIDADE_LABEL: Record<string, string> = { padrao: "Venda tradicional", lancamento: "Lançamento" };
+const MODALIDADE_LABEL: Record<string, string> = {
+  padrao: "Venda tradicional",
+  lancamento: "Lançamento",
+};
 
 /** Indicador só informativo — nunca corrige dado, nunca entra nos totais do Comparativo, nunca
  * mostra nome/valor (só id/código interno + motivo). Visível só pra quem já está na página (rota já
@@ -39,20 +42,28 @@ export function InconsistenciasIndicator({ rows }: { rows: InconsistenciaRow[] }
           <ChevronDown className={`h-4 w-4 transition-transform ${aberto ? "rotate-180" : ""}`} />
         </button>
         <p className="mt-1 text-xs text-muted-foreground">
-          Vendas em etapa que já indica envio ao financeiro mas sem o histórico correspondente, ou com valores
-          inválidos — não entram nos totais acima e não foram alteradas.
+          Vendas em etapa que já indica envio ao financeiro mas sem o histórico correspondente, ou
+          com valores inválidos — não entram nos totais acima e não foram alteradas.
         </p>
         {aberto && (
           <div className="mt-3 space-y-3">
             <ul className="text-xs text-muted-foreground">
               {Array.from(porMotivo.entries()).map(([motivo, qtd]) => (
-                <li key={motivo}>{qtd} — {MOTIVO_LABEL[motivo]}</li>
+                <li key={motivo}>
+                  {qtd} — {MOTIVO_LABEL[motivo]}
+                </li>
               ))}
             </ul>
             <ul className="max-h-40 space-y-1 overflow-y-auto text-xs">
               {rows.map((r) => (
-                <li key={r.sale_id} className="flex items-center justify-between gap-2 text-muted-foreground">
-                  <span>{r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`} — {MODALIDADE_LABEL[r.modalidade] ?? r.modalidade}</span>
+                <li
+                  key={r.sale_id}
+                  className="flex items-center justify-between gap-2 text-muted-foreground"
+                >
+                  <span>
+                    {r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`} —{" "}
+                    {MODALIDADE_LABEL[r.modalidade] ?? r.modalidade}
+                  </span>
                   <span>{MOTIVO_LABEL[r.motivo]}</span>
                 </li>
               ))}

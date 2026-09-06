@@ -19,7 +19,8 @@ export function canDeleteSale(
   if (sale.status && !STATUS_EXCLUIVEIS.includes(sale.status)) return false;
   if (hasAny(["super_admin", "admin", "financeiro"])) return true;
   if (sale.corretor_id === userId) return true;
-  if (hasAny(["gestor", "team_leader"]) && sale.corretor_id && teamMemberIds.has(sale.corretor_id)) return true;
+  if (hasAny(["gestor", "team_leader"]) && sale.corretor_id && teamMemberIds.has(sale.corretor_id))
+    return true;
   return false;
 }
 
@@ -39,7 +40,9 @@ export async function deleteSaleCascade(saleId: string): Promise<{ orphanedFiles
     .from("sale_documents")
     .select("storage_path")
     .eq("sale_id", saleId);
-  const paths = (docs ?? []).map((d: any) => d.storage_path).filter(Boolean);
+  const paths = (docs ?? [])
+    .map((d) => d.storage_path)
+    .filter((path): path is string => Boolean(path));
 
   const { error } = await supabase.from("sales").delete().eq("id", saleId);
   if (error) throw error;
@@ -48,7 +51,10 @@ export async function deleteSaleCascade(saleId: string): Promise<{ orphanedFiles
 
   const { error: storageError } = await supabase.storage.from("sale-documents").remove(paths);
   if (storageError) {
-    console.error(`Falha ao remover ${paths.length} arquivo(s) do storage da venda ${saleId} (venda já excluída):`, storageError);
+    console.error(
+      `Falha ao remover ${paths.length} arquivo(s) do storage da venda ${saleId} (venda já excluída):`,
+      storageError,
+    );
     return { orphanedFiles: paths };
   }
   return { orphanedFiles: [] };

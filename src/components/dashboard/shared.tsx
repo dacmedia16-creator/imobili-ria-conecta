@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { type ChartConfig } from "@/components/ui/chart";
-import { fetchResumoGrupoVenda, vgvAtivoTotal, type ResumoPorGrupo } from "@/lib/dashboard-perfil-query";
+import {
+  fetchResumoGrupoVenda,
+  vgvAtivoTotal,
+  type ResumoPorGrupo,
+} from "@/lib/dashboard-perfil-query";
 import { Send, CheckCircle2, DollarSign, Info, type LucideIcon } from "lucide-react";
 
 /** Cores compartilhadas do gráfico "Comissão: prevista x concluída" — usado no Dashboard (Painel
@@ -57,7 +61,7 @@ export function KpiCard({
   to,
   info,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: number | string;
   to?: string;

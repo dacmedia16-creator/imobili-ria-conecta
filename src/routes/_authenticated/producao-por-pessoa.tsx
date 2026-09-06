@@ -146,8 +146,9 @@ function ProducaoPorPessoaPage() {
         quem vendeu, cada ponta com metade do VGV e da comissão gerada pela operação; numa venda de
         Lançamento (sem captação), 1 venda inteira na ponta de venda. A soma das pontas nunca
         duplica o VGV nem a comissão da operação. O período usa a data da assinatura válida mais
-        recente; se a venda voltar para uma etapa anterior, deixa de contar até ser assinada novamente.
-        Lançamentos usam a entrada no Financeiro. Vendas canceladas ou arquivadas ficam de fora.
+        recente; se a venda voltar para uma etapa anterior, deixa de contar até ser assinada
+        novamente. Lançamentos usam a entrada no Financeiro. Vendas canceladas ou arquivadas ficam
+        de fora.
       </p>
     </div>
   );

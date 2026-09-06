@@ -1,3 +1,5 @@
+import type { DocumentRow, PartyRow, PaymentRow, SaleRow } from "@/lib/database.types";
+
 export type SaleStatus =
   | "rascunho"
   | "enviada_revisao"
@@ -50,7 +52,8 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   aguardando_assinatura: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
   contrato_assinado: "bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
   ocorrencia_pendente: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
-  ocorrencia_analise_financeiro: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  ocorrencia_analise_financeiro:
+    "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
   ocorrencia_devolvida_gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   ocorrencia_concluida: "bg-green-200 text-green-900 dark:bg-green-900 dark:text-green-100",
   arquivada: "bg-muted text-muted-foreground",
@@ -149,13 +152,36 @@ export function agruparContagemPorGrupoVenda(
 }
 
 /** Agrupa os status granulares nas 6 macro-etapas do fluxo, para exibir um stepper visual. */
-export type FlowStageKey = "corretor" | "gestor" | "juridico" | "contrato" | "financeiro" | "concluida";
+export type FlowStageKey =
+  "corretor" | "gestor" | "juridico" | "contrato" | "financeiro" | "concluida";
 export const FLOW_STAGES: { key: FlowStageKey; label: string; statuses: SaleStatus[] }[] = [
   { key: "corretor", label: "Corretor", statuses: ["rascunho", "devolvida_ajuste"] },
   { key: "gestor", label: "Gestor", statuses: ["enviada_revisao"] },
-  { key: "juridico", label: "Jurídico", statuses: ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato"] },
-  { key: "contrato", label: "Contrato / assinatura", statuses: ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura", "contrato_assinado"] },
-  { key: "financeiro", label: "Financeiro", statuses: ["ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor"] },
+  {
+    key: "juridico",
+    label: "Jurídico",
+    statuses: ["aprovada_gestor", "enviada_juridico", "em_elaboracao_contrato"],
+  },
+  {
+    key: "contrato",
+    label: "Contrato / assinatura",
+    statuses: [
+      "contrato_conferencia_gestor",
+      "contrato_conferencia_corretor",
+      "contrato_ok_corretor",
+      "aguardando_assinatura",
+      "contrato_assinado",
+    ],
+  },
+  {
+    key: "financeiro",
+    label: "Financeiro",
+    statuses: [
+      "ocorrencia_pendente",
+      "ocorrencia_analise_financeiro",
+      "ocorrencia_devolvida_gestor",
+    ],
+  },
   { key: "concluida", label: "Concluída", statuses: ["ocorrencia_concluida"] },
 ];
 
@@ -169,8 +195,15 @@ export function flowStageIndex(status: SaleStatus): number {
 }
 
 /** Quantos dias faz desde `sinceIso`, e um rótulo/tom prontos para exibir como indicador de "tempo parado". */
-export function agingInfo(sinceIso: string): { dias: number; label: string; tone: "muted" | "amber" | "destructive" } {
-  const dias = Math.max(0, Math.floor((Date.now() - new Date(sinceIso).getTime()) / (1000 * 60 * 60 * 24)));
+export function agingInfo(sinceIso: string): {
+  dias: number;
+  label: string;
+  tone: "muted" | "amber" | "destructive";
+} {
+  const dias = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(sinceIso).getTime()) / (1000 * 60 * 60 * 24)),
+  );
   const label = dias === 0 ? "hoje" : dias === 1 ? "há 1 dia" : `há ${dias} dias`;
   const tone = dias > 5 ? "destructive" : dias >= 3 ? "amber" : "muted";
   return { dias, label, tone };
@@ -185,7 +218,8 @@ export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {
 
 // Compradores e vendedores são em número livre (comprador_1, comprador_2, comprador_3, ...) —
 // o corretor pode adicionar quantos precisar, não só os 2 de cada lado que existiam antes.
-export type DocParte = `comprador_${number}` | `vendedor_${number}` | "imovel" | "outros" | "juridico";
+export type DocParte =
+  `comprador_${number}` | `vendedor_${number}` | "imovel" | "outros" | "juridico";
 
 const PARTE_FIXA_LABEL: Record<"imovel" | "outros" | "juridico", string> = {
   imovel: "Documentos do Imóvel",
@@ -225,19 +259,47 @@ export function chegouAoJuridico(status: SaleStatus, modalidade?: string): boole
   return !["rascunho", "devolvida_ajuste", "enviada_revisao"].includes(status);
 }
 
-
 export type TipoPessoa = "fisica" | "juridica";
 
 // `pessoa` restringe o documento a um tipo de parte (comprador_N/vendedor_N marcado como física ou
 // jurídica na aba Partes) — sem o campo, o documento vale para os dois. Ver `docTypesPessoalPara`.
-export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigatorio?: boolean; pessoa?: TipoPessoa }[] = [
+export const DOC_TYPES: {
+  key: string;
+  label: string;
+  grupo: DocGrupo;
+  obrigatorio?: boolean;
+  pessoa?: TipoPessoa;
+}[] = [
   { key: "rg", label: "RG", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
   { key: "cpf", label: "CPF", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
   { key: "cnh", label: "CNH (dispensa RG e CPF)", grupo: "pessoal", pessoa: "fisica" },
-  { key: "certidao", label: "Certidão de nascimento ou casamento", grupo: "pessoal", obrigatorio: true, pessoa: "fisica" },
-  { key: "comprovante_endereco", label: "Comprovante de endereço", grupo: "pessoal", obrigatorio: true },
-  { key: "cartao_cnpj", label: "Cartão CNPJ", grupo: "pessoal", obrigatorio: true, pessoa: "juridica" },
-  { key: "ultima_alteracao_contratual", label: "Última Alteração Contratual", grupo: "pessoal", obrigatorio: true, pessoa: "juridica" },
+  {
+    key: "certidao",
+    label: "Certidão de nascimento ou casamento",
+    grupo: "pessoal",
+    obrigatorio: true,
+    pessoa: "fisica",
+  },
+  {
+    key: "comprovante_endereco",
+    label: "Comprovante de endereço",
+    grupo: "pessoal",
+    obrigatorio: true,
+  },
+  {
+    key: "cartao_cnpj",
+    label: "Cartão CNPJ",
+    grupo: "pessoal",
+    obrigatorio: true,
+    pessoa: "juridica",
+  },
+  {
+    key: "ultima_alteracao_contratual",
+    label: "Última Alteração Contratual",
+    grupo: "pessoal",
+    obrigatorio: true,
+    pessoa: "juridica",
+  },
   { key: "matricula", label: "Matrícula do imóvel", grupo: "imovel", obrigatorio: true },
   { key: "iptu", label: "IPTU", grupo: "imovel", obrigatorio: true },
   { key: "cnd_condominio", label: "CND do condomínio (se aplicável)", grupo: "imovel" },
@@ -249,30 +311,51 @@ export const DOC_TYPES: { key: string; label: string; grupo: DocGrupo; obrigator
  * assina) MAIS Cartão CNPJ/Última Alteração Contratual (da empresa)". Física continua só com os
  * documentos sem `pessoa` marcado ou marcados como "fisica"; jurídica soma os dois grupos. */
 export function docTypesPessoalPara(tipoPessoa: TipoPessoa): typeof DOC_TYPES {
-  return DOC_TYPES.filter((d) => d.grupo === "pessoal" && (!d.pessoa || d.pessoa === tipoPessoa || tipoPessoa === "juridica"));
+  return DOC_TYPES.filter(
+    (d) =>
+      d.grupo === "pessoal" && (!d.pessoa || d.pessoa === tipoPessoa || tipoPessoa === "juridica"),
+  );
 }
-
 
 /** Retorna o rótulo do responsável pela próxima ação de acordo com o status. */
 export function proximoResponsavel(status: SaleStatus): { titulo: string; papel: string } {
   switch (status) {
-    case "rascunho": return { titulo: "Aguardando envio do corretor", papel: "Corretor" };
-    case "devolvida_ajuste": return { titulo: "Aguardando correção do corretor", papel: "Corretor" };
-    case "enviada_revisao": return { titulo: "Aguardando revisão do gestor", papel: "Gestor" };
+    case "rascunho":
+      return { titulo: "Aguardando envio do corretor", papel: "Corretor" };
+    case "devolvida_ajuste":
+      return { titulo: "Aguardando correção do corretor", papel: "Corretor" };
+    case "enviada_revisao":
+      return { titulo: "Aguardando revisão do gestor", papel: "Gestor" };
     case "aprovada_gestor":
-    case "enviada_juridico": return { titulo: "Aguardando elaboração do jurídico", papel: "Jurídico" };
-    case "em_elaboracao_contrato": return { titulo: "Contrato em elaboração", papel: "Jurídico" };
-    case "contrato_conferencia_gestor": return { titulo: "Gestor conferindo o contrato", papel: "Gestor" };
-    case "contrato_conferencia_corretor": return { titulo: "Corretor conferindo o contrato", papel: "Corretor" };
-    case "contrato_ok_corretor": return { titulo: "Aguardando gestor liberar assinatura", papel: "Gestor" };
-    case "aguardando_assinatura": return { titulo: "Aguardando assinatura e upload do contrato assinado", papel: "Gestor / Partes" };
-    case "contrato_assinado": return { titulo: "Contrato assinado — gestor deve preencher a ocorrência", papel: "Gestor" };
-    case "ocorrencia_pendente": return { titulo: "Ocorrência pendente de envio ao financeiro", papel: "Gestor" };
-    case "ocorrencia_analise_financeiro": return { titulo: "Ocorrência em análise do financeiro", papel: "Financeiro" };
-    case "ocorrencia_devolvida_gestor": return { titulo: "Ocorrência devolvida — ajustar e reenviar", papel: "Gestor" };
-    case "ocorrencia_concluida": return { titulo: "Ocorrência concluída", papel: "—" };
-    case "arquivada": return { titulo: "Venda arquivada", papel: "—" };
-    case "cancelada": return { titulo: "Venda cancelada", papel: "—" };
+    case "enviada_juridico":
+      return { titulo: "Aguardando elaboração do jurídico", papel: "Jurídico" };
+    case "em_elaboracao_contrato":
+      return { titulo: "Contrato em elaboração", papel: "Jurídico" };
+    case "contrato_conferencia_gestor":
+      return { titulo: "Gestor conferindo o contrato", papel: "Gestor" };
+    case "contrato_conferencia_corretor":
+      return { titulo: "Corretor conferindo o contrato", papel: "Corretor" };
+    case "contrato_ok_corretor":
+      return { titulo: "Aguardando gestor liberar assinatura", papel: "Gestor" };
+    case "aguardando_assinatura":
+      return {
+        titulo: "Aguardando assinatura e upload do contrato assinado",
+        papel: "Gestor / Partes",
+      };
+    case "contrato_assinado":
+      return { titulo: "Contrato assinado — gestor deve preencher a ocorrência", papel: "Gestor" };
+    case "ocorrencia_pendente":
+      return { titulo: "Ocorrência pendente de envio ao financeiro", papel: "Gestor" };
+    case "ocorrencia_analise_financeiro":
+      return { titulo: "Ocorrência em análise do financeiro", papel: "Financeiro" };
+    case "ocorrencia_devolvida_gestor":
+      return { titulo: "Ocorrência devolvida — ajustar e reenviar", papel: "Gestor" };
+    case "ocorrencia_concluida":
+      return { titulo: "Ocorrência concluída", papel: "—" };
+    case "arquivada":
+      return { titulo: "Venda arquivada", papel: "—" };
+    case "cancelada":
+      return { titulo: "Venda cancelada", papel: "—" };
   }
 }
 
@@ -321,7 +404,9 @@ export function vezDeAgir(status: SaleStatus): VezDeAgir {
 
 /** Status pertencentes a uma fila, usado pelo filtro sem depender da página já carregada. */
 export function statusDaVezDeAgir(responsavel: VezDeAgir): SaleStatus[] {
-  return (Object.keys(STATUS_LABEL) as SaleStatus[]).filter((status) => vezDeAgir(status) === responsavel);
+  return (Object.keys(STATUS_LABEL) as SaleStatus[]).filter(
+    (status) => vezDeAgir(status) === responsavel,
+  );
 }
 
 export const COMISSAO_PAPEIS: { key: string; label: string }[] = [
@@ -374,29 +459,42 @@ const numeroFinanceiro = (valor: unknown): number => {
 };
 
 /** Confere se os meios de pagamento detalhados fecham o valor negociado. */
-export function calcularComposicaoPagamento(sale: any, payment: any) {
+export function calcularComposicaoPagamento(
+  sale: Pick<SaleRow, "valor_negociado">,
+  payment: Partial<PaymentRow> | null,
+) {
   const valorVenda = numeroFinanceiro(sale?.valor_negociado);
   const tipo = payment?.tipo_pagamento ?? "vista";
-  const total = Number((
-    numeroFinanceiro(payment?.entrada_valor) +
-    numeroFinanceiro(payment?.parcela1_valor) +
-    numeroFinanceiro(payment?.parcela2_valor) +
-    numeroFinanceiro(payment?.pagamento_final_valor) +
-    (payment?.fgts ? numeroFinanceiro(payment?.fgts_valor) : 0) +
-    (tipo === "financiamento" ? numeroFinanceiro(payment?.financiamento_valor) : 0) +
-    (tipo === "consorcio" ? numeroFinanceiro(payment?.consorcio_valor) : 0)
-  ).toFixed(2));
+  const total = Number(
+    (
+      numeroFinanceiro(payment?.entrada_valor) +
+      numeroFinanceiro(payment?.parcela1_valor) +
+      numeroFinanceiro(payment?.parcela2_valor) +
+      numeroFinanceiro(payment?.pagamento_final_valor) +
+      (payment?.fgts ? numeroFinanceiro(payment?.fgts_valor) : 0) +
+      (tipo === "financiamento" ? numeroFinanceiro(payment?.financiamento_valor) : 0) +
+      (tipo === "consorcio" ? numeroFinanceiro(payment?.consorcio_valor) : 0)
+    ).toFixed(2),
+  );
   return { tipo, valorVenda, total, diferenca: Number((valorVenda - total).toFixed(2)) };
 }
 
-export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[] {
+export function validarComposicaoPagamento(
+  sale: Pick<SaleRow, "valor_negociado">,
+  payment: Partial<PaymentRow> | null,
+): Pendencia[] {
   const { valorVenda, tipo, diferenca } = calcularComposicaoPagamento(sale, payment);
   if (valorVenda <= 0) return [];
   if (!payment) return [{ campo: "pagamento", mensagem: "Falta detalhar a forma de pagamento" }];
 
-  const camposMonetarios = [
-    "entrada_valor", "parcela1_valor", "parcela2_valor", "pagamento_final_valor",
-    "fgts_valor", "financiamento_valor", "consorcio_valor",
+  const camposMonetarios: (keyof PaymentRow)[] = [
+    "entrada_valor",
+    "parcela1_valor",
+    "parcela2_valor",
+    "pagamento_final_valor",
+    "fgts_valor",
+    "financiamento_valor",
+    "consorcio_valor",
   ];
   if (camposMonetarios.some((campo) => numeroFinanceiro(payment[campo]) < 0)) {
     return [{ campo: "pagamento", mensagem: "Os valores da composição não podem ser negativos" }];
@@ -411,44 +509,78 @@ export function validarComposicaoPagamento(sale: any, payment: any): Pendencia[]
 
   if (Math.abs(diferenca) <= 0.01) return [];
 
-  const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  return [{
-    campo: "pagamento",
-    mensagem: diferenca > 0
-      ? `A composição do pagamento está ${moeda(diferenca)} abaixo do valor da venda`
-      : `A composição do pagamento está ${moeda(Math.abs(diferenca))} acima do valor da venda`,
-  }];
+  const moeda = (valor: number) =>
+    valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return [
+    {
+      campo: "pagamento",
+      mensagem:
+        diferenca > 0
+          ? `A composição do pagamento está ${moeda(diferenca)} abaixo do valor da venda`
+          : `A composição do pagamento está ${moeda(Math.abs(diferenca))} acima do valor da venda`,
+    },
+  ];
 }
 
 /** Toda checagem não-documental feita por validarProntaParaRevisao — mantém o total de checks em sincronia com a função. */
-export const CHECKS_NAO_DOCUMENTAIS = ["imovel", "matricula", "vendedor", "comprador", "valor_negociado", "comissao", "pagamento"] as const;
+export const CHECKS_NAO_DOCUMENTAIS = [
+  "imovel",
+  "matricula",
+  "vendedor",
+  "comprador",
+  "valor_negociado",
+  "comissao",
+  "pagamento",
+] as const;
 
 /**
  * Valida se a venda está pronta para ser enviada para revisão do gestor.
  * Retorna lista de pendências em português simples para o corretor.
  */
 export function validarProntaParaRevisao(
-  sale: any,
-  parties: Record<string, any>,
-  payment: any,
-  docs: any[],
+  sale: SaleRow,
+  parties: Record<string, PartyRow>,
+  payment: PaymentRow | null,
+  docs: DocumentRow[],
 ): Pendencia[] {
   const pend: Pendencia[] = [];
 
   // Imóvel
-  if (!sale?.imovel_id && !sale?.codigo_interno) pend.push({ campo: "imovel", mensagem: "Falta identificar o imóvel (ID ou código interno)" });
-  if (!sale?.matricula) pend.push({ campo: "matricula", mensagem: "Falta informar a matrícula do imóvel" });
+  if (!sale?.imovel_id && !sale?.codigo_interno)
+    pend.push({ campo: "imovel", mensagem: "Falta identificar o imóvel (ID ou código interno)" });
+  if (!sale?.matricula)
+    pend.push({ campo: "matricula", mensagem: "Falta informar a matrícula do imóvel" });
 
   // Partes
   const vendedor = parties?.vendedor_1;
-  if (!vendedor?.nome || !vendedor?.cpf_cnpj) pend.push({ campo: "vendedor", mensagem: "Falta preencher pelo menos um vendedor/proprietário (nome + CPF)" });
+  if (!vendedor?.nome || !vendedor?.cpf_cnpj)
+    pend.push({
+      campo: "vendedor",
+      mensagem: "Falta preencher pelo menos um vendedor/proprietário (nome + CPF)",
+    });
   const comprador = parties?.comprador_1;
-  if (!comprador?.nome || !comprador?.cpf_cnpj) pend.push({ campo: "comprador", mensagem: "Falta preencher pelo menos um comprador (nome + CPF)" });
+  if (!comprador?.nome || !comprador?.cpf_cnpj)
+    pend.push({
+      campo: "comprador",
+      mensagem: "Falta preencher pelo menos um comprador (nome + CPF)",
+    });
 
   // Valores
-  if (!sale?.valor_negociado || Number(sale.valor_negociado) <= 0) pend.push({ campo: "valor_negociado", mensagem: "Falta informar o valor negociado" });
-  if (!sale?.percentual_comissao && !sale?.valor_total_comissao) pend.push({ campo: "comissao", mensagem: "Falta informar o percentual ou o valor total da comissão" });
-  if (!payment || (!payment.entrada_valor && !payment.parcela1_valor && !payment.financiamento && !payment.fgts && !sale?.forma_pagamento)) {
+  if (!sale?.valor_negociado || Number(sale.valor_negociado) <= 0)
+    pend.push({ campo: "valor_negociado", mensagem: "Falta informar o valor negociado" });
+  if (!sale?.percentual_comissao && !sale?.valor_total_comissao)
+    pend.push({
+      campo: "comissao",
+      mensagem: "Falta informar o percentual ou o valor total da comissão",
+    });
+  if (
+    !payment ||
+    (!payment.entrada_valor &&
+      !payment.parcela1_valor &&
+      !payment.financiamento &&
+      !payment.fgts &&
+      !sale?.forma_pagamento)
+  ) {
     pend.push({ campo: "pagamento", mensagem: "Falta informar a forma de pagamento" });
   } else {
     pend.push(...validarComposicaoPagamento(sale, payment));
@@ -459,19 +591,23 @@ export function validarProntaParaRevisao(
   // adicionar), não só do 1º de cada — cada um precisa dos seus próprios documentos, e quais
   // documentos dependem do tipo_pessoa dessa parte (física pede RG/CPF/Certidão, jurídica pede
   // Cartão CNPJ/Última Alteração Contratual).
-  const obrigatoriosImovel = DOC_TYPES.filter(d => d.obrigatorio && d.grupo !== "pessoal");
+  const obrigatoriosImovel = DOC_TYPES.filter((d) => d.obrigatorio && d.grupo !== "pessoal");
   const partesPessoais = partesComExigenciaPessoal(parties, docs);
   for (const parte of partesPessoais) {
-    const tipoPessoa: TipoPessoa = parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
-    for (const t of docTypesPessoalPara(tipoPessoa).filter(d => d.obrigatorio)) {
+    const tipoPessoa: TipoPessoa =
+      parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
+    for (const t of docTypesPessoalPara(tipoPessoa).filter((d) => d.obrigatorio)) {
       const substituiPorCnh = t.key === "rg" || t.key === "cpf";
       if (!temDocDoTipo(docs, t.key, parte)) {
-        pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta enviar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+        pend.push({
+          campo: `doc_${t.key}_${parte}`,
+          mensagem: `Falta enviar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}`,
+        });
       }
     }
   }
   for (const t of obrigatoriosImovel) {
-    if (!docs.some(d => docSatisfazObrigatorio(d, t.key))) {
+    if (!docs.some((d) => docSatisfazObrigatorio(d, t.key))) {
       pend.push({ campo: `doc_${t.key}`, mensagem: `Falta enviar ${t.label}` });
     }
   }
@@ -484,25 +620,33 @@ export function validarProntaParaRevisao(
  * "Aprovar p/ jurídico": o gestor precisa ter revisado e aprovado cada um, não só recebido.
  */
 export function validarDocsAprovadosParaJuridico(
-  parties: Record<string, any>,
-  docs: any[],
+  parties: Record<string, PartyRow>,
+  docs: DocumentRow[],
 ): Pendencia[] {
   const pend: Pendencia[] = [];
-  const obrigatoriosImovel = DOC_TYPES.filter(d => d.obrigatorio && d.grupo !== "pessoal");
+  const obrigatoriosImovel = DOC_TYPES.filter((d) => d.obrigatorio && d.grupo !== "pessoal");
   const partesPessoais = partesComExigenciaPessoal(parties, docs);
   const aprovado = (s: string) => s === "aprovado";
   for (const parte of partesPessoais) {
-    const tipoPessoa: TipoPessoa = parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
-    for (const t of docTypesPessoalPara(tipoPessoa).filter(d => d.obrigatorio)) {
+    const tipoPessoa: TipoPessoa =
+      parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
+    for (const t of docTypesPessoalPara(tipoPessoa).filter((d) => d.obrigatorio)) {
       const substituiPorCnh = t.key === "rg" || t.key === "cpf";
       if (!temDocDoTipo(docs, t.key, parte, aprovado)) {
-        pend.push({ campo: `doc_${t.key}_${parte}`, mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}` });
+        pend.push({
+          campo: `doc_${t.key}_${parte}`,
+          mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}`,
+        });
       }
     }
   }
   for (const t of obrigatoriosImovel) {
     const substituiPorCnh = t.key === "rg" || t.key === "cpf";
-    if (!docs.some(d => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status))) {
+    if (
+      !docs.some(
+        (d) => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status),
+      )
+    ) {
       pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}` });
     }
   }
@@ -515,10 +659,17 @@ export function validarDocsAprovadosParaJuridico(
  * tenha nome preenchido na aba Partes ou já tenha ao menos um documento enviado na aba Documentos —
  * o corretor pode adicionar tantos compradores/vendedores quanto precisar, e cada um conta.
  */
-export function partesComExigenciaPessoal(parties: Record<string, any>, docs: { parte?: string | null }[]): string[] {
+export function partesComExigenciaPessoal(
+  parties: Record<string, Pick<PartyRow, "nome" | "tipo_pessoa">>,
+  docs: { parte?: string | null }[],
+): string[] {
   const base = ["vendedor_1", "comprador_1"];
-  const extrasDeParties = Object.keys(parties).filter((p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome);
-  const extrasDeDocs = docs.map((d) => d.parte).filter((p): p is string => !!p && /^(vendedor|comprador)_\d+$/.test(p));
+  const extrasDeParties = Object.keys(parties).filter(
+    (p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome,
+  );
+  const extrasDeDocs = docs
+    .map((d) => d.parte)
+    .filter((p): p is string => !!p && /^(vendedor|comprador)_\d+$/.test(p));
   return Array.from(new Set([...base, ...extrasDeParties, ...extrasDeDocs]));
 }
 
@@ -527,9 +678,15 @@ export function partesComExigenciaPessoal(parties: Record<string, any>, docs: { 
  * A aprovação em si acontece depois, já com o gestor/jurídico revisando — exigir aprovação
  * aqui travaria o envio, já que só quem aprova é quem só entra na venda depois do envio.
  */
-export function docSatisfazObrigatorio(doc: { tipo: string; status: string }, tipoObrigatorio: string): boolean {
+export function docSatisfazObrigatorio(
+  doc: { tipo: string; status: string },
+  tipoObrigatorio: string,
+): boolean {
   const substituiPorCnh = tipoObrigatorio === "rg" || tipoObrigatorio === "cpf";
-  return (doc.tipo === tipoObrigatorio || (substituiPorCnh && doc.tipo === "cnh")) && doc.status !== "recusado";
+  return (
+    (doc.tipo === tipoObrigatorio || (substituiPorCnh && doc.tipo === "cnh")) &&
+    doc.status !== "recusado"
+  );
 }
 
 /**
@@ -545,7 +702,12 @@ export function temDocDoTipo(
   aceitaStatus: (status: string) => boolean = (s) => s !== "recusado",
 ): boolean {
   const substituiPorCnh = tipoAlvo === "rg" || tipoAlvo === "cpf";
-  return docs.some(d => (d.tipo === tipoAlvo || (substituiPorCnh && d.tipo === "cnh")) && (d.parte ?? "outros") === parte && aceitaStatus(d.status));
+  return docs.some(
+    (d) =>
+      (d.tipo === tipoAlvo || (substituiPorCnh && d.tipo === "cnh")) &&
+      (d.parte ?? "outros") === parte &&
+      aceitaStatus(d.status),
+  );
 }
 
 /** Mapeia cada parcela (1/2/3) de recebimento de comissão pro par de colunas de recebimento

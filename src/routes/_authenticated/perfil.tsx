@@ -8,12 +8,31 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { addPositioningRegion, groupRegions, MAX_POSITIONING_REGIONS, normalizeExternalUrl, normalizeInstagramUrl, type PositioningRegion } from "@/lib/positioning";
+import {
+  addPositioningRegion,
+  groupRegions,
+  MAX_POSITIONING_REGIONS,
+  normalizeExternalUrl,
+  normalizeInstagramUrl,
+  type PositioningRegion,
+} from "@/lib/positioning";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -45,11 +64,20 @@ function MeuAcesso() {
   const [positioningSearch, setPositioningSearch] = useState("");
   const [savingPositioning, setSavingPositioning] = useState(false);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
-  const [suggestion, setSuggestion] = useState({ nome: "", cidade: "Sorocaba", zona: "", tipo: "bairro" });
-  const [mySuggestions, setMySuggestions] = useState<{ id: string; nome: string; cidade: string; status: string }[]>([]);
+  const [suggestion, setSuggestion] = useState({
+    nome: "",
+    cidade: "Sorocaba",
+    zona: "",
+    tipo: "bairro",
+  });
+  const [mySuggestions, setMySuggestions] = useState<
+    { id: string; nome: string; cidade: string; status: string }[]
+  >([]);
   const [savingSuggestion, setSavingSuggestion] = useState(false);
   const [notifPorPapel, setNotifPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
-  const [notifAtualizacaoPorPapel, setNotifAtualizacaoPorPapel] = useState<Partial<Record<AppRole, boolean>>>({});
+  const [notifAtualizacaoPorPapel, setNotifAtualizacaoPorPapel] = useState<
+    Partial<Record<AppRole, boolean>>
+  >({});
   const [savingNotif, setSavingNotif] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -63,7 +91,11 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url").eq("id", user.id).maybeSingle();
+      const { data } = await supabase
+        .from("profiles")
+        .select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url")
+        .eq("id", user.id)
+        .maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setAvatarUrl(data?.avatar_url ?? null);
@@ -79,7 +111,9 @@ function MeuAcesso() {
       const mapAtualizacao: Partial<Record<AppRole, boolean>> = {};
       for (const r of data ?? []) {
         map[r.role as AppRole] = r.notificar_whatsapp ?? true;
-        mapAtualizacao[r.role as AppRole] = r.notificar_toda_atualizacao ?? (r.role === "corretor" || r.role === "gestor" || r.role === "team_leader");
+        mapAtualizacao[r.role as AppRole] =
+          r.notificar_toda_atualizacao ??
+          (r.role === "corretor" || r.role === "gestor" || r.role === "team_leader");
       }
       setNotifPorPapel(map);
       setNotifAtualizacaoPorPapel(mapAtualizacao);
@@ -89,10 +123,27 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user || !canUsePositioning) return;
     (async () => {
-      const [{ data: regions, error: regionsError }, { data: selected, error: selectedError }, { data: suggestions }] = await Promise.all([
-        supabase.from("positioning_regions").select("id, cidade, zona, nome, tipo").eq("ativo", true).order("cidade").order("zona").order("nome"),
-        supabase.from("corretor_positioning_regions").select("region_id").eq("corretor_id", user.id),
-        supabase.from("positioning_region_suggestions").select("id, nome, cidade, status").eq("suggested_by", user.id).order("created_at", { ascending: false }),
+      const [
+        { data: regions, error: regionsError },
+        { data: selected, error: selectedError },
+        { data: suggestions },
+      ] = await Promise.all([
+        supabase
+          .from("positioning_regions")
+          .select("id, cidade, zona, nome, tipo")
+          .eq("ativo", true)
+          .order("cidade")
+          .order("zona")
+          .order("nome"),
+        supabase
+          .from("corretor_positioning_regions")
+          .select("region_id")
+          .eq("corretor_id", user.id),
+        supabase
+          .from("positioning_region_suggestions")
+          .select("id, nome, cidade, status")
+          .eq("suggested_by", user.id)
+          .order("created_at", { ascending: false }),
       ]);
       if (regionsError || selectedError) {
         toast.error("Não foi possível carregar seu posicionamento.");
@@ -112,13 +163,18 @@ function MeuAcesso() {
     if (!user) return;
     setSavingNotif(`${r}:${campo}`);
     try {
-      const patch: { notificar_whatsapp?: boolean; notificar_toda_atualizacao?: boolean } = { [campo]: valor };
+      const patch: { notificar_whatsapp?: boolean; notificar_toda_atualizacao?: boolean } = {
+        [campo]: valor,
+      };
       const { error } = await supabase
         .from("user_roles")
         .update(patch)
         .eq("user_id", user.id)
         .eq("role", r);
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       if (campo === "notificar_whatsapp") setNotifPorPapel((m) => ({ ...m, [r]: valor }));
       else setNotifAtualizacaoPorPapel((m) => ({ ...m, [r]: valor }));
     } finally {
@@ -130,7 +186,10 @@ function MeuAcesso() {
     if (!user) return;
     setSavingTelefone(true);
     try {
-      const { error } = await supabase.from("profiles").update({ telefone: telefone.trim() || null }).eq("id", user.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ telefone: telefone.trim() || null })
+        .eq("id", user.id);
       if (error) toast.error(error.message);
       else toast.success("Telefone salvo");
     } finally {
@@ -142,16 +201,30 @@ function MeuAcesso() {
     if (!user) return;
     const paginaUrl = normalizeExternalUrl(paginaPessoal);
     const instagramUrl = normalizeInstagramUrl(instagram);
-    if (paginaPessoal.trim() && !paginaUrl) { toast.error("Informe uma página pessoal válida."); return; }
-    if (instagram.trim() && !instagramUrl) { toast.error("Informe um usuário ou link válido do Instagram."); return; }
+    if (paginaPessoal.trim() && !paginaUrl) {
+      toast.error("Informe uma página pessoal válida.");
+      return;
+    }
+    if (instagram.trim() && !instagramUrl) {
+      toast.error("Informe um usuário ou link válido do Instagram.");
+      return;
+    }
     setSavingPublicContacts(true);
     try {
-      const { error } = await supabase.from("profiles").update({ pagina_pessoal_url: paginaUrl, instagram_url: instagramUrl }).eq("id", user.id);
-      if (error) { toast.error(error.message); return; }
+      const { error } = await supabase
+        .from("profiles")
+        .update({ pagina_pessoal_url: paginaUrl, instagram_url: instagramUrl })
+        .eq("id", user.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       setPaginaPessoal(paginaUrl ?? "");
       setInstagram(instagramUrl ?? "");
       toast.success("Links públicos salvos");
-    } finally { setSavingPublicContacts(false); }
+    } finally {
+      setSavingPublicContacts(false);
+    }
   };
 
   const alternarRegiao = (id: number, checked: boolean) => {
@@ -159,7 +232,8 @@ function MeuAcesso() {
       if (!checked) return current.filter((item) => item !== id);
       if (current.includes(id)) return current;
       const next = addPositioningRegion(current, id);
-      if (next.limitReached) toast.error(`Você pode selecionar até ${MAX_POSITIONING_REGIONS} locais.`);
+      if (next.limitReached)
+        toast.error(`Você pode selecionar até ${MAX_POSITIONING_REGIONS} locais.`);
       return next.ids;
     });
   };
@@ -172,7 +246,10 @@ function MeuAcesso() {
         _region_ids: selectedRegionIds,
         _public_enabled: true,
       });
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Posicionamento salvo");
     } finally {
       setSavingPositioning(false);
@@ -181,29 +258,54 @@ function MeuAcesso() {
 
   const enviarSugestao = async () => {
     if (!suggestion.nome.trim() || !suggestion.cidade.trim()) {
-      toast.error("Preencha o nome e a cidade."); return;
+      toast.error("Preencha o nome e a cidade.");
+      return;
     }
     setSavingSuggestion(true);
     try {
       const { data, error } = await supabase.rpc("submit_positioning_region_suggestion", {
-        _nome: suggestion.nome.trim(), _cidade: suggestion.cidade.trim(),
-        _zona: suggestion.zona.trim(), _tipo: suggestion.tipo,
+        _nome: suggestion.nome.trim(),
+        _cidade: suggestion.cidade.trim(),
+        _zona: suggestion.zona.trim(),
+        _tipo: suggestion.tipo,
       });
-      if (error) { toast.error(error.message); return; }
-      setMySuggestions((current) => [{ id: data, nome: suggestion.nome.trim(), cidade: suggestion.cidade.trim(), status: "pendente" }, ...current]);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setMySuggestions((current) => [
+        {
+          id: data,
+          nome: suggestion.nome.trim(),
+          cidade: suggestion.cidade.trim(),
+          status: "pendente",
+        },
+        ...current,
+      ]);
       setSuggestion({ nome: "", cidade: "Sorocaba", zona: "", tipo: "bairro" });
       setSuggestionOpen(false);
       toast.success("Sugestão enviada para análise");
-    } finally { setSavingSuggestion(false); }
+    } finally {
+      setSavingSuggestion(false);
+    }
   };
 
   const trocarSenha = async () => {
-    if (novaSenha.length < 8) { toast.error("A senha precisa ter pelo menos 8 caracteres"); return; }
-    if (novaSenha !== confirmarSenha) { toast.error("As senhas não coincidem"); return; }
+    if (novaSenha.length < 8) {
+      toast.error("A senha precisa ter pelo menos 8 caracteres");
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
     setTrocandoSenha(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: novaSenha });
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       setNovaSenha("");
       setConfirmarSenha("");
       toast.success("Senha alterada");
@@ -216,9 +318,18 @@ function MeuAcesso() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Selecione um arquivo de imagem"); return; }
-    if (file.size > AVATAR_MAX_BYTES) { toast.error("Imagem muito grande (máx. 5MB)"); return; }
-    setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      toast.error("Imagem muito grande (máx. 5MB)");
+      return;
+    }
+    setAvatarPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     setAvatarFile(file);
   };
 
@@ -230,11 +341,20 @@ function MeuAcesso() {
       const { error: upErr } = await supabase.storage
         .from("avatars")
         .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
-      if (upErr) { toast.error(upErr.message); return; }
+      if (upErr) {
+        toast.error(upErr.message);
+        return;
+      }
       const { data } = supabase.storage.from("avatars").getPublicUrl(path);
       const url = `${data.publicUrl}?t=${Date.now()}`;
-      const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
-      if (dbErr) { toast.error(dbErr.message); return; }
+      const { error: dbErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: url })
+        .eq("id", user.id);
+      if (dbErr) {
+        toast.error(dbErr.message);
+        return;
+      }
       setAvatarUrl(url);
       if (avatarPreview) URL.revokeObjectURL(avatarPreview);
       setAvatarPreview(null);
@@ -246,21 +366,41 @@ function MeuAcesso() {
   };
 
   useEffect(() => {
-    return () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); };
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
   }, [avatarPreview]);
 
   const loadTeam = useCallback(async () => {
     if (!user) return;
-    const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", user.id).maybeSingle();
-    if (!tm) { setMyTeam(null); return; }
-    const { data: team } = await supabase.from("teams").select("nome, lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
-    if (!team) { setMyTeam(null); return; }
+    const { data: tm } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("membro_id", user.id)
+      .maybeSingle();
+    if (!tm) {
+      setMyTeam(null);
+      return;
+    }
+    const { data: team } = await supabase
+      .from("teams")
+      .select("nome, lider_id, parent_team_id")
+      .eq("id", tm.team_id)
+      .maybeSingle();
+    if (!team) {
+      setMyTeam(null);
+      return;
+    }
 
     const liderIds = [team.lider_id];
     let parentNome: string | null = null;
     const teamIdsForCoLideres = [tm.team_id];
     if (team.parent_team_id) {
-      const { data: parent } = await supabase.from("teams").select("nome, lider_id").eq("id", team.parent_team_id).maybeSingle();
+      const { data: parent } = await supabase
+        .from("teams")
+        .select("nome, lider_id")
+        .eq("id", team.parent_team_id)
+        .maybeSingle();
       if (parent) {
         parentNome = parent.nome;
         liderIds.push(parent.lider_id);
@@ -268,25 +408,41 @@ function MeuAcesso() {
       }
     }
     // Líder auxiliar ("braço direito") aparece aqui igual ao líder principal.
-    const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
-    (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
+    const { data: coLideres } = await supabase
+      .from("team_co_leaders")
+      .select("user_id")
+      .in("team_id", teamIdsForCoLideres);
+    (coLideres ?? []).forEach((c) => liderIds.push(c.user_id));
     const uniqueIds = Array.from(new Set(liderIds));
-    const { data: profs } = await supabase.from("profiles").select("id, nome, email").in("id", uniqueIds);
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id, nome, email")
+      .in("id", uniqueIds);
     setMyTeam({ nome: team.nome, parentNome, lideres: profs ?? [] });
   }, [user]);
 
-  useEffect(() => { loadTeam(); }, [loadTeam]);
+  useEffect(() => {
+    loadTeam();
+  }, [loadTeam]);
 
   const explain = (r: AppRole): string => {
     switch (r) {
-      case "corretor": return "Você vê apenas as vendas onde você é o corretor responsável, e só edita rascunhos ou vendas devolvidas para ajuste.";
-      case "gestor": return "Você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
-      case "team_leader": return "Mesmas permissões do gestor: você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
-      case "juridico": return "Você vê todas as vendas a partir de \"aprovada pelo gestor\" e conduz elaboração, assinatura e envio para o financeiro.";
-      case "financeiro": return "Você vê todas as vendas e é quem trava/libera a edição via ocorrência.";
-      case "admin": return "Você vê e edita tudo. Não pode conceder o papel Admin ou Super Admin — só o Super Admin pode.";
-      case "super_admin": return "Acesso total, incluindo conceder ou revogar os papéis Admin e Super Admin.";
-      default: return "Permissões definidas conforme o papel atribuído ao usuário.";
+      case "corretor":
+        return "Você vê apenas as vendas onde você é o corretor responsável, e só edita rascunhos ou vendas devolvidas para ajuste.";
+      case "gestor":
+        return "Você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
+      case "team_leader":
+        return "Mesmas permissões do gestor: você vê as vendas dos corretores vinculados à sua equipe e pode aprovar, devolver ou editar antes de enviar ao jurídico.";
+      case "juridico":
+        return 'Você vê todas as vendas a partir de "aprovada pelo gestor" e conduz elaboração, assinatura e envio para o financeiro.';
+      case "financeiro":
+        return "Você vê todas as vendas e é quem trava/libera a edição via ocorrência.";
+      case "admin":
+        return "Você vê e edita tudo. Não pode conceder o papel Admin ou Super Admin — só o Super Admin pode.";
+      case "super_admin":
+        return "Acesso total, incluindo conceder ou revogar os papéis Admin e Super Admin.";
+      default:
+        return "Permissões definidas conforme o papel atribuído ao usuário.";
     }
   };
 
@@ -298,12 +454,19 @@ function MeuAcesso() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Conta</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Conta</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <div className="flex items-center gap-4 border-b pb-4">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={avatarPreview ?? avatarUrl ?? undefined} alt={nome || user?.email || "Foto de perfil"} />
-              <AvatarFallback className="text-lg">{(nome || user?.email || "?")[0].toUpperCase()}</AvatarFallback>
+              <AvatarImage
+                src={avatarPreview ?? avatarUrl ?? undefined}
+                alt={nome || user?.email || "Foto de perfil"}
+              />
+              <AvatarFallback className="text-lg">
+                {(nome || user?.email || "?")[0].toUpperCase()}
+              </AvatarFallback>
             </Avatar>
             <div className="space-y-1.5">
               {nome && <div className="font-medium">{nome}</div>}
@@ -327,10 +490,17 @@ function MeuAcesso() {
               </div>
             </div>
           </div>
-          <div className="mb-1"><span className="text-muted-foreground">Email:</span> <b>{user?.email}</b></div>
-          <div><span className="text-muted-foreground">Papéis:</span> <b>{roles.map(r => ROLE_LABEL[r]).join(", ") || "Sem papel"}</b></div>
+          <div className="mb-1">
+            <span className="text-muted-foreground">Email:</span> <b>{user?.email}</b>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Papéis:</span>{" "}
+            <b>{roles.map((r) => ROLE_LABEL[r]).join(", ") || "Sem papel"}</b>
+          </div>
           <div className="max-w-sm">
-            <Label className="mb-1.5 block text-xs text-muted-foreground">Telefone (WhatsApp)</Label>
+            <Label className="mb-1.5 block text-xs text-muted-foreground">
+              Telefone (WhatsApp)
+            </Label>
             <div className="flex gap-2">
               <Input
                 placeholder="(11) 91234-5678"
@@ -341,23 +511,44 @@ function MeuAcesso() {
                 {savingTelefone ? "Salvando..." : "Salvar"}
               </Button>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.
+            </p>
           </div>
           {canUsePositioning && (
             <div className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2">
               <div>
-                <Label className="mb-1.5 block text-xs text-muted-foreground">Página pessoal (opcional)</Label>
-                <Input placeholder="https://seusite.com.br" value={paginaPessoal} onChange={(e) => setPaginaPessoal(e.target.value)} />
+                <Label className="mb-1.5 block text-xs text-muted-foreground">
+                  Página pessoal (opcional)
+                </Label>
+                <Input
+                  placeholder="https://seusite.com.br"
+                  value={paginaPessoal}
+                  onChange={(e) => setPaginaPessoal(e.target.value)}
+                />
               </div>
               <div>
-                <Label className="mb-1.5 block text-xs text-muted-foreground">Instagram (opcional)</Label>
-                <Input placeholder="@seuusuario" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
+                <Label className="mb-1.5 block text-xs text-muted-foreground">
+                  Instagram (opcional)
+                </Label>
+                <Input
+                  placeholder="@seuusuario"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                />
               </div>
               <div className="sm:col-span-2">
-                <Button size="sm" variant="outline" onClick={salvarContatosPublicos} disabled={savingPublicContacts}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={salvarContatosPublicos}
+                  disabled={savingPublicContacts}
+                >
                   {savingPublicContacts ? "Salvando..." : "Salvar links públicos"}
                 </Button>
-                <p className="mt-1.5 text-xs text-muted-foreground">Esses links só aparecem na vitrine se o perfil público estiver ativado.</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Esses links só aparecem na vitrine se o perfil público estiver ativado.
+                </p>
               </div>
             </div>
           )}
@@ -373,7 +564,8 @@ function MeuAcesso() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-xs text-muted-foreground">
-              Escolha até dois bairros, condomínios ou cidades em que você atua ou quer se posicionar. Todos os corretores ativos aparecem na vitrine pública.
+              Escolha até dois bairros, condomínios ou cidades em que você atua ou quer se
+              posicionar. Todos os corretores ativos aparecem na vitrine pública.
             </p>
             <Input
               value={positioningSearch}
@@ -382,41 +574,63 @@ function MeuAcesso() {
               className="max-w-lg"
             />
             <div className="max-h-80 space-y-4 overflow-y-auto rounded-md border p-3">
-              {groupRegions(positioningRegions.filter((region) => {
-                const query = positioningSearch.trim().toLocaleLowerCase("pt-BR");
-                if (!query) return true;
-                return [region.nome, region.cidade, region.zona ?? ""].some((value) => value.toLocaleLowerCase("pt-BR").includes(query));
-              })).map((group) => (
+              {groupRegions(
+                positioningRegions.filter((region) => {
+                  const query = positioningSearch.trim().toLocaleLowerCase("pt-BR");
+                  if (!query) return true;
+                  return [region.nome, region.cidade, region.zona ?? ""].some((value) =>
+                    value.toLocaleLowerCase("pt-BR").includes(query),
+                  );
+                }),
+              ).map((group) => (
                 <div key={group.label}>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {group.items.map((region) => (
-                      <label key={region.id} className="flex cursor-pointer items-start gap-2 rounded-md border p-2.5 hover:bg-muted/50">
+                      <label
+                        key={region.id}
+                        className="flex cursor-pointer items-start gap-2 rounded-md border p-2.5 hover:bg-muted/50"
+                      >
                         <Checkbox
                           checked={selectedRegionIds.includes(region.id)}
                           onCheckedChange={(checked) => alternarRegiao(region.id, checked === true)}
                         />
                         <span>
                           <span className="block font-medium">{region.nome}</span>
-                          <span className="text-xs capitalize text-muted-foreground">{region.tipo}</span>
+                          <span className="text-xs capitalize text-muted-foreground">
+                            {region.tipo}
+                          </span>
                         </span>
                       </label>
                     ))}
                   </div>
                 </div>
               ))}
-              {positioningRegions.length === 0 && <p className="text-muted-foreground">Nenhuma região cadastrada.</p>}
+              {positioningRegions.length === 0 && (
+                <p className="text-muted-foreground">Nenhuma região cadastrada.</p>
+              )}
             </div>
-            <div className="text-xs text-muted-foreground">{selectedRegionIds.length} de {MAX_POSITIONING_REGIONS} locais selecionados</div>
+            <div className="text-xs text-muted-foreground">
+              {selectedRegionIds.length} de {MAX_POSITIONING_REGIONS} locais selecionados
+            </div>
             <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 p-3">
-              <span className="text-xs text-muted-foreground">Não encontrou o bairro ou condomínio?</span>
-              <Button size="sm" variant="outline" onClick={() => setSuggestionOpen(true)}>Sugerir nova região</Button>
+              <span className="text-xs text-muted-foreground">
+                Não encontrou o bairro ou condomínio?
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setSuggestionOpen(true)}>
+                Sugerir nova região
+              </Button>
             </div>
             {mySuggestions.length > 0 && (
               <div className="space-y-1 text-xs text-muted-foreground">
                 <b className="text-foreground">Minhas sugestões:</b>{" "}
                 {mySuggestions.slice(0, 5).map((item, index) => (
-                  <span key={item.id}>{index > 0 ? " • " : ""}{item.nome} ({item.status})</span>
+                  <span key={item.id}>
+                    {index > 0 ? " • " : ""}
+                    {item.nome} ({item.status})
+                  </span>
                 ))}
               </div>
             )}
@@ -425,7 +639,9 @@ function MeuAcesso() {
                 {savingPositioning ? "Salvando..." : "Salvar posicionamento"}
               </Button>
               <Button variant="outline" asChild>
-                <Link to="/especialistas" target="_blank">Ver página pública <ExternalLink className="ml-1 h-3.5 w-3.5" /></Link>
+                <Link to="/especialistas" target="_blank">
+                  Ver página pública <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                </Link>
               </Button>
             </div>
           </CardContent>
@@ -434,14 +650,59 @@ function MeuAcesso() {
 
       <Dialog open={suggestionOpen} onOpenChange={setSuggestionOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Sugerir bairro ou condomínio</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Sugerir bairro ou condomínio</DialogTitle>
+          </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div><Label>Nome</Label><Input value={suggestion.nome} onChange={(e) => setSuggestion((s) => ({ ...s, nome: e.target.value }))} placeholder="Ex.: Alphaville Nova Esplanada" /></div>
-            <div><Label>Cidade</Label><Input value={suggestion.cidade} onChange={(e) => setSuggestion((s) => ({ ...s, cidade: e.target.value }))} /></div>
-            <div><Label>Zona (opcional)</Label><Input value={suggestion.zona} onChange={(e) => setSuggestion((s) => ({ ...s, zona: e.target.value }))} placeholder="Ex.: Sul" /></div>
-            <div><Label>Tipo</Label><Select value={suggestion.tipo} onValueChange={(tipo) => setSuggestion((s) => ({ ...s, tipo }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bairro">Bairro</SelectItem><SelectItem value="condominio">Condomínio</SelectItem><SelectItem value="cidade">Cidade</SelectItem><SelectItem value="grupo">Grupo de condomínios</SelectItem></SelectContent></Select></div>
+            <div>
+              <Label>Nome</Label>
+              <Input
+                value={suggestion.nome}
+                onChange={(e) => setSuggestion((s) => ({ ...s, nome: e.target.value }))}
+                placeholder="Ex.: Alphaville Nova Esplanada"
+              />
+            </div>
+            <div>
+              <Label>Cidade</Label>
+              <Input
+                value={suggestion.cidade}
+                onChange={(e) => setSuggestion((s) => ({ ...s, cidade: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Zona (opcional)</Label>
+              <Input
+                value={suggestion.zona}
+                onChange={(e) => setSuggestion((s) => ({ ...s, zona: e.target.value }))}
+                placeholder="Ex.: Sul"
+              />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <Select
+                value={suggestion.tipo}
+                onValueChange={(tipo) => setSuggestion((s) => ({ ...s, tipo }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bairro">Bairro</SelectItem>
+                  <SelectItem value="condominio">Condomínio</SelectItem>
+                  <SelectItem value="cidade">Cidade</SelectItem>
+                  <SelectItem value="grupo">Grupo de condomínios</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setSuggestionOpen(false)}>Cancelar</Button><Button onClick={enviarSugestao} disabled={savingSuggestion}>{savingSuggestion ? "Enviando..." : "Enviar sugestão"}</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuggestionOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={enviarSugestao} disabled={savingSuggestion}>
+              {savingSuggestion ? "Enviando..." : "Enviar sugestão"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -464,7 +725,9 @@ function MeuAcesso() {
               />
             </div>
             <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">Confirmar nova senha</Label>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">
+                Confirmar nova senha
+              </Label>
               <Input
                 type="password"
                 minLength={8}
@@ -472,7 +735,12 @@ function MeuAcesso() {
                 onChange={(e) => setConfirmarSenha(e.target.value)}
               />
             </div>
-            <Button size="sm" className="w-fit" onClick={trocarSenha} disabled={trocandoSenha || !novaSenha || !confirmarSenha}>
+            <Button
+              size="sm"
+              className="w-fit"
+              onClick={trocarSenha}
+              disabled={trocandoSenha || !novaSenha || !confirmarSenha}
+            >
               {trocandoSenha ? "Salvando..." : "Alterar senha"}
             </Button>
           </div>
@@ -488,22 +756,30 @@ function MeuAcesso() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p className="mb-2 text-xs text-muted-foreground">
-              Escolha por qual papel você quer receber aviso. Vale só pra você — não afeta os outros usuários com o mesmo papel.
+              Escolha por qual papel você quer receber aviso. Vale só pra você — não afeta os outros
+              usuários com o mesmo papel.
             </p>
             {roles.map((r) => {
               const todaAtualizacaoLabel =
-                r === "corretor" ? "A cada atualização das suas vendas" :
-                r === "gestor" ? "A cada atualização das vendas da sua equipe" :
-                r === "team_leader" ? "A cada atualização das vendas da sua equipe" :
-                r === "juridico" ? "A cada atualização das vendas que já chegaram até você" :
-                r === "financeiro" ? "A cada atualização de todas as vendas" :
-                null;
+                r === "corretor"
+                  ? "A cada atualização das suas vendas"
+                  : r === "gestor"
+                    ? "A cada atualização das vendas da sua equipe"
+                    : r === "team_leader"
+                      ? "A cada atualização das vendas da sua equipe"
+                      : r === "juridico"
+                        ? "A cada atualização das vendas que já chegaram até você"
+                        : r === "financeiro"
+                          ? "A cada atualização de todas as vendas"
+                          : null;
               return (
                 <div key={r} className="rounded-md border p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{ROLE_LABEL[r]}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Quando for sua vez de agir (WhatsApp)</span>
+                      <span className="text-xs text-muted-foreground">
+                        Quando for sua vez de agir (WhatsApp)
+                      </span>
                       <Switch
                         checked={notifPorPapel[r] ?? true}
                         disabled={savingNotif === `${r}:notificar_whatsapp`}
@@ -513,11 +789,18 @@ function MeuAcesso() {
                   </div>
                   {todaAtualizacaoLabel && (
                     <div className="mt-2 flex items-center justify-between border-t pt-2">
-                      <span className="text-xs text-muted-foreground">{todaAtualizacaoLabel} (sino e WhatsApp)</span>
+                      <span className="text-xs text-muted-foreground">
+                        {todaAtualizacaoLabel} (sino e WhatsApp)
+                      </span>
                       <Switch
-                        checked={notifAtualizacaoPorPapel[r] ?? (r === "corretor" || r === "gestor" || r === "team_leader")}
+                        checked={
+                          notifAtualizacaoPorPapel[r] ??
+                          (r === "corretor" || r === "gestor" || r === "team_leader")
+                        }
                         disabled={savingNotif === `${r}:notificar_toda_atualizacao`}
-                        onCheckedChange={(v) => alternarNotifCampo(r, "notificar_toda_atualizacao", v)}
+                        onCheckedChange={(v) =>
+                          alternarNotifCampo(r, "notificar_toda_atualizacao", v)
+                        }
                       />
                     </div>
                   )}
@@ -529,9 +812,15 @@ function MeuAcesso() {
       )}
 
       <Card>
-        <CardHeader><CardTitle className="text-base">O que você pode ver e fazer</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">O que você pode ver e fazer</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {roles.length === 0 && <p className="text-muted-foreground">Nenhum papel atribuído. Solicite acesso ao administrador.</p>}
+          {roles.length === 0 && (
+            <p className="text-muted-foreground">
+              Nenhum papel atribuído. Solicite acesso ao administrador.
+            </p>
+          )}
           {roles.map((r) => (
             <div key={r} className="rounded-md border p-3">
               <div className="mb-1 font-medium">{ROLE_LABEL[r]}</div>
@@ -539,7 +828,9 @@ function MeuAcesso() {
             </div>
           ))}
           <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-            🔒 Regra geral: quando o financeiro aceita a ocorrência, a venda fica travada para edição de corretor, gestor e jurídico até que o financeiro (ou admin/super admin) libere.
+            🔒 Regra geral: quando o financeiro aceita a ocorrência, a venda fica travada para
+            edição de corretor, gestor e jurídico até que o financeiro (ou admin/super admin)
+            libere.
           </div>
         </CardContent>
       </Card>
@@ -549,21 +840,34 @@ function MeuAcesso() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Minha equipe</CardTitle>
             {hasAny(["gestor", "team_leader", "admin", "super_admin"]) && (
-              <Link to="/equipe" className="text-xs text-primary hover:underline">Gerenciar equipes →</Link>
+              <Link to="/equipe" className="text-xs text-primary hover:underline">
+                Gerenciar equipes →
+              </Link>
             )}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {!myTeam ? (
-              <p className="text-muted-foreground">Você ainda não está vinculado a nenhuma equipe.</p>
+              <p className="text-muted-foreground">
+                Você ainda não está vinculado a nenhuma equipe.
+              </p>
             ) : (
               <>
                 <div>
                   Equipe: <b>{myTeam.nome}</b>
-                  {myTeam.parentNome && <span className="text-muted-foreground"> (sub-equipe de {myTeam.parentNome})</span>}
+                  {myTeam.parentNome && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      (sub-equipe de {myTeam.parentNome})
+                    </span>
+                  )}
                 </div>
-                <div className="mb-1 mt-2 text-xs uppercase tracking-wide text-muted-foreground">Líder(es) — gestores que enxergam suas vendas</div>
+                <div className="mb-1 mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  Líder(es) — gestores que enxergam suas vendas
+                </div>
                 {myTeam.lideres.map((l) => (
-                  <div key={l.id} className="rounded border p-2">{l.nome || l.email}</div>
+                  <div key={l.id} className="rounded border p-2">
+                    {l.nome || l.email}
+                  </div>
                 ))}
               </>
             )}

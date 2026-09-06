@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { errorCode, errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/vendas/lancamento/nova")({
   head: () => ({ meta: [{ title: "Novo Lançamento" }] }),
@@ -38,11 +39,14 @@ function NewLancamento() {
       if (error) throw error;
       toast.success("Lançamento criado como rascunho");
       router.navigate({ to: "/vendas/$id", params: { id: saleId } });
-    } catch (err: any) {
-      if (err.code === "23505" && err.message?.includes("sales_imovel_id_ativa_key")) {
+    } catch (err: unknown) {
+      if (
+        errorCode(err) === "23505" &&
+        errorMessage(err, "").includes("sales_imovel_id_ativa_key")
+      ) {
         toast.error("Já existe uma venda em andamento para esse código de imóvel.");
       } else {
-        toast.error(err.message ?? "Falha ao criar lançamento");
+        toast.error(errorMessage(err, "Falha ao criar lançamento"));
       }
     } finally {
       setLoading(false);
@@ -68,8 +72,8 @@ function NewLancamento() {
         <h1 className="text-2xl font-semibold tracking-tight">Novo Lançamento</h1>
         <p className="text-sm text-muted-foreground">
           Fluxo específico para venda em parceria com construtora — sem documentos e sem etapa do
-          Jurídico. Pode ser criado pelos perfis Lançamento, corretor, gestor ou Team Leader.
-          Comece identificando o imóvel e a construtora; o restante é preenchido na próxima tela.
+          Jurídico. Pode ser criado pelos perfis Lançamento, corretor, gestor ou Team Leader. Comece
+          identificando o imóvel e a construtora; o restante é preenchido na próxima tela.
         </p>
       </div>
       <Card>

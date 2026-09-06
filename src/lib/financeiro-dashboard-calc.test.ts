@@ -707,9 +707,7 @@ describe("agruparComissoes", () => {
 // ---- item 12: cards, tabela e gráfico produzindo o mesmo total ----
 describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", () => {
   it("previstoImobiliaria do resumo bate com a soma manual das mesmas parcelas ativas", () => {
-    const parcelas = [
-      parcelaBase({ occId: "o1", valorBrutoPrevisto: 10000 }),
-    ];
+    const parcelas = [parcelaBase({ occId: "o1", valorBrutoPrevisto: 10000 })];
     const resumo = calcularResumo({
       parcelas,
       comissoes: [],
@@ -792,12 +790,21 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
     const resumo = calcularResumo({
       parcelas: [],
       comissoes: [],
-      efetivadas: [{
-        saleId: "s-parceria", imovelLabel: "Casa", codigoInterno: null,
-        dataEfetivacao: "2026-08-05", modalidade: "padrao", corretorId: "c1",
-        teamId: null, gestorId: null, valorNegociado: 500000,
-        valorTotalComissao: 30000, parceriaExterna: 15000,
-      }],
+      efetivadas: [
+        {
+          saleId: "s-parceria",
+          imovelLabel: "Casa",
+          codigoInterno: null,
+          dataEfetivacao: "2026-08-05",
+          modalidade: "padrao",
+          corretorId: "c1",
+          teamId: null,
+          gestorId: null,
+          valorNegociado: 500000,
+          valorTotalComissao: 30000,
+          parceriaExterna: 15000,
+        },
+      ],
       divergenciasAbertas: 0,
       hoje: HOJE,
     });
@@ -808,13 +815,23 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
     const resumo = calcularResumo({
       parcelas: [],
       comissoes: [],
-      efetivadas: [{
-        saleId: "s-liquida", imovelLabel: "Casa", codigoInterno: null,
-        dataEfetivacao: "2026-08-05", modalidade: "padrao", corretorId: "c1",
-        teamId: null, gestorId: null, valorNegociado: 500000,
-        valorTotalComissao: 30000, parceriaExterna: 10000,
-        saldoInicialImobiliaria: 9000, receitaLiquidaImobiliaria: 7000,
-      }],
+      efetivadas: [
+        {
+          saleId: "s-liquida",
+          imovelLabel: "Casa",
+          codigoInterno: null,
+          dataEfetivacao: "2026-08-05",
+          modalidade: "padrao",
+          corretorId: "c1",
+          teamId: null,
+          gestorId: null,
+          valorNegociado: 500000,
+          valorTotalComissao: 30000,
+          parceriaExterna: 10000,
+          saldoInicialImobiliaria: 9000,
+          receitaLiquidaImobiliaria: 7000,
+        },
+      ],
       divergenciasAbertas: 0,
       hoje: HOJE,
     });

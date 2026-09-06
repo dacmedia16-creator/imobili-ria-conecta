@@ -34,8 +34,7 @@ function resolverEquipePorPessoa(
 // não foi regenerada em src/integrations/supabase/types.ts (arquivo gerado, não editado à mão). O
 // cast some sozinho na próxima geração de types.
 export async function fetchProducaoPorPessoa(): Promise<ProducaoPonta[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = (await supabase.rpc("producao_por_pessoa_dados" as any)) as {
+  const { data, error } = (await supabase.rpc("producao_por_pessoa_dados" as never)) as {
     data: ProducaoRawRow[] | null;
     error: { message: string } | null;
   };

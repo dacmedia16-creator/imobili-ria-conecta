@@ -7,8 +7,7 @@ export function BrandHeroBackground() {
       <div
         className="absolute inset-0"
         style={{
-          background:
-            "radial-gradient(120% 90% at 12% 0%, #10204a 0%, #081029 45%, #050a1c 100%)",
+          background: "radial-gradient(120% 90% at 12% 0%, #10204a 0%, #081029 45%, #050a1c 100%)",
         }}
       />
 

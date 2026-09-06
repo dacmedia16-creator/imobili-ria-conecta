@@ -8,34 +8,137 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Wizard, type WizardStep } from "@/components/Wizard";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { AgingBadge } from "@/components/AgingBadge";
-import { STATUS_LABEL, DOC_TYPES, COMISSAO_PAPEIS, PARCERIA_TIPOS, MIDIA_OPTIONS, validarProntaParaRevisao, validarComposicaoPagamento, validarDocsAprovadosParaJuridico, proximoResponsavel, docSatisfazObrigatorio, temDocDoTipo, partesComExigenciaPessoal, chegouAoJuridico, parteLabel, parteBase, parteSortKey, CHECKS_NAO_DOCUMENTAIS, type SaleStatus, type DocParte } from "@/lib/status";
+import {
+  STATUS_LABEL,
+  DOC_TYPES,
+  COMISSAO_PAPEIS,
+  PARCERIA_TIPOS,
+  MIDIA_OPTIONS,
+  validarProntaParaRevisao,
+  validarComposicaoPagamento,
+  validarDocsAprovadosParaJuridico,
+  proximoResponsavel,
+  docSatisfazObrigatorio,
+  temDocDoTipo,
+  partesComExigenciaPessoal,
+  chegouAoJuridico,
+  parteLabel,
+  parteBase,
+  parteSortKey,
+  CHECKS_NAO_DOCUMENTAIS,
+  type SaleStatus,
+  type DocParte,
+} from "@/lib/status";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, FileCheck, FileX, CheckCircle2, XCircle, Send, Gavel, DollarSign, AlertTriangle, RotateCcw, Plus, Trash2, History, MessageSquare, Eye, Printer, Download, ZoomIn, ZoomOut, FileText, ChevronRight, ChevronLeft, Copy } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  ArrowLeft,
+  Upload,
+  FileCheck,
+  FileX,
+  CheckCircle2,
+  XCircle,
+  Send,
+  Gavel,
+  DollarSign,
+  AlertTriangle,
+  RotateCcw,
+  Plus,
+  Trash2,
+  History,
+  MessageSquare,
+  Eye,
+  Printer,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
+  Copy,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
 import {
-  getSaleRoleFlags, isSaleLocked, corretorPodeEditar, gestorPodeEditar, juridicoPodeEditar,
+  getSaleRoleFlags,
+  isSaleLocked,
+  corretorPodeEditar,
+  gestorPodeEditar,
+  juridicoPodeEditar,
   gestorPodeEncerrar,
-  podeEditarVenda, comissaoValorExcedido,
-  podeVerOcorrencia, podeVerResumoCompleto, podeEditarOcorrencia, podeFinalizarOcorrencia,
+  podeEditarVenda,
+  comissaoValorExcedido,
+  podeVerOcorrencia,
+  podeVerResumoCompleto,
+  podeEditarOcorrencia,
+  podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
-import { recalcImobiliaria as recalcImobiliariaCalc, calcularPatchValorNegociado, calcularPatchOccValorNegociado, podeEditarComissaoNaOcorrencia, userIdParaExtra, verificarComissoesDesatualizadas } from "@/lib/sale-financial-calc";
+import {
+  recalcImobiliaria as recalcImobiliariaCalc,
+  calcularPatchValorNegociado,
+  calcularPatchOccValorNegociado,
+  podeEditarComissaoNaOcorrencia,
+  userIdParaExtra,
+  verificarComissoesDesatualizadas,
+} from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
-import { type Saver, useAutosave, AutosaveStatus, SaleSection, FieldGrid, Field, CurrencyInput, money, dateBR, DocStatusBadge } from "@/components/vendas/shared";
+import {
+  type Saver,
+  useAutosave,
+  AutosaveStatus,
+  SaleSection,
+  FieldGrid,
+  Field,
+  CurrencyInput,
+  money,
+  dateBR,
+  DocStatusBadge,
+} from "@/components/vendas/shared";
 import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
-import { DocumentsPanel } from "@/components/vendas/DocumentsPanel";
+import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
@@ -46,6 +149,63 @@ import {
   SEM_CADASTRO_VALUE,
   valorSelectBeneficiario,
 } from "@/lib/lancamento-pessoas";
+import type {
+  ActivityLogRow,
+  BankAccountRow,
+  CommentRow,
+  CommissionExtraRow,
+  DocumentRow,
+  Json,
+  OccurrenceCommissionRow,
+  OccurrencePartnerRow,
+  OccurrenceRow,
+  PartyRow,
+  PaymentRow,
+  SaleHistoryRow,
+  SaleRow,
+  SaleUpdate,
+} from "@/lib/database.types";
+import { errorMessage } from "@/lib/errors";
+
+type ActivityPayload = {
+  tipo?: string;
+  motivo?: string;
+  de?: string;
+  pendencia?: string;
+  libera_assinatura?: boolean;
+  enviados?: number;
+  falhas?: number;
+};
+type StandardDistribution = {
+  calculo_valido: boolean;
+  inconsistencias: string[];
+  liquido_captador?: number | null;
+  liquido_vendedor?: number | null;
+  saldo_inicial_imobiliaria?: number | null;
+  saldo_liquido_imobiliaria?: number | null;
+};
+type EditableExtra = Partial<CommissionExtraRow> &
+  Pick<CommissionExtraRow, "id"> & {
+    _new?: boolean;
+  };
+type EditableCommission = Partial<OccurrenceCommissionRow> &
+  Pick<OccurrenceCommissionRow, "id" | "managed_by_sale" | "papel"> & {
+    _new?: boolean;
+  };
+type EditablePartner = Partial<OccurrencePartnerRow> &
+  Pick<OccurrencePartnerRow, "id"> & {
+    _new?: boolean;
+  };
+type SalePatch = Record<string, unknown>;
+type OccurrencePatch = Record<string, unknown>;
+
+const asDistribution = (value: Json | null): StandardDistribution | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as unknown as StandardDistribution)
+    : null;
+
+const asActivityPayload = (value: Json): ActivityPayload =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as ActivityPayload) : {};
 
 export const Route = createFileRoute("/_authenticated/vendas/$id")({
   head: () => ({ meta: [{ title: "Detalhe da venda" }] }),
@@ -59,52 +219,99 @@ const TIPO_DOC_EXTRA_LABEL: Record<string, string> = {
   contrato_assinado: "Contrato assinado",
   certidao_juridico: "Certidão (jurídico)",
 };
-const tipoDocLabel = (tipo?: string | null) => (tipo ? (DOC_TYPES.find((t) => t.key === tipo)?.label ?? TIPO_DOC_EXTRA_LABEL[tipo] ?? tipo) : null);
+const tipoDocLabel = (tipo?: string | null) =>
+  tipo
+    ? (DOC_TYPES.find((t) => t.key === tipo)?.label ?? TIPO_DOC_EXTRA_LABEL[tipo] ?? tipo)
+    : null;
 
 /** Traduz activity_logs.acao + payload num texto de uma linha pro painel de Atividade. Ícone/tom
  * junto porque cada ação tem uma "cor" diferente (upload é neutro, recusa é alerta, etc.). */
-function describeAtividade(acao: string, payload: any): { icon: any; label: string; detail?: string; tone?: "warn" | "ok" } {
+function describeAtividade(
+  acao: string,
+  payload: ActivityPayload | null,
+): { icon: LucideIcon; label: string; detail?: string; tone?: "warn" | "ok" } {
   const p = payload ?? {};
   switch (acao) {
-    case "sale_viewed": return { icon: Eye, label: "Visualizou a venda" };
-    case "document_uploaded": return { icon: Upload, label: "Enviou documento", detail: tipoDocLabel(p.tipo) ?? undefined };
-    case "document_approved": return { icon: CheckCircle2, label: "Aprovou documento", detail: tipoDocLabel(p.tipo) ?? undefined, tone: "ok" };
-    case "document_rejected": return { icon: XCircle, label: "Recusou documento", detail: [tipoDocLabel(p.tipo), p.motivo].filter(Boolean).join(" — ") || undefined, tone: "warn" };
-    case "document_archived": return { icon: Trash2, label: "Excluiu documento", detail: tipoDocLabel(p.tipo) ?? undefined };
-    case "document_reused_from_other_party": return { icon: Copy, label: "Reaproveitou documento", detail: p.de ? `de ${parteLabel(p.de)}` : undefined };
-    case "status_change": return { icon: History, label: "Mudou o status da venda" };
-    case "occurrence_created": return { icon: FileCheck, label: "Criou a ocorrência" };
-    case "occurrence_concluded": return { icon: CheckCircle2, label: "Concluiu a ocorrência", tone: "ok" };
-    case "occurrence_reopened": return { icon: RotateCcw, label: "Reabriu a ocorrência", detail: p.motivo || undefined, tone: "warn" };
-    case "contrato_pendencia_atualizada": return { icon: AlertTriangle, label: "Atualizou pendência do contrato", detail: p.pendencia || (p.libera_assinatura === false ? "Bloqueia assinatura" : undefined) };
-    case "whatsapp_notification_result": return {
-      icon: MessageSquare, label: "Notificação por WhatsApp",
-      detail: `${p.enviados ?? 0} enviada(s)${p.falhas ? `, ${p.falhas} falhou(aram)` : ""}`,
-      tone: p.falhas ? "warn" : "ok",
-    };
-    default: return { icon: History, label: acao };
+    case "sale_viewed":
+      return { icon: Eye, label: "Visualizou a venda" };
+    case "document_uploaded":
+      return { icon: Upload, label: "Enviou documento", detail: tipoDocLabel(p.tipo) ?? undefined };
+    case "document_approved":
+      return {
+        icon: CheckCircle2,
+        label: "Aprovou documento",
+        detail: tipoDocLabel(p.tipo) ?? undefined,
+        tone: "ok",
+      };
+    case "document_rejected":
+      return {
+        icon: XCircle,
+        label: "Recusou documento",
+        detail: [tipoDocLabel(p.tipo), p.motivo].filter(Boolean).join(" — ") || undefined,
+        tone: "warn",
+      };
+    case "document_archived":
+      return {
+        icon: Trash2,
+        label: "Excluiu documento",
+        detail: tipoDocLabel(p.tipo) ?? undefined,
+      };
+    case "document_reused_from_other_party":
+      return {
+        icon: Copy,
+        label: "Reaproveitou documento",
+        detail: p.de ? `de ${parteLabel(p.de)}` : undefined,
+      };
+    case "status_change":
+      return { icon: History, label: "Mudou o status da venda" };
+    case "occurrence_created":
+      return { icon: FileCheck, label: "Criou a ocorrência" };
+    case "occurrence_concluded":
+      return { icon: CheckCircle2, label: "Concluiu a ocorrência", tone: "ok" };
+    case "occurrence_reopened":
+      return {
+        icon: RotateCcw,
+        label: "Reabriu a ocorrência",
+        detail: p.motivo || undefined,
+        tone: "warn",
+      };
+    case "contrato_pendencia_atualizada":
+      return {
+        icon: AlertTriangle,
+        label: "Atualizou pendência do contrato",
+        detail: p.pendencia || (p.libera_assinatura === false ? "Bloqueia assinatura" : undefined),
+      };
+    case "whatsapp_notification_result":
+      return {
+        icon: MessageSquare,
+        label: "Notificação por WhatsApp",
+        detail: `${p.enviados ?? 0} enviada(s)${p.falhas ? `, ${p.falhas} falhou(aram)` : ""}`,
+        tone: p.falhas ? "warn" : "ok",
+      };
+    default:
+      return { icon: History, label: acao };
   }
 }
 
 function SaleDetail() {
   const { id } = Route.useParams();
   const { user, hasAny, hasRole, roles } = useAuth();
-  const [sale, setSale] = useState<any>(null);
-  const [parties, setParties] = useState<Record<string, any>>({});
-  const [payment, setPayment] = useState<any>(null);
+  const [sale, setSale] = useState<SaleRow | null>(null);
+  const [parties, setParties] = useState<Record<string, PartyRow>>({});
+  const [payment, setPayment] = useState<PaymentRow | null>(null);
   // Uma conta bancária por vendedor/proprietário (parte "vendedor_N"), não mais uma por venda.
-  const [banks, setBanks] = useState<Record<string, any>>({});
-  const [docs, setDocs] = useState<any[]>([]);
-  const [comments, setComments] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [banks, setBanks] = useState<Record<string, BankAccountRow>>({});
+  const [docs, setDocs] = useState<DisplayDocument[]>([]);
+  const [comments, setComments] = useState<CommentRow[]>([]);
+  const [history, setHistory] = useState<SaleHistoryRow[]>([]);
+  const [activity, setActivity] = useState<ActivityLogRow[]>([]);
   const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
   const [aceitaFin, setAceitaFin] = useState(false);
   // Distribuição financeira da venda (captador/vendedor líquidos, saldo da imobiliária, etc.) —
   // calculada uma única vez no banco por calcular_distribuicao_venda(), fonte de verdade usada
   // tanto no Resumo quanto na Ocorrência (ver migration 20260809030000). Reflete o que está
   // salvo, não o buffer não salvo do Resumo — atualiza de novo assim que o autosave roda.
-  const [distribuicao, setDistribuicao] = useState<any>(null);
+  const [distribuicao, setDistribuicao] = useState<StandardDistribution | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -127,23 +334,35 @@ function SaleDetail() {
   useEffect(() => {
     if (initialStepSetRef.current || !sale) return;
     initialStepSetRef.current = true;
-    const statusEsperandoOcorrencia = ["contrato_assinado", "ocorrencia_pendente", "ocorrencia_analise_financeiro", "ocorrencia_devolvida_gestor", "ocorrencia_concluida"];
+    const statusEsperandoOcorrencia = [
+      "contrato_assinado",
+      "ocorrencia_pendente",
+      "ocorrencia_analise_financeiro",
+      "ocorrencia_devolvida_gestor",
+      "ocorrencia_concluida",
+    ];
     if (statusEsperandoOcorrencia.includes(sale.status)) setStep("ocorrencia");
   }, [sale]);
 
   // Buffered Resumo form
-  const [formSale, setFormSale] = useState<any>({});
+  const [formSale, setFormSale] = useState<Partial<SaleRow>>({});
   const [dirtyResumo, setDirtyResumoState] = useState(false);
-  const [commissionExtras, setCommissionExtras] = useState<any[]>([]);
-  const [formExtras, setFormExtras] = useState<any[]>([]);
+  const [commissionExtras, setCommissionExtras] = useState<CommissionExtraRow[]>([]);
+  const [formExtras, setFormExtras] = useState<EditableExtra[]>([]);
   const [dirtyExtras, setDirtyExtrasState] = useState(false);
   // Espelham dirtyResumo/dirtyExtras num ref, atualizado no mesmo instante do setState (não só no
   // próximo render) — load() precisa ler o valor atual de forma síncrona logo depois de setar false
   // dentro de saveResumo(), antes que o efeito de re-render tenha rodado.
   const dirtyResumoRef = useRef(false);
-  const setDirtyResumo = (v: boolean) => { dirtyResumoRef.current = v; setDirtyResumoState(v); };
+  const setDirtyResumo = (v: boolean) => {
+    dirtyResumoRef.current = v;
+    setDirtyResumoState(v);
+  };
   const dirtyExtrasRef = useRef(false);
-  const setDirtyExtras = (v: boolean) => { dirtyExtrasRef.current = v; setDirtyExtrasState(v); };
+  const setDirtyExtras = (v: boolean) => {
+    dirtyExtrasRef.current = v;
+    setDirtyExtrasState(v);
+  };
 
   // Per-step savers registered by child editors
   const saversRef = useRef<Record<string, Saver>>({});
@@ -186,25 +405,46 @@ function SaleDetail() {
   // do time de um corretor específico. Usada separadamente pro lado captador e pro lado vendedor:
   // como co-listagem entre times é comum, os dois podem ter líderes diferentes (ver comentário mais
   // abaixo, no cálculo de liderOptionsVendedor).
-  const buscarLideresDoCorretor = useCallback(async (corretorId: string): Promise<{ id: string; nome: string }[]> => {
-    const { data: tm } = await supabase.from("team_members").select("team_id").eq("membro_id", corretorId).maybeSingle();
-    if (!tm) return [];
-    const { data: team } = await supabase.from("teams").select("lider_id, parent_team_id").eq("id", tm.team_id).maybeSingle();
-    if (!team) return [];
-    const liderIds = [team.lider_id];
-    const teamIdsForCoLideres = [tm.team_id];
-    if (team.parent_team_id) {
-      const { data: parent } = await supabase.from("teams").select("lider_id").eq("id", team.parent_team_id).maybeSingle();
-      if (parent?.lider_id) liderIds.push(parent.lider_id);
-      teamIdsForCoLideres.push(team.parent_team_id);
-    }
-    // Líder auxiliar ("braço direito") também entra como opção de Gestor/Team Leader da venda.
-    const { data: coLideres } = await supabase.from("team_co_leaders").select("user_id").in("team_id", teamIdsForCoLideres);
-    (coLideres ?? []).forEach((c: any) => liderIds.push(c.user_id));
-    const uniqueIds = Array.from(new Set(liderIds));
-    const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", uniqueIds);
-    return (profs ?? []).map((p: any) => ({ id: p.id, nome: p.nome ?? p.id }));
-  }, []);
+  const buscarLideresDoCorretor = useCallback(
+    async (corretorId: string): Promise<{ id: string; nome: string }[]> => {
+      const { data: tm } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("membro_id", corretorId)
+        .maybeSingle();
+      if (!tm) return [];
+      const { data: team } = await supabase
+        .from("teams")
+        .select("lider_id, parent_team_id")
+        .eq("id", tm.team_id)
+        .maybeSingle();
+      if (!team) return [];
+      const liderIds = [team.lider_id];
+      const teamIdsForCoLideres = [tm.team_id];
+      if (team.parent_team_id) {
+        const { data: parent } = await supabase
+          .from("teams")
+          .select("lider_id")
+          .eq("id", team.parent_team_id)
+          .maybeSingle();
+        if (parent?.lider_id) liderIds.push(parent.lider_id);
+        teamIdsForCoLideres.push(team.parent_team_id);
+      }
+      // Líder auxiliar ("braço direito") também entra como opção de Gestor/Team Leader da venda.
+      const { data: coLideres } = await supabase
+        .from("team_co_leaders")
+        .select("user_id")
+        .in("team_id", teamIdsForCoLideres);
+      (coLideres ?? []).forEach((c) => liderIds.push(c.user_id));
+      const uniqueIds = Array.from(new Set(liderIds));
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .in("id", uniqueIds);
+      return (profs ?? []).map((p) => ({ id: p.id, nome: p.nome ?? p.id }));
+    },
+    [],
+  );
 
   const [lideres, setLideres] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
@@ -218,7 +458,10 @@ function SaleDetail() {
   // aparecer quando os dois times divergiam.
   const [lideresVendedor, setLideresVendedor] = useState<{ id: string; nome: string }[]>([]);
   useEffect(() => {
-    if (!formSale.corretor_vendedor_id) { setLideresVendedor([]); return; }
+    if (!formSale.corretor_vendedor_id) {
+      setLideresVendedor([]);
+      return;
+    }
     buscarLideresDoCorretor(formSale.corretor_vendedor_id).then(setLideresVendedor);
   }, [formSale.corretor_vendedor_id, buscarLideresDoCorretor]);
 
@@ -241,15 +484,20 @@ function SaleDetail() {
   const liderOptions = useMemo(() => {
     const map = new Map<string, { id: string; nome: string; papel: "gestor" | "team_leader" }>();
     gestorOptions.forEach((l) => map.set(l.id, { ...l, papel: "gestor" }));
-    teamLeaderOptions.forEach((l) => { if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" }); });
+    teamLeaderOptions.forEach((l) => {
+      if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" });
+    });
     return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [gestorOptions, teamLeaderOptions]);
   const gestorOptionsVendedor = lideresVendedor.length > 0 ? lideresVendedor : gestoresGerais;
-  const teamLeaderOptionsVendedor = lideresVendedor.length > 0 ? lideresVendedor : teamLeadersGerais;
+  const teamLeaderOptionsVendedor =
+    lideresVendedor.length > 0 ? lideresVendedor : teamLeadersGerais;
   const liderOptionsVendedor = useMemo(() => {
     const map = new Map<string, { id: string; nome: string; papel: "gestor" | "team_leader" }>();
     gestorOptionsVendedor.forEach((l) => map.set(l.id, { ...l, papel: "gestor" }));
-    teamLeaderOptionsVendedor.forEach((l) => { if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" }); });
+    teamLeaderOptionsVendedor.forEach((l) => {
+      if (!map.has(l.id)) map.set(l.id, { ...l, papel: "team_leader" });
+    });
     return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [gestorOptionsVendedor, teamLeaderOptionsVendedor]);
 
@@ -269,7 +517,8 @@ function SaleDetail() {
       ...p,
       // Para extras, o papel define apenas a natureza da comissão nesta venda. Preservamos o papel
       // real quando conhecido; qualquer outro usuário selecionado atua como gestor nesta venda.
-      papel: (teamLeadersIds.has(p.id) && !gestoresIds.has(p.id) ? "team_leader" : "gestor") as "gestor" | "team_leader",
+      papel: (teamLeadersIds.has(p.id) && !gestoresIds.has(p.id) ? "team_leader" : "gestor") as
+        "gestor" | "team_leader",
     }));
   }, [corretorOptions, gestoresGerais, teamLeadersGerais]);
   const liderOptionsTodos = useMemo(() => {
@@ -284,7 +533,13 @@ function SaleDetail() {
   // Painel de atividade: resolve o nome de quem fez cada ação (activity_logs.autor_id) — só busca
   // os perfis que ainda não tem, pra não refazer a mesma consulta a cada load().
   useEffect(() => {
-    const ids = Array.from(new Set(activity.map((a) => a.autor_id).filter((id): id is string => !!id && !activityAuthorNames[id])));
+    const ids = Array.from(
+      new Set(
+        activity
+          .map((a) => a.autor_id)
+          .filter((id): id is string => !!id && !activityAuthorNames[id]),
+      ),
+    );
     if (ids.length === 0) return;
     (async () => {
       const { data: profs } = await supabase.from("profiles").select("id, nome").in("id", ids);
@@ -306,24 +561,53 @@ function SaleDetail() {
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
       supabase.from("sale_bank_accounts").select("*").eq("sale_id", id),
-      supabase.from("sale_documents").select("*").eq("sale_id", id).is("deleted_at", null).order("created_at"),
-      supabase.from("sale_comments").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
-      supabase.from("sale_status_history").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
+      supabase
+        .from("sale_documents")
+        .select("*")
+        .eq("sale_id", id)
+        .is("deleted_at", null)
+        .order("created_at"),
+      supabase
+        .from("sale_comments")
+        .select("*")
+        .eq("sale_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("sale_status_history")
+        .select("*")
+        .eq("sale_id", id)
+        .order("created_at", { ascending: false }),
       supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
       supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
-      supabase.from("activity_logs").select("*").eq("sale_id", id).order("created_at", { ascending: false }),
+      supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("sale_id", id)
+        .order("created_at", { ascending: false }),
       supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
     ]);
     // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
     // menos avisa que algo falhou, em vez de deixar a pessoa achar que os dados sumiram.
-    const loadErrors = [s.error, p.error, pay.error, ba.error, d.error, c.error, h.error, oc.error, ce.error, ac.error, dist.error].filter(Boolean);
+    const loadErrors = [
+      s.error,
+      p.error,
+      pay.error,
+      ba.error,
+      d.error,
+      c.error,
+      h.error,
+      oc.error,
+      ce.error,
+      ac.error,
+      dist.error,
+    ].filter(Boolean);
     if (loadErrors.length > 0) {
       console.error("Falha ao carregar dados da venda:", loadErrors);
       toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
     }
     setSale(s.data);
-    setDistribuicao(dist.data ?? null);
+    setDistribuicao(asDistribution(dist.data));
     // Não sobrescreve o buffer da aba Resumo se ela tiver edição local ainda não salva — load() é
     // chamado por várias ações sem relação com essa aba (upload de contrato, troca de status em
     // outra etapa, etc.), e sobrescrever aqui apagava silenciosamente o que a pessoa estava
@@ -331,26 +615,35 @@ function SaleDetail() {
     if (!dirtyResumoRef.current) setFormSale(s.data ?? {});
     setCommissionExtras(ce.data ?? []);
     if (!dirtyExtrasRef.current) setFormExtras(ce.data ?? []);
-    const partyMap: Record<string, any> = {};
-    (p.data ?? []).forEach((row: any) => { partyMap[row.papel] = row; });
+    const partyMap: Record<string, PartyRow> = {};
+    (p.data ?? []).forEach((row) => {
+      partyMap[row.papel] = row;
+    });
     setParties(partyMap);
-    setPayment(pay.data ?? {});
-    const bankMap: Record<string, any> = {};
-    (ba.data ?? []).forEach((row: any) => { bankMap[row.parte] = row; });
+    setPayment(pay.data ?? null);
+    const bankMap: Record<string, BankAccountRow> = {};
+    (ba.data ?? []).forEach((row) => {
+      bankMap[row.parte] = row;
+    });
     setBanks(bankMap);
-    setDocs(d.data ?? []);
+    setDocs((d.data ?? []) as DisplayDocument[]);
     setComments(c.data ?? []);
     setHistory(h.data ?? []);
     setActivity(ac.data ?? []);
-    setAceitaFin(((oc.data ?? []) as any[]).some((o) => o.aceita_financeiro));
+    setAceitaFin((oc.data ?? []).some((o) => o.aceita_financeiro));
     setLoading(false);
     hasLoadedOnceRef.current = true;
     if (s.data && user && s.data.corretor_id !== user.id) {
-      supabase.from("activity_logs").insert({ sale_id: id, autor_id: user.id, acao: "sale_viewed" }).then(() => {});
+      supabase
+        .from("activity_logs")
+        .insert({ sale_id: id, autor_id: user.id, acao: "sale_viewed" })
+        .then(() => {});
     }
   }, [id, user]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Definida aqui (antes do "return" de carregamento abaixo) porque useAutosave chama hooks
   // (useEffect/useRef) — se ficasse depois do guard de loading, a ordem dos hooks mudaria entre
@@ -359,95 +652,171 @@ function SaleDetail() {
     if (!sale) return false;
     setSaving(true);
     try {
-    const fields = [
-      "imovel_id","matricula","iptu","imovel_endereco","codigo_interno","imovel_observacoes","tempo_venda_dias","midia",
-      "corretor_captador","corretor_captador_id","corretor_vendedor","corretor_vendedor_id",
-      "parceria_externa_captacao","parceria_externa_venda",
-      "indicador_captador","indicador_captador_id","indicador_vendedor","indicador_vendedor_id",
-      "valor_anunciado","valor_negociado","percentual_comissao","valor_total_comissao",
-      "valor_comissao_captador","valor_comissao_vendedor","valor_comissao_imobiliaria",
-      "valor_comissao_lider_captador","valor_comissao_lider_vendedor",
-      "valor_comissao_indicador_captador","valor_comissao_indicador_vendedor",
-      "percentual_comissao_captador","percentual_comissao_vendedor",
-      "percentual_remax","valor_remax",
-      "previsao_recebimento_valor","previsao_recebimento_data","previsao_recebimento_forma",
-      "previsao_recebimento2_valor","previsao_recebimento2_data","previsao_recebimento2_forma",
-      "previsao_recebimento3_valor","previsao_recebimento3_data","previsao_recebimento3_forma",
-      "parceria_tipo","parceria_nome","parceria_cpf_cnpj","parceria_percentual","parceria_valor",
-      "parceria_banco","parceria_agencia","parceria_conta","parceria_pix",
-      "forma_pagamento","negociacao_observacoes","posse_data","posse_observacoes",
-      "coordenador_id","team_leader_id","lider_captador_id","lider_captador_nome","lider_vendedor_id","lider_vendedor_nome",
-    ];
-    const patch: any = {};
-    for (const k of fields) {
-      const v = formSale?.[k];
-      const orig = sale?.[k];
-      if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
-    }
-    // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
-    // vendedor são participações comerciais independentes e nunca podem transferir silenciosamente
-    // a propriedade nem bloquear o criador durante o preenchimento.
-    if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from("sales").update(patch).eq("id", id);
-      if (error) {
-        if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
-          toast.error("Já existe outra venda em andamento para esse código de imóvel.");
-        } else {
-          toast.error(error.message);
+      const fields: (keyof SaleRow)[] = [
+        "imovel_id",
+        "matricula",
+        "iptu",
+        "imovel_endereco",
+        "codigo_interno",
+        "imovel_observacoes",
+        "tempo_venda_dias",
+        "midia",
+        "corretor_captador",
+        "corretor_captador_id",
+        "corretor_vendedor",
+        "corretor_vendedor_id",
+        "parceria_externa_captacao",
+        "parceria_externa_venda",
+        "indicador_captador",
+        "indicador_captador_id",
+        "indicador_vendedor",
+        "indicador_vendedor_id",
+        "valor_anunciado",
+        "valor_negociado",
+        "percentual_comissao",
+        "valor_total_comissao",
+        "valor_comissao_captador",
+        "valor_comissao_vendedor",
+        "valor_comissao_imobiliaria",
+        "valor_comissao_lider_captador",
+        "valor_comissao_lider_vendedor",
+        "valor_comissao_indicador_captador",
+        "valor_comissao_indicador_vendedor",
+        "percentual_comissao_captador",
+        "percentual_comissao_vendedor",
+        "percentual_remax",
+        "valor_remax",
+        "previsao_recebimento_valor",
+        "previsao_recebimento_data",
+        "previsao_recebimento_forma",
+        "previsao_recebimento2_valor",
+        "previsao_recebimento2_data",
+        "previsao_recebimento2_forma",
+        "previsao_recebimento3_valor",
+        "previsao_recebimento3_data",
+        "previsao_recebimento3_forma",
+        "parceria_tipo",
+        "parceria_nome",
+        "parceria_cpf_cnpj",
+        "parceria_percentual",
+        "parceria_valor",
+        "parceria_banco",
+        "parceria_agencia",
+        "parceria_conta",
+        "parceria_pix",
+        "forma_pagamento",
+        "negociacao_observacoes",
+        "posse_data",
+        "posse_observacoes",
+        "coordenador_id",
+        "team_leader_id",
+        "lider_captador_id",
+        "lider_captador_nome",
+        "lider_vendedor_id",
+        "lider_vendedor_nome",
+      ];
+      const patch: SalePatch = {};
+      for (const k of fields) {
+        const v = formSale?.[k];
+        const orig = sale?.[k];
+        if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
+      }
+      // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
+      // vendedor são participações comerciais independentes e nunca podem transferir silenciosamente
+      // a propriedade nem bloquear o criador durante o preenchimento.
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabase
+          .from("sales")
+          .update(patch as SaleUpdate)
+          .eq("id", id);
+        if (error) {
+          if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
+            toast.error("Já existe outra venda em andamento para esse código de imóvel.");
+          } else {
+            toast.error(error.message);
+          }
+          return false;
         }
+      }
+      // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
+      // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
+      let resolvedExtras = formExtras;
+      if (dirtyExtras) {
+        const currentIds = new Set(formExtras.filter((r) => !r._new).map((r) => r.id));
+        const removed = commissionExtras.filter((r) => !currentIds.has(r.id));
+        for (const r of removed) {
+          const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
+        }
+        resolvedExtras = [...formExtras];
+        for (let i = 0; i < resolvedExtras.length; i++) {
+          const r = resolvedExtras[i];
+          const data = {
+            nome: r.nome || null,
+            origem: r.origem,
+            papel: r.papel || null,
+            percentual: r.percentual ?? null,
+            valor: r.valor ?? null,
+            user_id: r.user_id ?? null,
+            lado: r.lado ?? null,
+          };
+          if (r._new) {
+            const { data: inserted, error } = await supabase
+              .from("sale_commission_extras")
+              .insert({ sale_id: id, ...data })
+              .select("id")
+              .single();
+            if (error) {
+              toast.error(error.message);
+              return false;
+            }
+            resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
+          } else {
+            const { error } = await supabase
+              .from("sale_commission_extras")
+              .update(data)
+              .eq("id", r.id);
+            if (error) {
+              toast.error(error.message);
+              return false;
+            }
+          }
+        }
+        // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
+        // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
+        // sincronização abaixo deixa dirtyExtras true de propósito (pra permitir retry). Sem isto, um
+        // retry encontraria os mesmos extras ainda com _new=true e id temporário "new-..." e os
+        // inseriria de novo — duplicando linha de comissão a cada tentativa.
+        setFormExtras(resolvedExtras);
+        setCommissionExtras(resolvedExtras as CommissionExtraRow[]);
+      }
+      if (Object.keys(patch).length === 0 && !dirtyExtras) {
+        setDirtyResumo(false);
+        return true;
+      }
+      try {
+        await syncOccurrenceCommissions(id);
+        await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
+      } catch (err: unknown) {
+        // sales/sale_commission_extras já foram persistidos com sucesso acima (e formExtras/
+        // commissionExtras já refletem os ids reais, ver acima) — mas a Ocorrência ficou fora de
+        // sincronia. Bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez de só
+        // avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
+        // dirtyResumo/dirtyExtras continuam true de propósito: a próxima tentativa de salvar/avançar
+        // reprocessa (patch já vazio, extras já sem _new) e tenta sincronizar de novo, sem duplicar nada.
+        toast.error(
+          `Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${errorMessage(err, "erro desconhecido")}. Tente salvar de novo antes de avançar a venda.`,
+        );
+        await load();
         return false;
       }
-    }
-    // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
-    // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
-    let resolvedExtras = formExtras;
-    if (dirtyExtras) {
-      const currentIds = new Set(formExtras.filter(r => !r._new).map(r => r.id));
-      const removed = commissionExtras.filter(r => !currentIds.has(r.id));
-      for (const r of removed) {
-        const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
-        if (error) { toast.error(error.message); return false; }
-      }
-      resolvedExtras = [...formExtras];
-      for (let i = 0; i < resolvedExtras.length; i++) {
-        const r = resolvedExtras[i];
-        const data = { nome: r.nome || null, origem: r.origem, papel: r.papel || null, percentual: r.percentual ?? null, valor: r.valor ?? null, user_id: r.user_id ?? null, lado: r.lado ?? null };
-        if (r._new) {
-          const { data: inserted, error } = await supabase.from("sale_commission_extras").insert({ sale_id: id, ...data }).select("id").single();
-          if (error) { toast.error(error.message); return false; }
-          resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
-        } else {
-          const { error } = await supabase.from("sale_commission_extras").update(data).eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
-        }
-      }
-      // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
-      // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
-      // sincronização abaixo deixa dirtyExtras true de propósito (pra permitir retry). Sem isto, um
-      // retry encontraria os mesmos extras ainda com _new=true e id temporário "new-..." e os
-      // inseriria de novo — duplicando linha de comissão a cada tentativa.
-      setFormExtras(resolvedExtras);
-      setCommissionExtras(resolvedExtras);
-    }
-    if (Object.keys(patch).length === 0 && !dirtyExtras) { setDirtyResumo(false); return true; }
-    try {
-      await syncOccurrenceCommissions(id);
-      await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
-    } catch (err: any) {
-      // sales/sale_commission_extras já foram persistidos com sucesso acima (e formExtras/
-      // commissionExtras já refletem os ids reais, ver acima) — mas a Ocorrência ficou fora de
-      // sincronia. Bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez de só
-      // avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
-      // dirtyResumo/dirtyExtras continuam true de propósito: a próxima tentativa de salvar/avançar
-      // reprocessa (patch já vazio, extras já sem _new) e tenta sincronizar de novo, sem duplicar nada.
-      toast.error(`Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${err?.message ?? "erro desconhecido"}. Tente salvar de novo antes de avançar a venda.`);
+      setDirtyResumo(false);
+      setDirtyExtras(false);
       await load();
-      return false;
-    }
-    setDirtyResumo(false);
-    setDirtyExtras(false);
-    await load();
-    return true;
+      return true;
     } finally {
       setSaving(false);
     }
@@ -464,47 +833,64 @@ function SaleDetail() {
   // pode mudar entre o primeiro render (carregando) e os seguintes.
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (anyDirtyAnywhere) { e.preventDefault(); e.returnValue = ""; }
+      if (anyDirtyAnywhere) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [anyDirtyAnywhere]);
 
-  if (loading || !sale) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
+  if (loading || !sale)
+    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
 
   // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
   // ver LancamentoDetail.
   if (sale.modalidade === "lancamento") {
-    return <LancamentoDetail saleId={id} sale={sale} parties={parties} payment={payment} commissionExtras={commissionExtras} onChange={load} />;
+    return (
+      <LancamentoDetail
+        saleId={id}
+        sale={sale}
+        parties={parties}
+        payment={payment}
+        commissionExtras={commissionExtras}
+        onChange={load}
+      />
+    );
   }
 
   const status = sale.status as SaleStatus;
-  const { isOwner, isFinanceiro, isAdminLike, isGestor, isJuridico } = getSaleRoleFlags(roles, sale.corretor_id, user?.id);
+  const { isOwner, isFinanceiro, isAdminLike, isGestor, isJuridico } = getSaleRoleFlags(
+    roles,
+    sale.corretor_id,
+    user?.id,
+  );
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
-  const gestorDaEquipeRascunho =
-    isGestor && status === "rascunho" && teamIds.has(sale.corretor_id);
+  const gestorDaEquipeRascunho = isGestor && status === "rascunho" && teamIds.has(sale.corretor_id);
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
   const canCloseSale =
-    isAdminLike ||
-    (gestorPodeEncerrar(isGestor, status) && teamIds.has(sale.corretor_id));
+    isAdminLike || (gestorPodeEncerrar(isGestor, status) && teamIds.has(sale.corretor_id));
 
   const onConfirmDelete = async () => {
     setDeleting(true);
     try {
       const { orphanedFiles } = await deleteSaleCascade(sale.id);
       if (orphanedFiles.length > 0) {
-        toast.warning(`Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`);
+        toast.warning(
+          `Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`,
+        );
       } else {
         toast.success("Venda excluída");
       }
       setDeleteOpen(false);
       router.navigate({ to: "/vendas" });
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao excluir venda");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao excluir venda"));
     } finally {
       setDeleting(false);
     }
@@ -512,13 +898,16 @@ function SaleDetail() {
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = corretorPodeEditar(isOwner, status);
-  const gestorEdits = gestorPodeEditar(
-    isGestor,
-    status,
-    teamIds.has(sale.corretor_id),
-  );
+  const gestorEdits = gestorPodeEditar(isGestor, status, teamIds.has(sale.corretor_id));
   const juridicoEdits = juridicoPodeEditar(isJuridico, status);
-  const editable = podeEditarVenda({ corretorEdits, gestorEdits, juridicoEdits, isFinanceiro, isAdminLike, locked });
+  const editable = podeEditarVenda({
+    corretorEdits,
+    gestorEdits,
+    juridicoEdits,
+    isFinanceiro,
+    isAdminLike,
+    locked,
+  });
   // Divisão da comissão é trava mais estrita que o resto do Resumo: nunca é o corretor quem edita
   // (nem em rascunho, onde `editable` já é true pra ele por ser dono da venda), só gestor/team leader
   // (e só nos status em que é a vez dele, já refletido em gestorEdits) ou financeiro/admin — mesma
@@ -529,7 +918,11 @@ function SaleDetail() {
   // Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total da
   // comissão. Fora isso o preenchimento é livre — isso só vira bloqueio na hora de avançar pro
   // jurídico (confirmApproveJuridico), nunca trava a digitação em si.
-  const comissaoExcedida = comissaoValorExcedido(formSale.valor_total_comissao, formSale.valor_comissao_captador, formSale.valor_comissao_vendedor);
+  const comissaoExcedida = comissaoValorExcedido(
+    formSale.valor_total_comissao ?? 0,
+    formSale.valor_comissao_captador ?? 0,
+    formSale.valor_comissao_vendedor ?? 0,
+  );
 
   // history vem ordenado por created_at desc (ver load()); o primeiro item é a transição que colocou a venda no status atual
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
@@ -537,38 +930,54 @@ function SaleDetail() {
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
   // Docs "pessoal" (RG/CPF/Certidão/Comprovante) contam uma vez por comprador/vendedor ativo —
   // os "imovel"/"outros" continuam contando uma vez só, mantendo em sincronia com validarProntaParaRevisao.
-  const pessoalObrigatoriosCount = DOC_TYPES.filter(t => t.obrigatorio && t.grupo === "pessoal").length;
-  const outrosObrigatoriosCount = DOC_TYPES.filter(t => t.obrigatorio && t.grupo !== "pessoal").length;
-  const totalChecks = CHECKS_NAO_DOCUMENTAIS.length + pessoalObrigatoriosCount * partesComExigenciaPessoal(parties, docs).length + outrosObrigatoriosCount;
+  const pessoalObrigatoriosCount = DOC_TYPES.filter(
+    (t) => t.obrigatorio && t.grupo === "pessoal",
+  ).length;
+  const outrosObrigatoriosCount = DOC_TYPES.filter(
+    (t) => t.obrigatorio && t.grupo !== "pessoal",
+  ).length;
+  const totalChecks =
+    CHECKS_NAO_DOCUMENTAIS.length +
+    pessoalObrigatoriosCount * partesComExigenciaPessoal(parties, docs).length +
+    outrosObrigatoriosCount;
   const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
-  const requiredTypes = DOC_TYPES.map(d => d.key);
-  const docsApproved = requiredTypes.filter(t => docs.some(d => d.tipo === t && d.status === "aprovado")).length;
+  const requiredTypes = DOC_TYPES.map((d) => d.key);
+  const docsApproved = requiredTypes.filter((t) =>
+    docs.some((d) => d.tipo === t && d.status === "aprovado"),
+  ).length;
   // Gestor só manda pro jurídico com todo documento obrigatório já aprovado (não só enviado) —
   // sem isso, ficava aberto aprovar a venda inteira sem ter revisado nenhum documento de fato.
   const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(parties, docs);
   const pendenciasPagamento = validarComposicaoPagamento(sale, payment);
 
   // ---- Resumo (buffered) save ----
-  const updResumo = (patch: any) => { setFormSale((f: any) => ({ ...f, ...patch })); setDirtyResumo(true); };
+  const updResumo = (patch: Partial<SaleRow>) => {
+    setFormSale((f) => ({ ...f, ...patch }));
+    setDirtyResumo(true);
+  };
 
   const setParceriaExternaLado = (lado: "captador" | "vendedor", ativa: boolean) => {
     const sufixo = lado === "captador" ? "captador" : "vendedor";
     updResumo({
       [`parceria_externa_${lado === "captador" ? "captacao" : "venda"}`]: ativa,
-      ...(ativa ? {
-        [`corretor_${sufixo}`]: null,
-        [`corretor_${sufixo}_id`]: null,
-        [`lider_${sufixo}_nome`]: null,
-        [`lider_${sufixo}_id`]: null,
-        [`indicador_${sufixo}`]: null,
-        [`indicador_${sufixo}_id`]: null,
-        [`valor_comissao_${sufixo}`]: null,
-        [`valor_comissao_lider_${sufixo}`]: null,
-        [`valor_comissao_indicador_${sufixo}`]: null,
-      } : {}),
+      ...(ativa
+        ? {
+            [`corretor_${sufixo}`]: null,
+            [`corretor_${sufixo}_id`]: null,
+            [`lider_${sufixo}_nome`]: null,
+            [`lider_${sufixo}_id`]: null,
+            [`indicador_${sufixo}`]: null,
+            [`indicador_${sufixo}_id`]: null,
+            [`valor_comissao_${sufixo}`]: null,
+            [`valor_comissao_lider_${sufixo}`]: null,
+            [`valor_comissao_indicador_${sufixo}`]: null,
+          }
+        : {}),
     });
     if (ativa) {
-      setFormExtras((rows) => rows.filter((r) => r.lado !== lado && r.papel !== `corretor_${sufixo}`));
+      setFormExtras((rows) =>
+        rows.filter((r) => r.lado !== lado && r.papel !== `corretor_${sufixo}`),
+      );
       setDirtyExtras(true);
     }
   };
@@ -583,7 +992,8 @@ function SaleDetail() {
   // nada" e voltaria pro valor antigo do formSale, fazendo o recálculo ignorar a limpeza.
   // Fórmula em src/lib/sale-financial-calc.ts (testada em sale-financial-calc.test.ts) — wrapper só
   // pra manter a assinatura de 1 argumento já usada em todos os call sites abaixo.
-  const recalcImobiliaria = (patch: any) => recalcImobiliariaCalc(patch, formSale);
+  const recalcImobiliaria = (patch: Record<string, unknown>) =>
+    recalcImobiliariaCalc(patch, formSale);
   // Preenchimento livre: o gestor digita só o valor em R$ de cada lado, sem trava contra o outro
   // lado. A única regra ("não pode ultrapassar o total") vira aviso (soma > total) e bloqueia só o
   // avanço da venda pro jurídico (ver comissaoExcedida/confirmApproveJuridico), não a digitação em
@@ -592,8 +1002,14 @@ function SaleDetail() {
   const applyComissaoValor = (role: ComissaoRole, v: number | null) => {
     const total = Number(formSale.valor_total_comissao ?? 0);
     const valor = v;
-    const p = total > 0 && valor != null ? Number(((valor / total) * 100).toFixed(3)) : (formSale[`percentual_comissao_${role}`] ?? null);
-    const patch: any = { [`valor_comissao_${role}`]: valor, [`percentual_comissao_${role}`]: p };
+    const p =
+      total > 0 && valor != null
+        ? Number(((valor / total) * 100).toFixed(3))
+        : (formSale[`percentual_comissao_${role}`] ?? null);
+    const patch: SalePatch = {
+      [`valor_comissao_${role}`]: valor,
+      [`percentual_comissao_${role}`]: p,
+    };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
@@ -605,20 +1021,33 @@ function SaleDetail() {
     const p = raw ? Number(raw) : null;
     const negociado = Number(formSale.valor_negociado ?? 0);
     const valor = p != null && negociado > 0 ? Number(((p / 100) * negociado).toFixed(2)) : null;
-    const patch: any = { parceria_percentual: p, parceria_valor: valor };
+    const patch: SalePatch = { parceria_percentual: p, parceria_valor: valor };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
   const applyParceriaValor = (v: number | null) => {
     const negociado = Number(formSale.valor_negociado ?? 0);
-    const p = v != null && negociado > 0 ? Number(((v / negociado) * 100).toFixed(3)) : formSale.parceria_percentual ?? null;
-    const patch: any = { parceria_valor: v, parceria_percentual: p };
+    const p =
+      v != null && negociado > 0
+        ? Number(((v / negociado) * 100).toFixed(3))
+        : (formSale.parceria_percentual ?? null);
+    const patch: SalePatch = { parceria_valor: v, parceria_percentual: p };
     patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
     updResumo(patch);
   };
   const applyParceriaTipo = (v: string | null) => {
     if (!v) {
-      const patch: any = { parceria_tipo: null, parceria_nome: null, parceria_cpf_cnpj: null, parceria_percentual: null, parceria_valor: null, parceria_banco: null, parceria_agencia: null, parceria_conta: null, parceria_pix: null };
+      const patch: SalePatch = {
+        parceria_tipo: null,
+        parceria_nome: null,
+        parceria_cpf_cnpj: null,
+        parceria_percentual: null,
+        parceria_valor: null,
+        parceria_banco: null,
+        parceria_agencia: null,
+        parceria_conta: null,
+        parceria_pix: null,
+      };
       patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
       updResumo(patch);
       return;
@@ -637,7 +1066,10 @@ function SaleDetail() {
   };
   const applyRemaxValor = (v: number | null) => {
     const negociado = Number(formSale.valor_negociado ?? 0);
-    const p = v != null && negociado > 0 ? Number(((v / negociado) * 100).toFixed(3)) : formSale.percentual_remax ?? null;
+    const p =
+      v != null && negociado > 0
+        ? Number(((v / negociado) * 100).toFixed(3))
+        : (formSale.percentual_remax ?? null);
     updResumo({ valor_remax: v, percentual_remax: p });
   };
   // Único ponto que muda "Valor negociado" — antes o campo só atualizava a si mesmo (onChange direto
@@ -650,7 +1082,9 @@ function SaleDetail() {
   // digitados direto, sem percentual vinculado ao negociado (regras 2/3/6).
   const applyValorNegociado = (v: number | null) => {
     if (locked) {
-      toast.error("A Ocorrência desta venda está concluída ou travada pelo financeiro — reabra antes de alterar o valor negociado. Comissão, parceria e REMAX não são recalculados automaticamente numa venda fechada, pra não mudar valor já pago silenciosamente.");
+      toast.error(
+        "A Ocorrência desta venda está concluída ou travada pelo financeiro — reabra antes de alterar o valor negociado. Comissão, parceria e REMAX não são recalculados automaticamente numa venda fechada, pra não mudar valor já pago silenciosamente.",
+      );
       return;
     }
     updResumo(calcularPatchValorNegociado(formSale, v));
@@ -667,31 +1101,56 @@ function SaleDetail() {
     // considera percentual_remax e ficava divergente do saldo realmente exibido.
     return Number(distribuicao?.saldo_inicial_imobiliaria ?? 0);
   };
-  const updExtra = (rowId: string, patch: any) => {
-    setFormExtras(rows => rows.map(r => {
-      if (r.id !== rowId) return r;
-      const merged = { ...r, ...patch };
-      // Gestor/Team Leader têm origem obrigatória "imobiliaria" (regra 4) — nunca editável pra
-      // captador/vendedor, mesmo que algum patch tente mudar isso.
-      if (merged.papel === "gestor" || merged.papel === "team_leader") merged.origem = "imobiliaria";
-      const base = baseParaOrigem(merged.origem);
-      if ("percentual" in patch) {
-        const p = patch.percentual === "" || patch.percentual == null ? null : Number(patch.percentual);
-        const valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
-        merged.percentual = p; merged.valor = valor;
-      } else if ("valor" in patch) {
-        const valor = patch.valor;
-        const p = valor != null && base > 0 ? Number(((valor / base) * 100).toFixed(3)) : merged.percentual ?? null;
-        merged.valor = valor; merged.percentual = p;
-      } else if ("origem" in patch) {
-        merged.valor = merged.percentual != null && base > 0 ? Number(((Number(merged.percentual) / 100) * base).toFixed(2)) : (base > 0 ? merged.valor : null);
-      }
-      return merged;
-    }));
+  const updExtra = (rowId: string, patch: Partial<EditableExtra>) => {
+    setFormExtras((rows) =>
+      rows.map((r) => {
+        if (r.id !== rowId) return r;
+        const merged = { ...r, ...patch };
+        // Gestor/Team Leader têm origem obrigatória "imobiliaria" (regra 4) — nunca editável pra
+        // captador/vendedor, mesmo que algum patch tente mudar isso.
+        if (merged.papel === "gestor" || merged.papel === "team_leader")
+          merged.origem = "imobiliaria";
+        const base = baseParaOrigem(merged.origem ?? "imobiliaria");
+        if ("percentual" in patch) {
+          const p = patch.percentual == null ? null : Number(patch.percentual);
+          const valor = p != null && base > 0 ? Number(((p / 100) * base).toFixed(2)) : null;
+          merged.percentual = p;
+          merged.valor = valor;
+        } else if ("valor" in patch) {
+          const valor = patch.valor;
+          const p =
+            valor != null && base > 0
+              ? Number(((valor / base) * 100).toFixed(3))
+              : (merged.percentual ?? null);
+          merged.valor = valor;
+          merged.percentual = p;
+        } else if ("origem" in patch) {
+          merged.valor =
+            merged.percentual != null && base > 0
+              ? Number(((Number(merged.percentual) / 100) * base).toFixed(2))
+              : base > 0
+                ? merged.valor
+                : null;
+        }
+        return merged;
+      }),
+    );
     setDirtyExtras(true);
   };
   const addExtra = () => {
-    setFormExtras(rows => [...rows, { id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "", papel: null, origem: "imobiliaria", percentual: null, valor: null, _new: true }]);
+    setFormExtras((rows) => [
+      ...rows,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        sale_id: id,
+        nome: "",
+        papel: null,
+        origem: "imobiliaria",
+        percentual: null,
+        valor: null,
+        _new: true,
+      },
+    ]);
     setDirtyExtras(true);
   };
   // Atalho pra "mais um captador/vendedor": mesma linha de sale_commission_extras, só pré-preenchida
@@ -699,28 +1158,51 @@ function SaleDetail() {
   // do corretor principal — o "outro" corretor é pago pelo escritório, não divide o corretor
   // principal), mesmo tratamento de gestor/team leader extra.
   const addCoCorretor = (role: "captador" | "vendedor") => {
-    setFormExtras(rows => [...rows, {
-      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
-      papel: role === "captador" ? "corretor_captador" : "corretor_vendedor",
-      origem: "imobiliaria", percentual: null, valor: null, _new: true,
-    }]);
+    setFormExtras((rows) => [
+      ...rows,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        sale_id: id,
+        nome: "",
+        papel: role === "captador" ? "corretor_captador" : "corretor_vendedor",
+        origem: "imobiliaria",
+        percentual: null,
+        valor: null,
+        _new: true,
+      },
+    ]);
     setDirtyExtras(true);
   };
   // Mesmo atalho, mas pro botão "+ Outro Gestor/Team Leader" da tela Equipe — já entra marcado com o
   // lado (capta separa visualmente por card), mas sem papel definido ainda: só vira 'gestor' ou
   // 'team_leader' quando a pessoa escolhe alguém no Select da linha (ver onValueChange no card).
   const addLiderLado = (lado: "captador" | "vendedor") => {
-    setFormExtras(rows => [...rows, {
-      id: `new-${crypto.randomUUID()}`, sale_id: id, nome: "",
-      papel: null, origem: "imobiliaria", percentual: null, valor: null, lado, _new: true,
-    }]);
+    setFormExtras((rows) => [
+      ...rows,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        sale_id: id,
+        nome: "",
+        papel: null,
+        origem: "imobiliaria",
+        percentual: null,
+        valor: null,
+        lado,
+        _new: true,
+      },
+    ]);
     setDirtyExtras(true);
   };
   // Partes extras com um desses papéis ganham campo fixo lá em cima (junto do resto da comissão)
   // em vez de aparecer na lista genérica de "Partes extras" mais abaixo.
-  const PAPEIS_FIXOS_NO_TOPO = new Set(["corretor_captador", "corretor_vendedor", "gestor", "team_leader"]);
+  const PAPEIS_FIXOS_NO_TOPO = new Set([
+    "corretor_captador",
+    "corretor_vendedor",
+    "gestor",
+    "team_leader",
+  ]);
   const delExtra = (rowId: string) => {
-    setFormExtras(rows => rows.filter(r => r.id !== rowId));
+    setFormExtras((rows) => rows.filter((r) => r.id !== rowId));
     setDirtyExtras(true);
   };
   // Garante que nada digitado em qualquer etapa fica pra trás antes de mudar o status (enviar
@@ -754,9 +1236,14 @@ function SaleDetail() {
     if (!(await flushAllDirty())) return;
     // Marcar o contrato e preparar a ocorrência precisam ser uma única transação. Antes eram duas
     // RPCs: se a segunda falhasse, a venda ficava presa em contrato_assinado e o erro era descartado.
-    const { error } = next === "contrato_assinado"
-      ? await supabase.rpc("marcar_contrato_assinado_e_criar_ocorrencia", { _sale_id: id })
-      : await supabase.rpc("change_sale_status", { _sale_id: id, _new_status: next, _motivo: motivo });
+    const { error } =
+      next === "contrato_assinado"
+        ? await supabase.rpc("marcar_contrato_assinado_e_criar_ocorrencia", { _sale_id: id })
+        : await supabase.rpc("change_sale_status", {
+            _sale_id: id,
+            _new_status: next,
+            _motivo: motivo,
+          });
     if (error) {
       toast.error(error.message);
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
@@ -764,7 +1251,9 @@ function SaleDetail() {
     }
     if (next === "contrato_assinado") {
       // As duas etapas já foram confirmadas atomicamente no banco; notifica apenas o status final.
-      notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(() => {});
+      notifySaleStatusChange({ data: { saleId: id, status: "ocorrencia_pendente" } }).catch(
+        () => {},
+      );
     } else {
       notifySaleStatusChange({ data: { saleId: id, status: next, motivo } }).catch(() => {});
     }
@@ -780,9 +1269,14 @@ function SaleDetail() {
   // Atalho pra abrir o contrato direto do topo da página — sem isso o contrato só existia
   // dentro de Documentos > Outros, e quem recebia a venda de volta (gestor/corretor) tinha
   // que caçar em qual aba/bloco ele tinha sido anexado.
-  const abrirContratoRapido = async (doc: any) => {
-    const { data, error } = await supabase.storage.from("sale-documents").createSignedUrl(doc.storage_path, 300);
-    if (error || !data) { toast.error("Falha ao gerar link do contrato"); return; }
+  const abrirContratoRapido = async (doc: DisplayDocument) => {
+    const { data, error } = await supabase.storage
+      .from("sale-documents")
+      .createSignedUrl(doc.storage_path, 300);
+    if (error || !data) {
+      toast.error("Falha ao gerar link do contrato");
+      return;
+    }
     window.open(data.signedUrl, "_blank");
   };
 
@@ -792,7 +1286,9 @@ function SaleDetail() {
     setStep("documentos");
     setDocParte("juridico");
     requestAnimationFrame(() => {
-      document.getElementById("venda-wizard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById("venda-wizard")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
@@ -830,14 +1326,32 @@ function SaleDetail() {
       if (contratoFile) {
         const ext = contratoFile.name.split(".").pop();
         const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoFile, { upsert: false });
-        if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+        const { error: upErr } = await supabase.storage
+          .from("sale-documents")
+          .upload(path, contratoFile, { upsert: false });
+        if (upErr) {
+          toast.error(`Falha no upload: ${upErr.message}`);
+          return;
+        }
         const { error: insErr } = await supabase.from("sale_documents").insert({
-          sale_id: id, tipo: "contrato", parte: "outros", storage_path: path,
-          file_name: contratoFile.name, uploaded_by: user!.id, status: "enviado",
-        } as any);
-        if (insErr) { toast.error(insErr.message); return; }
-        await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato", parte: "outros" } });
+          sale_id: id,
+          tipo: "contrato",
+          parte: "outros",
+          storage_path: path,
+          file_name: contratoFile.name,
+          uploaded_by: user!.id,
+          status: "enviado",
+        });
+        if (insErr) {
+          toast.error(insErr.message);
+          return;
+        }
+        await supabase.from("activity_logs").insert({
+          sale_id: id,
+          autor_id: user!.id,
+          acao: "document_uploaded",
+          payload: { tipo: "contrato", parte: "outros" },
+        });
       }
       const pendenciaDesc = contratoFaltaDoc ? contratoFaltaDocDesc.trim() : null;
       // RPC em vez de update direto: gestor e jurídico precisam poder ajustar a pendência/liberação
@@ -849,8 +1363,16 @@ function SaleDetail() {
         _pendencia_descricao: pendenciaDesc ?? "",
         _libera_assinatura: contratoLiberaAssinatura,
       });
-      if (updErr) { toast.error(updErr.message); return; }
-      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "contrato_pendencia_atualizada", payload: { pendencia: pendenciaDesc, libera_assinatura: contratoLiberaAssinatura } });
+      if (updErr) {
+        toast.error(updErr.message);
+        return;
+      }
+      await supabase.from("activity_logs").insert({
+        sale_id: id,
+        autor_id: user!.id,
+        acao: "contrato_pendencia_atualizada",
+        payload: { pendencia: pendenciaDesc, libera_assinatura: contratoLiberaAssinatura },
+      });
       toast.success(contratoFile ? "Contrato anexado" : "Informações salvas");
       setContratoDialogOpen(false);
       setContratoFile(null);
@@ -868,7 +1390,9 @@ function SaleDetail() {
     // como o aviso — não precisa também travar o envio. A trava de certidão é só pra pegar quem
     // esqueceu de anexar sem avisar nada.
     if (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao) {
-      toast.error("Anexe ao menos uma certidão antes de enviar ao gestor (ou sinalize a pendência ao anexar o contrato).");
+      toast.error(
+        "Anexe ao menos uma certidão antes de enviar ao gestor (ou sinalize a pendência ao anexar o contrato).",
+      );
       return;
     }
     await changeStatus("contrato_conferencia_gestor");
@@ -885,14 +1409,32 @@ function SaleDetail() {
     try {
       const ext = contratoAssinadoFile.name.split(".").pop();
       const path = `${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("sale-documents").upload(path, contratoAssinadoFile, { upsert: false });
-      if (upErr) { toast.error(`Falha no upload: ${upErr.message}`); return; }
+      const { error: upErr } = await supabase.storage
+        .from("sale-documents")
+        .upload(path, contratoAssinadoFile, { upsert: false });
+      if (upErr) {
+        toast.error(`Falha no upload: ${upErr.message}`);
+        return;
+      }
       const { error: insErr } = await supabase.from("sale_documents").insert({
-        sale_id: id, tipo: "contrato_assinado", parte: "outros", storage_path: path,
-        file_name: contratoAssinadoFile.name, uploaded_by: user!.id, status: "enviado",
-      } as any);
-      if (insErr) { toast.error(insErr.message); return; }
-      await supabase.from("activity_logs").insert({ sale_id: id, autor_id: user!.id, acao: "document_uploaded", payload: { tipo: "contrato_assinado", parte: "outros" } });
+        sale_id: id,
+        tipo: "contrato_assinado",
+        parte: "outros",
+        storage_path: path,
+        file_name: contratoAssinadoFile.name,
+        uploaded_by: user!.id,
+        status: "enviado",
+      });
+      if (insErr) {
+        toast.error(insErr.message);
+        return;
+      }
+      await supabase.from("activity_logs").insert({
+        sale_id: id,
+        autor_id: user!.id,
+        acao: "document_uploaded",
+        payload: { tipo: "contrato_assinado", parte: "outros" },
+      });
       toast.success("Contrato assinado anexado");
       setContratoAssinadoDialogOpen(false);
       setContratoAssinadoFile(null);
@@ -902,30 +1444,57 @@ function SaleDetail() {
     }
   };
 
-  const openReturnDialog = (target: SaleStatus) => { setReturnTarget(target); setReturnMotivo(""); setReturnOpen(true); };
+  const openReturnDialog = (target: SaleStatus) => {
+    setReturnTarget(target);
+    setReturnMotivo("");
+    setReturnOpen(true);
+  };
   const submitReturn = async () => {
-    if (!returnMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
+    if (!returnMotivo.trim()) {
+      toast.error("Motivo é obrigatório");
+      return;
+    }
     await changeStatus(returnTarget, returnMotivo);
-    await supabase.from("sale_comments").insert({ sale_id: id, autor_id: user!.id, escopo: "revisao", texto: returnMotivo });
+    await supabase
+      .from("sale_comments")
+      .insert({ sale_id: id, autor_id: user!.id, escopo: "revisao", texto: returnMotivo });
     setReturnOpen(false);
   };
 
-  const openArchiveDialog = (target: "arquivada" | "cancelada") => { setArchiveTarget(target); setArchiveMotivo(""); setArchiveOpen(true); };
+  const openArchiveDialog = (target: "arquivada" | "cancelada") => {
+    setArchiveTarget(target);
+    setArchiveMotivo("");
+    setArchiveOpen(true);
+  };
   const submitArchive = async () => {
-    if (!archiveMotivo.trim()) { toast.error("Motivo é obrigatório"); return; }
+    if (!archiveMotivo.trim()) {
+      toast.error("Motivo é obrigatório");
+      return;
+    }
     await changeStatus(archiveTarget, archiveMotivo);
     setArchiveOpen(false);
   };
   const attemptSendForReview = () => setReviewOpen(true);
   const confirmSendForReview = async () => {
-    if (pendencias.length > 0) { toast.error("Corrija as pendências antes de enviar"); return; }
+    if (pendencias.length > 0) {
+      toast.error("Corrija as pendências antes de enviar");
+      return;
+    }
     // Dono também é gestor/team leader: em vez de ir para "enviada_revisao" (que ele mesmo teria que
     // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
     if (envioDiretoJuridico) {
-      if (pendenciasPagamento.length > 0) { toast.error(pendenciasPagamento[0].mensagem); return; }
-      if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
+      if (pendenciasPagamento.length > 0) {
+        toast.error(pendenciasPagamento[0].mensagem);
+        return;
+      }
+      if (docsPendentesAprovacao.length > 0) {
+        toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico");
+        return;
+      }
       if (distribuicao && !distribuicao.calculo_valido) {
-        toast.error(`Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+        toast.error(
+          `Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
+        );
         return;
       }
       setReviewOpen(false);
@@ -938,13 +1507,21 @@ function SaleDetail() {
 
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
-    if (pendenciasPagamento.length > 0) { toast.error(pendenciasPagamento[0].mensagem); return; }
-    if (docsPendentesAprovacao.length > 0) { toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico"); return; }
+    if (pendenciasPagamento.length > 0) {
+      toast.error(pendenciasPagamento[0].mensagem);
+      return;
+    }
+    if (docsPendentesAprovacao.length > 0) {
+      toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico");
+      return;
+    }
     // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
     // bloqueia isso de qualquer forma (trigger em change_sale_status), mas checar aqui primeiro evita
     // a viagem ao servidor e mostra a mensagem específica na hora, sem travar a digitação da Resumo.
     if (distribuicao && !distribuicao.calculo_valido) {
-      toast.error(`Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      toast.error(
+        `Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
+      );
       return;
     }
     setApproveJuridicoOpen(false);
@@ -963,7 +1540,7 @@ function SaleDetail() {
     return true;
   };
 
-  const currentDirty = step === "resumo" ? (dirtyResumo || dirtyExtras) : !!dirtyMap[step];
+  const currentDirty = step === "resumo" ? dirtyResumo || dirtyExtras : !!dirtyMap[step];
 
   // "Voltar" também é uma saída da página — sem isso, dado digitado mas ainda não salvo
   // (autosave ainda não disparou) era perdido em silêncio ao clicar aqui.
@@ -1009,618 +1586,1447 @@ function SaleDetail() {
           {editable && <AutosaveStatus saving={saving} dirty={dirtyResumo || dirtyExtras} />}
           <Wizard
             steps={[
-              { key: "imovel", label: "Imóvel", content: (<>
-          <SaleSection title="Imóvel">
-            <FieldGrid>
-              <Field label="ID do imóvel"><Input value={formSale.imovel_id ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_id: e.target.value })} /></Field>
-              <Field label="Matrícula"><Input value={formSale.matricula ?? ""} disabled={!editable} onChange={(e) => updResumo({ matricula: e.target.value })} /></Field>
-              <Field label="IPTU"><Input value={formSale.iptu ?? ""} disabled={!editable} onChange={(e) => updResumo({ iptu: e.target.value })} /></Field>
-              <Field label="Endereço do imóvel" colSpan={2}><Input value={formSale.imovel_endereco ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_endereco: e.target.value })} /></Field>
-              <Field label="Código interno"><Input value={formSale.codigo_interno ?? ""} disabled={!editable} onChange={(e) => updResumo({ codigo_interno: e.target.value })} /></Field>
-              <Field label="Tempo de venda (dias)"><Input type="number" min="0" step="1" value={formSale.tempo_venda_dias ?? ""} disabled={!editable} onChange={(e) => updResumo({ tempo_venda_dias: e.target.value ? Number(e.target.value) : null })} placeholder="Ex: 45" /></Field>
-              <Field label="Mídia">
-                <Select value={formSale.midia ?? "none"} onValueChange={(v) => updResumo({ midia: v === "none" ? null : v })} disabled={!editable}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {MIDIA_OPTIONS.map((m) => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Observações do imóvel" colSpan={2}><Textarea value={formSale.imovel_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ imovel_observacoes: e.target.value })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-          <div className="flex justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("equipe")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-              </>) },
-              { key: "equipe", label: "Equipe", content: (<>
-          <SaleSection title="Equipe">
-            {(() => {
-              // Corretor selecionado antes e depois marcado inativo (some de corretorOptions,
-              // que só lista ativos) — sem isso o Select ficava em branco e o Input de fallback
-              // não aparecia (só aparecia quando corretor_captador_id era vazio), escondendo o
-              // nome que continua salvo certinho no banco.
-              const captadorForaDaLista = !!formSale.corretor_captador_id && !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
-              const vendedorForaDaLista = !!formSale.corretor_vendedor_id && !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
-              const indicadorCaptadorForaDaLista = !!formSale.indicador_captador_id && !indicadorOptions.some((o) => o.id === formSale.indicador_captador_id);
-              const indicadorVendedorForaDaLista = !!formSale.indicador_vendedor_id && !indicadorOptions.some((o) => o.id === formSale.indicador_vendedor_id);
-              const outrosCaptadores = formExtras.filter((r) => r.papel === "corretor_captador");
-              const outrosVendedores = formExtras.filter((r) => r.papel === "corretor_vendedor");
-              const outrosLideresCaptador = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "captador");
-              const outrosLideresVendedor = formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader" || r.papel === null) && r.lado === "vendedor");
-              const captacaoExterna = !!formSale.parceria_externa_captacao;
-              const vendaExterna = !!formSale.parceria_externa_venda;
-              return (
-                <div className="mb-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-1)" }}>
-                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-1)" }}>
-                      <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-chart-1)" }} />
-                      Corretores captadores
+              {
+                key: "imovel",
+                label: "Imóvel",
+                content: (
+                  <>
+                    <SaleSection title="Imóvel">
+                      <FieldGrid>
+                        <Field label="ID do imóvel">
+                          <Input
+                            value={formSale.imovel_id ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ imovel_id: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Matrícula">
+                          <Input
+                            value={formSale.matricula ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ matricula: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="IPTU">
+                          <Input
+                            value={formSale.iptu ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ iptu: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Endereço do imóvel" colSpan={2}>
+                          <Input
+                            value={formSale.imovel_endereco ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ imovel_endereco: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Código interno">
+                          <Input
+                            value={formSale.codigo_interno ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ codigo_interno: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Tempo de venda (dias)">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={formSale.tempo_venda_dias ?? ""}
+                            disabled={!editable}
+                            onChange={(e) =>
+                              updResumo({
+                                tempo_venda_dias: e.target.value ? Number(e.target.value) : null,
+                              })
+                            }
+                            placeholder="Ex: 45"
+                          />
+                        </Field>
+                        <Field label="Mídia">
+                          <Select
+                            value={formSale.midia ?? "none"}
+                            onValueChange={(v) => updResumo({ midia: v === "none" ? null : v })}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o canal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
+                              {MIDIA_OPTIONS.map((m) => (
+                                <SelectItem key={m.key} value={m.key}>
+                                  {m.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Observações do imóvel" colSpan={2}>
+                          <Textarea
+                            value={formSale.imovel_observacoes ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ imovel_observacoes: e.target.value })}
+                          />
+                        </Field>
+                      </FieldGrid>
+                    </SaleSection>
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("equipe")}
+                      >
+                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
                     </div>
-                    <Field label="Corretor captador">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Só conta cadastrada e ativa — captador é sempre gente interna (regra: só
+                  </>
+                ),
+              },
+              {
+                key: "equipe",
+                label: "Equipe",
+                content: (
+                  <>
+                    <SaleSection title="Equipe">
+                      {(() => {
+                        // Corretor selecionado antes e depois marcado inativo (some de corretorOptions,
+                        // que só lista ativos) — sem isso o Select ficava em branco e o Input de fallback
+                        // não aparecia (só aparecia quando corretor_captador_id era vazio), escondendo o
+                        // nome que continua salvo certinho no banco.
+                        const captadorForaDaLista =
+                          !!formSale.corretor_captador_id &&
+                          !corretorOptions.some((o) => o.id === formSale.corretor_captador_id);
+                        const vendedorForaDaLista =
+                          !!formSale.corretor_vendedor_id &&
+                          !corretorOptions.some((o) => o.id === formSale.corretor_vendedor_id);
+                        const indicadorCaptadorForaDaLista =
+                          !!formSale.indicador_captador_id &&
+                          !indicadorOptions.some((o) => o.id === formSale.indicador_captador_id);
+                        const indicadorVendedorForaDaLista =
+                          !!formSale.indicador_vendedor_id &&
+                          !indicadorOptions.some((o) => o.id === formSale.indicador_vendedor_id);
+                        const outrosCaptadores = formExtras.filter(
+                          (r) => r.papel === "corretor_captador",
+                        );
+                        const outrosVendedores = formExtras.filter(
+                          (r) => r.papel === "corretor_vendedor",
+                        );
+                        const outrosLideresCaptador = formExtras.filter(
+                          (r) =>
+                            (r.papel === "gestor" ||
+                              r.papel === "team_leader" ||
+                              r.papel === null) &&
+                            r.lado === "captador",
+                        );
+                        const outrosLideresVendedor = formExtras.filter(
+                          (r) =>
+                            (r.papel === "gestor" ||
+                              r.papel === "team_leader" ||
+                              r.papel === null) &&
+                            r.lado === "vendedor",
+                        );
+                        const captacaoExterna = !!formSale.parceria_externa_captacao;
+                        const vendaExterna = !!formSale.parceria_externa_venda;
+                        return (
+                          <div className="mb-4 grid gap-4 sm:grid-cols-2">
+                            <div
+                              className="rounded-lg border border-t-4 p-4"
+                              style={{ borderTopColor: "var(--color-chart-1)" }}
+                            >
+                              <div
+                                className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+                                style={{ color: "var(--color-chart-1)" }}
+                              >
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ background: "var(--color-chart-1)" }}
+                                />
+                                Corretores captadores
+                              </div>
+                              <Field label="Corretor captador">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {/* Só conta cadastrada e ativa — captador é sempre gente interna (regra: só
                             Parceria Externa pode ficar sem vínculo). A opção "Digitar nome" foi removida
                             de propósito; "foraDaLista" preserva o nome de quem já foi selecionado e depois
                             ficou inativo, sem permitir um NOVO vínculo manual. */}
-                        <Select
-                          value={formSale.corretor_captador_id || ""}
-                          onValueChange={(v) => {
-                            if (v === "none") {
-                              updResumo({ corretor_captador_id: null, corretor_captador: null });
-                              applyComissaoValor("captador", null);
-                              return;
-                            }
-                            const c = corretorOptions.find((o) => o.id === v);
-                            updResumo({ corretor_captador_id: v || null, corretor_captador: c ? c.nome : null });
-                          }}
-                          disabled={!editable || captacaoExterna}
-                        >
-                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
-                          <SelectContent>
-                            {formSale.corretor_captador_id && <SelectItem value="none">— (remover)</SelectItem>}
-                            {captadorForaDaLista && formSale.corretor_captador_id && (
-                              <SelectItem value={formSale.corretor_captador_id}>{formSale.corretor_captador} (inativo)</SelectItem>
-                            )}
-                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </Field>
-                    {outrosCaptadores.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {outrosCaptadores.map((r) => {
-                          const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
-                          return (
-                            <div key={r.id} className="flex flex-wrap items-center gap-2">
-                              <Select
-                                value={r.user_id || ""}
-                                onValueChange={(v) => {
-                                  const c = corretorOptions.find((o) => o.id === v);
-                                  updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
-                                }}
-                                disabled={!editable || captacaoExterna}
-                              >
-                                <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
-                                <SelectContent>
-                                  {foraDaLista && r.user_id && <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>}
-                                  {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {editable && !captacaoExterna && (
-                      <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("captador")}>
-                        <Plus className="mr-1 h-4 w-4" />Outro captador
-                      </Button>
-                    )}
-                    {liderOptionsTodos.length > 0 && (
-                      <div className="mt-4 border-t pt-3">
-                        <Field label="Gestor/Team Leader do captador">
-                          <Select
-                            value={formSale.lider_captador_id || "none"}
-                            onValueChange={(v) => {
-                              const l = liderOptionsTodos.find((o) => o.id === v);
-                              updResumo({ lider_captador_id: v === "none" ? null : v, lider_captador_nome: l ? l.nome : null });
-                            }}
-                            disabled={!editable || captacaoExterna}
-                          >
-                            <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">—</SelectItem>
-                              <SelectGroup>
-                                <SelectLabel>Usuários ativos</SelectLabel>
-                                {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        {outrosLideresCaptador.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {outrosLideresCaptador.map((r) => (
-                              <div key={r.id} className="flex flex-wrap items-center gap-2">
-                                <Select
-                                  value={r.user_id || ""}
-                                  onValueChange={(v) => {
-                                    const l = liderOptionsTodos.find((o) => o.id === v);
-                                    updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
-                                  }}
-                                  disabled={!editable || captacaoExterna}
+                                  <Select
+                                    value={formSale.corretor_captador_id || ""}
+                                    onValueChange={(v) => {
+                                      if (v === "none") {
+                                        updResumo({
+                                          corretor_captador_id: null,
+                                          corretor_captador: null,
+                                        });
+                                        applyComissaoValor("captador", null);
+                                        return;
+                                      }
+                                      const c = corretorOptions.find((o) => o.id === v);
+                                      updResumo({
+                                        corretor_captador_id: v || null,
+                                        corretor_captador: c ? c.nome : null,
+                                      });
+                                    }}
+                                    disabled={!editable || captacaoExterna}
+                                  >
+                                    <SelectTrigger className="w-56">
+                                      <SelectValue placeholder="Selecione o corretor cadastrado" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {formSale.corretor_captador_id && (
+                                        <SelectItem value="none">— (remover)</SelectItem>
+                                      )}
+                                      {captadorForaDaLista && formSale.corretor_captador_id && (
+                                        <SelectItem value={formSale.corretor_captador_id}>
+                                          {formSale.corretor_captador} (inativo)
+                                        </SelectItem>
+                                      )}
+                                      {corretorOptions.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </Field>
+                              {outrosCaptadores.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {outrosCaptadores.map((r) => {
+                                    const foraDaLista =
+                                      !!r.user_id &&
+                                      !corretorOptions.some((o) => o.id === r.user_id);
+                                    return (
+                                      <div key={r.id} className="flex flex-wrap items-center gap-2">
+                                        <Select
+                                          value={r.user_id || ""}
+                                          onValueChange={(v) => {
+                                            const c = corretorOptions.find((o) => o.id === v);
+                                            updExtra(r.id, {
+                                              user_id: v || null,
+                                              nome: c ? c.nome : null,
+                                            });
+                                          }}
+                                          disabled={!editable || captacaoExterna}
+                                        >
+                                          <SelectTrigger className="w-56">
+                                            <SelectValue placeholder="Selecione o corretor cadastrado" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {foraDaLista && r.user_id && (
+                                              <SelectItem value={r.user_id}>
+                                                {r.nome} (inativo)
+                                              </SelectItem>
+                                            )}
+                                            {corretorOptions.map((c) => (
+                                              <SelectItem key={c.id} value={c.id}>
+                                                {c.nome}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        {editable && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => delExtra(r.id)}
+                                          >
+                                            Remover
+                                          </Button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {editable && !captacaoExterna && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3"
+                                  onClick={() => addCoCorretor("captador")}
                                 >
-                                  <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectGroup>
-                                      <SelectLabel>Usuários ativos</SelectLabel>
-                                      {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                                {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                                  <Plus className="mr-1 h-4 w-4" />
+                                  Outro captador
+                                </Button>
+                              )}
+                              {liderOptionsTodos.length > 0 && (
+                                <div className="mt-4 border-t pt-3">
+                                  <Field label="Gestor/Team Leader do captador">
+                                    <Select
+                                      value={formSale.lider_captador_id || "none"}
+                                      onValueChange={(v) => {
+                                        const l = liderOptionsTodos.find((o) => o.id === v);
+                                        updResumo({
+                                          lider_captador_id: v === "none" ? null : v,
+                                          lider_captador_nome: l ? l.nome : null,
+                                        });
+                                      }}
+                                      disabled={!editable || captacaoExterna}
+                                    >
+                                      <SelectTrigger className="w-56">
+                                        <SelectValue placeholder="Selecione" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">—</SelectItem>
+                                        <SelectGroup>
+                                          <SelectLabel>Usuários ativos</SelectLabel>
+                                          {liderOptionsTodos.map((l) => (
+                                            <SelectItem key={l.id} value={l.id}>
+                                              {l.nome}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                  </Field>
+                                  {outrosLideresCaptador.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                      {outrosLideresCaptador.map((r) => (
+                                        <div
+                                          key={r.id}
+                                          className="flex flex-wrap items-center gap-2"
+                                        >
+                                          <Select
+                                            value={r.user_id || ""}
+                                            onValueChange={(v) => {
+                                              const l = liderOptionsTodos.find((o) => o.id === v);
+                                              updExtra(r.id, {
+                                                user_id: v || null,
+                                                nome: l ? l.nome : null,
+                                                papel: l ? l.papel : r.papel,
+                                              });
+                                            }}
+                                            disabled={!editable || captacaoExterna}
+                                          >
+                                            <SelectTrigger className="w-56">
+                                              <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectGroup>
+                                                <SelectLabel>Usuários ativos</SelectLabel>
+                                                {liderOptionsTodos.map((l) => (
+                                                  <SelectItem key={l.id} value={l.id}>
+                                                    {l.nome}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectGroup>
+                                            </SelectContent>
+                                          </Select>
+                                          {editable && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => delExtra(r.id)}
+                                            >
+                                              Remover
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {editable && !captacaoExterna && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-3"
+                                      onClick={() => addLiderLado("captador")}
+                                    >
+                                      <Plus className="mr-1 h-4 w-4" />
+                                      Outro Gestor/Team Leader
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                              <div className="mt-4 border-t pt-3">
+                                <Field label="Indicador do captador">
+                                  <Select
+                                    value={formSale.indicador_captador_id || ""}
+                                    onValueChange={(v) => {
+                                      if (v === "none") {
+                                        updResumo({
+                                          indicador_captador_id: null,
+                                          indicador_captador: null,
+                                        });
+                                        return;
+                                      }
+                                      const c = indicadorOptions.find((o) => o.id === v);
+                                      updResumo({
+                                        indicador_captador_id: v || null,
+                                        indicador_captador: c ? c.nome : null,
+                                      });
+                                    }}
+                                    disabled={!editable || captacaoExterna}
+                                  >
+                                    <SelectTrigger className="w-56">
+                                      <SelectValue placeholder="Selecione (opcional)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {formSale.indicador_captador_id && (
+                                        <SelectItem value="none">— (remover)</SelectItem>
+                                      )}
+                                      {indicadorCaptadorForaDaLista &&
+                                        formSale.indicador_captador_id && (
+                                          <SelectItem value={formSale.indicador_captador_id}>
+                                            {formSale.indicador_captador} (inativo)
+                                          </SelectItem>
+                                        )}
+                                      {indicadorOptions.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </Field>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {editable && !captacaoExterna && (
-                          <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("captador")}>
-                            <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-4 border-t pt-3">
-                      <Field label="Indicador do captador">
-                        <Select
-                          value={formSale.indicador_captador_id || ""}
-                          onValueChange={(v) => {
-                            if (v === "none") {
-                              updResumo({ indicador_captador_id: null, indicador_captador: null });
-                              return;
-                            }
-                            const c = indicadorOptions.find((o) => o.id === v);
-                            updResumo({ indicador_captador_id: v || null, indicador_captador: c ? c.nome : null });
-                          }}
-                          disabled={!editable || captacaoExterna}
-                        >
-                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
-                          <SelectContent>
-                            {formSale.indicador_captador_id && <SelectItem value="none">— (remover)</SelectItem>}
-                            {indicadorCaptadorForaDaLista && formSale.indicador_captador_id && (
-                              <SelectItem value={formSale.indicador_captador_id}>{formSale.indicador_captador} (inativo)</SelectItem>
-                            )}
-                            {indicadorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </div>
-                    <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
-                      <div>
-                        <Label htmlFor="parceria-externa-captacao">Parceria externa na captação</Label>
-                        <p className="text-xs text-muted-foreground">Não selecionar corretor, gestor ou indicador interno deste lado.</p>
-                      </div>
-                      <Switch id="parceria-externa-captacao" checked={captacaoExterna} disabled={!editable} onCheckedChange={(v) => setParceriaExternaLado("captador", v)} />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-t-4 p-4" style={{ borderTopColor: "var(--color-chart-4)" }}>
-                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-chart-4)" }}>
-                      <span className="h-2 w-2 rounded-full" style={{ background: "var(--color-chart-4)" }} />
-                      Corretores vendedores
-                    </div>
-                    <Field label="Corretor vendedor">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Select
-                          value={formSale.corretor_vendedor_id || ""}
-                          onValueChange={(v) => {
-                            if (v === "none") {
-                              updResumo({ corretor_vendedor_id: null, corretor_vendedor: null });
-                              applyComissaoValor("vendedor", null);
-                              return;
-                            }
-                            const c = corretorOptions.find((o) => o.id === v);
-                            updResumo({ corretor_vendedor_id: v || null, corretor_vendedor: c ? c.nome : null });
-                          }}
-                          disabled={!editable || vendaExterna}
-                        >
-                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
-                          <SelectContent>
-                            {formSale.corretor_vendedor_id && <SelectItem value="none">— (remover)</SelectItem>}
-                            {vendedorForaDaLista && formSale.corretor_vendedor_id && (
-                              <SelectItem value={formSale.corretor_vendedor_id}>{formSale.corretor_vendedor} (inativo)</SelectItem>
-                            )}
-                            {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </Field>
-                    {outrosVendedores.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {outrosVendedores.map((r) => {
-                          const foraDaLista = !!r.user_id && !corretorOptions.some((o) => o.id === r.user_id);
-                          return (
-                            <div key={r.id} className="flex flex-wrap items-center gap-2">
-                              <Select
-                                value={r.user_id || ""}
-                                onValueChange={(v) => {
-                                  const c = corretorOptions.find((o) => o.id === v);
-                                  updExtra(r.id, { user_id: v || null, nome: c ? c.nome : null });
-                                }}
-                                disabled={!editable || vendaExterna}
-                              >
-                                <SelectTrigger className="w-56"><SelectValue placeholder="Selecione o corretor cadastrado" /></SelectTrigger>
-                                <SelectContent>
-                                  {foraDaLista && r.user_id && <SelectItem value={r.user_id}>{r.nome} (inativo)</SelectItem>}
-                                  {corretorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                              <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                                <div>
+                                  <Label htmlFor="parceria-externa-captacao">
+                                    Parceria externa na captação
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Não selecionar corretor, gestor ou indicador interno deste lado.
+                                  </p>
+                                </div>
+                                <Switch
+                                  id="parceria-externa-captacao"
+                                  checked={captacaoExterna}
+                                  disabled={!editable}
+                                  onCheckedChange={(v) => setParceriaExternaLado("captador", v)}
+                                />
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {editable && !vendaExterna && (
-                      <Button size="sm" variant="outline" className="mt-3" onClick={() => addCoCorretor("vendedor")}>
-                        <Plus className="mr-1 h-4 w-4" />Outro vendedor
-                      </Button>
-                    )}
-                    {liderOptionsTodos.length > 0 && (
-                      <div className="mt-4 border-t pt-3">
-                        <Field label="Gestor/Team Leader do vendedor">
-                          <Select
-                            value={formSale.lider_vendedor_id || "none"}
-                            onValueChange={(v) => {
-                              const l = liderOptionsTodos.find((o) => o.id === v);
-                              updResumo({ lider_vendedor_id: v === "none" ? null : v, lider_vendedor_nome: l ? l.nome : null });
-                            }}
-                            disabled={!editable || vendaExterna}
-                          >
-                            <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">—</SelectItem>
-                              <SelectGroup>
-                                <SelectLabel>Usuários ativos</SelectLabel>
-                                {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        {outrosLideresVendedor.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {outrosLideresVendedor.map((r) => (
-                              <div key={r.id} className="flex flex-wrap items-center gap-2">
-                                <Select
-                                  value={r.user_id || ""}
-                                  onValueChange={(v) => {
-                                    const l = liderOptionsTodos.find((o) => o.id === v);
-                                    updExtra(r.id, { user_id: v || null, nome: l ? l.nome : null, papel: l ? l.papel : r.papel });
-                                  }}
-                                  disabled={!editable || vendaExterna}
-                                >
-                                  <SelectTrigger className="w-56"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectGroup>
-                                      <SelectLabel>Usuários ativos</SelectLabel>
-                                      {liderOptionsTodos.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                                {editable && <Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button>}
+                            <div
+                              className="rounded-lg border border-t-4 p-4"
+                              style={{ borderTopColor: "var(--color-chart-4)" }}
+                            >
+                              <div
+                                className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+                                style={{ color: "var(--color-chart-4)" }}
+                              >
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ background: "var(--color-chart-4)" }}
+                                />
+                                Corretores vendedores
                               </div>
-                            ))}
+                              <Field label="Corretor vendedor">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Select
+                                    value={formSale.corretor_vendedor_id || ""}
+                                    onValueChange={(v) => {
+                                      if (v === "none") {
+                                        updResumo({
+                                          corretor_vendedor_id: null,
+                                          corretor_vendedor: null,
+                                        });
+                                        applyComissaoValor("vendedor", null);
+                                        return;
+                                      }
+                                      const c = corretorOptions.find((o) => o.id === v);
+                                      updResumo({
+                                        corretor_vendedor_id: v || null,
+                                        corretor_vendedor: c ? c.nome : null,
+                                      });
+                                    }}
+                                    disabled={!editable || vendaExterna}
+                                  >
+                                    <SelectTrigger className="w-56">
+                                      <SelectValue placeholder="Selecione o corretor cadastrado" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {formSale.corretor_vendedor_id && (
+                                        <SelectItem value="none">— (remover)</SelectItem>
+                                      )}
+                                      {vendedorForaDaLista && formSale.corretor_vendedor_id && (
+                                        <SelectItem value={formSale.corretor_vendedor_id}>
+                                          {formSale.corretor_vendedor} (inativo)
+                                        </SelectItem>
+                                      )}
+                                      {corretorOptions.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </Field>
+                              {outrosVendedores.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {outrosVendedores.map((r) => {
+                                    const foraDaLista =
+                                      !!r.user_id &&
+                                      !corretorOptions.some((o) => o.id === r.user_id);
+                                    return (
+                                      <div key={r.id} className="flex flex-wrap items-center gap-2">
+                                        <Select
+                                          value={r.user_id || ""}
+                                          onValueChange={(v) => {
+                                            const c = corretorOptions.find((o) => o.id === v);
+                                            updExtra(r.id, {
+                                              user_id: v || null,
+                                              nome: c ? c.nome : null,
+                                            });
+                                          }}
+                                          disabled={!editable || vendaExterna}
+                                        >
+                                          <SelectTrigger className="w-56">
+                                            <SelectValue placeholder="Selecione o corretor cadastrado" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {foraDaLista && r.user_id && (
+                                              <SelectItem value={r.user_id}>
+                                                {r.nome} (inativo)
+                                              </SelectItem>
+                                            )}
+                                            {corretorOptions.map((c) => (
+                                              <SelectItem key={c.id} value={c.id}>
+                                                {c.nome}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        {editable && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => delExtra(r.id)}
+                                          >
+                                            Remover
+                                          </Button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {editable && !vendaExterna && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3"
+                                  onClick={() => addCoCorretor("vendedor")}
+                                >
+                                  <Plus className="mr-1 h-4 w-4" />
+                                  Outro vendedor
+                                </Button>
+                              )}
+                              {liderOptionsTodos.length > 0 && (
+                                <div className="mt-4 border-t pt-3">
+                                  <Field label="Gestor/Team Leader do vendedor">
+                                    <Select
+                                      value={formSale.lider_vendedor_id || "none"}
+                                      onValueChange={(v) => {
+                                        const l = liderOptionsTodos.find((o) => o.id === v);
+                                        updResumo({
+                                          lider_vendedor_id: v === "none" ? null : v,
+                                          lider_vendedor_nome: l ? l.nome : null,
+                                        });
+                                      }}
+                                      disabled={!editable || vendaExterna}
+                                    >
+                                      <SelectTrigger className="w-56">
+                                        <SelectValue placeholder="Selecione" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">—</SelectItem>
+                                        <SelectGroup>
+                                          <SelectLabel>Usuários ativos</SelectLabel>
+                                          {liderOptionsTodos.map((l) => (
+                                            <SelectItem key={l.id} value={l.id}>
+                                              {l.nome}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                  </Field>
+                                  {outrosLideresVendedor.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                      {outrosLideresVendedor.map((r) => (
+                                        <div
+                                          key={r.id}
+                                          className="flex flex-wrap items-center gap-2"
+                                        >
+                                          <Select
+                                            value={r.user_id || ""}
+                                            onValueChange={(v) => {
+                                              const l = liderOptionsTodos.find((o) => o.id === v);
+                                              updExtra(r.id, {
+                                                user_id: v || null,
+                                                nome: l ? l.nome : null,
+                                                papel: l ? l.papel : r.papel,
+                                              });
+                                            }}
+                                            disabled={!editable || vendaExterna}
+                                          >
+                                            <SelectTrigger className="w-56">
+                                              <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectGroup>
+                                                <SelectLabel>Usuários ativos</SelectLabel>
+                                                {liderOptionsTodos.map((l) => (
+                                                  <SelectItem key={l.id} value={l.id}>
+                                                    {l.nome}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectGroup>
+                                            </SelectContent>
+                                          </Select>
+                                          {editable && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => delExtra(r.id)}
+                                            >
+                                              Remover
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {editable && !vendaExterna && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-3"
+                                      onClick={() => addLiderLado("vendedor")}
+                                    >
+                                      <Plus className="mr-1 h-4 w-4" />
+                                      Outro Gestor/Team Leader
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                              <div className="mt-4 border-t pt-3">
+                                <Field label="Indicador do vendedor">
+                                  <Select
+                                    value={formSale.indicador_vendedor_id || ""}
+                                    onValueChange={(v) => {
+                                      if (v === "none") {
+                                        updResumo({
+                                          indicador_vendedor_id: null,
+                                          indicador_vendedor: null,
+                                        });
+                                        return;
+                                      }
+                                      const c = indicadorOptions.find((o) => o.id === v);
+                                      updResumo({
+                                        indicador_vendedor_id: v || null,
+                                        indicador_vendedor: c ? c.nome : null,
+                                      });
+                                    }}
+                                    disabled={!editable || vendaExterna}
+                                  >
+                                    <SelectTrigger className="w-56">
+                                      <SelectValue placeholder="Selecione (opcional)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {formSale.indicador_vendedor_id && (
+                                        <SelectItem value="none">— (remover)</SelectItem>
+                                      )}
+                                      {indicadorVendedorForaDaLista &&
+                                        formSale.indicador_vendedor_id && (
+                                          <SelectItem value={formSale.indicador_vendedor_id}>
+                                            {formSale.indicador_vendedor} (inativo)
+                                          </SelectItem>
+                                        )}
+                                      {indicadorOptions.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </Field>
+                              </div>
+                              <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                                <div>
+                                  <Label htmlFor="parceria-externa-venda">
+                                    Parceria externa na venda
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Não selecionar corretor, gestor ou indicador interno deste lado.
+                                  </p>
+                                </div>
+                                <Switch
+                                  id="parceria-externa-venda"
+                                  checked={vendaExterna}
+                                  disabled={!editable}
+                                  onCheckedChange={(v) => setParceriaExternaLado("vendedor", v)}
+                                />
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        {editable && !vendaExterna && (
-                          <Button size="sm" variant="outline" className="mt-3" onClick={() => addLiderLado("vendedor")}>
-                            <Plus className="mr-1 h-4 w-4" />Outro Gestor/Team Leader
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-4 border-t pt-3">
-                      <Field label="Indicador do vendedor">
-                        <Select
-                          value={formSale.indicador_vendedor_id || ""}
-                          onValueChange={(v) => {
-                            if (v === "none") {
-                              updResumo({ indicador_vendedor_id: null, indicador_vendedor: null });
-                              return;
-                            }
-                            const c = indicadorOptions.find((o) => o.id === v);
-                            updResumo({ indicador_vendedor_id: v || null, indicador_vendedor: c ? c.nome : null });
-                          }}
-                          disabled={!editable || vendaExterna}
-                        >
-                          <SelectTrigger className="w-56"><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
-                          <SelectContent>
-                            {formSale.indicador_vendedor_id && <SelectItem value="none">— (remover)</SelectItem>}
-                            {indicadorVendedorForaDaLista && formSale.indicador_vendedor_id && (
-                              <SelectItem value={formSale.indicador_vendedor_id}>{formSale.indicador_vendedor} (inativo)</SelectItem>
-                            )}
-                            {indicadorOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </div>
-                    <div className="mt-6 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
-                      <div>
-                        <Label htmlFor="parceria-externa-venda">Parceria externa na venda</Label>
-                        <p className="text-xs text-muted-foreground">Não selecionar corretor, gestor ou indicador interno deste lado.</p>
-                      </div>
-                      <Switch id="parceria-externa-venda" checked={vendaExterna} disabled={!editable} onCheckedChange={(v) => setParceriaExternaLado("vendedor", v)} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </SaleSection>
-          <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("imovel")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-              </>) },
-              { key: "valores", label: "Valores e negociação", content: (<>
-          <SaleSection title="Valores e negociação">
-            <FieldGrid>
-              <Field label="Valor anunciado (R$)"><CurrencyInput value={formSale.valor_anunciado} disabled={!editable} onChange={(v) => updResumo({ valor_anunciado: v })} /></Field>
-              <Field label="Valor negociado (R$)"><CurrencyInput value={formSale.valor_negociado} disabled={!editable} onChange={applyValorNegociado} /></Field>
-              <Field label="% Comissão (referência)"><Input type="number" step="0.000001" value={formSale.percentual_comissao ?? ""} disabled /></Field>
-              <Field label="Valor total da comissão (R$)"><CurrencyInput value={formSale.valor_total_comissao} disabled={!editable} onChange={(v) => {
-                const neg = Number(formSale.valor_negociado ?? 0);
-                const patch: any = { valor_total_comissao: v };
-                if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
-                else patch.percentual_comissao = null;
-                patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
-                updResumo(patch);
-              }} /></Field>
-              <Field label="Forma de pagamento" colSpan={2}>
-                <Input placeholder="Como o proprietário vai pagar a comissão" value={formSale.forma_pagamento ?? ""} disabled={!editable} onChange={(e) => updResumo({ forma_pagamento: e.target.value })} />
-              </Field>
-              <Field label="Observações" colSpan={2}><Textarea value={formSale.negociacao_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-          <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("equipe")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-              </>) },
-              { key: "comissao", label: "Divisão da comissão", content: (<>
-          <SaleSection title="Divisão da comissão (revisão do gestor)">
-            {(() => {
-              const total = Number(formSale.valor_total_comissao ?? 0);
-              const soma = Number(formSale.valor_comissao_captador ?? 0) + Number(formSale.valor_comissao_vendedor ?? 0);
-              const excedido = total > 0 && soma > total + 0.01;
-              return excedido ? (
-                <div className="mb-4 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
-                  <AlertTriangle className="mr-2 inline h-4 w-4" />
-                  A soma das comissões (R$ {soma.toFixed(2)}) ultrapassa o valor total da comissão (R$ {total.toFixed(2)}).
-                </div>
-              ) : null;
-            })()}
-            {/* Inconsistências detectadas pela RPC no que já está salvo (não reflete edição em andamento) */}
-            {!dirtyResumo && !dirtyExtras && distribuicao && !distribuicao.calculo_valido && (
-              <div className="mb-4 space-y-1 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
-                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências:</p>
-                <ul className="ml-6 list-disc">
-                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
-                </ul>
-              </div>
-            )}
-            <FieldGrid>
-              <Field label="% da REMAX (sobre o valor negociado)"><Input type="number" step="0.001" value={formSale.percentual_remax ?? ""} disabled={!editableComissao} onChange={(e) => applyRemaxPercentual(e.target.value)} /></Field>
-              <Field label="Valor da REMAX (R$)"><CurrencyInput value={formSale.valor_remax} disabled={!editableComissao} onChange={applyRemaxValor} /></Field>
-              {/* Cada lado da operação tem sua própria coluna. Assim, participantes adicionais
-                  aparecem junto de quem representam, em vez de virarem uma lista solta no rodapé. */}
-              <div className="space-y-4">
-                <Field label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_captador} disabled={!editableComissao} onChange={(v) => applyComissaoValor("captador", v)} /></Field>
-                {formExtras.filter((r) => r.papel === "corretor_captador").map((r) => (
-                  <Field key={r.id} label={`Comissão corretor captador — ${r.nome || "Selecione na Equipe"} (R$)`}>
-                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
-                  </Field>
-                ))}
-                {formSale.lider_captador_id && (
-                  <Field label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}>
-                    <CurrencyInput value={formSale.valor_comissao_lider_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_captador: v })} />
-                  </Field>
-                )}
-                {formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader") && r.lado === "captador").map((r) => (
-                  <Field key={r.id} label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do captador — ${r.nome || "Selecione na Equipe"} (R$)`}>
-                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
-                  </Field>
-                ))}
-                {formSale.indicador_captador && (
-                  <Field label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}>
-                    <CurrencyInput value={formSale.valor_comissao_indicador_captador} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_captador: v })} />
-                  </Field>
-                )}
-                <Field label="Líquido do captador (R$)">
-                  <CurrencyInput value={distribuicao?.liquido_captador ?? null} disabled onChange={() => {}} />
-                </Field>
-              </div>
-              <div className="space-y-4">
-                <Field label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}><CurrencyInput value={formSale.valor_comissao_vendedor} disabled={!editableComissao} onChange={(v) => applyComissaoValor("vendedor", v)} /></Field>
-                {formExtras.filter((r) => r.papel === "corretor_vendedor").map((r) => (
-                  <Field key={r.id} label={`Comissão corretor vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}>
-                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
-                  </Field>
-                ))}
-                {formSale.lider_vendedor_id && (
-                  <Field label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}>
-                    <CurrencyInput value={formSale.valor_comissao_lider_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })} />
-                  </Field>
-                )}
-                {formExtras.filter((r) => (r.papel === "gestor" || r.papel === "team_leader") && r.lado === "vendedor").map((r) => (
-                  <Field key={r.id} label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}>
-                    <CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} />
-                  </Field>
-                ))}
-                {formSale.indicador_vendedor && (
-                  <Field label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}>
-                    <CurrencyInput value={formSale.valor_comissao_indicador_vendedor} disabled={!editableComissao} onChange={(v) => updResumo({ valor_comissao_indicador_vendedor: v })} />
-                  </Field>
-                )}
-                <Field label="Líquido do vendedor (R$)">
-                  <CurrencyInput value={distribuicao?.liquido_vendedor ?? null} disabled onChange={() => {}} />
-                </Field>
-              </div>
-              <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                <CurrencyInput value={distribuicao?.saldo_liquido_imobiliaria ?? null} disabled onChange={() => {}} />
-              </Field>
-              {(dirtyResumo || dirtyExtras) && (
-                <p className="col-span-full text-xs text-muted-foreground">Líquidos e valor da imobiliária recalculam depois que as alterações forem salvas.</p>
-              )}
-            </FieldGrid>
-            <div className="mt-4 border-t pt-4">
-              <p className="mb-3 text-xs text-muted-foreground">
-                Previsão de recebimento da comissão — se for parcelada, adicione quantas parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela for criada (financeiro pode ajustar lá).
-                {formSale.parceria_valor != null && (
-                  <> Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria — {formSale.parceria_nome || "o parceiro"} cobra a fatia dele (R$ {Number(formSale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) direto, nunca passa por essa conta.</>
-                )}
-              </p>
-              <FieldGrid>
-                <Field label="1ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento_valor: v })} /></Field>
-                <Field label="1ª parcela — data"><Input type="date" value={formSale.previsao_recebimento_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_data: e.target.value || null })} /></Field>
-                <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento_forma: e.target.value })} /></Field>
-              </FieldGrid>
-              {(showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && (
-                <div className="mt-3">
-                  <FieldGrid>
-                    <Field label="2ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento2_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento2_valor: v })} /></Field>
-                    <Field label="2ª parcela — data"><Input type="date" value={formSale.previsao_recebimento2_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_data: e.target.value || null })} /></Field>
-                    <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento2_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento2_forma: e.target.value })} /></Field>
-                  </FieldGrid>
-                </div>
-              )}
-              {(showParcela3Recebimento || formSale.previsao_recebimento3_valor != null || formSale.previsao_recebimento3_data || formSale.previsao_recebimento3_forma) && (
-                <div className="mt-3">
-                  <FieldGrid>
-                    <Field label="3ª parcela — valor (R$)"><CurrencyInput value={formSale.previsao_recebimento3_valor} disabled={!editableComissao} onChange={(v) => updResumo({ previsao_recebimento3_valor: v })} /></Field>
-                    <Field label="3ª parcela — data"><Input type="date" value={formSale.previsao_recebimento3_data ?? ""} disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_data: e.target.value || null })} /></Field>
-                    <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formSale.previsao_recebimento3_forma ?? ""} placeholder="PIX, TED, boleto..." disabled={!editableComissao} onChange={(e) => updResumo({ previsao_recebimento3_forma: e.target.value })} /></Field>
-                  </FieldGrid>
-                </div>
-              )}
-              {editableComissao && !showParcela2Recebimento && formSale.previsao_recebimento2_valor == null && !formSale.previsao_recebimento2_data && !formSale.previsao_recebimento2_forma && (
-                <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela2Recebimento(true)}>
-                  <Plus className="mr-1 h-4 w-4" />Adicionar parcela
-                </Button>
-              )}
-              {editableComissao && (showParcela2Recebimento || formSale.previsao_recebimento2_valor != null || formSale.previsao_recebimento2_data || formSale.previsao_recebimento2_forma) && !showParcela3Recebimento && formSale.previsao_recebimento3_valor == null && !formSale.previsao_recebimento3_data && !formSale.previsao_recebimento3_forma && (
-                <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowParcela3Recebimento(true)}>
-                  <Plus className="mr-1 h-4 w-4" />Adicionar parcela
-                </Button>
-              )}
-            </div>
-            <div className="mt-4 border-t pt-4">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Partes extras da divisão — classifique quem é a pessoa e de qual fatia (imobiliária, captador ou vendedor) o valor sai.
-                </p>
-                {editableComissao && <Button size="sm" variant="outline" onClick={addExtra}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>}
-              </div>
-              {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel)).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parte extra adicionada.</p>}
-              <div className="space-y-2">
-                {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel)).map((r) => {
-                  return (
-                  <div key={r.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-6">
-                    <Field label="Nome">
-                      <Input
-                        value={r.nome ?? ""}
-                        disabled={!editableComissao}
-                        onChange={(e) => updExtra(r.id, { nome: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Papel">
-                      <Select
-                        value={r.papel ?? "none"}
-                        onValueChange={(v) => {
-                          const patch: any = { papel: v === "none" ? null : v };
-                          if (v === "corretor_captador") patch.origem = "captador";
-                          if (v === "corretor_vendedor") patch.origem = "vendedor";
-                          updExtra(r.id, patch);
-                        }}
-                        disabled={!editableComissao}
+                        );
+                      })()}
+                    </SaleSection>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("imovel")}
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">—</SelectItem>
-                          <SelectItem value="corretor_captador">Corretor captador</SelectItem>
-                          <SelectItem value="corretor_vendedor">Corretor vendedor</SelectItem>
-                          <SelectItem value="gestor">Gestor</SelectItem>
-                          <SelectItem value="team_leader">Team Leader</SelectItem>
-                          <SelectItem value="outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Origem">
-                      <Select value={r.origem} onValueChange={(v) => updExtra(r.id, { origem: v })} disabled={!editableComissao}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="imobiliaria">Imobiliária</SelectItem>
-                          <SelectItem value="captador">Captador</SelectItem>
-                          <SelectItem value="vendedor">Vendedor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="% (sobre a origem)"><Input type="number" step="0.001" value={r.percentual ?? ""} disabled={!editableComissao} onChange={(e) => updExtra(r.id, { percentual: e.target.value })} /></Field>
-                    <Field label="Valor (R$)"><CurrencyInput value={r.valor} disabled={!editableComissao} onChange={(v) => updExtra(r.id, { valor: v })} /></Field>
-                    {editableComissao && (
-                      <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delExtra(r.id)}>Remover</Button></div>
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-          </SaleSection>
-          <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("valores")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("parceria")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-              </>) },
-              { key: "parceria", label: "Parceria", content: (<>
-          <SaleSection title="Parceria externa">
-            <FieldGrid>
-              <Field label="Tipo de parceria">
-                <Select value={formSale.parceria_tipo ?? "none"} onValueChange={(v) => applyParceriaTipo(v === "none" ? null : v)} disabled={!editable}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem parceria externa</SelectItem>
-                    {PARCERIA_TIPOS.map(t => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
-              {formSale.parceria_tipo && (<>
-                <Field label="Corretor(a) / Imobiliária parceira"><Input value={formSale.parceria_nome ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_nome: e.target.value })} /></Field>
-                <Field label="CPF/CNPJ"><Input value={formSale.parceria_cpf_cnpj ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })} /></Field>
-                <Field label="% Comissão"><Input type="number" step="0.001" value={formSale.parceria_percentual ?? ""} disabled={!editable} onChange={(e) => applyParceriaPercentual(e.target.value)} /></Field>
-                <Field label="Valor da comissão (R$)"><CurrencyInput value={formSale.parceria_valor} disabled={!editable} onChange={applyParceriaValor} /></Field>
-                <Field label="Banco"><Input value={formSale.parceria_banco ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_banco: e.target.value })} /></Field>
-                <Field label="Agência"><Input value={formSale.parceria_agencia ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_agencia: e.target.value })} /></Field>
-                <Field label="Conta"><Input value={formSale.parceria_conta ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_conta: e.target.value })} /></Field>
-                <Field label="PIX"><Input value={formSale.parceria_pix ?? ""} disabled={!editable} onChange={(e) => updResumo({ parceria_pix: e.target.value })} /></Field>
-              </>)}
-            </FieldGrid>
-          </SaleSection>
-          <div className="flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("comissao")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("posse")}>Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-              </>) },
-              { key: "posse", label: "Posse", content: (<>
-          <SaleSection title="Posse">
-            <FieldGrid>
-              <Field label="Data de entrega da posse"><Input type="date" value={formSale.posse_data ?? ""} disabled={!editable} onChange={(e) => updResumo({ posse_data: e.target.value || null })} /></Field>
-              <Field label="Observações" colSpan={2}><Textarea value={formSale.posse_observacoes ?? ""} disabled={!editable} onChange={(e) => updResumo({ posse_observacoes: e.target.value })} /></Field>
-            </FieldGrid>
-          </SaleSection>
-          <div className="flex justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setActiveResumoBlock("parceria")}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar</Button>
-          </div>
-              </>) },
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("valores")}
+                      >
+                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                ),
+              },
+              {
+                key: "valores",
+                label: "Valores e negociação",
+                content: (
+                  <>
+                    <SaleSection title="Valores e negociação">
+                      <FieldGrid>
+                        <Field label="Valor anunciado (R$)">
+                          <CurrencyInput
+                            value={formSale.valor_anunciado}
+                            disabled={!editable}
+                            onChange={(v) => updResumo({ valor_anunciado: v })}
+                          />
+                        </Field>
+                        <Field label="Valor negociado (R$)">
+                          <CurrencyInput
+                            value={formSale.valor_negociado}
+                            disabled={!editable}
+                            onChange={applyValorNegociado}
+                          />
+                        </Field>
+                        <Field label="% Comissão (referência)">
+                          <Input
+                            type="number"
+                            step="0.000001"
+                            value={formSale.percentual_comissao ?? ""}
+                            disabled
+                          />
+                        </Field>
+                        <Field label="Valor total da comissão (R$)">
+                          <CurrencyInput
+                            value={formSale.valor_total_comissao}
+                            disabled={!editable}
+                            onChange={(v) => {
+                              const neg = Number(formSale.valor_negociado ?? 0);
+                              const patch: SalePatch = { valor_total_comissao: v };
+                              if (v != null && neg > 0)
+                                patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
+                              else patch.percentual_comissao = null;
+                              patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
+                              updResumo(patch);
+                            }}
+                          />
+                        </Field>
+                        <Field label="Forma de pagamento" colSpan={2}>
+                          <Input
+                            placeholder="Como o proprietário vai pagar a comissão"
+                            value={formSale.forma_pagamento ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ forma_pagamento: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Observações" colSpan={2}>
+                          <Textarea
+                            value={formSale.negociacao_observacoes ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ negociacao_observacoes: e.target.value })}
+                          />
+                        </Field>
+                      </FieldGrid>
+                    </SaleSection>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("equipe")}
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("comissao")}
+                      >
+                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                ),
+              },
+              {
+                key: "comissao",
+                label: "Divisão da comissão",
+                content: (
+                  <>
+                    <SaleSection title="Divisão da comissão (revisão do gestor)">
+                      {(() => {
+                        const total = Number(formSale.valor_total_comissao ?? 0);
+                        const soma =
+                          Number(formSale.valor_comissao_captador ?? 0) +
+                          Number(formSale.valor_comissao_vendedor ?? 0);
+                        const excedido = total > 0 && soma > total + 0.01;
+                        return excedido ? (
+                          <div className="mb-4 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+                            <AlertTriangle className="mr-2 inline h-4 w-4" />A soma das comissões
+                            (R$ {soma.toFixed(2)}) ultrapassa o valor total da comissão (R${" "}
+                            {total.toFixed(2)}).
+                          </div>
+                        ) : null;
+                      })()}
+                      {/* Inconsistências detectadas pela RPC no que já está salvo (não reflete edição em andamento) */}
+                      {!dirtyResumo &&
+                        !dirtyExtras &&
+                        distribuicao &&
+                        !distribuicao.calculo_valido && (
+                          <div className="mb-4 space-y-1 rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+                            <p className="flex items-center font-medium">
+                              <AlertTriangle className="mr-2 inline h-4 w-4" />
+                              Divisão da comissão com inconsistências:
+                            </p>
+                            <ul className="ml-6 list-disc">
+                              {(distribuicao.inconsistencias ?? []).map(
+                                (msg: string, i: number) => (
+                                  <li key={i}>{msg}</li>
+                                ),
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      <FieldGrid>
+                        <Field label="% da REMAX (sobre o valor negociado)">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={formSale.percentual_remax ?? ""}
+                            disabled={!editableComissao}
+                            onChange={(e) => applyRemaxPercentual(e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Valor da REMAX (R$)">
+                          <CurrencyInput
+                            value={formSale.valor_remax}
+                            disabled={!editableComissao}
+                            onChange={applyRemaxValor}
+                          />
+                        </Field>
+                        {/* Cada lado da operação tem sua própria coluna. Assim, participantes adicionais
+                  aparecem junto de quem representam, em vez de virarem uma lista solta no rodapé. */}
+                        <div className="space-y-4">
+                          <Field
+                            label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}
+                          >
+                            <CurrencyInput
+                              value={formSale.valor_comissao_captador}
+                              disabled={!editableComissao}
+                              onChange={(v) => applyComissaoValor("captador", v)}
+                            />
+                          </Field>
+                          {formExtras
+                            .filter((r) => r.papel === "corretor_captador")
+                            .map((r) => (
+                              <Field
+                                key={r.id}
+                                label={`Comissão corretor captador — ${r.nome || "Selecione na Equipe"} (R$)`}
+                              >
+                                <CurrencyInput
+                                  value={r.valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updExtra(r.id, { valor: v })}
+                                />
+                              </Field>
+                            ))}
+                          {formSale.lider_captador_id && (
+                            <Field
+                              label={`Comissão Gestor/Team Leader do captador — ${formSale.lider_captador_nome ?? ""} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_lider_captador}
+                                disabled={!editableComissao}
+                                onChange={(v) => updResumo({ valor_comissao_lider_captador: v })}
+                              />
+                            </Field>
+                          )}
+                          {formExtras
+                            .filter(
+                              (r) =>
+                                (r.papel === "gestor" || r.papel === "team_leader") &&
+                                r.lado === "captador",
+                            )
+                            .map((r) => (
+                              <Field
+                                key={r.id}
+                                label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do captador — ${r.nome || "Selecione na Equipe"} (R$)`}
+                              >
+                                <CurrencyInput
+                                  value={r.valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updExtra(r.id, { valor: v })}
+                                />
+                              </Field>
+                            ))}
+                          {formSale.indicador_captador && (
+                            <Field
+                              label={`Comissão indicador do captador — ${formSale.indicador_captador} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_indicador_captador}
+                                disabled={!editableComissao}
+                                onChange={(v) =>
+                                  updResumo({ valor_comissao_indicador_captador: v })
+                                }
+                              />
+                            </Field>
+                          )}
+                          <Field label="Líquido do captador (R$)">
+                            <CurrencyInput
+                              value={distribuicao?.liquido_captador ?? null}
+                              disabled
+                              onChange={() => {}}
+                            />
+                          </Field>
+                        </div>
+                        <div className="space-y-4">
+                          <Field
+                            label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}
+                          >
+                            <CurrencyInput
+                              value={formSale.valor_comissao_vendedor}
+                              disabled={!editableComissao}
+                              onChange={(v) => applyComissaoValor("vendedor", v)}
+                            />
+                          </Field>
+                          {formExtras
+                            .filter((r) => r.papel === "corretor_vendedor")
+                            .map((r) => (
+                              <Field
+                                key={r.id}
+                                label={`Comissão corretor vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}
+                              >
+                                <CurrencyInput
+                                  value={r.valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updExtra(r.id, { valor: v })}
+                                />
+                              </Field>
+                            ))}
+                          {formSale.lider_vendedor_id && (
+                            <Field
+                              label={`Comissão Gestor/Team Leader do vendedor — ${formSale.lider_vendedor_nome ?? ""} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_lider_vendedor}
+                                disabled={!editableComissao}
+                                onChange={(v) => updResumo({ valor_comissao_lider_vendedor: v })}
+                              />
+                            </Field>
+                          )}
+                          {formExtras
+                            .filter(
+                              (r) =>
+                                (r.papel === "gestor" || r.papel === "team_leader") &&
+                                r.lado === "vendedor",
+                            )
+                            .map((r) => (
+                              <Field
+                                key={r.id}
+                                label={`Comissão ${r.papel === "gestor" ? "Gestor" : "Team Leader"} do vendedor — ${r.nome || "Selecione na Equipe"} (R$)`}
+                              >
+                                <CurrencyInput
+                                  value={r.valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updExtra(r.id, { valor: v })}
+                                />
+                              </Field>
+                            ))}
+                          {formSale.indicador_vendedor && (
+                            <Field
+                              label={`Comissão indicador do vendedor — ${formSale.indicador_vendedor} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_indicador_vendedor}
+                                disabled={!editableComissao}
+                                onChange={(v) =>
+                                  updResumo({ valor_comissao_indicador_vendedor: v })
+                                }
+                              />
+                            </Field>
+                          )}
+                          <Field label="Líquido do vendedor (R$)">
+                            <CurrencyInput
+                              value={distribuicao?.liquido_vendedor ?? null}
+                              disabled
+                              onChange={() => {}}
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Valor para a imobiliária (R$)" colSpan={2}>
+                          <CurrencyInput
+                            value={distribuicao?.saldo_liquido_imobiliaria ?? null}
+                            disabled
+                            onChange={() => {}}
+                          />
+                        </Field>
+                        {(dirtyResumo || dirtyExtras) && (
+                          <p className="col-span-full text-xs text-muted-foreground">
+                            Líquidos e valor da imobiliária recalculam depois que as alterações
+                            forem salvas.
+                          </p>
+                        )}
+                      </FieldGrid>
+                      <div className="mt-4 border-t pt-4">
+                        <p className="mb-3 text-xs text-muted-foreground">
+                          Previsão de recebimento da comissão — se for parcelada, adicione quantas
+                          parcelas precisar. Vira a previsão de recebimento na Ocorrência quando ela
+                          for criada (financeiro pode ajustar lá).
+                          {formSale.parceria_valor != null && (
+                            <>
+                              {" "}
+                              Digite só a <b>fatia própria da imobiliária</b>, sem a parte da
+                              parceria — {formSale.parceria_nome || "o parceiro"} cobra a fatia dele
+                              (R${" "}
+                              {Number(formSale.parceria_valor).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 2,
+                              })}
+                              ) direto, nunca passa por essa conta.
+                            </>
+                          )}
+                        </p>
+                        <FieldGrid>
+                          <Field label="1ª parcela — valor (R$)">
+                            <CurrencyInput
+                              value={formSale.previsao_recebimento_valor}
+                              disabled={!editableComissao}
+                              onChange={(v) => updResumo({ previsao_recebimento_valor: v })}
+                            />
+                          </Field>
+                          <Field label="1ª parcela — data">
+                            <Input
+                              type="date"
+                              value={formSale.previsao_recebimento_data ?? ""}
+                              disabled={!editableComissao}
+                              onChange={(e) =>
+                                updResumo({ previsao_recebimento_data: e.target.value || null })
+                              }
+                            />
+                          </Field>
+                          <Field label="1ª parcela — forma de pagamento" colSpan={2}>
+                            <Input
+                              value={formSale.previsao_recebimento_forma ?? ""}
+                              placeholder="PIX, TED, boleto..."
+                              disabled={!editableComissao}
+                              onChange={(e) =>
+                                updResumo({ previsao_recebimento_forma: e.target.value })
+                              }
+                            />
+                          </Field>
+                        </FieldGrid>
+                        {(showParcela2Recebimento ||
+                          formSale.previsao_recebimento2_valor != null ||
+                          formSale.previsao_recebimento2_data ||
+                          formSale.previsao_recebimento2_forma) && (
+                          <div className="mt-3">
+                            <FieldGrid>
+                              <Field label="2ª parcela — valor (R$)">
+                                <CurrencyInput
+                                  value={formSale.previsao_recebimento2_valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updResumo({ previsao_recebimento2_valor: v })}
+                                />
+                              </Field>
+                              <Field label="2ª parcela — data">
+                                <Input
+                                  type="date"
+                                  value={formSale.previsao_recebimento2_data ?? ""}
+                                  disabled={!editableComissao}
+                                  onChange={(e) =>
+                                    updResumo({
+                                      previsao_recebimento2_data: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+                                <Input
+                                  value={formSale.previsao_recebimento2_forma ?? ""}
+                                  placeholder="PIX, TED, boleto..."
+                                  disabled={!editableComissao}
+                                  onChange={(e) =>
+                                    updResumo({ previsao_recebimento2_forma: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            </FieldGrid>
+                          </div>
+                        )}
+                        {(showParcela3Recebimento ||
+                          formSale.previsao_recebimento3_valor != null ||
+                          formSale.previsao_recebimento3_data ||
+                          formSale.previsao_recebimento3_forma) && (
+                          <div className="mt-3">
+                            <FieldGrid>
+                              <Field label="3ª parcela — valor (R$)">
+                                <CurrencyInput
+                                  value={formSale.previsao_recebimento3_valor}
+                                  disabled={!editableComissao}
+                                  onChange={(v) => updResumo({ previsao_recebimento3_valor: v })}
+                                />
+                              </Field>
+                              <Field label="3ª parcela — data">
+                                <Input
+                                  type="date"
+                                  value={formSale.previsao_recebimento3_data ?? ""}
+                                  disabled={!editableComissao}
+                                  onChange={(e) =>
+                                    updResumo({
+                                      previsao_recebimento3_data: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+                                <Input
+                                  value={formSale.previsao_recebimento3_forma ?? ""}
+                                  placeholder="PIX, TED, boleto..."
+                                  disabled={!editableComissao}
+                                  onChange={(e) =>
+                                    updResumo({ previsao_recebimento3_forma: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            </FieldGrid>
+                          </div>
+                        )}
+                        {editableComissao &&
+                          !showParcela2Recebimento &&
+                          formSale.previsao_recebimento2_valor == null &&
+                          !formSale.previsao_recebimento2_data &&
+                          !formSale.previsao_recebimento2_forma && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2"
+                              onClick={() => setShowParcela2Recebimento(true)}
+                            >
+                              <Plus className="mr-1 h-4 w-4" />
+                              Adicionar parcela
+                            </Button>
+                          )}
+                        {editableComissao &&
+                          (showParcela2Recebimento ||
+                            formSale.previsao_recebimento2_valor != null ||
+                            formSale.previsao_recebimento2_data ||
+                            formSale.previsao_recebimento2_forma) &&
+                          !showParcela3Recebimento &&
+                          formSale.previsao_recebimento3_valor == null &&
+                          !formSale.previsao_recebimento3_data &&
+                          !formSale.previsao_recebimento3_forma && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2"
+                              onClick={() => setShowParcela3Recebimento(true)}
+                            >
+                              <Plus className="mr-1 h-4 w-4" />
+                              Adicionar parcela
+                            </Button>
+                          )}
+                      </div>
+                      <div className="mt-4 border-t pt-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Partes extras da divisão — classifique quem é a pessoa e de qual fatia
+                            (imobiliária, captador ou vendedor) o valor sai.
+                          </p>
+                          {editableComissao && (
+                            <Button size="sm" variant="outline" onClick={addExtra}>
+                              <Plus className="mr-1 h-4 w-4" />
+                              Adicionar parte
+                            </Button>
+                          )}
+                        </div>
+                        {formExtras.filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel ?? ""))
+                          .length === 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Nenhuma parte extra adicionada.
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          {formExtras
+                            .filter((r) => !PAPEIS_FIXOS_NO_TOPO.has(r.papel ?? ""))
+                            .map((r) => {
+                              return (
+                                <div
+                                  key={r.id}
+                                  className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-6"
+                                >
+                                  <Field label="Nome">
+                                    <Input
+                                      value={r.nome ?? ""}
+                                      disabled={!editableComissao}
+                                      onChange={(e) => updExtra(r.id, { nome: e.target.value })}
+                                    />
+                                  </Field>
+                                  <Field label="Papel">
+                                    <Select
+                                      value={r.papel ?? "none"}
+                                      onValueChange={(v) => {
+                                        const patch: Partial<EditableExtra> = {
+                                          papel: v === "none" ? null : v,
+                                        };
+                                        if (v === "corretor_captador") patch.origem = "captador";
+                                        if (v === "corretor_vendedor") patch.origem = "vendedor";
+                                        updExtra(r.id, patch);
+                                      }}
+                                      disabled={!editableComissao}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">—</SelectItem>
+                                        <SelectItem value="corretor_captador">
+                                          Corretor captador
+                                        </SelectItem>
+                                        <SelectItem value="corretor_vendedor">
+                                          Corretor vendedor
+                                        </SelectItem>
+                                        <SelectItem value="gestor">Gestor</SelectItem>
+                                        <SelectItem value="team_leader">Team Leader</SelectItem>
+                                        <SelectItem value="outro">Outro</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </Field>
+                                  <Field label="Origem">
+                                    <Select
+                                      value={r.origem}
+                                      onValueChange={(v) => updExtra(r.id, { origem: v })}
+                                      disabled={!editableComissao}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="imobiliaria">Imobiliária</SelectItem>
+                                        <SelectItem value="captador">Captador</SelectItem>
+                                        <SelectItem value="vendedor">Vendedor</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </Field>
+                                  <Field label="% (sobre a origem)">
+                                    <Input
+                                      type="number"
+                                      step="0.001"
+                                      value={r.percentual ?? ""}
+                                      disabled={!editableComissao}
+                                      onChange={(e) =>
+                                        updExtra(r.id, {
+                                          percentual: e.target.value
+                                            ? Number(e.target.value)
+                                            : null,
+                                        })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Valor (R$)">
+                                    <CurrencyInput
+                                      value={r.valor}
+                                      disabled={!editableComissao}
+                                      onChange={(v) => updExtra(r.id, { valor: v })}
+                                    />
+                                  </Field>
+                                  {editableComissao && (
+                                    <div className="flex items-end">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => delExtra(r.id)}
+                                      >
+                                        Remover
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </SaleSection>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("valores")}
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("parceria")}
+                      >
+                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                ),
+              },
+              {
+                key: "parceria",
+                label: "Parceria",
+                content: (
+                  <>
+                    <SaleSection title="Parceria externa">
+                      <FieldGrid>
+                        <Field label="Tipo de parceria">
+                          <Select
+                            value={formSale.parceria_tipo ?? "none"}
+                            onValueChange={(v) => applyParceriaTipo(v === "none" ? null : v)}
+                            disabled={!editable}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sem parceria externa</SelectItem>
+                              {PARCERIA_TIPOS.map((t) => (
+                                <SelectItem key={t.key} value={t.key}>
+                                  {t.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        {formSale.parceria_tipo && (
+                          <>
+                            <Field label="Corretor(a) / Imobiliária parceira">
+                              <Input
+                                value={formSale.parceria_nome ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_nome: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="CPF/CNPJ">
+                              <Input
+                                value={formSale.parceria_cpf_cnpj ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="% Comissão">
+                              <Input
+                                type="number"
+                                step="0.001"
+                                value={formSale.parceria_percentual ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => applyParceriaPercentual(e.target.value)}
+                              />
+                            </Field>
+                            <Field label="Valor da comissão (R$)">
+                              <CurrencyInput
+                                value={formSale.parceria_valor}
+                                disabled={!editable}
+                                onChange={applyParceriaValor}
+                              />
+                            </Field>
+                            <Field label="Banco">
+                              <Input
+                                value={formSale.parceria_banco ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_banco: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Agência">
+                              <Input
+                                value={formSale.parceria_agencia ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_agencia: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Conta">
+                              <Input
+                                value={formSale.parceria_conta ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_conta: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="PIX">
+                              <Input
+                                value={formSale.parceria_pix ?? ""}
+                                disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_pix: e.target.value })}
+                              />
+                            </Field>
+                          </>
+                        )}
+                      </FieldGrid>
+                    </SaleSection>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("comissao")}
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("posse")}
+                      >
+                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                ),
+              },
+              {
+                key: "posse",
+                label: "Posse",
+                content: (
+                  <>
+                    <SaleSection title="Posse">
+                      <FieldGrid>
+                        <Field label="Data de entrega da posse">
+                          <Input
+                            type="date"
+                            value={formSale.posse_data ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ posse_data: e.target.value || null })}
+                          />
+                        </Field>
+                        <Field label="Observações" colSpan={2}>
+                          <Textarea
+                            value={formSale.posse_observacoes ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ posse_observacoes: e.target.value })}
+                          />
+                        </Field>
+                      </FieldGrid>
+                    </SaleSection>
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveResumoBlock("parceria")}
+                      >
+                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
+                      </Button>
+                    </div>
+                  </>
+                ),
+              },
             ]}
             current={activeResumoBlock}
             onChange={setActiveResumoBlock}
@@ -1648,11 +3054,11 @@ function SaleDetail() {
       key: "pagamento",
       label: "4. Pagamento",
       content: (
-          <PaymentStep
-            saleId={id}
-            payment={payment}
-            valorNegociado={formSale.valor_negociado}
-            editable={editable}
+        <PaymentStep
+          saleId={id}
+          payment={payment}
+          valorNegociado={formSale.valor_negociado ?? null}
+          editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("pagamento", fn)}
           onDirtyChange={(d) => setStepDirty("pagamento", d)}
@@ -1698,164 +3104,349 @@ function SaleDetail() {
   // Ação de avançar a venda para o próximo responsável — mesma ação do topo da página, só que
   // repetida no rodapé da última etapa do wizard, no lugar do "Próximo" (que ali não faz nada).
   // Statuses com mais de uma ação de avanço igualmente válida ficam de fora (o usuário escolhe lá em cima).
-  const primaryAction: { label: string; icon: typeof Send; onClick: () => void; disabled?: boolean } | null =
-    ((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho) ? { label: envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor", icon: Send, onClick: attemptSendForReview } :
-    isGestor && status === "enviada_revisao" ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico } :
-    isJuridico && status === "aprovada_gestor" ? { label: "Iniciar contrato", icon: Gavel, onClick: () => changeStatus("em_elaboracao_contrato") } :
-    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0 ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog } :
-    isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0 ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor } :
-    isOwner && status === "contrato_conferencia_corretor" ? { label: "Dar OK no contrato", icon: CheckCircle2, onClick: () => changeStatus("contrato_ok_corretor") } :
-    isGestor && status === "contrato_ok_corretor" ? { label: "Enviar para assinatura", icon: Send, onClick: () => changeStatus("aguardando_assinatura"), disabled: sale.contrato_libera_assinatura === false } :
-    isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length === 0 ? { label: "Subir contrato assinado", icon: Upload, onClick: () => { setContratoAssinadoFile(null); setContratoAssinadoDialogOpen(true); } } :
-    isGestor && status === "aguardando_assinatura" && contratoAssinadoDocs.length > 0 ? { label: "Marcar contrato assinado", icon: FileCheck, onClick: marcarContratoAssinado } :
-    isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") ? { label: "Enviar ocorrência ao financeiro", icon: DollarSign, onClick: () => changeStatus("ocorrencia_analise_financeiro") } :
-    null;
+  const primaryAction: {
+    label: string;
+    icon: typeof Send;
+    onClick: () => void;
+    disabled?: boolean;
+  } | null =
+    (isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho
+      ? {
+          label: envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor",
+          icon: Send,
+          onClick: attemptSendForReview,
+        }
+      : isGestor && status === "enviada_revisao"
+        ? { label: "Aprovar p/ jurídico", icon: CheckCircle2, onClick: attemptApproveJuridico }
+        : isJuridico && status === "aprovada_gestor"
+          ? {
+              label: "Iniciar contrato",
+              icon: Gavel,
+              onClick: () => changeStatus("em_elaboracao_contrato"),
+            }
+          : isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length === 0
+            ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog }
+            : isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0
+              ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor }
+              : isOwner && status === "contrato_conferencia_corretor"
+                ? {
+                    label: "Dar OK no contrato",
+                    icon: CheckCircle2,
+                    onClick: () => changeStatus("contrato_ok_corretor"),
+                  }
+                : isGestor && status === "contrato_ok_corretor"
+                  ? {
+                      label: "Enviar para assinatura",
+                      icon: Send,
+                      onClick: () => changeStatus("aguardando_assinatura"),
+                      disabled: sale.contrato_libera_assinatura === false,
+                    }
+                  : isGestor &&
+                      status === "aguardando_assinatura" &&
+                      contratoAssinadoDocs.length === 0
+                    ? {
+                        label: "Subir contrato assinado",
+                        icon: Upload,
+                        onClick: () => {
+                          setContratoAssinadoFile(null);
+                          setContratoAssinadoDialogOpen(true);
+                        },
+                      }
+                    : isGestor &&
+                        status === "aguardando_assinatura" &&
+                        contratoAssinadoDocs.length > 0
+                      ? {
+                          label: "Marcar contrato assinado",
+                          icon: FileCheck,
+                          onClick: marcarContratoAssinado,
+                        }
+                      : isGestor &&
+                          (status === "ocorrencia_pendente" ||
+                            status === "ocorrencia_devolvida_gestor")
+                        ? {
+                            label: "Enviar ocorrência ao financeiro",
+                            icon: DollarSign,
+                            onClick: () => changeStatus("ocorrencia_analise_financeiro"),
+                          }
+                        : null;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 print:hidden">
-        <Button variant="ghost" size="sm" onClick={handleVoltar}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
+        <Button variant="ghost" size="sm" onClick={handleVoltar}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
       </div>
 
-      {isJuridico && contratoDocs.length > 0 && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
-        <div className="flex justify-end print:hidden">
-          <Button size="sm" variant="outline" onClick={openContratoDialog}>
-            <AlertTriangle className="mr-2 h-4 w-4" />Pendência do contrato
-          </Button>
-        </div>
-      )}
+      {isJuridico &&
+        contratoDocs.length > 0 &&
+        [
+          "contrato_conferencia_gestor",
+          "contrato_conferencia_corretor",
+          "contrato_ok_corretor",
+          "aguardando_assinatura",
+        ].includes(status) && (
+          <div className="flex justify-end print:hidden">
+            <Button size="sm" variant="outline" onClick={openContratoDialog}>
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Pendência do contrato
+            </Button>
+          </div>
+        )}
 
-      {sale.contrato_libera_assinatura === false && ["contrato_conferencia_gestor", "contrato_conferencia_corretor", "contrato_ok_corretor", "aguardando_assinatura"].includes(status) && (
-        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">
-          <AlertTriangle className="mr-2 inline h-4 w-4" />
-          <b>Jurídico sinalizou pendência de documento — assinatura bloqueada:</b>{" "}
-          {sale.contrato_pendencia_descricao || "sem descrição."}
-        </div>
-      )}
+      {sale.contrato_libera_assinatura === false &&
+        [
+          "contrato_conferencia_gestor",
+          "contrato_conferencia_corretor",
+          "contrato_ok_corretor",
+          "aguardando_assinatura",
+        ].includes(status) && (
+          <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">
+            <AlertTriangle className="mr-2 inline h-4 w-4" />
+            <b>Jurídico sinalizou pendência de documento — assinatura bloqueada:</b>{" "}
+            {sale.contrato_pendencia_descricao || "sem descrição."}
+          </div>
+        )}
 
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}
+            </h1>
             <StatusBadge status={status} />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Corretor: envio inicial ou reenvio após devolução (dono que também é gestor/team leader pula a revisão e já manda pro jurídico) */}
-          {((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho) && (
-            <Button onClick={attemptSendForReview}><Send className="mr-2 h-4 w-4" />{envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor"}</Button>
+          {((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) ||
+            gestorDaEquipeRascunho) && (
+            <Button onClick={attemptSendForReview}>
+              <Send className="mr-2 h-4 w-4" />
+              {envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor"}
+            </Button>
           )}
 
           {/* Gestor: revisão inicial */}
           {isGestor && status === "enviada_revisao" && (
             <>
-              <Button onClick={attemptApproveJuridico}><CheckCircle2 className="mr-2 h-4 w-4" />Aprovar p/ jurídico</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
+              <Button onClick={attemptApproveJuridico}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Aprovar p/ jurídico
+              </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao corretor
+              </Button>
             </>
           )}
 
           {/* Jurídico: aceitar e elaborar */}
           {isJuridico && status === "aprovada_gestor" && (
             <>
-              <Button onClick={() => changeStatus("em_elaboracao_contrato")}><Gavel className="mr-2 h-4 w-4" />Iniciar contrato</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
+              <Button onClick={() => changeStatus("em_elaboracao_contrato")}>
+                <Gavel className="mr-2 h-4 w-4" />
+                Iniciar contrato
+              </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao gestor
+              </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao corretor
+              </Button>
             </>
           )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
               <Button variant="outline" onClick={openContratoDialog}>
-                <Upload className="mr-2 h-4 w-4" />{contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
+                <Upload className="mr-2 h-4 w-4" />
+                {contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
               </Button>
               <Button variant="outline" onClick={irParaCertidoes}>
-                <Gavel className="mr-2 h-4 w-4" />Subir certidões
+                <Gavel className="mr-2 h-4 w-4" />
+                Subir certidões
               </Button>
-              <Button onClick={enviarContratoAoGestor} disabled={contratoDocs.length === 0 || (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao)}>
-                <Send className="mr-2 h-4 w-4" />Enviar ao gestor
+              <Button
+                onClick={enviarContratoAoGestor}
+                disabled={
+                  contratoDocs.length === 0 ||
+                  (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao)
+                }
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Enviar ao gestor
               </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao gestor
+              </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao corretor
+              </Button>
             </>
           )}
 
           {/* Gestor: conferência do contrato */}
           {isGestor && status === "contrato_conferencia_gestor" && (
             <>
-              <Button onClick={() => changeStatus("contrato_conferencia_corretor")}><Send className="mr-2 h-4 w-4" />Enviar ao corretor conferir</Button>
-              <Button onClick={() => changeStatus("aguardando_assinatura")} disabled={sale.contrato_libera_assinatura === false} title={sale.contrato_libera_assinatura === false ? "Jurídico marcou que ainda não pode ir para assinatura" : undefined}><Send className="mr-2 h-4 w-4" />Enviar direto para assinatura</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
+              <Button onClick={() => changeStatus("contrato_conferencia_corretor")}>
+                <Send className="mr-2 h-4 w-4" />
+                Enviar ao corretor conferir
+              </Button>
+              <Button
+                onClick={() => changeStatus("aguardando_assinatura")}
+                disabled={sale.contrato_libera_assinatura === false}
+                title={
+                  sale.contrato_libera_assinatura === false
+                    ? "Jurídico marcou que ainda não pode ir para assinatura"
+                    : undefined
+                }
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Enviar direto para assinatura
+              </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao jurídico
+              </Button>
             </>
           )}
 
           {/* Corretor: conferência do contrato */}
           {isOwner && status === "contrato_conferencia_corretor" && (
             <>
-              <Button onClick={() => changeStatus("contrato_ok_corretor")}><CheckCircle2 className="mr-2 h-4 w-4" />Dar OK no contrato</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("contrato_conferencia_gestor")}><XCircle className="mr-2 h-4 w-4" />Devolver ao gestor</Button>
+              <Button onClick={() => changeStatus("contrato_ok_corretor")}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Dar OK no contrato
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => openReturnDialog("contrato_conferencia_gestor")}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao gestor
+              </Button>
             </>
           )}
 
           {/* Gestor: liberar para assinatura */}
           {isGestor && status === "contrato_ok_corretor" && (
             <>
-              <Button onClick={() => changeStatus("aguardando_assinatura")} disabled={sale.contrato_libera_assinatura === false} title={sale.contrato_libera_assinatura === false ? "Jurídico marcou que ainda não pode ir para assinatura" : undefined}><Send className="mr-2 h-4 w-4" />Enviar para assinatura</Button>
-              <Button variant="outline" onClick={() => openReturnDialog("contrato_conferencia_corretor")}><XCircle className="mr-2 h-4 w-4" />Devolver ao corretor</Button>
+              <Button
+                onClick={() => changeStatus("aguardando_assinatura")}
+                disabled={sale.contrato_libera_assinatura === false}
+                title={
+                  sale.contrato_libera_assinatura === false
+                    ? "Jurídico marcou que ainda não pode ir para assinatura"
+                    : undefined
+                }
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Enviar para assinatura
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => openReturnDialog("contrato_conferencia_corretor")}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao corretor
+              </Button>
             </>
           )}
 
           {/* Gestor: subir contrato assinado (após assinatura) */}
           {isGestor && status === "aguardando_assinatura" && (
             <>
-              <Button variant="outline" onClick={() => { setContratoAssinadoFile(null); setContratoAssinadoDialogOpen(true); }}>
-                <Upload className="mr-2 h-4 w-4" />{contratoAssinadoDocs.length > 0 ? "Substituir contrato assinado" : "Subir contrato assinado"}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setContratoAssinadoFile(null);
+                  setContratoAssinadoDialogOpen(true);
+                }}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {contratoAssinadoDocs.length > 0
+                  ? "Substituir contrato assinado"
+                  : "Subir contrato assinado"}
               </Button>
               <Button onClick={marcarContratoAssinado} disabled={contratoAssinadoDocs.length === 0}>
-                <FileCheck className="mr-2 h-4 w-4" />Marcar contrato assinado
+                <FileCheck className="mr-2 h-4 w-4" />
+                Marcar contrato assinado
               </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}><XCircle className="mr-2 h-4 w-4" />Devolver ao jurídico</Button>
+              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao jurídico
+              </Button>
             </>
           )}
 
           {/* Gestor: enviar ocorrência ao financeiro */}
           {isGestor && status === "contrato_assinado" && (
             <Button onClick={() => changeStatus("ocorrencia_pendente")}>
-              <FileCheck className="mr-2 h-4 w-4" />Criar ocorrência e continuar
+              <FileCheck className="mr-2 h-4 w-4" />
+              Criar ocorrência e continuar
             </Button>
           )}
 
-          {isGestor && (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
-            <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
-              <DollarSign className="mr-2 h-4 w-4" />Enviar ocorrência ao financeiro
-            </Button>
-          )}
+          {isGestor &&
+            (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
+              <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
+                <DollarSign className="mr-2 h-4 w-4" />
+                Enviar ocorrência ao financeiro
+              </Button>
+            )}
 
           {/* Gestor: desfazer "contrato assinado" marcado por engano — volta pra aguardando_assinatura,
               reabrindo subir/substituir e marcar de novo. Ainda não existe Ocorrência criada nesse
               ponto (passo manual, separado), então não há nada além do status pra desfazer. */}
           {isGestor && status === "ocorrencia_pendente" && (
             <Button variant="outline" onClick={() => openReturnDialog("aguardando_assinatura")}>
-              <RotateCcw className="mr-2 h-4 w-4" />Desfazer contrato assinado
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Desfazer contrato assinado
             </Button>
           )}
 
           {/* Financeiro: devolver ocorrência (aceite é feito dentro do painel de Ocorrência) */}
           {isFinanceiro && status === "ocorrencia_analise_financeiro" && (
-            <Button variant="outline" onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}>
-              <XCircle className="mr-2 h-4 w-4" />Devolver ao gestor
+            <Button
+              variant="outline"
+              onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              Devolver ao gestor
             </Button>
           )}
 
           {canCloseSale && status !== "arquivada" && status !== "cancelada" && (
             <>
-              <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>Arquivar</Button>
-              <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => openArchiveDialog("cancelada")}>Cancelar venda</Button>
+              <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
+                Arquivar
+              </Button>
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => openArchiveDialog("cancelada")}
+              >
+                Cancelar venda
+              </Button>
             </>
           )}
 
           {canDelete && (
-            <Button variant="outline" className="text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="mr-2 h-4 w-4" />Excluir venda
+            <Button
+              variant="outline"
+              className="text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Excluir venda
             </Button>
           )}
         </div>
@@ -1866,8 +3457,9 @@ function SaleDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir esta venda?</AlertDialogTitle>
             <AlertDialogDescription>
-              <b>{sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}</b>
-              {" "}será excluída permanentemente. Todos os documentos, partes, pagamentos, comentários e ocorrências relacionados serão removidos. Essa ação não pode ser desfeita.
+              <b>{sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}</b> será
+              excluída permanentemente. Todos os documentos, partes, pagamentos, comentários e
+              ocorrências relacionados serão removidos. Essa ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1883,32 +3475,41 @@ function SaleDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-
       <div className="flex flex-wrap justify-end gap-2 print:hidden">
         {canOverview && (
           <Button variant="outline" size="sm" onClick={() => setOverviewOpen(true)}>
-            <FileText className="mr-2 h-4 w-4" />Visão geral completa
+            <FileText className="mr-2 h-4 w-4" />
+            Visão geral completa
           </Button>
         )}
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm"><History className="mr-2 h-4 w-4" />Histórico</Button>
+            <Button variant="outline" size="sm">
+              <History className="mr-2 h-4 w-4" />
+              Histórico
+            </Button>
           </SheetTrigger>
           <SheetContent className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader>
               <SheetTitle>Histórico de status</SheetTitle>
             </SheetHeader>
             <div className="mt-4 space-y-2">
-              {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+              {history.length === 0 && (
+                <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>
+              )}
               {history.map((h) => (
                 <div key={h.id} className="rounded-md border p-3 text-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-muted-foreground">{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}</span>
+                      <span className="text-muted-foreground">
+                        {h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"}
+                      </span>
                       {" → "}
                       <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(h.created_at).toLocaleString("pt-BR")}
+                    </span>
                   </div>
                   {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
                 </div>
@@ -1918,7 +3519,10 @@ function SaleDetail() {
         </Sheet>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm"><MessageSquare className="mr-2 h-4 w-4" />Comentários{comments.length > 0 ? ` (${comments.length})` : ""}</Button>
+            <Button variant="outline" size="sm">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Comentários{comments.length > 0 ? ` (${comments.length})` : ""}
+            </Button>
           </SheetTrigger>
           <SheetContent className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader className="sr-only">
@@ -1931,27 +3535,45 @@ function SaleDetail() {
         </Sheet>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm"><Eye className="mr-2 h-4 w-4" />Atividade</Button>
+            <Button variant="outline" size="sm">
+              <Eye className="mr-2 h-4 w-4" />
+              Atividade
+            </Button>
           </SheetTrigger>
           <SheetContent className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader>
               <SheetTitle>Atividade</SheetTitle>
-              <SheetDescription>Quem fez o quê nessa venda, mais recente primeiro.</SheetDescription>
+              <SheetDescription>
+                Quem fez o quê nessa venda, mais recente primeiro.
+              </SheetDescription>
             </SheetHeader>
             <div className="mt-4 space-y-2">
-              {activity.length === 0 && <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>}
+              {activity.length === 0 && (
+                <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>
+              )}
               {activity.map((a) => {
-                const { icon: Icon, label, detail, tone } = describeAtividade(a.acao, a.payload);
+                const {
+                  icon: Icon,
+                  label,
+                  detail,
+                  tone,
+                } = describeAtividade(a.acao, asActivityPayload(a.payload));
                 return (
                   <div key={a.id} className="flex items-start gap-3 rounded-md border p-3 text-sm">
-                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone === "warn" ? "text-amber-600 dark:text-amber-400" : tone === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
+                    <Icon
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${tone === "warn" ? "text-amber-600 dark:text-amber-400" : tone === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{label}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {new Date(a.created_at).toLocaleString("pt-BR")}
+                        </span>
                       </div>
                       {detail && <p className="mt-0.5 text-muted-foreground">{detail}</p>}
-                      <p className="mt-0.5 text-xs text-muted-foreground">{a.autor_id ? (activityAuthorNames[a.autor_id] ?? "…") : "Sistema"}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {a.autor_id ? (activityAuthorNames[a.autor_id] ?? "…") : "Sistema"}
+                      </p>
                     </div>
                   </div>
                 );
@@ -1969,7 +3591,8 @@ function SaleDetail() {
           <DialogHeader>
             <DialogTitle>Visão geral da venda</DialogTitle>
             <DialogDescription>
-              {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`} • {STATUS_LABEL[status]}
+              {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`} •{" "}
+              {STATUS_LABEL[status]}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm">
@@ -1979,7 +3602,10 @@ function SaleDetail() {
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
               <ReviewItem label="Endereço" value={sale.imovel_endereco} />
-              <ReviewItem label="Tempo de venda" value={sale.tempo_venda_dias != null ? `${sale.tempo_venda_dias} dias` : null} />
+              <ReviewItem
+                label="Tempo de venda"
+                value={sale.tempo_venda_dias != null ? `${sale.tempo_venda_dias} dias` : null}
+              />
               <ReviewItem label="Mídia" value={sale.midia} />
               <ReviewItem label="Observações do imóvel" value={sale.imovel_observacoes} />
             </ReviewGroup>
@@ -1991,26 +3617,50 @@ function SaleDetail() {
               <ReviewItem label="Gestor/Team Leader do vendedor" value={sale.lider_vendedor_nome} />
               <ReviewItem label="Indicador do captador" value={sale.indicador_captador} />
               <ReviewItem label="Indicador do vendedor" value={sale.indicador_vendedor} />
-              <ReviewItem label="Gestor (comissão)" value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome} />
-              <ReviewItem label="Team Leader (comissão)" value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome} />
+              <ReviewItem
+                label="Gestor (comissão)"
+                value={gestorOptions.find((l) => l.id === sale.coordenador_id)?.nome}
+              />
+              <ReviewItem
+                label="Team Leader (comissão)"
+                value={teamLeaderOptions.find((l) => l.id === sale.team_leader_id)?.nome}
+              />
             </ReviewGroup>
 
             <ReviewGroup title="Valores e negociação">
               <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
               <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
-              <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
-              <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+              <ReviewItem
+                label="% Comissão"
+                value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null}
+              />
+              <ReviewItem
+                label="Valor total da comissão"
+                value={money(sale.valor_total_comissao)}
+              />
               <ReviewItem label="Forma de pagamento" value={sale.forma_pagamento} />
               <ReviewItem label="Observações" value={sale.negociacao_observacoes} />
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">
               {sale.percentual_remax != null && (
-                <ReviewItem label={`REMAX (${sale.percentual_remax}% do valor negociado)`} value={money(sale.valor_remax)} />
+                <ReviewItem
+                  label={`REMAX (${sale.percentual_remax}% do valor negociado)`}
+                  value={money(sale.valor_remax)}
+                />
               )}
-              <ReviewItem label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`} value={money(sale.valor_comissao_captador)} />
-              <ReviewItem label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`} value={money(sale.valor_comissao_vendedor)} />
-              <ReviewItem label="Imobiliária" value={distribuicao ? money(distribuicao.saldo_liquido_imobiliaria) : null} />
+              <ReviewItem
+                label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`}
+                value={money(sale.valor_comissao_captador)}
+              />
+              <ReviewItem
+                label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`}
+                value={money(sale.valor_comissao_vendedor)}
+              />
+              <ReviewItem
+                label="Imobiliária"
+                value={distribuicao ? money(distribuicao.saldo_liquido_imobiliaria) : null}
+              />
               {sale.indicador_captador && (
                 <ReviewItem
                   label={`Indicador — ${sale.indicador_captador} (sai do captador)`}
@@ -2044,18 +3694,32 @@ function SaleDetail() {
                   />
                 );
               })}
-              {sale.previsao_recebimento_valor == null && sale.previsao_recebimento2_valor == null && sale.previsao_recebimento3_valor == null && (
-                <ReviewItem label="Previsão de recebimento" value={null} />
-              )}
+              {sale.previsao_recebimento_valor == null &&
+                sale.previsao_recebimento2_valor == null &&
+                sale.previsao_recebimento3_valor == null && (
+                  <ReviewItem label="Previsão de recebimento" value={null} />
+                )}
             </ReviewGroup>
 
             <ReviewGroup title="Parceria externa">
               {sale.parceria_tipo ? (
                 <>
-                  <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
-                  <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                  <ReviewItem
+                    label="Tipo"
+                    value={
+                      PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ??
+                      sale.parceria_tipo
+                    }
+                  />
+                  <ReviewItem
+                    label="Corretor(a) / Imobiliária parceira"
+                    value={sale.parceria_nome}
+                  />
                   <ReviewItem label="CPF/CNPJ" value={sale.parceria_cpf_cnpj} />
-                  <ReviewItem label="% Comissão" value={sale.parceria_percentual != null ? `${sale.parceria_percentual}%` : null} />
+                  <ReviewItem
+                    label="% Comissão"
+                    value={sale.parceria_percentual != null ? `${sale.parceria_percentual}%` : null}
+                  />
                   <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
                   <ReviewItem label="Banco" value={sale.parceria_banco} />
                   <ReviewItem label="Agência" value={sale.parceria_agencia} />
@@ -2073,71 +3737,137 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Partes (qualificação para o contrato)">
-              {partiesComNome(parties)
-                .map((papel, i, arr) => {
-                  const p = parties[papel];
-                  return (
-                    <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
-                      <div className="mb-1 font-medium">{parteLabel(papel)} — {p.nome}</div>
-                      {p.tipo_pessoa === "juridica" && (
-                        <>
-                          <ReviewItem label="Razão social" value={p.razao_social} />
-                          <ReviewItem label="CNPJ" value={p.cnpj} />
-                        </>
-                      )}
-                      <ReviewItem label="CPF" value={p.cpf_cnpj} />
-                      <ReviewItem label="RG" value={p.rg} />
-                      <ReviewItem label="Profissão" value={p.profissao} />
-                      <ReviewItem label="E-mail" value={p.email} />
-                      <ReviewItem label="Telefone" value={p.telefone} />
-                      <ReviewItem label="Endereço" value={p.endereco} />
-                      <ReviewItem label="Regime de casamento" value={p.regime_casamento} />
+              {partiesComNome(parties).map((papel, i, arr) => {
+                const p = parties[papel];
+                return (
+                  <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
+                    <div className="mb-1 font-medium">
+                      {parteLabel(papel)} — {p.nome}
                     </div>
-                  );
-                })}
+                    {p.tipo_pessoa === "juridica" && (
+                      <>
+                        <ReviewItem label="Razão social" value={p.razao_social} />
+                        <ReviewItem label="CNPJ" value={p.cnpj} />
+                      </>
+                    )}
+                    <ReviewItem label="CPF" value={p.cpf_cnpj} />
+                    <ReviewItem label="RG" value={p.rg} />
+                    <ReviewItem label="Profissão" value={p.profissao} />
+                    <ReviewItem label="E-mail" value={p.email} />
+                    <ReviewItem label="Telefone" value={p.telefone} />
+                    <ReviewItem label="Endereço" value={p.endereco} />
+                    <ReviewItem label="Regime de casamento" value={p.regime_casamento} />
+                  </div>
+                );
+              })}
               {partiesComNome(parties).length === 0 && (
                 <ReviewItem label="Nenhuma parte preenchida" value={null} />
               )}
             </ReviewGroup>
 
             <ReviewGroup title="Pagamento">
-              <ReviewItem label="Entrada" value={[money(payment?.entrada_valor), payment?.entrada_data].filter(Boolean).join(" — ") || null} />
-              <ReviewItem label="Parcela 1" value={[money(payment?.parcela1_valor), payment?.parcela1_data].filter(Boolean).join(" — ") || null} />
-              <ReviewItem label="Parcela 2" value={[money(payment?.parcela2_valor), payment?.parcela2_data].filter(Boolean).join(" — ") || null} />
-              <ReviewItem label="Pagamento final" value={[money(payment?.pagamento_final_valor), payment?.pagamento_final_data].filter(Boolean).join(" — ") || null} />
+              <ReviewItem
+                label="Entrada"
+                value={
+                  [money(payment?.entrada_valor), payment?.entrada_data]
+                    .filter(Boolean)
+                    .join(" — ") || null
+                }
+              />
+              <ReviewItem
+                label="Parcela 1"
+                value={
+                  [money(payment?.parcela1_valor), payment?.parcela1_data]
+                    .filter(Boolean)
+                    .join(" — ") || null
+                }
+              />
+              <ReviewItem
+                label="Parcela 2"
+                value={
+                  [money(payment?.parcela2_valor), payment?.parcela2_data]
+                    .filter(Boolean)
+                    .join(" — ") || null
+                }
+              />
+              <ReviewItem
+                label="Pagamento final"
+                value={
+                  [money(payment?.pagamento_final_valor), payment?.pagamento_final_data]
+                    .filter(Boolean)
+                    .join(" — ") || null
+                }
+              />
               <ReviewItem label="FGTS" value={payment?.fgts ? money(payment?.fgts_valor) : "Não"} />
-              <ReviewItem label="Tipo de pagamento" value={payment ? (payment.tipo_pagamento === "financiamento" ? "Financiamento" : payment.tipo_pagamento === "consorcio" ? "Consórcio" : "Vista") : null} />
+              <ReviewItem
+                label="Tipo de pagamento"
+                value={
+                  payment
+                    ? payment.tipo_pagamento === "financiamento"
+                      ? "Financiamento"
+                      : payment.tipo_pagamento === "consorcio"
+                        ? "Consórcio"
+                        : "Vista"
+                    : null
+                }
+              />
               {payment?.tipo_pagamento === "financiamento" && (
                 <>
-                  <ReviewItem label="Financiamento" value={`${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`} />
-                  <ReviewItem label="Correspondente bancário" value={payment?.financiamento_correspondente} />
+                  <ReviewItem
+                    label="Financiamento"
+                    value={`${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`}
+                  />
+                  <ReviewItem
+                    label="Correspondente bancário"
+                    value={payment?.financiamento_correspondente}
+                  />
                   <ReviewItem label="Oba Crédito" value={payment?.oba_credito ? "Sim" : "Não"} />
-                  <ReviewItem label="Previsão da liberação do crédito" value={dateBR(payment?.financiamento_previsao)} />
+                  <ReviewItem
+                    label="Previsão da liberação do crédito"
+                    value={dateBR(payment?.financiamento_previsao)}
+                  />
                 </>
               )}
               {payment?.tipo_pagamento === "consorcio" && (
                 <>
-                  <ReviewItem label="Valor da carta de consórcio" value={money(payment?.consorcio_valor)} />
-                  <ReviewItem label="Consórcio" value={[payment?.consorcio_nome, payment?.consorcio_grupo && `Grupo ${payment.consorcio_grupo}`, payment?.consorcio_cota && `Cota ${payment.consorcio_cota}`].filter(Boolean).join(" — ") || null} />
+                  <ReviewItem
+                    label="Valor da carta de consórcio"
+                    value={money(payment?.consorcio_valor)}
+                  />
+                  <ReviewItem
+                    label="Consórcio"
+                    value={
+                      [
+                        payment?.consorcio_nome,
+                        payment?.consorcio_grupo && `Grupo ${payment.consorcio_grupo}`,
+                        payment?.consorcio_cota && `Cota ${payment.consorcio_cota}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" — ") || null
+                    }
+                  />
                 </>
               )}
               <ReviewItem label="Observações" value={payment?.observacoes} />
             </ReviewGroup>
 
             <ReviewGroup title="Dados bancários do vendedor/proprietário">
-              {Object.keys(parties).filter((p) => p.startsWith("vendedor_")).sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1]).map((papel, i, arr) => {
-                const b = banks[papel];
-                return (
-                  <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
-                    <div className="mb-1 font-medium">{parteLabel(papel)}</div>
-                    <ReviewItem label="Titular" value={b?.titular} />
-                    <ReviewItem label="Banco" value={b?.banco} />
-                    <ReviewItem label="Agência" value={b?.agencia} />
-                    <ReviewItem label="Conta" value={b?.conta} />
-                    <ReviewItem label="PIX" value={b?.pix} />
-                  </div>
-                );
-              })}
+              {Object.keys(parties)
+                .filter((p) => p.startsWith("vendedor_"))
+                .sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1])
+                .map((papel, i, arr) => {
+                  const b = banks[papel];
+                  return (
+                    <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
+                      <div className="mb-1 font-medium">{parteLabel(papel)}</div>
+                      <ReviewItem label="Titular" value={b?.titular} />
+                      <ReviewItem label="Banco" value={b?.banco} />
+                      <ReviewItem label="Agência" value={b?.agencia} />
+                      <ReviewItem label="Conta" value={b?.conta} />
+                      <ReviewItem label="PIX" value={b?.pix} />
+                    </div>
+                  );
+                })}
               {Object.keys(parties).filter((p) => p.startsWith("vendedor_")).length === 0 && (
                 <ReviewItem label="Nenhum vendedor/proprietário preenchido" value={null} />
               )}
@@ -2146,12 +3876,18 @@ function SaleDetail() {
             <ReviewGroup title="Documentos">
               {docs.length === 0 && <ReviewItem label="Nenhum documento enviado" value={null} />}
               {docs.map((d) => (
-                <ReviewItem key={d.id} label={d.file_name} value={<DocStatusBadge status={d.status} />} />
+                <ReviewItem
+                  key={d.id}
+                  label={d.file_name}
+                  value={<DocStatusBadge status={d.status} />}
+                />
               ))}
             </ReviewGroup>
 
             <ReviewGroup title="Histórico">
-              {history.length === 0 && <ReviewItem label="Sem alterações registradas" value={null} />}
+              {history.length === 0 && (
+                <ReviewItem label="Sem alterações registradas" value={null} />
+              )}
               {history.map((h) => (
                 <ReviewItem
                   key={h.id}
@@ -2163,7 +3899,8 @@ function SaleDetail() {
           </div>
           <DialogFooter className="print:hidden">
             <Button variant="outline" onClick={() => window.print()}>
-              <Printer className="mr-2 h-4 w-4" />Imprimir
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
             </Button>
             <Button onClick={() => setOverviewOpen(false)}>Fechar</Button>
           </DialogFooter>
@@ -2175,44 +3912,105 @@ function SaleDetail() {
           <SaleFlowStepper status={status} />
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary/5 p-3 text-sm">
             <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Próxima etapa</div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Próxima etapa
+              </div>
               <div className="font-medium">{proximoResponsavel(status).titulo}</div>
             </div>
             <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
-              <span>Responsável: <span className="font-medium text-foreground">{proximoResponsavel(status).papel}</span></span>
+              <span>
+                Responsável:{" "}
+                <span className="font-medium text-foreground">
+                  {proximoResponsavel(status).papel}
+                </span>
+              </span>
               <AgingBadge since={stageChangedAt} />
             </div>
           </div>
-          {(contratoDocs.length > 0 || contratoAssinadoDocs.length > 0) && status !== "ocorrencia_concluida" && (
-            <div className="space-y-1.5 rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
-              {contratoAssinadoDocs.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <span className="shrink-0">Contrato assinado:</span> <b className="truncate text-foreground" title={contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}>{contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}</b></span>
-                  <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
-                </div>
-              )}
-              {contratoDocs.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <span className="shrink-0">Contrato (versão para revisão):</span> <b className="truncate text-foreground" title={contratoDocs[contratoDocs.length - 1].file_name}>{contratoDocs[contratoDocs.length - 1].file_name}</b></span>
-                  <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
-                </div>
-              )}
-              {certidoesJuridicoDocs.length > 0 && (
-                <div className="space-y-1 border-t border-primary/20 pt-1.5">
-                  <div className="text-muted-foreground">Certidões (Jurídico):</div>
-                  {certidoesJuridicoDocs.map((d) => (
-                    <div key={d.id} className="flex items-center justify-between gap-2 pl-1">
-                      <span className="flex min-w-0 items-center gap-1.5"><FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" /> <b className="truncate text-foreground" title={d.descricao || d.file_name}>{d.descricao || d.file_name}</b></span>
-                      <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => abrirContratoRapido(d)}><Eye className="mr-1.5 h-3.5 w-3.5" />Ver / baixar</Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {(contratoDocs.length > 0 || contratoAssinadoDocs.length > 0) &&
+            status !== "ocorrencia_concluida" && (
+              <div className="space-y-1.5 rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
+                {contratoAssinadoDocs.length > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" />{" "}
+                      <span className="shrink-0">Contrato assinado:</span>{" "}
+                      <b
+                        className="truncate text-foreground"
+                        title={contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}
+                      >
+                        {contratoAssinadoDocs[contratoAssinadoDocs.length - 1].file_name}
+                      </b>
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0"
+                      onClick={() =>
+                        abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])
+                      }
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Ver / baixar
+                    </Button>
+                  </div>
+                )}
+                {contratoDocs.length > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" />{" "}
+                      <span className="shrink-0">Contrato (versão para revisão):</span>{" "}
+                      <b
+                        className="truncate text-foreground"
+                        title={contratoDocs[contratoDocs.length - 1].file_name}
+                      >
+                        {contratoDocs[contratoDocs.length - 1].file_name}
+                      </b>
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0"
+                      onClick={() => abrirContratoRapido(contratoDocs[contratoDocs.length - 1])}
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Ver / baixar
+                    </Button>
+                  </div>
+                )}
+                {certidoesJuridicoDocs.length > 0 && (
+                  <div className="space-y-1 border-t border-primary/20 pt-1.5">
+                    <div className="text-muted-foreground">Certidões (Jurídico):</div>
+                    {certidoesJuridicoDocs.map((d) => (
+                      <div key={d.id} className="flex items-center justify-between gap-2 pl-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <FileCheck className="h-3.5 w-3.5 shrink-0 text-primary" />{" "}
+                          <b
+                            className="truncate text-foreground"
+                            title={d.descricao || d.file_name}
+                          >
+                            {d.descricao || d.file_name}
+                          </b>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 shrink-0"
+                          onClick={() => abrirContratoRapido(d)}
+                        >
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                          Ver / baixar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-              🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
+              🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo
+              leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
             </div>
           )}
           {!editable && isOwner && (
@@ -2222,14 +4020,18 @@ function SaleDetail() {
           )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Progresso do checklist</span>
-            <span className="font-medium">{progress}% • Documentos aprovados: {docsApproved}/{requiredTypes.length}</span>
+            <span className="font-medium">
+              {progress}% • Documentos aprovados: {docsApproved}/{requiredTypes.length}
+            </span>
           </div>
           <Progress value={progress} />
           {pendencias.length > 0 && isOwner && (
             <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               <div className="mb-1 font-medium">Pendências para envio:</div>
               <ul className="list-inside list-disc space-y-0.5">
-                {pendencias.slice(0, 4).map(p => <li key={p.campo}>{p.mensagem}</li>)}
+                {pendencias.slice(0, 4).map((p) => (
+                  <li key={p.campo}>{p.mensagem}</li>
+                ))}
                 {pendencias.length > 4 && <li>e mais {pendencias.length - 4}…</li>}
               </ul>
             </div>
@@ -2238,7 +4040,16 @@ function SaleDetail() {
       </Card>
 
       {status === "ocorrencia_concluida" ? (
-        <SaleReport sale={sale} parties={parties} payment={payment} docs={docs} history={history} canReopen={isFinanceiro} onReopened={load} distribuicao={distribuicao} />
+        <SaleReport
+          sale={sale}
+          parties={parties}
+          payment={payment}
+          docs={docs}
+          history={history}
+          canReopen={isFinanceiro}
+          onReopened={load}
+          distribuicao={distribuicao}
+        />
       ) : (
         <div id="venda-wizard">
           <Wizard
@@ -2247,21 +4058,32 @@ function SaleDetail() {
             onChange={setStep}
             dirty={currentDirty}
             onBeforeLeave={onBeforeLeave}
-            lastStepAction={primaryAction && (
-              <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
-                <primaryAction.icon className="mr-2 h-4 w-4" />{primaryAction.label}
-              </Button>
-            )}
+            lastStepAction={
+              primaryAction && (
+                <Button onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
+                  <primaryAction.icon className="mr-2 h-4 w-4" />
+                  {primaryAction.label}
+                </Button>
+              )
+            }
           />
         </div>
       )}
 
-      {saving && <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">Salvando...</p>}
+      {saving && (
+        <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">
+          Salvando...
+        </p>
+      )}
 
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{envioDiretoJuridico ? "Conferência antes de enviar ao jurídico" : "Conferência antes de enviar"}</DialogTitle>
+            <DialogTitle>
+              {envioDiretoJuridico
+                ? "Conferência antes de enviar ao jurídico"
+                : "Conferência antes de enviar"}
+            </DialogTitle>
             <DialogDescription>
               {envioDiretoJuridico
                 ? "Você é gestor/team leader responsável por esta venda — revise antes de encaminhar direto ao jurídico."
@@ -2271,38 +4093,62 @@ function SaleDetail() {
           <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
             {pendencias.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                <CheckCircle2 className="mr-2 inline h-4 w-4" />{envioDiretoJuridico ? "Venda pronta para enviar ao jurídico." : "Venda pronta para revisão."}
+                <CheckCircle2 className="mr-2 inline h-4 w-4" />
+                {envioDiretoJuridico
+                  ? "Venda pronta para enviar ao jurídico."
+                  : "Venda pronta para revisão."}
               </div>
             ) : (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mr-2 inline h-4 w-4" />{pendencias.length} pendência(s). Corrija antes de enviar.
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                {pendencias.length} pendência(s). Corrija antes de enviar.
                 <ul className="mt-2 space-y-1 pl-2">
-                  {pendencias.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                  {pendencias.map((p) => (
+                    <li key={p.campo} className="flex items-start gap-2">
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <span>{p.mensagem}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
 
             {envioDiretoJuridico && docsPendentesAprovacao.length > 0 && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mr-2 inline h-4 w-4" />{docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                {docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na
+                etapa Documentos antes de enviar ao jurídico.
                 <ul className="mt-2 space-y-1 pl-2">
-                  {docsPendentesAprovacao.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                  {docsPendentesAprovacao.map((p) => (
+                    <li key={p.campo} className="flex items-start gap-2">
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <span>{p.mensagem}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
 
             {envioDiretoJuridico && comissaoExcedida && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mr-2 inline h-4 w-4" />
-                A soma da comissão do captador ({money(formSale.valor_comissao_captador)}) e do vendedor ({money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão ({money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de enviar ao jurídico.
+                <AlertTriangle className="mr-2 inline h-4 w-4" />A soma da comissão do captador (
+                {money(formSale.valor_comissao_captador)}) e do vendedor (
+                {money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão (
+                {money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de
+                enviar ao jurídico.
               </div>
             )}
 
             {envioDiretoJuridico && distribuicao && !distribuicao.calculo_valido && (
               <div className="rounded-md bg-destructive/10 p-3 text-destructive">
-                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:</p>
+                <p className="flex items-center font-medium">
+                  <AlertTriangle className="mr-2 inline h-4 w-4" />
+                  Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:
+                </p>
                 <ul className="mt-2 list-disc space-y-1 pl-6">
-                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => (
+                    <li key={i}>{msg}</li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -2316,15 +4162,30 @@ function SaleDetail() {
               <ReviewGroup title="Valores e negociação">
                 <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
                 <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
-                <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
-                <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+                <ReviewItem
+                  label="% Comissão"
+                  value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null}
+                />
+                <ReviewItem
+                  label="Valor total da comissão"
+                  value={money(sale.valor_total_comissao)}
+                />
               </ReviewGroup>
 
               <ReviewGroup title="Parceria externa">
                 {sale.parceria_tipo ? (
                   <>
-                    <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
-                    <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                    <ReviewItem
+                      label="Tipo"
+                      value={
+                        PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ??
+                        sale.parceria_tipo
+                      }
+                    />
+                    <ReviewItem
+                      label="Corretor(a) / Imobiliária parceira"
+                      value={sale.parceria_nome}
+                    />
                     <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
                   </>
                 ) : (
@@ -2343,7 +4204,14 @@ function SaleDetail() {
 
               <ReviewGroup title="Pagamento">
                 <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
-                <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
+                <ReviewItem
+                  label="Financiamento"
+                  value={
+                    payment?.financiamento
+                      ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`
+                      : "Não"
+                  }
+                />
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
@@ -2356,10 +4224,18 @@ function SaleDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setReviewOpen(false)}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => setReviewOpen(false)}>
+              Cancelar
+            </Button>
             <Button
               onClick={confirmSendForReview}
-              disabled={pendencias.length > 0 || (envioDiretoJuridico && (docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)))}
+              disabled={
+                pendencias.length > 0 ||
+                (envioDiretoJuridico &&
+                  (docsPendentesAprovacao.length > 0 ||
+                    comissaoExcedida ||
+                    (!!distribuicao && !distribuicao.calculo_valido)))
+              }
             >
               {envioDiretoJuridico ? "Confirmar e enviar ao jurídico" : "Confirmar envio"}
             </Button>
@@ -2371,34 +4247,52 @@ function SaleDetail() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Conferência antes de enviar ao jurídico</DialogTitle>
-            <DialogDescription>Revise o que o corretor preencheu antes de aprovar e mandar pro jurídico.</DialogDescription>
+            <DialogDescription>
+              Revise o que o corretor preencheu antes de aprovar e mandar pro jurídico.
+            </DialogDescription>
           </DialogHeader>
           <div className="max-h-[28rem] space-y-4 overflow-y-auto text-sm">
             {docsPendentesAprovacao.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                <CheckCircle2 className="mr-2 inline h-4 w-4" />Todos os documentos obrigatórios estão aprovados.
+                <CheckCircle2 className="mr-2 inline h-4 w-4" />
+                Todos os documentos obrigatórios estão aprovados.
               </div>
             ) : (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mr-2 inline h-4 w-4" />{docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                {docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na
+                etapa Documentos antes de enviar ao jurídico.
                 <ul className="mt-2 space-y-1 pl-2">
-                  {docsPendentesAprovacao.map(p => <li key={p.campo} className="flex items-start gap-2"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /><span>{p.mensagem}</span></li>)}
+                  {docsPendentesAprovacao.map((p) => (
+                    <li key={p.campo} className="flex items-start gap-2">
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <span>{p.mensagem}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
 
             {comissaoExcedida && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                <AlertTriangle className="mr-2 inline h-4 w-4" />
-                A soma da comissão do captador ({money(formSale.valor_comissao_captador)}) e do vendedor ({money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão ({money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de enviar ao jurídico.
+                <AlertTriangle className="mr-2 inline h-4 w-4" />A soma da comissão do captador (
+                {money(formSale.valor_comissao_captador)}) e do vendedor (
+                {money(formSale.valor_comissao_vendedor)}) ultrapassa o valor total da comissão (
+                {money(formSale.valor_total_comissao)}). Ajuste na Divisão da comissão antes de
+                enviar ao jurídico.
               </div>
             )}
 
             {distribuicao && !distribuicao.calculo_valido && (
               <div className="rounded-md bg-destructive/10 p-3 text-destructive">
-                <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:</p>
+                <p className="flex items-center font-medium">
+                  <AlertTriangle className="mr-2 inline h-4 w-4" />
+                  Divisão da comissão com inconsistências — ajuste antes de enviar ao jurídico:
+                </p>
                 <ul className="mt-2 list-disc space-y-1 pl-6">
-                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+                  {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => (
+                    <li key={i}>{msg}</li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -2412,15 +4306,30 @@ function SaleDetail() {
               <ReviewGroup title="Valores e negociação">
                 <ReviewItem label="Valor anunciado" value={money(sale.valor_anunciado)} />
                 <ReviewItem label="Valor negociado" value={money(sale.valor_negociado)} />
-                <ReviewItem label="% Comissão" value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null} />
-                <ReviewItem label="Valor total da comissão" value={money(sale.valor_total_comissao)} />
+                <ReviewItem
+                  label="% Comissão"
+                  value={sale.percentual_comissao != null ? `${sale.percentual_comissao}%` : null}
+                />
+                <ReviewItem
+                  label="Valor total da comissão"
+                  value={money(sale.valor_total_comissao)}
+                />
               </ReviewGroup>
 
               <ReviewGroup title="Parceria externa">
                 {sale.parceria_tipo ? (
                   <>
-                    <ReviewItem label="Tipo" value={PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ?? sale.parceria_tipo} />
-                    <ReviewItem label="Corretor(a) / Imobiliária parceira" value={sale.parceria_nome} />
+                    <ReviewItem
+                      label="Tipo"
+                      value={
+                        PARCERIA_TIPOS.find((t) => t.key === sale.parceria_tipo)?.label ??
+                        sale.parceria_tipo
+                      }
+                    />
+                    <ReviewItem
+                      label="Corretor(a) / Imobiliária parceira"
+                      value={sale.parceria_nome}
+                    />
                     <ReviewItem label="Valor da comissão" value={money(sale.parceria_valor)} />
                   </>
                 ) : (
@@ -2436,7 +4345,14 @@ function SaleDetail() {
 
               <ReviewGroup title="Pagamento">
                 <ReviewItem label="Entrada" value={money(payment?.entrada_valor)} />
-                <ReviewItem label="Financiamento" value={payment?.financiamento ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}` : "Não"} />
+                <ReviewItem
+                  label="Financiamento"
+                  value={
+                    payment?.financiamento
+                      ? `${money(payment?.financiamento_valor)}${payment?.financiamento_banco ? ` — ${payment.financiamento_banco}` : ""}`
+                      : "Não"
+                  }
+                />
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
@@ -2445,8 +4361,19 @@ function SaleDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmApproveJuridico} disabled={docsPendentesAprovacao.length > 0 || comissaoExcedida || (!!distribuicao && !distribuicao.calculo_valido)}>Confirmar e enviar ao jurídico</Button>
+            <Button variant="ghost" onClick={() => setApproveJuridicoOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmApproveJuridico}
+              disabled={
+                docsPendentesAprovacao.length > 0 ||
+                comissaoExcedida ||
+                (!!distribuicao && !distribuicao.calculo_valido)
+              }
+            >
+              Confirmar e enviar ao jurídico
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2457,10 +4384,19 @@ function SaleDetail() {
             <DialogTitle>Devolver venda para ajuste</DialogTitle>
             <DialogDescription>Descreva o motivo. O corretor será notificado.</DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Motivo da devolução (obrigatório)" value={returnMotivo} onChange={(e) => setReturnMotivo(e.target.value)} rows={4} />
+          <Textarea
+            placeholder="Motivo da devolução (obrigatório)"
+            value={returnMotivo}
+            onChange={(e) => setReturnMotivo(e.target.value)}
+            rows={4}
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setReturnOpen(false)}>Cancelar</Button>
-            <Button onClick={submitReturn} disabled={!returnMotivo.trim()}>Devolver</Button>
+            <Button variant="ghost" onClick={() => setReturnOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submitReturn} disabled={!returnMotivo.trim()}>
+              Devolver
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2468,25 +4404,46 @@ function SaleDetail() {
       <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{archiveTarget === "arquivada" ? "Arquivar venda" : "Cancelar venda"}</DialogTitle>
-            <DialogDescription>Descreva o motivo. Isso fica registrado no histórico da venda.</DialogDescription>
+            <DialogTitle>
+              {archiveTarget === "arquivada" ? "Arquivar venda" : "Cancelar venda"}
+            </DialogTitle>
+            <DialogDescription>
+              Descreva o motivo. Isso fica registrado no histórico da venda.
+            </DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Motivo (obrigatório)" value={archiveMotivo} onChange={(e) => setArchiveMotivo(e.target.value)} rows={4} />
+          <Textarea
+            placeholder="Motivo (obrigatório)"
+            value={archiveMotivo}
+            onChange={(e) => setArchiveMotivo(e.target.value)}
+            rows={4}
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setArchiveOpen(false)}>Voltar</Button>
-            <Button variant={archiveTarget === "cancelada" ? "destructive" : "default"} onClick={submitArchive} disabled={!archiveMotivo.trim()}>
+            <Button variant="ghost" onClick={() => setArchiveOpen(false)}>
+              Voltar
+            </Button>
+            <Button
+              variant={archiveTarget === "cancelada" ? "destructive" : "default"}
+              onClick={submitArchive}
+              disabled={!archiveMotivo.trim()}
+            >
               {archiveTarget === "arquivada" ? "Arquivar" : "Cancelar venda"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={contratoDialogOpen} onOpenChange={(o) => { if (!contratoUploading) setContratoDialogOpen(o); }}>
+      <Dialog
+        open={contratoDialogOpen}
+        onOpenChange={(o) => {
+          if (!contratoUploading) setContratoDialogOpen(o);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Anexar contrato</DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato (PDF, DOC ou DOCX). Depois de anexar, confira o arquivo e use o botão "Enviar ao gestor" quando estiver pronto.
+              Envie o arquivo do contrato (PDF, DOC ou DOCX). Depois de anexar, confira o arquivo e
+              use o botão "Enviar ao gestor" quando estiver pronto.
             </DialogDescription>
           </DialogHeader>
 
@@ -2501,12 +4458,17 @@ function SaleDetail() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-2 text-xs">Selecionar um novo arquivo abaixo substitui a versão atual.</div>
+              <div className="mt-2 text-xs">
+                Selecionar um novo arquivo abaixo substitui a versão atual.
+              </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label>Arquivo do contrato {contratoDocs.length === 0 && <span className="text-destructive">*</span>}</Label>
+            <Label>
+              Arquivo do contrato{" "}
+              {contratoDocs.length === 0 && <span className="text-destructive">*</span>}
+            </Label>
             <Input
               type="file"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2520,8 +4482,17 @@ function SaleDetail() {
 
           <div className="space-y-3 rounded-md border p-3">
             <div className="flex items-center gap-2">
-              <Switch checked={contratoFaltaDoc} onCheckedChange={setContratoFaltaDoc} disabled={contratoUploading} />
-              <Label className="cursor-pointer" onClick={() => !contratoUploading && setContratoFaltaDoc((v) => !v)}>Está faltando algum documento?</Label>
+              <Switch
+                checked={contratoFaltaDoc}
+                onCheckedChange={setContratoFaltaDoc}
+                disabled={contratoUploading}
+              />
+              <Label
+                className="cursor-pointer"
+                onClick={() => !contratoUploading && setContratoFaltaDoc((v) => !v)}
+              >
+                Está faltando algum documento?
+              </Label>
             </div>
             {contratoFaltaDoc && (
               <Textarea
@@ -2533,35 +4504,67 @@ function SaleDetail() {
               />
             )}
             <div className="flex items-center gap-2 border-t pt-3">
-              <Switch checked={contratoLiberaAssinatura} onCheckedChange={setContratoLiberaAssinatura} disabled={contratoUploading} />
-              <Label className="cursor-pointer" onClick={() => !contratoUploading && setContratoLiberaAssinatura((v) => !v)}>Libera o gestor a enviar para assinatura</Label>
+              <Switch
+                checked={contratoLiberaAssinatura}
+                onCheckedChange={setContratoLiberaAssinatura}
+                disabled={contratoUploading}
+              />
+              <Label
+                className="cursor-pointer"
+                onClick={() => !contratoUploading && setContratoLiberaAssinatura((v) => !v)}
+              >
+                Libera o gestor a enviar para assinatura
+              </Label>
             </div>
             {!contratoLiberaAssinatura && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                Enquanto isso estiver desmarcado, o gestor não vai conseguir mandar o contrato para assinatura.
+                Enquanto isso estiver desmarcado, o gestor não vai conseguir mandar o contrato para
+                assinatura.
               </p>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setContratoDialogOpen(false)} disabled={contratoUploading}>Cancelar</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setContratoDialogOpen(false)}
+              disabled={contratoUploading}
+            >
+              Cancelar
+            </Button>
             <Button
               onClick={uploadContrato}
               disabled={contratoUploading || (!contratoFile && contratoDocs.length === 0)}
             >
-              {contratoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />{contratoFile || contratoDocs.length === 0 ? "Anexar contrato" : "Salvar"}</>)}
+              {contratoUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  {contratoFile || contratoDocs.length === 0 ? "Anexar contrato" : "Salvar"}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={contratoAssinadoDialogOpen} onOpenChange={(o) => { if (!contratoAssinadoUploading) setContratoAssinadoDialogOpen(o); }}>
+      <Dialog
+        open={contratoAssinadoDialogOpen}
+        onOpenChange={(o) => {
+          if (!contratoAssinadoUploading) setContratoAssinadoDialogOpen(o);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Subir contrato assinado</DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.
+              Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o
+              arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.
             </DialogDescription>
           </DialogHeader>
 
@@ -2576,12 +4579,17 @@ function SaleDetail() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-2 text-xs">Selecionar um novo arquivo abaixo substitui a versão atual.</div>
+              <div className="mt-2 text-xs">
+                Selecionar um novo arquivo abaixo substitui a versão atual.
+              </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label>Arquivo do contrato assinado {contratoAssinadoDocs.length === 0 && <span className="text-destructive">*</span>}</Label>
+            <Label>
+              Arquivo do contrato assinado{" "}
+              {contratoAssinadoDocs.length === 0 && <span className="text-destructive">*</span>}
+            </Label>
             <Input
               type="file"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2589,17 +4597,35 @@ function SaleDetail() {
               disabled={contratoAssinadoUploading}
             />
             {contratoAssinadoFile && (
-              <div className="text-xs text-muted-foreground">Selecionado: {contratoAssinadoFile.name}</div>
+              <div className="text-xs text-muted-foreground">
+                Selecionado: {contratoAssinadoFile.name}
+              </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setContratoAssinadoDialogOpen(false)} disabled={contratoAssinadoUploading}>Cancelar</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setContratoAssinadoDialogOpen(false)}
+              disabled={contratoAssinadoUploading}
+            >
+              Cancelar
+            </Button>
             <Button
               onClick={uploadContratoAssinado}
               disabled={contratoAssinadoUploading || !contratoAssinadoFile}
             >
-              {contratoAssinadoUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (<><Upload className="mr-2 h-4 w-4" />Subir contrato assinado</>)}
+              {contratoAssinadoUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Subir contrato assinado
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2613,11 +4639,12 @@ const AGENCY_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
 const AGENCY_CRECI = "CRECI: 29.886-J";
 
 /** Papéis de comprador_N/vendedor_N com nome preenchido, em ordem — usado nos resumos/diálogos de conferência. */
-function partiesComNome(parties: Record<string, any>): string[] {
+function partiesComNome(parties: Record<string, PartyRow>): string[] {
   return Object.keys(parties)
     .filter((p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome)
     .sort((a, b) => {
-      const ka = parteSortKey(a), kb = parteSortKey(b);
+      const ka = parteSortKey(a),
+        kb = parteSortKey(b);
       return ka[0] - kb[0] || ka[1] - kb[1];
     });
 }
@@ -2625,7 +4652,9 @@ function partiesComNome(parties: Record<string, any>): string[] {
 function ReviewGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
       <div className="space-y-1 rounded-md border p-2">{children}</div>
     </div>
   );
@@ -2655,13 +4684,25 @@ function ReviewItem({ label, value }: { label: string; value: React.ReactNode })
 }
 
 /** Tela de revisão da ocorrência (pré-finalização) — mesmo layout de relatório do SaleReport, com ação para confirmar e finalizar. */
-function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, onChange }: {
-  saleId: string; sale: any; parties: Record<string, any>; distribuicao: any; canEdit: boolean; onChange: () => void;
+function OccurrenceReviewPanel({
+  saleId,
+  sale,
+  parties,
+  distribuicao,
+  canEdit,
+  onChange,
+}: {
+  saleId: string;
+  sale: SaleRow;
+  parties: Record<string, PartyRow>;
+  distribuicao: StandardDistribution | null;
+  canEdit: boolean;
+  onChange: () => void;
 }) {
   const { user } = useAuth();
-  const [occ, setOcc] = useState<any>(null);
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [partners, setPartners] = useState<any[]>([]);
+  const [occ, setOcc] = useState<OccurrenceRow | null>(null);
+  const [commissions, setCommissions] = useState<OccurrenceCommissionRow[]>([]);
+  const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
   const [confirmExcedidoOpen, setConfirmExcedidoOpen] = useState(false);
@@ -2669,19 +4710,33 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle();
+    const { data: o } = await supabase
+      .from("occurrences")
+      .select("*")
+      .eq("sale_id", saleId)
+      .maybeSingle();
     setOcc(o);
     if (o) {
       const [c, p] = await Promise.all([
-        supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
-        supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
+        supabase
+          .from("occurrence_commissions")
+          .select("*")
+          .eq("occurrence_id", o.id)
+          .order("created_at"),
+        supabase
+          .from("occurrence_partners")
+          .select("*")
+          .eq("occurrence_id", o.id)
+          .order("created_at"),
       ]);
       setCommissions(c.data ?? []);
       setPartners(p.data ?? []);
     }
     setLoading(false);
   }, [saleId]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const concluida = occ?.status === "concluida";
   const somaComissoes = commissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
@@ -2689,15 +4744,50 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
   const excedido = total > 0 && somaComissoes > total + 0.01;
 
   const doFinalizar = async (motivoExcedido?: string) => {
+    if (!occ) return;
     setFinalizing(true);
     try {
-      const { error: e0 } = await supabase.from("occurrences").update({ status: "concluida" }).eq("id", occ.id);
-      if (e0) { toast.error(e0.message); return; }
-      const { error } = await supabase.from("sales").update({ status: "ocorrencia_concluida" }).eq("id", saleId);
-      if (error) { toast.error(error.message); return; }
-      const motivo = motivoExcedido ? `Ocorrência finalizada com comissão excedente — justificativa: ${motivoExcedido}` : "Ocorrência finalizada";
-      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: sale.status, para: "ocorrencia_concluida", autor_id: user!.id, motivo });
-      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_concluded", payload: { valor_total: total, ...(motivoExcedido ? { comissao_excedida: true, justificativa: motivoExcedido, soma_comissoes: somaComissoes } : {}) } });
+      const { error: e0 } = await supabase
+        .from("occurrences")
+        .update({ status: "concluida" })
+        .eq("id", occ.id);
+      if (e0) {
+        toast.error(e0.message);
+        return;
+      }
+      const { error } = await supabase
+        .from("sales")
+        .update({ status: "ocorrencia_concluida" })
+        .eq("id", saleId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const motivo = motivoExcedido
+        ? `Ocorrência finalizada com comissão excedente — justificativa: ${motivoExcedido}`
+        : "Ocorrência finalizada";
+      await supabase.from("sale_status_history").insert({
+        sale_id: saleId,
+        de: sale.status,
+        para: "ocorrencia_concluida",
+        autor_id: user!.id,
+        motivo,
+      });
+      await supabase.from("activity_logs").insert({
+        sale_id: saleId,
+        autor_id: user!.id,
+        acao: "occurrence_concluded",
+        payload: {
+          valor_total: total,
+          ...(motivoExcedido
+            ? {
+                comissao_excedida: true,
+                justificativa: motivoExcedido,
+                soma_comissoes: somaComissoes,
+              }
+            : {}),
+        },
+      });
       toast.success("Ocorrência finalizada");
       onChange();
       await load();
@@ -2711,15 +4801,26 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
     // bloqueia isso de qualquer forma (trigger em occurrences), sem exceção nem justificativa
     // possível (diferente do aviso de "excedido" logo abaixo, que já permitia prosseguir com motivo).
     if (distribuicao && !distribuicao.calculo_valido) {
-      toast.error(`Não é possível concluir a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      toast.error(
+        `Não é possível concluir a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
+      );
       return;
     }
-    if (excedido) { setExcedidoMotivo(""); setConfirmExcedidoOpen(true); return; }
+    if (excedido) {
+      setExcedidoMotivo("");
+      setConfirmExcedidoOpen(true);
+      return;
+    }
     await doFinalizar();
   };
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando revisão...</p>;
-  if (!occ) return <p className="text-sm text-muted-foreground">Preencha e salve a etapa "Ocorrência" antes de revisar.</p>;
+  if (!occ)
+    return (
+      <p className="text-sm text-muted-foreground">
+        Preencha e salve a etapa "Ocorrência" antes de revisar.
+      </p>
+    );
 
   return (
     <div className="space-y-4">
@@ -2729,34 +4830,60 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
             <div className="text-sm font-bold">{AGENCY_NAME}</div>
             <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
           </div>
-          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="print:hidden"
+            onClick={() => window.print()}
+          >
             Imprimir
           </Button>
         </div>
 
-        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} distribuicao={distribuicao} />
+        <OccurrenceReportBody
+          sale={sale}
+          occ={occ}
+          commissions={commissions}
+          partners={partners}
+          parties={parties}
+          distribuicao={distribuicao}
+        />
       </div>
 
       {excedido && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200 print:hidden">
-          Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}).
+          Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R${" "}
+          {total.toFixed(2)}).
         </div>
       )}
 
       {distribuicao && !distribuicao.calculo_valido && (
         <div className="space-y-1 rounded-md bg-destructive/10 p-3 text-sm text-destructive print:hidden">
-          <p className="flex items-center font-medium"><AlertTriangle className="mr-2 inline h-4 w-4" />Divisão da comissão com inconsistências — ajuste na Resumo antes de concluir:</p>
+          <p className="flex items-center font-medium">
+            <AlertTriangle className="mr-2 inline h-4 w-4" />
+            Divisão da comissão com inconsistências — ajuste na Resumo antes de concluir:
+          </p>
           <ul className="ml-6 list-disc">
-            {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => <li key={i}>{msg}</li>)}
+            {(distribuicao.inconsistencias ?? []).map((msg: string, i: number) => (
+              <li key={i}>{msg}</li>
+            ))}
           </ul>
         </div>
       )}
 
       <div className="flex justify-end print:hidden">
         {concluida ? (
-          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Ocorrência finalizada.</p>
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+            Ocorrência finalizada.
+          </p>
         ) : canEdit ? (
-          <Button onClick={finalizar} disabled={finalizing || (!!distribuicao && !distribuicao.calculo_valido)}><CheckCircle2 className="mr-2 h-4 w-4" />Confirmar e finalizar ocorrência</Button>
+          <Button
+            onClick={finalizar}
+            disabled={finalizing || (!!distribuicao && !distribuicao.calculo_valido)}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Confirmar e finalizar ocorrência
+          </Button>
         ) : null}
       </div>
 
@@ -2765,16 +4892,30 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
           <AlertDialogHeader>
             <AlertDialogTitle>Comissões excedem o total?</AlertDialogTitle>
             <AlertDialogDescription>
-              Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R$ {total.toFixed(2)}). Para finalizar mesmo assim, explique o motivo — isso fica registrado no histórico da venda.
+              Soma das comissões (R$ {somaComissoes.toFixed(2)}) excede a comissão total (R${" "}
+              {total.toFixed(2)}). Para finalizar mesmo assim, explique o motivo — isso fica
+              registrado no histórico da venda.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1">
             <Label htmlFor="excedido-motivo">Justificativa (obrigatória)</Label>
-            <Textarea id="excedido-motivo" value={excedidoMotivo} onChange={(e) => setExcedidoMotivo(e.target.value)} placeholder="Ex.: bônus extra combinado com o gestor, ajuste retroativo, etc." />
+            <Textarea
+              id="excedido-motivo"
+              value={excedidoMotivo}
+              onChange={(e) => setExcedidoMotivo(e.target.value)}
+              placeholder="Ex.: bônus extra combinado com o gestor, ajuste retroativo, etc."
+            />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={finalizing}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction disabled={finalizing || !excedidoMotivo.trim()} onClick={(e) => { e.preventDefault(); setConfirmExcedidoOpen(false); doFinalizar(excedidoMotivo.trim()); }}>
+            <AlertDialogAction
+              disabled={finalizing || !excedidoMotivo.trim()}
+              onClick={(e) => {
+                e.preventDefault();
+                setConfirmExcedidoOpen(false);
+                doFinalizar(excedidoMotivo.trim());
+              }}
+            >
               Continuar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -2785,24 +4926,42 @@ function OccurrenceReviewPanel({ saleId, sale, parties, distribuicao, canEdit, o
 }
 
 /** Relatório oficial "Ocorrência de compra e venda" — réplica digital do formulário em papel usado pela imobiliária, exibido em vez do wizard de etapas quando a venda está concluída. */
-function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopened, distribuicao }: {
-  sale: any; parties: Record<string, any>; payment: any; docs: any[]; history: any[];
-  canReopen: boolean; onReopened: () => void; distribuicao: any;
+function SaleReport({
+  sale,
+  parties,
+  payment,
+  docs,
+  history,
+  canReopen,
+  onReopened,
+  distribuicao,
+}: {
+  sale: SaleRow;
+  parties: Record<string, PartyRow>;
+  payment: PaymentRow | null;
+  docs: DisplayDocument[];
+  history: SaleHistoryRow[];
+  canReopen: boolean;
+  onReopened: () => void;
+  distribuicao: StandardDistribution | null;
 }) {
   const { user } = useAuth();
-  const [occ, setOcc] = useState<any>(null);
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [partners, setPartners] = useState<any[]>([]);
+  const [occ, setOcc] = useState<OccurrenceRow | null>(null);
+  const [commissions, setCommissions] = useState<OccurrenceCommissionRow[]>([]);
+  const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [reopening, setReopening] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState("");
 
-  const baixarDocumentoRelatorio = async (doc: any) => {
+  const baixarDocumentoRelatorio = async (doc: DisplayDocument) => {
     const { data, error } = await supabase.storage
       .from("sale-documents")
       .createSignedUrl(doc.storage_path, 300, { download: doc.file_name });
-    if (error || !data?.signedUrl) { toast.error("Falha ao preparar o download"); return; }
+    if (error || !data?.signedUrl) {
+      toast.error("Falha ao preparar o download");
+      return;
+    }
     const link = document.createElement("a");
     link.href = data.signedUrl;
     link.download = doc.file_name;
@@ -2811,9 +4970,12 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
     link.remove();
   };
 
-  const imprimirDocumentoRelatorio = async (doc: any) => {
+  const imprimirDocumentoRelatorio = async (doc: DisplayDocument) => {
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) { toast.error("Permita pop-ups para imprimir"); return; }
+    if (!printWindow) {
+      toast.error("Permita pop-ups para imprimir");
+      return;
+    }
     const { data, error } = await supabase.storage
       .from("sale-documents")
       .createSignedUrl(doc.storage_path, 300);
@@ -2823,47 +4985,90 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
       return;
     }
     const image = /\.(jpe?g|png|gif|webp|bmp)$/i.test(doc.file_name);
-    const safeName = String(doc.file_name).replace(/[&<>"']/g, (char) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    })[char] ?? char);
+    const safeName = String(doc.file_name).replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[char] ?? char,
+    );
     printWindow.document.write(`<!doctype html><html><head><title>${safeName}</title><style>
       html,body{margin:0;height:100%;font-family:sans-serif} img{display:block;max-width:100%;max-height:100vh;margin:auto;object-fit:contain}
       iframe{width:100%;height:100vh;border:0}@media print{h1{display:none}}
-    </style></head><body><h1>${safeName}</h1>${image
-      ? `<img src="${data.signedUrl}" alt="${safeName}">`
-      : `<iframe src="${data.signedUrl}" title="${safeName}"></iframe>`}</body></html>`);
+    </style></head><body><h1>${safeName}</h1>${
+      image
+        ? `<img src="${data.signedUrl}" alt="${safeName}">`
+        : `<iframe src="${data.signedUrl}" title="${safeName}"></iframe>`
+    }</body></html>`);
     printWindow.document.close();
-    printWindow.onload = () => { printWindow.focus(); setTimeout(() => printWindow.print(), 400); };
+    printWindow.onload = () => {
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 400);
+    };
   };
 
-  const openReopenDialog = () => { setReopenMotivo(""); setReopenOpen(true); };
+  const openReopenDialog = () => {
+    setReopenMotivo("");
+    setReopenOpen(true);
+  };
   const reopen = async () => {
     if (!occ) return;
     const motivo = reopenMotivo.trim();
-    if (!motivo) { toast.error("Justificativa é obrigatória"); return; }
+    if (!motivo) {
+      toast.error("Justificativa é obrigatória");
+      return;
+    }
     setReopening(true);
     try {
-      const { error: e0 } = await supabase.from("occurrences").update({
-        status: "pendente",
-        aceita_financeiro: false,
-        aceita_financeiro_em: null,
-        aceita_financeiro_por: null,
-        reopen_reason: motivo,
-        reopened_at: new Date().toISOString(),
-        reopened_by: user!.id,
-      }).eq("id", occ.id);
-      if (e0) { toast.error(e0.message); return; }
-      const { error: e1 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", sale.id);
-      if (e1) { toast.error(e1.message); return; }
-      await supabase.from("sale_status_history").insert({ sale_id: sale.id, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
-      await supabase.from("activity_logs").insert({ sale_id: sale.id, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+      const { error: e0 } = await supabase
+        .from("occurrences")
+        .update({
+          status: "pendente",
+          aceita_financeiro: false,
+          aceita_financeiro_em: null,
+          aceita_financeiro_por: null,
+          reopen_reason: motivo,
+          reopened_at: new Date().toISOString(),
+          reopened_by: user!.id,
+        })
+        .eq("id", occ.id);
+      if (e0) {
+        toast.error(e0.message);
+        return;
+      }
+      const { error: e1 } = await supabase
+        .from("sales")
+        .update({ status: "ocorrencia_pendente" })
+        .eq("id", sale.id);
+      if (e1) {
+        toast.error(e1.message);
+        return;
+      }
+      await supabase.from("sale_status_history").insert({
+        sale_id: sale.id,
+        de: "ocorrencia_concluida",
+        para: "ocorrencia_pendente",
+        autor_id: user!.id,
+        motivo: `Reaberta: ${motivo}`,
+      });
+      await supabase.from("activity_logs").insert({
+        sale_id: sale.id,
+        autor_id: user!.id,
+        acao: "occurrence_reopened",
+        payload: { motivo },
+      });
       // Não passa por notifySaleStatusChange de propósito: reabertura é uma ação corretiva rara
       // (só financeiro/admin fazem), não faz parte da esteira normal de "sua vez"/"toda atualização"
       // coberta por proximoResponsavelRoles, e decidimos não expandir o alcance do WhatsApp pra esse
       // caso agora. Só o corretor é avisado (sino), e não duplica se ele mesmo tiver reaberto.
       if (sale.corretor_id && sale.corretor_id !== user?.id) {
         await supabase.from("notifications").insert({
-          user_id: sale.corretor_id, sale_id: sale.id,
+          user_id: sale.corretor_id,
+          sale_id: sale.id,
           tipo: "occurrence_reopened",
           titulo: "Ocorrência reaberta",
           mensagem: motivo,
@@ -2872,8 +5077,8 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
       toast.success("Ocorrência reaberta");
       setReopenOpen(false);
       onReopened();
-    } catch (err: any) {
-      toast.error(err?.message ?? "Falha ao reabrir ocorrência");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao reabrir ocorrência"));
     } finally {
       setReopening(false);
     }
@@ -2881,12 +5086,24 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
 
   useEffect(() => {
     (async () => {
-      const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", sale.id).maybeSingle();
+      const { data: o } = await supabase
+        .from("occurrences")
+        .select("*")
+        .eq("sale_id", sale.id)
+        .maybeSingle();
       setOcc(o);
       if (o) {
         const [c, p] = await Promise.all([
-          supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
-          supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
+          supabase
+            .from("occurrence_commissions")
+            .select("*")
+            .eq("occurrence_id", o.id)
+            .order("created_at"),
+          supabase
+            .from("occurrence_partners")
+            .select("*")
+            .eq("occurrence_id", o.id)
+            .order("created_at"),
         ]);
         setCommissions(c.data ?? []);
         setPartners(p.data ?? []);
@@ -2908,7 +5125,8 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           <div className="flex gap-2 print:hidden">
             {canReopen && occ && (
               <Button variant="outline" size="sm" onClick={openReopenDialog} disabled={reopening}>
-                <RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reabrir ocorrência
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -2917,25 +5135,53 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
           </div>
         </div>
 
-        <OccurrenceReportBody sale={sale} occ={occ} commissions={commissions} partners={partners} parties={parties} distribuicao={distribuicao} />
+        <OccurrenceReportBody
+          sale={sale}
+          occ={occ}
+          commissions={commissions}
+          partners={partners}
+          parties={parties}
+          distribuicao={distribuicao}
+        />
       </div>
 
       <div className="space-y-4 print:hidden">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informações internas (não impressas)</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Informações internas (não impressas)
+        </h2>
         <SaleSection title="Documentos">
           <div className="space-y-1">
-            {docs.length === 0 && <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>}
+            {docs.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>
+            )}
             {docs.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+              <div
+                key={d.id}
+                className="flex items-center justify-between rounded-md border p-2 text-sm"
+              >
                 <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
                 <div className="ml-2 flex shrink-0 items-center gap-1">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${d.status === "aprovado" ? "bg-emerald-100 text-emerald-900" : d.status === "recusado" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}
+                  >
                     {d.status}
                   </span>
-                  <Button size="icon" variant="ghost" aria-label={`Baixar ${d.file_name}`} title="Baixar" onClick={() => baixarDocumentoRelatorio(d)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Baixar ${d.file_name}`}
+                    title="Baixar"
+                    onClick={() => baixarDocumentoRelatorio(d)}
+                  >
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" aria-label={`Imprimir ${d.file_name}`} title="Imprimir" onClick={() => imprimirDocumentoRelatorio(d)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Imprimir ${d.file_name}`}
+                    title="Imprimir"
+                    onClick={() => imprimirDocumentoRelatorio(d)}
+                  >
                     <Printer className="h-4 w-4" />
                   </Button>
                 </div>
@@ -2946,27 +5192,53 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
 
         <SaleSection title="Histórico">
           <div className="space-y-2">
-            {history.length === 0 && <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>}
+            {history.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>
+            )}
             {history.map((h) => (
-              <div key={h.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
-                <span>{h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span></span>
-                <span className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString("pt-BR")}</span>
+              <div
+                key={h.id}
+                className="flex items-center justify-between rounded-md border p-2 text-sm"
+              >
+                <span>
+                  {h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} →{" "}
+                  <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(h.created_at).toLocaleString("pt-BR")}
+                </span>
               </div>
             ))}
           </div>
         </SaleSection>
       </div>
 
-      <Dialog open={reopenOpen} onOpenChange={(o) => { if (!reopening) setReopenOpen(o); }}>
+      <Dialog
+        open={reopenOpen}
+        onOpenChange={(o) => {
+          if (!reopening) setReopenOpen(o);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reabrir ocorrência</DialogTitle>
-            <DialogDescription>Descreva a justificativa. O corretor será notificado.</DialogDescription>
+            <DialogDescription>
+              Descreva a justificativa. O corretor será notificado.
+            </DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Justificativa (obrigatória)" value={reopenMotivo} onChange={(e) => setReopenMotivo(e.target.value)} rows={4} />
+          <Textarea
+            placeholder="Justificativa (obrigatória)"
+            value={reopenMotivo}
+            onChange={(e) => setReopenMotivo(e.target.value)}
+            rows={4}
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>Cancelar</Button>
-            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>Reabrir</Button>
+            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>
+              Cancelar
+            </Button>
+            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>
+              Reabrir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2974,33 +5246,59 @@ function SaleReport({ sale, parties, payment, docs, history, canReopen, onReopen
   );
 }
 
-function CommentsPanel({ saleId, comments, onAdd }: { saleId: string; comments: any[]; onAdd: () => void }) {
+function CommentsPanel({
+  saleId,
+  comments,
+  onAdd,
+}: {
+  saleId: string;
+  comments: CommentRow[];
+  onAdd: () => void;
+}) {
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [escopo, setEscopo] = useState("revisao");
   const add = async () => {
     if (!text.trim()) return;
-    const { error } = await supabase.from("sale_comments").insert({ sale_id: saleId, autor_id: user!.id, escopo, texto: text });
-    if (error) toast.error(error.message); else { setText(""); onAdd(); }
+    const { error } = await supabase
+      .from("sale_comments")
+      .insert({ sale_id: saleId, autor_id: user!.id, escopo, texto: text });
+    if (error) toast.error(error.message);
+    else {
+      setText("");
+      onAdd();
+    }
   };
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Comentários</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base">Comentários</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-2">
           <Select value={escopo} onValueChange={setEscopo}>
-            <SelectTrigger className="md:w-48"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="md:w-48">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="revisao">Revisão</SelectItem>
               <SelectItem value="juridico">Jurídico</SelectItem>
               <SelectItem value="interno">Interno</SelectItem>
             </SelectContent>
           </Select>
-          <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Escreva um comentário..." />
-          <Button onClick={add} className="self-start">Adicionar</Button>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Escreva um comentário..."
+          />
+          <Button onClick={add} className="self-start">
+            Adicionar
+          </Button>
         </div>
         <div className="space-y-2">
-          {comments.length === 0 && <p className="text-sm text-muted-foreground">Sem comentários.</p>}
+          {comments.length === 0 && (
+            <p className="text-sm text-muted-foreground">Sem comentários.</p>
+          )}
           {comments.map((c) => (
             <div key={c.id} className="rounded-md border p-3 text-sm">
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
@@ -3039,12 +5337,20 @@ async function syncOccurrenceCommissions(saleId: string) {
  * from_sale=true é a que fica em sincronia; banco/agência/conta preenchidos depois pelo financeiro
  * não são tocados aqui. Se a parceria for removida na Resumo, a linha sincronizada é apagada.
  */
-async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
-  const { data: occ, error: occError } = await supabase.from("occurrences").select("id").eq("sale_id", saleId).maybeSingle();
+async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleRow>) {
+  const { data: occ, error: occError } = await supabase
+    .from("occurrences")
+    .select("id")
+    .eq("sale_id", saleId)
+    .maybeSingle();
   if (occError) throw occError;
   if (!occ) return;
 
-  const { data: existing, error: selectError } = await supabase.from("occurrence_partners").select("*").eq("occurrence_id", occ.id).eq("from_sale", true);
+  const { data: existing, error: selectError } = await supabase
+    .from("occurrence_partners")
+    .select("*")
+    .eq("occurrence_id", occ.id)
+    .eq("from_sale", true);
   if (selectError) throw selectError;
   const row = (existing ?? [])[0];
 
@@ -3067,30 +5373,60 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: any) {
     // Banco/agência/conta/pix NÃO entram aqui de propósito — uma vez que a ocorrência existe,
     // esses campos passam a ser do financeiro, e ressincronizar a cada save da Resumo sobrescreveria
     // o que ele já preencheu.
-    if (row.tipo !== data.tipo || row.nome !== data.nome || row.cpf_cnpj !== data.cpf_cnpj || Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) || Number(row.valor ?? 0) !== Number(data.valor ?? 0)) {
+    if (
+      row.tipo !== data.tipo ||
+      row.nome !== data.nome ||
+      row.cpf_cnpj !== data.cpf_cnpj ||
+      Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) ||
+      Number(row.valor ?? 0) !== Number(data.valor ?? 0)
+    ) {
       const { error } = await supabase.from("occurrence_partners").update(data).eq("id", row.id);
       if (error) throw error;
     }
   } else {
     const { error } = await supabase.from("occurrence_partners").insert({
-      occurrence_id: occ.id, from_sale: true, ...data,
-      banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
+      occurrence_id: occ.id,
+      from_sale: true,
+      ...data,
+      banco: sale.parceria_banco ?? null,
+      agencia: sale.parceria_agencia ?? null,
+      conta: sale.parceria_conta ?? null,
+      pix: sale.parceria_pix ?? null,
     });
     if (error) throw error;
   }
 }
 
 // -------- Occurrence step (buffered) --------
-function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, distribuicao, canEdit, onChange, registerSaver, onDirtyChange }: {
-  saleId: string; sale: any; payment: any; parties: Record<string, any>; commissionExtras: any[]; distribuicao: any; canEdit: boolean; onChange: () => void;
-  registerSaver: (fn: Saver | null) => void; onDirtyChange: (d: boolean) => void;
+function OccurrencePanel({
+  saleId,
+  sale,
+  payment,
+  parties,
+  commissionExtras,
+  distribuicao,
+  canEdit,
+  onChange,
+  registerSaver,
+  onDirtyChange,
+}: {
+  saleId: string;
+  sale: SaleRow;
+  payment: PaymentRow | null;
+  parties: Record<string, PartyRow>;
+  commissionExtras: CommissionExtraRow[];
+  distribuicao: StandardDistribution | null;
+  canEdit: boolean;
+  onChange: () => void;
+  registerSaver: (fn: Saver | null) => void;
+  onDirtyChange: (d: boolean) => void;
 }) {
   const { user, hasAny } = useAuth();
-  const [occ, setOcc] = useState<any>(null);
-  const [formOcc, setFormOcc] = useState<any>({});
+  const [occ, setOcc] = useState<OccurrenceRow | null>(null);
+  const [formOcc, setFormOcc] = useState<Partial<OccurrenceRow>>({});
   const [dirtyOcc, setDirtyOcc] = useState(false);
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [formComms, setFormComms] = useState<any[]>([]);
+  const [commissions, setCommissions] = useState<OccurrenceCommissionRow[]>([]);
+  const [formComms, setFormComms] = useState<EditableCommission[]>([]);
   const [dirtyComms, setDirtyComms] = useState(false);
   // Pessoas selecionáveis pro campo "Nome" de cada linha de comissão — mesmo padrão de
   // LancamentoDetail.tsx (3 RPCs combinadas). Antes desta correção, "Nome" aqui era só texto livre:
@@ -3112,8 +5448,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       setPessoasAtivas(mesclarPessoasAtivas(norm(corretores), norm(gestores), norm(teamLeaders)));
     })();
   }, []);
-  const [partners, setPartners] = useState<any[]>([]);
-  const [formPartners, setFormPartners] = useState<any[]>([]);
+  const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
+  const [formPartners, setFormPartners] = useState<EditablePartner[]>([]);
   const [dirtyPartners, setDirtyPartners] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reopenOpen, setReopenOpen] = useState(false);
@@ -3124,19 +5460,31 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   const anyDirty = dirtyOcc || dirtyComms || dirtyPartners;
   const concluida = occ?.status === "concluida";
   const canWrite = canEdit && !concluida;
-  useEffect(() => { onDirtyChange(anyDirty); }, [anyDirty, onDirtyChange]);
+  useEffect(() => {
+    onDirtyChange(anyDirty);
+  }, [anyDirty, onDirtyChange]);
 
   // Espelham dirtyOcc/dirtyComms/dirtyPartners em refs — load() precisa ler o valor mais atual sem
   // depender do ciclo de re-render (usado pra não sobrescrever um buffer que ainda está dirty).
   const dirtyOccRef = useRef(false);
-  useEffect(() => { dirtyOccRef.current = dirtyOcc; }, [dirtyOcc]);
+  useEffect(() => {
+    dirtyOccRef.current = dirtyOcc;
+  }, [dirtyOcc]);
   const dirtyCommsRef = useRef(false);
-  useEffect(() => { dirtyCommsRef.current = dirtyComms; }, [dirtyComms]);
+  useEffect(() => {
+    dirtyCommsRef.current = dirtyComms;
+  }, [dirtyComms]);
   const dirtyPartnersRef = useRef(false);
-  useEffect(() => { dirtyPartnersRef.current = dirtyPartners; }, [dirtyPartners]);
+  useEffect(() => {
+    dirtyPartnersRef.current = dirtyPartners;
+  }, [dirtyPartners]);
 
   const load = useCallback(async () => {
-    const { data: o } = await supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle();
+    const { data: o } = await supabase
+      .from("occurrences")
+      .select("*")
+      .eq("sale_id", saleId)
+      .maybeSingle();
     setOcc(o);
     // Não sobrescreve um buffer com edição local ainda não salva: load() roda tanto no mount quanto
     // depois de qualquer save (que já limpa o dirty antes de chamar load(), ver save() abaixo) quanto
@@ -3145,8 +5493,16 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     if (!dirtyOccRef.current) setFormOcc(o ?? {});
     if (o) {
       const [c, p] = await Promise.all([
-        supabase.from("occurrence_commissions").select("*").eq("occurrence_id", o.id).order("created_at"),
-        supabase.from("occurrence_partners").select("*").eq("occurrence_id", o.id).order("created_at"),
+        supabase
+          .from("occurrence_commissions")
+          .select("*")
+          .eq("occurrence_id", o.id)
+          .order("created_at"),
+        supabase
+          .from("occurrence_partners")
+          .select("*")
+          .eq("occurrence_id", o.id)
+          .order("created_at"),
       ]);
       setCommissions(c.data ?? []);
       if (!dirtyCommsRef.current) setFormComms(c.data ?? []);
@@ -3155,7 +5511,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     }
     setLoading(false);
   }, [saleId]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Sempre que a Resumo salva captador/vendedor/indicador/partes extras, o valor já é
   // sincronizado direto no banco (ver syncOccurrenceCommissions) — aqui só recarrega essa
@@ -3166,7 +5524,21 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     if (dirtyOcc || dirtyComms || dirtyPartners) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sale.corretor_captador, sale.corretor_vendedor, sale.valor_comissao_captador, sale.valor_comissao_vendedor, sale.valor_comissao_indicador_captador, sale.valor_comissao_indicador_vendedor, sale.indicador_captador, sale.indicador_vendedor, sale.valor_comissao_lider_captador, sale.valor_comissao_lider_vendedor, sale.lider_captador_nome, sale.lider_vendedor_nome, commissionExtras]);
+  }, [
+    sale.corretor_captador,
+    sale.corretor_vendedor,
+    sale.valor_comissao_captador,
+    sale.valor_comissao_vendedor,
+    sale.valor_comissao_indicador_captador,
+    sale.valor_comissao_indicador_vendedor,
+    sale.indicador_captador,
+    sale.indicador_vendedor,
+    sale.valor_comissao_lider_captador,
+    sale.valor_comissao_lider_vendedor,
+    sale.lider_captador_nome,
+    sale.lider_vendedor_nome,
+    commissionExtras,
+  ]);
 
   // Toda a criação (occurrences + comissões líquidas via sync_occurrence_commissions + parceria + log)
   // roda dentro de uma única RPC transacional — nunca monta linha de comissão na mão aqui (isso já
@@ -3175,13 +5547,19 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   // pra evitar). Uma falha em qualquer etapa desfaz tudo — nunca fica "meio criada".
   const createOcc = async () => {
     const { error } = await supabase.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Ocorrência criada");
     onChange();
     load();
   };
 
-  const updOcc = (patch: any) => { setFormOcc((f: any) => ({ ...f, ...patch })); setDirtyOcc(true); };
+  const updOcc = (patch: Partial<OccurrenceRow>) => {
+    setFormOcc((f) => ({ ...f, ...patch }));
+    setDirtyOcc(true);
+  };
   // Mesmo problema do Resumo: só atualizar valor_negociado deixava valor_comissao preso no valor em
   // reais calculado sobre o negociado ANTERIOR. Percentual continua o mesmo (regra 1), só o valor em
   // reais recalcula. Ocorrência concluída já trava o campo (disabled={!canWrite} abaixo), mas o guard
@@ -3191,30 +5569,46 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       toast.error("Ocorrência concluída ou travada — reabra antes de alterar o valor negociado.");
       return;
     }
-    updOcc(calcularPatchOccValorNegociado(formOcc, v));
+    updOcc(calcularPatchOccValorNegociado(formOcc as never, v));
   };
 
-  const updComm = (id: string, patch: any) => {
-    setFormComms(rows => rows.map(r => {
-      if (r.id !== id) return r;
-      const total = Number(formOcc?.valor_comissao ?? 0);
-      const merged = { ...r, ...patch };
-      if (total > 0) {
-        if ("percentual" in patch && patch.percentual != null && patch.percentual !== "") {
-          merged.valor = Number(((Number(patch.percentual) / 100) * total).toFixed(2));
-        } else if ("valor" in patch && patch.valor != null && patch.valor !== "") {
-          merged.percentual = Number(((Number(patch.valor) / total) * 100).toFixed(3));
+  const updComm = (id: string, patch: Partial<EditableCommission>) => {
+    setFormComms((rows) =>
+      rows.map((r) => {
+        if (r.id !== id) return r;
+        const total = Number(formOcc?.valor_comissao ?? 0);
+        const merged = { ...r, ...patch };
+        if (total > 0) {
+          if ("percentual" in patch && patch.percentual != null) {
+            merged.valor = Number(((Number(patch.percentual) / 100) * total).toFixed(2));
+          } else if ("valor" in patch && patch.valor != null) {
+            merged.percentual = Number(((Number(patch.valor) / total) * 100).toFixed(3));
+          }
         }
-      }
-      return merged;
-    }));
+        return merged;
+      }),
+    );
     setDirtyComms(true);
   };
   const addCommission = () => {
     // managed_by_sale: false — linha criada à mão pelo financeiro, sync_occurrence_commissions nunca
     // deve sobrescrever/apagar ela (só linhas geradas a partir da Resumo/sale_commission_extras têm
     // managed_by_sale: true, ver pullFromSaleSplit abaixo).
-    setFormComms(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, papel: "corretor_vendedor", nome: null, percentual: null, valor: null, user_id: null, sem_cadastro_confirmado: false, managed_by_sale: false, _new: true }]);
+    setFormComms((rows) => [
+      ...rows,
+      {
+        id: `new-${crypto.randomUUID()}`,
+        occurrence_id: occ?.id,
+        papel: "corretor_vendedor",
+        nome: null,
+        percentual: null,
+        valor: null,
+        user_id: null,
+        sem_cadastro_confirmado: false,
+        managed_by_sale: false,
+        _new: true,
+      },
+    ]);
     setDirtyComms(true);
   };
   // Traz captador/vendedor/indicador/líder/extras com os valores já definidos na revisão do gestor
@@ -3227,12 +5621,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   // qualquer linha manual de ser tocada por esse sync.
   const pullFromSaleSplit = async () => {
     const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Comissões sincronizadas com a revisão do gestor.");
     await load();
   };
   const delCommission = (id: string) => {
-    setFormComms(rows => rows.filter(r => r.id !== id));
+    setFormComms((rows) => rows.filter((r) => r.id !== id));
     setDirtyComms(true);
   };
 
@@ -3247,7 +5644,9 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       financiamento_previsao: payment?.financiamento_previsao ?? null,
       oba_credito: payment?.oba_credito ?? false,
     });
-    toast.success("Financiamento, valor, banco, correspondente, previsão e Oba Crédito puxados do pagamento — confira e salve.");
+    toast.success(
+      "Financiamento, valor, banco, correspondente, previsão e Oba Crédito puxados do pagamento — confira e salve.",
+    );
   };
 
   // Lógica pura (testável sem montar o componente) em src/lib/sale-financial-calc.ts. Só considera
@@ -3258,42 +5657,63 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     return verificarComissoesDesatualizadas({ sale, distribuicao, commissions, commissionExtras });
   }, [occ, sale, commissions, commissionExtras, distribuicao]);
 
-  const financiamentoDesatualizado = !!occ && (
-    Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||
-    Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0) ||
-    (occ.financiamento_banco ?? "") !== (payment?.financiamento_banco ?? "") ||
-    (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "") ||
-    (occ.financiamento_previsao ?? "") !== (payment?.financiamento_previsao ?? "") ||
-    Boolean(occ.oba_credito) !== Boolean(payment?.oba_credito)
-  );
+  const financiamentoDesatualizado =
+    !!occ &&
+    (Boolean(occ.financiamento) !== Boolean(payment?.financiamento) ||
+      Number(occ.financiamento_valor ?? 0) !== Number(payment?.financiamento_valor ?? 0) ||
+      (occ.financiamento_banco ?? "") !== (payment?.financiamento_banco ?? "") ||
+      (occ.financiamento_correspondente ?? "") !== (payment?.financiamento_correspondente ?? "") ||
+      (occ.financiamento_previsao ?? "") !== (payment?.financiamento_previsao ?? "") ||
+      Boolean(occ.oba_credito) !== Boolean(payment?.oba_credito));
 
-  const updPartner = (id: string, patch: any) => {
-    setFormPartners(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
+  const updPartner = (id: string, patch: Partial<EditablePartner>) => {
+    setFormPartners((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setDirtyPartners(true);
   };
   const addPartner = () => {
-    setFormPartners(rows => [...rows, { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, nome: "", _new: true }]);
+    setFormPartners((rows) => [
+      ...rows,
+      { id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id, nome: "", _new: true },
+    ]);
     setDirtyPartners(true);
   };
   const delPartner = (id: string) => {
-    setFormPartners(rows => rows.filter(r => r.id !== id));
+    setFormPartners((rows) => rows.filter((r) => r.id !== id));
     setDirtyPartners(true);
   };
   // Traz a parceria externa (imobiliária externa ou outra unidade RE/MAX) já sinalizada na Resumo —
   // útil para ocorrências criadas antes desse pré-preenchimento existir ou quando a Resumo mudou depois.
   const pullPartnerFromSale = () => {
-    if (!sale.parceria_tipo) { toast.error("Nenhuma parceria externa sinalizada na Resumo."); return; }
-    const data = { tipo: sale.parceria_tipo, nome: sale.parceria_nome ?? null, cpf_cnpj: sale.parceria_cpf_cnpj ?? null, percentual: sale.parceria_percentual ?? null, valor: sale.parceria_valor ?? null, from_sale: true };
+    if (!sale.parceria_tipo) {
+      toast.error("Nenhuma parceria externa sinalizada na Resumo.");
+      return;
+    }
+    const data = {
+      tipo: sale.parceria_tipo,
+      nome: sale.parceria_nome ?? null,
+      cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
+      percentual: sale.parceria_percentual ?? null,
+      valor: sale.parceria_valor ?? null,
+      from_sale: true,
+    };
     setFormPartners((rows) => {
       const idx = rows.findIndex((r) => r.from_sale);
       // Banco/agência/conta/pix só entram quando a linha ainda nem existia (nada do financeiro
       // pra preservar) — num pull repetido numa linha já existente, ficam como estão.
-      if (idx >= 0) return rows.map((r, i) => i === idx ? { ...r, ...data } : r);
-      return [...rows, {
-        id: `new-${crypto.randomUUID()}`, occurrence_id: occ?.id,
-        banco: sale.parceria_banco ?? null, agencia: sale.parceria_agencia ?? null, conta: sale.parceria_conta ?? null, pix: sale.parceria_pix ?? null,
-        ...data, _new: true,
-      }];
+      if (idx >= 0) return rows.map((r, i) => (i === idx ? { ...r, ...data } : r));
+      return [
+        ...rows,
+        {
+          id: `new-${crypto.randomUUID()}`,
+          occurrence_id: occ?.id,
+          banco: sale.parceria_banco ?? null,
+          agencia: sale.parceria_agencia ?? null,
+          conta: sale.parceria_conta ?? null,
+          pix: sale.parceria_pix ?? null,
+          ...data,
+          _new: true,
+        },
+      ];
     });
     setDirtyPartners(true);
     toast.success("Parceria da Resumo aplicada — confira e salve.");
@@ -3302,35 +5722,81 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     if (!occ || !sale.parceria_tipo) return false;
     const row = partners.find((r) => r.from_sale);
     if (!row) return true;
-    return row.tipo !== sale.parceria_tipo || (row.nome ?? "") !== (sale.parceria_nome ?? "") || (row.cpf_cnpj ?? "") !== (sale.parceria_cpf_cnpj ?? "")
-      || Math.abs(Number(row.percentual ?? 0) - Number(sale.parceria_percentual ?? 0)) > 0.001
-      || Math.abs(Number(row.valor ?? 0) - Number(sale.parceria_valor ?? 0)) > 0.01;
+    return (
+      row.tipo !== sale.parceria_tipo ||
+      (row.nome ?? "") !== (sale.parceria_nome ?? "") ||
+      (row.cpf_cnpj ?? "") !== (sale.parceria_cpf_cnpj ?? "") ||
+      Math.abs(Number(row.percentual ?? 0) - Number(sale.parceria_percentual ?? 0)) > 0.001 ||
+      Math.abs(Number(row.valor ?? 0) - Number(sale.parceria_valor ?? 0)) > 0.01
+    );
   }, [occ, sale, partners]);
 
   const save = useCallback(async (): Promise<boolean> => {
+    if (!occ) return false;
     if (!occ) return true;
     setSaving(true);
     try {
       if (dirtyOcc) {
-        const fields = ["codigo_imovel","tempo_venda_dias","data_assinatura","midia","nota_fiscal_obrigatoria","valor_anunciado","valor_negociado","percentual_comissao","valor_comissao","financiamento","financiamento_valor","financiamento_banco","financiamento_correspondente","financiamento_previsao","oba_credito","prev_recebimento_valor","prev_recebimento_data","prev_recebimento_forma","prev_recebimento2_valor","prev_recebimento2_data","prev_recebimento2_forma","prev_recebimento3_valor","prev_recebimento3_data","prev_recebimento3_forma","observacoes"];
-        const patch: any = {};
-        for (const k of fields) if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null)) patch[k] = formOcc[k] === "" ? null : formOcc[k];
+        const fields: (keyof OccurrenceRow)[] = [
+          "codigo_imovel",
+          "tempo_venda_dias",
+          "data_assinatura",
+          "midia",
+          "nota_fiscal_obrigatoria",
+          "valor_anunciado",
+          "valor_negociado",
+          "percentual_comissao",
+          "valor_comissao",
+          "financiamento",
+          "financiamento_valor",
+          "financiamento_banco",
+          "financiamento_correspondente",
+          "financiamento_previsao",
+          "oba_credito",
+          "prev_recebimento_valor",
+          "prev_recebimento_data",
+          "prev_recebimento_forma",
+          "prev_recebimento2_valor",
+          "prev_recebimento2_data",
+          "prev_recebimento2_forma",
+          "prev_recebimento3_valor",
+          "prev_recebimento3_data",
+          "prev_recebimento3_forma",
+          "observacoes",
+        ];
+        const patch: OccurrencePatch = {};
+        for (const k of fields)
+          if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null))
+            patch[k] = formOcc[k] === "" ? null : formOcc[k];
         if (Object.keys(patch).length) {
-          const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
-          if (error) { toast.error(error.message); return false; }
+          const { error } = await supabase
+            .from("occurrences")
+            .update(patch as Partial<OccurrenceRow>)
+            .eq("id", occ.id);
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
         }
       }
       if (dirtyComms) {
         const semEscolha = formComms.find(precisaEscolherBeneficiario);
         if (semEscolha) {
-          toast.error('Escolha uma pessoa cadastrada ou marque explicitamente "Sem cadastro / parceiro externo" antes de salvar a comissão.');
+          toast.error(
+            'Escolha uma pessoa cadastrada ou marque explicitamente "Sem cadastro / parceiro externo" antes de salvar a comissão.',
+          );
           return false;
         }
-        const currentIds = new Set(formComms.filter(r => !r._new).map(r => r.id));
-        const removed = commissions.filter(r => podeEditarComissaoNaOcorrencia(r) && !currentIds.has(r.id));
+        const currentIds = new Set(formComms.filter((r) => !r._new).map((r) => r.id));
+        const removed = commissions.filter(
+          (r) => podeEditarComissaoNaOcorrencia(r) && !currentIds.has(r.id),
+        );
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_commissions").delete().eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
         }
         for (const r of formComms) {
           // Uma linha automática é somente um espelho da revisão do gestor. Mesmo que um buffer
@@ -3348,24 +5814,46 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
           // por uma edição feita aqui (evita que uma linha manual vire "gerenciada" só por ter sido
           // reeditada na tela, ou vice-versa).
           const { error } = r._new
-            ? await supabase.from("occurrence_commissions").insert({ occurrence_id: occ.id, managed_by_sale: r.managed_by_sale ?? false, ...data })
+            ? await supabase.from("occurrence_commissions").insert({
+                occurrence_id: occ.id,
+                managed_by_sale: r.managed_by_sale ?? false,
+                ...data,
+              })
             : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
         }
       }
       if (dirtyPartners) {
-        const currentIds = new Set(formPartners.filter(r => !r._new).map(r => r.id));
-        const removed = partners.filter(r => !currentIds.has(r.id));
+        const currentIds = new Set(formPartners.filter((r) => !r._new).map((r) => r.id));
+        const removed = partners.filter((r) => !currentIds.has(r.id));
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_partners").delete().eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
         }
         for (const r of formPartners) {
-          const data = { nome: r.nome ?? null, cpf_cnpj: r.cpf_cnpj ?? null, percentual: r.percentual ?? null, valor: r.valor ?? null, banco: r.banco ?? null, agencia: r.agencia ?? null, conta: r.conta ?? null, pix: r.pix ?? null };
+          const data = {
+            nome: r.nome ?? null,
+            cpf_cnpj: r.cpf_cnpj ?? null,
+            percentual: r.percentual ?? null,
+            valor: r.valor ?? null,
+            banco: r.banco ?? null,
+            agencia: r.agencia ?? null,
+            conta: r.conta ?? null,
+            pix: r.pix ?? null,
+          };
           const { error } = r._new
             ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
             : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
-          if (error) { toast.error(error.message); return false; }
+          if (error) {
+            toast.error(error.message);
+            return false;
+          }
         }
       }
       // Limpa os refs de dirty já aqui (síncrono), antes do load() logo abaixo — senão load() ainda
@@ -3382,9 +5870,23 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     } finally {
       setSaving(false);
     }
-  }, [occ, dirtyOcc, dirtyComms, dirtyPartners, formOcc, formComms, formPartners, commissions, partners, load]);
+  }, [
+    occ,
+    dirtyOcc,
+    dirtyComms,
+    dirtyPartners,
+    formOcc,
+    formComms,
+    formPartners,
+    commissions,
+    partners,
+    load,
+  ]);
 
-  useEffect(() => { registerSaver(save); return () => registerSaver(null); }, [save, registerSaver]);
+  useEffect(() => {
+    registerSaver(save);
+    return () => registerSaver(null);
+  }, [save, registerSaver]);
   useAutosave(canWrite && anyDirty, [formOcc, formComms, formPartners], save);
 
   const somaComissoes = formComms.reduce((s, c) => s + Number(c.valor ?? 0), 0);
@@ -3398,12 +5900,19 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
   // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —
   // travar antes disso congela o trabalho do gestor no meio sem ele nem saber. Destravar
   // continua liberado sempre, já que voltar atrás é a direção segura.
-  const podeTravar = canFinLock && ["ocorrencia_analise_financeiro", "ocorrencia_concluida"].includes(sale.status);
+  const podeTravar =
+    canFinLock && ["ocorrencia_analise_financeiro", "ocorrencia_concluida"].includes(sale.status);
 
   const toggleAceite = async () => {
-    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin"); return; }
+    if (!occ) return;
+    if (!canFinLock) {
+      toast.error("Somente financeiro/admin/super admin");
+      return;
+    }
     if (!occ.aceita_financeiro && !podeTravar) {
-      toast.error("Só dá pra travar depois que a ocorrência estiver em análise do financeiro (ou já concluída).");
+      toast.error(
+        "Só dá pra travar depois que a ocorrência estiver em análise do financeiro (ou já concluída).",
+      );
       return;
     }
     const novo = !occ.aceita_financeiro;
@@ -3411,49 +5920,97 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     // O banco bloqueia isso de qualquer forma (trigger em occurrences); checar aqui só evita a
     // viagem ao servidor e mostra a mensagem específica na hora.
     if (novo && distribuicao && !distribuicao.calculo_valido) {
-      toast.error(`Não é possível travar a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`);
+      toast.error(
+        `Não é possível travar a Ocorrência: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
+      );
       return;
     }
-    const patch: any = novo
-      ? { aceita_financeiro: true, aceita_financeiro_em: new Date().toISOString(), aceita_financeiro_por: user!.id }
+    const patch: Partial<OccurrenceRow> = novo
+      ? {
+          aceita_financeiro: true,
+          aceita_financeiro_em: new Date().toISOString(),
+          aceita_financeiro_por: user!.id,
+        }
       : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
     const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
-    if (error) { toast.error(error.message); return; }
-    await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: novo ? "occurrence_locked" : "occurrence_unlocked" });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await supabase.from("activity_logs").insert({
+      sale_id: saleId,
+      autor_id: user!.id,
+      acao: novo ? "occurrence_locked" : "occurrence_unlocked",
+    });
     toast.success(novo ? "Ocorrência travada para edição" : "Edição liberada");
     onChange();
   };
 
   const openReopenDialog = () => {
-    if (!canFinLock) { toast.error("Somente financeiro/admin/super admin podem reabrir"); return; }
+    if (!canFinLock) {
+      toast.error("Somente financeiro/admin/super admin podem reabrir");
+      return;
+    }
     setReopenMotivo("");
     setReopenOpen(true);
   };
   const reopen = async () => {
+    if (!occ) return;
     const motivo = reopenMotivo.trim();
-    if (!motivo) { toast.error("Justificativa é obrigatória"); return; }
+    if (!motivo) {
+      toast.error("Justificativa é obrigatória");
+      return;
+    }
     setReopening(true);
     try {
-      const { error: e0 } = await supabase.from("occurrences").update({
-        status: "pendente",
-        aceita_financeiro: false,
-        aceita_financeiro_em: null,
-        aceita_financeiro_por: null,
-        reopen_reason: motivo,
-        reopened_at: new Date().toISOString(),
-        reopened_by: user!.id,
-      }).eq("id", occ.id);
-      if (e0) { toast.error(e0.message); return; }
-      const { error: e1 } = await supabase.from("sales").update({ status: "ocorrencia_pendente" }).eq("id", saleId);
-      if (e1) { toast.error(e1.message); return; }
-      await supabase.from("sale_status_history").insert({ sale_id: saleId, de: "ocorrencia_concluida", para: "ocorrencia_pendente", autor_id: user!.id, motivo: `Reaberta: ${motivo}` });
-      await supabase.from("activity_logs").insert({ sale_id: saleId, autor_id: user!.id, acao: "occurrence_reopened", payload: { motivo } });
+      const { error: e0 } = await supabase
+        .from("occurrences")
+        .update({
+          status: "pendente",
+          aceita_financeiro: false,
+          aceita_financeiro_em: null,
+          aceita_financeiro_por: null,
+          reopen_reason: motivo,
+          reopened_at: new Date().toISOString(),
+          reopened_by: user!.id,
+        })
+        .eq("id", occ.id);
+      if (e0) {
+        toast.error(e0.message);
+        return;
+      }
+      const { error: e1 } = await supabase
+        .from("sales")
+        .update({ status: "ocorrencia_pendente" })
+        .eq("id", saleId);
+      if (e1) {
+        toast.error(e1.message);
+        return;
+      }
+      await supabase.from("sale_status_history").insert({
+        sale_id: saleId,
+        de: "ocorrencia_concluida",
+        para: "ocorrencia_pendente",
+        autor_id: user!.id,
+        motivo: `Reaberta: ${motivo}`,
+      });
+      await supabase.from("activity_logs").insert({
+        sale_id: saleId,
+        autor_id: user!.id,
+        acao: "occurrence_reopened",
+        payload: { motivo },
+      });
       // Não passa por notifySaleStatusChange de propósito — ver mesmo comentário na outra ocorrência
       // desse bloco (reabertura é ação corretiva rara, fora da esteira normal de sua vez/toda atualização).
-      const { data: s } = await supabase.from("sales").select("corretor_id").eq("id", saleId).maybeSingle();
+      const { data: s } = await supabase
+        .from("sales")
+        .select("corretor_id")
+        .eq("id", saleId)
+        .maybeSingle();
       if (s?.corretor_id && s.corretor_id !== user?.id) {
         await supabase.from("notifications").insert({
-          user_id: s.corretor_id, sale_id: saleId,
+          user_id: s.corretor_id,
+          sale_id: saleId,
           tipo: "occurrence_reopened",
           titulo: "Ocorrência reaberta",
           mensagem: motivo,
@@ -3463,8 +6020,8 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       setReopenOpen(false);
       onChange();
       load();
-    } catch (err: any) {
-      toast.error(err?.message ?? "Falha ao reabrir ocorrência");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao reabrir ocorrência"));
     } finally {
       setReopening(false);
     }
@@ -3475,8 +6032,15 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
     return (
       <Card>
         <CardContent className="space-y-3 p-6 text-center">
-          <p className="text-sm text-muted-foreground">Nenhuma ocorrência criada para esta venda.</p>
-          {canEdit && <Button onClick={createOcc}><Plus className="mr-2 h-4 w-4" />Criar ocorrência a partir dos dados da venda</Button>}
+          <p className="text-sm text-muted-foreground">
+            Nenhuma ocorrência criada para esta venda.
+          </p>
+          {canEdit && (
+            <Button onClick={createOcc}>
+              <Plus className="mr-2 h-4 w-4" />
+              Criar ocorrência a partir dos dados da venda
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -3488,39 +6052,117 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Ocorrência de compra e venda</CardTitle>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${concluida ? "bg-emerald-100 text-emerald-900" : "bg-orange-100 text-orange-900"}`}>{concluida ? "Concluída" : "Pendente"}</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${concluida ? "bg-emerald-100 text-emerald-900" : "bg-orange-100 text-orange-900"}`}
+          >
+            {concluida ? "Concluída" : "Pendente"}
+          </span>
         </CardHeader>
         <CardContent>
           <FieldGrid>
-            <Field label="Código do imóvel"><Input value={formOcc.codigo_imovel ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ codigo_imovel: e.target.value })} /></Field>
-            <Field label="Tempo de venda (dias)"><Input type="number" min="0" step="1" value={formOcc.tempo_venda_dias ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ tempo_venda_dias: e.target.value ? Number(e.target.value) : null })} placeholder="Ex: 45" /></Field>
-            <Field label="Data de assinatura"><Input type="date" value={formOcc.data_assinatura ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ data_assinatura: e.target.value || null })} /></Field>
+            <Field label="Código do imóvel">
+              <Input
+                value={formOcc.codigo_imovel ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ codigo_imovel: e.target.value })}
+              />
+            </Field>
+            <Field label="Tempo de venda (dias)">
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={formOcc.tempo_venda_dias ?? ""}
+                disabled={!canWrite}
+                onChange={(e) =>
+                  updOcc({ tempo_venda_dias: e.target.value ? Number(e.target.value) : null })
+                }
+                placeholder="Ex: 45"
+              />
+            </Field>
+            <Field label="Data de assinatura">
+              <Input
+                type="date"
+                value={formOcc.data_assinatura ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ data_assinatura: e.target.value || null })}
+              />
+            </Field>
             <Field label="Mídia">
-              <Select value={formOcc.midia ?? "none"} onValueChange={(v) => updOcc({ midia: v === "none" ? null : v })} disabled={!canWrite}>
-                <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
+              <Select
+                value={formOcc.midia ?? "none"}
+                onValueChange={(v) => updOcc({ midia: v === "none" ? null : v })}
+                disabled={!canWrite}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o canal" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">—</SelectItem>
-                  {MIDIA_OPTIONS.map((m) => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
+                  {MIDIA_OPTIONS.map((m) => (
+                    <SelectItem key={m.key} value={m.key}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Nota fiscal obrigatória"><div className="flex items-center gap-2"><Switch checked={!!formOcc.nota_fiscal_obrigatoria} onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}</span></div></Field>
-            <Field label="Valor anunciado"><CurrencyInput value={formOcc.valor_anunciado} disabled={!canWrite} onChange={(v) => updOcc({ valor_anunciado: v })} /></Field>
-            <Field label="Valor negociado"><CurrencyInput value={formOcc.valor_negociado} disabled={!canWrite} onChange={applyOccValorNegociado} /></Field>
-            <Field label="% Comissão (referência)"><Input type="number" step="0.000001" value={formOcc.percentual_comissao ?? ""} disabled /></Field>
-            <Field label="Valor da comissão (total)"><CurrencyInput value={formOcc.valor_comissao} disabled={!canWrite} onChange={(v) => {
-              const neg = Number(formOcc.valor_negociado ?? 0);
-              const patch: any = { valor_comissao: v };
-              if (v != null && neg > 0) patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
-              else patch.percentual_comissao = null;
-              updOcc(patch);
-            }} /></Field>
+            <Field label="Nota fiscal obrigatória">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={!!formOcc.nota_fiscal_obrigatoria}
+                  onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })}
+                  disabled={!canWrite}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {formOcc.nota_fiscal_obrigatoria ? "Sim" : "Não"}
+                </span>
+              </div>
+            </Field>
+            <Field label="Valor anunciado">
+              <CurrencyInput
+                value={formOcc.valor_anunciado}
+                disabled={!canWrite}
+                onChange={(v) => updOcc({ valor_anunciado: v })}
+              />
+            </Field>
+            <Field label="Valor negociado">
+              <CurrencyInput
+                value={formOcc.valor_negociado}
+                disabled={!canWrite}
+                onChange={applyOccValorNegociado}
+              />
+            </Field>
+            <Field label="% Comissão (referência)">
+              <Input
+                type="number"
+                step="0.000001"
+                value={formOcc.percentual_comissao ?? ""}
+                disabled
+              />
+            </Field>
+            <Field label="Valor da comissão (total)">
+              <CurrencyInput
+                value={formOcc.valor_comissao}
+                disabled={!canWrite}
+                onChange={(v) => {
+                  const neg = Number(formOcc.valor_negociado ?? 0);
+                  const patch: Partial<OccurrenceRow> = { valor_comissao: v };
+                  if (v != null && neg > 0)
+                    patch.percentual_comissao = Number(((v / neg) * 100).toFixed(6));
+                  else patch.percentual_comissao = null;
+                  updOcc(patch);
+                }}
+              />
+            </Field>
           </FieldGrid>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Vendedor e Comprador</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Vendedor e Comprador</CardTitle>
+        </CardHeader>
         <CardContent>
           {partiesComNome(parties).length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma parte preenchida.</p>
@@ -3552,52 +6194,173 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Financiamento</CardTitle>
           {canWrite && (
-            <Button size="sm" variant="outline" onClick={pullFinanciamento}>Puxar do pagamento</Button>
+            <Button size="sm" variant="outline" onClick={pullFinanciamento}>
+              Puxar do pagamento
+            </Button>
           )}
         </CardHeader>
         <CardContent>
           {financiamentoDesatualizado && (
             <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-              O financiamento mudou na etapa Pagamento depois da última sincronização. Clique em "Puxar do pagamento" para atualizar.
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />O financiamento mudou na etapa
+              Pagamento depois da última sincronização. Clique em "Puxar do pagamento" para
+              atualizar.
             </div>
           )}
           <FieldGrid>
-            <Field label="Tem financiamento?"><div className="flex items-center gap-2"><Switch checked={!!formOcc.financiamento} onCheckedChange={(v) => updOcc({ financiamento: v })} disabled={!canWrite} /><span className="text-sm text-muted-foreground">{formOcc.financiamento ? "Sim" : "Não"}</span></div></Field>
-            <Field label="Valor financiado"><CurrencyInput value={formOcc.financiamento_valor} disabled={!canWrite || !formOcc.financiamento} onChange={(v) => updOcc({ financiamento_valor: v })} /></Field>
-            <Field label="Banco"><Input value={formOcc.financiamento_banco ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_banco: e.target.value })} /></Field>
-            <Field label="Correspondente bancário"><Input value={formOcc.financiamento_correspondente ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_correspondente: e.target.value })} /></Field>
-            <Field label="Previsão de liberação"><Input type="date" value={formOcc.financiamento_previsao ?? ""} disabled={!canWrite || !formOcc.financiamento} onChange={(e) => updOcc({ financiamento_previsao: e.target.value || null })} /></Field>
-            <Field label="Oba Crédito"><div className="flex items-center gap-2"><Switch checked={!!formOcc.oba_credito} onCheckedChange={(v) => updOcc({ oba_credito: v })} disabled={!canWrite || !formOcc.financiamento} /><span className="text-sm text-muted-foreground">{formOcc.oba_credito ? "Sim" : "Não"}</span></div></Field>
+            <Field label="Tem financiamento?">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={!!formOcc.financiamento}
+                  onCheckedChange={(v) => updOcc({ financiamento: v })}
+                  disabled={!canWrite}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {formOcc.financiamento ? "Sim" : "Não"}
+                </span>
+              </div>
+            </Field>
+            <Field label="Valor financiado">
+              <CurrencyInput
+                value={formOcc.financiamento_valor}
+                disabled={!canWrite || !formOcc.financiamento}
+                onChange={(v) => updOcc({ financiamento_valor: v })}
+              />
+            </Field>
+            <Field label="Banco">
+              <Input
+                value={formOcc.financiamento_banco ?? ""}
+                disabled={!canWrite || !formOcc.financiamento}
+                onChange={(e) => updOcc({ financiamento_banco: e.target.value })}
+              />
+            </Field>
+            <Field label="Correspondente bancário">
+              <Input
+                value={formOcc.financiamento_correspondente ?? ""}
+                disabled={!canWrite || !formOcc.financiamento}
+                onChange={(e) => updOcc({ financiamento_correspondente: e.target.value })}
+              />
+            </Field>
+            <Field label="Previsão de liberação">
+              <Input
+                type="date"
+                value={formOcc.financiamento_previsao ?? ""}
+                disabled={!canWrite || !formOcc.financiamento}
+                onChange={(e) => updOcc({ financiamento_previsao: e.target.value || null })}
+              />
+            </Field>
+            <Field label="Oba Crédito">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={!!formOcc.oba_credito}
+                  onCheckedChange={(v) => updOcc({ oba_credito: v })}
+                  disabled={!canWrite || !formOcc.financiamento}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {formOcc.oba_credito ? "Sim" : "Não"}
+                </span>
+              </div>
+            </Field>
           </FieldGrid>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4">
           {sale.parceria_valor != null && (
             <p className="-mt-2 text-xs text-muted-foreground">
-              Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria — {sale.parceria_nome || "o parceiro"} cobra a fatia dele (R$ {Number(sale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) direto, nunca passa por essa conta.
+              Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria —{" "}
+              {sale.parceria_nome || "o parceiro"} cobra a fatia dele (R${" "}
+              {Number(sale.parceria_valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+              direto, nunca passa por essa conta.
             </p>
           )}
           <FieldGrid>
-            <Field label="1ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento_valor: v })} /></Field>
-            <Field label="1ª parcela — data"><Input type="date" value={formOcc.prev_recebimento_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })} /></Field>
-            <Field label="1ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+            <Field label="1ª parcela — valor">
+              <CurrencyInput
+                value={formOcc.prev_recebimento_valor}
+                disabled={!canWrite}
+                onChange={(v) => updOcc({ prev_recebimento_valor: v })}
+              />
+            </Field>
+            <Field label="1ª parcela — data">
+              <Input
+                type="date"
+                value={formOcc.prev_recebimento_data ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })}
+              />
+            </Field>
+            <Field label="1ª parcela — forma de pagamento" colSpan={2}>
+              <Input
+                value={formOcc.prev_recebimento_forma ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })}
+                placeholder="PIX, TED, boleto..."
+              />
+            </Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="2ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento2_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento2_valor: v })} /></Field>
-            <Field label="2ª parcela — data"><Input type="date" value={formOcc.prev_recebimento2_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_data: e.target.value || null })} /></Field>
-            <Field label="2ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento2_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento2_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+            <Field label="2ª parcela — valor">
+              <CurrencyInput
+                value={formOcc.prev_recebimento2_valor}
+                disabled={!canWrite}
+                onChange={(v) => updOcc({ prev_recebimento2_valor: v })}
+              />
+            </Field>
+            <Field label="2ª parcela — data">
+              <Input
+                type="date"
+                value={formOcc.prev_recebimento2_data ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento2_data: e.target.value || null })}
+              />
+            </Field>
+            <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+              <Input
+                value={formOcc.prev_recebimento2_forma ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento2_forma: e.target.value })}
+                placeholder="PIX, TED, boleto..."
+              />
+            </Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="3ª parcela — valor"><CurrencyInput value={formOcc.prev_recebimento3_valor} disabled={!canWrite} onChange={(v) => updOcc({ prev_recebimento3_valor: v })} /></Field>
-            <Field label="3ª parcela — data"><Input type="date" value={formOcc.prev_recebimento3_data ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_data: e.target.value || null })} /></Field>
-            <Field label="3ª parcela — forma de pagamento" colSpan={2}><Input value={formOcc.prev_recebimento3_forma ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ prev_recebimento3_forma: e.target.value })} placeholder="PIX, TED, boleto..." /></Field>
+            <Field label="3ª parcela — valor">
+              <CurrencyInput
+                value={formOcc.prev_recebimento3_valor}
+                disabled={!canWrite}
+                onChange={(v) => updOcc({ prev_recebimento3_valor: v })}
+              />
+            </Field>
+            <Field label="3ª parcela — data">
+              <Input
+                type="date"
+                value={formOcc.prev_recebimento3_data ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento3_data: e.target.value || null })}
+              />
+            </Field>
+            <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+              <Input
+                value={formOcc.prev_recebimento3_forma ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ prev_recebimento3_forma: e.target.value })}
+                placeholder="PIX, TED, boleto..."
+              />
+            </Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="Observações" colSpan={2}><Textarea value={formOcc.observacoes ?? ""} disabled={!canWrite} onChange={(e) => updOcc({ observacoes: e.target.value })} /></Field>
+            <Field label="Observações" colSpan={2}>
+              <Textarea
+                value={formOcc.observacoes ?? ""}
+                disabled={!canWrite}
+                onChange={(e) => updOcc({ observacoes: e.target.value })}
+              />
+            </Field>
           </FieldGrid>
         </CardContent>
       </Card>
@@ -3606,37 +6369,63 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base">Divisão de comissão</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído: R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Imobiliária: R$ {valorImobiliaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído:
+              R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ·
+              Imobiliária: R${" "}
+              {valorImobiliaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </p>
           </div>
           {canWrite && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={pullFromSaleSplit}>Puxar da revisão do gestor</Button>
-              <Button size="sm" variant="outline" onClick={addCommission}><Plus className="mr-1 h-4 w-4" />Adicionar</Button>
+              <Button size="sm" variant="outline" onClick={pullFromSaleSplit}>
+                Puxar da revisão do gestor
+              </Button>
+              <Button size="sm" variant="outline" onClick={addCommission}>
+                <Plus className="mr-1 h-4 w-4" />
+                Adicionar
+              </Button>
             </div>
           )}
         </CardHeader>
         <CardContent className="space-y-2">
           {comissoesDesatualizadas && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-              A divisão de comissão mudou na Resumo depois da última sincronização. Clique em "Puxar da revisão do gestor" para atualizar.
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />A divisão de comissão mudou na
+              Resumo depois da última sincronização. Clique em "Puxar da revisão do gestor" para
+              atualizar.
             </div>
           )}
           {excedido && (
             <div className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">
-              <AlertTriangle className="mr-2 inline h-4 w-4" />
-              A soma das comissões (R$ {somaComissoes.toFixed(2)}) ultrapassa o valor total (R$ {total.toFixed(2)}).
+              <AlertTriangle className="mr-2 inline h-4 w-4" />A soma das comissões (R${" "}
+              {somaComissoes.toFixed(2)}) ultrapassa o valor total (R$ {total.toFixed(2)}).
             </div>
           )}
-          {formComms.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma comissão adicionada.</p>}
+          {formComms.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma comissão adicionada.</p>
+          )}
           {formComms.map((c) => (
-            <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12">
+            <div
+              key={c.id}
+              className="grid grid-cols-1 items-end gap-2 rounded-md border p-3 md:grid-cols-12"
+            >
               <div className="md:col-span-3">
                 <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                <Select value={c.papel} onValueChange={(v) => updComm(c.id, { papel: v })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={c.papel}
+                  onValueChange={(v) => updComm(c.id, { papel: v })}
+                  disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {COMISSAO_PAPEIS.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                    {COMISSAO_PAPEIS.map((p) => (
+                      <SelectItem key={p.key} value={p.key}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -3649,7 +6438,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                       value={valorSelectBeneficiario(c)}
                       disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
                       onValueChange={(v) =>
-                        updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
+                        updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome ?? null))
                       }
                     >
                       <SelectTrigger>
@@ -3660,7 +6449,7 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                           Sem cadastro / parceiro externo (digitar nome)
                         </SelectItem>
                         {foraDaLista && (
-                          <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>
+                          <SelectItem value={c.user_id!}>{c.nome} (inativo)</SelectItem>
                         )}
                         {pessoasAtivas.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
@@ -3680,20 +6469,40 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
-                <Input type="number" step="0.001" value={c.percentual ?? ""} onChange={(e) => updComm(c.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} />
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={c.percentual ?? ""}
+                  onChange={(e) =>
+                    updComm(c.id, { percentual: e.target.value ? Number(e.target.value) : null })
+                  }
+                  disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">Valor (R$)</Label>
-                <CurrencyInput value={c.valor} onChange={(v) => updComm(c.id, { valor: v })} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} />
+                <CurrencyInput
+                  value={c.valor}
+                  onChange={(v) => updComm(c.id, { valor: v })}
+                  disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                />
               </div>
               {canWrite && podeEditarComissaoNaOcorrencia(c) && (
                 <div className="md:col-span-1">
-                  <Button variant="ghost" size="sm" onClick={() => delCommission(c.id)} className="w-full">×</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => delCommission(c.id)}
+                    className="w-full"
+                  >
+                    ×
+                  </Button>
                 </div>
               )}
               {c.managed_by_sale && (
                 <p className="text-xs text-muted-foreground md:col-span-12">
-                  Valor automático da revisão do gestor. Para alterar, edite a divisão da comissão na aba Resumo.
+                  Valor automático da revisão do gestor. Para alterar, edite a divisão da comissão
+                  na aba Resumo.
                 </p>
               )}
             </div>
@@ -3706,20 +6515,27 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
           <CardTitle className="text-base">Parcerias</CardTitle>
           {canWrite && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={pullPartnerFromSale}>Puxar da Resumo</Button>
-              <Button size="sm" variant="outline" onClick={addPartner}><Plus className="mr-1 h-4 w-4" />Adicionar parceria</Button>
+              <Button size="sm" variant="outline" onClick={pullPartnerFromSale}>
+                Puxar da Resumo
+              </Button>
+              <Button size="sm" variant="outline" onClick={addPartner}>
+                <Plus className="mr-1 h-4 w-4" />
+                Adicionar parceria
+              </Button>
             </div>
           )}
         </CardHeader>
         <CardContent className="space-y-2">
           {parceriaDesatualizada && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-              A parceria externa mudou na Resumo depois da última sincronização. Clique em "Puxar da Resumo" para atualizar.
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />A parceria externa mudou na
+              Resumo depois da última sincronização. Clique em "Puxar da Resumo" para atualizar.
             </div>
           )}
-          {formPartners.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma parceria adicionada.</p>}
-          {formPartners.map(p => (
+          {formPartners.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma parceria adicionada.</p>
+          )}
+          {formPartners.map((p) => (
             <div key={p.id} className="grid grid-cols-1 gap-2 rounded-md border p-3 md:grid-cols-4">
               {p.tipo && (
                 <p className="text-xs font-medium text-muted-foreground md:col-span-4">
@@ -3727,16 +6543,72 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
                   {p.from_sale && " · sinalizado na Resumo"}
                 </p>
               )}
-              <Field label="Corretor/Imobiliária"><Input value={p.nome ?? ""} onChange={(e) => updPartner(p.id, { nome: e.target.value })} disabled={!canWrite} /></Field>
-              <Field label="CPF/CNPJ"><Input value={p.cpf_cnpj ?? ""} onChange={(e) => updPartner(p.id, { cpf_cnpj: e.target.value })} disabled={!canWrite} /></Field>
-              <Field label="%"><Input type="number" step="0.001" value={p.percentual ?? ""} onChange={(e) => updPartner(p.id, { percentual: e.target.value ? Number(e.target.value) : null })} disabled={!canWrite} /></Field>
-              <Field label="Valor"><CurrencyInput value={p.valor} onChange={(v) => updPartner(p.id, { valor: v })} disabled={!canWrite} /></Field>
-              <Field label="Banco"><Input value={p.banco ?? ""} onChange={(e) => updPartner(p.id, { banco: e.target.value })} disabled={!canWrite} /></Field>
-              <Field label="Agência"><Input value={p.agencia ?? ""} onChange={(e) => updPartner(p.id, { agencia: e.target.value })} disabled={!canWrite} /></Field>
-              <Field label="Conta"><Input value={p.conta ?? ""} onChange={(e) => updPartner(p.id, { conta: e.target.value })} disabled={!canWrite} /></Field>
-              <Field label="PIX"><Input value={p.pix ?? ""} onChange={(e) => updPartner(p.id, { pix: e.target.value })} disabled={!canWrite} /></Field>
+              <Field label="Corretor/Imobiliária">
+                <Input
+                  value={p.nome ?? ""}
+                  onChange={(e) => updPartner(p.id, { nome: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="CPF/CNPJ">
+                <Input
+                  value={p.cpf_cnpj ?? ""}
+                  onChange={(e) => updPartner(p.id, { cpf_cnpj: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="%">
+                <Input
+                  type="number"
+                  step="0.001"
+                  value={p.percentual ?? ""}
+                  onChange={(e) =>
+                    updPartner(p.id, { percentual: e.target.value ? Number(e.target.value) : null })
+                  }
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="Valor">
+                <CurrencyInput
+                  value={p.valor}
+                  onChange={(v) => updPartner(p.id, { valor: v })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="Banco">
+                <Input
+                  value={p.banco ?? ""}
+                  onChange={(e) => updPartner(p.id, { banco: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="Agência">
+                <Input
+                  value={p.agencia ?? ""}
+                  onChange={(e) => updPartner(p.id, { agencia: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="Conta">
+                <Input
+                  value={p.conta ?? ""}
+                  onChange={(e) => updPartner(p.id, { conta: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="PIX">
+                <Input
+                  value={p.pix ?? ""}
+                  onChange={(e) => updPartner(p.id, { pix: e.target.value })}
+                  disabled={!canWrite}
+                />
+              </Field>
               {canWrite && (
-                <div className="flex items-end"><Button variant="ghost" size="sm" onClick={() => delPartner(p.id)}>Remover</Button></div>
+                <div className="flex items-end">
+                  <Button variant="ghost" size="sm" onClick={() => delPartner(p.id)}>
+                    Remover
+                  </Button>
+                </div>
               )}
             </div>
           ))}
@@ -3749,26 +6621,49 @@ function OccurrencePanel({ saleId, sale, payment, parties, commissionExtras, dis
             variant={occ.aceita_financeiro ? "outline" : "default"}
             onClick={toggleAceite}
             disabled={!occ.aceita_financeiro && !podeTravar}
-            title={!occ.aceita_financeiro && !podeTravar ? "Só dá pra travar depois que a ocorrência estiver em análise do financeiro" : undefined}
+            title={
+              !occ.aceita_financeiro && !podeTravar
+                ? "Só dá pra travar depois que a ocorrência estiver em análise do financeiro"
+                : undefined
+            }
           >
             {occ.aceita_financeiro ? "Liberar edições" : "Aceitar e travar (Financeiro)"}
           </Button>
         )}
         {canFinLock && concluida && (
-          <Button variant="outline" onClick={openReopenDialog}><RotateCcw className="mr-2 h-4 w-4" />Reabrir ocorrência</Button>
+          <Button variant="outline" onClick={openReopenDialog}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reabrir ocorrência
+          </Button>
         )}
       </div>
 
-      <Dialog open={reopenOpen} onOpenChange={(o) => { if (!reopening) setReopenOpen(o); }}>
+      <Dialog
+        open={reopenOpen}
+        onOpenChange={(o) => {
+          if (!reopening) setReopenOpen(o);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reabrir ocorrência</DialogTitle>
-            <DialogDescription>Descreva a justificativa. O corretor será notificado.</DialogDescription>
+            <DialogDescription>
+              Descreva a justificativa. O corretor será notificado.
+            </DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Justificativa (obrigatória)" value={reopenMotivo} onChange={(e) => setReopenMotivo(e.target.value)} rows={4} />
+          <Textarea
+            placeholder="Justificativa (obrigatória)"
+            value={reopenMotivo}
+            onChange={(e) => setReopenMotivo(e.target.value)}
+            rows={4}
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>Cancelar</Button>
-            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>Reabrir</Button>
+            <Button variant="ghost" onClick={() => setReopenOpen(false)} disabled={reopening}>
+              Cancelar
+            </Button>
+            <Button onClick={reopen} disabled={reopening || !reopenMotivo.trim()}>
+              Reabrir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

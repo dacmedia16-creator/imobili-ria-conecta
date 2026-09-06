@@ -6,8 +6,15 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { podeAcessarComparativo6pct, resumoComparativo } from "@/lib/comparativo-comissao-calc";
 import { aplicarFiltros, filtrosPadrao } from "@/lib/comparativo-comissao-filters";
-import { fetchComparativoInconsistencias, fetchComparativoRows } from "@/lib/comparativo-comissao-query";
-import type { ComparativoFiltros, ComparativoRowComCalculo, InconsistenciaRow } from "@/lib/comparativo-comissao-types";
+import {
+  fetchComparativoInconsistencias,
+  fetchComparativoRows,
+} from "@/lib/comparativo-comissao-query";
+import type {
+  ComparativoFiltros,
+  ComparativoRowComCalculo,
+  InconsistenciaRow,
+} from "@/lib/comparativo-comissao-types";
 import { SummaryCards } from "@/components/comparativo-comissao/SummaryCards";
 import { Filters } from "@/components/comparativo-comissao/Filters";
 import { DetailTable } from "@/components/comparativo-comissao/DetailTable";
@@ -20,9 +27,14 @@ export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
   // da RPC comparativo_comissao_6pct: quem tenta acessar a URL direto sem um dos três papéis é
   // barrado antes de qualquer dado carregar e mandado de volta pro Dashboard.
   beforeLoad: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id);
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", session.user.id);
     const roles = (data ?? []).map((r) => r.role);
     if (!podeAcessarComparativo6pct(roles)) {
       toast.error("Acesso não autorizado.");
@@ -43,7 +55,10 @@ function ComparativoComissaoPage() {
   const [filtros, setFiltros] = useState<ComparativoFiltros>(filtrosPadrao());
 
   useEffect(() => {
-    if (!allowed) { setLoading(false); return; }
+    if (!allowed) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       setLoading(true);
       setErro(null);
@@ -65,13 +80,17 @@ function ComparativoComissaoPage() {
   const corretorOptions = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of rows) m.set(r.corretor_id, r.corretorNome);
-    return Array.from(m.entries()).map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(m.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [rows]);
 
   const teamOptions = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of rows) if (r.teamId) m.set(r.teamId, r.teamNome ?? r.teamId);
-    return Array.from(m.entries()).map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(m.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [rows]);
 
   const filtradas = useMemo(() => aplicarFiltros(rows, filtros), [rows, filtros]);
@@ -92,9 +111,12 @@ function ComparativoComissaoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Comparativo de Comissão — Padrão 6%</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Comparativo de Comissão — Padrão 6%
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Comparação da produção atribuída à REMAX, já sem parceria externa, considerando comissão-padrão de 6%.
+          Comparação da produção atribuída à REMAX, já sem parceria externa, considerando
+          comissão-padrão de 6%.
         </p>
       </div>
 
@@ -105,7 +127,12 @@ function ComparativoComissaoPage() {
       )}
 
       <InconsistenciasIndicator rows={inconsistencias} />
-      <Filters filtros={filtros} onChange={setFiltros} corretorOptions={corretorOptions} teamOptions={teamOptions} />
+      <Filters
+        filtros={filtros}
+        onChange={setFiltros}
+        corretorOptions={corretorOptions}
+        teamOptions={teamOptions}
+      />
       <SummaryCards resumo={resumo} />
       <DetailTable rows={filtradas} />
       <MonthlyGrouping rows={filtradas} />

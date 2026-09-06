@@ -21,7 +21,10 @@ export type PublicSpecialist = {
 
 export const MAX_POSITIONING_REGIONS = 2;
 
-export function addPositioningRegion(current: number[], id: number): { ids: number[]; limitReached: boolean } {
+export function addPositioningRegion(
+  current: number[],
+  id: number,
+): { ids: number[]; limitReached: boolean } {
   if (current.includes(id)) return { ids: current, limitReached: false };
   if (current.length >= MAX_POSITIONING_REGIONS) return { ids: current, limitReached: true };
   return { ids: [...current, id], limitReached: false };
@@ -73,11 +76,15 @@ export function parseSpecialistRegions(value: unknown): PublicSpecialistRegion[]
   return value.filter((item): item is PublicSpecialistRegion => {
     if (!item || typeof item !== "object") return false;
     const row = item as Record<string, unknown>;
-    return typeof row.id === "number" && typeof row.nome === "string" && typeof row.cidade === "string";
+    return (
+      typeof row.id === "number" && typeof row.nome === "string" && typeof row.cidade === "string"
+    );
   });
 }
 
-export function groupRegions(regions: PositioningRegion[]): { label: string; items: PositioningRegion[] }[] {
+export function groupRegions(
+  regions: PositioningRegion[],
+): { label: string; items: PositioningRegion[] }[] {
   const groups = new Map<string, PositioningRegion[]>();
   for (const region of regions) {
     const label = region.zona ? `${region.cidade} — ${region.zona}` : region.cidade;

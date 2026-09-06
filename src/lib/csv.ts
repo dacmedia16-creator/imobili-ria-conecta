@@ -1,7 +1,7 @@
-export function exportCsv(filename: string, rows: Record<string, any>[]) {
+export function exportCsv(filename: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
-  const escape = (v: any) => {
+  const escape = (v: unknown) => {
     const s = v == null ? "" : String(v);
     return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };

@@ -67,7 +67,8 @@ export function calcularDistribuicaoLancamento(input: {
 
   const inconsistencias: string[] = [];
   for (const linha of input.linhas) {
-    const percentual = linha.percentual == null || linha.percentual === "" ? null : Number(linha.percentual);
+    const percentual =
+      linha.percentual == null || linha.percentual === "" ? null : Number(linha.percentual);
     const valor = linha.valor == null || linha.valor === "" ? null : Number(linha.valor);
     if (percentual != null && valor != null && baseSaldo > 0) {
       const esperado = round2((percentual / 100) * baseSaldo);

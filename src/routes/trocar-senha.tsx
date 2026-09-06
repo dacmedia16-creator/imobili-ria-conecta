@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { ShieldCheck } from "lucide-react";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/trocar-senha")({
   ssr: false,
@@ -15,7 +16,8 @@ export const Route = createFileRoute("/trocar-senha")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
-    if (!data.session.user.user_metadata?.must_change_password) throw redirect({ to: "/dashboard" });
+    if (!data.session.user.user_metadata?.must_change_password)
+      throw redirect({ to: "/dashboard" });
   },
   component: TrocarSenhaPage,
 });
@@ -41,8 +43,8 @@ function TrocarSenhaPage() {
       if (error) throw error;
       toast.success("Senha atualizada!");
       router.navigate({ to: "/dashboard", replace: true });
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao trocar a senha");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao trocar a senha"));
     } finally {
       setLoading(false);
     }
@@ -51,22 +53,42 @@ function TrocarSenhaPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
       <BrandHeroBackground />
-      <img src="/remax-logo-white.png" alt="RE/MAX Imóveis — Única Escolha" className="relative z-10 mb-6 h-14 w-auto" />
+      <img
+        src="/remax-logo-white.png"
+        alt="RE/MAX Imóveis — Única Escolha"
+        className="relative z-10 mb-6 h-14 w-auto"
+      />
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <ShieldCheck className="mx-auto h-8 w-8 text-primary" />
           <CardTitle>Troque sua senha</CardTitle>
-          <CardDescription>Este é seu primeiro acesso — defina uma senha nova antes de continuar.</CardDescription>
+          <CardDescription>
+            Este é seu primeiro acesso — defina uma senha nova antes de continuar.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <Label htmlFor="nova-senha">Nova senha</Label>
-              <Input id="nova-senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={8} />
+              <Input
+                id="nova-senha"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                required
+                minLength={8}
+              />
             </div>
             <div>
               <Label htmlFor="confirmar-senha">Confirmar nova senha</Label>
-              <Input id="confirmar-senha" type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} required minLength={8} />
+              <Input
+                id="confirmar-senha"
+                type="password"
+                value={confirmacao}
+                onChange={(e) => setConfirmacao(e.target.value)}
+                required
+                minLength={8}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Salvando..." : "Salvar e continuar"}

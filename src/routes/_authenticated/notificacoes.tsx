@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import type { NotificationRow } from "@/lib/database.types";
 
 export const Route = createFileRoute("/_authenticated/notificacoes")({
   head: () => ({ meta: [{ title: "Notificações" }] }),
@@ -17,22 +18,25 @@ const PAGE_SIZE = 50;
 function NotificationsPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<"nao_lidas" | "lidas">("nao_lidas");
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
-  const fetchPage = useCallback(async (from: number) => {
-    if (!user) return [];
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("lida", tab === "lidas")
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
-    return data ?? [];
-  }, [user, tab]);
+  const fetchPage = useCallback(
+    async (from: number) => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("lida", tab === "lidas")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+      return data ?? [];
+    },
+    [user, tab],
+  );
 
   // Recarrega do início — usada na troca de aba e depois de marcar como lida (o item some da
   // lista de "não lidas", então a página inteira precisa ser recalculada, não só anexada).
@@ -44,7 +48,9 @@ function NotificationsPage() {
     setLoading(false);
   }, [fetchPage]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const loadMore = async () => {
     setLoadingMore(true);
@@ -60,9 +66,16 @@ function NotificationsPage() {
   };
   const markAllRead = async () => {
     if (!user) return;
-    const { error } = await supabase.from("notifications").update({ lida: true }).eq("user_id", user.id).eq("lida", false);
+    const { error } = await supabase
+      .from("notifications")
+      .update({ lida: true })
+      .eq("user_id", user.id)
+      .eq("lida", false);
     if (error) toast.error(error.message);
-    else { toast.success("Todas marcadas como lidas"); load(); }
+    else {
+      toast.success("Todas marcadas como lidas");
+      load();
+    }
   };
 
   return (
@@ -71,7 +84,8 @@ function NotificationsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Notificações</h1>
         {tab === "nao_lidas" && items.length > 0 && (
           <Button variant="outline" size="sm" onClick={markAllRead}>
-            <CheckCheck className="mr-2 h-4 w-4" />Marcar todas como lidas
+            <CheckCheck className="mr-2 h-4 w-4" />
+            Marcar todas como lidas
           </Button>
         )}
       </div>
@@ -89,14 +103,19 @@ function NotificationsPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">{tab === "nao_lidas" ? "Não lidas" : "Lidas"}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">{tab === "nao_lidas" ? "Não lidas" : "Lidas"}</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
           {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
           {!loading && items.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma notificação.</p>
           )}
           {items.map((n) => (
-            <div key={n.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
+            <div
+              key={n.id}
+              className="flex items-start justify-between gap-3 rounded-md border p-3"
+            >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{n.titulo}</div>
                 {n.mensagem && <p className="mt-0.5 text-sm text-muted-foreground">{n.mensagem}</p>}
@@ -107,13 +126,23 @@ function NotificationsPage() {
               <div className="flex shrink-0 items-center gap-1">
                 {n.sale_id && (
                   <Button asChild size="sm" variant="ghost">
-                    <Link to="/vendas/$id" params={{ id: n.sale_id }} onClick={() => !n.lida && markRead(n.id)}>
-                      <ExternalLink className="mr-1 h-4 w-4" />Abrir
+                    <Link
+                      to="/vendas/$id"
+                      params={{ id: n.sale_id }}
+                      onClick={() => !n.lida && markRead(n.id)}
+                    >
+                      <ExternalLink className="mr-1 h-4 w-4" />
+                      Abrir
                     </Link>
                   </Button>
                 )}
                 {!n.lida && (
-                  <Button size="sm" variant="ghost" onClick={() => markRead(n.id)} aria-label="Marcar como lida">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => markRead(n.id)}
+                    aria-label="Marcar como lida"
+                  >
                     <Check className="h-4 w-4" />
                   </Button>
                 )}

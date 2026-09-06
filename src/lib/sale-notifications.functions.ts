@@ -98,7 +98,9 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
 
     const { data: sale } = await supabase
       .from("sales")
-      .select("id, corretor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado")
+      .select(
+        "id, corretor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
+      )
       .eq("id", data.saleId)
       .maybeSingle();
     if (!sale) return { notified: 0, sent: 0 };
@@ -237,7 +239,9 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     }
     for (const [id, papel] of atualizacaoPapelById) {
       if (inAppPorUsuario.has(id)) continue; // já ganhou a msg de "sua vez", mais específica — não duplica
-      const row = (rolesRows ?? []).find((r: UserRoleRow) => r.user_id === id && papelBate(r.role, papel));
+      const row = (rolesRows ?? []).find(
+        (r: UserRoleRow) => r.user_id === id && papelBate(r.role, papel),
+      );
       const quer = row ? row.notificar_toda_atualizacao : defaultTodaAtualizacao(papel);
       if (!quer) continue;
       inAppPorUsuario.set(id, {

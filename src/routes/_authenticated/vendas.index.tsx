@@ -69,6 +69,30 @@ import {
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
 import { registrarVendaAction } from "@/lib/registrar-venda";
+import type { SaleRow } from "@/lib/database.types";
+import { errorMessage } from "@/lib/errors";
+
+type RawSale = Pick<
+  SaleRow,
+  | "id"
+  | "status"
+  | "valor_negociado"
+  | "imovel_id"
+  | "codigo_interno"
+  | "corretor_captador"
+  | "corretor_vendedor"
+  | "updated_at"
+  | "created_at"
+  | "corretor_id"
+>;
+type SalesListRow = RawSale & { data_venda: string };
+type FilterableQuery<T> = {
+  eq(column: string, value: unknown): T;
+  in(column: string, values: readonly unknown[]): T;
+  gte(column: string, value: unknown): T;
+  lte(column: string, value: unknown): T;
+  or(filters: string): T;
+};
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
@@ -83,7 +107,7 @@ function SalesList() {
   const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
-  const [sales, setSales] = useState<any[]>([]);
+  const [sales, setSales] = useState<SalesListRow[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
@@ -95,7 +119,7 @@ function SalesList() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
-  const [toDelete, setToDelete] = useState<any | null>(null);
+  const [toDelete, setToDelete] = useState<SalesListRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
@@ -141,7 +165,7 @@ function SalesList() {
         string,
         { nome: string; parent_team_id: string | null; lider_id: string | null }
       > = {};
-      (teams ?? []).forEach((t: any) => {
+      (teams ?? []).forEach((t) => {
         byId[t.id] = t;
       });
       const byTeam: Record<string, string[]> = {};
@@ -149,23 +173,23 @@ function SalesList() {
       // team_members — sem isso, uma venda cujo dono é o próprio líder (ex: papel Lançamento
       // acumulado com Gestor, que sobe a venda em nome próprio, não como membro de ninguém) sumia
       // do filtro por não estar em team_members.
-      (teams ?? []).forEach((t: any) => {
+      (teams ?? []).forEach((t) => {
         if (t.lider_id) (byTeam[t.id] ??= []).push(t.lider_id);
       });
-      (coLeaders ?? []).forEach((c: any) => {
+      (coLeaders ?? []).forEach((c) => {
         (byTeam[c.team_id] ??= []).push(c.user_id);
       });
-      (members ?? []).forEach((m: any) => {
+      (members ?? []).forEach((m) => {
         (byTeam[m.team_id] ??= []).push(m.membro_id);
       });
       const topTeams = [...(teams ?? [])]
-        .filter((t: any) => !t.parent_team_id)
-        .sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+        .filter((t) => !t.parent_team_id)
+        .sort((a, b) => a.nome.localeCompare(b.nome));
       const options: { id: string; label: string }[] = [];
       for (const top of topTeams) {
         const subs = (teams ?? [])
-          .filter((t: any) => t.parent_team_id === top.id)
-          .sort((a: any, b: any) => a.nome.localeCompare(b.nome));
+          .filter((t) => t.parent_team_id === top.id)
+          .sort((a, b) => a.nome.localeCompare(b.nome));
         for (const t of [top, ...subs]) {
           options.push({
             id: t.id,
@@ -181,13 +205,13 @@ function SalesList() {
       // cada corretor é na coluna "Gestor/Líder", já que quem vê vendas de várias equipes ao mesmo
       // tempo (jurídico/financeiro/admin) não tem como saber isso de cabeça.
       const teamIdByCorretor: Record<string, string> = {};
-      (members ?? []).forEach((m: any) => {
+      (members ?? []).forEach((m) => {
         if (!teamIdByCorretor[m.membro_id]) teamIdByCorretor[m.membro_id] = m.team_id;
       });
-      (teams ?? []).forEach((t: any) => {
+      (teams ?? []).forEach((t) => {
         if (t.lider_id && !teamIdByCorretor[t.lider_id]) teamIdByCorretor[t.lider_id] = t.id;
       });
-      (coLeaders ?? []).forEach((c: any) => {
+      (coLeaders ?? []).forEach((c) => {
         if (!teamIdByCorretor[c.user_id]) teamIdByCorretor[c.user_id] = c.team_id;
       });
       const liderByCorretor: Record<string, string> = {};
@@ -257,7 +281,7 @@ function SalesList() {
         .from("sale_parties")
         .select("sale_id")
         .ilike("nome", `%${qSafe}%`);
-      const partySaleIds = Array.from(new Set((matchingParties ?? []).map((p: any) => p.sale_id)));
+      const partySaleIds = Array.from(new Set((matchingParties ?? []).map((p) => p.sale_id)));
       const orParts = [
         `imovel_id.ilike.%${qSafe}%`,
         `codigo_interno.ilike.%${qSafe}%`,
@@ -270,8 +294,8 @@ function SalesList() {
     return filters;
   }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = (
-    query: any,
+  const applyFilters = <T extends FilterableQuery<T>>(
+    query: T,
     filters: {
       status?: string;
       statuses?: SaleStatus[];
@@ -292,12 +316,18 @@ function SalesList() {
     return out;
   };
 
-  const aplicarDataReal = async (rows: any[], filters: { desde?: string; ate?: string }) => {
+  const aplicarDataReal = async <T extends { id: string; created_at: string }>(
+    rows: T[],
+    filters: { desde?: string; ate?: string },
+  ): Promise<Array<T & { data_venda: string }>> => {
     if (!rows.length) return [];
     const { data: occurrences } = await supabase
       .from("occurrences")
       .select("sale_id, data_assinatura")
-      .in("sale_id", rows.map((row) => row.id));
+      .in(
+        "sale_id",
+        rows.map((row) => row.id),
+      );
     const assinaturaPorVenda = new Map(
       (occurrences ?? []).map((occ) => [occ.sale_id, occ.data_assinatura]),
     );
@@ -362,12 +392,7 @@ function SalesList() {
     ]);
     const valores = await aplicarDataReal(vendasResumo ?? [], filters);
     setTotalCount(valores.length);
-    setTotalValor(
-      valores.reduce(
-        (sum: number, venda: any) => sum + (Number(venda.valor_negociado) || 0),
-        0,
-      ),
-    );
+    setTotalValor(valores.reduce((sum, venda) => sum + (Number(venda.valor_negociado) || 0), 0));
     setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
     setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
   }, [buildFilters, dataDe, dataAte]);
@@ -402,7 +427,7 @@ function SalesList() {
     setSales(rows);
     setStageSince({});
     setHasMore(rows.length === PAGE_SIZE);
-    await mergeStageSince(rows.map((s: any) => s.id));
+    await mergeStageSince(rows.map((s) => s.id));
     if (requestIdRef.current !== myRequestId) return;
     setLoading(false);
   }, [fetchPage, fetchSummary]);
@@ -418,7 +443,7 @@ function SalesList() {
     if (requestIdRef.current !== myRequestId) return;
     setSales((prev) => [...prev, ...rows]);
     setHasMore(rows.length === PAGE_SIZE);
-    await mergeStageSince(rows.map((s: any) => s.id));
+    await mergeStageSince(rows.map((s) => s.id));
     if (requestIdRef.current !== myRequestId) return;
     setLoadingMore(false);
   };
@@ -438,8 +463,8 @@ function SalesList() {
       setToDelete(null);
       setRefreshKey((k) => k + 1);
       router.invalidate();
-    } catch (err: any) {
-      toast.error(err.message ?? "Falha ao excluir venda");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao excluir venda"));
     } finally {
       setDeleting(false);
     }
@@ -451,7 +476,7 @@ function SalesList() {
   const podeTerFila =
     !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
   const saleIsMinhaVez = useCallback(
-    (s: any) => {
+    (s: SalesListRow) => {
       if (isOverseer) return false;
       return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
         papel === "corretor"

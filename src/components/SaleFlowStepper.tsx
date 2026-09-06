@@ -27,13 +27,25 @@ export function SaleFlowStepper({ status }: { status: SaleStatus }) {
               >
                 {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
               </div>
-              <span className={cn("w-16 whitespace-nowrap text-center text-[11px] leading-tight", current ? "font-medium text-foreground" : "text-muted-foreground")}>
+              <span
+                className={cn(
+                  "w-16 whitespace-nowrap text-center text-[11px] leading-tight",
+                  current ? "font-medium text-foreground" : "text-muted-foreground",
+                )}
+              >
                 {stage.label}
-                {current && returned && <span className="block text-amber-600 dark:text-amber-400">devolvida</span>}
+                {current && returned && (
+                  <span className="block text-amber-600 dark:text-amber-400">devolvida</span>
+                )}
               </span>
             </div>
             {i < FLOW_STAGES.length - 1 && (
-              <div className={cn("mx-1 mt-3 h-0.5 w-6 shrink-0 sm:w-10", i < currentIndex ? "bg-emerald-500" : "bg-muted-foreground/20")} />
+              <div
+                className={cn(
+                  "mx-1 mt-3 h-0.5 w-6 shrink-0 sm:w-10",
+                  i < currentIndex ? "bg-emerald-500" : "bg-muted-foreground/20",
+                )}
+              />
             )}
           </div>
         );

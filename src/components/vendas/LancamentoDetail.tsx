@@ -63,18 +63,65 @@ import {
 } from "@/lib/lancamento-pessoas";
 import { calcularDistribuicaoLancamento } from "@/lib/lancamento-distribuicao";
 import { sanitizeLancamentoResumoPayload } from "@/lib/lancamento-resumo";
+import type {
+  ActivityLogRow,
+  CommissionExtraRow,
+  Json,
+  OccurrenceCommissionRow,
+  OccurrenceRow,
+  PartyRow,
+  PaymentRow,
+  SaleHistoryRow,
+  SaleRow,
+} from "@/lib/database.types";
+
+type FieldChanges = Record<string, { de: Json | undefined; para: Json | undefined }>;
+type ActivityPayload = {
+  imovel_id?: unknown;
+  construtora?: unknown;
+  alteracoes?: Record<string, unknown>;
+  antes?: unknown[];
+  depois?: unknown[];
+  de?: unknown;
+  para?: unknown;
+  saldo_imobiliaria?: unknown;
+};
+type LancamentoDistribution = {
+  calculo_valido: boolean;
+  comissao_bruta: number;
+  diferenca_restante: number;
+  inconsistencias: string[];
+  parceria_externa: number;
+  premio_valor: number;
+  saldo_imobiliaria: number;
+  total_pessoas: number;
+};
+type EditableCommissionExtra = Pick<
+  CommissionExtraRow,
+  "id" | "papel" | "nome" | "user_id" | "percentual" | "valor" | "sem_cadastro_confirmado"
+> & { _new?: boolean };
+type PartyForm = Partial<
+  Pick<PartyRow, "razao_social" | "cnpj" | "nome" | "cpf_cnpj" | "rg" | "email" | "telefone">
+>;
+
+const asDistribution = (value: Json | null): LancamentoDistribution | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as unknown as LancamentoDistribution)
+    : null;
+
+const asActivityPayload = (value: Json): ActivityPayload =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as ActivityPayload) : {};
 
 /** Diff raso entre dois objetos "planos" (Resumo/Construtora) — só as chaves presentes em `depois`,
  * comparando null/"" como equivalentes a undefined pra não logar troca de tipo sem troca de valor
  * real. Usado só pro registro de auditoria (activity_logs), nunca pra decidir o que salvar. */
-function diffCampos(
-  antes: Record<string, any>,
-  depois: Record<string, any>,
-): Record<string, { de: any; para: any }> {
-  const changes: Record<string, { de: any; para: any }> = {};
-  for (const key of Object.keys(depois)) {
-    const a = antes[key] ?? null;
-    const b = depois[key] ?? null;
+function diffCampos<T extends object>(antes: T, depois: T): FieldChanges {
+  const changes: FieldChanges = {};
+  const before = antes as Record<string, Json | undefined>;
+  const after = depois as Record<string, Json | undefined>;
+  for (const key of Object.keys(after)) {
+    const a = before[key] ?? null;
+    const b = after[key] ?? null;
     if (a !== b) changes[key] = { de: a, para: b };
   }
   return changes;
@@ -86,7 +133,7 @@ function diffCampos(
  * outra, e misturar os dois switches deixaria os dois fluxos acoplados sem necessidade. */
 function describeAtividadeLancamento(
   acao: string,
-  payload: any,
+  payload: ActivityPayload | null,
 ): { label: string; detail?: string } {
   const p = payload ?? {};
   switch (acao) {
@@ -103,8 +150,8 @@ function describeAtividadeLancamento(
       };
     }
     case "lancamento_comissao_editada": {
-      const antes = p.antes ?? [];
-      const depois = p.depois ?? [];
+      const antes = Array.isArray(p.antes) ? p.antes : [];
+      const depois = Array.isArray(p.depois) ? p.depois : [];
       return {
         label: "Editou a divisão da comissão",
         detail: `${antes.length} linha(s) → ${depois.length} linha(s)`,
@@ -140,10 +187,10 @@ export function LancamentoDetail({
   onChange,
 }: {
   saleId: string;
-  sale: any;
-  parties: Record<string, any>;
-  payment: any;
-  commissionExtras: any[];
+  sale: SaleRow;
+  parties: Record<string, PartyRow>;
+  payment: PaymentRow | null;
+  commissionExtras: CommissionExtraRow[];
   onChange: () => void | Promise<void>;
 }) {
   const { user, hasAny } = useAuth();
@@ -167,9 +214,9 @@ export function LancamentoDetail({
     isFinanceiro &&
     (sale.status === "ocorrencia_analise_financeiro" || sale.status === "devolvida_ajuste");
   const [editOcc, setEditOcc] = useState(false);
-  const [editResumo, setEditResumo] = useState<any>({});
-  const [editFinanciamento, setEditFinanciamento] = useState<any>({});
-  const [editLinhas, setEditLinhas] = useState<any[]>([]);
+  const [editResumo, setEditResumo] = useState<Partial<SaleRow>>({});
+  const [editFinanciamento, setEditFinanciamento] = useState<Partial<OccurrenceRow>>({});
+  const [editLinhas, setEditLinhas] = useState<EditableCommissionExtra[]>([]);
   const [editMotivoOpen, setEditMotivoOpen] = useState(false);
   const [editMotivo, setEditMotivo] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
@@ -208,10 +255,10 @@ export function LancamentoDetail({
     setEditLinhas(commissionExtras.map((c) => ({ ...c })));
     setEditOcc(true);
   };
-  const updEditResumo = (patch: any) => setEditResumo((f: any) => ({ ...f, ...patch }));
-  const updEditFinanciamento = (patch: any) =>
-    setEditFinanciamento((f: any) => ({ ...f, ...patch }));
-  const updEditLinha = (id: string, patch: any) =>
+  const updEditResumo = (patch: Partial<SaleRow>) => setEditResumo((f) => ({ ...f, ...patch }));
+  const updEditFinanciamento = (patch: Partial<OccurrenceRow>) =>
+    setEditFinanciamento((f) => ({ ...f, ...patch }));
+  const updEditLinha = (id: string, patch: Partial<EditableCommissionExtra>) =>
     setEditLinhas((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const addEditLinha = () =>
     setEditLinhas((rows) => [
@@ -232,10 +279,10 @@ export function LancamentoDetail({
   const editPreviewDist = useMemo(
     () =>
       calcularDistribuicaoLancamento({
-        valorNegociado: editResumo.valor_negociado,
-        percentualComissao: editResumo.percentual_comissao,
-        valorTotalComissao: editResumo.valor_total_comissao,
-        premioValor: editResumo.premio_valor,
+        valorNegociado: editResumo.valor_negociado ?? null,
+        percentualComissao: editResumo.percentual_comissao ?? null,
+        valorTotalComissao: editResumo.valor_total_comissao ?? null,
+        premioValor: editResumo.premio_valor ?? null,
         linhas: editLinhas.map((c) => ({
           valor: c.valor,
           percentual: c.percentual,
@@ -295,7 +342,7 @@ export function LancamentoDetail({
         toast.error(error.message);
         return;
       }
-      setDistribuicao(data ?? null);
+      setDistribuicao(asDistribution(data));
       toast.success("Ocorrência atualizada.");
       setEditMotivoOpen(false);
       setEditMotivo("");
@@ -350,8 +397,8 @@ export function LancamentoDetail({
 
   // ----- Histórico: sale_status_history + activity_logs, os mesmos dois já usados pela Venda
   // Normal — nenhuma tabela nova, nenhum evento retroativo inventado (só o que já foi gravado). -----
-  const [history, setHistory] = useState<any[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [history, setHistory] = useState<SaleHistoryRow[]>([]);
+  const [activity, setActivity] = useState<ActivityLogRow[]>([]);
   const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
   const loadHistorico = useCallback(async () => {
     const [{ data: h }, { data: a }] = await Promise.all([
@@ -395,8 +442,8 @@ export function LancamentoDetail({
   // formulário desabilitados. Também busca em devolvida_ajuste (a ocorrência já existe desde o
   // primeiro envio — só o status muda) pra dar pro financeiro/admin ver o relatório e o botão Editar
   // enquanto o dono ainda não reenviou (canEditFinanceiro acima).
-  const [occ, setOcc] = useState<any>(null);
-  const [occCommissions, setOccCommissions] = useState<any[]>([]);
+  const [occ, setOcc] = useState<OccurrenceRow | null>(null);
+  const [occCommissions, setOccCommissions] = useState<OccurrenceCommissionRow[]>([]);
   const [loadingOcc, setLoadingOcc] = useState(false);
   useEffect(() => {
     if (sale.status === "rascunho") {
@@ -427,10 +474,10 @@ export function LancamentoDetail({
   // ver migration 20260818000000), que reconhece modalidade = 'lancamento' e devolve
   // comissao_bruta/total_pessoas/parceria_externa/saldo_imobiliaria/calculo_valido. Refeita a cada
   // salvamento (Resumo ou comissão) pra refletir o que está persistido. -----
-  const [distribuicao, setDistribuicao] = useState<any>(null);
+  const [distribuicao, setDistribuicao] = useState<LancamentoDistribution | null>(null);
   const refreshDistribuicao = useCallback(async () => {
     const { data } = await supabase.rpc("calcular_distribuicao_venda", { p_sale_id: saleId });
-    setDistribuicao(data ?? null);
+    setDistribuicao(asDistribution(data));
   }, [saleId]);
   useEffect(() => {
     refreshDistribuicao();
@@ -475,15 +522,15 @@ export function LancamentoDetail({
   // que grava esse valor nas colunas lancamento_saldo_* e é a mesma checagem que a trigger do banco
   // (trg_validar_distribuicao_concluir_lancamento) reforça de qualquer forma.
   const [concludeOpen, setConcludeOpen] = useState(false);
-  const [concludeDist, setConcludeDist] = useState<any>(null);
+  const [concludeDist, setConcludeDist] = useState<LancamentoDistribution | null>(null);
   const [concludeLoading, setConcludeLoading] = useState(false);
   const [concluding, setConcluding] = useState(false);
   const openConcluir = async () => {
     setConcludeOpen(true);
     setConcludeLoading(true);
     const { data } = await supabase.rpc("calcular_distribuicao_venda", { p_sale_id: saleId });
-    setConcludeDist(data ?? null);
-    setDistribuicao(data ?? null);
+    setConcludeDist(asDistribution(data));
+    setDistribuicao(asDistribution(data));
     setConcludeLoading(false);
   };
   const confirmarConcluir = async () => {
@@ -498,7 +545,7 @@ export function LancamentoDetail({
         toast.error(error.message);
         return;
       }
-      setDistribuicao(data ?? null);
+      setDistribuicao(asDistribution(data));
       toast.success("Ocorrência concluída");
       setConcludeOpen(false);
       await onChange();
@@ -630,7 +677,7 @@ export function LancamentoDetail({
     ...compradorNums.map((n) => `comprador_${n}`),
   ];
   const initialPartiesForm = (() => {
-    const init: Record<string, any> = {};
+    const init: Record<string, PartyForm> = {};
     for (const papel of partiesPapeis) {
       const p = parties[papel] ?? {};
       init[papel] =
@@ -651,10 +698,12 @@ export function LancamentoDetail({
     }
     return init;
   })();
-  const [partiesForm, setPartiesForm] = useState<Record<string, any>>(() => initialPartiesForm);
+  const [partiesForm, setPartiesForm] = useState<Record<string, PartyForm>>(
+    () => initialPartiesForm,
+  );
   const partiesBeforeRef = useRef(initialPartiesForm);
   const [partiesDirty, setPartiesDirty] = useState(false);
-  const updParty = (papel: string, patch: any) => {
+  const updParty = (papel: string, patch: Partial<PartyForm>) => {
     setPartiesForm((f) => ({ ...f, [papel]: { ...f[papel], ...patch } }));
     setPartiesDirty(true);
   };
@@ -685,7 +734,7 @@ export function LancamentoDetail({
         return false;
       }
     }
-    const alteracoes: Record<string, any> = {};
+    const alteracoes: Record<string, FieldChanges> = {};
     for (const papel of partiesPapeis) {
       const d = diffCampos(partiesBeforeRef.current[papel] ?? {}, partiesForm[papel] ?? {});
       if (Object.keys(d).length > 0) alteracoes[papel] = d;
@@ -729,10 +778,12 @@ export function LancamentoDetail({
     })();
   }, []);
 
-  const [commRows, setCommRows] = useState<any[]>(() => commissionExtras.map((c) => ({ ...c })));
+  const [commRows, setCommRows] = useState<EditableCommissionExtra[]>(() =>
+    commissionExtras.map((c) => ({ ...c })),
+  );
   const [commDirty, setCommDirty] = useState(false);
   const [commError, setCommError] = useState<string | null>(null);
-  const updComm = (id: string, patch: any) => {
+  const updComm = (id: string, patch: Partial<EditableCommissionExtra>) => {
     setCommRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setCommDirty(true);
   };
@@ -831,9 +882,10 @@ export function LancamentoDetail({
     // Resincroniza com os ids reais devolvidos pela RPC (troca os ids temporários "new-..." gerados
     // no cliente pras linhas novas) — sem isso, a próxima edição tentaria inserir de novo em vez de
     // atualizar.
-    const linhas = (data as any)?.linhas ?? [];
-    setCommRows(linhas.map((r: any) => ({ ...r })));
-    setDistribuicao(data ?? null);
+    const result = data as (LancamentoDistribution & { linhas?: EditableCommissionExtra[] }) | null;
+    const linhas = result?.linhas ?? [];
+    setCommRows(linhas.map((r) => ({ ...r })));
+    setDistribuicao(result);
     setCommError(null);
     setCommDirty(false);
     await onChange();
@@ -1059,32 +1111,33 @@ export function LancamentoDetail({
                 <CurrencyInput
                   value={form.valor_negociado}
                   disabled={!canEdit}
-                  onChange={(v) => upd({
-                    valor_negociado: v,
-                    percentual_comissao: form.valor_total_comissao != null && v != null && v > 0
-                      ? Number(((Number(form.valor_total_comissao) / v) * 100).toFixed(6))
-                      : null,
-                  })}
+                  onChange={(v) =>
+                    upd({
+                      valor_negociado: v,
+                      percentual_comissao:
+                        form.valor_total_comissao != null && v != null && v > 0
+                          ? Number(((Number(form.valor_total_comissao) / v) * 100).toFixed(6))
+                          : null,
+                    })
+                  }
                 />
               </Field>
               <Field label="Percentual de comissão (referência)">
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.percentual_comissao ?? ""}
-                  disabled
-                />
+                <Input type="number" step="0.01" value={form.percentual_comissao ?? ""} disabled />
               </Field>
               <Field label="Valor total da comissão">
                 <CurrencyInput
                   value={form.valor_total_comissao}
                   disabled={!canEdit}
-                  onChange={(v) => upd({
-                    valor_total_comissao: v,
-                    percentual_comissao: v != null && Number(form.valor_negociado ?? 0) > 0
-                      ? Number(((v / Number(form.valor_negociado)) * 100).toFixed(6))
-                      : null,
-                  })}
+                  onChange={(v) =>
+                    upd({
+                      valor_total_comissao: v,
+                      percentual_comissao:
+                        v != null && Number(form.valor_negociado ?? 0) > 0
+                          ? Number(((v / Number(form.valor_negociado)) * 100).toFixed(6))
+                          : null,
+                    })
+                  }
                 />
               </Field>
               <Field label="Prêmio">
@@ -1125,7 +1178,7 @@ export function LancamentoDetail({
                   <div className="md:col-span-3">
                     <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
                     <Select
-                      value={c.papel}
+                      value={c.papel ?? ""}
                       disabled={!canEdit}
                       onValueChange={(v) => updComm(c.id, { papel: v })}
                     >
@@ -1162,7 +1215,7 @@ export function LancamentoDetail({
                               Sem cadastro / parceiro externo (digitar nome)
                             </SelectItem>
                             {foraDaLista && (
-                              <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>
+                              <SelectItem value={c.user_id!}>{c.nome} (inativo)</SelectItem>
                             )}
                             {pessoasAtivas.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
@@ -1453,12 +1506,15 @@ export function LancamentoDetail({
               <Field label="Valor negociado">
                 <CurrencyInput
                   value={editResumo.valor_negociado}
-                  onChange={(v) => updEditResumo({
-                    valor_negociado: v,
-                    percentual_comissao: editResumo.valor_total_comissao != null && v != null && v > 0
-                      ? Number(((Number(editResumo.valor_total_comissao) / v) * 100).toFixed(6))
-                      : null,
-                  })}
+                  onChange={(v) =>
+                    updEditResumo({
+                      valor_negociado: v,
+                      percentual_comissao:
+                        editResumo.valor_total_comissao != null && v != null && v > 0
+                          ? Number(((Number(editResumo.valor_total_comissao) / v) * 100).toFixed(6))
+                          : null,
+                    })
+                  }
                 />
               </Field>
               <Field label="Percentual de comissão (referência)">
@@ -1472,12 +1528,15 @@ export function LancamentoDetail({
               <Field label="Valor total da comissão">
                 <CurrencyInput
                   value={editResumo.valor_total_comissao}
-                  onChange={(v) => updEditResumo({
-                    valor_total_comissao: v,
-                    percentual_comissao: v != null && Number(editResumo.valor_negociado ?? 0) > 0
-                      ? Number(((v / Number(editResumo.valor_negociado)) * 100).toFixed(6))
-                      : null,
-                  })}
+                  onChange={(v) =>
+                    updEditResumo({
+                      valor_total_comissao: v,
+                      percentual_comissao:
+                        v != null && Number(editResumo.valor_negociado ?? 0) > 0
+                          ? Number(((v / Number(editResumo.valor_negociado)) * 100).toFixed(6))
+                          : null,
+                    })
+                  }
                 />
               </Field>
               <Field label="Prêmio">
@@ -1643,7 +1702,10 @@ export function LancamentoDetail({
                 >
                   <div className="md:col-span-3">
                     <Label className="mb-1 block text-xs text-muted-foreground">Papel</Label>
-                    <Select value={c.papel} onValueChange={(v) => updEditLinha(c.id, { papel: v })}>
+                    <Select
+                      value={c.papel ?? ""}
+                      onValueChange={(v) => updEditLinha(c.id, { papel: v })}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1679,7 +1741,7 @@ export function LancamentoDetail({
                               Sem cadastro / parceiro externo (digitar nome)
                             </SelectItem>
                             {foraDaLista && (
-                              <SelectItem value={c.user_id}>{c.nome} (inativo)</SelectItem>
+                              <SelectItem value={c.user_id!}>{c.nome} (inativo)</SelectItem>
                             )}
                             {pessoasAtivas.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
@@ -1896,7 +1958,7 @@ export function LancamentoDetail({
             <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>
           )}
           {activity.map((a) => {
-            const d = describeAtividadeLancamento(a.acao, a.payload);
+            const d = describeAtividadeLancamento(a.acao, asActivityPayload(a.payload));
             return (
               <div key={a.id} className="rounded-md border p-2 text-sm">
                 <div className="flex items-center justify-between">
@@ -2018,7 +2080,7 @@ export function LancamentoDetail({
  * parceria externa, saldo da imobiliária/construtora (sempre calculado, nunca digitado) e diferença.
  * Reaproveitado nos 3 lugares que precisam mostrar a mesma distribuição (formulário editável, relatório
  * da ocorrência, diálogo de conclusão) — um só componente, um só formato de número. */
-function DistribuicaoResumo({ dist }: { dist: any }) {
+function DistribuicaoResumo({ dist }: { dist: LancamentoDistribution | null }) {
   if (!dist) return null;
   const linha = (label: string, valor: number | null | undefined, destaque?: boolean) => (
     <div

@@ -1,14 +1,32 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { canResetAnotherUsersPassword, type UserManagementRole } from "@/lib/admin-user-permissions";
+import {
+  canResetAnotherUsersPassword,
+  type UserManagementRole,
+} from "@/lib/admin-user-permissions";
 import { z } from "zod";
 
-const ROLES = ["corretor", "gestor", "team_leader", "juridico", "financeiro", "admin", "super_admin"] as const;
+const ROLES = [
+  "corretor",
+  "gestor",
+  "team_leader",
+  "juridico",
+  "financeiro",
+  "admin",
+  "super_admin",
+] as const;
 type Role = (typeof ROLES)[number];
 
 const schema = z.object({
-  nome: z.string().trim().min(2).max(120)
-    .refine((v) => v.trim().split(/\s+/).filter(Boolean).length >= 2, "Digite o nome completo (nome e sobrenome)."),
+  nome: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .refine(
+      (v) => v.trim().split(/\s+/).filter(Boolean).length >= 2,
+      "Digite o nome completo (nome e sobrenome).",
+    ),
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
   password: z.string().min(8).max(72),
@@ -22,15 +40,23 @@ const resetPasswordSchema = z.object({
 
 const updateUserSchema = z.object({
   userId: z.string().uuid(),
-  nome: z.string().trim().min(2).max(120)
-    .refine((v) => v.trim().split(/\s+/).filter(Boolean).length >= 2, "Digite o nome completo (nome e sobrenome)."),
+  nome: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .refine(
+      (v) => v.trim().split(/\s+/).filter(Boolean).length >= 2,
+      "Digite o nome completo (nome e sobrenome).",
+    ),
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
 });
 
 function allowedRolesFor(callerRoles: Role[]): Role[] {
   if (callerRoles.includes("super_admin")) return [...ROLES];
-  if (callerRoles.includes("admin")) return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
+  if (callerRoles.includes("admin"))
+    return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
   if (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) return ["corretor"];
   return [];
 }
@@ -46,7 +72,7 @@ export const createUser = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", userId);
     if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
 
     const allowed = allowedRolesFor(callerRoles);
     if (allowed.length === 0) throw new Error("Você não tem permissão para criar usuários.");
@@ -64,7 +90,8 @@ export const createUser = createServerFn({ method: "POST" })
     });
     if (createErr || !created?.user) {
       const msg = createErr?.message ?? "Falha ao criar usuário";
-      if (/already|registered|exists/i.test(msg)) throw new Error("Já existe um usuário com esse e-mail.");
+      if (/already|registered|exists/i.test(msg))
+        throw new Error("Já existe um usuário com esse e-mail.");
       throw new Error(msg);
     }
     const newId = created.user.id;
@@ -72,21 +99,27 @@ export const createUser = createServerFn({ method: "POST" })
     // Trigger handle_new_user já criou profile + role 'corretor'.
     if (data.role !== "corretor") {
       await supabaseAdmin.from("user_roles").delete().eq("user_id", newId).eq("role", "corretor");
-      const { error: insErr } = await supabaseAdmin
-        .from("user_roles")
-        .insert({
-          user_id: newId, role: data.role,
-          // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
-          // pra eles nasce desligado (senão financeiro, que vê toda venda do sistema, já começa
-          // recebendo aviso de tudo sem ter escolhido isso).
-          ...((data.role === "juridico" || data.role === "financeiro") ? { notificar_toda_atualizacao: false } : {}),
-        });
+      const { error: insErr } = await supabaseAdmin.from("user_roles").insert({
+        user_id: newId,
+        role: data.role,
+        // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
+        // pra eles nasce desligado (senão financeiro, que vê toda venda do sistema, já começa
+        // recebendo aviso de tudo sem ter escolhido isso).
+        ...(data.role === "juridico" || data.role === "financeiro"
+          ? { notificar_toda_atualizacao: false }
+          : {}),
+      });
       if (insErr) throw new Error(insErr.message);
     }
 
     // Gestor/team leader criando corretor: vincula automaticamente à equipe principal dele
     // (a de nível 1 que ele já lidera; cria uma se ainda não existir nenhuma).
-    if ((callerRoles.includes("gestor") || callerRoles.includes("team_leader")) && !callerRoles.includes("admin") && !callerRoles.includes("super_admin") && data.role === "corretor") {
+    if (
+      (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) &&
+      !callerRoles.includes("admin") &&
+      !callerRoles.includes("super_admin") &&
+      data.role === "corretor"
+    ) {
       const { data: existingTeam } = await supabaseAdmin
         .from("teams")
         .select("id")
@@ -98,7 +131,11 @@ export const createUser = createServerFn({ method: "POST" })
 
       let teamId = existingTeam?.id as string | undefined;
       if (!teamId) {
-        const { data: callerProfile } = await supabaseAdmin.from("profiles").select("nome").eq("id", userId).maybeSingle();
+        const { data: callerProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("nome")
+          .eq("id", userId)
+          .maybeSingle();
         const { data: newTeam, error: teamErr } = await supabaseAdmin
           .from("teams")
           .insert({ lider_id: userId, nome: `Equipe de ${callerProfile?.nome ?? "gestor"}` })
@@ -111,7 +148,10 @@ export const createUser = createServerFn({ method: "POST" })
     }
 
     // Garante nome/telefone atualizados no profile (handle_new_user só preenche nome/email)
-    await supabaseAdmin.from("profiles").update({ nome: data.nome, telefone: data.telefone }).eq("id", newId);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ nome: data.nome, telefone: data.telefone })
+      .eq("id", newId);
 
     return { id: newId, email: data.email };
   });
@@ -133,7 +173,7 @@ export const resetUserPassword = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", callerId);
     if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
     const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
     const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
     if (!isAdminLike && !isTeamLead) {
@@ -141,19 +181,22 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     }
 
     if (!isAdminLike) {
-      const [{ data: leads, error: leadErr }, { data: targetRoles, error: targetRolesErr }] = await Promise.all([
-        supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId }),
-        supabase.from("user_roles").select("role").eq("user_id", data.userId),
-      ]);
+      const [{ data: leads, error: leadErr }, { data: targetRoles, error: targetRolesErr }] =
+        await Promise.all([
+          supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId }),
+          supabase.from("user_roles").select("role").eq("user_id", data.userId),
+        ]);
       if (leadErr) throw new Error(leadErr.message);
       if (targetRolesErr) throw new Error(targetRolesErr.message);
 
-      const targetRoleNames = (targetRoles ?? []).map((r: any) => r.role as UserManagementRole);
-      if (!canResetAnotherUsersPassword({
-        callerRoles: callerRoles as UserManagementRole[],
-        targetRoles: targetRoleNames,
-        isLeadOfTarget: Boolean(leads),
-      })) {
+      const targetRoleNames = (targetRoles ?? []).map((r) => r.role as UserManagementRole);
+      if (
+        !canResetAnotherUsersPassword({
+          callerRoles: callerRoles as UserManagementRole[],
+          targetRoles: targetRoleNames,
+          isLeadOfTarget: Boolean(leads),
+        })
+      ) {
         throw new Error("Você só pode redefinir a senha de corretores da sua própria equipe.");
       }
     }
@@ -161,7 +204,9 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // updateUserById substitui user_metadata inteiro — busca o atual pra não perder o que já tem lá.
-    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.userId,
+    );
     if (getErr || !existing?.user) throw new Error(getErr?.message ?? "Usuário não encontrado.");
 
     const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
@@ -199,7 +244,7 @@ export const updateUser = createServerFn({ method: "POST" })
       .select("role")
       .eq("user_id", callerId);
     if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
+    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
 
     const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
     const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
@@ -207,14 +252,19 @@ export const updateUser = createServerFn({ method: "POST" })
       throw new Error("Você não tem permissão para editar usuários.");
     }
     if (!isAdminLike) {
-      const { data: leads, error: leadErr } = await supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId });
+      const { data: leads, error: leadErr } = await supabase.rpc("is_lead_of", {
+        _lider: callerId,
+        _membro: data.userId,
+      });
       if (leadErr) throw new Error(leadErr.message);
       if (!leads) throw new Error("Você só pode editar membros da sua equipe.");
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.userId,
+    );
     if (getErr || !existing?.user) throw new Error(getErr?.message ?? "Usuário não encontrado.");
 
     if (existing.user.email !== data.email) {
@@ -224,7 +274,8 @@ export const updateUser = createServerFn({ method: "POST" })
       });
       if (updErr) {
         const msg = updErr.message ?? "Falha ao atualizar e-mail";
-        if (/already|registered|exists/i.test(msg)) throw new Error("Já existe um usuário com esse e-mail.");
+        if (/already|registered|exists/i.test(msg))
+          throw new Error("Já existe um usuário com esse e-mail.");
         throw new Error(msg);
       }
     }
@@ -250,8 +301,12 @@ export const listLastSignIns = createServerFn({ method: "GET" })
       .select("role")
       .eq("user_id", userId);
     if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r: any) => r.role as Role);
-    if (!callerRoles.some((r) => (["admin", "super_admin", "gestor", "team_leader"] as Role[]).includes(r))) {
+    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
+    if (
+      !callerRoles.some((r) =>
+        (["admin", "super_admin", "gestor", "team_leader"] as Role[]).includes(r),
+      )
+    ) {
       throw new Error("Você não tem permissão para ver essa informação.");
     }
 

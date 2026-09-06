@@ -1,6 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+
+type ExtractionData = Record<string, Json | undefined>;
+type RetryableError = Error & { retryable?: boolean };
+type GeminiResponse = {
+  candidates?: Array<{
+    finishReason?: string;
+    content?: { parts?: Array<{ text?: string }> };
+  }>;
+};
 
 const MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -19,7 +30,7 @@ export const extractDocument = createServerFn({ method: "POST" })
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
-    const supabase = context.supabase as any;
+    const supabase = context.supabase;
 
     const { data: doc, error: docErr } = await supabase
       .from("sale_documents")
@@ -32,12 +43,17 @@ export const extractDocument = createServerFn({ method: "POST" })
     await supabase.from("sale_documents").update({ extraction_status: "pending" }).eq("id", doc.id);
     await supabase
       .from("document_extractions")
-      .upsert({ document_id: doc.id, sale_id: doc.sale_id, status: "pending", error: null }, { onConflict: "document_id" });
+      .upsert(
+        { document_id: doc.id, sale_id: doc.sale_id, status: "pending", error: null },
+        { onConflict: "document_id" },
+      );
 
     // Baixa o arquivo do storage (bucket privado — cliente autenticado do usuário)
-    const { data: blob, error: dlErr } = await supabase.storage.from("sale-documents").download(doc.storage_path);
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from("sale-documents")
+      .download(doc.storage_path);
     if (dlErr || !blob) {
-      await markFailed(supabase, doc.id, dlErr?.message ?? "Falha ao baixar arquivo");
+      await markFailed(supabase, doc.id, doc.sale_id, dlErr?.message ?? "Falha ao baixar arquivo");
       return { ok: false as const, error: dlErr?.message ?? "Falha ao baixar arquivo" };
     }
 
@@ -48,65 +64,72 @@ export const extractDocument = createServerFn({ method: "POST" })
 
     const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
 
-    const callGemini = async (): Promise<any> => {
+    const callGemini = async (): Promise<ExtractionData> => {
       const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{ text: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários." }],
-          },
-          contents: [{
-            role: "user",
             parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mime, data: b64 } },
+              {
+                text: "Você extrai dados estruturados de documentos brasileiros (RG, CPF, comprovantes, matrícula de imóvel, IPTU, certidões). Responda APENAS com JSON válido, sem markdown, sem comentários.",
+              },
             ],
-          }],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }],
+            },
+          ],
           generationConfig: { responseMimeType: "application/json", maxOutputTokens: 8192 },
         }),
       });
 
       if (!res.ok) {
         const txt = await res.text();
-        const err: any = new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`);
+        const err = new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`) as RetryableError;
         // 429 (cota) não adianta tentar de novo na hora; erro 5xx costuma ser transiente do servidor.
         err.retryable = res.status >= 500;
         throw err;
       }
-      const json = await res.json();
+      const json = (await res.json()) as GeminiResponse;
       const finishReason = json.candidates?.[0]?.finishReason;
       const text: string = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const parsed = safeParseJson(text);
       if (!parsed) {
-        const err: any = new Error(
+        const err = new Error(
           finishReason && finishReason !== "STOP"
             ? `Resposta incompleta da IA (${finishReason})`
             : "Resposta não é JSON válido",
-        );
+        ) as RetryableError;
         err.retryable = true;
         throw err;
       }
       return parsed;
     };
 
-    let raw: any = null;
+    let raw: ExtractionData | null = null;
     try {
       try {
         raw = await callGemini();
-      } catch (err: any) {
-        if (!err?.retryable) throw err;
+      } catch (err: unknown) {
+        if (!(err instanceof Error && "retryable" in err && err.retryable)) throw err;
         raw = await callGemini(); // uma segunda tentativa: falhas de parse/corte costumam ser passageiras
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Detalhe cru (pode incluir corpo da resposta do Gemini) só vai pro log do servidor e pro
       // registro em document_extractions -- devolver isso direto pro client expunha detalhe interno
       // da API terceira numa mensagem de toast, sem necessidade nenhuma pra quem só quer saber que
       // falhou.
-      const detail = err?.message ?? "Falha na extração";
+      const detail = err instanceof Error ? err.message : "Falha na extração";
       console.error(`extractDocument falhou (doc ${doc.id}):`, detail);
-      await markFailed(supabase, doc.id, detail);
-      return { ok: false as const, error: "Não foi possível ler o documento automaticamente. Tente novamente ou preencha os dados manualmente." };
+      await markFailed(supabase, doc.id, doc.sale_id, detail);
+      return {
+        ok: false as const,
+        error:
+          "Não foi possível ler o documento automaticamente. Tente novamente ou preencha os dados manualmente.",
+      };
     }
 
     await supabase
@@ -129,8 +152,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ApplyInput.parse(input))
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as any;
-    const userId = context.userId as string;
+    const supabase = context.supabase;
+    const userId = context.userId;
     const filled: string[] = [];
 
     const { data: extractions } = await supabase
@@ -142,12 +165,12 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
     if (!extractions?.length) return { filled };
 
     // Merge: acumula sugestões por escopo
-    const salePatch: Record<string, any> = {};
-    const paymentPatch: Record<string, any> = {};
-    const partiesPatch: Record<string, Record<string, any>> = {};
+    const salePatch: Record<string, Json | undefined> = {};
+    const paymentPatch: Record<string, Json | undefined> = {};
+    const partiesPatch: Record<string, Record<string, Json | undefined>> = {};
 
-    for (const ext of extractions as any[]) {
-      const r = ext.raw_json ?? {};
+    for (const ext of extractions) {
+      const r = (ext.raw_json ?? {}) as ExtractionData;
       const tipo: string = ext.sale_documents?.tipo ?? "outros";
       const parte: string = ext.sale_documents?.parte ?? "outros";
 
@@ -164,7 +187,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         // texto próprio deles (ex.: "certifico que não há débitos..."), e como o merge só respeita
         // ordem de chegada (não qual documento é o certo), esse texto errado podia "ganhar" da
         // descrição real da matrícula.
-        if (tipo === "matricula" && r.observacoes_imovel) assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
+        if (tipo === "matricula" && r.observacoes_imovel)
+          assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
 
         // Pagamento (só de docs do imóvel/contrato/outros)
         if (r.entrada_valor) assign(paymentPatch, "entrada_valor", num(r.entrada_valor));
@@ -181,7 +205,6 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       if (/^(comprador|vendedor)_\d+$/.test(parte)) {
         papel = parte;
       } else if (r.nome_proprietario) papel = "vendedor_1"; // matrícula com proprietário → vendedor
-
 
       // Nome/RG/CPF/profissão/e-mail/telefone só valem de documento de identidade (RG, CPF ou CNH) —
       // certidão e comprovante de endereço podem ser de outra pessoa (cônjuge, terceiro) e não devem
@@ -209,9 +232,17 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           assign(p, "telefone", tel);
         }
       } else if (papel) {
-        const nome = isIdentidade ? (r.nome ?? r.nome_completo) : (viaMatricula ? r.nome_proprietario : null);
+        const nome = isIdentidade
+          ? (r.nome ?? r.nome_completo)
+          : viaMatricula
+            ? r.nome_proprietario
+            : null;
         const rg = isIdentidade ? (r.rg ?? r.numero_rg) : null;
-        const cpf = isIdentidade ? (r.cpf ?? r.cpf_cnpj ?? r.cnpj) : (viaMatricula ? r.cpf_proprietario : null);
+        const cpf = isIdentidade
+          ? (r.cpf ?? r.cpf_cnpj ?? r.cnpj)
+          : viaMatricula
+            ? r.cpf_proprietario
+            : null;
         const prof = isIdentidade ? r.profissao : null;
         const email = isIdentidade ? r.email : null;
         const tel = isIdentidade ? (r.telefone ?? r.celular) : null;
@@ -229,41 +260,75 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       }
     }
 
-
     // Aplica na venda (só campos vazios)
     if (Object.keys(salePatch).length) {
-      const { data: cur } = await supabase.from("sales").select("*").eq("id", data.saleId).maybeSingle();
-      const patch: Record<string, any> = {};
+      const { data: cur } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("id", data.saleId)
+        .maybeSingle();
+      const patch: Record<string, Json | undefined> = {};
+      const current = cur as unknown as Record<string, Json | undefined> | null;
       for (const [k, v] of Object.entries(salePatch)) {
         if (v == null || v === "") continue;
-        if (cur?.[k] == null || cur?.[k] === "") { patch[k] = v; filled.push(`sale.${k}`); }
+        if (current?.[k] == null || current[k] === "") {
+          patch[k] = v;
+          filled.push(`sale.${k}`);
+        }
       }
-      if (Object.keys(patch).length) await supabase.from("sales").update(patch).eq("id", data.saleId);
+      if (Object.keys(patch).length)
+        await supabase
+          .from("sales")
+          .update(patch as TablesUpdate<"sales">)
+          .eq("id", data.saleId);
     }
 
     // Pagamento (upsert)
     if (Object.keys(paymentPatch).length) {
-      const { data: pay } = await supabase.from("sale_payment").select("*").eq("sale_id", data.saleId).maybeSingle();
-      const patch: Record<string, any> = { sale_id: data.saleId };
+      const { data: pay } = await supabase
+        .from("sale_payment")
+        .select("*")
+        .eq("sale_id", data.saleId)
+        .maybeSingle();
+      const patch: Record<string, Json | undefined> = { sale_id: data.saleId };
+      const currentPayment = pay as unknown as Record<string, Json | undefined> | null;
       let any = false;
       for (const [k, v] of Object.entries(paymentPatch)) {
         if (v == null || v === "") continue;
-        if (!pay || pay[k] == null || pay[k] === "") { patch[k] = v; filled.push(`payment.${k}`); any = true; }
+        if (!currentPayment || currentPayment[k] == null || currentPayment[k] === "") {
+          patch[k] = v;
+          filled.push(`payment.${k}`);
+          any = true;
+        }
       }
       if (any) {
-        if (pay) await supabase.from("sale_payment").update(patch).eq("sale_id", data.saleId);
-        else await supabase.from("sale_payment").insert(patch);
+        if (pay)
+          await supabase
+            .from("sale_payment")
+            .update(patch as TablesUpdate<"sale_payment">)
+            .eq("sale_id", data.saleId);
+        else await supabase.from("sale_payment").insert(patch as TablesInsert<"sale_payment">);
       }
     }
 
     // Partes
     for (const [papel, fields] of Object.entries(partiesPatch)) {
-      const { data: cur } = await supabase.from("sale_parties").select("*").eq("sale_id", data.saleId).eq("papel", papel).maybeSingle();
-      const patch: Record<string, any> = {};
+      const { data: cur } = await supabase
+        .from("sale_parties")
+        .select("*")
+        .eq("sale_id", data.saleId)
+        .eq("papel", papel)
+        .maybeSingle();
+      const patch: Record<string, Json | undefined> = {};
+      const currentParty = cur as unknown as Record<string, Json | undefined> | null;
       let any = false;
       for (const [k, v] of Object.entries(fields)) {
         if (v == null || v === "") continue;
-        if (!cur || cur[k] == null || cur[k] === "") { patch[k] = v; filled.push(`${papel}.${k}`); any = true; }
+        if (!currentParty || currentParty[k] == null || currentParty[k] === "") {
+          patch[k] = v;
+          filled.push(`${papel}.${k}`);
+          any = true;
+        }
       }
 
       // CPF extraído (ou já existente na parte) também tenta achar/ligar um cliente já cadastrado —
@@ -271,44 +336,72 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // IA escreve direto no banco sem passar pela tela (o onBlur do campo CPF nunca dispara nesse
       // caminho, então sem isso o reconhecimento de cliente nunca aconteceria pra parte preenchida
       // por documento).
-      const cpfFinal = patch.cpf_cnpj ?? cur?.cpf_cnpj;
+      const cpfFinal = textValue(patch.cpf_cnpj) ?? cur?.cpf_cnpj;
       const normalizado = String(cpfFinal ?? "").replace(/\D/g, "");
       if (normalizado.length >= 11 && !cur?.cliente_id) {
-        const { data: clienteExistente } = await supabase.from("clientes").select("*").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
+        const { data: clienteExistente } = await supabase
+          .from("clientes")
+          .select("*")
+          .eq("cpf_cnpj_normalizado", normalizado)
+          .maybeSingle();
         if (clienteExistente) {
           patch.cliente_id = clienteExistente.id;
           any = true;
+          const currentClient = clienteExistente as unknown as Record<string, Json | undefined>;
           for (const k of ["nome", "rg", "profissao", "email", "telefone", "endereco"]) {
-            const jaTem = cur?.[k] ?? patch[k];
-            if (!jaTem && clienteExistente[k]) { patch[k] = clienteExistente[k]; filled.push(`${papel}.${k}`); }
+            const jaTem = currentParty?.[k] ?? patch[k];
+            if (!jaTem && currentClient[k]) {
+              patch[k] = currentClient[k];
+              filled.push(`${papel}.${k}`);
+            }
           }
         } else {
-          const { data: novoCliente, error: novoClienteError } = await supabase.from("clientes").insert({
-            tipo_pessoa: cur?.tipo_pessoa ?? "fisica",
-            nome: patch.nome ?? cur?.nome ?? null,
-            cpf_cnpj: cpfFinal,
-            rg: patch.rg ?? cur?.rg ?? null,
-            profissao: patch.profissao ?? cur?.profissao ?? null,
-            email: patch.email ?? cur?.email ?? null,
-            telefone: patch.telefone ?? cur?.telefone ?? null,
-            endereco: patch.endereco ?? cur?.endereco ?? null,
-            created_by: userId ?? null,
-          }).select("id").single();
+          const { data: novoCliente, error: novoClienteError } = await supabase
+            .from("clientes")
+            .insert({
+              tipo_pessoa: cur?.tipo_pessoa ?? "fisica",
+              nome: textValue(patch.nome) ?? cur?.nome ?? null,
+              cpf_cnpj: cpfFinal,
+              rg: textValue(patch.rg) ?? cur?.rg ?? null,
+              profissao: textValue(patch.profissao) ?? cur?.profissao ?? null,
+              email: textValue(patch.email) ?? cur?.email ?? null,
+              telefone: textValue(patch.telefone) ?? cur?.telefone ?? null,
+              endereco: textValue(patch.endereco) ?? cur?.endereco ?? null,
+              created_by: userId ?? null,
+            })
+            .select("id")
+            .single();
           if (novoCliente) {
             patch.cliente_id = novoCliente.id;
             any = true;
           } else if (novoClienteError?.code === "23505") {
             // Corrida com PartiesStep.saveAll (usuário digitando o mesmo CPF na tela ao mesmo tempo
             // em que a IA grava a extração do documento) — o cliente já foi criado pelo outro lado.
-            const { data: clienteDeNovo } = await supabase.from("clientes").select("id").eq("cpf_cnpj_normalizado", normalizado).maybeSingle();
-            if (clienteDeNovo) { patch.cliente_id = clienteDeNovo.id; any = true; }
+            const { data: clienteDeNovo } = await supabase
+              .from("clientes")
+              .select("id")
+              .eq("cpf_cnpj_normalizado", normalizado)
+              .maybeSingle();
+            if (clienteDeNovo) {
+              patch.cliente_id = clienteDeNovo.id;
+              any = true;
+            }
           }
         }
       }
 
       if (any) {
-        if (cur) await supabase.from("sale_parties").update(patch).eq("id", cur.id);
-        else await supabase.from("sale_parties").insert({ sale_id: data.saleId, papel, ...patch });
+        if (cur)
+          await supabase
+            .from("sale_parties")
+            .update(patch as TablesUpdate<"sale_parties">)
+            .eq("id", cur.id);
+        else
+          await supabase.from("sale_parties").insert({
+            ...(patch as Omit<TablesInsert<"sale_parties">, "sale_id" | "papel">),
+            sale_id: data.saleId,
+            papel,
+          });
       }
     }
 
@@ -317,32 +410,67 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
 
 // ---------------- helpers ----------------
 
-async function markFailed(supabase: any, docId: string, err: string) {
+async function markFailed(
+  supabase: SupabaseClient<Database>,
+  docId: string,
+  saleId: string,
+  err: string,
+) {
   await supabase.from("sale_documents").update({ extraction_status: "failed" }).eq("id", docId);
   await supabase
     .from("document_extractions")
-    .upsert({ document_id: docId, status: "failed", error: err }, { onConflict: "document_id" });
+    .upsert(
+      { document_id: docId, sale_id: saleId, status: "failed", error: err },
+      { onConflict: "document_id" },
+    );
 }
 
-function assign(obj: Record<string, any>, key: string, val: any) {
+function textValue(value: Json | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function assign(obj: Record<string, Json | undefined>, key: string, val: Json | undefined) {
   if (val == null || val === "") return;
   if (obj[key] == null || obj[key] === "") obj[key] = val;
 }
 
-function num(v: any): number | null {
+function num(v: Json | undefined): number | null {
   if (v == null) return null;
   if (typeof v === "number") return v;
-  const s = String(v).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  const s = String(v)
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
-function safeParseJson(text: string): any | null {
-  const t = text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/```\s*$/, "");
-  try { return JSON.parse(t); } catch {}
+function safeParseJson(text: string): ExtractionData | null {
+  const t = text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/, "")
+    .replace(/```\s*$/, "");
+  try {
+    const parsed: unknown = JSON.parse(t);
+    return isExtractionData(parsed) ? parsed : null;
+  } catch {
+    // O retorno pode conter texto em volta do JSON; a extração abaixo é o fallback esperado.
+  }
   const m = t.match(/\{[\s\S]*\}/);
-  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  if (m) {
+    try {
+      const parsed: unknown = JSON.parse(m[0]);
+      return isExtractionData(parsed) ? parsed : null;
+    } catch {
+      // JSON parcial/inválido é tratado pelo retorno nulo abaixo.
+    }
+  }
   return null;
+}
+
+function isExtractionData(value: unknown): value is ExtractionData {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function buildPromptForType(tipo: string, filename: string, parte: string): string {
@@ -350,10 +478,9 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   const pessoaLabel = parteMatch
     ? `${parteMatch[2]}º CLIENTE ${parteMatch[1] === "comprador" ? "COMPRADOR" : "VENDEDOR"}`
     : null;
-  const parteHint =
-    pessoaLabel
-      ? `\n\nATENÇÃO: Este documento pertence ao ${pessoaLabel} da venda. Os dados pessoais extraídos devem ser atribuídos a essa pessoa.`
-      : parte === "imovel"
+  const parteHint = pessoaLabel
+    ? `\n\nATENÇÃO: Este documento pertence ao ${pessoaLabel} da venda. Os dados pessoais extraídos devem ser atribuídos a essa pessoa.`
+    : parte === "imovel"
       ? "\n\nATENÇÃO: Este documento é do IMÓVEL (não é documento pessoal)."
       : "";
   const base = `Documento: ${filename} (tipo declarado: ${tipo}).${parteHint}\n\nExtraia os campos abaixo do documento. Se um campo não estiver presente, use null. Responda em JSON puro (sem markdown).`;
@@ -403,11 +530,20 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
   if (pessoaLabel && isPessoaJuridica) return base + commonPessoaJuridica;
   if (pessoaLabel) return base + commonPessoal;
-  if (parte === "imovel") return base + commonImovel(tipo === "matricula") + (tipo === "matricula" ? matriculaDescricaoHint : "");
+  if (parte === "imovel")
+    return (
+      base +
+      commonImovel(tipo === "matricula") +
+      (tipo === "matricula" ? matriculaDescricaoHint : "")
+    );
   if (isPessoaJuridica) return base + commonPessoaJuridica;
-  if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco") return base + commonPessoal;
-  if (tipo === "matricula" || tipo === "iptu") return base + commonImovel(tipo === "matricula") + (tipo === "matricula" ? matriculaDescricaoHint : "");
+  if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco")
+    return base + commonPessoal;
+  if (tipo === "matricula" || tipo === "iptu")
+    return (
+      base +
+      commonImovel(tipo === "matricula") +
+      (tipo === "matricula" ? matriculaDescricaoHint : "")
+    );
   return base + commonPessoal + commonImovel(false);
 }
-
-

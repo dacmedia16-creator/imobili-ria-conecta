@@ -9,7 +9,15 @@ import {
   type OperationalImpersonation,
 } from "@/lib/user-impersonation";
 
-export type AppRole = "corretor" | "gestor" | "team_leader" | "juridico" | "financeiro" | "admin" | "super_admin" | "lancamento";
+export type AppRole =
+  | "corretor"
+  | "gestor"
+  | "team_leader"
+  | "juridico"
+  | "financeiro"
+  | "admin"
+  | "super_admin"
+  | "lancamento";
 
 type AuthCtx = {
   session: Session | null;
@@ -33,7 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [impersonation, setImpersonation] = useState<OperationalImpersonation | null>(null);
 
   const loadRoles = async (uid: string | undefined) => {
-    if (!uid) { setRoles([]); return; }
+    if (!uid) {
+      setRoles([]);
+      return;
+    }
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", uid);
     setRoles((data ?? []).map((r) => r.role as AppRole));
   };
@@ -41,7 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
       setSession(s);
-      setTimeout(() => { loadRoles(s?.user.id); }, 0);
+      setTimeout(() => {
+        loadRoles(s?.user.id);
+      }, 0);
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -76,7 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     hasRole: (r) => roles.includes(r),
     hasAny: (rs) => rs.some((r) => roles.includes(r)),
-    signOut: async () => { await supabase.auth.signOut(); },
+    signOut: async () => {
+      await supabase.auth.signOut();
+    },
     refreshRoles: async () => loadRoles(session?.user.id),
     impersonation: impersonationMatchesSession(impersonation, session) ? impersonation : null,
     restoreSuperAdmin,

@@ -15,10 +15,22 @@ const LABEL: Record<SituacaoComissao, string> = {
   acima: "Acima de 6%",
 };
 
-export function SituacaoBadge({ situacao, className }: { situacao: SituacaoComissao | null; className?: string }) {
+export function SituacaoBadge({
+  situacao,
+  className,
+}: {
+  situacao: SituacaoComissao | null;
+  className?: string;
+}) {
   if (!situacao) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", TONE[situacao], className)}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+        TONE[situacao],
+        className,
+      )}
+    >
       {LABEL[situacao]}
     </span>
   );
