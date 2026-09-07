@@ -17,7 +17,7 @@ export type ProducaoRawRow = {
   imovel_id: string | null;
   codigo_interno: string | null;
   modalidade: ModalidadeVenda;
-  efetivada_em: string; // timestamptz da primeira entrada em análise financeira
+  concluida_em: string; // timestamptz da conclusão da ocorrência (sale_status_history -> ocorrencia_concluida)
   valor_negociado: number;
   comissao_bruta: number;
   parceria_externa?: number;
@@ -41,7 +41,7 @@ export type ProducaoPonta = {
   imovelId: string | null;
   codigoInterno: string | null;
   modalidade: ModalidadeVenda;
-  efetivadaEm: string;
+  concluidaEm: string;
   tipo: TipoParticipacao;
   /** null = pessoa não vinculada a uma conta (dado incompleto/legado) — aparece como "Não vinculado". */
   pessoaId: string | null;
