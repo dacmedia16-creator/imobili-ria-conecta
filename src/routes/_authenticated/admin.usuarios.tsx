@@ -36,9 +36,22 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { UserPlus, Copy, RefreshCcw, KeyRound, Pencil, Search, Crown, LogIn } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Crown,
+  KeyRound,
+  LogIn,
+  Pencil,
+  RefreshCcw,
+  Search,
+  UserPlus,
+} from "lucide-react";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { paginate } from "@/lib/pagination";
+import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 type AdminUser = Pick<ProfileRow, "id" | "nome" | "email" | "telefone" | "ativo" | "avatar_url">;
 
@@ -46,6 +59,8 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
   component: AdminUsers,
 });
+
+const USERS_PER_PAGE = 10;
 
 const ROLES: AppRole[] = [
   "corretor",
@@ -98,6 +113,7 @@ function AdminUsers() {
   const [showInactive, setShowInactive] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<AppRole | "todos">("todos");
+  const [page, setPage] = useState(1);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
   const [resetPasswordFor, setResetPasswordFor] = useState<{
@@ -356,6 +372,13 @@ function AdminUsers() {
 
   const activeUsers = sortedUsers.filter((u) => u.ativo !== false && passesFilter(u));
   const inactiveUsers = sortedUsers.filter((u) => u.ativo === false && passesFilter(u));
+  const {
+    items: paginatedActiveUsers,
+    currentPage,
+    totalPages,
+    startIndex: pageStart,
+    endIndex: pageEnd,
+  } = paginate(activeUsers, page, USERS_PER_PAGE);
   const usersById: Record<string, AdminUser> = {};
   users.forEach((u) => {
     usersById[u.id] = u;
@@ -562,10 +585,19 @@ function AdminUsers() {
                 className="pl-9"
                 placeholder="Buscar por nome ou e-mail..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
               />
             </div>
-            <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as AppRole | "todos")}>
+            <Select
+              value={roleFilter}
+              onValueChange={(v) => {
+                setRoleFilter(v as AppRole | "todos");
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -591,7 +623,7 @@ function AdminUsers() {
           )}
           {isAdminLike ? (
             (() => {
-              const activeIdSet = new Set(activeUsers.map((u) => u.id));
+              const activeIdSet = new Set(paginatedActiveUsers.map((u) => u.id));
               const visibleGroups = teamGroups.groups
                 .map((g) => ({
                   ...g,
@@ -636,7 +668,52 @@ function AdminUsers() {
               );
             })()
           ) : (
-            <div className="space-y-3">{activeUsers.map((u) => renderUserCard(u))}</div>
+            <div className="space-y-3">{paginatedActiveUsers.map((u) => renderUserCard(u))}</div>
+          )}
+          {activeUsers.length > USERS_PER_PAGE && (
+            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Exibindo {pageStart + 1}–{pageEnd} de {activeUsers.length} usuários ativos
+              </p>
+              <Pagination
+                className="mx-0 w-auto justify-start sm:justify-end"
+                aria-label="Paginação da lista de usuários"
+              >
+                <PaginationContent>
+                  <PaginationItem>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Anterior
+                    </Button>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="px-2 text-sm text-muted-foreground" aria-live="polite">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      aria-label="Próxima página"
+                    >
+                      Próxima
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
           {inactiveUsers.length > 0 && (
             <div className="pt-1">
