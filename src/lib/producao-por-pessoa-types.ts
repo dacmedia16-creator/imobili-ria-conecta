@@ -8,7 +8,10 @@
 export type ModalidadeVenda = "padrao" | "lancamento";
 
 /** Linha bruta por venda, como devolvida pela RPC producao_por_pessoa_dados() — uma linha por
- * operação efetivada (enviada ao Financeiro), ainda não dividida em pontas. */
+ * operação efetivada (enviada ao Financeiro), ainda não dividida em pontas. Em venda padrão,
+ * captador/vendedor podem ser o gestor ou Team Leader interno daquele lado quando o corretor
+ * estiver ausente e houver um único candidato inequívoco; zero/múltiplos candidatos continuam com
+ * id/nome null. */
 export type ProducaoRawRow = {
   sale_id: string;
   imovel_id: string | null;

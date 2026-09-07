@@ -371,6 +371,51 @@ describe("agruparPorPessoa / totaisProducao — mesma fixture", () => {
   });
 });
 
+describe("gerarPontas — fallback de gestor/Team Leader resolvido pela RPC", () => {
+  it("inclui gestor e Team Leader como pessoas das pontas sem alterar os totais da venda padrão", () => {
+    const rows: ProducaoRawRow[] = [
+      {
+        sale_id: "sale-lideres",
+        imovel_id: "IMOVEL-1",
+        codigo_interno: null,
+        modalidade: "padrao",
+        concluida_em: "2026-09-06T12:00:00+00:00",
+        valor_negociado: 500000,
+        comissao_bruta: 30000,
+        captador_id: "gestor-captacao",
+        captador_nome: "Gestora da Captação",
+        vendedor_id: "tl-venda",
+        vendedor_nome: "Team Leader da Venda",
+        vendedor_fracao: null,
+      },
+    ];
+
+    const pontas = gerarPontas(
+      rows,
+      new Map([
+        ["gestor-captacao", "equipe-a"],
+        ["tl-venda", "equipe-b"],
+      ]),
+      new Map([
+        ["equipe-a", "Equipe A"],
+        ["equipe-b", "Equipe B"],
+      ]),
+    );
+
+    expect(pontas.map((p) => [p.tipo, p.pessoaId, p.pessoaNome])).toEqual([
+      ["captacao", "gestor-captacao", "Gestora da Captação"],
+      ["venda", "tl-venda", "Team Leader da Venda"],
+    ]);
+    expect(totaisProducao(pontas)).toEqual({
+      qtdVendas: 1,
+      vgv: 500000,
+      comissao: 30000,
+      qtdCaptacao: 0.5,
+      qtdVenda: 0.5,
+    });
+  });
+});
+
 describe("gerarPontas — pessoa não vinculada", () => {
   it("capta/vendedor null vira pessoaId null com nome 'Não vinculado', nunca é descartado", () => {
     const rowsSemVinculo: ProducaoRawRow[] = [
