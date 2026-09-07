@@ -150,6 +150,20 @@ export function agruparPorPessoa(pontas: ProducaoPonta[]): ResumoPessoa[] {
   return Array.from(porPessoa.values()).sort((a, b) => b.comissao - a.comissao);
 }
 
+/** Conta operações distintas no recorte já filtrado. Uma operação pode gerar mais de uma ponta,
+ * mas deve aparecer apenas uma vez na contagem do cabeçalho detalhado. */
+export function contarOperacoes(pontas: ProducaoPonta[]): number {
+  return new Set(pontas.map((p) => p.saleId)).size;
+}
+
+export function formatarTotalPessoas(total: number): string {
+  return `${total} ${total === 1 ? "pessoa" : "pessoas"}`;
+}
+
+export function formatarTotalOperacoes(total: number): string {
+  return `${total} ${total === 1 ? "operação" : "operações"}`;
+}
+
 /** Totais gerais sem duplicidade — soma direta das pontas já filtradas. Como cada operação sempre
  * contribui exatamente 1 venda / 100% do VGV / 100% da comissão entre as suas pontas, o total aqui
  * nunca passa do que as operações do período realmente somam. */

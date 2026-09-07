@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ProducaoPonta } from "@/lib/producao-por-pessoa-types";
+import { contarOperacoes, formatarTotalOperacoes } from "@/lib/producao-por-pessoa-calc";
 import { formatDateTimeBR, formatMoney, formatQtd } from "./format";
 
 const TIPO_LABEL: Record<ProducaoPonta["tipo"], string> = { captacao: "Captação", venda: "Venda" };
@@ -20,8 +21,11 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">
-          Detalhado por operação ({ordenadas.length} pontas)
+        <CardTitle className="flex flex-wrap items-baseline gap-x-1 text-base">
+          <span>Detalhado por operação</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            ({formatarTotalOperacoes(contarOperacoes(ordenadas))})
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent>

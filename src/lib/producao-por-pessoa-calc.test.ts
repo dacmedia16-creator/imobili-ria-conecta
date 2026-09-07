@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   agruparPorPessoa,
   aplicarFiltrosProducao,
+  contarOperacoes,
+  formatarTotalOperacoes,
+  formatarTotalPessoas,
   gerarPontas,
   totaisProducao,
 } from "./producao-por-pessoa-calc";
@@ -443,6 +446,41 @@ describe("gerarPontas — pessoa não vinculada", () => {
     expect(resumo).toHaveLength(1);
     expect(resumo[0].pessoaId).toBeNull();
     expect(resumo[0].chave).toBe("sem-vinculo:Não vinculado");
+  });
+});
+
+describe("contagens dos cabeçalhos", () => {
+  const pontas = gerarPontas(ROWS, TEAM_ID_POR_PESSOA, TEAM_NOME_POR_ID);
+
+  it("conta as pessoas realmente presentes no resumo consolidado", () => {
+    const resumo = agruparPorPessoa(pontas);
+    expect(resumo).toHaveLength(8);
+    expect(formatarTotalPessoas(resumo.length)).toBe("8 pessoas");
+  });
+
+  it("conta operações únicas, não as pontas exibidas no detalhamento", () => {
+    expect(pontas).toHaveLength(12);
+    expect(contarOperacoes(pontas)).toBe(8);
+    expect(formatarTotalOperacoes(contarOperacoes(pontas))).toBe("8 operações");
+  });
+
+  it("acompanha o recorte atual dos filtros", () => {
+    const filtradas = aplicarFiltrosProducao(pontas, {
+      dataDe: "",
+      dataAte: "",
+      pessoaId: "carlos",
+      teamId: null,
+      tipo: "todas",
+    });
+    expect(filtradas).toHaveLength(2);
+    expect(contarOperacoes(filtradas)).toBe(1);
+  });
+
+  it("flexiona os rótulos no singular e mantém o plural no vazio", () => {
+    expect(formatarTotalPessoas(1)).toBe("1 pessoa");
+    expect(formatarTotalPessoas(0)).toBe("0 pessoas");
+    expect(formatarTotalOperacoes(1)).toBe("1 operação");
+    expect(formatarTotalOperacoes(0)).toBe("0 operações");
   });
 });
 

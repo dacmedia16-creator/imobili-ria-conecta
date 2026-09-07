@@ -8,13 +8,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ResumoPessoa } from "@/lib/producao-por-pessoa-types";
+import { formatarTotalPessoas } from "@/lib/producao-por-pessoa-calc";
 import { formatMoney, formatQtd } from "./format";
 
 export function SummaryTable({ resumo }: { resumo: ResumoPessoa[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Resumo consolidado por pessoa ({resumo.length})</CardTitle>
+        <CardTitle className="flex flex-wrap items-baseline gap-x-1 text-base">
+          <span>Resumo consolidado por pessoa</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            ({formatarTotalPessoas(resumo.length)})
+          </span>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="max-h-[70vh] overflow-auto rounded-md border">
