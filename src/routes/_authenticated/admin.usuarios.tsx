@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { filterAdminUsers, type UserStatusFilter } from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
@@ -113,6 +114,7 @@ function AdminUsers() {
   const [showInactive, setShowInactive] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<AppRole | "todos">("todos");
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("todos");
   const [page, setPage] = useState(1);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
@@ -360,18 +362,14 @@ function AdminUsers() {
     return (a.nome || a.email || "").localeCompare(b.nome || b.email || "");
   });
 
-  const searchQ = search.trim().toLowerCase();
-  const passesFilter = (u: AdminUser) => {
-    const matchesSearch =
-      !searchQ ||
-      (u.nome ?? "").toLowerCase().includes(searchQ) ||
-      (u.email ?? "").toLowerCase().includes(searchQ);
-    const matchesRole = roleFilter === "todos" || (rolesByUser[u.id] ?? []).includes(roleFilter);
-    return matchesSearch && matchesRole;
-  };
-
-  const activeUsers = sortedUsers.filter((u) => u.ativo !== false && passesFilter(u));
-  const inactiveUsers = sortedUsers.filter((u) => u.ativo === false && passesFilter(u));
+  const filteredUsers = filterAdminUsers(sortedUsers, {
+    search,
+    role: roleFilter,
+    status: statusFilter,
+    rolesByUser,
+  });
+  const activeUsers = filteredUsers.filter((u) => u.ativo !== false);
+  const inactiveUsers = filteredUsers.filter((u) => u.ativo === false);
   const {
     items: paginatedActiveUsers,
     currentPage,
@@ -610,6 +608,23 @@ function AdminUsers() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as UserStatusFilter);
+                setShowInactive(false);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-36" aria-label="Filtrar por status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="ativos">Ativos</SelectItem>
+                <SelectItem value="inativos">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -715,7 +730,10 @@ function AdminUsers() {
               </Pagination>
             </div>
           )}
-          {inactiveUsers.length > 0 && (
+          {statusFilter === "inativos" && inactiveUsers.length > 0 && (
+            <div className="space-y-3">{inactiveUsers.map((u) => renderUserCard(u))}</div>
+          )}
+          {statusFilter === "todos" && inactiveUsers.length > 0 && (
             <div className="pt-1">
               <Button
                 variant="ghost"
