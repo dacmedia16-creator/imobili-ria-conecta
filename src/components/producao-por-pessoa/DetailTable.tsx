@@ -15,7 +15,7 @@ import { formatDateTimeBR, formatMoney, formatQtd } from "./format";
 const TIPO_LABEL: Record<ProducaoPonta["tipo"], string> = { captacao: "Captação", venda: "Venda" };
 
 export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
-  const ordenadas = [...pontas].sort((a, b) => b.efetivadaEm.localeCompare(a.efetivadaEm));
+  const ordenadas = [...pontas].sort((a, b) => b.concluidaEm.localeCompare(a.concluidaEm));
 
   return (
     <Card>
@@ -64,7 +64,7 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
                     </Badge>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatDateTimeBR(p.efetivadaEm)}
+                    {formatDateTimeBR(p.concluidaEm)}
                   </TableCell>
                   <TableCell>{TIPO_LABEL[p.tipo]}</TableCell>
                   <TableCell>
