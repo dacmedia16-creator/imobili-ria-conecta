@@ -1,8 +1,9 @@
 /**
  * Busca/agregação de dados do "Produção por Pessoa" — único módulo que fala com o Supabase.
- * Só leitura. A RPC producao_por_pessoa_dados já barra qualquer papel fora de
- * admin/super_admin/financeiro (ver migration), então um erro dela aqui normalmente significa "sem
- * permissão" — tratado como lista vazia pelo chamador.
+ * Só leitura. A RPC producao_por_pessoa_dados concentra também o fallback seguro de gestor/Team
+ * Leader por lado nas vendas padrão, para a regra ser compartilhada por qualquer consumidor. Ela
+ * barra qualquer papel fora de admin/super_admin/financeiro (ver migration), então um erro dela aqui
+ * normalmente significa "sem permissão" — tratado como lista vazia pelo chamador.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { gerarPontas } from "@/lib/producao-por-pessoa-calc";
