@@ -27,6 +27,7 @@ import {
   type SaleStatus,
 } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
+import { aplicarDatasRecentes, formatarDataRecente } from "@/lib/dashboard-datas-recentes";
 import {
   aplicarFiltrosEfetivacao,
   aplicarFiltrosParcelas,
@@ -150,7 +151,7 @@ type DashboardStats = {
 };
 
 const RECENTES_COLUMNS =
-  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at";
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at, created_at";
 
 type VendaRecente = {
   id: string;
@@ -160,6 +161,8 @@ type VendaRecente = {
   codigo_interno: string | null;
   corretor_id: string;
   updated_at: string;
+  created_at: string;
+  data_venda: string | null;
 };
 
 function Dashboard() {
@@ -195,7 +198,7 @@ function Dashboard() {
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
       ]);
       setStats(statsRes.data as DashboardStats | null);
-      setRecentes(recentesRes.data ?? []);
+      setRecentes(await aplicarDatasRecentes(recentesRes.data ?? []));
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
@@ -606,9 +609,9 @@ function Dashboard() {
                 key={s.id}
                 to="/vendas/$id"
                 params={{ id: s.id }}
-                className={`flex items-center justify-between rounded-md border p-3 hover:bg-muted/50 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+                className={`flex flex-col items-start gap-2 rounded-md border p-3 hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
               >
-                <div>
+                <div className="min-w-0 break-words">
                   <div className="text-sm font-medium">
                     {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
                   </div>
@@ -617,8 +620,11 @@ function Dashboard() {
                       ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
                       : "Valor pendente"}
                   </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatarDataRecente(s.data_venda)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={s.status as SaleStatus} />
                   {minhaVez && (
                     <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
