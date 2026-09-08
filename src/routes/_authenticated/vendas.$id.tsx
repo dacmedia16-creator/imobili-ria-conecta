@@ -115,6 +115,11 @@ import {
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
 import {
+  podeSincronizarResumo,
+  temEdicaoFinanceiraResumo,
+  resumoTemPendencia,
+} from "@/lib/resumo-sync-guard";
+import {
   recalcImobiliaria as recalcImobiliariaCalc,
   calcularPatchValorNegociado,
   calcularPatchOccValorNegociado,
@@ -649,10 +654,101 @@ function SaleDetail() {
   // Definida aqui (antes do "return" de carregamento abaixo) porque useAutosave chama hooks
   // (useEffect/useRef) — se ficasse depois do guard de loading, a ordem dos hooks mudaria entre
   // o primeiro render (carregando) e os seguintes, o que quebra as regras dos hooks do React.
+  const savingResumoRef = useRef(false);
+  const [resumoSaveFailed, setResumoSaveFailed] = useState(false);
+  const resumoSyncAllowed = async (patch: SalePatch): Promise<boolean> => {
+    // Consulta atual, não a flag de erro em memória: também funciona após reload.
+    const [current, occurrence] = await Promise.all([
+      supabase.from("sales").select("*").eq("id", id).single(),
+      supabase.from("occurrences").select("id,aceita_financeiro").eq("sale_id", id).maybeSingle(),
+    ]);
+    if (current.error) throw current.error;
+    if (occurrence.error) throw occurrence.error;
+    if (!current.data) throw new Error("Resumo indisponível");
+    const canSync = podeSincronizarResumo(
+      roles,
+      current.data,
+      user?.id,
+      teamIds,
+      occurrence.data?.aceita_financeiro ?? false,
+    );
+    if (canSync) return true;
+    // Dono em rascunho pode preencher sua venda antes de existir ocorrência (regra do banco).
+    const ownerDraft =
+      current.data.corretor_id === user?.id &&
+      corretorPodeEditar(true, current.data.status) &&
+      !isSaleLocked(current.data.status, occurrence.data?.aceita_financeiro ?? false);
+    if ((dirtyExtras || temEdicaoFinanceiraResumo(patch)) && !(ownerDraft && !occurrence.data))
+      throw { code: "RESUMO_PENDING" };
+    for (const side of ["captador", "vendedor"] as const) {
+      if (
+        !current.data[`indicador_${side}`] &&
+        !current.data[`indicador_${side}_id`] &&
+        current.data[`valor_comissao_indicador_${side}`] != null &&
+        !ownerDraft
+      )
+        throw { code: "RESUMO_PENDING" };
+    }
+    if (!occurrence.data) return false; // Não há espelho a sincronizar; não faz escrita financeira.
+    const [commissions, extras, partners, distribution] = await Promise.all([
+      supabase.from("occurrence_commissions").select("*").eq("occurrence_id", occurrence.data.id),
+      supabase.from("sale_commission_extras").select("*").eq("sale_id", id),
+      supabase.from("occurrence_partners").select("*").eq("occurrence_id", occurrence.data.id),
+      supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
+    ]);
+    for (const result of [commissions, extras, partners, distribution])
+      if (result.error) throw result.error;
+    const dist = asDistribution(distribution.data);
+    if (
+      !commissions.data ||
+      !extras.data ||
+      !partners.data ||
+      !dist ||
+      typeof dist.liquido_captador !== "number" ||
+      !Number.isFinite(dist.liquido_captador) ||
+      typeof dist.liquido_vendedor !== "number" ||
+      !Number.isFinite(dist.liquido_vendedor)
+    )
+      throw new Error("Não foi possível verificar a sincronização");
+    if (
+      resumoTemPendencia(
+        current.data,
+        {
+          liquido_captador: dist.liquido_captador,
+          liquido_vendedor: dist.liquido_vendedor,
+        },
+        commissions.data,
+        extras.data,
+        partners.data,
+      )
+    )
+      throw { code: "RESUMO_PENDING" };
+    return false; // Leitura consistente permite avançar sem solicitar RPC financeira a esse papel.
+  };
   const saveResumo = async (): Promise<boolean> => {
-    if (!sale) return false;
+    // Autosave e avanço podem coincidir. Não duplica extras/RPCs nem libera avanço em andamento.
+    if (!sale || savingResumoRef.current) return false;
+    savingResumoRef.current = true;
     setSaving(true);
     try {
+      // Reparação restrita ao salvamento: indicador sem nome E sem vínculo não mantém comissão.
+      // NULL (não zero) permite à RPC remover somente a linha derivada desse papel.
+      const normalizedSale = { ...formSale };
+      let normalized = false;
+      for (const lado of ["captador", "vendedor"] as const) {
+        if (!normalizedSale[`indicador_${lado}`] && !normalizedSale[`indicador_${lado}_id`]) {
+          if (
+            normalizedSale[`indicador_${lado}`] != null ||
+            normalizedSale[`indicador_${lado}_id`] != null ||
+            normalizedSale[`valor_comissao_indicador_${lado}`] != null
+          ) {
+            normalizedSale[`indicador_${lado}`] = null;
+            normalizedSale[`indicador_${lado}_id`] = null;
+            normalizedSale[`valor_comissao_indicador_${lado}`] = null;
+            normalized = true;
+          }
+        }
+      }
       const fields: (keyof SaleRow)[] = [
         "imovel_id",
         "matricula",
@@ -718,10 +814,12 @@ function SaleDetail() {
       ];
       const patch: SalePatch = {};
       for (const k of fields) {
-        const v = formSale?.[k];
+        const v = normalizedSale[k];
         const orig = sale?.[k];
         if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
       }
+      const syncAllowed = await resumoSyncAllowed(patch);
+      if (normalized) setFormSale(normalizedSale);
       // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
       // vendedor são participações comerciais independentes e nunca podem transferir silenciosamente
       // a propriedade nem bloquear o criador durante o preenchimento.
@@ -731,10 +829,11 @@ function SaleDetail() {
           .update(patch as SaleUpdate)
           .eq("id", id);
         if (error) {
+          setResumoSaveFailed(true);
           if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
             toast.error("Já existe outra venda em andamento para esse código de imóvel.");
           } else {
-            toast.error(error.message);
+            toast.error(resumoSaveErrorMessage(error));
           }
           return false;
         }
@@ -748,7 +847,8 @@ function SaleDetail() {
         for (const r of removed) {
           const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            setResumoSaveFailed(true);
+            toast.error(resumoSaveErrorMessage(error));
             return false;
           }
         }
@@ -771,7 +871,8 @@ function SaleDetail() {
               .select("id")
               .single();
             if (error) {
-              toast.error(error.message);
+              setResumoSaveFailed(true);
+              toast.error(resumoSaveErrorMessage(error));
               return false;
             }
             resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
@@ -781,7 +882,8 @@ function SaleDetail() {
               .update(data)
               .eq("id", r.id);
             if (error) {
-              toast.error(error.message);
+              setResumoSaveFailed(true);
+              toast.error(resumoSaveErrorMessage(error));
               return false;
             }
           }
@@ -794,37 +896,48 @@ function SaleDetail() {
         setFormExtras(resolvedExtras);
         setCommissionExtras(resolvedExtras as CommissionExtraRow[]);
       }
-      if (Object.keys(patch).length === 0 && !dirtyExtras) {
-        setDirtyResumo(false);
-        return true;
-      }
+      // Mesmo sem patch: uma tentativa anterior pode ter salvo sales e falhado na ocorrência,
+      // inclusive antes de recarregar a página. Não depender de flag volátil para decidir o sync.
       try {
-        await syncOccurrenceCommissions(id);
-        await syncOccurrencePartnerFromSale(id, { ...sale, ...formSale });
+        if (syncAllowed) {
+          await syncOccurrenceCommissions(id);
+          await syncOccurrencePartnerFromSale(id, { ...sale, ...normalizedSale });
+        }
       } catch (err: unknown) {
         // sales/sale_commission_extras já foram persistidos com sucesso acima (e formExtras/
         // commissionExtras já refletem os ids reais, ver acima) — mas a Ocorrência ficou fora de
         // sincronia. Bloqueia o avanço (flushAllDirty/changeStatus não seguem adiante) em vez de só
         // avisar e deixar passar, já que ranking/relatórios dependem da Ocorrência sincronizada.
-        // dirtyResumo/dirtyExtras continuam true de propósito: a próxima tentativa de salvar/avançar
-        // reprocessa (patch já vazio, extras já sem _new) e tenta sincronizar de novo, sem duplicar nada.
+        // A próxima tentativa explícita refaz o sync, mesmo com patch vazio após reload.
+        // Suspende autosave após falha para não repetir indefinidamente quando extras mudam no load.
+        setResumoSaveFailed(true);
         toast.error(
-          `Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${errorMessage(err, "erro desconhecido")}. Tente salvar de novo antes de avançar a venda.`,
+          `Resumo salvo, mas falhou ao sincronizar com a Ocorrência: ${resumoSaveErrorMessage(err)} Tente novamente antes de avançar a venda.`,
         );
         await load();
         return false;
       }
       setDirtyResumo(false);
       setDirtyExtras(false);
+      setResumoSaveFailed(false);
       await load();
       return true;
+    } catch (err: unknown) {
+      setResumoSaveFailed(true);
+      toast.error(resumoSaveErrorMessage(err));
+      return false;
     } finally {
+      savingResumoRef.current = false;
       setSaving(false);
     }
   };
   // Sem "editable &&" aqui de propósito: os campos só ficam dirty se o usuário conseguiu editá-los
   // (inputs desabilitados não disparam onChange), e "editable" só existe depois do guard abaixo.
-  useAutosave(dirtyResumo || dirtyExtras, [formSale, formExtras], saveResumo);
+  useAutosave(
+    !resumoSaveFailed && (dirtyResumo || dirtyExtras),
+    [formSale, formExtras],
+    saveResumo,
+  );
 
   const anyDirtyAnywhere = dirtyResumo || dirtyExtras || Object.values(dirtyMap).some(Boolean);
 
@@ -955,6 +1068,7 @@ function SaleDetail() {
   const updResumo = (patch: Partial<SaleRow>) => {
     setFormSale((f) => ({ ...f, ...patch }));
     setDirtyResumo(true);
+    setResumoSaveFailed(false);
   };
 
   const setParceriaExternaLado = (lado: "captador" | "vendedor", ativa: boolean) => {
@@ -1203,10 +1317,8 @@ function SaleDetail() {
   // tinha disparado, ou a pessoa clicou direto num botão do topo (ex.: "Enviar ao gestor") sem
   // passar pela troca de aba que aciona o save — sumia quando a venda passava adiante.
   const flushAllDirty = async (): Promise<boolean> => {
-    if (dirtyResumo || dirtyExtras) {
-      const ok = await saveResumo();
-      if (!ok) return false;
-    }
+    // Avanço explícito também reconcilia a ocorrência depois de reload, sem edição nova.
+    if (!(await saveResumo())) return false;
     for (const key of Object.keys(dirtyMap)) {
       if (!dirtyMap[key]) continue;
       const fn = saversRef.current[key];
@@ -1524,7 +1636,7 @@ function SaleDetail() {
   // Wizard: on leaving a step, run its saver if dirty
   const onBeforeLeave = async (from: string): Promise<boolean> => {
     if (from === "resumo") {
-      if (dirtyResumo || dirtyExtras) return await saveResumo();
+      return await saveResumo();
     }
     if (dirtyMap[from]) {
       const fn = saversRef.current[from];
@@ -1576,7 +1688,17 @@ function SaleDetail() {
         // print:hidden — formulário de edição, não um relatório (o resumo pra imprimir é o modal
         // "Visão geral da venda", que já tem os mesmos dados num layout próprio pra impressão).
         <div className="space-y-4 print:hidden">
-          {editable && <AutosaveStatus saving={saving} dirty={dirtyResumo || dirtyExtras} />}
+          {editable &&
+            (resumoSaveFailed ? (
+              <div role="alert" className="text-sm text-destructive">
+                Salvamento/sincronização pendente. O salvamento automático está pausado.
+                <Button variant="link" onClick={saveResumo} disabled={saving}>
+                  Tentar salvar novamente
+                </Button>
+              </div>
+            ) : (
+              <AutosaveStatus saving={saving} dirty={dirtyResumo || dirtyExtras} />
+            ))}
           <Wizard
             steps={[
               {
@@ -1941,6 +2063,7 @@ function SaleDetail() {
                                         updResumo({
                                           indicador_captador_id: null,
                                           indicador_captador: null,
+                                          valor_comissao_indicador_captador: null,
                                         });
                                         return;
                                       }
@@ -2205,6 +2328,7 @@ function SaleDetail() {
                                         updResumo({
                                           indicador_vendedor_id: null,
                                           indicador_vendedor: null,
+                                          valor_comissao_indicador_vendedor: null,
                                         });
                                         return;
                                       }
@@ -5352,6 +5476,25 @@ function CommentsPanel({
 async function syncOccurrenceCommissions(saleId: string) {
   const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
   if (error) throw error;
+}
+
+// Apenas este fluxo: não amplia errorMessage global nem expõe message/details/hint do banco.
+function resumoSaveErrorMessage(error: unknown): string {
+  const code = error && typeof error === "object" && "code" in error ? error.code : null;
+  switch (code) {
+    case "RESUMO_PENDING":
+      return "Há edição ou pendência de comissão. Solicite ao gestor/financeiro autorizado que revise e sincronize o Resumo antes de avançar.";
+    case "23514":
+      return "Dados de comissão incompatíveis. Revise os participantes e seus vínculos (23514).";
+    case "23503":
+      return "Um vínculo não está disponível. Atualize a página e revise os participantes (23503).";
+    case "42501":
+      return "Sem permissão para concluir esta operação. Solicite a revisão de um responsável (42501).";
+    case "23505":
+      return "Há um registro conflitante. Atualize a página antes de tentar novamente (23505).";
+    default:
+      return "Não foi possível concluir a operação. Verifique a conexão e, se persistir, solicite suporte.";
+  }
 }
 
 /**
