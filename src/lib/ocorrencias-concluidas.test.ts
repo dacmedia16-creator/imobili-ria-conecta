@@ -1,13 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  chaveMesConclusao,
+  chaveMesAtual,
   mesesOcorrenciasConcluidas,
   resumoOcorrenciasConcluidas,
   imovelOuCodigo,
   montarOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
-  ultimaConclusaoPorSale,
   type OcorrenciaConcluidaRaw,
   type OcorrenciaConcluidaRow,
 } from "./ocorrencias-concluidas";
@@ -15,20 +14,20 @@ import {
 describe("filtro mensal de ocorrências concluídas", () => {
   const row = (
     saleId: string,
-    dataConclusao: string,
+    dataAssinatura: string | null,
     valorComissao = 100,
   ): OcorrenciaConcluidaRow => ({
     saleId,
-    dataConclusao,
+    dataAssinatura,
     valorComissao,
     imovelLabel: saleId,
     corretorNome: null,
   });
   const rows = [
-    row("set-2", "2026-09-20T12:00:00Z", 200),
-    row("set-1", "2026-09-10T12:00:00Z", 150),
-    row("ago", "2026-08-10T12:00:00Z", 50),
-    row("antigo", "2025-09-10T12:00:00Z", 25),
+    row("set-2", "2026-09-20", 200),
+    row("set-1", "2026-09-01", 150),
+    row("ago", "2026-08-31", 50),
+    row("antigo", "2025-09-10", 25),
   ];
 
   it("inicializa a página em Todos os meses, sem depender do mês atual", () => {
@@ -37,10 +36,15 @@ describe("filtro mensal de ocorrências concluídas", () => {
       "utf8",
     );
     expect(pagina).toContain('const [mesSelecionado, setMesSelecionado] = useState("todos")');
+    expect(pagina).toContain("id, sale_id, valor_comissao, data_assinatura");
+    expect(pagina).toContain('.eq("status", "concluida")');
+    expect(pagina).toContain("Data da assinatura");
+    expect(pagina).toContain('dateBR(r.dataAssinatura) : "Não informada"');
+    expect(pagina).not.toMatch(/sale_status_history|updated_at|dataConclusao/);
   });
 
   it("obtém o mês atual para mantê-lo entre as opções do filtro", () => {
-    expect(chaveMesConclusao(new Date(2026, 8, 9))).toBe("2026-09");
+    expect(chaveMesAtual(new Date(2026, 8, 9))).toBe("2026-09");
   });
 
   it("deriva meses únicos dos dados, em ordem decrescente, incluindo o atual vazio", () => {
@@ -83,38 +87,71 @@ describe("filtro mensal de ocorrências concluídas", () => {
     expect(resumoOcorrenciasConcluidas([], "todos")).toEqual({ rows: [], totalComissao: 0 });
   });
 
-  it("respeita limites de mês e ano no mesmo fuso local da data exibida", () => {
+  it("preserva datas civis nos limites de mês e ano em qualquer fuso", () => {
     const limites = [
-      row("antes", new Date(2025, 11, 31, 23, 59, 59, 999).toISOString()),
-      row("inicio", new Date(2026, 0, 1, 0, 0, 0).toISOString()),
-      row("fim", new Date(2026, 0, 31, 23, 59, 59, 999).toISOString()),
-      row("depois", new Date(2026, 1, 1, 0, 0, 0).toISOString()),
+      row("antes", "2025-12-31"),
+      row("inicio", "2026-01-01"),
+      row("fim", "2026-01-31"),
+      row("depois", "2026-02-01"),
     ];
     expect(resumoOcorrenciasConcluidas(limites, "2026-01").rows.map((r) => r.saleId)).toEqual([
       "inicio",
       "fim",
     ]);
-    expect(chaveMesConclusao(new Date("2026-01-01T01:00:00Z"))).toBe(
-      new Date("2026-01-01T01:00:00Z").getMonth() === 11 ? "2025-12" : "2026-01",
-    );
   });
 
-  it("filtra pela última conclusão do histórico e usa updated_at apenas no fallback", () => {
-    const montadas = montarOcorrenciasConcluidas({
-      occs: [
-        { id: "o1", sale_id: "historico", valor_comissao: 200, updated_at: "2026-08-10T12:00:00Z" },
-        { id: "o2", sale_id: "fallback", valor_comissao: 50, updated_at: "2026-08-20T12:00:00Z" },
-      ],
-      sales: [],
-      nomesPorId: {},
-      conclusoesPorSale: ultimaConclusaoPorSale([
-        { sale_id: "historico", created_at: "2026-07-10T12:00:00Z" },
-        { sale_id: "historico", created_at: "2026-09-10T12:00:00Z" },
-      ]),
-    });
-    expect(resumoOcorrenciasConcluidas(montadas, "2026-09").rows[0].saleId).toBe("historico");
+  it("assinatura em agosto concluída em setembro pertence somente a agosto", () => {
+    const occs = [
+      {
+        id: "o1",
+        sale_id: "agosto",
+        valor_comissao: 200,
+        data_assinatura: "2026-08-31",
+        updated_at: "2026-09-09T12:00:00Z",
+      },
+      {
+        id: "o2",
+        sale_id: "setembro",
+        valor_comissao: 50,
+        data_assinatura: "2026-09-01",
+        updated_at: "2026-09-09T12:00:00Z",
+      },
+      {
+        id: "o3",
+        sale_id: "sem-data",
+        valor_comissao: 25,
+        data_assinatura: null,
+        updated_at: "2026-09-09T12:00:00Z",
+      },
+    ];
+    const montadas = montarOcorrenciasConcluidas({ occs, sales: [], nomesPorId: {} });
+    expect(resumoOcorrenciasConcluidas(montadas, "2026-09").rows.map((r) => r.saleId)).toEqual([
+      "setembro",
+    ]);
+    expect(resumoOcorrenciasConcluidas(montadas, "2026-09").totalComissao).toBe(50);
     expect(resumoOcorrenciasConcluidas(montadas, "2026-08").rows.map((r) => r.saleId)).toEqual([
-      "fallback",
+      "agosto",
+    ]);
+    expect(resumoOcorrenciasConcluidas(montadas, "2026-08").totalComissao).toBe(200);
+    expect(resumoOcorrenciasConcluidas(montadas, "todos")).toEqual({
+      rows: montadas,
+      totalComissao: 275,
+    });
+    expect(mesesOcorrenciasConcluidas(montadas, "2026-09").map((m) => m.value)).toEqual([
+      "2026-09",
+      "2026-08",
+    ]);
+  });
+
+  it("sem assinatura fica somente em Todos os meses e não cria opção inválida", () => {
+    const semData = [row("sem-data", null, 30)];
+    expect(resumoOcorrenciasConcluidas(semData, "todos")).toEqual({
+      rows: semData,
+      totalComissao: 30,
+    });
+    expect(resumoOcorrenciasConcluidas(semData, "2026-09")).toEqual({ rows: [], totalComissao: 0 });
+    expect(mesesOcorrenciasConcluidas(semData, "2026-09")).toEqual([
+      { value: "2026-09", label: "Setembro de 2026" },
     ]);
   });
 });
@@ -172,65 +209,45 @@ describe("imovelOuCodigo", () => {
   });
 });
 
-describe("ultimaConclusaoPorSale", () => {
-  it("mantém a entrada mais recente por venda", () => {
-    const porSale = ultimaConclusaoPorSale([
-      { sale_id: "s1", created_at: "2026-01-10T00:00:00Z" },
-      { sale_id: "s1", created_at: "2026-03-10T00:00:00Z" },
-      { sale_id: "s2", created_at: "2026-02-10T00:00:00Z" },
-    ]);
-    expect(porSale).toEqual({
-      s1: "2026-03-10T00:00:00Z",
-      s2: "2026-02-10T00:00:00Z",
-    });
-  });
-
-  it("retorna vazio sem histórico", () => {
-    expect(ultimaConclusaoPorSale([])).toEqual({});
-  });
-});
-
 describe("montarOcorrenciasConcluidas", () => {
   const occ = (over: Partial<OcorrenciaConcluidaRaw>): OcorrenciaConcluidaRaw => ({
     id: "occ-1",
     sale_id: "s1",
     valor_comissao: 100,
-    updated_at: "2026-01-01T00:00:00Z",
+    data_assinatura: "2026-01-01",
     ...over,
   });
 
-  it("ordena por data de conclusão, mais recente primeiro", () => {
+  it("ordena por assinatura mais recente, sem data ao final e desempate estável", () => {
     const rows = montarOcorrenciasConcluidas({
       occs: [
-        occ({ id: "occ-a", sale_id: "sa", updated_at: "2026-01-01T00:00:00Z" }),
-        occ({ id: "occ-b", sale_id: "sb", updated_at: "2026-03-01T00:00:00Z" }),
-        occ({ id: "occ-c", sale_id: "sc", updated_at: "2026-02-01T00:00:00Z" }),
+        occ({ id: "occ-a", sale_id: "sa", data_assinatura: "2026-01-01" }),
+        occ({ id: "occ-b", sale_id: "sb", data_assinatura: "2026-03-01" }),
+        occ({ id: "occ-c", sale_id: "sc", data_assinatura: "2026-03-01" }),
+        occ({ id: "occ-d", sale_id: "sd", data_assinatura: null }),
       ],
       sales: [],
       nomesPorId: {},
-      conclusoesPorSale: {},
     });
-    expect(rows.map((r) => r.saleId)).toEqual(["sb", "sc", "sa"]);
+    expect(rows.map((r) => r.saleId)).toEqual(["sc", "sb", "sa", "sd"]);
   });
 
-  it("usa a data do histórico (fonte primária) em vez de updated_at", () => {
+  it("preserva a data da assinatura sem converter para UTC", () => {
     const rows = montarOcorrenciasConcluidas({
-      occs: [occ({ sale_id: "s1", updated_at: "2026-01-01T00:00:00Z" })],
+      occs: [occ({ sale_id: "s1", data_assinatura: "2026-09-01" })],
       sales: [],
       nomesPorId: {},
-      conclusoesPorSale: { s1: "2026-05-01T00:00:00Z" },
     });
-    expect(rows[0].dataConclusao).toBe("2026-05-01T00:00:00Z");
+    expect(rows[0].dataAssinatura).toBe("2026-09-01");
   });
 
-  it("cai para updated_at quando não há registro de conclusão", () => {
+  it("não inventa data quando não há assinatura", () => {
     const rows = montarOcorrenciasConcluidas({
-      occs: [occ({ sale_id: "s1", updated_at: "2026-01-01T00:00:00Z" })],
+      occs: [occ({ sale_id: "s1", data_assinatura: null })],
       sales: [],
       nomesPorId: {},
-      conclusoesPorSale: {},
     });
-    expect(rows[0].dataConclusao).toBe("2026-01-01T00:00:00Z");
+    expect(rows[0].dataAssinatura).toBeNull();
   });
 
   it("resolve o corretor pelo nome do profile e o valor da comissão", () => {
@@ -238,7 +255,6 @@ describe("montarOcorrenciasConcluidas", () => {
       occs: [occ({ sale_id: "s1", valor_comissao: 1234.5 })],
       sales: [{ id: "s1", codigo_interno: "C1", imovel_id: null, corretor_id: "u1" }],
       nomesPorId: { u1: "Maria" },
-      conclusoesPorSale: {},
     });
     expect(rows[0]).toMatchObject({
       saleId: "s1",
@@ -253,7 +269,6 @@ describe("montarOcorrenciasConcluidas", () => {
       occs: [occ({ sale_id: "s1", valor_comissao: null })],
       sales: [],
       nomesPorId: {},
-      conclusoesPorSale: {},
     });
     expect(rows[0]).toMatchObject({
       valorComissao: 0,

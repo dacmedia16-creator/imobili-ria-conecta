@@ -22,12 +22,11 @@ import {
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
 import {
-  chaveMesConclusao,
+  chaveMesAtual,
   mesesOcorrenciasConcluidas,
   resumoOcorrenciasConcluidas,
   montarOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
-  ultimaConclusaoPorSale,
   type OcorrenciaConcluidaRow,
 } from "@/lib/ocorrencias-concluidas";
 
@@ -54,7 +53,7 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
   component: OcorrenciasConcluidasPage,
 });
 
-const OCC_COLUMNS = "id, sale_id, valor_comissao, updated_at";
+const OCC_COLUMNS = "id, sale_id, valor_comissao, data_assinatura";
 
 function OcorrenciasConcluidasPage() {
   const { hasAny, loading: authLoading } = useAuth();
@@ -64,7 +63,7 @@ function OcorrenciasConcluidasPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [rows, setRows] = useState<OcorrenciaConcluidaRow[]>([]);
-  const [mesAtual] = useState(() => chaveMesConclusao());
+  const [mesAtual] = useState(() => chaveMesAtual());
   const [mesSelecionado, setMesSelecionado] = useState("todos");
 
   const carregar = useCallback(async () => {
@@ -81,7 +80,7 @@ function OcorrenciasConcluidasPage() {
         .eq("status", "concluida");
       const saleIds = Array.from(new Set((occs ?? []).map((o) => o.sale_id)));
 
-      const [salesRes, profilesRes, historyRes] = await Promise.all([
+      const [salesRes, profilesRes] = await Promise.all([
         saleIds.length
           ? supabase
               .from("sales")
@@ -97,16 +96,6 @@ function OcorrenciasConcluidasPage() {
               error: null,
             }),
         supabase.from("profiles").select("id, nome"),
-        saleIds.length
-          ? supabase
-              .from("sale_status_history")
-              .select("sale_id, created_at")
-              .eq("para", "ocorrencia_concluida")
-              .in("sale_id", saleIds)
-          : Promise.resolve({
-              data: [] as { sale_id: string; created_at: string }[],
-              error: null,
-            }),
       ]);
 
       const nomesPorId: Record<string, string> = {};
@@ -117,7 +106,6 @@ function OcorrenciasConcluidasPage() {
           occs: occs ?? [],
           sales: salesRes.data ?? [],
           nomesPorId,
-          conclusoesPorSale: ultimaConclusaoPorSale(historyRes.data ?? []),
         }),
       );
     } catch (err) {
@@ -170,15 +158,16 @@ function OcorrenciasConcluidasPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
           <p className="text-sm text-muted-foreground">
-            Consulte as ocorrências financeiras já concluídas por mês ou todo o histórico.
+            Consulte as ocorrências financeiras já concluídas pelo mês da assinatura ou todo o
+            histórico.
           </p>
         </div>
         <div className="w-full space-y-1 sm:w-56 sm:shrink-0">
-          <label htmlFor="mes-conclusao" className="text-sm font-medium">
-            Mês
+          <label htmlFor="mes-assinatura" className="text-sm font-medium">
+            Mês da assinatura
           </label>
           <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
-            <SelectTrigger id="mes-conclusao">
+            <SelectTrigger id="mes-assinatura">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -216,7 +205,7 @@ function OcorrenciasConcluidasPage() {
                 <TableHead>Imóvel / código</TableHead>
                 <TableHead>Corretor</TableHead>
                 <TableHead>Comissão</TableHead>
-                <TableHead>Data de conclusão</TableHead>
+                <TableHead>Data da assinatura</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -238,7 +227,9 @@ function OcorrenciasConcluidasPage() {
                   <TableCell className="font-medium">{r.imovelLabel}</TableCell>
                   <TableCell className="text-muted-foreground">{r.corretorNome ?? "—"}</TableCell>
                   <TableCell>{money(r.valorComissao)}</TableCell>
-                  <TableCell className="text-muted-foreground">{dateBR(r.dataConclusao)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.dataAssinatura ? dateBR(r.dataAssinatura) : "Não informada"}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

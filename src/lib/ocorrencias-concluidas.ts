@@ -23,7 +23,7 @@ export type OcorrenciaConcluidaRaw = {
   id: string;
   sale_id: string;
   valor_comissao: number | null;
-  updated_at: string;
+  data_assinatura: string | null;
 };
 
 export type VendaConcluidaRaw = {
@@ -33,28 +33,24 @@ export type VendaConcluidaRaw = {
   corretor_id: string | null;
 };
 
-export type ConclusaoHistoryRaw = {
-  sale_id: string;
-  created_at: string;
-};
-
 export type OcorrenciaConcluidaRow = {
   saleId: string;
   imovelLabel: string;
   corretorNome: string | null;
   valorComissao: number;
-  dataConclusao: string;
+  dataAssinatura: string | null;
 };
 
-/** Usa o fuso local, assim como dateBR na tabela (não recortar o timestamp UTC). */
-export function chaveMesConclusao(data: Date = new Date()): string {
+/** Mês atual para manter a opção disponível mesmo sem registros. */
+export function chaveMesAtual(data: Date = new Date()): string {
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function mesesOcorrenciasConcluidas(rows: OcorrenciaConcluidaRow[], mesAtual: string) {
   const meses = new Set([
     mesAtual,
-    ...rows.map((row) => chaveMesConclusao(new Date(row.dataConclusao))),
+    // data_assinatura é DATE (YYYY-MM-DD), não um instante UTC.
+    ...rows.flatMap((row) => (row.dataAssinatura ? [row.dataAssinatura.slice(0, 7)] : [])),
   ]);
   return [...meses]
     .sort()
@@ -72,9 +68,7 @@ export function mesesOcorrenciasConcluidas(rows: OcorrenciaConcluidaRow[], mesAt
 /** Uma única seleção alimenta a tabela e os dois cards, preservando a ordem recebida. */
 export function resumoOcorrenciasConcluidas(rows: OcorrenciaConcluidaRow[], mes: string) {
   const filtradas =
-    mes === "todos"
-      ? rows
-      : rows.filter((row) => chaveMesConclusao(new Date(row.dataConclusao)) === mes);
+    mes === "todos" ? rows : rows.filter((row) => row.dataAssinatura?.slice(0, 7) === mes);
   return {
     rows: filtradas,
     totalComissao: filtradas.reduce((total, row) => total + row.valorComissao, 0),
@@ -90,25 +84,12 @@ export function imovelOuCodigo(sale: {
   return sale.codigo_interno || sale.imovel_id || `Venda #${sale.id.slice(0, 8)}`;
 }
 
-/** Data de conclusão por venda — a mais recente entrada `para = 'ocorrencia_concluida'` do
- * histórico (uma venda pode ser reaberta e reconcluída, gerando mais de um registro). */
-export function ultimaConclusaoPorSale(history: ConclusaoHistoryRaw[]): Record<string, string> {
-  const porSale: Record<string, string> = {};
-  for (const h of history) {
-    const atual = porSale[h.sale_id];
-    if (!atual || h.created_at > atual) porSale[h.sale_id] = h.created_at;
-  }
-  return porSale;
-}
-
-/** Monta a lista de ocorrências concluídas ordenada por data de conclusão (mais recente primeiro),
- * com fallback de data para `occurrences.updated_at` quando não há registro de conclusão no
- * histórico (fonte primária). Desempate por sale_id pra ordenação ser determinística. */
+/** Assinaturas mais recentes primeiro; sem assinatura ao final, sem inventar data.
+ * Desempate por sale_id para ordenação determinística. */
 export function montarOcorrenciasConcluidas(opts: {
   occs: OcorrenciaConcluidaRaw[];
   sales: VendaConcluidaRaw[];
   nomesPorId: Record<string, string>;
-  conclusoesPorSale: Record<string, string>;
 }): OcorrenciaConcluidaRow[] {
   const salePorId = new Map(opts.sales.map((s) => [s.id, s]));
   const rows: OcorrenciaConcluidaRow[] = opts.occs.map((occ) => {
@@ -118,11 +99,13 @@ export function montarOcorrenciasConcluidas(opts: {
       imovelLabel: sale ? imovelOuCodigo(sale) : `Venda #${occ.sale_id.slice(0, 8)}`,
       corretorNome: sale?.corretor_id ? (opts.nomesPorId[sale.corretor_id] ?? null) : null,
       valorComissao: Number(occ.valor_comissao ?? 0),
-      dataConclusao: opts.conclusoesPorSale[occ.sale_id] ?? occ.updated_at,
+      dataAssinatura: occ.data_assinatura || null,
     };
   });
   rows.sort(
-    (a, b) => b.dataConclusao.localeCompare(a.dataConclusao) || b.saleId.localeCompare(a.saleId),
+    (a, b) =>
+      (b.dataAssinatura ?? "").localeCompare(a.dataAssinatura ?? "") ||
+      b.saleId.localeCompare(a.saleId),
   );
   return rows;
 }
