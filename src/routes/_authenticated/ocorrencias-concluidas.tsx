@@ -65,7 +65,7 @@ function OcorrenciasConcluidasPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [rows, setRows] = useState<OcorrenciaConcluidaRow[]>([]);
   const [mesAtual] = useState(() => chaveMesConclusao());
-  const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
+  const [mesSelecionado, setMesSelecionado] = useState("todos");
 
   const carregar = useCallback(async () => {
     if (!allowed) {

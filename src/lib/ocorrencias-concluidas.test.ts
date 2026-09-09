@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   chaveMesConclusao,
@@ -30,7 +31,15 @@ describe("filtro mensal de ocorrências concluídas", () => {
     row("antigo", "2025-09-10T12:00:00Z", 25),
   ];
 
-  it("obtém o mês atual para o padrão inicial", () => {
+  it("inicializa a página em Todos os meses, sem depender do mês atual", () => {
+    const pagina = readFileSync(
+      new URL("../routes/_authenticated/ocorrencias-concluidas.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(pagina).toContain('const [mesSelecionado, setMesSelecionado] = useState("todos")');
+  });
+
+  it("obtém o mês atual para mantê-lo entre as opções do filtro", () => {
     expect(chaveMesConclusao(new Date(2026, 8, 9))).toBe("2026-09");
   });
 
