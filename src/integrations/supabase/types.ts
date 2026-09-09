@@ -1459,6 +1459,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      relatorio_ocorrencias_concluidas: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       archive_sale_document: {
         Args: { _document_id: string };
         Returns: undefined;

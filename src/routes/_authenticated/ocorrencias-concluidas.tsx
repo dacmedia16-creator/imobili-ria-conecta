@@ -1,5 +1,6 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,30 +23,35 @@ import {
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
 import {
+  catalogoOcorrenciasConcluidas,
   chaveMesAtual,
+  corretoresDaEquipe,
+  corretorValidoNaEquipe,
   mesesOcorrenciasConcluidas,
   resumoOcorrenciasConcluidas,
   montarOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
+  relatorioOcorrenciasConcluidasSchema,
+  type CorretorRelatorio,
+  type OpcaoRelatorio,
   type OcorrenciaConcluidaRow,
 } from "@/lib/ocorrencias-concluidas";
 
 export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
   head: () => ({ meta: [{ title: "Ocorrências concluídas" }] }),
-  // Mesma proteção em 3 camadas do Financeiro: rota (aqui), componente (useAuth) e RLS no banco.
-  // Aqui não há nenhuma query sem filtro de papel: o banco já entrega só o que can_view_sale/
-  // is_lead_of permitem (gestor/team_leader → própria equipe; financeiro/admin/super_admin → tudo).
+  // Menu, rota e componente compartilham papéis. A RPC verifica usuário ativo e
+  // autorização do relatório global; RLS dos detalhes/escrita permanece intacta.
   beforeLoad: async () => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", session.user.id);
     const roles = (data ?? []).map((r) => r.role);
-    if (!podeVerOcorrenciasConcluidas(roles)) {
+    if (error || !podeVerOcorrenciasConcluidas(roles)) {
       toast.error("Acesso não autorizado.");
       throw redirect({ to: "/dashboard" });
     }
@@ -53,98 +59,144 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
   component: OcorrenciasConcluidasPage,
 });
 
-const OCC_COLUMNS = "id, sale_id, valor_comissao, data_assinatura";
+type EstadoRelatorio = {
+  session: Session | null;
+  rolesKey: string;
+  tentativa: number;
+  loading: boolean;
+  erro: string | null;
+  rows: OcorrenciaConcluidaRow[];
+  equipes: OpcaoRelatorio[];
+  corretores: CorretorRelatorio[];
+};
 
 function OcorrenciasConcluidasPage() {
-  const { hasAny, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const allowed = hasAny(["gestor", "team_leader", "admin", "super_admin", "financeiro"]);
-
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-  const [rows, setRows] = useState<OcorrenciaConcluidaRow[]>([]);
+  const { session, roles, loading: authLoading } = useAuth();
+  const allowed = podeVerOcorrenciasConcluidas(roles);
+  const rolesKey = [...roles].sort().join(",");
+  const [tentativa, setTentativa] = useState(0);
+  const [estado, setEstado] = useState<EstadoRelatorio | null>(null);
   const [mesAtual] = useState(() => chaveMesAtual());
   const [mesSelecionado, setMesSelecionado] = useState("todos");
-
-  const carregar = useCallback(async () => {
-    if (!allowed) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setErro(null);
-    try {
-      const { data: occs } = await supabase
-        .from("occurrences")
-        .select(OCC_COLUMNS)
-        .eq("status", "concluida");
-      const saleIds = Array.from(new Set((occs ?? []).map((o) => o.sale_id)));
-
-      const [salesRes, profilesRes] = await Promise.all([
-        saleIds.length
-          ? supabase
-              .from("sales")
-              .select("id, codigo_interno, imovel_id, corretor_id")
-              .in("id", saleIds)
-          : Promise.resolve({
-              data: [] as {
-                id: string;
-                codigo_interno: string | null;
-                imovel_id: string | null;
-                corretor_id: string | null;
-              }[],
-              error: null,
-            }),
-        supabase.from("profiles").select("id, nome"),
-      ]);
-
-      const nomesPorId: Record<string, string> = {};
-      for (const p of profilesRes.data ?? []) nomesPorId[p.id] = p.nome ?? p.id;
-
-      setRows(
-        montarOcorrenciasConcluidas({
-          occs: occs ?? [],
-          sales: salesRes.data ?? [],
-          nomesPorId,
-        }),
-      );
-    } catch (err) {
-      setRows([]);
-      setErro(err instanceof Error ? err.message : "Falha ao carregar as ocorrências concluídas.");
-    } finally {
-      setLoading(false);
-    }
-  }, [allowed]);
+  const [equipeSelecionada, setEquipeSelecionada] = useState("todas");
+  const [corretorSelecionado, setCorretorSelecionado] = useState("todos");
 
   useEffect(() => {
+    // Cancela ao desmontar, mudar sessão/papéis ou tentar novamente. Mesmo que o
+    // transporte ignore abort, uma resposta antiga nunca substitui a sessão atual.
+    const controller = new AbortController();
+    let ativo = true;
+    const vazio: EstadoRelatorio = {
+      session,
+      rolesKey,
+      tentativa,
+      loading: true,
+      erro: null,
+      rows: [],
+      equipes: [],
+      corretores: [],
+    };
+    setEstado(vazio);
+    if (authLoading || !session || !allowed)
+      return () => {
+        ativo = false;
+        controller.abort();
+      };
+
+    const carregar = async () => {
+      try {
+        const { data, error } = await supabase
+          .rpc("relatorio_ocorrencias_concluidas")
+          .abortSignal(controller.signal);
+        if (!ativo) return;
+        if (error) throw new Error(error.message || "Falha ao consultar o relatório.");
+        const resultado = relatorioOcorrenciasConcluidasSchema.safeParse(data);
+        if (!resultado.success)
+          throw new Error("O relatório retornou dados inválidos. Tente novamente.");
+        const relatorio = resultado.data;
+        const catalogo = catalogoOcorrenciasConcluidas(relatorio);
+        const rows = montarOcorrenciasConcluidas({
+          ...relatorio,
+          // Os mesmos rótulos distinguem homônimos no seletor e na tabela.
+          nomesPorId: Object.fromEntries(catalogo.corretores.map((c) => [c.id, c.label])),
+          equipesPorCorretor: new Map(catalogo.corretores.map((c) => [c.id, c.equipeIds])),
+        });
+        setEstado({ ...vazio, ...catalogo, rows, loading: false });
+      } catch (err) {
+        if (!ativo) return;
+        setEstado({
+          ...vazio,
+          loading: false,
+          erro: err instanceof Error ? err.message : "Falha ao carregar as ocorrências concluídas.",
+        });
+      }
+    };
     void carregar();
-  }, [carregar]);
+    return () => {
+      ativo = false;
+      controller.abort();
+    };
+  }, [allowed, authLoading, session, rolesKey, tentativa]);
 
-  const meses = mesesOcorrenciasConcluidas(rows, mesAtual);
-  const { rows: rowsFiltradas, totalComissao } = resumoOcorrenciasConcluidas(rows, mesSelecionado);
-  const mesLabel = meses.find((mes) => mes.value === mesSelecionado)?.label;
-
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
-
-  if (!allowed) {
+  if (authLoading)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Carregando...
+      </p>
+    );
+  if (!session || !allowed) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a gestores, team leaders, financeiro e administradores.
+          Acesso não autorizado ao relatório de ocorrências concluídas.
         </CardContent>
       </Card>
     );
   }
 
+  // Não mostra nem por um render os dados da identidade anterior, antes do cleanup.
+  if (
+    !estado ||
+    estado.session !== session ||
+    estado.rolesKey !== rolesKey ||
+    estado.tentativa !== tentativa ||
+    estado.loading
+  ) {
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Carregando...
+      </p>
+    );
+  }
+  const { erro, rows, equipes, corretores } = estado;
+  const meses = mesesOcorrenciasConcluidas(rows, mesAtual);
+  const equipeAtual = equipes.some((e) => e.id === equipeSelecionada) ? equipeSelecionada : "todas";
+  const corretorAtual = corretorValidoNaEquipe(corretores, equipeAtual, corretorSelecionado);
+  const corretoresDisponiveis = corretoresDaEquipe(corretores, equipeAtual);
+  const { rows: rowsFiltradas, totalComissao } = resumoOcorrenciasConcluidas(
+    rows,
+    mesSelecionado,
+    equipeAtual,
+    corretorAtual,
+  );
+  const trocarEquipe = (equipeId: string) => {
+    setEquipeSelecionada(equipeId);
+    setCorretorSelecionado(corretorValidoNaEquipe(corretores, equipeId, corretorAtual));
+  };
+
   if (erro) {
     return (
       <Card className="border-destructive/40">
         <CardContent className="space-y-3 py-8 text-center">
-          <p className="font-medium text-destructive">
+          <p role="alert" className="font-medium text-destructive">
             Não foi possível carregar as ocorrências concluídas.
           </p>
           <p className="text-sm text-muted-foreground">{erro}</p>
-          <Button type="button" variant="outline" onClick={() => void carregar()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setTentativa((atual) => atual + 1)}
+          >
             Tentar novamente
           </Button>
         </CardContent>
@@ -153,32 +205,78 @@ function OcorrenciasConcluidasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="min-w-0 space-y-6">
+      <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
           <p className="text-sm text-muted-foreground">
-            Consulte as ocorrências financeiras já concluídas pelo mês da assinatura ou todo o
-            histórico.
+            Relatório global somente leitura. Combine mês da assinatura, equipe e corretor. Equipes
+            refletem os vínculos diretos atuais, incluindo líderes e auxiliares.
           </p>
         </div>
-        <div className="w-full space-y-1 sm:w-56 sm:shrink-0">
-          <label htmlFor="mes-assinatura" className="text-sm font-medium">
-            Mês da assinatura
-          </label>
-          <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
-            <SelectTrigger id="mes-assinatura">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os meses</SelectItem>
-              {meses.map((mes) => (
-                <SelectItem key={mes.value} value={mes.value}>
-                  {mes.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid min-w-0 gap-3 md:grid-cols-3">
+          <div className="min-w-0 space-y-1">
+            <label htmlFor="mes-assinatura" className="text-sm font-medium">
+              Mês da assinatura
+            </label>
+            <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
+              <SelectTrigger id="mes-assinatura" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-w-[calc(100vw-2rem)]">
+                <SelectItem value="todos">Todos os meses</SelectItem>
+                {meses.map((mes) => (
+                  <SelectItem key={mes.value} value={mes.value}>
+                    {mes.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <label htmlFor="equipe-relatorio" className="text-sm font-medium">
+              Equipe
+            </label>
+            <Select value={equipeAtual} onValueChange={trocarEquipe}>
+              <SelectTrigger id="equipe-relatorio" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-w-[calc(100vw-2rem)]">
+                <SelectItem value="todas">Todas as equipes</SelectItem>
+                {equipes.map((equipe) => (
+                  <SelectItem
+                    key={equipe.id}
+                    value={equipe.id}
+                    className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
+                  >
+                    {equipe.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <label htmlFor="corretor-relatorio" className="text-sm font-medium">
+              Corretor
+            </label>
+            <Select value={corretorAtual} onValueChange={setCorretorSelecionado}>
+              <SelectTrigger id="corretor-relatorio" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-w-[calc(100vw-2rem)]">
+                <SelectItem value="todos">Todos os corretores</SelectItem>
+                {corretoresDisponiveis.map((corretor) => (
+                  <SelectItem
+                    key={corretor.id}
+                    value={corretor.id}
+                    className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
+                  >
+                    {corretor.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -197,9 +295,9 @@ function OcorrenciasConcluidasPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
+      <Card className="min-w-0">
+        <CardContent className="min-w-0 px-3 pt-6 sm:px-6">
+          <Table aria-label="Ocorrências concluídas filtradas" className="min-w-[560px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Imóvel / código</TableHead>
@@ -212,22 +310,18 @@ function OcorrenciasConcluidasPage() {
               {rowsFiltradas.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                    {mesSelecionado === "todos"
-                      ? "Nenhuma ocorrência concluída."
-                      : `Nenhuma ocorrência concluída em ${mesLabel?.toLocaleLowerCase("pt-BR")}.`}
+                    Nenhuma ocorrência concluída para os filtros selecionados.
                   </TableCell>
                 </TableRow>
               )}
               {rowsFiltradas.map((r) => (
-                <TableRow
-                  key={r.saleId}
-                  className="cursor-pointer"
-                  onClick={() => router.navigate({ to: "/vendas/$id", params: { id: r.saleId } })}
-                >
+                <TableRow key={r.ocorrenciaId}>
                   <TableCell className="font-medium">{r.imovelLabel}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.corretorNome ?? "—"}</TableCell>
-                  <TableCell>{money(r.valorComissao)}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="max-w-72 break-words text-muted-foreground">
+                    {r.corretorNome ?? "Não informado"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{money(r.valorComissao)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
                     {r.dataAssinatura ? dateBR(r.dataAssinatura) : "Não informada"}
                   </TableCell>
                 </TableRow>
