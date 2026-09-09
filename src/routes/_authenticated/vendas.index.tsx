@@ -68,6 +68,8 @@ import {
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
+import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
+import { selecionarVendasComerciais } from "@/lib/vendas-data-comercial";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
@@ -84,13 +86,14 @@ type RawSale = Pick<
   | "updated_at"
   | "created_at"
   | "corretor_id"
+  | "modalidade"
+  | "data_assinatura"
 >;
 type SalesListRow = RawSale & { data_venda: string };
 type FilterableQuery<T> = {
   eq(column: string, value: unknown): T;
   in(column: string, values: readonly unknown[]): T;
-  gte(column: string, value: unknown): T;
-  lte(column: string, value: unknown): T;
+
   or(filters: string): T;
 };
 
@@ -101,13 +104,15 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 
 const PAGE_SIZE = 30;
 const SALE_COLUMNS =
-  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id";
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id, modalidade, data_assinatura";
 
 function SalesList() {
   const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
   const [sales, setSales] = useState<SalesListRow[]>([]);
+  const allSalesRef = useRef<SalesListRow[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
@@ -267,20 +272,21 @@ function SalesList() {
     if (diasFilter) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - diasFilter);
-      filters.desde = cutoff.toISOString();
+      filters.desde = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
     } else {
-      if (dataDe) filters.desde = new Date(`${dataDe}T00:00:00`).toISOString();
-      if (dataAte) filters.ate = new Date(`${dataAte}T23:59:59.999`).toISOString();
+      if (dataDe) filters.desde = dataDe;
+      if (dataAte) filters.ate = dataAte;
     }
     // "," e "()" têm significado especial na sintaxe de filtro do PostgREST (separador de
     // condições e escopo de valor) — removidos aqui pra um termo de busca com esses caracteres
     // não quebrar a query. O ilike em si (comparação por método, não string crua) não precisa disso.
     const qSafe = q.replace(/[,()]/g, "").trim();
     if (qSafe) {
-      const { data: matchingParties } = await supabase
+      const { data: matchingParties, error } = await supabase
         .from("sale_parties")
         .select("sale_id")
         .ilike("nome", `%${qSafe}%`);
+      if (error) throw error;
       const partySaleIds = Array.from(new Set((matchingParties ?? []).map((p) => p.sale_id)));
       const orParts = [
         `imovel_id.ilike.%${qSafe}%`,
@@ -304,107 +310,78 @@ function SalesList() {
       ate?: string;
       corretorIds?: string[];
     },
-    incluirPeriodo = true,
   ) => {
     let out = query;
     if (filters.status) out = out.eq("status", filters.status);
     if (filters.statuses) out = out.in("status", filters.statuses);
-    if (incluirPeriodo && filters.desde) out = out.gte("updated_at", filters.desde);
-    if (incluirPeriodo && filters.ate) out = out.lte("updated_at", filters.ate);
+
     if (filters.orParts) out = out.or(filters.orParts.join(","));
     if (filters.corretorIds) out = out.in("corretor_id", filters.corretorIds);
     return out;
   };
 
-  const aplicarDataReal = async <T extends { id: string; created_at: string }>(
-    rows: T[],
-    filters: { desde?: string; ate?: string },
-  ): Promise<Array<T & { data_venda: string }>> => {
-    if (!rows.length) return [];
-    const { data: occurrences } = await supabase
-      .from("occurrences")
-      .select("sale_id, data_assinatura")
-      .in(
-        "sale_id",
-        rows.map((row) => row.id),
-      );
-    const assinaturaPorVenda = new Map(
-      (occurrences ?? []).map((occ) => [occ.sale_id, occ.data_assinatura]),
-    );
-    const desde = filters.desde?.slice(0, 10);
-    const ate = filters.ate?.slice(0, 10);
-    return rows
-      .map((row) => ({
-        ...row,
-        data_venda: assinaturaPorVenda.get(row.id) ?? row.created_at.slice(0, 10),
-      }))
-      .filter((row) => (!desde || row.data_venda >= desde) && (!ate || row.data_venda <= ate))
-      .sort((a, b) => b.data_venda.localeCompare(a.data_venda));
-  };
+  // Uma única seleção comercial alimenta lista, paginação, contagem e total.
+  const fetchSales = useCallback(async () => {
+    const [filters, validas] = await Promise.all([buildFilters(), fetchVendasComerciaisValidas()]);
+    const rows: RawSale[] = [];
+    const batchSize = 500;
+    for (let from = 0; ; from += batchSize) {
+      const query = applyFilters(supabase.from("sales").select(SALE_COLUMNS).order("id"), filters);
+      const { data, error } = await query.range(from, from + batchSize - 1);
+      if (error) throw error;
+      rows.push(...(data ?? []));
+      if ((data?.length ?? 0) < batchSize) break;
+    }
+    const idsValidos = new Set(validas.map((venda) => venda.sale_id));
+    const elegiveis = rows.filter((row) => idsValidos.has(row.id));
+    const idsPadrao = elegiveis
+      .filter((row) => row.modalidade !== "lancamento")
+      .map((row) => row.id);
+    const occurrences: Array<{ sale_id: string; data_assinatura: string | null }> = [];
+    for (let from = 0; from < idsPadrao.length; from += 100) {
+      const { data, error } = await supabase
+        .from("occurrences")
+        .select("sale_id, data_assinatura")
+        .in("sale_id", idsPadrao.slice(from, from + 100));
+      if (error) throw error;
+      occurrences.push(...(data ?? []));
+    }
+    return selecionarVendasComerciais(elegiveis, validas, occurrences, filters);
+  }, [buildFilters]);
 
-  const fetchPage = useCallback(
-    async (from: number) => {
-      const filters = await buildFilters();
-      const query = applyFilters(
-        supabase.from("sales").select(SALE_COLUMNS).order("created_at", { ascending: false }),
-        filters,
-        false,
-      );
-      const { data } = await query.limit(5000);
-      const rows = await aplicarDataReal(data ?? [], filters);
-      return rows.slice(from, from + PAGE_SIZE);
-    },
-    [buildFilters],
-  );
-
-  // Contador + soma do valor negociado de TODAS as vendas que batem no filtro atual (não só a
-  // página carregada) — só a coluna valor_negociado, então a soma sai barata mesmo pra bases maiores.
+  // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
+  // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
   const fetchSummary = useCallback(async () => {
-    const filters = await buildFilters();
-    const salesQuery = applyFilters(
-      supabase.from("sales").select("id, valor_negociado, created_at").limit(5000),
-      filters,
-      false,
-    );
-    const resumoFinanceiroPromise =
-      dataDe && dataAte
-        ? resolverResumoOpcional(
-            fetchFinanceiroBundle().then((bundle) => {
-              const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
-                ...filtrosPadraoFinanceiro(),
-                dataDe,
-                dataAte,
-              });
-              const resumo = calcularResumo({
-                parcelas: [],
-                comissoes: [],
-                efetivadas,
-                divergenciasAbertas: bundle.divergencias.length,
-                hoje: dataAte,
-              });
-              return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
-            }),
-          )
-        : Promise.resolve(null);
-    const [{ data: vendasResumo }, resumoFinanceiro] = await Promise.all([
-      salesQuery,
-      resumoFinanceiroPromise,
-    ]);
-    const valores = await aplicarDataReal(vendasResumo ?? [], filters);
-    setTotalCount(valores.length);
-    setTotalValor(valores.reduce((sum, venda) => sum + (Number(venda.valor_negociado) || 0), 0));
-    setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
-    setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
-  }, [buildFilters, dataDe, dataAte]);
+    return dataDe && dataAte
+      ? resolverResumoOpcional(
+          fetchFinanceiroBundle().then((bundle) => {
+            const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
+              ...filtrosPadraoFinanceiro(),
+              dataDe,
+              dataAte,
+            });
+            const resumo = calcularResumo({
+              parcelas: [],
+              comissoes: [],
+              efetivadas,
+              divergenciasAbertas: bundle.divergencias.length,
+              hoje: dataAte,
+            });
+            return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
+          }),
+        )
+      : Promise.resolve(null);
+  }, [dataDe, dataAte]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
-  const mergeStageSince = async (ids: string[]) => {
+  const mergeStageSince = async (ids: string[], requestId: number) => {
     if (!ids.length) return;
     const { data: hist } = await supabase
       .from("sale_status_history")
       .select("sale_id, created_at")
       .in("sale_id", ids)
       .order("created_at", { ascending: false });
+    if (requestIdRef.current !== requestId) return;
     setStageSince((prev) => {
       const next = { ...prev };
       for (const h of hist ?? []) {
@@ -422,30 +399,59 @@ function SalesList() {
   const load = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
     setLoading(true);
-    const [rows] = await Promise.all([fetchPage(0), fetchSummary()]);
-    if (requestIdRef.current !== myRequestId) return;
-    setSales(rows);
-    setStageSince({});
-    setHasMore(rows.length === PAGE_SIZE);
-    await mergeStageSince(rows.map((s) => s.id));
-    if (requestIdRef.current !== myRequestId) return;
-    setLoading(false);
-  }, [fetchPage, fetchSummary]);
+    setLoadingMore(false);
+    setLoadError(false);
+    try {
+      const [allRows, resumoFinanceiro] = await Promise.all([fetchSales(), fetchSummary()]);
+      if (requestIdRef.current !== myRequestId) return;
+      allSalesRef.current = allRows;
+      const rows = allRows.slice(0, PAGE_SIZE);
+      setSales(rows);
+      setTotalCount(allRows.length);
+      setTotalValor(allRows.reduce((sum, venda) => sum + (Number(venda.valor_negociado) || 0), 0));
+      setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
+      setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
+      setStageSince({});
+      setHasMore(allRows.length > rows.length);
+      await mergeStageSince(
+        rows.map((s) => s.id),
+        myRequestId,
+      );
+    } catch {
+      if (requestIdRef.current !== myRequestId) return;
+      allSalesRef.current = [];
+      setSales([]);
+      setTotalCount(null);
+      setHasMore(false);
+      setLoadError(true);
+      toast.error("Não foi possível carregar as vendas. Tente novamente.");
+    } finally {
+      if (requestIdRef.current === myRequestId) setLoading(false);
+    }
+  }, [fetchSales, fetchSummary]);
 
   useEffect(() => {
     load();
+    return () => {
+      requestIdRef.current += 1;
+    };
   }, [load, refreshKey]);
 
   const loadMore = async () => {
-    const myRequestId = ++requestIdRef.current;
+    if (loading || loadingMore) return;
+    const myRequestId = requestIdRef.current;
     setLoadingMore(true);
-    const rows = await fetchPage(sales.length);
-    if (requestIdRef.current !== myRequestId) return;
+    const rows = allSalesRef.current.slice(sales.length, sales.length + PAGE_SIZE);
     setSales((prev) => [...prev, ...rows]);
-    setHasMore(rows.length === PAGE_SIZE);
-    await mergeStageSince(rows.map((s) => s.id));
-    if (requestIdRef.current !== myRequestId) return;
-    setLoadingMore(false);
+    setHasMore(allSalesRef.current.length > sales.length + rows.length);
+    try {
+      await mergeStageSince(
+        rows.map((s) => s.id),
+        myRequestId,
+      );
+    } finally {
+      if (requestIdRef.current === myRequestId) setLoadingMore(false);
+    }
   };
 
   const onConfirmDelete = async () => {
@@ -705,8 +711,7 @@ function SalesList() {
           </div>
           {!loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
-              {totalCount}{" "}
-              {totalCount === 1 ? "venda atualizada no período" : "vendas atualizadas no período"}
+              {totalCount} {totalCount === 1 ? "venda no período" : "vendas no período"}
               {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
               <br />
               {contratosAssinadosCount}{" "}
@@ -721,7 +726,19 @@ function SalesList() {
           {loading && (
             <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
           )}
-          {!loading && sales.length === 0 && (
+          {!loading && loadError && (
+            <div role="alert" className="py-8 text-center text-sm">
+              Não foi possível carregar as vendas.
+              <Button
+                variant="outline"
+                className="ml-2"
+                onClick={() => setRefreshKey((key) => key + 1)}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+          {!loading && !loadError && sales.length === 0 && (
             <div className="py-8 text-center text-sm text-muted-foreground">
               {hasAny(["corretor"]) &&
                 !hasAny([
