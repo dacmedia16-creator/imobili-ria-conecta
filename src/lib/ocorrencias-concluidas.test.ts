@@ -1,11 +1,114 @@
 import { describe, expect, it } from "vitest";
 import {
+  chaveMesConclusao,
+  mesesOcorrenciasConcluidas,
+  resumoOcorrenciasConcluidas,
   imovelOuCodigo,
   montarOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
   ultimaConclusaoPorSale,
   type OcorrenciaConcluidaRaw,
+  type OcorrenciaConcluidaRow,
 } from "./ocorrencias-concluidas";
+
+describe("filtro mensal de ocorrências concluídas", () => {
+  const row = (
+    saleId: string,
+    dataConclusao: string,
+    valorComissao = 100,
+  ): OcorrenciaConcluidaRow => ({
+    saleId,
+    dataConclusao,
+    valorComissao,
+    imovelLabel: saleId,
+    corretorNome: null,
+  });
+  const rows = [
+    row("set-2", "2026-09-20T12:00:00Z", 200),
+    row("set-1", "2026-09-10T12:00:00Z", 150),
+    row("ago", "2026-08-10T12:00:00Z", 50),
+    row("antigo", "2025-09-10T12:00:00Z", 25),
+  ];
+
+  it("obtém o mês atual para o padrão inicial", () => {
+    expect(chaveMesConclusao(new Date(2026, 8, 9))).toBe("2026-09");
+  });
+
+  it("deriva meses únicos dos dados, em ordem decrescente, incluindo o atual vazio", () => {
+    expect(mesesOcorrenciasConcluidas(rows, "2026-10")).toEqual([
+      { value: "2026-10", label: "Outubro de 2026" },
+      { value: "2026-09", label: "Setembro de 2026" },
+      { value: "2026-08", label: "Agosto de 2026" },
+      { value: "2025-09", label: "Setembro de 2025" },
+    ]);
+    expect(mesesOcorrenciasConcluidas([], "2026-09")).toEqual([
+      { value: "2026-09", label: "Setembro de 2026" },
+    ]);
+  });
+
+  it("filtra lista e totais juntos sem mudar a ordem nem os dados originais", () => {
+    const resumo = resumoOcorrenciasConcluidas(rows, "2026-09");
+    expect(resumo.rows.map((r) => r.saleId)).toEqual(["set-2", "set-1"]);
+    expect(resumo.rows).toHaveLength(2);
+    expect(resumo.totalComissao).toBe(350);
+    expect(rows).toHaveLength(4);
+  });
+
+  it("troca o mês e não mistura o mesmo mês de outro ano", () => {
+    expect(resumoOcorrenciasConcluidas(rows, "2026-08")).toEqual({
+      rows: [rows[2]],
+      totalComissao: 50,
+    });
+    expect(resumoOcorrenciasConcluidas(rows, "2025-09").rows).toEqual([rows[3]]);
+  });
+
+  it("Todos os meses recupera o histórico e ambos os totais", () => {
+    const resumo = resumoOcorrenciasConcluidas(rows, "todos");
+    expect(resumo.rows).toEqual(rows);
+    expect(resumo.rows).toHaveLength(4);
+    expect(resumo.totalComissao).toBe(425);
+  });
+
+  it("zera tabela e totais para mês vazio", () => {
+    expect(resumoOcorrenciasConcluidas(rows, "2026-10")).toEqual({ rows: [], totalComissao: 0 });
+    expect(resumoOcorrenciasConcluidas([], "todos")).toEqual({ rows: [], totalComissao: 0 });
+  });
+
+  it("respeita limites de mês e ano no mesmo fuso local da data exibida", () => {
+    const limites = [
+      row("antes", new Date(2025, 11, 31, 23, 59, 59, 999).toISOString()),
+      row("inicio", new Date(2026, 0, 1, 0, 0, 0).toISOString()),
+      row("fim", new Date(2026, 0, 31, 23, 59, 59, 999).toISOString()),
+      row("depois", new Date(2026, 1, 1, 0, 0, 0).toISOString()),
+    ];
+    expect(resumoOcorrenciasConcluidas(limites, "2026-01").rows.map((r) => r.saleId)).toEqual([
+      "inicio",
+      "fim",
+    ]);
+    expect(chaveMesConclusao(new Date("2026-01-01T01:00:00Z"))).toBe(
+      new Date("2026-01-01T01:00:00Z").getMonth() === 11 ? "2025-12" : "2026-01",
+    );
+  });
+
+  it("filtra pela última conclusão do histórico e usa updated_at apenas no fallback", () => {
+    const montadas = montarOcorrenciasConcluidas({
+      occs: [
+        { id: "o1", sale_id: "historico", valor_comissao: 200, updated_at: "2026-08-10T12:00:00Z" },
+        { id: "o2", sale_id: "fallback", valor_comissao: 50, updated_at: "2026-08-20T12:00:00Z" },
+      ],
+      sales: [],
+      nomesPorId: {},
+      conclusoesPorSale: ultimaConclusaoPorSale([
+        { sale_id: "historico", created_at: "2026-07-10T12:00:00Z" },
+        { sale_id: "historico", created_at: "2026-09-10T12:00:00Z" },
+      ]),
+    });
+    expect(resumoOcorrenciasConcluidas(montadas, "2026-09").rows[0].saleId).toBe("historico");
+    expect(resumoOcorrenciasConcluidas(montadas, "2026-08").rows.map((r) => r.saleId)).toEqual([
+      "fallback",
+    ]);
+  });
+});
 
 describe("podeVerOcorrenciasConcluidas", () => {
   it.each(["gestor", "team_leader", "admin", "super_admin", "financeiro"])(

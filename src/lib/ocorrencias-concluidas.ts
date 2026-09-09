@@ -46,6 +46,41 @@ export type OcorrenciaConcluidaRow = {
   dataConclusao: string;
 };
 
+/** Usa o fuso local, assim como dateBR na tabela (não recortar o timestamp UTC). */
+export function chaveMesConclusao(data: Date = new Date()): string {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function mesesOcorrenciasConcluidas(rows: OcorrenciaConcluidaRow[], mesAtual: string) {
+  const meses = new Set([
+    mesAtual,
+    ...rows.map((row) => chaveMesConclusao(new Date(row.dataConclusao))),
+  ]);
+  return [...meses]
+    .sort()
+    .reverse()
+    .map((value) => {
+      const [ano, mes] = value.split("-").map(Number);
+      const label = new Date(ano, mes - 1, 1).toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
+      return { value, label: label.charAt(0).toUpperCase() + label.slice(1) };
+    });
+}
+
+/** Uma única seleção alimenta a tabela e os dois cards, preservando a ordem recebida. */
+export function resumoOcorrenciasConcluidas(rows: OcorrenciaConcluidaRow[], mes: string) {
+  const filtradas =
+    mes === "todos"
+      ? rows
+      : rows.filter((row) => chaveMesConclusao(new Date(row.dataConclusao)) === mes);
+  return {
+    rows: filtradas,
+    totalComissao: filtradas.reduce((total, row) => total + row.valorComissao, 0),
+  };
+}
+
 /** Rótulo do imóvel/código, na ordem definida: codigo_interno → imovel_id → Venda #<id>. */
 export function imovelOuCodigo(sale: {
   id: string;

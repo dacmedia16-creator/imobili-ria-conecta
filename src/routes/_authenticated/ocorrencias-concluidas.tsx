@@ -5,6 +5,13 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -15,6 +22,9 @@ import {
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
 import {
+  chaveMesConclusao,
+  mesesOcorrenciasConcluidas,
+  resumoOcorrenciasConcluidas,
   montarOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
   ultimaConclusaoPorSale,
@@ -54,6 +64,8 @@ function OcorrenciasConcluidasPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [rows, setRows] = useState<OcorrenciaConcluidaRow[]>([]);
+  const [mesAtual] = useState(() => chaveMesConclusao());
+  const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
 
   const carregar = useCallback(async () => {
     if (!allowed) {
@@ -120,7 +132,9 @@ function OcorrenciasConcluidasPage() {
     void carregar();
   }, [carregar]);
 
-  const totalComissao = rows.reduce((s, r) => s + r.valorComissao, 0);
+  const meses = mesesOcorrenciasConcluidas(rows, mesAtual);
+  const { rows: rowsFiltradas, totalComissao } = resumoOcorrenciasConcluidas(rows, mesSelecionado);
+  const mesLabel = meses.find((mes) => mes.value === mesSelecionado)?.label;
 
   if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -152,18 +166,38 @@ function OcorrenciasConcluidasPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
-        <p className="text-sm text-muted-foreground">
-          Histórico completo das ocorrências financeiras já concluídas.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
+          <p className="text-sm text-muted-foreground">
+            Consulte as ocorrências financeiras já concluídas por mês ou todo o histórico.
+          </p>
+        </div>
+        <div className="w-full space-y-1 sm:w-56 sm:shrink-0">
+          <label htmlFor="mes-conclusao" className="text-sm font-medium">
+            Mês
+          </label>
+          <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
+            <SelectTrigger id="mes-conclusao">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os meses</SelectItem>
+              {meses.map((mes) => (
+                <SelectItem key={mes.value} value={mes.value}>
+                  {mes.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">Ocorrências concluídas</p>
-            <p className="text-xl font-semibold">{rows.length}</p>
+            <p className="text-xl font-semibold">{rowsFiltradas.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -186,14 +220,16 @@ function OcorrenciasConcluidasPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && (
+              {rowsFiltradas.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma ocorrência concluída.
+                    {mesSelecionado === "todos"
+                      ? "Nenhuma ocorrência concluída."
+                      : `Nenhuma ocorrência concluída em ${mesLabel?.toLocaleLowerCase("pt-BR")}.`}
                   </TableCell>
                 </TableRow>
               )}
-              {rows.map((r) => (
+              {rowsFiltradas.map((r) => (
                 <TableRow
                   key={r.saleId}
                   className="cursor-pointer"
