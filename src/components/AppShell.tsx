@@ -22,10 +22,12 @@ import {
   TrendingUp,
   MapPinned,
   ShieldAlert,
+  CheckCircle2,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
+import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import type { ReactNode } from "react";
 import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { toast } from "sonner";
@@ -191,6 +193,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       label: "Baixa de recebimentos",
       icon: Wallet,
       show: hasAny(["financeiro", "admin", "super_admin"]),
+    },
+    {
+      to: "/ocorrencias-concluidas",
+      label: "Ocorrências concluídas",
+      icon: CheckCircle2,
+      show: podeVerOcorrenciasConcluidas(roles),
     },
   ];
 
