@@ -114,6 +114,7 @@ import {
   podeFinalizarOcorrencia,
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
+import { saleManagementCapabilities } from "@/lib/sale-management-capabilities";
 import {
   podeSincronizarResumo,
   temEdicaoFinanceiraResumo,
@@ -383,6 +384,11 @@ function SaleDetail() {
 
   const router = useRouter();
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+  const [management, setManagement] = useState({
+    saleId: "",
+    userId: "",
+    ...saleManagementCapabilities(null),
+  });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
@@ -562,7 +568,7 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, h, oc, ce, ac, dist] = await Promise.all([
+    const [s, p, pay, ba, d, c, h, oc, ce, ac, dist, capability] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -591,6 +597,7 @@ function SaleDetail() {
         .eq("sale_id", id)
         .order("created_at", { ascending: false }),
       supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
+      supabase.rpc("sale_management_capabilities", { _sale_id: id }),
     ]);
     // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
@@ -607,12 +614,18 @@ function SaleDetail() {
       ce.error,
       ac.error,
       dist.error,
+      capability.error,
     ].filter(Boolean);
     if (loadErrors.length > 0) {
       console.error("Falha ao carregar dados da venda:", loadErrors);
       toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
     }
     setSale(s.data);
+    setManagement({
+      saleId: id,
+      userId: user?.id ?? "",
+      ...saleManagementCapabilities(capability.error ? null : capability.data),
+    });
     setDistribuicao(asDistribution(dist.data));
     // Não sobrescreve o buffer da aba Resumo se ela tiver edição local ainda não salva — load() é
     // chamado por várias ações sem relação com essa aba (upload de contrato, troca de status em
@@ -658,18 +671,25 @@ function SaleDetail() {
   const [resumoSaveFailed, setResumoSaveFailed] = useState(false);
   const resumoSyncAllowed = async (patch: SalePatch): Promise<boolean> => {
     // Consulta atual, não a flag de erro em memória: também funciona após reload.
-    const [current, occurrence] = await Promise.all([
+    const [current, occurrence, capability] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).single(),
       supabase.from("occurrences").select("id,aceita_financeiro").eq("sale_id", id).maybeSingle(),
+      supabase.rpc("sale_management_capabilities", { _sale_id: id }),
     ]);
     if (current.error) throw current.error;
     if (occurrence.error) throw occurrence.error;
     if (!current.data) throw new Error("Resumo indisponível");
+    if (capability.error) throw capability.error;
+    const effective = saleManagementCapabilities(capability.data);
+    const saleTeamIds = new Set(teamIds);
+    if (effective.teamOwner) saleTeamIds.add(current.data.corretor_id);
     const canSync = podeSincronizarResumo(
-      roles,
+      effective.canManage
+        ? roles
+        : roles.filter((role) => role !== "gestor" && role !== "team_leader"),
       current.data,
       user?.id,
-      teamIds,
+      saleTeamIds,
       occurrence.data?.aceita_financeiro ?? false,
     );
     if (canSync) return true;
@@ -975,20 +995,26 @@ function SaleDetail() {
   }
 
   const status = sale.status as SaleStatus;
-  const { isOwner, isFinanceiro, isAdminLike, isGestor, isJuridico } = getSaleRoleFlags(
-    roles,
-    sale.corretor_id,
-    user?.id,
-  );
+  const {
+    isOwner,
+    isFinanceiro,
+    isAdminLike,
+    isGestor: hasManagerRole,
+    isJuridico,
+  } = getSaleRoleFlags(roles, sale.corretor_id, user?.id);
+  const managementCurrent = management.saleId === id && management.userId === user?.id;
+  const isGestor =
+    hasManagerRole && managementCurrent && management.canManage && management.canEdit;
+  const managesOwner = managementCurrent && management.teamOwner;
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
-  const gestorDaEquipeRascunho = isGestor && status === "rascunho" && teamIds.has(sale.corretor_id);
+  const gestorDaEquipeRascunho = isGestor && status === "rascunho" && managesOwner;
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
   const canCloseSale =
-    isAdminLike || (gestorPodeEncerrar(isGestor, status) && teamIds.has(sale.corretor_id));
+    isAdminLike || (gestorPodeEncerrar(isGestor, status) && managesOwner && !locked);
 
   const onConfirmDelete = async () => {
     setDeleting(true);
@@ -1012,7 +1038,8 @@ function SaleDetail() {
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
   const corretorEdits = corretorPodeEditar(isOwner, status);
-  const gestorEdits = gestorPodeEditar(isGestor, status, teamIds.has(sale.corretor_id));
+  const gestorEdits =
+    managementCurrent && management.canEdit && gestorPodeEditar(isGestor, status, managesOwner);
   const juridicoEdits = juridicoPodeEditar(isJuridico, status);
   const editable = podeEditarVenda({
     corretorEdits,
@@ -3319,6 +3346,11 @@ function SaleDetail() {
 
   return (
     <div className="space-y-6">
+      {!editable && (
+        <div role="status" className="rounded-md border p-3 text-sm text-muted-foreground">
+          Somente leitura: você não tem capacidade de edição nesta venda ou nesta etapa.
+        </div>
+      )}
       <div className="flex items-center gap-2 print:hidden">
         <Button variant="ghost" size="sm" onClick={handleVoltar}>
           <ArrowLeft className="mr-2 h-4 w-4" />

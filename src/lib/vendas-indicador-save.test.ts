@@ -8,6 +8,7 @@ import {
   resumoTemPendencia,
 } from "./resumo-sync-guard";
 import { corretorPodeEditar, isSaleLocked } from "./sale-permissions";
+import { saleManagementCapabilities } from "./sale-management-capabilities";
 
 // OFFLINE: executa os handlers extraídos do TSX real. Somente as fronteiras React/Supabase
 // são simuladas. Não monta DOM, não executa PostgreSQL/RLS nem chama rede/produção.
@@ -97,6 +98,7 @@ function harness(initial = fixture()) {
     user: { id: "gestor-fixture" },
     teamIds: new Set(["owner-fixture"]),
     podeSincronizarResumo,
+    saleManagementCapabilities,
     temEdicaoFinanceiraResumo,
     resumoTemPendencia,
     corretorPodeEditar,
@@ -173,6 +175,16 @@ function harness(initial = fixture()) {
   context.supabase = {
     rpc: async (name: string, payload: Bag) => {
       calls.push({ op: "rpc", name, payload });
+      if (name === "sale_management_capabilities")
+        return {
+          data: {
+            can_manage: context.roles.includes("gestor") || context.roles.includes("team_leader"),
+            can_edit: !failure.locked,
+            team_owner: failure.auxiliary === true || context.teamIds.has(db.corretor_id),
+            auxiliary: failure.auxiliary === true,
+          },
+          error: failure.capability ?? null,
+        };
       if (name === "calcular_distribuicao_venda")
         return {
           data: failure.distributionMissing
@@ -308,6 +320,31 @@ const syncCalls = (h: ReturnType<typeof harness>) =>
   h.calls.filter((c) => c.name === "sync_occurrence_commissions");
 
 describe("remoção de indicadores e retomada — handlers reais, backend MOCK offline", () => {
+  it("630601093-153: auxiliar salva antes de avançar sem depender da lista de subordinados", async () => {
+    const h = harness();
+    h.db().status = "contrato_conferencia_gestor";
+    h.db().codigo_interno = "630601093-153";
+    h.context.teamIds = new Set();
+    h.failure.auxiliary = true;
+    h.noOccurrence();
+    await h.remount();
+    h.context.formSale.imovel_observacoes = "Conferência sintética";
+    h.context.dirtyResumo = true;
+    await h.context.changeStatus("aguardando_assinatura");
+    const save = h.calls.findIndex((c) => c.table === "sales" && c.operation === "update");
+    const advance = h.calls.findIndex((c) => c.name === "change_sale_status");
+    expect(save).toBeGreaterThanOrEqual(0);
+    expect(advance).toBeGreaterThan(save);
+    expect(h.db().imovel_observacoes).toBe("Conferência sintética");
+  });
+  it("falha ao consultar capacidade interrompe save e avanço sem escrita", async () => {
+    const h = harness();
+    h.failure.capability = { code: "42501" };
+    await h.context.changeStatus("aguardando_assinatura");
+    expect(h.calls.some((c) => c.name === "change_sale_status")).toBe(false);
+    expect(h.calls.some((c) => c.operation === "update")).toBe(false);
+    expect(syncCalls(h)).toHaveLength(0);
+  });
   it.each([
     ["juridico", "aprovada_gestor", "em_elaboracao_contrato"],
     ["corretor", "contrato_conferencia_corretor", "contrato_ok_corretor"],
