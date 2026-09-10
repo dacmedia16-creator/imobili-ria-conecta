@@ -3371,7 +3371,7 @@ function SaleDetail() {
             ? { label: "Anexar contrato", icon: Upload, onClick: openContratoDialog }
             : isJuridico && status === "em_elaboracao_contrato" && contratoDocs.length > 0
               ? { label: "Enviar ao gestor", icon: Send, onClick: enviarContratoAoGestor }
-              : isOwner && status === "contrato_conferencia_corretor"
+              : (isOwner || isAdminLike) && status === "contrato_conferencia_corretor"
                 ? {
                     label: "Dar OK no contrato",
                     icon: CheckCircle2,
@@ -3568,7 +3568,7 @@ function SaleDetail() {
           )}
 
           {/* Corretor: conferência do contrato */}
-          {isOwner && status === "contrato_conferencia_corretor" && (
+          {(isOwner || isAdminLike) && status === "contrato_conferencia_corretor" && (
             <>
               <Button onClick={() => changeStatus("contrato_ok_corretor")}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
