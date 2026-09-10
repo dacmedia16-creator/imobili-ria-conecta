@@ -924,11 +924,18 @@ export function LancamentoDetail({
   };
 
   const distribuicaoExibida = canEdit ? previewDistribuicao : distribuicao;
+  const handleVoltar = () => {
+    if (typeof window !== "undefined" && window.history.length > 1 && document.referrer) {
+      window.history.back();
+      return;
+    }
+    router.navigate({ to: "/vendas" });
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2 print:hidden">
-        <Button variant="ghost" size="sm" onClick={() => router.navigate({ to: "/vendas" })}>
+        <Button variant="ghost" size="sm" onClick={handleVoltar}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Voltar
         </Button>

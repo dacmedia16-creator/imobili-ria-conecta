@@ -1678,6 +1678,10 @@ function SaleDetail() {
   // (autosave ainda não disparou) era perdido em silêncio ao clicar aqui.
   const handleVoltar = async () => {
     if (anyDirtyAnywhere) await flushAllDirty();
+    if (typeof window !== "undefined" && window.history.length > 1 && document.referrer) {
+      window.history.back();
+      return;
+    }
     router.navigate({ to: "/vendas" });
   };
 

@@ -103,6 +103,28 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 });
 
 const PAGE_SIZE = 30;
+const SALES_LIST_STATE_KEY = "adm-max:vendas-list-state";
+type SalesListState = {
+  statusFilter: string;
+  vezFilter: string;
+  diasFilter: number | null;
+  dataDe: string;
+  dataAte: string;
+  q: string;
+  soMinhaVez: boolean;
+  equipeFilter: string;
+};
+
+function readSalesListState(): Partial<SalesListState> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SALES_LIST_STATE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<SalesListState>) : null;
+  } catch {
+    return null;
+  }
+}
+
 const SALE_COLUMNS =
   "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id, modalidade, data_assinatura";
 
@@ -110,18 +132,19 @@ function SalesList() {
   const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
+  const [savedListState] = useState(readSalesListState);
   const [sales, setSales] = useState<SalesListRow[]>([]);
   const allSalesRef = useRef<SalesListRow[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
-  const [statusFilter, setStatusFilter] = useState<string>("todas");
-  const [vezFilter, setVezFilter] = useState<string>("todas");
-  const [diasFilter, setDiasFilter] = useState<number | null>(null);
-  const [dataDe, setDataDe] = useState(periodoInicialRef.current.de);
-  const [dataAte, setDataAte] = useState(periodoInicialRef.current.ate);
-  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>(savedListState?.statusFilter ?? "todas");
+  const [vezFilter, setVezFilter] = useState<string>(savedListState?.vezFilter ?? "todas");
+  const [diasFilter, setDiasFilter] = useState<number | null>(savedListState?.diasFilter ?? null);
+  const [dataDe, setDataDe] = useState(savedListState?.dataDe ?? periodoInicialRef.current.de);
+  const [dataAte, setDataAte] = useState(savedListState?.dataAte ?? periodoInicialRef.current.ate);
+  const [q, setQ] = useState(savedListState?.q ?? "");
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<SalesListRow | null>(null);
@@ -132,13 +155,33 @@ function SalesList() {
   const [totalValor, setTotalValor] = useState(0);
   const [contratosAssinadosCount, setContratosAssinadosCount] = useState(0);
   const [contratosAssinadosValor, setContratosAssinadosValor] = useState(0);
-  const [soMinhaVez, setSoMinhaVez] = useState(false);
+  const [soMinhaVez, setSoMinhaVez] = useState(savedListState?.soMinhaVez ?? false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
   const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
-  const [equipeFilter, setEquipeFilter] = useState<string>("todas");
+  const [equipeFilter, setEquipeFilter] = useState<string>(savedListState?.equipeFilter ?? "todas");
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
   const [tipoVendaOpen, setTipoVendaOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        SALES_LIST_STATE_KEY,
+        JSON.stringify({
+          statusFilter,
+          vezFilter,
+          diasFilter,
+          dataDe,
+          dataAte,
+          q,
+          soMinhaVez,
+          equipeFilter,
+        } satisfies SalesListState),
+      );
+    } catch {
+      // A listagem continua funcionando mesmo quando o navegador bloqueia o armazenamento.
+    }
+  }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, soMinhaVez, equipeFilter]);
 
   const aplicarPeriodo = (periodo: { de: string; ate: string }) => {
     setDiasFilter(null);
