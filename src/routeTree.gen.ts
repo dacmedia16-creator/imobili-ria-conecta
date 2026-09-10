@@ -27,6 +27,7 @@ import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
@@ -130,6 +131,12 @@ const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReservasSalasRoute =
+  AuthenticatedReservasSalasRouteImport.update({
+    id: '/reservas-salas',
+    path: '/reservas-salas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVisaoExecutivaRoute =
   AuthenticatedVisaoExecutivaRouteImport.update({
     id: '/visao-executiva',
@@ -189,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -215,6 +223,7 @@ export interface FileRoutesByTo {
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -243,6 +252,7 @@ export interface FileRoutesById {
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
+    | '/reservas-salas'
     | '/visao-executiva'
     | '/admin/posicionamento'
     | '/admin/usuarios'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
+    | '/reservas-salas'
     | '/visao-executiva'
     | '/admin/posicionamento'
     | '/admin/usuarios'
@@ -324,6 +336,7 @@ export interface FileRouteTypes {
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
+    | '/_authenticated/reservas-salas'
     | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/usuarios'
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reservas-salas': {
+      id: '/_authenticated/reservas-salas'
+      path: '/reservas-salas'
+      fullPath: '/reservas-salas'
+      preLoaderRoute: typeof AuthenticatedReservasSalasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/visao-executiva': {
       id: '/_authenticated/visao-executiva'
       path: '/visao-executiva'
@@ -535,6 +555,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedReservasSalasRoute: typeof AuthenticatedReservasSalasRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
@@ -557,6 +578,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedReservasSalasRoute: AuthenticatedReservasSalasRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
