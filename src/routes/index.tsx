@@ -104,6 +104,8 @@ const CARDS: ServiceCard[] = [
   },
 ];
 
+const ADM_MAX_LOGIN_URL = "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max";
+
 function CardIcon({ card }: { card: ServiceCard }) {
   return (
     <span className={`icon-wrap ${card.color}`}>
@@ -513,8 +515,8 @@ function FrontPage() {
             <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
           </div>
 
-          <Link
-            to="/reservas-salas"
+          <a
+            href={ADM_MAX_LOGIN_URL}
             className="reservation-link"
             aria-label="Abrir reserva de sala"
           >
@@ -527,7 +529,7 @@ function FrontPage() {
               <circle cx="13" cy="18" r="1" />
             </svg>
             <span>Reserva de Sala</span>
-          </Link>
+          </a>
 
           <svg className="lines" viewBox="0 0 1680 945" preserveAspectRatio="none">
             <circle cx="825" cy="485" r="215" fill="none" stroke="#c3cee8" strokeWidth="1.6" />
@@ -624,8 +626,8 @@ function FrontPage() {
           <Link to="/auth" aria-label="Entrar no portal">
             <img className="mlogo" src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
           </Link>
-          <Link
-            to="/reservas-salas"
+          <a
+            href={ADM_MAX_LOGIN_URL}
             className="mobile-reservation-link"
             aria-label="Abrir reserva de sala"
           >
@@ -638,7 +640,7 @@ function FrontPage() {
               <circle cx="13" cy="18" r="1" />
             </svg>
             <span>Reserva de Sala</span>
-          </Link>
+          </a>
         </div>
 
         <div className="mhero">
