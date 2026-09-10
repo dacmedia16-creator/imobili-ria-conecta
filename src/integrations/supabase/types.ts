@@ -1544,6 +1544,10 @@ export type Database = {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;
       };
+      can_cancel_room_reservation: {
+        Args: { _actor?: string; _responsible_id: string };
+        Returns: boolean;
+      };
       can_view_sale: {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;

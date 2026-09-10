@@ -66,14 +66,19 @@ type Reservation = {
   date: string;
   start: string;
   end: string;
+  responsibleId: string;
   responsible: string;
   participants: string[];
   purpose: string;
   notes: string;
   status: "confirmed" | "canceled";
+  canCancel: boolean;
 };
 
-type DraftReservation = Omit<Reservation, "id" | "status" | "participants"> & {
+type DraftReservation = Omit<
+  Reservation,
+  "id" | "status" | "participants" | "responsibleId" | "canCancel"
+> & {
   participants: string;
 };
 
@@ -104,17 +109,19 @@ const toISO = (date: Date) =>
 
 type RoomReservationRow = Database["public"]["Tables"]["room_reservations"]["Row"];
 
-const mapReservation = (row: RoomReservationRow): Reservation => ({
+const mapReservation = (row: RoomReservationRow, canCancel = false): Reservation => ({
   id: row.id,
   room: row.room as Reservation["room"],
   date: row.reserved_date,
   start: row.start_time.slice(0, 5),
   end: row.end_time.slice(0, 5),
+  responsibleId: row.responsible_id,
   responsible: row.responsible_name,
   participants: row.participants ?? [],
   purpose: row.purpose,
   notes: row.notes,
   status: row.status as Reservation["status"],
+  canCancel,
 });
 
 function RoomReservationsPage() {
@@ -157,7 +164,21 @@ function RoomReservationsPage() {
       setReservations([]);
     } else {
       setLoadError(null);
-      setReservations((data ?? []).map(mapReservation));
+      const mapped = (data ?? []).map((row) => mapReservation(row));
+      const cancelable = await Promise.all(
+        (data ?? []).map(async (row) => {
+          const { data: allowed } = await supabase.rpc("can_cancel_room_reservation", {
+            _responsible_id: row.responsible_id,
+          });
+          return allowed === true;
+        }),
+      );
+      setReservations(
+        mapped.map((reservation, index) => ({
+          ...reservation,
+          canCancel: cancelable[index] ?? false,
+        })),
+      );
     }
     setLoadingReservations(false);
   }, [user]);
@@ -174,7 +195,10 @@ function RoomReservationsPage() {
     (reservation) => reservation.date === selectedDate,
   );
   const myReservations = activeReservations
-    .filter((reservation) => reservation.responsible === responsibleName)
+    .filter((reservation) => reservation.responsibleId === user?.id)
+    .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
+  const manageableReservations = activeReservations
+    .filter((reservation) => reservation.canCancel && reservation.responsibleId !== user?.id)
     .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
 
   const conflict = useMemo(
@@ -471,6 +495,43 @@ function RoomReservationsPage() {
           </CardContent>
         </Card>
 
+        {manageableReservations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Reservas que posso cancelar</CardTitle>
+              <CardDescription>
+                Reservas da sua equipe ou todas as reservas, conforme o seu perfil.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {manageableReservations.map((reservation) => (
+                <div
+                  key={reservation.id}
+                  className="flex items-start justify-between gap-3 rounded-md border p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{reservation.room}</span>
+                      <Badge variant="outline">{reservation.purpose}</Badge>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {dateFromISO(reservation.date).toLocaleDateString("pt-BR")} ·{" "}
+                      {reservation.start} às {reservation.end} · {reservation.responsible}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => cancelReservation(reservation.id)}
+                  >
+                    <XCircle className="mr-1 h-4 w-4" /> Cancelar
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Regras ativas</CardTitle>
@@ -483,7 +544,10 @@ function RoomReservationsPage() {
             </div>
             <div className="flex gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <span>Permitir cancelamento até o limite definido pela administração.</span>
+              <span>
+                Responsável cancela a própria reserva; gestores e líderes, a própria equipe;
+                administradores, todas.
+              </span>
             </div>
             <div className="flex gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
@@ -491,7 +555,7 @@ function RoomReservationsPage() {
             </div>
             <div className="flex gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <span>Enviar lembrete interno antes da reunião.</span>
+              <span>Enviar lembrete por WhatsApp ao responsável antes da reunião.</span>
             </div>
           </CardContent>
         </Card>
