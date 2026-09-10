@@ -347,6 +347,23 @@ function FrontPage() {
         .hubpage .titleblock h1 .navy { color: var(--navy); }
         .hubpage .titleblock h1 .red { color: var(--red); }
         .hubpage .titleblock p { margin: 0.5rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.35rem); color: var(--gray); font-weight: 500; }
+        .hubpage .reservation-link {
+          position: absolute; right: 3.4%; top: 15.5%; z-index: 4;
+          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          width: 17%; min-width: 154px; max-width: 188px; height: 46px;
+          border: 1px solid rgba(77, 111, 224, 0.85); border-radius: 999px;
+          background: rgba(255, 255, 255, 0.96); color: var(--navy-2);
+          box-shadow: 0 12px 24px -16px rgba(20, 30, 60, 0.52);
+          font-size: clamp(0.68rem, 0.88vw, 0.9rem); font-weight: 700;
+          text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .hubpage .reservation-link:hover,
+        .hubpage .reservation-link:focus-visible {
+          border-color: var(--blue-line); box-shadow: 0 14px 28px -14px rgba(36, 64, 172, 0.5);
+          transform: translateY(-1px); outline: none;
+        }
+        .hubpage .reservation-link svg { width: 22px; height: 22px; flex: none; stroke: var(--navy-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .reservation-link svg .accent { stroke: var(--red); }
         .hubpage .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
         .hubpage .hub { position: absolute; left: 36.3%; top: 28.6%; width: 25.6%; height: 45.5%; }
         .hubpage .card {
@@ -419,11 +436,21 @@ function FrontPage() {
         @media (min-width: 860px) { .hubpage .mobile-stage { display: none; } }
 
         .hubpage .mheader {
-          display: flex; align-items: center; justify-content: center;
+          position: relative; display: flex; align-items: center; justify-content: center;
           padding-top: max(18px, env(safe-area-inset-top));
         }
         .hubpage .mlogo { height: 38px; width: auto; display: block; margin: 0 auto; transition: opacity 0.15s ease; }
         .hubpage .mheader a:active .mlogo { opacity: 0.7; }
+        .hubpage .mobile-reservation-link {
+          position: absolute; right: 0; top: max(16px, env(safe-area-inset-top));
+          display: inline-flex; align-items: center; gap: 5px;
+          border: 1px solid rgba(77, 111, 224, 0.72); border-radius: 999px;
+          background: rgba(255, 255, 255, 0.96); color: var(--navy-2);
+          box-shadow: 0 8px 18px -14px rgba(20, 30, 60, 0.5);
+          padding: 7px 9px; font-size: 0.66rem; font-weight: 700; text-decoration: none;
+        }
+        .hubpage .mobile-reservation-link svg { width: 16px; height: 16px; stroke: var(--navy-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
         .hubpage .mhero { margin-top: 22px; text-align: center; }
         .hubpage .mhero h1 { margin: 0; font-size: 2.15rem; line-height: 0.95; }
         .hubpage .mhero h1 .navy { color: var(--navy); }
@@ -485,6 +512,22 @@ function FrontPage() {
             </h1>
             <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
           </div>
+
+          <Link
+            to="/reservas-salas"
+            className="reservation-link"
+            aria-label="Abrir reserva de sala"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="17" rx="3" />
+              <path d="M3 9h18M8 2v4M16 2v4" />
+              <circle className="accent" cx="8" cy="14" r="1" />
+              <circle cx="13" cy="14" r="1" />
+              <circle cx="8" cy="18" r="1" />
+              <circle cx="13" cy="18" r="1" />
+            </svg>
+            <span>Reserva de Sala</span>
+          </Link>
 
           <svg className="lines" viewBox="0 0 1680 945" preserveAspectRatio="none">
             <circle cx="825" cy="485" r="215" fill="none" stroke="#c3cee8" strokeWidth="1.6" />
@@ -580,6 +623,21 @@ function FrontPage() {
         <div className="mheader">
           <Link to="/auth" aria-label="Entrar no portal">
             <img className="mlogo" src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
+          </Link>
+          <Link
+            to="/reservas-salas"
+            className="mobile-reservation-link"
+            aria-label="Abrir reserva de sala"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="17" rx="3" />
+              <path d="M3 9h18M8 2v4M16 2v4" />
+              <circle className="accent" cx="8" cy="14" r="1" />
+              <circle cx="13" cy="14" r="1" />
+              <circle cx="8" cy="18" r="1" />
+              <circle cx="13" cy="18" r="1" />
+            </svg>
+            <span>Reserva de Sala</span>
           </Link>
         </div>
 
