@@ -104,6 +104,7 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 
 const PAGE_SIZE = 30;
 const SALES_LIST_STATE_KEY = "adm-max:vendas-list-state";
+const SALES_LIST_RESTORE_KEY = "adm-max:vendas-list-restore";
 type SalesListState = {
   statusFilter: string;
   vezFilter: string;
@@ -115,9 +116,19 @@ type SalesListState = {
   equipeFilter: string;
 };
 
+function markSalesListForReturn() {
+  try {
+    window.sessionStorage.setItem(SALES_LIST_RESTORE_KEY, "1");
+  } catch {
+    // A navegação continua funcionando mesmo quando o navegador bloqueia o armazenamento.
+  }
+}
+
 function readSalesListState(): Partial<SalesListState> | null {
   if (typeof window === "undefined") return null;
   try {
+    if (window.sessionStorage.getItem(SALES_LIST_RESTORE_KEY) !== "1") return null;
+    window.sessionStorage.removeItem(SALES_LIST_RESTORE_KEY);
     const raw = window.sessionStorage.getItem(SALES_LIST_STATE_KEY);
     return raw ? (JSON.parse(raw) as Partial<SalesListState>) : null;
   } catch {
@@ -162,6 +173,11 @@ function SalesList() {
   const [equipeFilter, setEquipeFilter] = useState<string>(savedListState?.equipeFilter ?? "todas");
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
   const [tipoVendaOpen, setTipoVendaOpen] = useState(false);
+  const [teamOptionsLoaded, setTeamOptionsLoaded] = useState(false);
+
+  const canFilterByTeam = hasAny(["juridico", "admin", "super_admin", "financeiro"]);
+  const waitingForSavedTeamFilter =
+    canFilterByTeam && equipeFilter !== "todas" && !teamOptionsLoaded;
 
   useEffect(() => {
     try {
@@ -268,7 +284,7 @@ function SalesList() {
         if (liderId) liderByCorretor[corretorId] = liderId;
       }
       setLiderIdByCorretor(liderByCorretor);
-    })();
+    })().finally(() => setTeamOptionsLoaded(true));
   }, [hasAny]);
 
   useEffect(() => {
@@ -474,11 +490,12 @@ function SalesList() {
   }, [fetchSales, fetchSummary]);
 
   useEffect(() => {
+    if (waitingForSavedTeamFilter) return;
     load();
     return () => {
       requestIdRef.current += 1;
     };
-  }, [load, refreshKey]);
+  }, [load, refreshKey, waitingForSavedTeamFilter]);
 
   const loadMore = async () => {
     if (loading || loadingMore) return;
@@ -848,7 +865,10 @@ function SalesList() {
                     <div
                       key={s.id}
                       className={`cursor-pointer rounded-md border p-3 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
-                      onClick={() => router.navigate({ to: "/vendas/$id", params: { id: s.id } })}
+                      onClick={() => {
+                        markSalesListForReturn();
+                        router.navigate({ to: "/vendas/$id", params: { id: s.id } });
+                      }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -928,9 +948,10 @@ function SalesList() {
                         <TableRow
                           key={s.id}
                           className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
-                          onClick={() =>
-                            router.navigate({ to: "/vendas/$id", params: { id: s.id } })
-                          }
+                          onClick={() => {
+                            markSalesListForReturn();
+                            router.navigate({ to: "/vendas/$id", params: { id: s.id } });
+                          }}
                         >
                           <TableCell className="font-medium">
                             {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
