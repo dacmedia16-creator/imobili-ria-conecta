@@ -13,6 +13,11 @@ type ProfileRow = Pick<
   "id" | "telefone" | "ativo"
 >;
 
+type DeliveryRow = Pick<
+  Database["public"]["Tables"]["room_reservation_reminder_deliveries"]["Row"],
+  "sent_at"
+>;
+
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
 const APP_URL = process.env.APP_URL || "https://unicaescolha.com.br";
 
@@ -38,7 +43,7 @@ async function sendReminder(
 export default defineTask({
   meta: {
     name: "room-reservation-reminders",
-    description: "Envia lembretes de reservas de sala pelo WhatsApp do responsável.",
+    description: "Envia lembretes de reservas de sala pelo WhatsApp dos participantes.",
   },
   async run() {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -63,11 +68,15 @@ export default defineTask({
       .lte("reserved_date", horizonDate);
     if (error || !reservations?.length) return { result: "no_due_reservations" };
 
-    const responsibleIds = Array.from(new Set(reservations.map((row) => row.responsible_id)));
+    const recipientIds = Array.from(
+      new Set(
+        reservations.flatMap((row) => [row.responsible_id, ...(row.participant_user_ids ?? [])]),
+      ),
+    );
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, telefone, ativo")
-      .in("id", responsibleIds);
+      .in("id", recipientIds);
     const profileById = new Map(
       (profiles ?? []).map((profile: ProfileRow) => [profile.id, profile]),
     );
@@ -78,23 +87,84 @@ export default defineTask({
       const reminderAt = new Date(meetingAt.getTime() - row.reminder_minutes_before * 60 * 1000);
       if (meetingAt <= now || reminderAt > now) continue;
 
-      const profile = profileById.get(row.responsible_id);
-      const phone = profile?.ativo === false ? null : normalizePhone(profile?.telefone ?? null);
-      if (!phone) continue;
+      const rowRecipientIds = Array.from(
+        new Set([row.responsible_id, ...(row.participant_user_ids ?? [])]),
+      );
+      const rowPhones = rowRecipientIds
+        .map((recipientId) => {
+          const profile = profileById.get(recipientId);
+          return profile?.ativo === false ? null : normalizePhone(profile?.telefone ?? null);
+        })
+        .filter((phone): phone is string => Boolean(phone));
+      const uniquePhones = Array.from(new Set(rowPhones));
+      if (!uniquePhones.length) continue;
 
-      try {
-        if (!(await sendReminder(row, phone, apiKey))) continue;
-        const { data: marked } = await supabase
-          .from("room_reservations")
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq("id", row.id)
-          .is("reminder_sent_at", null)
-          .select("id")
+      let allSent = true;
+      for (const phone of uniquePhones) {
+        const recipientId = rowRecipientIds.find(
+          (id) => normalizePhone(profileById.get(id)?.telefone ?? null) === phone,
+        );
+        if (!recipientId) continue;
+
+        const { data: delivery } = await supabase
+          .from("room_reservation_reminder_deliveries")
+          .select("sent_at")
+          .eq("reservation_id", row.id)
+          .eq("recipient_id", recipientId)
           .maybeSingle();
-        if (marked) sent++;
-      } catch {
-        // The next five-minute run retries failures; no recipient or credential is logged.
+        if ((delivery as DeliveryRow | null)?.sent_at) continue;
+
+        try {
+          const delivered = await sendReminder(row, phone, apiKey);
+          if (!delivered) {
+            allSent = false;
+            await supabase.from("room_reservation_reminder_deliveries").upsert(
+              {
+                reservation_id: row.id,
+                recipient_id: recipientId,
+                phone,
+                last_error: "ziontalk_send_failed",
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "reservation_id,recipient_id" },
+            );
+            continue;
+          }
+          await supabase.from("room_reservation_reminder_deliveries").upsert(
+            {
+              reservation_id: row.id,
+              recipient_id: recipientId,
+              phone,
+              sent_at: new Date().toISOString(),
+              last_error: null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "reservation_id,recipient_id" },
+          );
+        } catch {
+          allSent = false;
+          await supabase.from("room_reservation_reminder_deliveries").upsert(
+            {
+              reservation_id: row.id,
+              recipient_id: recipientId,
+              phone,
+              last_error: "ziontalk_request_failed",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "reservation_id,recipient_id" },
+          );
+        }
       }
+
+      if (!allSent) continue;
+      const { data: marked } = await supabase
+        .from("room_reservations")
+        .update({ reminder_sent_at: new Date().toISOString() })
+        .eq("id", row.id)
+        .is("reminder_sent_at", null)
+        .select("id")
+        .maybeSingle();
+      if (marked) sent++;
     }
 
     return { result: `sent:${sent}` };

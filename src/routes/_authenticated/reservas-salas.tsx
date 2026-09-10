@@ -69,6 +69,7 @@ type Reservation = {
   responsibleId: string;
   responsible: string;
   participants: string[];
+  participantUserIds: string[];
   purpose: string;
   notes: string;
   status: "confirmed" | "canceled";
@@ -80,6 +81,11 @@ type DraftReservation = Omit<
   "id" | "status" | "participants" | "responsibleId" | "canCancel"
 > & {
   participants: string;
+};
+
+type RegisteredUser = {
+  id: string;
+  nome: string | null;
 };
 
 const todayISO = () => {
@@ -122,6 +128,7 @@ const mapReservation = (
   responsibleId: row.responsible_id,
   responsible: responsibleName,
   participants: row.participants ?? [],
+  participantUserIds: row.participant_user_ids ?? [],
   purpose: row.purpose,
   notes: row.notes,
   status: row.status as Reservation["status"],
@@ -136,6 +143,7 @@ function RoomReservationsPage() {
   const [responsibleName, setResponsibleName] = useState(fallbackResponsibleName);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [roomFilter, setRoomFilter] = useState<"all" | (typeof ROOMS)[number]>("all");
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -147,6 +155,7 @@ function RoomReservationsPage() {
     end: "15:00",
     responsible: responsibleName,
     participants: "",
+    participantUserIds: [],
     purpose: PURPOSES[0],
     notes: "",
   });
@@ -170,10 +179,9 @@ function RoomReservationsPage() {
       setReservations([]);
     } else {
       setLoadError(null);
-      const responsibleIds = Array.from(new Set((data ?? []).map((row) => row.responsible_id)));
-      const { data: profiles } = responsibleIds.length
-        ? await supabase.from("profiles").select("id, nome").in("id", responsibleIds)
-        : { data: [] };
+      const { data: users } = await supabase.rpc("list_room_reservation_users");
+      const profiles = (users ?? []) as RegisteredUser[];
+      setRegisteredUsers(profiles);
       const namesById = new Map(
         (profiles ?? [])
           .filter((profile) => profile.nome?.trim())
@@ -232,6 +240,7 @@ function RoomReservationsPage() {
       end: nextHour(start),
       responsible: responsibleName,
       participants: "",
+      participantUserIds: [],
       purpose: PURPOSES[0],
       notes: "",
     });
@@ -267,6 +276,7 @@ function RoomReservationsPage() {
         .split(",")
         .map((participant) => participant.trim())
         .filter(Boolean),
+      participant_user_ids: draft.participantUserIds,
       purpose: draft.purpose,
       notes: draft.notes.trim(),
       cancellation_deadline_minutes: 60,
@@ -675,6 +685,45 @@ function RoomReservationsPage() {
                   setDraft((current) => ({ ...current, participants: event.target.value }))
                 }
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium">Usuários cadastrados para receber aviso</label>
+              <div className="max-h-36 space-y-2 overflow-y-auto rounded-md border p-3">
+                {registeredUsers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum usuário cadastrado disponível para seleção.
+                  </p>
+                ) : (
+                  registeredUsers.map((registeredUser) => {
+                    const checked = draft.participantUserIds.includes(registeredUser.id);
+                    return (
+                      <label
+                        key={registeredUser.id}
+                        className="flex cursor-pointer items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) =>
+                            setDraft((current) => ({
+                              ...current,
+                              participantUserIds: event.target.checked
+                                ? [...current.participantUserIds, registeredUser.id]
+                                : current.participantUserIds.filter(
+                                    (id) => id !== registeredUser.id,
+                                  ),
+                            }))
+                          }
+                        />
+                        <span>{registeredUser.nome || registeredUser.id}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Os usuários selecionados receberão o lembrete no WhatsApp cadastrado.
+              </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <label htmlFor="reservation-purpose" className="text-sm font-medium">

@@ -1068,6 +1068,7 @@ export type Database = {
           id: string;
           notes: string;
           participants: string[];
+          participant_user_ids: string[];
           purpose: string;
           reminder_minutes_before: number;
           reminder_sent_at: string | null;
@@ -1088,6 +1089,7 @@ export type Database = {
           id?: string;
           notes?: string;
           participants?: string[];
+          participant_user_ids?: string[];
           purpose: string;
           reminder_minutes_before?: number;
           reminder_sent_at?: string | null;
@@ -1108,6 +1110,7 @@ export type Database = {
           id?: string;
           notes?: string;
           participants?: string[];
+          participant_user_ids?: string[];
           purpose?: string;
           reminder_minutes_before?: number;
           reminder_sent_at?: string | null;
@@ -1117,6 +1120,33 @@ export type Database = {
           room?: string;
           start_time?: string;
           status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      room_reservation_reminder_deliveries: {
+        Row: {
+          last_error: string | null;
+          phone: string;
+          recipient_id: string;
+          reservation_id: string;
+          sent_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          last_error?: string | null;
+          phone: string;
+          recipient_id: string;
+          reservation_id: string;
+          sent_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          last_error?: string | null;
+          phone?: string;
+          recipient_id?: string;
+          reservation_id?: string;
+          sent_at?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -1547,6 +1577,13 @@ export type Database = {
       can_cancel_room_reservation: {
         Args: { _actor?: string; _responsible_id: string };
         Returns: boolean;
+      };
+      list_room_reservation_users: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string;
+          nome: string | null;
+        }[];
       };
       can_view_sale: {
         Args: { _sale_id: string; _user: string };
