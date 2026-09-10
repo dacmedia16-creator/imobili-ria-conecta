@@ -104,7 +104,8 @@ const CARDS: ServiceCard[] = [
   },
 ];
 
-const ADM_MAX_LOGIN_URL = "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max";
+const ADM_MAX_LOGIN_URL =
+  "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max&return_to=%2Freservas-salas";
 
 function CardIcon({ card }: { card: ServiceCard }) {
   return (

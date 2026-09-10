@@ -16,6 +16,7 @@ function ContaMaxBridge() {
     if (requestStarted.current) return;
     requestStarted.current = true;
     const ticket = new URLSearchParams(window.location.search).get("ticket");
+    const returnTo = new URLSearchParams(window.location.search).get("return_to");
     if (!ticket) {
       setMessage("O passe de acesso não foi encontrado.");
       return;
@@ -37,7 +38,11 @@ function ContaMaxBridge() {
         setMessage("Não foi possível concluir a sessão. Use o login normal abaixo.");
         return;
       }
-      await router.navigate({ to: "/dashboard", replace: true });
+      if (returnTo === "/reservas-salas") {
+        await router.navigate({ to: "/reservas-salas", replace: true });
+      } else {
+        await router.navigate({ to: "/dashboard", replace: true });
+      }
     })();
   }, [router]);
 
