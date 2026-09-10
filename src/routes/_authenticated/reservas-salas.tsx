@@ -31,6 +31,7 @@ import {
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
+  ROOM_RESERVATION_PURPOSES,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
 import type { RoomReservationPeriod } from "@/lib/reservas-salas-calc";
@@ -41,14 +42,6 @@ export const Route = createFileRoute("/_authenticated/reservas-salas")({
 });
 
 const ROOMS = ["Sala 1", "Sala 2", "Sala 3", "Sala 4", "CT"] as const;
-const PURPOSES = [
-  "Reunião com cliente",
-  "Reunião de equipe",
-  "Treinamento",
-  "Atendimento jurídico",
-  "Parceria",
-  "Outra finalidade",
-] as const;
 const TIME_SLOTS = [
   "08:00",
   "09:00",
@@ -167,7 +160,7 @@ function RoomReservationsPage() {
     responsible: responsibleName,
     participants: "",
     participantUserIds: [],
-    purpose: PURPOSES[0],
+    purpose: ROOM_RESERVATION_PURPOSES[0],
     notes: "",
   });
 
@@ -253,7 +246,7 @@ function RoomReservationsPage() {
       responsible: responsibleName,
       participants: "",
       participantUserIds: [],
-      purpose: PURPOSES[0],
+      purpose: ROOM_RESERVATION_PURPOSES[0],
       notes: "",
     });
     setDialogOpen(true);
@@ -786,7 +779,7 @@ function RoomReservationsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PURPOSES.map((purpose) => (
+                  {ROOM_RESERVATION_PURPOSES.map((purpose) => (
                     <SelectItem key={purpose} value={purpose}>
                       {purpose}
                     </SelectItem>

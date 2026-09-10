@@ -3,6 +3,7 @@ import {
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
+  ROOM_RESERVATION_PURPOSES,
   timeToMinutes,
 } from "./reservas-salas-calc";
 
@@ -19,6 +20,20 @@ describe("reservas de salas — regras de horário", () => {
 
   it("não altera horários ao escolher personalizado", () => {
     expect(getRoomReservationPeriodTimes("custom")).toBeNull();
+  });
+
+  it("mantém as finalidades disponíveis para reserva", () => {
+    expect(ROOM_RESERVATION_PURPOSES).toEqual([
+      "Reunião com cliente",
+      "Reunião de equipe",
+      "Treinamento",
+      "Atendimento jurídico",
+      "Parceria",
+      "FIC",
+      "Fotos",
+      "Diretoria",
+      "Outra finalidade",
+    ]);
   });
 
   it("considera sobreposição parcial e total", () => {

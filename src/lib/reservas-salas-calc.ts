@@ -1,3 +1,15 @@
+export const ROOM_RESERVATION_PURPOSES = [
+  "Reunião com cliente",
+  "Reunião de equipe",
+  "Treinamento",
+  "Atendimento jurídico",
+  "Parceria",
+  "FIC",
+  "Fotos",
+  "Diretoria",
+  "Outra finalidade",
+] as const;
+
 export type RoomReservationPeriod = "custom" | "morning" | "afternoon" | "full_day";
 
 export function getRoomReservationPeriodTimes(
