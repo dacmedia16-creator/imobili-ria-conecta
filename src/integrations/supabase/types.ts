@@ -1058,6 +1058,69 @@ export type Database = {
           },
         ];
       };
+      room_reservations: {
+        Row: {
+          canceled_at: string | null;
+          canceled_by: string | null;
+          cancellation_deadline_minutes: number;
+          created_at: string;
+          end_time: string;
+          id: string;
+          notes: string;
+          participants: string[];
+          purpose: string;
+          reminder_minutes_before: number;
+          reminder_sent_at: string | null;
+          reserved_date: string;
+          responsible_id: string;
+          responsible_name: string;
+          room: string;
+          start_time: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          canceled_at?: string | null;
+          canceled_by?: string | null;
+          cancellation_deadline_minutes?: number;
+          created_at?: string;
+          end_time: string;
+          id?: string;
+          notes?: string;
+          participants?: string[];
+          purpose: string;
+          reminder_minutes_before?: number;
+          reminder_sent_at?: string | null;
+          reserved_date: string;
+          responsible_id: string;
+          responsible_name: string;
+          room: string;
+          start_time: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          canceled_at?: string | null;
+          canceled_by?: string | null;
+          cancellation_deadline_minutes?: number;
+          created_at?: string;
+          end_time?: string;
+          id?: string;
+          notes?: string;
+          participants?: string[];
+          purpose?: string;
+          reminder_minutes_before?: number;
+          reminder_sent_at?: string | null;
+          reserved_date?: string;
+          responsible_id?: string;
+          responsible_name?: string;
+          room?: string;
+          start_time?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       sales: {
         Row: {
           codigo_interno: string | null;

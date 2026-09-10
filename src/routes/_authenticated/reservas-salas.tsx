@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, Info, Plus, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,46 +102,20 @@ const formatDate = (date: string) =>
 const toISO = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
-function seedReservations(date: string): Reservation[] {
-  return [
-    {
-      id: "demo-1",
-      room: "Sala 1",
-      date,
-      start: "09:00",
-      end: "10:00",
-      responsible: "Ana Costa",
-      participants: ["Equipe comercial"],
-      purpose: "Reunião de equipe",
-      notes: "Alinhamento da semana",
-      status: "confirmed",
-    },
-    {
-      id: "demo-2",
-      room: "Sala 2",
-      date,
-      start: "14:00",
-      end: "15:30",
-      responsible: "Denis Souza",
-      participants: ["João da Silva", "Maria Oliveira"],
-      purpose: "Reunião com cliente",
-      notes: "Apresentação da proposta comercial",
-      status: "confirmed",
-    },
-    {
-      id: "demo-3",
-      room: "CT",
-      date,
-      start: "10:00",
-      end: "12:00",
-      responsible: "Carlos Mendes",
-      participants: ["Novos corretores"],
-      purpose: "Treinamento",
-      notes: "Integração de novos corretores",
-      status: "confirmed",
-    },
-  ];
-}
+type RoomReservationRow = Database["public"]["Tables"]["room_reservations"]["Row"];
+
+const mapReservation = (row: RoomReservationRow): Reservation => ({
+  id: row.id,
+  room: row.room as Reservation["room"],
+  date: row.reserved_date,
+  start: row.start_time.slice(0, 5),
+  end: row.end_time.slice(0, 5),
+  responsible: row.responsible_name,
+  participants: row.participants ?? [],
+  purpose: row.purpose,
+  notes: row.notes,
+  status: row.status as Reservation["status"],
+});
 
 function RoomReservationsPage() {
   const { user } = useAuth();
@@ -147,9 +123,9 @@ function RoomReservationsPage() {
   const responsibleName = user?.user_metadata?.nome ?? "Denis Souza";
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [roomFilter, setRoomFilter] = useState<"all" | (typeof ROOMS)[number]>("all");
-  const [reservations, setReservations] = useState<Reservation[]>(() =>
-    seedReservations(initialDate),
-  );
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loadingReservations, setLoadingReservations] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<DraftReservation>({
     room: "Sala 2",
@@ -161,6 +137,34 @@ function RoomReservationsPage() {
     purpose: PURPOSES[0],
     notes: "",
   });
+
+  const loadReservations = useCallback(async () => {
+    if (!user) {
+      setReservations([]);
+      setLoadingReservations(false);
+      return;
+    }
+
+    setLoadingReservations(true);
+    const { data, error } = await supabase
+      .from("room_reservations")
+      .select("*")
+      .order("reserved_date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      setLoadError("Não foi possível carregar a agenda compartilhada.");
+      setReservations([]);
+    } else {
+      setLoadError(null);
+      setReservations((data ?? []).map(mapReservation));
+    }
+    setLoadingReservations(false);
+  }, [user]);
+
+  useEffect(() => {
+    void loadReservations();
+  }, [loadReservations]);
 
   const visibleRooms = roomFilter === "all" ? ROOMS : [roomFilter];
   const activeReservations = reservations.filter(
@@ -192,7 +196,11 @@ function RoomReservationsPage() {
     setDialogOpen(true);
   };
 
-  const saveReservation = () => {
+  const saveReservation = async () => {
+    if (!user) {
+      toast.error("Faça login para criar uma reserva.");
+      return;
+    }
     if (!draft.responsible.trim()) {
       toast.error("Informe o responsável pela reserva.");
       return;
@@ -206,28 +214,67 @@ function RoomReservationsPage() {
       return;
     }
 
-    const newReservation: Reservation = {
-      ...draft,
-      id: `demo-${Date.now()}`,
+    const { error } = await supabase.from("room_reservations").insert({
+      room: draft.room,
+      reserved_date: draft.date,
+      start_time: draft.start,
+      end_time: draft.end,
+      responsible_id: user.id,
+      responsible_name: draft.responsible.trim(),
       participants: draft.participants
         .split(",")
         .map((participant) => participant.trim())
         .filter(Boolean),
-      status: "confirmed",
-    };
-    setReservations((current) => [...current, newReservation]);
+      purpose: draft.purpose,
+      notes: draft.notes.trim(),
+      cancellation_deadline_minutes: 60,
+      reminder_minutes_before: 30,
+    });
+
+    if (error) {
+      if (error.code === "23P01") {
+        toast.error("Essa sala já foi reservada nesse período por outra pessoa.");
+      } else {
+        toast.error("Não foi possível salvar a reserva.");
+      }
+      return;
+    }
+
     setSelectedDate(draft.date);
     setDialogOpen(false);
-    toast.success("Reserva criada na simulação.");
+    await loadReservations();
+    toast.success("Reserva criada com sucesso.");
   };
 
-  const cancelReservation = (id: string) => {
-    setReservations((current) =>
-      current.map((reservation) =>
-        reservation.id === id ? { ...reservation, status: "canceled" } : reservation,
-      ),
-    );
-    toast.success("Reserva cancelada na simulação. O horário foi liberado.");
+  const cancelReservation = async (id: string) => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("room_reservations")
+      .update({
+        status: "canceled",
+        canceled_at: new Date().toISOString(),
+        canceled_by: user.id,
+      })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "22023") {
+        toast.error("O prazo para cancelar esta reserva já terminou.");
+      } else {
+        toast.error("Não foi possível cancelar a reserva.");
+      }
+      return;
+    }
+    if (!data) {
+      toast.error("Você não tem permissão para cancelar esta reserva.");
+      return;
+    }
+
+    await loadReservations();
+    toast.success("Reserva cancelada. O horário foi liberado.");
   };
 
   const reservationForSlot = (room: (typeof ROOMS)[number], slot: string) =>
@@ -256,12 +303,19 @@ function RoomReservationsPage() {
 
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Simulação local</AlertTitle>
+        <AlertTitle>Agenda compartilhada</AlertTitle>
         <AlertDescription>
-          As reservas exibidas são fictícias e ficam apenas nesta tela. Nesta etapa ainda não há
-          gravação no banco nem envio de avisos externos.
+          As reservas são salvas no banco da imobiliária. O cancelamento fica permitido até 60
+          minutos antes do início.
         </AlertDescription>
       </Alert>
+      {loadError && (
+        <Alert variant="destructive">
+          <XCircle className="h-4 w-4" />
+          <AlertTitle>Agenda indisponível</AlertTitle>
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <Card>
@@ -313,7 +367,9 @@ function RoomReservationsPage() {
               <div>
                 <CardTitle className="text-base">Disponibilidade</CardTitle>
                 <CardDescription>
-                  Horários de 08:00 às 18:00. Clique em um horário livre para reservar.
+                  {loadingReservations
+                    ? "Carregando agenda compartilhada..."
+                    : "Horários de 08:00 às 18:00. Clique em um horário livre para reservar."}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -381,7 +437,7 @@ function RoomReservationsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Minhas próximas reservas</CardTitle>
-            <CardDescription>Na versão real, esta lista virá do banco de dados.</CardDescription>
+            <CardDescription>Reservas confirmadas vinculadas ao seu usuário.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {myReservations.length === 0 && (
@@ -417,8 +473,8 @@ function RoomReservationsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Regras previstas</CardTitle>
-            <CardDescription>Itens que serão conectados ao banco na próxima etapa.</CardDescription>
+            <CardTitle className="text-base">Regras ativas</CardTitle>
+            <CardDescription>Proteções aplicadas pela agenda compartilhada.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex gap-2">
