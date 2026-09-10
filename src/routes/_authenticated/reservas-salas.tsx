@@ -109,14 +109,18 @@ const toISO = (date: Date) =>
 
 type RoomReservationRow = Database["public"]["Tables"]["room_reservations"]["Row"];
 
-const mapReservation = (row: RoomReservationRow, canCancel = false): Reservation => ({
+const mapReservation = (
+  row: RoomReservationRow,
+  canCancel = false,
+  responsibleName = row.responsible_name,
+): Reservation => ({
   id: row.id,
   room: row.room as Reservation["room"],
   date: row.reserved_date,
   start: row.start_time.slice(0, 5),
   end: row.end_time.slice(0, 5),
   responsibleId: row.responsible_id,
-  responsible: row.responsible_name,
+  responsible: responsibleName,
   participants: row.participants ?? [],
   purpose: row.purpose,
   notes: row.notes,
@@ -127,7 +131,9 @@ const mapReservation = (row: RoomReservationRow, canCancel = false): Reservation
 function RoomReservationsPage() {
   const { user } = useAuth();
   const initialDate = todayISO();
-  const responsibleName = user?.user_metadata?.nome ?? "Denis Souza";
+  const fallbackResponsibleName =
+    user?.user_metadata?.nome ?? user?.user_metadata?.full_name ?? user?.email ?? "Usuário atual";
+  const [responsibleName, setResponsibleName] = useState(fallbackResponsibleName);
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [roomFilter, setRoomFilter] = useState<"all" | (typeof ROOMS)[number]>("all");
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -164,7 +170,19 @@ function RoomReservationsPage() {
       setReservations([]);
     } else {
       setLoadError(null);
-      const mapped = (data ?? []).map((row) => mapReservation(row));
+      const responsibleIds = Array.from(new Set((data ?? []).map((row) => row.responsible_id)));
+      const { data: profiles } = responsibleIds.length
+        ? await supabase.from("profiles").select("id, nome").in("id", responsibleIds)
+        : { data: [] };
+      const namesById = new Map(
+        (profiles ?? [])
+          .filter((profile) => profile.nome?.trim())
+          .map((profile) => [profile.id, profile.nome!.trim()]),
+      );
+      setResponsibleName(namesById.get(user.id) ?? fallbackResponsibleName);
+      const mapped = (data ?? []).map((row) =>
+        mapReservation(row, false, namesById.get(row.responsible_id)),
+      );
       const cancelable = await Promise.all(
         (data ?? []).map(async (row) => {
           const { data: allowed } = await supabase.rpc("can_cancel_room_reservation", {
@@ -181,7 +199,7 @@ function RoomReservationsPage() {
       );
     }
     setLoadingReservations(false);
-  }, [user]);
+  }, [fallbackResponsibleName, user]);
 
   useEffect(() => {
     void loadReservations();
@@ -225,7 +243,7 @@ function RoomReservationsPage() {
       toast.error("Faça login para criar uma reserva.");
       return;
     }
-    if (!draft.responsible.trim()) {
+    if (!responsibleName.trim()) {
       toast.error("Informe o responsável pela reserva.");
       return;
     }
@@ -244,7 +262,7 @@ function RoomReservationsPage() {
       start_time: draft.start,
       end_time: draft.end,
       responsible_id: user.id,
-      responsible_name: draft.responsible.trim(),
+      responsible_name: responsibleName.trim(),
       participants: draft.participants
         .split(",")
         .map((participant) => participant.trim())
@@ -633,15 +651,17 @@ function RoomReservationsPage() {
             </div>
             <div className="space-y-2 sm:col-span-2">
               <label htmlFor="reservation-responsible" className="text-sm font-medium">
-                Responsável pela reserva
+                Usuário que reservou
               </label>
               <Input
                 id="reservation-responsible"
-                value={draft.responsible}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, responsible: event.target.value }))
-                }
+                value={responsibleName}
+                readOnly
+                className="bg-muted/40"
               />
+              <p className="text-xs text-muted-foreground">
+                Preenchido automaticamente pelo usuário autenticado.
+              </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <label htmlFor="reservation-participants" className="text-sm font-medium">
