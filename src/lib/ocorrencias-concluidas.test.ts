@@ -46,7 +46,9 @@ describe("filtro mensal de ocorrências concluídas", () => {
     expect(pagina).toContain('const [mesSelecionado, setMesSelecionado] = useState("todos")');
     expect(pagina).toContain('.rpc("relatorio_ocorrencias_concluidas")');
     expect(pagina.match(/\.from\("[^"]+"\)/g)).toEqual(['.from("user_roles")']);
-    expect(pagina).not.toMatch(/router\.navigate|cursor-pointer|\/vendas\/\$id/);
+    expect(pagina).not.toMatch(/router\.navigate|cursor-pointer/);
+    expect(pagina).toContain('to="/vendas/$id"');
+    expect(pagina).toContain("Abrir ocorrência de");
     expect(pagina).toContain('const [equipeSelecionada, setEquipeSelecionada] = useState("todas")');
     expect(pagina).toContain(
       'const [corretorSelecionado, setCorretorSelecionado] = useState("todos")',

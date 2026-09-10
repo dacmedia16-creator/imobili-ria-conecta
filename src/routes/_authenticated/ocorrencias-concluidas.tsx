@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -316,7 +316,16 @@ function OcorrenciasConcluidasPage() {
               )}
               {rowsFiltradas.map((r) => (
                 <TableRow key={r.ocorrenciaId}>
-                  <TableCell className="font-medium">{r.imovelLabel}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      to="/vendas/$id"
+                      params={{ id: r.saleId }}
+                      className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label={`Abrir ocorrência de ${r.imovelLabel}`}
+                    >
+                      {r.imovelLabel}
+                    </Link>
+                  </TableCell>
                   <TableCell className="max-w-72 break-words text-muted-foreground">
                     {r.corretorNome ?? "Não informado"}
                   </TableCell>
