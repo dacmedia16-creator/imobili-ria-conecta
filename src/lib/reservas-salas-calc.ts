@@ -1,3 +1,14 @@
+export type RoomReservationPeriod = "custom" | "morning" | "afternoon" | "full_day";
+
+export function getRoomReservationPeriodTimes(
+  period: RoomReservationPeriod,
+): { start: string; end: string } | null {
+  if (period === "morning") return { start: "08:00", end: "12:00" };
+  if (period === "afternoon") return { start: "13:00", end: "18:00" };
+  if (period === "full_day") return { start: "08:00", end: "18:00" };
+  return null;
+}
+
 export type RoomReservationInterval = {
   room: string;
   date: string;

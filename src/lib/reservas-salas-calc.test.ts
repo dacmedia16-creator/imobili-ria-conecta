@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { hasRoomReservationConflict, intervalsOverlap, timeToMinutes } from "./reservas-salas-calc";
+import {
+  getRoomReservationPeriodTimes,
+  hasRoomReservationConflict,
+  intervalsOverlap,
+  timeToMinutes,
+} from "./reservas-salas-calc";
 
 describe("reservas de salas — regras de horário", () => {
   it("converte horário para minutos", () => {
     expect(timeToMinutes("14:30")).toBe(870);
+  });
+
+  it("converte períodos rápidos em horários de reserva", () => {
+    expect(getRoomReservationPeriodTimes("morning")).toEqual({ start: "08:00", end: "12:00" });
+    expect(getRoomReservationPeriodTimes("afternoon")).toEqual({ start: "13:00", end: "18:00" });
+    expect(getRoomReservationPeriodTimes("full_day")).toEqual({ start: "08:00", end: "18:00" });
+  });
+
+  it("não altera horários ao escolher personalizado", () => {
+    expect(getRoomReservationPeriodTimes("custom")).toBeNull();
   });
 
   it("considera sobreposição parcial e total", () => {

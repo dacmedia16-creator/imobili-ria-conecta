@@ -28,10 +28,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
+import type { RoomReservationPeriod } from "@/lib/reservas-salas-calc";
 
 export const Route = createFileRoute("/_authenticated/reservas-salas")({
   head: () => ({ meta: [{ title: "Agendamento de salas" }] }),
@@ -60,6 +62,13 @@ const TIME_SLOTS = [
   "17:00",
 ];
 
+const RESERVATION_PERIODS: Array<{ value: RoomReservationPeriod; label: string }> = [
+  { value: "morning", label: "Manhã (08:00 às 12:00)" },
+  { value: "afternoon", label: "Tarde (13:00 às 18:00)" },
+  { value: "full_day", label: "Dia inteiro (08:00 às 18:00)" },
+  { value: "custom", label: "Personalizado" },
+];
+
 type Reservation = {
   id: string;
   room: (typeof ROOMS)[number];
@@ -81,6 +90,7 @@ type DraftReservation = Omit<
   "id" | "status" | "participants" | "responsibleId" | "canCancel"
 > & {
   participants: string;
+  period: RoomReservationPeriod;
 };
 
 type RegisteredUser = {
@@ -153,6 +163,7 @@ function RoomReservationsPage() {
     date: initialDate,
     start: "14:00",
     end: "15:00",
+    period: "custom",
     responsible: responsibleName,
     participants: "",
     participantUserIds: [],
@@ -238,6 +249,7 @@ function RoomReservationsPage() {
       date: selectedDate,
       start,
       end: nextHour(start),
+      period: "custom",
       responsible: responsibleName,
       participants: "",
       participantUserIds: [],
@@ -245,6 +257,15 @@ function RoomReservationsPage() {
       notes: "",
     });
     setDialogOpen(true);
+  };
+
+  const selectReservationPeriod = (period: RoomReservationPeriod) => {
+    const times = getRoomReservationPeriodTimes(period);
+    setDraft((current) => ({
+      ...current,
+      period,
+      ...(times ?? {}),
+    }));
   };
 
   const saveReservation = async () => {
@@ -634,6 +655,26 @@ function RoomReservationsPage() {
               />
             </div>
             <div className="space-y-2">
+              <label htmlFor="reservation-period" className="text-sm font-medium">
+                Período da reserva
+              </label>
+              <Select
+                value={draft.period}
+                onValueChange={(value) => selectReservationPeriod(value as RoomReservationPeriod)}
+              >
+                <SelectTrigger id="reservation-period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESERVATION_PERIODS.map((period) => (
+                    <SelectItem key={period.value} value={period.value}>
+                      {period.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <label htmlFor="reservation-start" className="text-sm font-medium">
                 Horário inicial
               </label>
@@ -642,7 +683,11 @@ function RoomReservationsPage() {
                 type="time"
                 value={draft.start}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, start: event.target.value }))
+                  setDraft((current) => ({
+                    ...current,
+                    period: "custom",
+                    start: event.target.value,
+                  }))
                 }
               />
             </div>
@@ -655,7 +700,11 @@ function RoomReservationsPage() {
                 type="time"
                 value={draft.end}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, end: event.target.value }))
+                  setDraft((current) => ({
+                    ...current,
+                    period: "custom",
+                    end: event.target.value,
+                  }))
                 }
               />
             </div>
