@@ -120,6 +120,14 @@ function OcorrenciasConcluidasPage() {
           // Os mesmos rótulos distinguem homônimos no seletor e na tabela.
           nomesPorId: Object.fromEntries(catalogo.corretores.map((c) => [c.id, c.label])),
           equipesPorCorretor: new Map(catalogo.corretores.map((c) => [c.id, c.equipeIds])),
+          participantesPorOcorrencia: new Map(
+            relatorio.occs.map((occ) => [
+              occ.id,
+              relatorio.participants
+                .filter((participant) => participant.occurrence_id === occ.id)
+                .map((participant) => participant.user_id),
+            ]),
+          ),
         });
         setEstado({ ...vazio, ...catalogo, rows, loading: false });
       } catch (err) {

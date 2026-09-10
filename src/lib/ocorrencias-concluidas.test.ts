@@ -25,6 +25,7 @@ describe("filtro mensal de ocorrências concluídas", () => {
     saleId,
     ocorrenciaId: saleId,
     corretorId: null,
+    participanteIds: [],
     equipeIds: [],
     dataAssinatura,
     valorComissao,
@@ -200,6 +201,7 @@ describe("podeVerOcorrenciasConcluidas", () => {
 
 describe("catálogo canônico e filtros combinados", () => {
   const relatorio: RelatorioOcorrenciasConcluidas = {
+    participants: [],
     profiles: [
       { id: "u1", nome: "Ana" },
       { id: "u1", nome: "Ana" },
@@ -320,6 +322,36 @@ describe("catálogo canônico e filtros combinados", () => {
     expect(rows).toHaveLength(6);
   });
 
+  it("inclui ocorrência quando o corretor foi citado na comissão, mesmo com outro responsável pela venda", () => {
+    const comParticipante: RelatorioOcorrenciasConcluidas = {
+      ...relatorio,
+      participants: [{ occurrence_id: "o2", user_id: "u1", nome: "Ana" }],
+    };
+    const catalogo = catalogoOcorrenciasConcluidas(comParticipante);
+    const rows = montarOcorrenciasConcluidas({
+      ...comParticipante,
+      nomesPorId: Object.fromEntries(catalogo.corretores.map((c) => [c.id, c.label])),
+      equipesPorCorretor: new Map(catalogo.corretores.map((c) => [c.id, c.equipeIds])),
+      participantesPorOcorrencia: new Map(
+        comParticipante.occs.map((occ) => [
+          occ.id,
+          comParticipante.participants
+            .filter((participant) => participant.occurrence_id === occ.id)
+            .map((participant) => participant.user_id),
+        ]),
+      ),
+    });
+
+    expect(
+      resumoOcorrenciasConcluidas(rows, "todos", "todas", "u1").rows.map((r) => r.saleId),
+    ).toEqual(["s2", "s1"]);
+    expect(
+      resumoOcorrenciasConcluidas(rows, "todos", "t1", "todos").rows.map((r) => r.saleId),
+    ).toEqual(["s2", "s1", "s3", "s4"]);
+    expect(rows.find((r) => r.saleId === "s2")?.corretorId).toBe("u2");
+    expect(rows.find((r) => r.saleId === "s2")?.participanteIds).toEqual(["u2", "u1"]);
+  });
+
   it("preserva IDs de ocorrência distintos mesmo na mesma venda", () => {
     const { rows } = preparar();
     expect(rows.find((r) => r.saleId === "s1")).toMatchObject({
@@ -354,6 +386,7 @@ describe("catálogo canônico e filtros combinados", () => {
       relatorioOcorrenciasConcluidasSchema.safeParse({
         occs: [],
         sales: [],
+        participants: [],
         profiles: [],
         teams: [],
         members: [],

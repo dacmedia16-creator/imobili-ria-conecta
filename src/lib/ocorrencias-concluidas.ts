@@ -50,6 +50,13 @@ export const relatorioOcorrenciasConcluidasSchema = z.object({
       corretor_id: idSchema.nullable(),
     }),
   ),
+  participants: z.array(
+    z.object({
+      occurrence_id: idSchema,
+      user_id: idSchema,
+      nome: z.string().nullable(),
+    }),
+  ),
   profiles: z.array(z.object({ id: idSchema, nome: z.string().nullable() })),
   teams: z.array(
     z.object({
@@ -66,6 +73,7 @@ export const relatorioOcorrenciasConcluidasSchema = z.object({
 export type RelatorioOcorrenciasConcluidas = z.infer<typeof relatorioOcorrenciasConcluidasSchema>;
 export type OcorrenciaConcluidaRaw = RelatorioOcorrenciasConcluidas["occs"][number];
 export type VendaConcluidaRaw = RelatorioOcorrenciasConcluidas["sales"][number];
+export type ParticipanteOcorrenciaRaw = RelatorioOcorrenciasConcluidas["participants"][number];
 export type OpcaoRelatorio = { id: string; label: string };
 export type CorretorRelatorio = OpcaoRelatorio & { equipeIds: string[] };
 
@@ -98,6 +106,11 @@ export function catalogoOcorrenciasConcluidas(relatorio: RelatorioOcorrenciasCon
     vinculos.set(id, ids);
   };
   for (const sale of relatorio.sales) if (sale.corretor_id) incluirPessoa(sale.corretor_id);
+  for (const participante of relatorio.participants) {
+    if (!nomes.has(participante.user_id)) {
+      nomes.set(participante.user_id, participante.nome || `Corretor (${participante.user_id})`);
+    }
+  }
   for (const m of relatorio.members) vincular(m.membro_id, m.team_id);
   for (const t of relatorio.teams) if (t.lider_id) vincular(t.lider_id, t.id);
   for (const c of relatorio.coLeaders) vincular(c.user_id, c.team_id);
@@ -130,6 +143,7 @@ export type OcorrenciaConcluidaRow = {
   ocorrenciaId: string;
   saleId: string;
   corretorId: string | null;
+  participanteIds: string[];
   equipeIds: string[];
   imovelLabel: string;
   corretorNome: string | null;
@@ -172,7 +186,7 @@ export function resumoOcorrenciasConcluidas(
     (row) =>
       (mes === "todos" || row.dataAssinatura?.slice(0, 7) === mes) &&
       (equipeId === "todas" || row.equipeIds.includes(equipeId)) &&
-      (corretorId === "todos" || row.corretorId === corretorId),
+      (corretorId === "todos" || row.participanteIds.includes(corretorId)),
   );
   return {
     rows: filtradas,
@@ -196,6 +210,7 @@ export function montarOcorrenciasConcluidas(opts: {
   sales: VendaConcluidaRaw[];
   nomesPorId: Record<string, string>;
   equipesPorCorretor?: ReadonlyMap<string, string[]>;
+  participantesPorOcorrencia?: ReadonlyMap<string, string[]>;
 }): OcorrenciaConcluidaRow[] {
   const salePorId = new Map(opts.sales.map((s) => [s.id, s]));
   const rows: OcorrenciaConcluidaRow[] = opts.occs.map((occ) => {
@@ -205,13 +220,24 @@ export function montarOcorrenciasConcluidas(opts: {
       ocorrenciaId: occ.id,
       saleId: occ.sale_id,
       corretorId,
-      equipeIds: corretorId ? [...(opts.equipesPorCorretor?.get(corretorId) ?? [])] : [],
+      participanteIds: [
+        ...new Set([
+          ...(corretorId ? [corretorId] : []),
+          ...(opts.participantesPorOcorrencia?.get(occ.id) ?? []),
+        ]),
+      ],
+      equipeIds: [],
       imovelLabel: sale ? imovelOuCodigo(sale) : `Venda #${occ.sale_id.slice(0, 8)}`,
       corretorNome: sale?.corretor_id ? (opts.nomesPorId[sale.corretor_id] ?? null) : null,
       valorComissao: Number(occ.valor_comissao ?? 0),
       dataAssinatura: occ.data_assinatura || null,
     };
   });
+  for (const row of rows) {
+    row.equipeIds = [
+      ...new Set(row.participanteIds.flatMap((id) => opts.equipesPorCorretor?.get(id) ?? [])),
+    ];
+  }
   rows.sort(
     (a, b) =>
       (b.dataAssinatura ?? "").localeCompare(a.dataAssinatura ?? "") ||

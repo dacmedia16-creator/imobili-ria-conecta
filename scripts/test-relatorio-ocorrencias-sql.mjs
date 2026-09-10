@@ -23,7 +23,8 @@ let versionedSupplementalHelpers = 0;
 const check = (condition, label) => { assert.ok(condition, label); checks++; };
 const equal = (a, b, label) => { assert.deepEqual(a, b, label); checks++; };
 const read = (path) => readFile(path, 'utf8');
-const migrationPath = resolve(repo, 'supabase/migrations/20260909193000_relatorio_ocorrencias_concluidas.sql');
+const baseMigrationPath = resolve(repo, 'supabase/migrations/20260909193000_relatorio_ocorrencias_concluidas.sql');
+const migrationPath = resolve(repo, 'supabase/migrations/20260910100000_relatorio_ocorrencias_concluidas_participantes.sql');
 const columns = JSON.parse(await read(resolve(catalogDir, 'catalog-columns.json')));
 const policies = JSON.parse(await read(resolve(catalogDir, 'catalog-policies.json')));
 const effectiveFunctions = JSON.parse(await read(resolve(catalogDir, 'catalog-functions.json')));
@@ -144,9 +145,13 @@ try {
   for (const [id, sale, status, value, date] of [[300,200,'concluida',1000,'2026-08-01'],[301,200,'concluida',null,null],[302,201,'pendente',2000,'2026-09-01'],[303,202,'analise_financeiro',3000,'2026-09-02'],[304,203,'devolvida_gestor',4000,null]]) {
     await db.query('INSERT INTO public.occurrences(id,sale_id,status,valor_comissao,data_assinatura,observacoes,financiamento_banco) VALUES ($1,$2,$3,$4,$5,$6,$7)', [uuid(id),uuid(sale),status,value,date,'SECRET_OBS','SECRET_BANK']);
   }
+  await db.query('INSERT INTO public.occurrence_commissions(id,occurrence_id,papel,nome,user_id,valor) VALUES ($1,$2,$3,$4,$5,$6)', [uuid(400),uuid(300),'corretor_vendedor','Pessoa sintética 3',uuid(3),500]);
   check((await db.query('SELECT public.is_active_user($1) AS active',[uuid(21)])).rows[0].active, 'effective old helper allows missing profile; RPC must not');
   await assert.rejects(() => rpc(actors[0]), e => e.code === '42883'); checks++;
   console.log('RED verified: RPC absent (42883) before migration');
+  // The new migration is an additive replacement and therefore must be tested
+  // on top of the already-applied base RPC, not as a fresh CREATE.
+  await db.exec(await read(baseMigrationPath));
   const before = await state();
   const inserts = {
     occurrences:`(id,sale_id,status) VALUES (${q(uuid(900))},${q(uuid(202))},'pendente')`,
@@ -177,7 +182,7 @@ try {
   await db.exec(migration);
   equal(await state(), before, 'migration preserves data, policies, table privileges/RLS and helpers');
   const expected = {
-    occs: ['id','sale_id','valor_comissao','data_assinatura'], sales:['id','codigo_interno','imovel_id','corretor_id'],
+    occs: ['id','sale_id','valor_comissao','data_assinatura'], sales:['id','codigo_interno','imovel_id','corretor_id'], participants:['occurrence_id','user_id','nome'],
     profiles:['id','nome'], teams:['id','nome','parent_team_id','lider_id'], members:['membro_id','team_id'], coLeaders:['user_id','team_id'],
   };
   let canonical;
@@ -195,6 +200,7 @@ try {
   }
   equal(canonical.occs.map(o=>o.id),[uuid(300),uuid(301)],'only completed occurrences');
   equal(canonical.sales.map(s=>s.id),[uuid(200)],'sales linked via occurrence status, unique despite multiple occurrences');
+  equal(canonical.participants.map(p=>p.occurrence_id),[uuid(300)],'completed occurrence participants');
   equal(canonical.occs[1].data_assinatura,null,'no date fallback');
   equal(canonical.occs[1].valor_comissao,null,'preserve commission null');
   equal(canonical.profiles.map(p=>p.id),[1,2,3,8,20,23,30,31,32,33].map(uuid),'canonical roles plus inactive historical owner/leader/co-leader/member; unrelated excluded');
