@@ -143,7 +143,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const primaryNav: NavItem[] = [
     { to: "/dashboard", label: "Início", icon: Home, show: true },
-    { to: "/reservas-salas", label: "Reservar sala", icon: CalendarDays, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
     {
       to: "/financeiro",
@@ -163,6 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: UsersRound,
       show: hasAny(["gestor", "team_leader", "admin", "super_admin"]),
     },
+    { to: "/reservas-salas", label: "Reservar sala", icon: CalendarDays, show: true },
   ];
 
   const reportNav: NavItem[] = [
