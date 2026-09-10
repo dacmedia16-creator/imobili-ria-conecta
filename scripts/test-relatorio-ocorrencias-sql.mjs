@@ -24,7 +24,7 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
 const equal = (a, b, label) => { assert.deepEqual(a, b, label); checks++; };
 const read = (path) => readFile(path, 'utf8');
 const baseMigrationPath = resolve(repo, 'supabase/migrations/20260909193000_relatorio_ocorrencias_concluidas.sql');
-const migrationPath = resolve(repo, 'supabase/migrations/20260910100000_relatorio_ocorrencias_concluidas_participantes.sql');
+const migrationPath = resolve(repo, 'supabase/migrations/20260910230000_relatorio_ocorrencias_concluidas_participantes.sql');
 const columns = JSON.parse(await read(resolve(catalogDir, 'catalog-columns.json')));
 const policies = JSON.parse(await read(resolve(catalogDir, 'catalog-policies.json')));
 const effectiveFunctions = JSON.parse(await read(resolve(catalogDir, 'catalog-functions.json')));
