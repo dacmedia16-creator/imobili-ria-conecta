@@ -1098,6 +1098,43 @@ function SaleDetail() {
     setResumoSaveFailed(false);
   };
 
+  const removerParcela2Recebimento = () => {
+    const parcela3Preenchida =
+      formSale.previsao_recebimento3_valor != null ||
+      !!formSale.previsao_recebimento3_data ||
+      !!formSale.previsao_recebimento3_forma;
+    if (parcela3Preenchida) {
+      // Mantém a sequência das parcelas: a 3ª ocupa o lugar da 2ª antes de a 3ª ser limpa.
+      updResumo({
+        previsao_recebimento2_valor: formSale.previsao_recebimento3_valor ?? null,
+        previsao_recebimento2_data: formSale.previsao_recebimento3_data ?? null,
+        previsao_recebimento2_forma: formSale.previsao_recebimento3_forma ?? "",
+        previsao_recebimento3_valor: null,
+        previsao_recebimento3_data: null,
+        previsao_recebimento3_forma: "",
+      });
+      setShowParcela2Recebimento(true);
+      setShowParcela3Recebimento(false);
+    } else {
+      updResumo({
+        previsao_recebimento2_valor: null,
+        previsao_recebimento2_data: null,
+        previsao_recebimento2_forma: "",
+      });
+      setShowParcela2Recebimento(false);
+      setShowParcela3Recebimento(false);
+    }
+  };
+
+  const removerParcela3Recebimento = () => {
+    updResumo({
+      previsao_recebimento3_valor: null,
+      previsao_recebimento3_data: null,
+      previsao_recebimento3_forma: "",
+    });
+    setShowParcela3Recebimento(false);
+  };
+
   const setParceriaExternaLado = (lado: "captador" | "vendedor", ativa: boolean) => {
     const sufixo = lado === "captador" ? "captador" : "vendedor";
     updResumo({
@@ -2816,6 +2853,20 @@ function SaleDetail() {
                                 />
                               </Field>
                             </FieldGrid>
+                            {editableComissao && (
+                              <div className="mt-2 flex justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-destructive"
+                                  onClick={removerParcela2Recebimento}
+                                >
+                                  <XCircle className="mr-1 h-4 w-4" />
+                                  Remover 2ª parcela
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                         {(showParcela3Recebimento ||
@@ -2854,6 +2905,20 @@ function SaleDetail() {
                                 />
                               </Field>
                             </FieldGrid>
+                            {editableComissao && (
+                              <div className="mt-2 flex justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-destructive"
+                                  onClick={removerParcela3Recebimento}
+                                >
+                                  <XCircle className="mr-1 h-4 w-4" />
+                                  Remover 3ª parcela
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                         {editableComissao &&
