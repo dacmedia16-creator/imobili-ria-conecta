@@ -68,8 +68,7 @@ import {
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
-import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
-import { selecionarVendasComerciais } from "@/lib/vendas-data-comercial";
+import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
@@ -90,19 +89,13 @@ type RawSale = Pick<
   | "data_assinatura"
 >;
 type SalesListRow = RawSale & { data_venda: string };
-type FilterableQuery<T> = {
-  eq(column: string, value: unknown): T;
-  in(column: string, values: readonly unknown[]): T;
-
-  or(filters: string): T;
-};
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
   component: SalesList,
 });
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 10;
 const SALES_LIST_STATE_KEY = "adm-max:vendas-list-state";
 const SALES_LIST_RESTORE_KEY = "adm-max:vendas-list-restore";
 type SalesListState = {
@@ -136,19 +129,14 @@ function readSalesListState(): Partial<SalesListState> | null {
   }
 }
 
-const SALE_COLUMNS =
-  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_captador, corretor_vendedor, updated_at, created_at, corretor_id, modalidade, data_assinatura";
-
 function SalesList() {
   const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
   const [savedListState] = useState(readSalesListState);
   const [sales, setSales] = useState<SalesListRow[]>([]);
-  const allSalesRef = useRef<SalesListRow[]>([]);
   const [loadError, setLoadError] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<string>(savedListState?.statusFilter ?? "todas");
   const [vezFilter, setVezFilter] = useState<string>(savedListState?.vezFilter ?? "todas");
@@ -296,38 +284,24 @@ function SalesList() {
     })();
   }, []);
 
-  // Busca por nome de comprador/vendedor (sale_parties) precisa de uma consulta à parte pra achar
-  // quais vendas batem, já que esse dado não mora em "sales" — o resultado vira um id.in.(...)
-  // somado aos campos de texto que já existem na própria linha da venda. Extraído de fetchPage
-  // pra ser reaproveitado pelo resumo (contador + valor total), que precisa dos mesmos filtros
-  // mas sem a paginação.
-  const buildFilters = useCallback(async (): Promise<{
-    status?: string;
-    statuses?: SaleStatus[];
-    orParts?: string[];
-    desde?: string;
-    ate?: string;
-    corretorIds?: string[];
-  }> => {
+  const buildFilters = useCallback(() => {
     const filters: {
       status?: string;
-      statuses?: SaleStatus[];
-      orParts?: string[];
+      statuses?: string[];
       desde?: string;
       ate?: string;
+      q?: string;
       corretorIds?: string[];
     } = {};
     if (statusFilter !== "todas") filters.status = statusFilter;
     if (statusFilter === "todas" && vezFilter !== "todas")
       filters.statuses = statusDaVezDeAgir(vezFilter as VezDeAgir);
     // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
-    // uuid que nunca bate em vez de deixar o .in() vazio, que o PostgREST trataria como "sem filtro".
+    // uuid que nunca bate em vez de deixar o array vazio ser interpretado como ausência de filtro.
     if (equipeFilter !== "todas")
       filters.corretorIds = memberIdsByTeam[equipeFilter]?.length
         ? memberIdsByTeam[equipeFilter]
         : ["00000000-0000-0000-0000-000000000000"];
-    // Chip de dias e período customizado (De/Até) são mutualmente exclusivos — os handlers do
-    // chip e dos inputs de data já zeram um ao escolher o outro, então só um dos dois se aplica aqui.
     if (diasFilter) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - diasFilter);
@@ -336,77 +310,21 @@ function SalesList() {
       if (dataDe) filters.desde = dataDe;
       if (dataAte) filters.ate = dataAte;
     }
-    // "," e "()" têm significado especial na sintaxe de filtro do PostgREST (separador de
-    // condições e escopo de valor) — removidos aqui pra um termo de busca com esses caracteres
-    // não quebrar a query. O ilike em si (comparação por método, não string crua) não precisa disso.
-    const qSafe = q.replace(/[,()]/g, "").trim();
-    if (qSafe) {
-      const { data: matchingParties, error } = await supabase
-        .from("sale_parties")
-        .select("sale_id")
-        .ilike("nome", `%${qSafe}%`);
-      if (error) throw error;
-      const partySaleIds = Array.from(new Set((matchingParties ?? []).map((p) => p.sale_id)));
-      const orParts = [
-        `imovel_id.ilike.%${qSafe}%`,
-        `codigo_interno.ilike.%${qSafe}%`,
-        `corretor_captador.ilike.%${qSafe}%`,
-        `corretor_vendedor.ilike.%${qSafe}%`,
-      ];
-      if (partySaleIds.length) orParts.push(`id.in.(${partySaleIds.join(",")})`);
-      filters.orParts = orParts;
-    }
+    filters.q = q.replace(/[,()]/g, "").trim() || undefined;
     return filters;
   }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
 
-  const applyFilters = <T extends FilterableQuery<T>>(
-    query: T,
-    filters: {
-      status?: string;
-      statuses?: SaleStatus[];
-      orParts?: string[];
-      desde?: string;
-      ate?: string;
-      corretorIds?: string[];
+  const fetchSales = useCallback(
+    async (page: number) => {
+      const filters = buildFilters();
+      return fetchVendasComerciaisPaginadas({
+        page,
+        pageSize: PAGE_SIZE,
+        ...filters,
+      });
     },
-  ) => {
-    let out = query;
-    if (filters.status) out = out.eq("status", filters.status);
-    if (filters.statuses) out = out.in("status", filters.statuses);
-
-    if (filters.orParts) out = out.or(filters.orParts.join(","));
-    if (filters.corretorIds) out = out.in("corretor_id", filters.corretorIds);
-    return out;
-  };
-
-  // Uma única seleção comercial alimenta lista, paginação, contagem e total.
-  const fetchSales = useCallback(async () => {
-    const [filters, validas] = await Promise.all([buildFilters(), fetchVendasComerciaisValidas()]);
-    const rows: RawSale[] = [];
-    const batchSize = 500;
-    for (let from = 0; ; from += batchSize) {
-      const query = applyFilters(supabase.from("sales").select(SALE_COLUMNS).order("id"), filters);
-      const { data, error } = await query.range(from, from + batchSize - 1);
-      if (error) throw error;
-      rows.push(...(data ?? []));
-      if ((data?.length ?? 0) < batchSize) break;
-    }
-    const idsValidos = new Set(validas.map((venda) => venda.sale_id));
-    const elegiveis = rows.filter((row) => idsValidos.has(row.id));
-    const idsPadrao = elegiveis
-      .filter((row) => row.modalidade !== "lancamento")
-      .map((row) => row.id);
-    const occurrences: Array<{ sale_id: string; data_assinatura: string | null }> = [];
-    for (let from = 0; from < idsPadrao.length; from += 100) {
-      const { data, error } = await supabase
-        .from("occurrences")
-        .select("sale_id, data_assinatura")
-        .in("sale_id", idsPadrao.slice(from, from + 100));
-      if (error) throw error;
-      occurrences.push(...(data ?? []));
-    }
-    return selecionarVendasComerciais(elegiveis, validas, occurrences, filters);
-  }, [buildFilters]);
+    [buildFilters],
+  );
 
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
   // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
@@ -455,63 +373,72 @@ function SalesList() {
   // chegar depois da mais recente e sobrescrever a lista com um resultado errado/desatualizado.
   const requestIdRef = useRef(0);
 
-  const load = useCallback(async () => {
-    const myRequestId = ++requestIdRef.current;
-    setLoading(true);
-    setLoadingMore(false);
-    setLoadError(false);
-    try {
-      const [allRows, resumoFinanceiro] = await Promise.all([fetchSales(), fetchSummary()]);
-      if (requestIdRef.current !== myRequestId) return;
-      allSalesRef.current = allRows;
-      const rows = allRows.slice(0, PAGE_SIZE);
-      setSales(rows);
-      setTotalCount(allRows.length);
-      setTotalValor(allRows.reduce((sum, venda) => sum + (Number(venda.valor_negociado) || 0), 0));
-      setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
-      setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
-      setStageSince({});
-      setHasMore(allRows.length > rows.length);
-      await mergeStageSince(
-        rows.map((s) => s.id),
-        myRequestId,
-      );
-    } catch {
-      if (requestIdRef.current !== myRequestId) return;
-      allSalesRef.current = [];
-      setSales([]);
-      setTotalCount(null);
-      setHasMore(false);
-      setLoadError(true);
-      toast.error("Não foi possível carregar as vendas. Tente novamente.");
-    } finally {
-      if (requestIdRef.current === myRequestId) setLoading(false);
-    }
-  }, [fetchSales, fetchSummary]);
+  const load = useCallback(
+    async (pageToLoad: number) => {
+      const myRequestId = ++requestIdRef.current;
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const [pageResult, resumoFinanceiro] = await Promise.all([
+          fetchSales(pageToLoad),
+          fetchSummary(),
+        ]);
+        if (requestIdRef.current !== myRequestId) return;
+        const rows = pageResult.rows as unknown as SalesListRow[];
+        setSales(rows);
+        setTotalCount(pageResult.total_count);
+        setTotalValor(Number(pageResult.total_valor) || 0);
+        setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
+        setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
+        setStageSince({});
+        await mergeStageSince(
+          rows.map((s) => s.id),
+          myRequestId,
+        );
+      } catch {
+        if (requestIdRef.current !== myRequestId) return;
+        setSales([]);
+        setTotalCount(null);
+        setLoadError(true);
+        toast.error("Não foi possível carregar as vendas. Tente novamente.");
+      } finally {
+        if (requestIdRef.current === myRequestId) setLoading(false);
+      }
+    },
+    [fetchSales, fetchSummary],
+  );
+
+  const filterKey = [
+    statusFilter,
+    vezFilter,
+    diasFilter,
+    dataDe,
+    dataAte,
+    q,
+    soMinhaVez,
+    equipeFilter,
+  ].join("|");
+  const previousFilterKeyRef = useRef(filterKey);
 
   useEffect(() => {
     if (waitingForSavedTeamFilter) return;
-    load();
+    if (previousFilterKeyRef.current !== filterKey) {
+      previousFilterKeyRef.current = filterKey;
+      if (page !== 0) {
+        setPage(0);
+        return;
+      }
+    }
+    load(page);
     return () => {
       requestIdRef.current += 1;
     };
-  }, [load, refreshKey, waitingForSavedTeamFilter]);
+  }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey]);
 
-  const loadMore = async () => {
-    if (loading || loadingMore) return;
-    const myRequestId = requestIdRef.current;
-    setLoadingMore(true);
-    const rows = allSalesRef.current.slice(sales.length, sales.length + PAGE_SIZE);
-    setSales((prev) => [...prev, ...rows]);
-    setHasMore(allSalesRef.current.length > sales.length + rows.length);
-    try {
-      await mergeStageSince(
-        rows.map((s) => s.id),
-        myRequestId,
-      );
-    } finally {
-      if (requestIdRef.current === myRequestId) setLoadingMore(false);
-    }
+  const goToPage = (nextPage: number) => {
+    if (loading || nextPage < 0 || (totalCount !== null && nextPage * PAGE_SIZE >= totalCount))
+      return;
+    setPage(nextPage);
   };
 
   const onConfirmDelete = async () => {
@@ -558,6 +485,9 @@ function SalesList() {
     [isOverseer, user?.id, hasAny, teamIds],
   );
   const displayedSales = soMinhaVez ? sales.filter(saleIsMinhaVez) : sales;
+  const totalPages = totalCount ? Math.ceil(totalCount / PAGE_SIZE) : 0;
+  const hasPreviousPage = page > 0;
+  const hasNextPage = totalCount !== null && (page + 1) * PAGE_SIZE < totalCount;
   const registrarAction = registrarVendaAction(roles);
 
   const registrarVendaButton =
@@ -848,8 +778,7 @@ function SalesList() {
           )}
           {!loading && sales.length > 0 && displayedSales.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma venda esperando sua ação na página carregada.{" "}
-              {hasMore && "Carregue mais vendas ou desative o filtro pra ver o restante."}
+              Nenhuma venda esperando sua ação nesta página.
             </p>
           )}
           {!loading && displayedSales.length > 0 && (
@@ -1011,10 +940,26 @@ function SalesList() {
                   </TableBody>
                 </Table>
               </div>
-              {hasMore && (
-                <div className="flex justify-center pt-4">
-                  <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
-                    {loadingMore ? "Carregando..." : "Carregar mais"}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={!hasPreviousPage || loading}
+                  >
+                    ← Anterior
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Página {page + 1} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={!hasNextPage || loading}
+                  >
+                    Próxima →
                   </Button>
                 </div>
               )}

@@ -1585,6 +1585,19 @@ export type Database = {
           nome: string | null;
         }[];
       };
+      list_vendas_comerciais_paginadas: {
+        Args: {
+          _ate?: string;
+          _corretor_ids?: string[];
+          _desde?: string;
+          _page?: number;
+          _page_size?: number;
+          _q?: string;
+          _status?: string;
+          _statuses?: string[];
+        };
+        Returns: Json;
+      };
       can_view_sale: {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;
