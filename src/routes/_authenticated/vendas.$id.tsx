@@ -2788,7 +2788,7 @@ function SaleDetail() {
                             </>
                           )}
                         </p>
-                        <FieldGrid>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                           <Field label="1ª parcela — valor (R$)">
                             <CurrencyInput
                               value={formSale.previsao_recebimento_valor}
@@ -2806,7 +2806,7 @@ function SaleDetail() {
                               }
                             />
                           </Field>
-                          <Field label="1ª parcela — forma de pagamento" colSpan={2}>
+                          <Field label="1ª parcela — forma de pagamento">
                             <Input
                               value={formSale.previsao_recebimento_forma ?? ""}
                               placeholder="PIX, TED, boleto..."
@@ -2816,13 +2816,13 @@ function SaleDetail() {
                               }
                             />
                           </Field>
-                        </FieldGrid>
+                        </div>
                         {(showParcela2Recebimento ||
                           formSale.previsao_recebimento2_valor != null ||
                           formSale.previsao_recebimento2_data ||
                           formSale.previsao_recebimento2_forma) && (
                           <div className="mt-3">
-                            <FieldGrid>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                               <Field label="2ª parcela — valor (R$)">
                                 <CurrencyInput
                                   value={formSale.previsao_recebimento2_valor}
@@ -2842,7 +2842,7 @@ function SaleDetail() {
                                   }
                                 />
                               </Field>
-                              <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+                              <Field label="2ª parcela — forma de pagamento">
                                 <Input
                                   value={formSale.previsao_recebimento2_forma ?? ""}
                                   placeholder="PIX, TED, boleto..."
@@ -2852,7 +2852,7 @@ function SaleDetail() {
                                   }
                                 />
                               </Field>
-                            </FieldGrid>
+                            </div>
                             {editableComissao && (
                               <div className="mt-2 flex justify-end">
                                 <Button
@@ -2874,7 +2874,7 @@ function SaleDetail() {
                           formSale.previsao_recebimento3_data ||
                           formSale.previsao_recebimento3_forma) && (
                           <div className="mt-3">
-                            <FieldGrid>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                               <Field label="3ª parcela — valor (R$)">
                                 <CurrencyInput
                                   value={formSale.previsao_recebimento3_valor}
@@ -2894,7 +2894,7 @@ function SaleDetail() {
                                   }
                                 />
                               </Field>
-                              <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+                              <Field label="3ª parcela — forma de pagamento">
                                 <Input
                                   value={formSale.previsao_recebimento3_forma ?? ""}
                                   placeholder="PIX, TED, boleto..."
@@ -2904,7 +2904,7 @@ function SaleDetail() {
                                   }
                                 />
                               </Field>
-                            </FieldGrid>
+                            </div>
                             {editableComissao && (
                               <div className="mt-2 flex justify-end">
                                 <Button
