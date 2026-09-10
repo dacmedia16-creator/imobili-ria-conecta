@@ -1,3 +1,13 @@
+export const ROOM_RESERVATION_ROOMS = [
+  "Barão Sala 1",
+  "Barão Sala 2",
+  "Barão Sala 3",
+  "Barão Sala 4",
+  "Barão CT",
+  "Campolim Sala 1",
+  "Campolim Sala 2",
+] as const;
+
 export const ROOM_RESERVATION_PURPOSES = [
   "Reunião com cliente",
   "Reunião de equipe",

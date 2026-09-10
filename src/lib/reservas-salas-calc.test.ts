@@ -4,6 +4,7 @@ import {
   hasRoomReservationConflict,
   intervalsOverlap,
   ROOM_RESERVATION_PURPOSES,
+  ROOM_RESERVATION_ROOMS,
   timeToMinutes,
 } from "./reservas-salas-calc";
 
@@ -20,6 +21,18 @@ describe("reservas de salas — regras de horário", () => {
 
   it("não altera horários ao escolher personalizado", () => {
     expect(getRoomReservationPeriodTimes("custom")).toBeNull();
+  });
+
+  it("mantém as salas organizadas por unidade", () => {
+    expect(ROOM_RESERVATION_ROOMS).toEqual([
+      "Barão Sala 1",
+      "Barão Sala 2",
+      "Barão Sala 3",
+      "Barão Sala 4",
+      "Barão CT",
+      "Campolim Sala 1",
+      "Campolim Sala 2",
+    ]);
   });
 
   it("mantém as finalidades disponíveis para reserva", () => {

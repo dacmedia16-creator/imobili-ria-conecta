@@ -32,6 +32,7 @@ import {
   hasRoomReservationConflict,
   intervalsOverlap,
   ROOM_RESERVATION_PURPOSES,
+  ROOM_RESERVATION_ROOMS,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
 import type { RoomReservationPeriod } from "@/lib/reservas-salas-calc";
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/_authenticated/reservas-salas")({
   component: RoomReservationsPage,
 });
 
-const ROOMS = ["Sala 1", "Sala 2", "Sala 3", "Sala 4", "CT"] as const;
+const ROOMS = ROOM_RESERVATION_ROOMS;
 const TIME_SLOTS = [
   "08:00",
   "09:00",
@@ -152,7 +153,7 @@ function RoomReservationsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<DraftReservation>({
-    room: "Sala 2",
+    room: "Barão Sala 2",
     date: initialDate,
     start: "14:00",
     end: "15:00",
@@ -236,7 +237,7 @@ function RoomReservationsPage() {
     [activeReservations, draft],
   );
 
-  const openNewReservation = (room: (typeof ROOMS)[number] = "Sala 2", start = "14:00") => {
+  const openNewReservation = (room: (typeof ROOMS)[number] = "Barão Sala 2", start = "14:00") => {
     setDraft({
       room,
       date: selectedDate,
