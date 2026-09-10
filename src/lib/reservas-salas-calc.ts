@@ -64,6 +64,37 @@ export type RoomReservationInterval = {
   status?: string;
 };
 
+export type RoomReservationDateRange = RoomReservationInterval & {
+  endDate: string;
+};
+
+export function getInclusiveRoomReservationDates(startDate: string, endDate: string): string[] {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+
+  const dates: string[] = [];
+  for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+export function getRoomReservationDateRangeConflicts(
+  reservations: RoomReservationInterval[],
+  draft: RoomReservationDateRange,
+): string[] {
+  return getInclusiveRoomReservationDates(draft.date, draft.endDate).filter((date) =>
+    reservations.some(
+      (reservation) =>
+        reservation.status !== "canceled" &&
+        reservation.room === draft.room &&
+        reservation.date === date &&
+        intervalsOverlap(draft.start, draft.end, reservation.start, reservation.end),
+    ),
+  );
+}
+
 export function timeToMinutes(time: string): number {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;

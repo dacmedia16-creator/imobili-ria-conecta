@@ -28,9 +28,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getInclusiveRoomReservationDates,
   getRoomReservationCancellationNotice,
+  getRoomReservationDateRangeConflicts,
   getRoomReservationPeriodTimes,
-  hasRoomReservationConflict,
   intervalsOverlap,
   ROOM_RESERVATION_PURPOSES,
   ROOM_RESERVATION_ROOMS,
@@ -69,8 +70,10 @@ const RESERVATION_PERIODS: Array<{ value: RoomReservationPeriod; label: string }
 
 type Reservation = {
   id: string;
+  groupId: string;
   room: (typeof ROOMS)[number];
   date: string;
+  endDate: string;
   start: string;
   end: string;
   responsibleId: string;
@@ -118,6 +121,12 @@ const formatDate = (date: string) =>
     year: "numeric",
   });
 
+const formatReservationPeriod = (startDate: string, endDate: string) => {
+  const start = dateFromISO(startDate).toLocaleDateString("pt-BR");
+  const end = dateFromISO(endDate).toLocaleDateString("pt-BR");
+  return startDate === endDate ? start : `${start} a ${end}`;
+};
+
 const toISO = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
@@ -129,8 +138,10 @@ const mapReservation = (
   responsibleName = row.responsible_name,
 ): Reservation => ({
   id: row.id,
+  groupId: row.reservation_group_id,
   room: row.room as Reservation["room"],
   date: row.reserved_date,
+  endDate: row.reserved_date,
   start: row.start_time.slice(0, 5),
   end: row.end_time.slice(0, 5),
   responsibleId: row.responsible_id,
@@ -142,6 +153,27 @@ const mapReservation = (
   status: row.status as Reservation["status"],
   canCancel,
 });
+
+const groupReservationsByPeriod = (items: Reservation[]): Reservation[] => {
+  const groups = new Map<string, Reservation[]>();
+  for (const item of items) {
+    const group = groups.get(item.groupId) ?? [];
+    group.push(item);
+    groups.set(item.groupId, group);
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    const first = [...group].sort((a, b) => a.date.localeCompare(b.date))[0];
+    return {
+      ...first,
+      endDate: group.reduce(
+        (latest, item) => (item.date > latest ? item.date : latest),
+        first.date,
+      ),
+      canCancel: group.every((item) => item.canCancel),
+    };
+  });
+};
 
 function RoomReservationsPage() {
   const { user } = useAuth();
@@ -161,6 +193,7 @@ function RoomReservationsPage() {
   const [draft, setDraft] = useState<DraftReservation>({
     room: "Barão Sala 2",
     date: initialDate,
+    endDate: initialDate,
     start: "14:00",
     end: "15:00",
     period: "custom",
@@ -241,22 +274,33 @@ function RoomReservationsPage() {
   const selectedReservations = activeReservations.filter(
     (reservation) => reservation.date === selectedDate,
   );
-  const myReservations = activeReservations
-    .filter((reservation) => reservation.responsibleId === user?.id)
-    .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
-  const manageableReservations = activeReservations
-    .filter((reservation) => reservation.canCancel && reservation.responsibleId !== user?.id)
-    .sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
+  const myReservations = groupReservationsByPeriod(
+    activeReservations.filter((reservation) => reservation.responsibleId === user?.id),
+  ).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
+  const manageableReservations = groupReservationsByPeriod(
+    activeReservations.filter(
+      (reservation) => reservation.canCancel && reservation.responsibleId !== user?.id,
+    ),
+  ).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
 
-  const conflict = useMemo(
-    () => hasRoomReservationConflict(activeReservations, draft),
-    [activeReservations, draft],
+  const conflictingDates = useMemo(
+    () =>
+      getRoomReservationDateRangeConflicts(activeReservations, {
+        room: draft.room,
+        date: draft.date,
+        endDate: draft.endDate,
+        start: draft.start,
+        end: draft.end,
+      }),
+    [activeReservations, draft.date, draft.endDate, draft.end, draft.room, draft.start],
   );
+  const conflict = conflictingDates.length > 0;
 
   const openNewReservation = (room: (typeof ROOMS)[number] = "Barão Sala 2", start = "14:00") => {
     setDraft({
       room,
       date: selectedDate,
+      endDate: selectedDate,
       start,
       end: nextHour(start),
       period: "custom",
@@ -300,28 +344,42 @@ function RoomReservationsPage() {
       toast.error("O horário final precisa ser posterior ao horário inicial.");
       return;
     }
+    const reservationDates = getInclusiveRoomReservationDates(draft.date, draft.endDate);
+    if (reservationDates.length === 0) {
+      toast.error("A data final precisa ser igual ou posterior à data inicial.");
+      return;
+    }
     if (conflict) {
-      toast.error("Essa sala já está reservada nesse período.");
+      toast.error(
+        `Essa sala já está reservada nos dias: ${conflictingDates
+          .map((date) => dateFromISO(date).toLocaleDateString("pt-BR"))
+          .join(", ")}.`,
+      );
       return;
     }
 
-    const { error } = await supabase.from("room_reservations").insert({
-      room: draft.room,
-      reserved_date: draft.date,
-      start_time: draft.start,
-      end_time: draft.end,
-      responsible_id: user.id,
-      responsible_name: responsibleName.trim(),
-      participants: draft.participants
-        .split(",")
-        .map((participant) => participant.trim())
-        .filter(Boolean),
-      participant_user_ids: draft.participantUserIds,
-      purpose: draft.purpose,
-      notes: draft.notes.trim(),
-      cancellation_deadline_minutes: 0,
-      reminder_minutes_before: 30,
-    });
+    const reservationGroupId = crypto.randomUUID();
+    const participants = draft.participants
+      .split(",")
+      .map((participant) => participant.trim())
+      .filter(Boolean);
+    const { error } = await supabase.from("room_reservations").insert(
+      reservationDates.map((reservedDate) => ({
+        reservation_group_id: reservationGroupId,
+        room: draft.room,
+        reserved_date: reservedDate,
+        start_time: draft.start,
+        end_time: draft.end,
+        responsible_id: user.id,
+        responsible_name: responsibleName.trim(),
+        participants,
+        participant_user_ids: draft.participantUserIds,
+        purpose: draft.purpose,
+        notes: draft.notes.trim(),
+        cancellation_deadline_minutes: 0,
+        reminder_minutes_before: 30,
+      })),
+    );
 
     if (error) {
       if (error.code === "23P01") {
@@ -560,7 +618,7 @@ function RoomReservationsPage() {
                     <Badge variant="outline">{reservation.purpose}</Badge>
                   </div>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    {dateFromISO(reservation.date).toLocaleDateString("pt-BR")} ·{" "}
+                    {formatReservationPeriod(reservation.date, reservation.endDate)} ·{" "}
                     {reservation.start} às {reservation.end}
                   </div>
                   {reservation.participants.length > 0 && (
@@ -597,7 +655,7 @@ function RoomReservationsPage() {
                       <Badge variant="outline">{reservation.purpose}</Badge>
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {dateFromISO(reservation.date).toLocaleDateString("pt-BR")} ·{" "}
+                      {formatReservationPeriod(reservation.date, reservation.endDate)} ·{" "}
                       {reservation.start} às {reservation.end} · {reservation.responsible}
                     </div>
                   </div>
@@ -676,14 +734,33 @@ function RoomReservationsPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="reservation-date" className="text-sm font-medium">
-                Data
+                Data de início
               </label>
               <Input
                 id="reservation-date"
                 type="date"
                 value={draft.date}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, date: event.target.value }))
+                  setDraft((current) => ({
+                    ...current,
+                    date: event.target.value,
+                    endDate:
+                      current.endDate < event.target.value ? event.target.value : current.endDate,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="reservation-end-date" className="text-sm font-medium">
+                Data final
+              </label>
+              <Input
+                id="reservation-end-date"
+                type="date"
+                min={draft.date}
+                value={draft.endDate}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, endDate: event.target.value }))
                 }
               />
             </div>

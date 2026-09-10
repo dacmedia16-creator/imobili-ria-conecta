@@ -1074,6 +1074,7 @@ export type Database = {
           reminder_minutes_before: number;
           reminder_sent_at: string | null;
           reserved_date: string;
+          reservation_group_id: string;
           responsible_id: string;
           responsible_name: string;
           room: string;
@@ -1096,6 +1097,7 @@ export type Database = {
           reminder_minutes_before?: number;
           reminder_sent_at?: string | null;
           reserved_date: string;
+          reservation_group_id?: string;
           responsible_id: string;
           responsible_name: string;
           room: string;
@@ -1118,6 +1120,7 @@ export type Database = {
           reminder_minutes_before?: number;
           reminder_sent_at?: string | null;
           reserved_date?: string;
+          reservation_group_id?: string;
           responsible_id?: string;
           responsible_name?: string;
           room?: string;

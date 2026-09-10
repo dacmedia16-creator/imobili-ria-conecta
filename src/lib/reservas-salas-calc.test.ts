@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  getInclusiveRoomReservationDates,
   getRoomReservationCancellationNotice,
+  getRoomReservationDateRangeConflicts,
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
@@ -79,6 +81,31 @@ describe("reservas de salas — regras de horário", () => {
         false,
       ),
     ).toContain("não contou para a penalidade");
+  });
+
+  it("gera o intervalo incluindo as datas inicial e final", () => {
+    expect(getInclusiveRoomReservationDates("2026-10-10", "2026-10-13")).toEqual([
+      "2026-10-10",
+      "2026-10-11",
+      "2026-10-12",
+      "2026-10-13",
+    ]);
+    expect(getInclusiveRoomReservationDates("2026-10-13", "2026-10-10")).toEqual([]);
+  });
+
+  it("encontra conflito em qualquer dia do intervalo", () => {
+    expect(
+      getRoomReservationDateRangeConflicts(
+        [{ room: "Barão CT", date: "2026-10-12", start: "08:00", end: "12:00" }],
+        {
+          room: "Barão CT",
+          date: "2026-10-10",
+          endDate: "2026-10-13",
+          start: "08:00",
+          end: "12:00",
+        },
+      ),
+    ).toEqual(["2026-10-12"]);
   });
 
   it("considera sobreposição parcial e total", () => {
