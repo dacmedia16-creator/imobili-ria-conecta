@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getRoomReservationCancellationNotice,
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
@@ -47,6 +48,37 @@ describe("reservas de salas — regras de horário", () => {
       "Diretoria",
       "Outra finalidade",
     ]);
+  });
+
+  it("informa quantos cancelamentos faltam para o bloqueio", () => {
+    expect(
+      getRoomReservationCancellationNotice(
+        { lateCancellationCount: 2, remainingCancellations: 1, blockedUntil: null },
+        true,
+      ),
+    ).toContain("Faltam 1 para o bloqueio de 7 dias.");
+  });
+
+  it("informa o período do bloqueio ao atingir três cancelamentos", () => {
+    expect(
+      getRoomReservationCancellationNotice(
+        {
+          lateCancellationCount: 3,
+          remainingCancellations: 0,
+          blockedUntil: "2026-10-01T12:00:00Z",
+        },
+        true,
+      ),
+    ).toContain("até 01/10/2026");
+  });
+
+  it("informa quando o cancelamento ocorreu na primeira hora", () => {
+    expect(
+      getRoomReservationCancellationNotice(
+        { lateCancellationCount: 0, remainingCancellations: 3, blockedUntil: null },
+        false,
+      ),
+    ).toContain("não contou para a penalidade");
   });
 
   it("considera sobreposição parcial e total", () => {

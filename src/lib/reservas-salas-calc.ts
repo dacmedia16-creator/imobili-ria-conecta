@@ -22,6 +22,31 @@ export const ROOM_RESERVATION_PURPOSES = [
 
 export type RoomReservationPeriod = "custom" | "morning" | "afternoon" | "full_day";
 
+export const ROOM_RESERVATION_CANCELLATION_LIMIT = 3;
+export const ROOM_RESERVATION_CANCELLATION_BLOCK_DAYS = 7;
+
+export type RoomReservationCancellationStatus = {
+  lateCancellationCount: number;
+  remainingCancellations: number;
+  blockedUntil: string | null;
+};
+
+export function getRoomReservationCancellationNotice(
+  status: RoomReservationCancellationStatus,
+  wasLateCancellation: boolean,
+): string {
+  if (!wasLateCancellation) {
+    return "Reserva cancelada. Como o cancelamento ocorreu na primeira hora, ele não contou para a penalidade.";
+  }
+
+  if (status.blockedUntil) {
+    const blockedUntil = new Date(status.blockedUntil).toLocaleDateString("pt-BR");
+    return `Reserva cancelada. Este foi seu ${status.lateCancellationCount}º cancelamento após a primeira hora. Você atingiu o limite e ficará bloqueado para novas reservas até ${blockedUntil}.`;
+  }
+
+  return `Reserva cancelada. Você tem ${status.lateCancellationCount} de ${ROOM_RESERVATION_CANCELLATION_LIMIT} cancelamentos após a primeira hora. Faltam ${status.remainingCancellations} para o bloqueio de 7 dias.`;
+}
+
 export function getRoomReservationPeriodTimes(
   period: RoomReservationPeriod,
 ): { start: string; end: string } | null {

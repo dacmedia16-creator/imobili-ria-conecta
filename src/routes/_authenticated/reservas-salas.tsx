@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getRoomReservationCancellationNotice,
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
@@ -35,7 +36,10 @@ import {
   ROOM_RESERVATION_ROOMS,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
-import type { RoomReservationPeriod } from "@/lib/reservas-salas-calc";
+import type {
+  RoomReservationCancellationStatus,
+  RoomReservationPeriod,
+} from "@/lib/reservas-salas-calc";
 
 export const Route = createFileRoute("/_authenticated/reservas-salas")({
   head: () => ({ meta: [{ title: "Agendamento de salas" }] }),
@@ -151,6 +155,8 @@ function RoomReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [cancellationStatus, setCancellationStatus] =
+    useState<RoomReservationCancellationStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<DraftReservation>({
     room: "Barão Sala 2",
@@ -185,6 +191,16 @@ function RoomReservationsPage() {
     } else {
       setLoadError(null);
       const { data: users } = await supabase.rpc("list_room_reservation_users");
+      const { data: penaltyStatus } = await supabase
+        .rpc("get_room_reservation_cancellation_status")
+        .maybeSingle();
+      if (penaltyStatus) {
+        setCancellationStatus({
+          lateCancellationCount: penaltyStatus.late_cancellation_count,
+          remainingCancellations: penaltyStatus.remaining_cancellations,
+          blockedUntil: penaltyStatus.blocked_until,
+        });
+      }
       const profiles = (users ?? []) as RegisteredUser[];
       setRegisteredUsers(profiles);
       const namesById = new Map(
@@ -267,6 +283,15 @@ function RoomReservationsPage() {
       toast.error("Faça login para criar uma reserva.");
       return;
     }
+    if (
+      cancellationStatus?.blockedUntil &&
+      new Date(cancellationStatus.blockedUntil) > new Date()
+    ) {
+      toast.error(
+        `Você está bloqueado para novas reservas até ${new Date(cancellationStatus.blockedUntil).toLocaleDateString("pt-BR")}.`,
+      );
+      return;
+    }
     if (!responsibleName.trim()) {
       toast.error("Informe o responsável pela reserva.");
       return;
@@ -294,7 +319,7 @@ function RoomReservationsPage() {
       participant_user_ids: draft.participantUserIds,
       purpose: draft.purpose,
       notes: draft.notes.trim(),
-      cancellation_deadline_minutes: 60,
+      cancellation_deadline_minutes: 0,
       reminder_minutes_before: 30,
     });
 
@@ -317,31 +342,32 @@ function RoomReservationsPage() {
     if (!user) return;
 
     const { data, error } = await supabase
-      .from("room_reservations")
-      .update({
-        status: "canceled",
-        canceled_at: new Date().toISOString(),
-        canceled_by: user.id,
-      })
-      .eq("id", id)
-      .select("id")
+      .rpc("cancel_room_reservation", { _reservation_id: id })
       .maybeSingle();
 
     if (error) {
-      if (error.code === "22023") {
-        toast.error("O prazo para cancelar esta reserva já terminou.");
+      if (error.code === "42501") {
+        toast.error("Você não tem permissão para cancelar esta reserva.");
+      } else if (error.code === "22023") {
+        toast.error("Esta reserva já foi cancelada ou não pode mais ser alterada.");
       } else {
         toast.error("Não foi possível cancelar a reserva.");
       }
       return;
     }
     if (!data) {
-      toast.error("Você não tem permissão para cancelar esta reserva.");
+      toast.error("Não foi possível confirmar o cancelamento da reserva.");
       return;
     }
 
+    const nextStatus: RoomReservationCancellationStatus = {
+      lateCancellationCount: data.late_cancellation_count,
+      remainingCancellations: data.remaining_cancellations,
+      blockedUntil: data.blocked_until,
+    };
+    setCancellationStatus(nextStatus);
     await loadReservations();
-    toast.success("Reserva cancelada. O horário foi liberado.");
+    toast.success(getRoomReservationCancellationNotice(nextStatus, data.was_late_cancellation));
   };
 
   const reservationForSlot = (room: (typeof ROOMS)[number], slot: string) =>
@@ -372,8 +398,9 @@ function RoomReservationsPage() {
         <Info className="h-4 w-4" />
         <AlertTitle>Agenda compartilhada</AlertTitle>
         <AlertDescription>
-          As reservas são salvas no banco da imobiliária. O cancelamento fica permitido até 60
-          minutos antes do início.
+          As reservas são salvas no banco da imobiliária. O cancelamento pode ser feito a qualquer
+          momento. Cancelamentos feitos depois da primeira hora contam para a regra de bloqueio: ao
+          atingir 3, o usuário fica 7 dias corridos sem poder reservar.
         </AlertDescription>
       </Alert>
       {loadError && (
@@ -383,6 +410,18 @@ function RoomReservationsPage() {
           <AlertDescription>{loadError}</AlertDescription>
         </Alert>
       )}
+
+      {cancellationStatus?.blockedUntil &&
+        new Date(cancellationStatus.blockedUntil) > new Date() && (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Novas reservas bloqueadas</AlertTitle>
+            <AlertDescription>
+              Você atingiu 3 cancelamentos após a primeira hora. Poderá reservar novamente em{" "}
+              {new Date(cancellationStatus.blockedUntil).toLocaleDateString("pt-BR")}.
+            </AlertDescription>
+          </Alert>
+        )}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <Card>

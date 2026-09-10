@@ -1066,6 +1066,7 @@ export type Database = {
           created_at: string;
           end_time: string;
           id: string;
+          late_cancellation: boolean;
           notes: string;
           participants: string[];
           participant_user_ids: string[];
@@ -1087,6 +1088,7 @@ export type Database = {
           created_at?: string;
           end_time: string;
           id?: string;
+          late_cancellation?: boolean;
           notes?: string;
           participants?: string[];
           participant_user_ids?: string[];
@@ -1108,6 +1110,7 @@ export type Database = {
           created_at?: string;
           end_time?: string;
           id?: string;
+          late_cancellation?: boolean;
           notes?: string;
           participants?: string[];
           participant_user_ids?: string[];
@@ -1577,6 +1580,23 @@ export type Database = {
       can_cancel_room_reservation: {
         Args: { _actor?: string; _responsible_id: string };
         Returns: boolean;
+      };
+      cancel_room_reservation: {
+        Args: { _reservation_id: string };
+        Returns: {
+          blocked_until: string | null;
+          late_cancellation_count: number;
+          remaining_cancellations: number;
+          was_late_cancellation: boolean;
+        }[];
+      };
+      get_room_reservation_cancellation_status: {
+        Args: { _user?: string };
+        Returns: {
+          blocked_until: string | null;
+          late_cancellation_count: number;
+          remaining_cancellations: number;
+        }[];
       };
       list_room_reservation_users: {
         Args: Record<PropertyKey, never>;
