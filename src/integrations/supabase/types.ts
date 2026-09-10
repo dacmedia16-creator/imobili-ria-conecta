@@ -1882,7 +1882,8 @@ export type Database = {
         | "admin"
         | "super_admin"
         | "team_leader"
-        | "lancamento";
+        | "lancamento"
+        | "staff";
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado";
       sale_status:
         | "rascunho"

@@ -72,12 +72,13 @@ const ROLES: AppRole[] = [
   "lancamento",
   "admin",
   "super_admin",
+  "staff",
 ];
 
 function allowedRolesFor(roles: AppRole[]): AppRole[] {
   if (roles.includes("super_admin")) return [...ROLES];
   if (roles.includes("admin"))
-    return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "lancamento"];
+    return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "lancamento", "staff"];
   if (roles.includes("gestor") || roles.includes("team_leader")) return ["corretor"];
   return [];
 }

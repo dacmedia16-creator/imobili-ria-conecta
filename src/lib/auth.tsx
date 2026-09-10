@@ -17,7 +17,8 @@ export type AppRole =
   | "financeiro"
   | "admin"
   | "super_admin"
-  | "lancamento";
+  | "lancamento"
+  | "staff";
 
 type AuthCtx = {
   session: Session | null;
@@ -114,4 +115,5 @@ export const ROLE_LABEL: Record<AppRole, string> = {
   admin: "Administrador",
   super_admin: "Super Admin",
   lancamento: "Lançamento",
+  staff: "Staff",
 };
