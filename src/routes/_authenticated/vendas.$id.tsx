@@ -3599,6 +3599,10 @@ function SaleDetail() {
                 <Send className="mr-2 h-4 w-4" />
                 Enviar para assinatura
               </Button>
+              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
+                <XCircle className="mr-2 h-4 w-4" />
+                Devolver ao jurídico
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => openReturnDialog("contrato_conferencia_corretor")}
