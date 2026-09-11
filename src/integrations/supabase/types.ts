@@ -734,6 +734,48 @@ export type Database = {
           },
         ];
       };
+      sale_comment_recipients: {
+        Row: {
+          comment_id: string;
+          created_at: string;
+          id: string;
+          read_at: string | null;
+          sale_id: string;
+          user_id: string;
+        };
+        Insert: {
+          comment_id: string;
+          created_at?: string;
+          id?: string;
+          read_at?: string | null;
+          sale_id: string;
+          user_id: string;
+        };
+        Update: {
+          comment_id?: string;
+          created_at?: string;
+          id?: string;
+          read_at?: string | null;
+          sale_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sale_comment_recipients_comment_id_fkey";
+            columns: ["comment_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_comments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sale_comment_recipients_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sale_commission_extras: {
         Row: {
           created_at: string;

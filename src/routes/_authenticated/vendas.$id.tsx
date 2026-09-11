@@ -148,7 +148,7 @@ import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
-import { notifySaleStatusChange } from "@/lib/sale-notifications.functions";
+import { notifySaleComment, notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import {
   mesclarPessoasAtivas,
   precisaEscolherBeneficiario,
@@ -160,6 +160,7 @@ import type {
   ActivityLogRow,
   BankAccountRow,
   CommentRow,
+  CommentRecipientRow,
   CommissionExtraRow,
   DocumentRow,
   Json,
@@ -310,6 +311,7 @@ function SaleDetail() {
   const [banks, setBanks] = useState<Record<string, BankAccountRow>>({});
   const [docs, setDocs] = useState<DisplayDocument[]>([]);
   const [comments, setComments] = useState<CommentRow[]>([]);
+  const [commentRecipients, setCommentRecipients] = useState<CommentRecipientRow[]>([]);
   const [history, setHistory] = useState<SaleHistoryRow[]>([]);
   const [activity, setActivity] = useState<ActivityLogRow[]>([]);
   const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
@@ -324,6 +326,7 @@ function SaleDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnMotivo, setReturnMotivo] = useState("");
   const [returnTarget, setReturnTarget] = useState<SaleStatus>("devolvida_ajuste");
@@ -568,7 +571,7 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, h, oc, ce, ac, dist, capability] = await Promise.all([
+    const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -584,6 +587,7 @@ function SaleDetail() {
         .select("*")
         .eq("sale_id", id)
         .order("created_at", { ascending: false }),
+      supabase.from("sale_comment_recipients").select("*").eq("sale_id", id),
       supabase
         .from("sale_status_history")
         .select("*")
@@ -609,6 +613,7 @@ function SaleDetail() {
       ba.error,
       d.error,
       c.error,
+      cr.error,
       h.error,
       oc.error,
       ce.error,
@@ -647,6 +652,7 @@ function SaleDetail() {
     setBanks(bankMap);
     setDocs((d.data ?? []) as DisplayDocument[]);
     setComments(c.data ?? []);
+    setCommentRecipients(cr.data ?? []);
     setHistory(h.data ?? []);
     setActivity(ac.data ?? []);
     setAceitaFin((oc.data ?? []).some((o) => o.aceita_financeiro));
@@ -659,6 +665,69 @@ function SaleDetail() {
         .then(() => {});
     }
   }, [id, user]);
+
+  const commentNeedsAttention = useMemo(() => {
+    if (!user?.id) return false;
+    const commentIdsByMe = new Set(comments.filter((c) => c.autor_id === user.id).map((c) => c.id));
+    return commentRecipients.some(
+      (recipient) =>
+        !recipient.read_at &&
+        (recipient.user_id === user.id || commentIdsByMe.has(recipient.comment_id)),
+    );
+  }, [comments, commentRecipients, user?.id]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`sale-comment-recipients:${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sale_comment_recipients",
+          filter: `sale_id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as CommentRecipientRow;
+          setCommentRecipients((rows) =>
+            rows.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  const markCommentsRead = async () => {
+    if (!user?.id) return;
+    const readAt = new Date().toISOString();
+    const [recipientsResult, notificationsResult] = await Promise.all([
+      supabase
+        .from("sale_comment_recipients")
+        .update({ read_at: readAt })
+        .eq("sale_id", id)
+        .eq("user_id", user.id)
+        .is("read_at", null),
+      supabase
+        .from("notifications")
+        .update({ lida: true })
+        .eq("sale_id", id)
+        .eq("user_id", user.id)
+        .eq("tipo", "sale_comment")
+        .eq("lida", false),
+    ]);
+    if (recipientsResult.error || notificationsResult.error) {
+      toast.error("Não foi possível registrar a leitura do comentário.");
+      return;
+    }
+    setCommentRecipients((rows) =>
+      rows.map((row) =>
+        row.user_id === user.id && !row.read_at ? { ...row, read_at: readAt } : row,
+      ),
+    );
+  };
 
   useEffect(() => {
     load();
@@ -3769,9 +3838,23 @@ function SaleDetail() {
             </div>
           </SheetContent>
         </Sheet>
-        <Sheet>
+        <Sheet
+          open={commentsOpen}
+          onOpenChange={(open) => {
+            setCommentsOpen(open);
+            if (open) void markCommentsRead();
+          }}
+        >
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              className={
+                commentNeedsAttention
+                  ? "border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  : undefined
+              }
+            >
               <MessageSquare className="mr-2 h-4 w-4" />
               Comentários{comments.length > 0 ? ` (${comments.length})` : ""}
             </Button>
@@ -5512,12 +5595,20 @@ function CommentsPanel({
   const [escopo, setEscopo] = useState("revisao");
   const add = async () => {
     if (!text.trim()) return;
-    const { error } = await supabase
+    const texto = text.trim();
+    const { data: comment, error } = await supabase
       .from("sale_comments")
-      .insert({ sale_id: saleId, autor_id: user!.id, escopo, texto: text });
+      .insert({ sale_id: saleId, autor_id: user!.id, escopo, texto })
+      .select("id")
+      .single();
     if (error) toast.error(error.message);
     else {
       setText("");
+      if (comment) {
+        await notifySaleComment({
+          data: { saleId, commentId: comment.id, texto },
+        });
+      }
       onAdd();
     }
   };

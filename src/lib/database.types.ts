@@ -9,6 +9,7 @@ import type {
 export type ActivityLogRow = Tables<"activity_logs">;
 export type BankAccountRow = Tables<"sale_bank_accounts">;
 export type CommentRow = Tables<"sale_comments">;
+export type CommentRecipientRow = Tables<"sale_comment_recipients">;
 export type CommissionExtraRow = Tables<"sale_commission_extras">;
 export type DocumentRow = Tables<"sale_documents">;
 export type NotificationRow = Tables<"notifications">;

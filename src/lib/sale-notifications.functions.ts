@@ -328,3 +328,102 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
 
     return { notified: inAppPorUsuario.size, sent };
   });
+
+const NotifyCommentInput = z.object({
+  saleId: z.string().uuid(),
+  commentId: z.string().uuid(),
+  texto: z.string().min(1).max(5000),
+});
+
+/** Notifica somente quem está com a próxima ação da venda, sem WhatsApp e sem alterar o fluxo de status. */
+export const notifySaleComment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => NotifyCommentInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const [{ data: comment }, { data: sale }] = await Promise.all([
+      supabase
+        .from("sale_comments")
+        .select("id, sale_id, autor_id, texto")
+        .eq("id", data.commentId)
+        .eq("sale_id", data.saleId)
+        .maybeSingle(),
+      supabase
+        .from("sales")
+        .select("id, corretor_id, status, imovel_id, codigo_interno")
+        .eq("id", data.saleId)
+        .maybeSingle(),
+    ]);
+    if (!comment || !sale || comment.autor_id !== userId) return { notified: 0 };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tm } = await supabaseAdmin
+      .from("team_members")
+      .select("team_id")
+      .eq("membro_id", sale.corretor_id);
+    const teamIds = Array.from(new Set((tm ?? []).map((row: TeamMemberRow) => row.team_id)));
+    let liderIds: string[] = [];
+    if (teamIds.length) {
+      const [{ data: teams }, { data: coLeaders }] = await Promise.all([
+        supabaseAdmin.from("teams").select("lider_id").in("id", teamIds),
+        supabaseAdmin.from("team_co_leaders").select("user_id").in("team_id", teamIds),
+      ]);
+      liderIds = Array.from(
+        new Set([
+          ...(teams ?? []).map((row: TeamRow) => row.lider_id).filter((id): id is string => !!id),
+          ...(coLeaders ?? []).map((row: { user_id: string }) => row.user_id),
+        ]),
+      );
+    }
+
+    const roleNext = proximoResponsavelRoles(sale.status as SaleStatus)[0];
+    const recipientIds = new Set<string>();
+    if (roleNext === "corretor" && sale.corretor_id) recipientIds.add(sale.corretor_id);
+    else if (roleNext === "gestor") liderIds.forEach((id) => recipientIds.add(id));
+    else if (roleNext) {
+      const { data: users } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", roleNext);
+      (users ?? []).forEach((row) => recipientIds.add(row.user_id));
+    }
+    recipientIds.delete(userId);
+    if (recipientIds.size === 0) return { notified: 0 };
+
+    const label = sale.imovel_id || sale.codigo_interno || `venda #${sale.id.slice(0, 8)}`;
+    const { data: existingRecipients } = await supabaseAdmin
+      .from("sale_comment_recipients")
+      .select("user_id")
+      .eq("comment_id", comment.id);
+    if (existingRecipients && existingRecipients.length > 0) {
+      return { notified: existingRecipients.length };
+    }
+    const recipients = Array.from(recipientIds).map((user_id) => ({
+      comment_id: comment.id,
+      sale_id: sale.id,
+      user_id,
+    }));
+    const { error: recipientError } = await supabaseAdmin
+      .from("sale_comment_recipients")
+      .upsert(recipients, { onConflict: "comment_id,user_id", ignoreDuplicates: true });
+    if (recipientError) return { notified: 0 };
+
+    const { error: notificationError } = await supabaseAdmin.from("notifications").insert(
+      Array.from(recipientIds, (user_id) => ({
+        user_id,
+        sale_id: sale.id,
+        tipo: "sale_comment",
+        titulo: `Novo comentário na venda: ${label}`,
+        mensagem: data.texto.slice(0, 240),
+      })),
+    );
+    if (notificationError) {
+      await supabaseAdmin
+        .from("sale_comment_recipients")
+        .delete()
+        .eq("comment_id", comment.id)
+        .in("user_id", Array.from(recipientIds));
+      return { notified: 0 };
+    }
+    return { notified: recipientIds.size };
+  });
