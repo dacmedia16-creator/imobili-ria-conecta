@@ -6,6 +6,7 @@ import {
   formatarTotalOperacoes,
   formatarTotalPessoas,
   gerarPontas,
+  podeAcessarProducaoPorPessoa,
   totaisProducao,
 } from "./producao-por-pessoa-calc";
 import type { FiltrosProducao, ProducaoRawRow } from "./producao-por-pessoa-types";
@@ -521,5 +522,21 @@ describe("aplicarFiltrosProducao — mesma fixture", () => {
     expect(filtradas.every((p) => p.teamId === "t-rodrigo")).toBe(true);
     const saleIds = new Set(filtradas.map((p) => p.saleId));
     expect(saleIds).toEqual(new Set(["sale-5", "sale-7"]));
+  });
+});
+
+describe("acesso ao relatório Produção por pessoa", () => {
+  it("permite administradores, financeiro, gestores e Team Leaders", () => {
+    expect(podeAcessarProducaoPorPessoa(["gestor"])).toBe(true);
+    expect(podeAcessarProducaoPorPessoa(["team_leader"])).toBe(true);
+    expect(podeAcessarProducaoPorPessoa(["financeiro"])).toBe(true);
+    expect(podeAcessarProducaoPorPessoa(["admin"])).toBe(true);
+    expect(podeAcessarProducaoPorPessoa(["super_admin"])).toBe(true);
+  });
+
+  it("continua negando perfis sem autorização", () => {
+    expect(podeAcessarProducaoPorPessoa(["corretor"])).toBe(false);
+    expect(podeAcessarProducaoPorPessoa(["juridico"])).toBe(false);
+    expect(podeAcessarProducaoPorPessoa([])).toBe(false);
   });
 });

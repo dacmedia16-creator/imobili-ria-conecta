@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/producao-por-pessoa")({
 
 function ProducaoPorPessoaPage() {
   const { hasAny, loading: authLoading } = useAuth();
-  const allowed = hasAny(["admin", "super_admin", "financeiro"]);
+  const allowed = hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]);
 
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -102,7 +102,7 @@ function ProducaoPorPessoaPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a administradores e ao financeiro.
+          Esta área é restrita a administradores, financeiro, gestores e Team Leaders.
         </CardContent>
       </Card>
     );

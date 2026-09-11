@@ -6,9 +6,20 @@ const MIGRATION = resolve(
   process.cwd(),
   "supabase/migrations/20260906203000_producao_por_pessoa_fallback_lider_unico.sql",
 );
+const ACCESS_MIGRATION = resolve(
+  process.cwd(),
+  "supabase/migrations/20260911160000_producao_por_pessoa_gestor_team_leader.sql",
+);
 
 function sqlExecutavel() {
   return readFileSync(MIGRATION, "utf8").replace(/--.*$/gm, "").replace(/\s+/g, " ").toLowerCase();
+}
+
+function sqlAcessoExecutavel() {
+  return readFileSync(ACCESS_MIGRATION, "utf8")
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 describe("producao_por_pessoa_dados — contrato SQL do fallback por líder", () => {
@@ -46,6 +57,18 @@ describe("producao_por_pessoa_dados — contrato SQL do fallback por líder", ()
     expect(sql).toContain("when s.modalidade::text = 'padrao' then fc.nome else null");
     expect(sql).toContain(
       "when s.corretor_vendedor_id is not null then coalesce(pv.nome, s.corretor_vendedor) else fv.nome",
+    );
+  });
+});
+
+describe("producao_por_pessoa_dados — acesso por papel", () => {
+  it("permite gestores e Team Leaders na checagem do banco", () => {
+    const sql = sqlAcessoExecutavel();
+    expect(sql).toContain(
+      "has_any_role(auth.uid(), array['financeiro','admin','super_admin','gestor','team_leader']::app_role[])",
+    );
+    expect(sql).toContain(
+      "grant execute on function public.producao_por_pessoa_dados() to authenticated",
     );
   });
 });

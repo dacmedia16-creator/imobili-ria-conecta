@@ -196,9 +196,9 @@ export function aplicarFiltrosProducao(
   });
 }
 
-/** Únicos três papéis com acesso ao relatório — mesma regra usada no menu (AppShell), na rota
+/** Papéis com acesso ao relatório — mesma regra usada no menu (AppShell), na rota
  * (beforeLoad) e na RPC (producao_por_pessoa_dados, checada no banco independente da RLS). */
-const PAPEIS_COM_ACESSO = new Set(["admin", "super_admin", "financeiro"]);
+const PAPEIS_COM_ACESSO = new Set(["admin", "super_admin", "financeiro", "gestor", "team_leader"]);
 export function podeAcessarProducaoPorPessoa(roles: string[]): boolean {
   return roles.some((r) => PAPEIS_COM_ACESSO.has(r));
 }
