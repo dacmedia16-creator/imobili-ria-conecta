@@ -320,10 +320,11 @@ function SalesList() {
       return fetchVendasComerciaisPaginadas({
         page,
         pageSize: PAGE_SIZE,
+        soMinhaVez,
         ...filters,
       });
     },
-    [buildFilters],
+    [buildFilters, soMinhaVez],
   );
 
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
@@ -484,7 +485,9 @@ function SalesList() {
     },
     [isOverseer, user?.id, hasAny, teamIds],
   );
-  const displayedSales = soMinhaVez ? sales.filter(saleIsMinhaVez) : sales;
+  // Quando "Só minha vez" está ativo, a RPC já filtra antes da paginação. Não filtre a página
+  // novamente no navegador: isso faria a fila voltar a depender apenas das 10 linhas carregadas.
+  const displayedSales = sales;
   const totalPages = totalCount ? Math.ceil(totalCount / PAGE_SIZE) : 0;
   const hasPreviousPage = page > 0;
   const hasNextPage = totalCount !== null && (page + 1) * PAGE_SIZE < totalCount;
@@ -775,11 +778,6 @@ function SalesList() {
                 <>Nenhuma venda encontrada com o filtro atual.</>
               )}
             </div>
-          )}
-          {!loading && sales.length > 0 && displayedSales.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma venda esperando sua ação nesta página.
-            </p>
           )}
           {!loading && displayedSales.length > 0 && (
             <>

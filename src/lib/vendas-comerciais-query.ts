@@ -45,9 +45,12 @@ export async function fetchVendasComerciaisPaginadas(params: {
   ate?: string;
   q?: string;
   corretorIds?: string[];
+  soMinhaVez?: boolean;
 }): Promise<VendasComerciaisPaginadas> {
   const { data, error } = await supabase.rpc(
-    "list_vendas_comerciais_paginadas" as never,
+    (params.soMinhaVez
+      ? "list_vendas_comerciais_paginadas_fila"
+      : "list_vendas_comerciais_paginadas") as never,
     {
       _page: params.page,
       _page_size: params.pageSize,
