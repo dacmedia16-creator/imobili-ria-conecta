@@ -4,6 +4,7 @@ import {
   classificarGrupoVenda,
   GRUPO_VENDA_LABEL,
   STATUS_LABEL,
+  STATUS_TONE,
   calcularComposicaoPagamento,
   statusDaVezDeAgir,
   validarComposicaoPagamento,
@@ -11,6 +12,16 @@ import {
   type GrupoVenda,
   type SaleStatus,
 } from "./status";
+
+describe("STATUS_TONE — cor de quem precisa agir", () => {
+  it("usa a cor do Gestor enquanto a ocorrência aguarda envio ou correção", () => {
+    expect(STATUS_TONE.ocorrencia_pendente).toBe(STATUS_TONE.ocorrencia_devolvida_gestor);
+  });
+
+  it("separa a cor do Financeiro da cor do Gestor", () => {
+    expect(STATUS_TONE.ocorrencia_analise_financeiro).not.toBe(STATUS_TONE.ocorrencia_pendente);
+  });
+});
 
 describe("vezDeAgir", () => {
   it.each([

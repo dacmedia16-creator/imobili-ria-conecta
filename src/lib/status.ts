@@ -51,7 +51,8 @@ export const STATUS_TONE: Record<SaleStatus, string> = {
   contrato_ok_corretor: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   aguardando_assinatura: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
   contrato_assinado: "bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
-  ocorrencia_pendente: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  // A cor acompanha quem precisa agir: pendente e devolvida ficam com o Gestor.
+  ocorrencia_pendente: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   ocorrencia_analise_financeiro:
     "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
   ocorrencia_devolvida_gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
