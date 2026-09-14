@@ -14,6 +14,7 @@ const ROLES = [
   "financeiro",
   "admin",
   "super_admin",
+  "staff",
 ] as const;
 type Role = (typeof ROLES)[number];
 
@@ -56,7 +57,7 @@ const updateUserSchema = z.object({
 function allowedRolesFor(callerRoles: Role[]): Role[] {
   if (callerRoles.includes("super_admin")) return [...ROLES];
   if (callerRoles.includes("admin"))
-    return ["corretor", "gestor", "team_leader", "juridico", "financeiro"];
+    return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "staff"];
   if (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) return ["corretor"];
   return [];
 }
