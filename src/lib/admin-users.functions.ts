@@ -87,7 +87,7 @@ export const createUser = createServerFn({ method: "POST" })
       email: data.email,
       password: data.password,
       email_confirm: true,
-      user_metadata: { nome: data.nome, must_change_password: true },
+      user_metadata: { nome: data.nome },
     });
     if (createErr || !created?.user) {
       const msg = createErr?.message ?? "Falha ao criar usuário";
@@ -158,8 +158,7 @@ export const createUser = createServerFn({ method: "POST" })
   });
 
 /** Redefine a senha de outro usuário. Admin/super admin podem redefinir qualquer conta;
- * gestor/team leader, somente corretores que pertencem à própria equipe. Força troca no próximo
- * login, igual à criação de usuário. */
+ * gestor/team leader, somente corretores que pertencem à própria equipe. */
 export const resetUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => resetPasswordSchema.parse(input))
@@ -212,7 +211,7 @@ export const resetUserPassword = createServerFn({ method: "POST" })
 
     const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       password: data.password,
-      user_metadata: { ...existing.user.user_metadata, must_change_password: true },
+      user_metadata: { ...existing.user.user_metadata },
     });
     if (updErr) throw new Error(updErr.message);
 
