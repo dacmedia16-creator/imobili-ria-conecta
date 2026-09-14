@@ -171,7 +171,7 @@ const FIELD_HINTS: Record<string, string> = {
   "Valor total da comissão (R$)":
     "Informe o valor total da comissão desta venda, conforme a negociação aprovada.",
   "Forma de pagamento":
-    "Explique como a comissão será paga ao proprietário. Exemplo: à vista na assinatura.",
+    "Informe em qual evento o proprietário pagará a comissão. Exemplos: na assinatura do contrato, no recebimento da entrada, na liberação do financiamento ou na entrega das chaves. Se for parcelado, descreva cada evento e informe os valores nas parcelas abaixo.",
   Observações:
     "Registre uma condição relevante da negociação que ainda não apareceu nos outros campos.",
 };

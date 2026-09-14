@@ -2585,7 +2585,7 @@ function SaleDetail() {
                         </Field>
                         <Field label="Forma de pagamento" colSpan={2}>
                           <Input
-                            placeholder="Como o proprietário vai pagar a comissão"
+                            placeholder="Ex.: na assinatura, na entrada ou na liberação do financiamento"
                             value={formSale.forma_pagamento ?? ""}
                             disabled={!editable}
                             onChange={(e) => updResumo({ forma_pagamento: e.target.value })}
