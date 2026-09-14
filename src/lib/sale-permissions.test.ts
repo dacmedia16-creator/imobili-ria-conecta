@@ -72,13 +72,15 @@ describe("isSaleLocked", () => {
 });
 
 describe("corretorPodeEditar", () => {
-  it("permite em rascunho e devolvida_ajuste, só pro dono", () => {
+  it("permite em rascunho, devolvida_ajuste e conferência do contrato, só pro dono", () => {
     expect(corretorPodeEditar(true, "rascunho")).toBe(true);
     expect(corretorPodeEditar(true, "devolvida_ajuste")).toBe(true);
+    expect(corretorPodeEditar(true, "contrato_conferencia_corretor")).toBe(true);
   });
 
   it("nega fora desses status ou se não for o dono", () => {
     expect(corretorPodeEditar(true, "enviada_revisao")).toBe(false);
+    expect(corretorPodeEditar(true, "contrato_conferencia_gestor")).toBe(false);
     expect(corretorPodeEditar(false, "rascunho")).toBe(false);
   });
 });

@@ -28,7 +28,14 @@ export function isSaleLocked(status: SaleStatus, aceitaFin: boolean): boolean {
 }
 
 export function corretorPodeEditar(isOwner: boolean, status: SaleStatus): boolean {
-  return isOwner && (status === "rascunho" || status === "devolvida_ajuste");
+  // Depois da conferência do jurídico, o corretor ainda pode anexar documentos complementares
+  // enquanto revisa o contrato; contrato e contrato assinado continuam com fluxo próprio.
+  return (
+    isOwner &&
+    (["rascunho", "devolvida_ajuste", "contrato_conferencia_corretor"] as SaleStatus[]).includes(
+      status,
+    )
+  );
 }
 
 export function gestorPodeEditar(
