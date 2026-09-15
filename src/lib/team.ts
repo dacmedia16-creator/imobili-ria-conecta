@@ -26,5 +26,10 @@ export async function fetchLedMemberIds(userId: string): Promise<Set<string>> {
     .map((t) => t.id);
   if (myTeamIds.length === 0) return new Set();
   const { data } = await supabase.from("team_members").select("membro_id").in("team_id", myTeamIds);
-  return new Set((data ?? []).map((r) => r.membro_id));
+  const memberIds = new Set((data ?? []).map((r) => r.membro_id));
+  // Um gestor/team leader também pode operar como corretor da própria equipe. Nesse caso ele não
+  // aparece em team_members (é o líder da equipe), mas ainda precisa entrar na fila "Só minha vez"
+  // quando a venda própria estiver numa etapa operacional do gestor.
+  memberIds.add(userId);
+  return memberIds;
 }

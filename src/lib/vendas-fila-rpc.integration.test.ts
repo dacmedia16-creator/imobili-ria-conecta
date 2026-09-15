@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const MIGRATION = resolve(
   process.cwd(),
-  "supabase/migrations/20260911173000_filtro_minha_vez_antes_paginacao.sql",
+  "supabase/migrations/20260915190000_fila_minha_vez_lider_proprio.sql",
 );
 
 function sql() {
@@ -20,6 +20,9 @@ describe("fila Só minha vez — contrato SQL", () => {
     expect(source).toContain("b.status::text = 'ocorrencia_analise_financeiro'");
     expect(source).toContain("has_role(auth.uid(), 'financeiro'::app_role)");
     expect(source).toContain("is_lead_of(auth.uid(), b.corretor_id)");
+    expect(source).toContain(
+      "is_lead_of(auth.uid(), b.corretor_id) or b.corretor_id = auth.uid()",
+    );
     expect(source.indexOf("from filtradas")).toBeLessThan(source.indexOf("limit least"));
   });
 
