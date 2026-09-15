@@ -820,8 +820,8 @@ function SaleDetail() {
     savingResumoRef.current = true;
     setSaving(true);
     try {
-      // Reparação restrita ao salvamento: indicador sem nome E sem vínculo não mantém comissão.
-      // NULL (não zero) permite à RPC remover somente a linha derivada desse papel.
+      // Reparação restrita ao salvamento: indicador ou gestor/líder sem nome E sem vínculo não mantém
+      // comissão. NULL (não zero) permite à RPC remover somente a linha derivada desse papel.
       const normalizedSale = { ...formSale };
       let normalized = false;
       for (const lado of ["captador", "vendedor"] as const) {
@@ -836,6 +836,20 @@ function SaleDetail() {
             normalizedSale[`valor_comissao_indicador_${lado}`] = null;
             normalized = true;
           }
+        }
+        const liderIdKey = `lider_${lado}_id` as const;
+        const liderNomeKey = `lider_${lado}_nome` as const;
+        const liderValorKey = `valor_comissao_lider_${lado}` as const;
+        if (
+          !normalizedSale[liderIdKey] &&
+          (normalizedSale[liderNomeKey] != null ||
+            normalizedSale[liderIdKey] != null ||
+            normalizedSale[liderValorKey] != null)
+        ) {
+          normalizedSale[liderNomeKey] = null;
+          normalizedSale[liderIdKey] = null;
+          normalizedSale[liderValorKey] = null;
+          normalized = true;
         }
       }
       const fields: (keyof SaleRow)[] = [

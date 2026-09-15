@@ -399,6 +399,19 @@ describe("remoção de indicadores e retomada — handlers reais, backend MOCK o
     expect(h.db().matricula).toBe("revisada");
     expect(syncCalls(h)).toHaveLength(0);
   });
+  it("remove comissão de líder órfã antes de sincronizar após devolução", async () => {
+    const initial = fixture();
+    initial.status = "ocorrencia_devolvida_gestor";
+    initial.lider_captador_id = null;
+    initial.lider_captador_nome = null;
+    initial.valor_comissao_lider_captador = 5880;
+    const h = harness(initial);
+
+    expect(await h.context.saveResumo()).toBe(true);
+    expect(h.db().valor_comissao_lider_captador).toBeNull();
+    expect(syncCalls(h)).toHaveLength(1);
+    expect(h.errors).toEqual([]);
+  });
   it.each(["read", "distributionMissing"])("falha %s não confirma sincronismo", async (key) => {
     const h = harness();
     expect(await h.context.saveResumo()).toBe(true);
