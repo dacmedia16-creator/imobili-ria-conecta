@@ -190,6 +190,7 @@ function RoomReservationsPage() {
   const [cancellationStatus, setCancellationStatus] =
     useState<RoomReservationCancellationStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [draft, setDraft] = useState<DraftReservation>({
     room: "Barão Sala 2",
     date: initialDate,
@@ -569,14 +570,15 @@ function RoomReservationsPage() {
                         key={`${room}-${slot}`}
                         type="button"
                         className="min-h-16 min-w-0 flex-1 rounded-md border border-primary/20 bg-primary/10 p-2 text-left transition hover:bg-primary/15"
-                        onClick={() => openNewReservation(room, slot)}
-                        title="Clique para abrir uma nova reserva neste horário"
+                        onClick={() => setSelectedReservation(reservation)}
+                        title={`Ver reserva de ${reservation.responsible}`}
+                        aria-label={`Ver reserva de ${reservation.responsible}, ${reservation.purpose}, das ${reservation.start} às ${reservation.end}`}
                       >
                         <div className="truncate text-xs font-semibold text-primary">
-                          {reservation.purpose}
+                          {reservation.responsible}
                         </div>
                         <div className="mt-1 truncate text-[11px] text-muted-foreground">
-                          {reservation.start}–{reservation.end} · {reservation.responsible}
+                          {reservation.purpose} · {reservation.start}–{reservation.end}
                         </div>
                       </button>
                     ) : (
@@ -932,6 +934,69 @@ function RoomReservationsPage() {
             </Button>
             <Button onClick={saveReservation} disabled={conflict}>
               Confirmar reserva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={selectedReservation !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedReservation(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalhes da reserva</DialogTitle>
+            <DialogDescription>
+              Confira quem reservou a sala e as informações do agendamento.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedReservation && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border bg-muted/30 p-3">
+                <div className="text-xs text-muted-foreground">Pessoa que reservou</div>
+                <div className="font-semibold">{selectedReservation.responsible}</div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs text-muted-foreground">Sala</div>
+                  <div className="font-medium">{selectedReservation.room}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Finalidade</div>
+                  <div className="font-medium">{selectedReservation.purpose}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Data</div>
+                  <div className="font-medium">
+                    {formatReservationPeriod(selectedReservation.date, selectedReservation.endDate)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Horário</div>
+                  <div className="font-medium">
+                    {selectedReservation.start} às {selectedReservation.end}
+                  </div>
+                </div>
+              </div>
+              {selectedReservation.participants.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Participantes</div>
+                  <div>{selectedReservation.participants.join(", ")}</div>
+                </div>
+              )}
+              {selectedReservation.notes && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Observações</div>
+                  <div className="whitespace-pre-wrap">{selectedReservation.notes}</div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedReservation(null)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
