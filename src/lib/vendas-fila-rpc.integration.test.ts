@@ -20,9 +20,7 @@ describe("fila Só minha vez — contrato SQL", () => {
     expect(source).toContain("b.status::text = 'ocorrencia_analise_financeiro'");
     expect(source).toContain("has_role(auth.uid(), 'financeiro'::app_role)");
     expect(source).toContain("is_lead_of(auth.uid(), b.corretor_id)");
-    expect(source).toContain(
-      "is_lead_of(auth.uid(), b.corretor_id) or b.corretor_id = auth.uid()",
-    );
+    expect(source).toContain("is_lead_of(auth.uid(), b.corretor_id) or b.corretor_id = auth.uid()");
     expect(source.indexOf("from filtradas")).toBeLessThan(source.indexOf("limit least"));
   });
 
