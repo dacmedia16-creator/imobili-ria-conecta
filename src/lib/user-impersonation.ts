@@ -13,17 +13,20 @@ export type OperationalImpersonation = {
   startedAt: string;
 };
 
-type LegacyOperationalImpersonation = OperationalImpersonation & {
-  actorAccessToken: string;
-  actorRefreshToken: string;
-};
-
 function parseState(raw: string | null): OperationalImpersonation | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<OperationalImpersonation>;
     if (!value.auditId || !value.actorUserId || !value.targetUserId) return null;
-    return value as OperationalImpersonation;
+    return {
+      auditId: value.auditId,
+      actorUserId: value.actorUserId,
+      actorEmail: value.actorEmail ?? "",
+      targetUserId: value.targetUserId,
+      targetName: value.targetName ?? "",
+      targetEmail: value.targetEmail ?? "",
+      startedAt: value.startedAt ?? "",
+    };
   } catch {
     return null;
   }
@@ -31,29 +34,14 @@ function parseState(raw: string | null): OperationalImpersonation | null {
 
 export function readOperationalImpersonation(): OperationalImpersonation | null {
   if (typeof window === "undefined") return null;
-  return parseState(window.localStorage.getItem(IMPERSONATION_STORAGE_KEY));
-}
-
-/** Compatibility-only reader for sessions created before server-side restore. */
-export function readLegacyOperationalImpersonation(): LegacyOperationalImpersonation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const value = JSON.parse(window.localStorage.getItem(IMPERSONATION_STORAGE_KEY) || "null") as
-      | Partial<LegacyOperationalImpersonation>
-      | null;
-    if (
-      !value?.auditId ||
-      !value.actorUserId ||
-      !value.targetUserId ||
-      !value.actorAccessToken ||
-      !value.actorRefreshToken
-    ) {
-      return null;
-    }
-    return value as LegacyOperationalImpersonation;
-  } catch {
-    return null;
+  const raw = window.localStorage.getItem(IMPERSONATION_STORAGE_KEY);
+  const value = parseState(raw);
+  if (value && raw !== JSON.stringify(value)) {
+    // Remove fields from sessions created by pre-hardening releases as soon as
+    // they are encountered. Restoration uses only the auditId server-side.
+    window.localStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify(value));
   }
+  return value;
 }
 
 export function writeOperationalImpersonation(value: OperationalImpersonation | null) {
@@ -72,8 +60,7 @@ export function writeOperationalImpersonation(value: OperationalImpersonation | 
         startedAt: value.startedAt,
       } satisfies OperationalImpersonation),
     );
-  }
-  else window.localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+  } else window.localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
   window.dispatchEvent(new CustomEvent(IMPERSONATION_EVENT));
 }
 

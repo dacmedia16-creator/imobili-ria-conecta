@@ -18,7 +18,7 @@ describe("operational impersonation state", () => {
     });
   });
 
-  it("persists metadata without serializing privileged return tokens", () => {
+  it("persists metadata without privileged return tokens", () => {
     const value = {
       auditId: crypto.randomUUID(),
       actorUserId: crypto.randomUUID(),
@@ -27,19 +27,39 @@ describe("operational impersonation state", () => {
       targetName: "Teste",
       targetEmail: "user@test.com",
       startedAt: new Date().toISOString(),
-      actorAccessToken: "access",
-      actorRefreshToken: "refresh",
     };
-    writeOperationalImpersonation(value as never);
+    writeOperationalImpersonation(value);
     const stored = window.localStorage.getItem("adm-max:operational-impersonation:v1") ?? "";
-    expect(stored).not.toContain("access");
-    expect(stored).not.toContain("refresh");
+    expect(stored).not.toContain("AccessToken");
+    expect(stored).not.toContain("RefreshToken");
     expect(readOperationalImpersonation()).toMatchObject({
       auditId: value.auditId,
       targetUserId: value.targetUserId,
     });
     writeOperationalImpersonation(null);
     expect(readOperationalImpersonation()).toBeNull();
+  });
+
+  it("ignores legacy token fields when reading an existing session", () => {
+    const value = {
+      auditId: crypto.randomUUID(),
+      actorUserId: crypto.randomUUID(),
+      actorEmail: "admin@test.com",
+      targetUserId: crypto.randomUUID(),
+      targetName: "Teste",
+      targetEmail: "user@test.com",
+      startedAt: new Date().toISOString(),
+      actorAccessToken: "legacy-access",
+      actorRefreshToken: "legacy-refresh",
+    };
+    window.localStorage.setItem("adm-max:operational-impersonation:v1", JSON.stringify(value));
+    const state = readOperationalImpersonation();
+    expect(state).toMatchObject({ auditId: value.auditId, targetUserId: value.targetUserId });
+    expect(state).not.toHaveProperty("actorAccessToken");
+    expect(state).not.toHaveProperty("actorRefreshToken");
+    const sanitized = window.localStorage.getItem("adm-max:operational-impersonation:v1") ?? "";
+    expect(sanitized).not.toContain("legacy-access");
+    expect(sanitized).not.toContain("legacy-refresh");
   });
 
   it("only matches the selected target session", () => {
