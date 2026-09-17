@@ -88,7 +88,7 @@ type Reservation = {
 
 type DraftReservation = Omit<
   Reservation,
-  "id" | "status" | "participants" | "responsibleId" | "canCancel"
+  "id" | "groupId" | "status" | "participants" | "responsibleId" | "canCancel"
 > & {
   participants: string;
   period: RoomReservationPeriod;
