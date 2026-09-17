@@ -1,13 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import {
   IMPERSONATION_EVENT,
   impersonationMatchesSession,
+  readLegacyOperationalImpersonation,
   readOperationalImpersonation,
   writeOperationalImpersonation,
   type OperationalImpersonation,
 } from "@/lib/user-impersonation";
+import { restoreOperationalImpersonation } from "@/lib/user-impersonation.functions";
 
 export type AppRole =
   | "corretor"
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<OperationalImpersonation | null>(null);
+  const restoreImpersonationFn = useServerFn(restoreOperationalImpersonation);
 
   const loadRoles = async (uid: string | undefined) => {
     if (!uid) {
@@ -74,11 +78,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const restoreSuperAdmin = async () => {
     const state = readOperationalImpersonation();
     if (!state) throw new Error("Não há sessão administrativa para restaurar.");
-    const { error } = await supabase.auth.setSession({
-      access_token: state.actorAccessToken,
-      refresh_token: state.actorRefreshToken,
-    });
-    if (error) throw error;
+    const legacy = readLegacyOperationalImpersonation();
+    if (legacy) {
+      // One-time compatibility for an impersonation started by the previous
+      // release. New sessions never persist these credentials.
+      const { error } = await supabase.auth.setSession({
+        access_token: legacy.actorAccessToken,
+        refresh_token: legacy.actorRefreshToken,
+      });
+      if (error) throw error;
+    } else {
+      const result = await restoreImpersonationFn({ data: { auditId: state.auditId } });
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash: result.tokenHash,
+        type: "magiclink",
+      });
+      if (error) throw error;
+    }
     writeOperationalImpersonation(null);
     setImpersonation(null);
   };

@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin-users.functions";
 import {
   finalizeOperationalImpersonation,
+  restoreOperationalImpersonation,
   startOperationalImpersonation,
 } from "@/lib/user-impersonation.functions";
 import { writeOperationalImpersonation } from "@/lib/user-impersonation";
@@ -136,6 +137,7 @@ function AdminUsers() {
   const updateUserFn = useServerFn(updateUser);
   const startImpersonationFn = useServerFn(startOperationalImpersonation);
   const finalizeImpersonationFn = useServerFn(finalizeOperationalImpersonation);
+  const restoreImpersonationFn = useServerFn(restoreOperationalImpersonation);
   const [enteringAs, setEnteringAs] = useState<string | null>(null);
 
   const enterAsUser = async (target: AdminUser) => {
@@ -146,10 +148,13 @@ function AdminUsers() {
     if (!confirmed) return;
     setEnteringAs(target.id);
     let saved = false;
+    let switchedToTarget = false;
+    let auditId: string | null = null;
     try {
       const { data: current } = await supabase.auth.getSession();
       if (!current.session) throw new Error("Sua sessão de Super Admin expirou.");
       const result = await startImpersonationFn({ data: { targetUserId: target.id } });
+      auditId = result.auditId;
       writeOperationalImpersonation({
         auditId: result.auditId,
         actorUserId: current.session.user.id,
@@ -158,8 +163,6 @@ function AdminUsers() {
         targetName: result.target.name,
         targetEmail: result.target.email,
         startedAt: new Date().toISOString(),
-        actorAccessToken: current.session.access_token,
-        actorRefreshToken: current.session.refresh_token,
       });
       saved = true;
       const { error } = await supabase.auth.verifyOtp({
@@ -167,21 +170,28 @@ function AdminUsers() {
         type: "magiclink",
       });
       if (error) throw error;
+      switchedToTarget = true;
       await finalizeImpersonationFn({ data: { auditId: result.auditId } });
       window.location.href = "/dashboard";
     } catch (error: unknown) {
-      if (saved) {
-        const state = JSON.parse(
-          window.localStorage.getItem("adm-max:operational-impersonation:v1") || "null",
-        );
-        if (state?.actorAccessToken && state?.actorRefreshToken) {
-          await supabase.auth
-            .setSession({
-              access_token: state.actorAccessToken,
-              refresh_token: state.actorRefreshToken,
-            })
-            .catch(() => {});
+      let restored = false;
+      if (saved && switchedToTarget && auditId) {
+        // Finalization can fail after the target session is established. Use
+        // the same server-side handoff to recover without browser credentials.
+        try {
+          const result = await restoreImpersonationFn({ data: { auditId } });
+          const { error: restoreError } = await supabase.auth.verifyOtp({
+            token_hash: result.tokenHash,
+            type: "magiclink",
+          });
+          if (restoreError) throw restoreError;
+          restored = true;
+        } catch {
+          // Keep the metadata when restoration fails so the target session can
+          // retry the server-side handoff instead of silently continuing.
         }
+      }
+      if (!saved || !switchedToTarget || restored) {
         writeOperationalImpersonation(null);
       }
       toast.error(errorMessage(error, "Não foi possível entrar como esse usuário."));

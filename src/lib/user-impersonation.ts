@@ -11,19 +11,46 @@ export type OperationalImpersonation = {
   targetName: string;
   targetEmail: string;
   startedAt: string;
+};
+
+type LegacyOperationalImpersonation = OperationalImpersonation & {
   actorAccessToken: string;
   actorRefreshToken: string;
 };
 
+function parseState(raw: string | null): OperationalImpersonation | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<OperationalImpersonation>;
+    if (!value.auditId || !value.actorUserId || !value.targetUserId) return null;
+    return value as OperationalImpersonation;
+  } catch {
+    return null;
+  }
+}
+
 export function readOperationalImpersonation(): OperationalImpersonation | null {
   if (typeof window === "undefined") return null;
+  return parseState(window.localStorage.getItem(IMPERSONATION_STORAGE_KEY));
+}
+
+/** Compatibility-only reader for sessions created before server-side restore. */
+export function readLegacyOperationalImpersonation(): LegacyOperationalImpersonation | null {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(IMPERSONATION_STORAGE_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as OperationalImpersonation;
-    if (!value.auditId || !value.actorUserId || !value.targetUserId || !value.actorRefreshToken)
+    const value = JSON.parse(window.localStorage.getItem(IMPERSONATION_STORAGE_KEY) || "null") as
+      | Partial<LegacyOperationalImpersonation>
+      | null;
+    if (
+      !value?.auditId ||
+      !value.actorUserId ||
+      !value.targetUserId ||
+      !value.actorAccessToken ||
+      !value.actorRefreshToken
+    ) {
       return null;
-    return value;
+    }
+    return value as LegacyOperationalImpersonation;
   } catch {
     return null;
   }
@@ -31,7 +58,21 @@ export function readOperationalImpersonation(): OperationalImpersonation | null 
 
 export function writeOperationalImpersonation(value: OperationalImpersonation | null) {
   if (typeof window === "undefined") return;
-  if (value) window.localStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify(value));
+  if (value) {
+    // Explicit allowlist: legacy callers cannot reintroduce privileged tokens.
+    window.localStorage.setItem(
+      IMPERSONATION_STORAGE_KEY,
+      JSON.stringify({
+        auditId: value.auditId,
+        actorUserId: value.actorUserId,
+        actorEmail: value.actorEmail,
+        targetUserId: value.targetUserId,
+        targetName: value.targetName,
+        targetEmail: value.targetEmail,
+        startedAt: value.startedAt,
+      } satisfies OperationalImpersonation),
+    );
+  }
   else window.localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
   window.dispatchEvent(new CustomEvent(IMPERSONATION_EVENT));
 }

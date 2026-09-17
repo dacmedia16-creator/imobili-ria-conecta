@@ -18,7 +18,7 @@ describe("operational impersonation state", () => {
     });
   });
 
-  it("persists and clears the return credentials", () => {
+  it("persists metadata without serializing privileged return tokens", () => {
     const value = {
       auditId: crypto.randomUUID(),
       actorUserId: crypto.randomUUID(),
@@ -30,8 +30,14 @@ describe("operational impersonation state", () => {
       actorAccessToken: "access",
       actorRefreshToken: "refresh",
     };
-    writeOperationalImpersonation(value);
-    expect(readOperationalImpersonation()).toEqual(value);
+    writeOperationalImpersonation(value as never);
+    const stored = window.localStorage.getItem("adm-max:operational-impersonation:v1") ?? "";
+    expect(stored).not.toContain("access");
+    expect(stored).not.toContain("refresh");
+    expect(readOperationalImpersonation()).toMatchObject({
+      auditId: value.auditId,
+      targetUserId: value.targetUserId,
+    });
     writeOperationalImpersonation(null);
     expect(readOperationalImpersonation()).toBeNull();
   });
@@ -45,8 +51,6 @@ describe("operational impersonation state", () => {
       targetName: "T",
       targetEmail: "t@a.com",
       startedAt: "now",
-      actorAccessToken: "x",
-      actorRefreshToken: "y",
     };
     expect(impersonationMatchesSession(value, { user: { id: "target" } } as never)).toBe(true);
     expect(impersonationMatchesSession(value, { user: { id: "other" } } as never)).toBe(false);

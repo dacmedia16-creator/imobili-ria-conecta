@@ -140,3 +140,66 @@ export const endOperationalImpersonation = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Generates a one-time magic-link handoff back to the actor. Actor tokens never
+ * cross this server boundary and are not persisted in browser storage.
+ */
+export const restoreOperationalImpersonation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => auditSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { userId: targetUserId, claims } = context;
+    const authSessionId = typeof claims.session_id === "string" ? claims.session_id : null;
+    if (!authSessionId) throw new Error("Sessão autenticada sem identificador de auditoria.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as ImpersonationClient;
+    const { data: row, error: rowError } = await admin
+      .from("operational_impersonation_sessions")
+      .select("id, actor_user_id, target_user_id, auth_session_id, status, requested_at, ended_at")
+      .eq("id", data.auditId)
+      .maybeSingle();
+    if (rowError || !row) throw new Error("Sessão operacional não encontrada.");
+
+    const currentTargetSession =
+      row.target_user_id === targetUserId &&
+      ((row.status === "pending" &&
+        Date.now() - new Date(row.requested_at).getTime() <= 10 * 60 * 1000) ||
+        (row.status === "active" && row.auth_session_id === authSessionId));
+    const recentEndedRetry =
+      row.target_user_id === targetUserId &&
+      row.status === "ended" &&
+      row.ended_at !== null &&
+      Date.now() - new Date(row.ended_at).getTime() <= 10 * 60 * 1000;
+    if (!currentTargetSession && !recentEndedRetry) {
+      throw new Error("Sessão operacional inválida ou expirada.");
+    }
+
+    const { data: actorAuth, error: actorError } = await admin.auth.admin.getUserById(
+      row.actor_user_id,
+    );
+    if (actorError || !actorAuth?.user?.email) {
+      throw new Error("O usuário administrativo não possui um acesso válido.");
+    }
+    const { data: generated, error: linkError } = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email: actorAuth.user.email,
+    });
+    if (linkError || !generated?.properties?.hashed_token) {
+      throw new Error(linkError?.message ?? "Não foi possível restaurar a sessão administrativa.");
+    }
+
+    if (row.status !== "ended") {
+      const { data: ended, error: endError } = await admin
+        .from("operational_impersonation_sessions")
+        .update({ status: "ended", ended_at: new Date().toISOString() })
+        .eq("id", data.auditId)
+        .eq("target_user_id", targetUserId)
+        .in("status", ["pending", "active"])
+        .select("id")
+        .maybeSingle();
+      if (endError || !ended) throw new Error(endError?.message ?? "Falha ao encerrar auditoria.");
+    }
+    return { tokenHash: generated.properties.hashed_token as string };
+  });
