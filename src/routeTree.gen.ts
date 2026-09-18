@@ -24,6 +24,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes/_authenticated/ocorrencias-concluidas'
+import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_authenticated/ocorrencias-imprimir'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -115,6 +116,12 @@ const AuthenticatedOcorrenciasConcluidasRoute =
     path: '/ocorrencias-concluidas',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOcorrenciasImprimirRoute =
+  AuthenticatedOcorrenciasImprimirRouteImport.update({
+    id: '/ocorrencias-imprimir',
+    path: '/ocorrencias-imprimir',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
@@ -193,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
+  '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -220,6 +228,7 @@ export interface FileRoutesByTo {
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
+  '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -249,6 +258,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
+  '/_authenticated/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
+    | '/ocorrencias-imprimir'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
+    | '/ocorrencias-imprimir'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -333,6 +345,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro'
     | '/_authenticated/notificacoes'
     | '/_authenticated/ocorrencias-concluidas'
+    | '/_authenticated/ocorrencias-imprimir'
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
@@ -463,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOcorrenciasConcluidasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ocorrencias-imprimir': {
+      id: '/_authenticated/ocorrencias-imprimir'
+      path: '/ocorrencias-imprimir'
+      fullPath: '/ocorrencias-imprimir'
+      preLoaderRoute: typeof AuthenticatedOcorrenciasImprimirRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/perfil': {
       id: '/_authenticated/perfil'
       path: '/perfil'
@@ -552,6 +572,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOcorrenciasConcluidasRoute: typeof AuthenticatedOcorrenciasConcluidasRoute
+  AuthenticatedOcorrenciasImprimirRoute: typeof AuthenticatedOcorrenciasImprimirRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -575,6 +596,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOcorrenciasConcluidasRoute:
     AuthenticatedOcorrenciasConcluidasRoute,
+  AuthenticatedOcorrenciasImprimirRoute: AuthenticatedOcorrenciasImprimirRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,

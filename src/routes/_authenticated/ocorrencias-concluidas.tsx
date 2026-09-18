@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
-import { Loader2, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import {
   catalogoOcorrenciasConcluidas,
   chaveMesAtual,
@@ -72,8 +72,6 @@ type EstadoRelatorio = {
   corretores: CorretorRelatorio[];
 };
 
-type PrintOccurrence = OcorrenciaConcluidaRow;
-
 function OcorrenciasConcluidasPage() {
   const { session, roles, loading: authLoading } = useAuth();
   const allowed = podeVerOcorrenciasConcluidas(roles);
@@ -85,8 +83,6 @@ function OcorrenciasConcluidasPage() {
   const [equipeSelecionada, setEquipeSelecionada] = useState("todas");
   const [corretorSelecionado, setCorretorSelecionado] = useState("todos");
   const [selectedOccurrenceIds, setSelectedOccurrenceIds] = useState<string[]>([]);
-  const [printOccurrences, setPrintOccurrences] = useState<PrintOccurrence[]>([]);
-  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     // Cancela ao desmontar, mudar sessão/papéis ou tentar novamente. Mesmo que o
@@ -152,21 +148,6 @@ function OcorrenciasConcluidasPage() {
       controller.abort();
     };
   }, [allowed, authLoading, session, rolesKey, tentativa]);
-
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      setPrintOccurrences([]);
-      setPrinting(false);
-    };
-    window.addEventListener("afterprint", handleAfterPrint);
-    return () => window.removeEventListener("afterprint", handleAfterPrint);
-  }, []);
-
-  useEffect(() => {
-    if (!printing || printOccurrences.length === 0) return;
-    const timer = window.setTimeout(() => window.print(), 100);
-    return () => window.clearTimeout(timer);
-  }, [printing, printOccurrences.length]);
 
   if (authLoading)
     return (
@@ -237,8 +218,11 @@ function OcorrenciasConcluidasPage() {
       toast.error("Selecione ao menos uma ocorrência para imprimir.");
       return;
     }
-    setPrintOccurrences(selectedRows);
-    setPrinting(true);
+    const query = new URLSearchParams({
+      ids: selectedRows.map((row) => row.saleId).join(","),
+    });
+    const printWindow = window.open(`/ocorrencias-imprimir?${query.toString()}`, "_blank");
+    if (!printWindow) toast.error("Permita pop-ups para imprimir as ocorrências.");
   };
 
   if (erro) {
@@ -369,23 +353,12 @@ function OcorrenciasConcluidasPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedRows.length > 0 && (
-              <Button
-                variant="ghost"
-                onClick={() => setSelectedOccurrenceIds([])}
-                disabled={printing}
-              >
+              <Button variant="ghost" onClick={() => setSelectedOccurrenceIds([])}>
                 Limpar seleção
               </Button>
             )}
-            <Button
-              onClick={() => void imprimirSelecionadas()}
-              disabled={selectedRows.length === 0 || printing}
-            >
-              {printing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Printer className="mr-2 h-4 w-4" />
-              )}
+            <Button onClick={imprimirSelecionadas} disabled={selectedRows.length === 0}>
+              <Printer className="mr-2 h-4 w-4" />
               Imprimir selecionadas
             </Button>
           </div>
@@ -449,47 +422,6 @@ function OcorrenciasConcluidasPage() {
           </CardContent>
         </Card>
       </div>
-      {printOccurrences.length > 0 && (
-        <div className="hidden print:block print:p-4">
-          <h1 className="mb-4 text-xl font-bold">Ocorrências selecionadas</h1>
-          {printOccurrences.map((item, index) => (
-            <section
-              key={item.ocorrenciaId}
-              className={index > 0 ? "break-before-page pt-4" : "pt-4"}
-            >
-              <h2 className="mb-3 text-base font-bold">{item.imovelLabel}</h2>
-              <table className="w-full border-collapse border border-foreground/30 text-sm">
-                <tbody>
-                  <tr>
-                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
-                      Corretor
-                    </th>
-                    <td className="border border-foreground/30 px-2 py-1">
-                      {item.corretorNome ?? "Não informado"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
-                      Comissão
-                    </th>
-                    <td className="border border-foreground/30 px-2 py-1">
-                      {money(item.valorComissao)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
-                      Data da assinatura
-                    </th>
-                    <td className="border border-foreground/30 px-2 py-1">
-                      {item.dataAssinatura ? dateBR(item.dataAssinatura) : "Não informada"}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-          ))}
-        </div>
-      )}
     </>
   );
 }
