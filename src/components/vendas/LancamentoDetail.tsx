@@ -942,7 +942,7 @@ export function LancamentoDetail({
         <StatusBadge status={sale.status} />
       </div>
 
-      <div>
+      <div className="print:hidden">
         <h1 className="text-2xl font-semibold tracking-tight">
           {sale.imovel_id || `Lançamento #${sale.id.slice(0, 8)}`}
         </h1>
@@ -952,7 +952,7 @@ export function LancamentoDetail({
       </div>
 
       {sale.status === "devolvida_ajuste" && (
-        <div className="flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <div className="flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200 print:hidden">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <b>O financeiro devolveu este lançamento para ajuste.</b>
@@ -1932,57 +1932,63 @@ export function LancamentoDetail({
       )}
 
       {!canEdit && !loadingOcc && !occ && (
-        <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+        <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground print:hidden">
           Este lançamento já foi enviado ao financeiro e não pode mais ser editado por aqui.
         </div>
       )}
 
-      <SaleSection title="Histórico de status">
-        <div className="space-y-2">
-          {history.length === 0 && (
-            <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>
-          )}
-          {history.map((h) => (
-            <div
-              key={h.id}
-              className="flex items-center justify-between rounded-md border p-2 text-sm"
-            >
-              <span>
-                {h.de ? (STATUS_LABEL[h.de as SaleStatus] ?? h.de) : "—"} →{" "}
-                <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus] ?? h.para}</span>
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {new Date(h.created_at).toLocaleString("pt-BR")}
-              </span>
-            </div>
-          ))}
-        </div>
-      </SaleSection>
-
-      <SaleSection title="Atividade">
-        <div className="space-y-2">
-          {activity.length === 0 && (
-            <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>
-          )}
-          {activity.map((a) => {
-            const d = describeAtividadeLancamento(a.acao, asActivityPayload(a.payload));
-            return (
-              <div key={a.id} className="rounded-md border p-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{d.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(a.created_at).toLocaleString("pt-BR")}
+      <div className="print:hidden">
+        <SaleSection title="Histórico de status">
+          <div className="space-y-2">
+            {history.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sem alterações registradas.</p>
+            )}
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className="flex items-center justify-between rounded-md border p-2 text-sm"
+              >
+                <span>
+                  {h.de ? (STATUS_LABEL[h.de as SaleStatus] ?? h.de) : "—"} →{" "}
+                  <span className="font-medium">
+                    {STATUS_LABEL[h.para as SaleStatus] ?? h.para}
                   </span>
-                </div>
-                <div className="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{a.autor_id ? (activityAuthorNames[a.autor_id] ?? "...") : "Sistema"}</span>
-                  {d.detail && <span className="truncate">{d.detail}</span>}
-                </div>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(h.created_at).toLocaleString("pt-BR")}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      </SaleSection>
+            ))}
+          </div>
+        </SaleSection>
+
+        <SaleSection title="Atividade">
+          <div className="space-y-2">
+            {activity.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sem atividade registrada.</p>
+            )}
+            {activity.map((a) => {
+              const d = describeAtividadeLancamento(a.acao, asActivityPayload(a.payload));
+              return (
+                <div key={a.id} className="rounded-md border p-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{d.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(a.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {a.autor_id ? (activityAuthorNames[a.autor_id] ?? "...") : "Sistema"}
+                    </span>
+                    {d.detail && <span className="truncate">{d.detail}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </SaleSection>
+      </div>
 
       <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
         <DialogContent>

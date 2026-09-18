@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -6423,7 +6424,7 @@ function OccurrencePanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 print:hidden">
       {canWrite && <AutosaveStatus saving={saving} dirty={anyDirty} />}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -7043,6 +7044,24 @@ function OccurrencePanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {typeof document !== "undefined"
+        ? createPortal(
+            <div className="hidden print:block print:p-4">
+              <div className="mb-3 border border-foreground/30 bg-foreground/5 py-2 text-center text-base font-bold uppercase tracking-wide">
+                Ocorrência de compra e venda
+              </div>
+              <OccurrenceReportBody
+                sale={sale}
+                occ={occ}
+                commissions={commissions}
+                partners={partners}
+                parties={parties}
+                distribuicao={distribuicao}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
