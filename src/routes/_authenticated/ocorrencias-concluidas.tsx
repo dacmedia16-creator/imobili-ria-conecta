@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
+import { Loader2, Printer } from "lucide-react";
 import {
   catalogoOcorrenciasConcluidas,
   chaveMesAtual,
@@ -70,6 +72,8 @@ type EstadoRelatorio = {
   corretores: CorretorRelatorio[];
 };
 
+type PrintOccurrence = OcorrenciaConcluidaRow;
+
 function OcorrenciasConcluidasPage() {
   const { session, roles, loading: authLoading } = useAuth();
   const allowed = podeVerOcorrenciasConcluidas(roles);
@@ -80,6 +84,9 @@ function OcorrenciasConcluidasPage() {
   const [mesSelecionado, setMesSelecionado] = useState("todos");
   const [equipeSelecionada, setEquipeSelecionada] = useState("todas");
   const [corretorSelecionado, setCorretorSelecionado] = useState("todos");
+  const [selectedOccurrenceIds, setSelectedOccurrenceIds] = useState<string[]>([]);
+  const [printOccurrences, setPrintOccurrences] = useState<PrintOccurrence[]>([]);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     // Cancela ao desmontar, mudar sessão/papéis ou tentar novamente. Mesmo que o
@@ -146,6 +153,21 @@ function OcorrenciasConcluidasPage() {
     };
   }, [allowed, authLoading, session, rolesKey, tentativa]);
 
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setPrintOccurrences([]);
+      setPrinting(false);
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
+
+  useEffect(() => {
+    if (!printing || printOccurrences.length === 0) return;
+    const timer = window.setTimeout(() => window.print(), 100);
+    return () => window.clearTimeout(timer);
+  }, [printing, printOccurrences.length]);
+
   if (authLoading)
     return (
       <p role="status" className="text-sm text-muted-foreground">
@@ -191,6 +213,33 @@ function OcorrenciasConcluidasPage() {
     setEquipeSelecionada(equipeId);
     setCorretorSelecionado(corretorValidoNaEquipe(corretores, equipeId, corretorAtual));
   };
+  const selectedRows = rows.filter((row) => selectedOccurrenceIds.includes(row.ocorrenciaId));
+  const allFilteredSelected =
+    rowsFiltradas.length > 0 &&
+    rowsFiltradas.every((row) => selectedOccurrenceIds.includes(row.ocorrenciaId));
+  const toggleOccurrence = (occurrenceId: string) => {
+    setSelectedOccurrenceIds((current) =>
+      current.includes(occurrenceId)
+        ? current.filter((id) => id !== occurrenceId)
+        : [...current, occurrenceId],
+    );
+  };
+  const toggleFilteredOccurrences = () => {
+    const filteredIds = rowsFiltradas.map((row) => row.ocorrenciaId);
+    setSelectedOccurrenceIds((current) => {
+      if (filteredIds.every((id) => current.includes(id)))
+        return current.filter((id) => !filteredIds.includes(id));
+      return [...new Set([...current, ...filteredIds])];
+    });
+  };
+  const imprimirSelecionadas = () => {
+    if (selectedRows.length === 0) {
+      toast.error("Selecione ao menos uma ocorrência para imprimir.");
+      return;
+    }
+    setPrintOccurrences(selectedRows);
+    setPrinting(true);
+  };
 
   if (erro) {
     return (
@@ -213,140 +262,234 @@ function OcorrenciasConcluidasPage() {
   }
 
   return (
-    <div className="min-w-0 space-y-6">
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
-          <p className="text-sm text-muted-foreground">
-            Relatório global somente leitura. Combine mês da assinatura, equipe e corretor. Equipes
-            refletem os vínculos diretos atuais, incluindo líderes e auxiliares.
-          </p>
-        </div>
-        <div className="grid min-w-0 gap-3 md:grid-cols-3">
-          <div className="min-w-0 space-y-1">
-            <label htmlFor="mes-assinatura" className="text-sm font-medium">
-              Mês da assinatura
-            </label>
-            <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
-              <SelectTrigger id="mes-assinatura" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-w-[calc(100vw-2rem)]">
-                <SelectItem value="todos">Todos os meses</SelectItem>
-                {meses.map((mes) => (
-                  <SelectItem key={mes.value} value={mes.value}>
-                    {mes.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <>
+      <div className="min-w-0 space-y-6 print:hidden">
+        <div className="space-y-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
+            <p className="text-sm text-muted-foreground">
+              Relatório global somente leitura. Combine mês da assinatura, equipe e corretor.
+              Equipes refletem os vínculos diretos atuais, incluindo líderes e auxiliares.
+            </p>
           </div>
-          <div className="min-w-0 space-y-1">
-            <label htmlFor="equipe-relatorio" className="text-sm font-medium">
-              Equipe
-            </label>
-            <Select value={equipeAtual} onValueChange={trocarEquipe}>
-              <SelectTrigger id="equipe-relatorio" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-w-[calc(100vw-2rem)]">
-                <SelectItem value="todas">Todas as equipes</SelectItem>
-                {equipes.map((equipe) => (
-                  <SelectItem
-                    key={equipe.id}
-                    value={equipe.id}
-                    className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
-                  >
-                    {equipe.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="min-w-0 space-y-1">
-            <label htmlFor="corretor-relatorio" className="text-sm font-medium">
-              Corretor
-            </label>
-            <Select value={corretorAtual} onValueChange={setCorretorSelecionado}>
-              <SelectTrigger id="corretor-relatorio" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-w-[calc(100vw-2rem)]">
-                <SelectItem value="todos">Todos os corretores</SelectItem>
-                {corretoresDisponiveis.map((corretor) => (
-                  <SelectItem
-                    key={corretor.id}
-                    value={corretor.id}
-                    className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
-                  >
-                    {corretor.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Ocorrências concluídas</p>
-            <p className="text-xl font-semibold">{rowsFiltradas.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total de comissões</p>
-            <p className="text-xl font-semibold text-primary">{money(totalComissao)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="min-w-0">
-        <CardContent className="min-w-0 px-3 pt-6 sm:px-6">
-          <Table aria-label="Ocorrências concluídas filtradas" className="min-w-[560px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Imóvel / código</TableHead>
-                <TableHead>Corretor</TableHead>
-                <TableHead>Comissão</TableHead>
-                <TableHead>Data da assinatura</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rowsFiltradas.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma ocorrência concluída para os filtros selecionados.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rowsFiltradas.map((r) => (
-                <TableRow key={r.ocorrenciaId}>
-                  <TableCell className="font-medium">
-                    <Link
-                      to="/vendas/$id"
-                      params={{ id: r.saleId }}
-                      className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      aria-label={`Abrir ocorrência de ${r.imovelLabel}`}
+          <div className="grid min-w-0 gap-3 md:grid-cols-3">
+            <div className="min-w-0 space-y-1">
+              <label htmlFor="mes-assinatura" className="text-sm font-medium">
+                Mês da assinatura
+              </label>
+              <Select value={mesSelecionado} onValueChange={setMesSelecionado}>
+                <SelectTrigger id="mes-assinatura" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
+                  <SelectItem value="todos">Todos os meses</SelectItem>
+                  {meses.map((mes) => (
+                    <SelectItem key={mes.value} value={mes.value}>
+                      {mes.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <label htmlFor="equipe-relatorio" className="text-sm font-medium">
+                Equipe
+              </label>
+              <Select value={equipeAtual} onValueChange={trocarEquipe}>
+                <SelectTrigger id="equipe-relatorio" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
+                  <SelectItem value="todas">Todas as equipes</SelectItem>
+                  {equipes.map((equipe) => (
+                    <SelectItem
+                      key={equipe.id}
+                      value={equipe.id}
+                      className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
                     >
-                      {r.imovelLabel}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="max-w-72 break-words text-muted-foreground">
-                    {r.corretorNome ?? "Não informado"}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{money(r.valorComissao)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {r.dataAssinatura ? dateBR(r.dataAssinatura) : "Não informada"}
-                  </TableCell>
+                      {equipe.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-0 space-y-1">
+              <label htmlFor="corretor-relatorio" className="text-sm font-medium">
+                Corretor
+              </label>
+              <Select value={corretorAtual} onValueChange={setCorretorSelecionado}>
+                <SelectTrigger id="corretor-relatorio" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
+                  <SelectItem value="todos">Todos os corretores</SelectItem>
+                  {corretoresDisponiveis.map((corretor) => (
+                    <SelectItem
+                      key={corretor.id}
+                      value={corretor.id}
+                      className="whitespace-normal [overflow-wrap:anywhere] [&>span:last-child]:min-w-0"
+                    >
+                      {corretor.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">Ocorrências concluídas</p>
+              <p className="text-xl font-semibold">{rowsFiltradas.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">Total de comissões</p>
+              <p className="text-xl font-semibold text-primary">{money(totalComissao)}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={allFilteredSelected}
+              onCheckedChange={toggleFilteredOccurrences}
+              disabled={rowsFiltradas.length === 0}
+              aria-label="Selecionar todas as ocorrências exibidas"
+            />
+            <span>
+              {selectedRows.length === 0
+                ? "Selecione as ocorrências que deseja imprimir"
+                : `${selectedRows.length} ocorrência(s) selecionada(s)`}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedRows.length > 0 && (
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedOccurrenceIds([])}
+                disabled={printing}
+              >
+                Limpar seleção
+              </Button>
+            )}
+            <Button
+              onClick={() => void imprimirSelecionadas()}
+              disabled={selectedRows.length === 0 || printing}
+            >
+              {printing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="mr-2 h-4 w-4" />
+              )}
+              Imprimir selecionadas
+            </Button>
+          </div>
+        </div>
+
+        <Card className="min-w-0">
+          <CardContent className="min-w-0 px-3 pt-6 sm:px-6">
+            <Table aria-label="Ocorrências concluídas filtradas" className="min-w-[560px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <span className="sr-only">Selecionar</span>
+                  </TableHead>
+                  <TableHead>Imóvel / código</TableHead>
+                  <TableHead>Corretor</TableHead>
+                  <TableHead>Comissão</TableHead>
+                  <TableHead>Data da assinatura</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+              </TableHeader>
+              <TableBody>
+                {rowsFiltradas.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      Nenhuma ocorrência concluída para os filtros selecionados.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {rowsFiltradas.map((r) => (
+                  <TableRow key={r.ocorrenciaId}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedOccurrenceIds.includes(r.ocorrenciaId)}
+                        onCheckedChange={() => toggleOccurrence(r.ocorrenciaId)}
+                        aria-label={`Selecionar ocorrência de ${r.imovelLabel}`}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <Link
+                        to="/vendas/$id"
+                        params={{ id: r.saleId }}
+                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        aria-label={`Abrir ocorrência de ${r.imovelLabel}`}
+                      >
+                        {r.imovelLabel}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-72 break-words text-muted-foreground">
+                      {r.corretorNome ?? "Não informado"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{money(r.valorComissao)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {r.dataAssinatura ? dateBR(r.dataAssinatura) : "Não informada"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+      {printOccurrences.length > 0 && (
+        <div className="hidden print:block print:p-4">
+          <h1 className="mb-4 text-xl font-bold">Ocorrências selecionadas</h1>
+          {printOccurrences.map((item, index) => (
+            <section
+              key={item.ocorrenciaId}
+              className={index > 0 ? "break-before-page pt-4" : "pt-4"}
+            >
+              <h2 className="mb-3 text-base font-bold">{item.imovelLabel}</h2>
+              <table className="w-full border-collapse border border-foreground/30 text-sm">
+                <tbody>
+                  <tr>
+                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
+                      Corretor
+                    </th>
+                    <td className="border border-foreground/30 px-2 py-1">
+                      {item.corretorNome ?? "Não informado"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
+                      Comissão
+                    </th>
+                    <td className="border border-foreground/30 px-2 py-1">
+                      {money(item.valorComissao)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th className="border border-foreground/30 bg-muted/40 px-2 py-1 text-left">
+                      Data da assinatura
+                    </th>
+                    <td className="border border-foreground/30 px-2 py-1">
+                      {item.dataAssinatura ? dateBR(item.dataAssinatura) : "Não informada"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
