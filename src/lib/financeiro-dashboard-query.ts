@@ -295,18 +295,29 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       const forma = o[`prev_recebimento${suf}_forma`] as string | null;
       const recebidoEm = o[`prev_recebimento${suf}_recebido_em`] as string | null;
       const recebidoValor = o[`prev_recebimento${suf}_recebido_valor`] as number | null;
+      const formaPreenchida = typeof forma === "string" && forma.trim().length > 0;
+      const previsaoIniciada = data != null || valor != null || formaPreenchida;
+      const previsaoCompleta =
+        !!data &&
+        valor != null &&
+        Number.isFinite(Number(valor)) &&
+        Number(valor) > 0 &&
+        formaPreenchida;
 
-      if ((data && valor == null) || (!data && valor != null)) {
+      if (previsaoIniciada && !previsaoCompleta) {
         divergencias.push({
           id: `parcela-previsao-incompleta:${occ.id}:${n}`,
-          gravidade: "media",
+          gravidade: recebidoEm ? "alta" : "media",
           saleId: sale.id,
           imovelLabel,
-          tipo: "Previsão de recebimento sem data ou sem valor",
-          explicacao: `Parcela ${n}ª da venda ${imovelLabel}: ${data ? "tem data prevista mas falta o valor" : "tem valor previsto mas falta a data"}.`,
-          valorAfetado: valor ?? null,
-          acaoRecomendada:
-            "Completar a previsão de recebimento na venda antes do fechamento financeiro.",
+          tipo: recebidoEm
+            ? "Recebimento sem previsão completa"
+            : "Previsão de recebimento incompleta",
+          explicacao: `Parcela ${n}ª da venda ${imovelLabel}: a previsão precisa ter data, valor maior que zero e forma de recebimento.`,
+          valorAfetado: valor ?? recebidoValor ?? null,
+          acaoRecomendada: recebidoEm
+            ? "Completar a previsão de recebimento antes de manter o recebimento registrado."
+            : "Completar a previsão de recebimento na venda antes do fechamento financeiro.",
           linkTo: `/vendas/${sale.id}`,
         });
       }

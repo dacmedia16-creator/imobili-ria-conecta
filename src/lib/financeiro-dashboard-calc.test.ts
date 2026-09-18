@@ -540,6 +540,28 @@ describe("aplicarFiltrosParcelas — cancelada/arquivada e demais filtros", () =
     });
     expect(resultado).toEqual([dentro]);
   });
+  it("filtra recebimento pelo dia efetivo, não pela previsão", () => {
+    const recebido = parcelaBase({
+      dataPrevista: "2026-11-17",
+      dataRecebimento: "2026-08-24",
+      valorRecebido: 10000,
+    });
+    const resultado = aplicarFiltrosParcelas([recebido], {
+      ...filtrosPadrao(),
+      dataDe: "2026-08-01",
+      dataAte: "2026-08-31",
+    });
+    expect(resultado).toEqual([recebido]);
+  });
+  it("mantém a data prevista para parcela ainda não recebida", () => {
+    const pendente = parcelaBase({ dataPrevista: "2026-11-17" });
+    const resultado = aplicarFiltrosParcelas([pendente], {
+      ...filtrosPadrao(),
+      dataDe: "2026-08-01",
+      dataAte: "2026-08-31",
+    });
+    expect(resultado).toEqual([]);
+  });
   it("filtra por situação de recebimento", () => {
     const vencida = parcelaBase({ dataPrevista: "2026-08-01" });
     const aVencer = parcelaBase({ occId: "occ-2", dataPrevista: "2026-09-01" });

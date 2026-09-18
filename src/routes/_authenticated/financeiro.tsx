@@ -210,7 +210,7 @@ function CentralFinanceiraPage() {
         corretorOptions={bundle?.corretorOptions ?? []}
         gestorOptions={bundle?.gestorOptions ?? []}
         teamOptions={bundle?.teamOptions ?? []}
-        periodoLabel="O período filtra por aba: Recebimentos/Aging usam a data prevista da parcela; Comissões Calculadas usa a data de efetivação da venda (mesma regra do Comparativo 6%). Divergências não usa período — é uma fila completa."
+        periodoLabel="O período filtra por aba: Recebimentos/Aging usam a data efetiva quando recebido e a data prevista enquanto pendente; Comissões Calculadas usa a data de efetivação da venda (mesma regra do Comparativo 6%). Divergências não usa período — é uma fila completa."
       />
 
       <Tabs defaultValue="visao-geral">

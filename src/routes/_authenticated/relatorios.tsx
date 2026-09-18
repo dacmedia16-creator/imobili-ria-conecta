@@ -190,6 +190,9 @@ function RelatoriosPage() {
       dateWindow("prev_recebimento_data"),
       dateWindow("prev_recebimento2_data"),
       dateWindow("prev_recebimento3_data"),
+      dateWindow("prev_recebimento_recebido_em"),
+      dateWindow("prev_recebimento2_recebido_em"),
+      dateWindow("prev_recebimento3_recebido_em"),
       dateWindow("data_assinatura"),
       timestampWindow("created_at"),
       dateWindow("financiamento_previsao"),
@@ -539,7 +542,8 @@ function FluxoCaixaTab({
       ];
       parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
         if (!data || !valor) return;
-        if (!inRange(data, dateFrom, dateTo)) return;
+        // Recebido entra pelo dia efetivo; pendente entra pela data prevista.
+        if (!inRange(recebidoEm ?? data, dateFrom, dateTo)) return;
         out.push({
           sale,
           occId: o.id,

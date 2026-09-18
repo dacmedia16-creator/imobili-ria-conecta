@@ -318,8 +318,11 @@ export function aplicarFiltrosParcelas(
   const buscaQ = filtros.busca.trim().toLowerCase();
   return parcelas.filter((p) => {
     if (!filtros.incluirCanceladas && p.cancelada) return false;
-    if (filtros.dataDe && p.dataPrevista && p.dataPrevista < filtros.dataDe) return false;
-    if (filtros.dataAte && p.dataPrevista && p.dataPrevista > filtros.dataAte) return false;
+    // Caixa realizado usa a data efetiva; somente o que ainda não foi recebido usa a previsão.
+    // Assim, um recebimento antecipado/tardio aparece no período em que o dinheiro entrou.
+    const dataDoPeriodo = p.dataRecebimento ?? p.dataPrevista;
+    if (filtros.dataDe && dataDoPeriodo && dataDoPeriodo < filtros.dataDe) return false;
+    if (filtros.dataAte && dataDoPeriodo && dataDoPeriodo > filtros.dataAte) return false;
     if (filtros.modalidade !== "todas" && p.modalidade !== filtros.modalidade) return false;
     if (filtros.corretorId && p.corretorId !== filtros.corretorId) return false;
     if (filtros.gestorId && p.gestorId !== filtros.gestorId) return false;
