@@ -458,7 +458,9 @@ function RoomReservationsPage() {
         <AlertTitle>Agenda compartilhada</AlertTitle>
         <AlertDescription>
           As reservas são salvas no banco da imobiliária. O cancelamento pode ser feito a qualquer
-          momento. Cancelamentos feitos depois da primeira hora contam para a regra de bloqueio: ao
+          momento pelo responsável; líderes podem cancelar a própria equipe; gestores, staff,
+          administradores e super administradores podem cancelar qualquer reserva. Cancelamentos
+          feitos pelo responsável depois da primeira hora contam para a regra de bloqueio: ao
           atingir 3, o usuário fica 7 dias corridos sem poder reservar.
         </AlertDescription>
       </Alert>
@@ -687,8 +689,8 @@ function RoomReservationsPage() {
             <div className="flex gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
               <span>
-                Responsável cancela a própria reserva; gestores e líderes, a própria equipe;
-                administradores, todas.
+                Responsável cancela a própria reserva; líderes, a própria equipe; gestores, staff,
+                administradores e super administradores, qualquer reserva.
               </span>
             </div>
             <div className="flex gap-2">
@@ -995,6 +997,18 @@ function RoomReservationsPage() {
             </div>
           )}
           <DialogFooter>
+            {selectedReservation?.canCancel && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const reservationId = selectedReservation.id;
+                  setSelectedReservation(null);
+                  void cancelReservation(reservationId);
+                }}
+              >
+                <XCircle className="mr-1 h-4 w-4" /> Cancelar reserva
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setSelectedReservation(null)}>
               Fechar
             </Button>
