@@ -571,6 +571,14 @@ describe("aplicarFiltrosParcelas — cancelada/arquivada e demais filtros", () =
     });
     expect(resultado).toEqual([vencida]);
   });
+  it("busca por ocorrência e nome das partes", () => {
+    const p = parcelaBase({
+      ocorrenciaCodigo: "630601262-59",
+      partes: ["Ana Souza", "Carlos Lima"],
+    });
+    expect(aplicarFiltrosParcelas([p], { ...filtrosPadrao(), busca: "630601262-59" })).toEqual([p]);
+    expect(aplicarFiltrosParcelas([p], { ...filtrosPadrao(), busca: "carlos lima" })).toEqual([p]);
+  });
   it("busca por código interno ou imóvel", () => {
     const p = parcelaBase({ codigoInterno: "ABC-123" });
     expect(aplicarFiltrosParcelas([p], { ...filtrosPadrao(), busca: "abc" })).toEqual([p]);

@@ -77,7 +77,7 @@ export function Filters({
             "Bus..." visível. sm: volta ao layout de uma linha só (desktop preservado). */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
-            placeholder="Buscar por código interno ou imóvel"
+            placeholder="Pesquisar por ocorrência, imóvel ou nome das partes"
             value={filtros.busca}
             onChange={(e) => set("busca", e.target.value)}
             className="w-full sm:flex-1 sm:max-w-sm"

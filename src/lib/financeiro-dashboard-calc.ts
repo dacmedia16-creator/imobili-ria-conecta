@@ -180,6 +180,8 @@ export function classificarFaixaAging(dataPrevista: string, hoje: string): Aging
 export function montarParcela(args: {
   saleId: string;
   occId: string;
+  ocorrenciaCodigo?: string | null;
+  partes?: string[];
   parcela: 1 | 2 | 3;
   imovelLabel: string;
   codigoInterno: string | null;
@@ -218,6 +220,8 @@ export function montarParcela(args: {
     key: `${args.occId}-${args.parcela}`,
     saleId: args.saleId,
     occId: args.occId,
+    ocorrenciaCodigo: args.ocorrenciaCodigo ?? null,
+    partes: args.partes ?? [],
     parcela: args.parcela,
     imovelLabel: args.imovelLabel,
     codigoInterno: args.codigoInterno,
@@ -340,10 +344,9 @@ export function aplicarFiltrosParcelas(
     }
     if (
       buscaQ &&
-      !(
-        p.imovelLabel.toLowerCase().includes(buscaQ) ||
-        (p.codigoInterno ?? "").toLowerCase().includes(buscaQ)
-      )
+      ![p.imovelLabel, p.codigoInterno, p.ocorrenciaCodigo, p.occId, ...(p.partes ?? [])]
+        .filter(Boolean)
+        .some((valor) => String(valor).toLowerCase().includes(buscaQ))
     )
       return false;
     return true;

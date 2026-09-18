@@ -30,6 +30,10 @@ export type ParcelaRecebimento = {
   key: string;
   saleId: string;
   occId: string;
+  /** Código legível da ocorrência/venda para busca e exibição; pode faltar em registros antigos. */
+  ocorrenciaCodigo?: string | null;
+  /** Nomes das partes da negociação, sem documentos pessoais. */
+  partes?: string[];
   parcela: 1 | 2 | 3;
   imovelLabel: string;
   codigoInterno: string | null;

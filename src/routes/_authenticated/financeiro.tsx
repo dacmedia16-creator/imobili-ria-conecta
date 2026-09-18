@@ -116,6 +116,8 @@ function CentralFinanceiraPage() {
       `recebimentos_${filtros.dataDe || "inicio"}_a_${filtros.dataAte || "fim"}.csv`,
       parcelasFiltradas.map((p) => ({
         Imovel: p.imovelLabel,
+        Ocorrencia: p.ocorrenciaCodigo ?? p.occId,
+        Partes: p.partes?.join(" · ") ?? "",
         CodigoInterno: p.codigoInterno ?? "",
         Corretor: p.corretorNome,
         Equipe: p.teamNome ?? "",

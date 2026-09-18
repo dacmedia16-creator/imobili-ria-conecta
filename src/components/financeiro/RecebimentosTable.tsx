@@ -29,6 +29,8 @@ export function RecebimentosTable({ parcelas }: { parcelas: ParcelaRecebimento[]
       <TableHeader>
         <TableRow>
           <TableHead>Imóvel</TableHead>
+          <TableHead>Ocorrência</TableHead>
+          <TableHead>Partes</TableHead>
           <TableHead>Corretor</TableHead>
           <TableHead>Equipe</TableHead>
           <TableHead>Parcela</TableHead>
@@ -46,7 +48,7 @@ export function RecebimentosTable({ parcelas }: { parcelas: ParcelaRecebimento[]
       <TableBody>
         {parcelas.length === 0 && (
           <TableRow>
-            <TableCell colSpan={13} className="py-8 text-center text-sm text-muted-foreground">
+            <TableCell colSpan={15} className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma parcela no filtro atual.
             </TableCell>
           </TableRow>
@@ -57,6 +59,12 @@ export function RecebimentosTable({ parcelas }: { parcelas: ParcelaRecebimento[]
               <Link to="/vendas/$id" params={{ id: p.saleId }} className="hover:underline">
                 {p.imovelLabel}
               </Link>
+            </TableCell>
+            <TableCell className="font-mono text-xs text-muted-foreground">
+              {p.ocorrenciaCodigo ?? p.occId.slice(0, 8)}
+            </TableCell>
+            <TableCell className="max-w-56 text-muted-foreground">
+              {p.partes?.length ? p.partes.join(" · ") : "—"}
             </TableCell>
             <TableCell className="text-muted-foreground">{p.corretorNome}</TableCell>
             <TableCell className="text-muted-foreground">{p.teamNome ?? "—"}</TableCell>

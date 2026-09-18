@@ -32,6 +32,12 @@ import type {
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 type TeamMemberRow = { membro_id: string; team_id: string };
 type CoLeaderRow = { user_id: string; team_id: string };
+type PartySearchRow = {
+  sale_id: string;
+  nome: string | null;
+  razao_social: string | null;
+  papel: string;
+};
 
 type EfetivacaoRawRow = {
   sale_id: string;
@@ -165,6 +171,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     partnersResult,
     extrasResult,
     profilesResult,
+    partiesResult,
     teamsResult,
     membersResult,
     coLeadersResult,
@@ -185,6 +192,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     supabase.from("occurrence_partners").select("occurrence_id, valor"),
     supabase.from("sale_commission_extras").select("id"),
     supabase.from("profiles").select("id, nome"),
+    supabase.from("sale_parties").select("sale_id, nome, razao_social, papel"),
     supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
     supabase.from("team_members").select("membro_id, team_id"),
     supabase.from("team_co_leaders").select("user_id, team_id"),
@@ -196,6 +204,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const partners = exigirDados(partnersResult, "parcerias");
   const extras = exigirDados(extrasResult, "comissões extras");
   const profiles = exigirDados(profilesResult, "usuários");
+  const parties = exigirDados(partiesResult, "partes das vendas");
   const teams = exigirDados(teamsResult, "equipes");
   const members = exigirDados(membersResult, "membros das equipes");
   const coLeaders = exigirDados(coLeadersResult, "colíderes das equipes");
@@ -232,6 +241,14 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   };
 
   const saleById = new Map((sales ?? []).map((s) => [s.id, s]));
+  const partesPorVenda = new Map<string, string[]>();
+  for (const party of parties as PartySearchRow[]) {
+    const nome = party.nome?.trim() || party.razao_social?.trim();
+    if (!nome) continue;
+    const atuais = partesPorVenda.get(party.sale_id) ?? [];
+    if (!atuais.includes(nome)) atuais.push(nome);
+    partesPorVenda.set(party.sale_id, atuais);
+  }
   const occBySaleId = new Map((occs ?? []).map((o) => [o.sale_id, o]));
   const occByOccId = new Map((occs ?? []).map((o) => [o.id, o]));
   const extraIds = new Set((extras ?? []).map((e) => e.id));
@@ -372,6 +389,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         montarParcela({
           saleId: sale.id,
           occId: occ.id,
+          ocorrenciaCodigo: sale.codigo_interno,
+          partes: partesPorVenda.get(sale.id) ?? [],
           parcela: n,
           imovelLabel,
           codigoInterno: sale.codigo_interno,
