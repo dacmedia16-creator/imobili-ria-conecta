@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -28,7 +29,7 @@ import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
 
-type PendingOccurrence = Pick<
+type PaymentOccurrence = Pick<
   OccurrenceRow,
   | "id"
   | "sale_id"
@@ -45,8 +46,23 @@ type PendingOccurrence = Pick<
   | "prev_recebimento3_valor"
   | "prev_recebimento3_forma"
   | "prev_recebimento3_recebido_em"
+  | "prev_recebimento_recebido_valor"
+  | "prev_recebimento2_recebido_valor"
+  | "prev_recebimento3_recebido_valor"
 >;
 type SaleSummary = Pick<SaleRow, "id" | "imovel_id" | "codigo_interno" | "corretor_id" | "status">;
+type PaymentRow = {
+  key: string;
+  occId: string;
+  parcela: number;
+  sale: SaleSummary;
+  data: string | null;
+  valor: number;
+  forma: string | null;
+  recebidoEm: string | null;
+  recebidoValor: number | null;
+  status: "pendente" | "recebida";
+};
 
 export const Route = createFileRoute("/_authenticated/comissoes-a-receber")({
   head: () => ({ meta: [{ title: "Baixa de recebimentos" }] }),
@@ -56,33 +72,39 @@ export const Route = createFileRoute("/_authenticated/comissoes-a-receber")({
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const OCC_COLUMNS =
-  "id, sale_id, valor_comissao, prev_recebimento_data, prev_recebimento_valor, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento2_data, prev_recebimento2_valor, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento3_data, prev_recebimento3_valor, prev_recebimento3_forma, prev_recebimento3_recebido_em";
+  "id, sale_id, valor_comissao, prev_recebimento_data, prev_recebimento_valor, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_data, prev_recebimento2_valor, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_data, prev_recebimento3_valor, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor";
 
 function ComissoesAReceberPage() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(["financeiro", "admin", "super_admin"]);
 
   const [loading, setLoading] = useState(true);
-  const [occs, setOccs] = useState<PendingOccurrence[]>([]);
+  const [occs, setOccs] = useState<PaymentOccurrence[]>([]);
   const [sales, setSales] = useState<SaleSummary[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [markDate, setMarkDate] = useState(todayISO());
   const [marking, setMarking] = useState(false);
+  const [view, setView] = useState<"pendentes" | "recebidas" | "todas">("pendentes");
+  const [search, setSearch] = useState("");
+  const [brokerFilter, setBrokerFilter] = useState("todos");
+  const [formFilter, setFormFilter] = useState("todos");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [deadlineFilter, setDeadlineFilter] = useState<"todos" | "vencidas" | "a_vencer">("todos");
 
-  // Sem filtro de período de propósito: diferente de Relatórios (histórico), aqui é a fila de
-  // trabalho do financeiro — só o que ainda não foi recebido, então não cresce sem limite (uma
-  // parcela sai da lista assim que é marcada, em vez de se acumular ano após ano).
+  // Carrega parcelas previstas e já recebidas para manter o histórico na mesma tela. O filtro de
+  // período e a situação são aplicados localmente, sem permitir alteração em parcelas recebidas.
   const load = useCallback(async () => {
     setLoading(true);
-    const pendingFilter = [1, 2, 3]
+    const paymentFilter = [1, 2, 3]
       .map((n) => {
         const suf = n === 1 ? "" : String(n);
-        return `and(prev_recebimento${suf}_data.not.is.null,prev_recebimento${suf}_valor.not.is.null,prev_recebimento${suf}_recebido_em.is.null)`;
+        return `or(prev_recebimento${suf}_data.not.is.null,prev_recebimento${suf}_valor.not.is.null,prev_recebimento${suf}_recebido_em.not.is.null,prev_recebimento${suf}_recebido_valor.not.is.null)`;
       })
       .join(",");
-    const { data: o } = await supabase.from("occurrences").select(OCC_COLUMNS).or(pendingFilter);
+    const { data: o } = await supabase.from("occurrences").select(OCC_COLUMNS).or(paymentFilter);
     setOccs(o ?? []);
 
     const saleIds = Array.from(new Set((o ?? []).map((r) => r.sale_id)));
@@ -118,17 +140,9 @@ function ComissoesAReceberPage() {
     return m;
   }, [sales]);
 
-  const { rows, inconsistentes } = useMemo(() => {
-    const out: {
-      key: string;
-      occId: string;
-      parcela: number;
-      sale: SaleSummary;
-      data: string;
-      valor: number;
-      forma: string | null;
-    }[] = [];
-    const semVenda: PendingOccurrence[] = [];
+  const { rows: allRows, inconsistentes } = useMemo(() => {
+    const out: PaymentRow[] = [];
+    const semVenda: PaymentOccurrence[] = [];
     for (const o of occs) {
       const sale = saleById[o.sale_id];
       // Ocorrência sem venda resolvida é uma inconsistência de dados — não deve entrar silenciosamente
@@ -142,51 +156,133 @@ function ComissoesAReceberPage() {
       if (sale.status === "arquivada" || sale.status === "cancelada") continue;
       // prev_recebimento{1,2,3}_valor já é a fatia própria — parceria externa (quando existe) nunca
       // passa por essa conta, cobrada direto pelo parceiro.
-      const parcelas: [string | null, number | null, string | null, string | null][] = [
+      const parcelas: [
+        string | null,
+        number | null,
+        string | null,
+        string | null,
+        number | null,
+      ][] = [
         [
           o.prev_recebimento_data,
           o.prev_recebimento_valor,
           o.prev_recebimento_forma,
           o.prev_recebimento_recebido_em,
+          o.prev_recebimento_recebido_valor,
         ],
         [
           o.prev_recebimento2_data,
           o.prev_recebimento2_valor,
           o.prev_recebimento2_forma,
           o.prev_recebimento2_recebido_em,
+          o.prev_recebimento2_recebido_valor,
         ],
         [
           o.prev_recebimento3_data,
           o.prev_recebimento3_valor,
           o.prev_recebimento3_forma,
           o.prev_recebimento3_recebido_em,
+          o.prev_recebimento3_recebido_valor,
         ],
       ];
-      parcelas.forEach(([data, valor, forma, recebidoEm], i) => {
-        if (!data || !valor || recebidoEm) return;
+      parcelas.forEach(([data, valor, forma, recebidoEm, recebidoValor], i) => {
+        if (!data && !valor && !recebidoEm && !recebidoValor) return;
+        if (!recebidoEm && (!data || valor == null)) return;
         out.push({
           key: `${o.id}-${i + 1}`,
           occId: o.id,
           parcela: i + 1,
           sale,
           data,
-          valor: Number(valor),
+          valor: Number(recebidoEm ? (recebidoValor ?? valor ?? 0) : valor),
           forma,
+          recebidoEm,
+          recebidoValor: recebidoValor == null ? null : Number(recebidoValor),
+          status: recebidoEm ? "recebida" : "pendente",
         });
       });
     }
-    return { rows: out.sort((a, b) => a.data.localeCompare(b.data)), inconsistentes: semVenda };
+    return {
+      rows: out.sort((a, b) => (a.data ?? "").localeCompare(b.data ?? "")),
+      inconsistentes: semVenda,
+    };
   }, [occs, saleById]);
 
   const hoje = todayISO();
-  const saleLabel = (sale: SaleSummary | undefined) =>
-    sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
-  const corretorNome = (sale: SaleSummary | undefined) =>
-    sale ? (profileName[sale.corretor_id] ?? "—") : "—";
+  const saleLabel = useCallback(
+    (sale: SaleSummary | undefined) =>
+      sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—"),
+    [],
+  );
+  const corretorNome = useCallback(
+    (sale: SaleSummary | undefined) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—"),
+    [profileName],
+  );
 
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.key));
+  const formas = useMemo(
+    () =>
+      Array.from(
+        new Set(allRows.map((r) => r.forma).filter((forma): forma is string => Boolean(forma))),
+      ).sort(),
+    [allRows],
+  );
+  const corretores = useMemo(
+    () =>
+      Array.from(new Set(allRows.map((r) => r.sale.corretor_id)))
+        .map((id) => ({ id, name: profileName[id] ?? id }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    [allRows, profileName],
+  );
+  const rows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("pt-BR");
+    return allRows.filter((row) => {
+      if (view !== "todas" && row.status !== (view === "recebidas" ? "recebida" : "pendente"))
+        return false;
+      if (deadlineFilter !== "todos") {
+        if (row.status === "recebida") return false;
+        const vencida = Boolean(row.data && row.data < hoje);
+        if (deadlineFilter === "vencidas" && !vencida) return false;
+        if (deadlineFilter === "a_vencer" && vencida) return false;
+      }
+      if (brokerFilter !== "todos" && row.sale.corretor_id !== brokerFilter) return false;
+      if (formFilter !== "todos" && row.forma !== formFilter) return false;
+      const referenceDate = row.status === "recebida" ? (row.recebidoEm ?? row.data) : row.data;
+      if (dateFrom && (!referenceDate || referenceDate < dateFrom)) return false;
+      if (dateTo && (!referenceDate || referenceDate > dateTo)) return false;
+      if (query) {
+        const haystack =
+          `${saleLabel(row.sale)} ${corretorNome(row.sale)} ${row.forma ?? ""}`.toLocaleLowerCase(
+            "pt-BR",
+          );
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [
+    allRows,
+    brokerFilter,
+    corretorNome,
+    dateFrom,
+    dateTo,
+    deadlineFilter,
+    formFilter,
+    hoje,
+    saleLabel,
+    search,
+    view,
+  ]);
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [brokerFilter, dateFrom, dateTo, deadlineFilter, formFilter, search, view]);
+
+  const pendingRows = allRows.filter((r) => r.status === "pendente");
+  const receivedRows = allRows.filter((r) => r.status === "recebida");
+  const selectableRows = rows.filter((r) => r.status === "pendente");
+
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.key));
   const toggleAll = (checked: boolean) =>
-    setSelected(checked ? new Set(rows.map((r) => r.key)) : new Set());
+    setSelected(checked ? new Set(selectableRows.map((r) => r.key)) : new Set());
   const toggleOne = (key: string, checked: boolean) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -195,8 +291,13 @@ function ComissoesAReceberPage() {
       return next;
     });
 
-  const selecionadas = rows.filter((r) => selected.has(r.key));
+  const selecionadas = rows.filter((r) => r.status === "pendente" && selected.has(r.key));
   const totalSelecionado = selecionadas.reduce((s, r) => s + r.valor, 0);
+  const totalPendente = pendingRows.reduce((s, r) => s + r.valor, 0);
+  const totalVencido = pendingRows
+    .filter((r) => r.data && r.data < hoje)
+    .reduce((s, r) => s + r.valor, 0);
+  const totalRecebido = receivedRows.reduce((s, r) => s + r.valor, 0);
 
   const abrirConfirmacao = () => {
     setMarkDate(hoje);
@@ -267,11 +368,23 @@ function ComissoesAReceberPage() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">Total pendente (nossa parte)</p>
-            <p className="text-xl font-semibold">{money(rows.reduce((s, r) => s + r.valor, 0))}</p>
+            <p className="text-xl font-semibold">{money(totalPendente)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Pendente vencido</p>
+            <p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground">Total recebido</p>
+            <p className="text-xl font-semibold text-emerald-700">{money(totalRecebido)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -283,12 +396,95 @@ function ComissoesAReceberPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Pendentes ({rows.length})</CardTitle>
-          <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
-            <Wallet className="mr-2 h-4 w-4" />
-            Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como recebida(s)
-          </Button>
+        <CardContent className="space-y-4 pt-6">
+          <Tabs
+            value={view}
+            onValueChange={(value) => setView(value as "pendentes" | "recebidas" | "todas")}
+          >
+            <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-none">
+              <TabsTrigger value="pendentes">Pendentes ({pendingRows.length})</TabsTrigger>
+              <TabsTrigger value="recebidas">Recebidas ({receivedRows.length})</TabsTrigger>
+              <TabsTrigger value="todas">Todas ({allRows.length})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <Input
+              placeholder="Buscar imóvel, corretor ou forma..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Buscar recebimentos"
+            />
+            <select
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+              value={brokerFilter}
+              onChange={(e) => setBrokerFilter(e.target.value)}
+              aria-label="Filtrar por corretor"
+            >
+              <option value="todos">Todos os corretores</option>
+              {corretores.map((corretor) => (
+                <option key={corretor.id} value={corretor.id}>
+                  {corretor.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+              value={formFilter}
+              onChange={(e) => setFormFilter(e.target.value)}
+              aria-label="Filtrar por forma de recebimento"
+            >
+              <option value="todos">Todas as formas</option>
+              {formas.map((forma) => (
+                <option key={forma} value={forma}>
+                  {forma}
+                </option>
+              ))}
+            </select>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              aria-label="Data inicial"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              aria-label="Data final"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Label htmlFor="deadline-filter">Pendências</Label>
+              <select
+                id="deadline-filter"
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                value={deadlineFilter}
+                onChange={(e) => setDeadlineFilter(e.target.value as typeof deadlineFilter)}
+              >
+                <option value="todos">Todas</option>
+                <option value="vencidas">Vencidas</option>
+                <option value="a_vencer">A vencer</option>
+              </select>
+            </div>
+            <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
+              <Wallet className="mr-2 h-4 w-4" />
+              Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como recebida(s)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {view === "pendentes"
+              ? "Pendentes"
+              : view === "recebidas"
+                ? "Recebidas"
+                : "Todas as parcelas"}{" "}
+            ({rows.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -305,6 +501,7 @@ function ComissoesAReceberPage() {
                 <TableHead>Corretor</TableHead>
                 <TableHead>Parcela</TableHead>
                 <TableHead>Data prevista</TableHead>
+                <TableHead>Recebida em</TableHead>
                 <TableHead>Forma</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Situação</TableHead>
@@ -313,8 +510,8 @@ function ComissoesAReceberPage() {
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma comissão pendente de recebimento.
+                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhuma parcela encontrada com os filtros atuais.
                   </TableCell>
                 </TableRow>
               )}
@@ -324,6 +521,7 @@ function ComissoesAReceberPage() {
                     <Checkbox
                       checked={selected.has(r.key)}
                       onCheckedChange={(v) => toggleOne(r.key, !!v)}
+                      disabled={r.status === "recebida"}
                     />
                   </TableCell>
                   <TableCell className="font-medium">
@@ -337,12 +535,25 @@ function ComissoesAReceberPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
                   <TableCell>{r.parcela}ª</TableCell>
-                  <TableCell>{dateBR(r.data)}</TableCell>
+                  <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
+                  <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
                   <TableCell>{money(r.valor)}</TableCell>
                   <TableCell>
-                    <span className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}>
-                      {r.data < hoje ? "Vencida" : "A vencer"}
+                    <span
+                      className={
+                        r.status === "recebida"
+                          ? "text-emerald-700"
+                          : r.data && r.data < hoje
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                      }
+                    >
+                      {r.status === "recebida"
+                        ? "Recebida"
+                        : r.data && r.data < hoje
+                          ? "Vencida"
+                          : "A vencer"}
                     </span>
                   </TableCell>
                 </TableRow>
