@@ -401,8 +401,8 @@ function ComissoesAReceberPage() {
             value={view}
             onValueChange={(value) => setView(value as "pendentes" | "recebidas" | "todas")}
           >
-            <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-none">
-              <TabsTrigger value="pendentes">Pendentes ({pendingRows.length})</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
+              <TabsTrigger value="pendentes">A receber ({pendingRows.length})</TabsTrigger>
               <TabsTrigger value="recebidas">Recebidas ({receivedRows.length})</TabsTrigger>
               <TabsTrigger value="todas">Todas ({allRows.length})</TabsTrigger>
             </TabsList>
@@ -479,7 +479,7 @@ function ComissoesAReceberPage() {
         <CardHeader>
           <CardTitle className="text-base">
             {view === "pendentes"
-              ? "Pendentes"
+              ? "A receber"
               : view === "recebidas"
                 ? "Recebidas"
                 : "Todas as parcelas"}{" "}
