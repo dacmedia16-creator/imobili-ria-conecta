@@ -1,1 +1,4 @@
 project_id = "xvvymgurpchhlmbpjbgc"
+
+[functions.max-juridico-contratos]
+verify_jwt = false

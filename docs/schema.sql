@@ -804,6 +804,28 @@ CREATE POLICY log_insert ON public.activity_logs AS PERMISSIVE FOR INSERT TO aut
 DROP POLICY IF EXISTS log_view ON public.activity_logs;
 CREATE POLICY log_view ON public.activity_logs AS PERMISSIVE FOR SELECT TO  USING ((((sale_id IS NULL) AND has_any_role(auth.uid(), ARRAY['admin'::app_role, 'super_admin'::app_role])) OR ((sale_id IS NOT NULL) AND can_view_sale(auth.uid(), sale_id))));
 
+-- ===== TABELA: juridico_agent_audit =====
+CREATE TABLE IF NOT EXISTS public.juridico_agent_audit (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  agent_name text NOT NULL CHECK (agent_name = 'max_juridico'),
+  action text NOT NULL CHECK (action IN ('search', 'get')),
+  sale_id uuid,
+  document_id uuid,
+  result_count integer NOT NULL CHECK (result_count >= 0),
+  request_id text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT juridico_agent_audit_pkey PRIMARY KEY (id),
+  CONSTRAINT juridico_agent_audit_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL,
+  CONSTRAINT juridico_agent_audit_document_id_fkey FOREIGN KEY (document_id) REFERENCES sale_documents(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS juridico_agent_audit_created_at_idx ON public.juridico_agent_audit USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS juridico_agent_audit_sale_id_idx ON public.juridico_agent_audit USING btree (sale_id, created_at DESC);
+ALTER TABLE public.juridico_agent_audit ENABLE ROW LEVEL SECURITY;
+
+-- A Edge Function usa service_role para gravar a auditoria; clientes não devem ler ou gravar diretamente.
+REVOKE ALL ON TABLE public.juridico_agent_audit FROM anon, authenticated;
+GRANT ALL ON TABLE public.juridico_agent_audit TO service_role;
+
 -- ===== TABELA: notifications =====
 CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
