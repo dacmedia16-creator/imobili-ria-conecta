@@ -493,15 +493,50 @@ function VisaoGeralCard({
       .sort((a, b) => b.negociado - a.negociado);
   }, [members, allSales, profiles, teamNameByMembro, atribuicao, teams]);
 
+  const vendasUnicas = useMemo(
+    () => new Set(allSales.filter((s) => s.venda_comercial_valida).map((s) => s.id)).size,
+    [allSales],
+  );
+  const participacoesIndividuais = useMemo(
+    () => ranking.reduce((total, row) => total + row.fechadas, 0),
+    [ranking],
+  );
+  const comissaoSemEquipe = useMemo(
+    () =>
+      ranking
+        .filter((row) => row.equipe === "Sem equipe")
+        .reduce((total, row) => total + row.comissao, 0),
+    [ranking],
+  );
+  const totaisPorEquipe = useMemo(() => {
+    const porEquipe = new Map<
+      string,
+      { equipe: string; participacoes: number; negociado: number; comissao: number }
+    >();
+    for (const row of ranking) {
+      const atual = porEquipe.get(row.equipe) ?? {
+        equipe: row.equipe,
+        participacoes: 0,
+        negociado: 0,
+        comissao: 0,
+      };
+      atual.participacoes += row.fechadas;
+      atual.negociado += row.negociado;
+      atual.comissao += row.comissao;
+      porEquipe.set(row.equipe, atual);
+    }
+    return Array.from(porEquipe.values()).sort((a, b) => b.comissao - a.comissao);
+  }, [ranking]);
+
   const totais = useMemo(
     () => ({
       equipes: teams.filter((t) => !t.parent_team_id).length,
       corretores: ranking.length,
-      vendas: ranking.reduce((s, r) => s + r.total, 0),
+      vendas: vendasUnicas,
       negociado: ranking.reduce((s, r) => s + r.negociado, 0),
       comissao: ranking.reduce((s, r) => s + r.comissao, 0),
     }),
-    [teams, ranking],
+    [teams, ranking, vendasUnicas],
   );
 
   return (
@@ -524,7 +559,7 @@ function VisaoGeralCard({
             <p className="text-xl font-semibold">{totais.corretores}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Vendas</p>
+            <p className="text-xs text-muted-foreground">Vendas únicas comerciais</p>
             <p className="text-xl font-semibold">{totais.vendas}</p>
           </div>
           <div>
@@ -534,6 +569,22 @@ function VisaoGeralCard({
           <div>
             <p className="text-xs text-muted-foreground">Comissão gerada pela REMAX</p>
             <p className="text-xl font-semibold">{money(totais.comissao)}</p>
+          </div>
+        </div>
+        <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-muted-foreground">Participações individuais</p>
+            <p className="text-xl font-semibold">{participacoesIndividuais}</p>
+            <p className="text-xs text-muted-foreground">
+              Uma mesma venda pode gerar mais de uma participação.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Comissão sem equipe resolvida</p>
+            <p className="text-xl font-semibold">{money(comissaoSemEquipe)}</p>
+            <p className="text-xs text-muted-foreground">
+              Permanece no total geral, mas não é atribuída a uma equipe.
+            </p>
           </div>
         </div>
         {comissaoResumo.semVinculo.quantidade > 0 && (
@@ -551,14 +602,39 @@ function VisaoGeralCard({
             somente no controle separado de parcerias externas.
           </p>
         )}
+        {totaisPorEquipe.length > 0 && (
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-semibold">Totais por equipe</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Equipe</TableHead>
+                  <TableHead>Participações</TableHead>
+                  <TableHead>VGV atribuído</TableHead>
+                  <TableHead>Comissão</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {totaisPorEquipe.map((row) => (
+                  <TableRow key={row.equipe}>
+                    <TableCell className="font-medium">{row.equipe}</TableCell>
+                    <TableCell>{row.participacoes}</TableCell>
+                    <TableCell>{money(row.negociado)}</TableCell>
+                    <TableCell>{money(row.comissao)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
         {ranking.length > 0 && (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Corretor</TableHead>
                 <TableHead>Equipe</TableHead>
-                <TableHead>Vendas</TableHead>
-                <TableHead>Fechadas</TableHead>
+                <TableHead>Cadastradas</TableHead>
+                <TableHead>Participações</TableHead>
                 <TableHead>VGV atribuído à REMAX</TableHead>
                 <TableHead>Comissão gerada</TableHead>
               </TableRow>
