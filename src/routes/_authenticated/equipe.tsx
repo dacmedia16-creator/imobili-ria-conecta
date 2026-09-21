@@ -118,6 +118,7 @@ function EquipesPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<{ team_id: string; membro_id: string }[]>([]);
   const [coLeaders, setCoLeaders] = useState<{ team_id: string; user_id: string }[]>([]);
+  const [teamLeaderIds, setTeamLeaderIds] = useState<string[]>([]);
   const [allSales, setAllSales] = useState<PerformanceSale[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [gestores, setGestores] = useState<Profile[]>([]);
@@ -140,26 +141,29 @@ function EquipesPage() {
       return;
     }
     setLoading(true);
-    const [{ data: t }, { data: tm }, { data: cl }, salesRes, vendasValidas] = await Promise.all([
-      supabase
-        .from("teams")
-        .select("id, nome, cor, lider_id, parent_team_id")
-        .order("created_at", { ascending: true }),
-      supabase.from("team_members").select("team_id, membro_id"),
-      supabase.from("team_co_leaders").select("team_id, user_id"),
-      isAdminLike
-        ? // Venda cancelada/arquivada não deve compor a Visão geral (vendas/valor negociado/comissão
-          // do ranking) — ela some do ranking, mas continua acessível na própria tela da venda.
-          supabase
-            .from("sales")
-            .select("id, corretor_id, status, valor_negociado, valor_total_comissao")
-            .not("status", "in", "(cancelada,arquivada)")
-        : Promise.resolve({ data: [] as PerformanceSale[] }),
-      isAdminLike ? fetchVendasComerciaisValidas() : Promise.resolve([]),
-    ]);
+    const [{ data: t }, { data: tm }, { data: cl }, { data: roles }, salesRes, vendasValidas] =
+      await Promise.all([
+        supabase
+          .from("teams")
+          .select("id, nome, cor, lider_id, parent_team_id")
+          .order("created_at", { ascending: true }),
+        supabase.from("team_members").select("team_id, membro_id"),
+        supabase.from("team_co_leaders").select("team_id, user_id"),
+        supabase.from("user_roles").select("user_id, role").eq("role", "team_leader"),
+        isAdminLike
+          ? // Venda cancelada/arquivada não deve compor a Visão geral (vendas/valor negociado/comissão
+            // do ranking) — ela some do ranking, mas continua acessível na própria tela da venda.
+            supabase
+              .from("sales")
+              .select("id, corretor_id, status, valor_negociado, valor_total_comissao")
+              .not("status", "in", "(cancelada,arquivada)")
+          : Promise.resolve({ data: [] as PerformanceSale[] }),
+        isAdminLike ? fetchVendasComerciaisValidas() : Promise.resolve([]),
+      ]);
     setTeams(t ?? []);
     setMembers(tm ?? []);
     setCoLeaders(cl ?? []);
+    setTeamLeaderIds((roles ?? []).map((r) => r.user_id));
     const idsValidos = new Set(vendasValidas.map((v) => v.sale_id));
     setAllSales(
       (salesRes.data ?? []).map((s) => ({
@@ -303,7 +307,13 @@ function EquipesPage() {
       </div>
 
       {isAdminLike && !loading && (
-        <VisaoGeralCard teams={teams} members={members} allSales={allSales} profiles={profiles} />
+        <VisaoGeralCard
+          teams={teams}
+          members={members}
+          teamLeaderIds={teamLeaderIds}
+          allSales={allSales}
+          profiles={profiles}
+        />
       )}
 
       <div className="relative max-w-sm">
@@ -420,11 +430,13 @@ function EquipesPage() {
 function VisaoGeralCard({
   teams,
   members,
+  teamLeaderIds,
   allSales,
   profiles,
 }: {
   teams: Team[];
   members: { team_id: string; membro_id: string }[];
+  teamLeaderIds: string[];
   allSales: PerformanceSale[];
   profiles: Record<string, Profile>;
 }) {
@@ -437,8 +449,12 @@ function VisaoGeralCard({
     members.forEach((m) => {
       map[m.membro_id] = teamById[m.team_id]?.nome ?? "—";
     });
+    const teamLeaderSet = new Set(teamLeaderIds);
+    teams.forEach((team) => {
+      if (teamLeaderSet.has(team.lider_id)) map[team.lider_id] = team.nome;
+    });
     return map;
-  }, [teams, members]);
+  }, [teams, members, teamLeaderIds]);
 
   // "Comissão" já foi soma de sales.valor_total_comissao por sales.corretor_id — atribuía a comissão
   // INTEIRA da venda a quem cadastrou, não a quem recebe (ver auditoria "comissão por corretor").
