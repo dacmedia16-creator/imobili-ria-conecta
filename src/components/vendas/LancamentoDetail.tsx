@@ -104,6 +104,20 @@ type PartyForm = Partial<
   Pick<PartyRow, "razao_social" | "cnpj" | "nome" | "cpf_cnpj" | "rg" | "email" | "telefone">
 >;
 
+function limiteDataVendaLancamentoAtual() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  const iso = (data: Date) =>
+    `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+  return {
+    min: `${ano}-${String(mes + 1).padStart(2, "0")}-01`,
+    max: iso(new Date(ano, mes + 1, 0)),
+  };
+}
+
+const mensagemDataVendaLancamento = "A data da venda de Lançamento deve estar dentro do mês atual.";
+
 const asDistribution = (value: Json | null): LancamentoDistribution | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as unknown as LancamentoDistribution)
@@ -199,6 +213,7 @@ export function LancamentoDetail({
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
   const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
   const isResend = sale.status === "devolvida_ajuste";
+  const limiteDataVenda = limiteDataVendaLancamentoAtual();
   const [paymentDirty, setPaymentDirty] = useState(false);
 
   // Edição da ocorrência já criada pelo financeiro, enquanto está em análise OU já devolvida pro
@@ -301,6 +316,14 @@ export function LancamentoDetail({
   const confirmarSalvarEdicaoFinanceiro = async () => {
     if (!editMotivo.trim()) {
       toast.error("Motivo é obrigatório.");
+      return;
+    }
+    const limite = limiteDataVendaLancamentoAtual();
+    if (
+      editResumo.data_assinatura &&
+      (editResumo.data_assinatura < limite.min || editResumo.data_assinatura > limite.max)
+    ) {
+      toast.error(mensagemDataVendaLancamento);
       return;
     }
     const semEscolha = editLinhas.find(precisaEscolherBeneficiario);
@@ -625,6 +648,16 @@ export function LancamentoDetail({
     setDirty(true);
   };
   const saveForm = useCallback(async () => {
+    const limite = limiteDataVendaLancamentoAtual();
+    if (
+      form.data_assinatura &&
+      (form.data_assinatura < limite.min || form.data_assinatura > limite.max)
+    ) {
+      const mensagem = mensagemDataVendaLancamento;
+      setFormError(mensagem);
+      toast.error(mensagem);
+      return false;
+    }
     // Normaliza de novo aqui (defesa em profundidade) -- mesmo que algum campo volte a virar "" por
     // outro caminho no futuro, nunca deixa uma string vazia chegar nas colunas date/CHECK-constrained.
     const payload = sanitizeLancamentoResumoPayload(form);
@@ -977,9 +1010,11 @@ export function LancamentoDetail({
                   onChange={(e) => upd({ imovel_id: e.target.value })}
                 />
               </Field>
-              <Field label="Data de assinatura">
+              <Field label="Data da venda">
                 <Input
                   type="date"
+                  min={limiteDataVenda.min}
+                  max={limiteDataVenda.max}
                   value={form.data_assinatura ?? ""}
                   disabled={!canEdit}
                   onChange={(e) => upd({ data_assinatura: e.target.value || null })}
@@ -1468,9 +1503,11 @@ export function LancamentoDetail({
                   placeholder="Ex: 45"
                 />
               </Field>
-              <Field label="Data de assinatura">
+              <Field label="Data da venda">
                 <Input
                   type="date"
+                  min={limiteDataVenda.min}
+                  max={limiteDataVenda.max}
                   value={editResumo.data_assinatura ?? ""}
                   onChange={(e) => updEditResumo({ data_assinatura: e.target.value || null })}
                 />
