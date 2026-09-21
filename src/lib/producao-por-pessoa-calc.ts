@@ -191,6 +191,7 @@ export function aplicarFiltrosProducao(
     if (filtros.dataAte && dataConclusao > filtros.dataAte) return false;
     if (filtros.pessoaId && p.pessoaId !== filtros.pessoaId) return false;
     if (filtros.teamId && p.teamId !== filtros.teamId) return false;
+    if (filtros.modalidade !== "todas" && p.modalidade !== filtros.modalidade) return false;
     if (filtros.tipo !== "todas" && p.tipo !== filtros.tipo) return false;
     return true;
   });

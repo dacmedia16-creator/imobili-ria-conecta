@@ -492,6 +492,7 @@ describe("aplicarFiltrosProducao — mesma fixture", () => {
     dataAte: "",
     pessoaId: null,
     teamId: null,
+    modalidade: "todas",
     tipo: "todas",
   };
 
@@ -515,6 +516,16 @@ describe("aplicarFiltrosProducao — mesma fixture", () => {
     });
     const saleIds = new Set(filtradas.map((p) => p.saleId));
     expect(saleIds).toEqual(new Set(["sale-1", "sale-2"]));
+  });
+
+  it("filtra pela modalidade sem transformar lançamento em equipe", () => {
+    const lancamentos = aplicarFiltrosProducao(pontas, { ...base, modalidade: "lancamento" });
+    expect(lancamentos.length).toBeGreaterThan(0);
+    expect(lancamentos.every((p) => p.modalidade === "lancamento")).toBe(true);
+
+    const padrao = aplicarFiltrosProducao(pontas, { ...base, modalidade: "padrao" });
+    expect(padrao.length).toBeGreaterThan(0);
+    expect(padrao.every((p) => p.modalidade === "padrao")).toBe(true);
   });
 
   it("filtra por equipe", () => {

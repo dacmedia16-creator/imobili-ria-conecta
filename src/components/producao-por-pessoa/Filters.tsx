@@ -25,6 +25,11 @@ const TIPO_LABEL: Record<FiltrosProducao["tipo"], string> = {
   captacao: "Só captação",
   venda: "Só venda",
 };
+const MODALIDADE_LABEL: Record<FiltrosProducao["modalidade"], string> = {
+  todas: "Todas as modalidades",
+  padrao: "Venda padrão",
+  lancamento: "Lançamento",
+};
 
 export function Filters({
   filtros,
@@ -105,6 +110,25 @@ export function Filters({
               onChange={(e) => e.target.value && aplicarAtalho(mesRange(e.target.value))}
               className="w-[10.5rem]"
             />
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Modalidade</Label>
+            <Select
+              value={filtros.modalidade}
+              onValueChange={(v) => set("modalidade", v as FiltrosProducao["modalidade"])}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(MODALIDADE_LABEL) as FiltrosProducao["modalidade"][]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {MODALIDADE_LABEL[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

@@ -59,6 +59,7 @@ export type FiltrosProducao = {
   dataAte: string; // YYYY-MM-DD
   pessoaId: string | null; // null = todas
   teamId: string | null; // null = todas
+  modalidade: "todas" | ModalidadeVenda;
   tipo: "todas" | TipoParticipacao;
 };
 

@@ -32,5 +32,12 @@ export function mesSelecionado(filtros: Pick<FiltrosProducao, "dataDe" | "dataAt
 /** Filtro inicial da página: mês atual — nunca recalculado depois do primeiro render. */
 export function filtrosPadrao(): FiltrosProducao {
   const { de, ate } = mesAtualRange();
-  return { dataDe: de, dataAte: ate, pessoaId: null, teamId: null, tipo: "todas" };
+  return {
+    dataDe: de,
+    dataAte: ate,
+    pessoaId: null,
+    teamId: null,
+    modalidade: "todas",
+    tipo: "todas",
+  };
 }
