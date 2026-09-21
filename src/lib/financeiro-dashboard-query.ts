@@ -1,9 +1,8 @@
 /**
  * Busca/montagem de dados da Central Financeira — único módulo que fala com o Supabase aqui.
- * Só leitura: nenhuma função faz insert/update/delete. Reaproveita as duas RPCs do Comparativo 6%
- * (já restritas a financeiro/admin/super_admin, ver migration 20260813020000) em vez de reescrever
- * a regra de "data de efetivação" — e reaproveita `RECEBIDO_COLS` de status.ts. `parceriaPorOcc` soma
- * duas fontes de parceria externa por ocorrência: `occurrence_partners` (parceria da ocorrência
+ * Só leitura: nenhuma função faz insert/update/delete. A população de vendas efetivadas vem da camada
+ * canônica `vendas_comerciais_canonicas`; as inconsistências continuam usando a RPC de auditoria do
+ * Comparativo 6%. `parceriaPorOcc` soma duas fontes de parceria externa por ocorrência: `occurrence_partners` (parceria da ocorrência
  * inteira, outra imobiliária/unidade) e `occurrence_commissions.sem_cadastro_confirmado`
  * (beneficiário individual sem cadastro, ex.: Wilson Grecchi — ver `agruparParceriaExternaPorOcorrencia`).
  * Nenhuma das duas é receita da imobiliária, e nenhuma das duas passa pela conta dela — o parceiro
@@ -176,7 +175,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     membersResult,
     coLeadersResult,
   ] = await Promise.all([
-    callRpc<EfetivacaoRawRow>("comparativo_comissao_6pct"),
+    callRpc<EfetivacaoRawRow>("vendas_comerciais_canonicas"),
     callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
     callRpc<DistribuicaoRawRow>("financeiro_distribuicao_vendas"),
     supabase.from("occurrences").select(OCC_COLUMNS) as unknown as Promise<{
