@@ -471,6 +471,7 @@ describe("contagens dos cabeçalhos", () => {
       dataAte: "",
       pessoaId: "carlos",
       teamId: null,
+      modalidade: "todas",
       tipo: "todas",
     });
     expect(filtradas).toHaveLength(2);
