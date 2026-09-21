@@ -5774,6 +5774,18 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleR
   }
 }
 
+const PREVISAO_RECEBIMENTO_FIELDS = new Set([
+  "prev_recebimento_valor",
+  "prev_recebimento_data",
+  "prev_recebimento_forma",
+  "prev_recebimento2_valor",
+  "prev_recebimento2_data",
+  "prev_recebimento2_forma",
+  "prev_recebimento3_valor",
+  "prev_recebimento3_data",
+  "prev_recebimento3_forma",
+]);
+
 // -------- Occurrence step (buffered) --------
 function OccurrencePanel({
   saleId,
@@ -5802,6 +5814,7 @@ function OccurrencePanel({
   const [occ, setOcc] = useState<OccurrenceRow | null>(null);
   const [formOcc, setFormOcc] = useState<Partial<OccurrenceRow>>({});
   const [dirtyOcc, setDirtyOcc] = useState(false);
+  const [mostrarErrosFinanceiros, setMostrarErrosFinanceiros] = useState(false);
   const [commissions, setCommissions] = useState<OccurrenceCommissionRow[]>([]);
   const [formComms, setFormComms] = useState<EditableCommission[]>([]);
   const [dirtyComms, setDirtyComms] = useState(false);
@@ -5934,6 +5947,9 @@ function OccurrencePanel({
   };
 
   const updOcc = (patch: Partial<OccurrenceRow>) => {
+    if (Object.keys(patch).some((key) => PREVISAO_RECEBIMENTO_FIELDS.has(key))) {
+      setMostrarErrosFinanceiros(true);
+    }
     setFormOcc((f) => ({ ...f, ...patch }));
     setDirtyOcc(true);
   };
@@ -6243,6 +6259,7 @@ function OccurrencePanel({
       setDirtyComms(false);
       setDirtyPartners(false);
       await load();
+      setMostrarErrosFinanceiros(false);
       return true;
     } finally {
       setSaving(false);
@@ -6403,6 +6420,52 @@ function OccurrencePanel({
       setReopening(false);
     }
   };
+
+  const previsoesFinanceiras = [
+    {
+      numero: 1,
+      valor: formOcc.prev_recebimento_valor,
+      data: formOcc.prev_recebimento_data,
+      forma: formOcc.prev_recebimento_forma,
+    },
+    {
+      numero: 2,
+      valor: formOcc.prev_recebimento2_valor,
+      data: formOcc.prev_recebimento2_data,
+      forma: formOcc.prev_recebimento2_forma,
+    },
+    {
+      numero: 3,
+      valor: formOcc.prev_recebimento3_valor,
+      data: formOcc.prev_recebimento3_data,
+      forma: formOcc.prev_recebimento3_forma,
+    },
+  ];
+  const erroParcela = (numero: number) => {
+    if (!mostrarErrosFinanceiros) return undefined;
+    const index = numero - 1;
+    const parcela = previsoesFinanceiras[index];
+    const preenchida =
+      parcela.valor != null || parcela.data != null || String(parcela.forma ?? "").trim() !== "";
+    if (!preenchida) return undefined;
+    const anteriorVazia = previsoesFinanceiras
+      .slice(0, index)
+      .some(
+        (anterior) =>
+          anterior.valor == null &&
+          anterior.data == null &&
+          String(anterior.forma ?? "").trim() === "",
+      );
+    const faltantes: string[] = [];
+    if (parcela.data == null || parcela.data === "") faltantes.push("data");
+    if (parcela.valor == null || Number(parcela.valor) <= 0) faltantes.push("valor maior que zero");
+    if (String(parcela.forma ?? "").trim() === "") faltantes.push("forma de recebimento");
+    if (anteriorVazia) faltantes.unshift("preencha a parcela anterior");
+    return faltantes.length > 0 ? `Complete esta parcela: ${faltantes.join(", ")}.` : undefined;
+  };
+  const errosPrevisao = previsoesFinanceiras
+    .map((parcela) => erroParcela(parcela.numero))
+    .filter((mensagem): mensagem is string => Boolean(mensagem));
 
   if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
   if (!occ) {
@@ -6647,6 +6710,14 @@ function OccurrencePanel({
           <CardTitle className="text-base">Previsão de recebimento da comissão</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {errosPrevisao.length > 0 && (
+            <div
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              <b>Previsão incompleta.</b> Preencha os campos destacados antes de continuar.
+            </div>
+          )}
           {sale.parceria_valor != null && (
             <p className="-mt-2 text-xs text-muted-foreground">
               Digite só a <b>fatia própria da imobiliária</b>, sem a parte da parceria —{" "}
@@ -6656,14 +6727,22 @@ function OccurrencePanel({
             </p>
           )}
           <FieldGrid>
-            <Field label="1ª parcela — valor">
+            <Field
+              label="1ª parcela — valor"
+              invalid={Boolean(erroParcela(1))}
+              errorText={erroParcela(1)}
+            >
               <CurrencyInput
                 value={formOcc.prev_recebimento_valor}
                 disabled={!canWrite}
                 onChange={(v) => updOcc({ prev_recebimento_valor: v })}
               />
             </Field>
-            <Field label="1ª parcela — data">
+            <Field
+              label="1ª parcela — data"
+              invalid={Boolean(erroParcela(1))}
+              errorText={erroParcela(1)}
+            >
               <Input
                 type="date"
                 value={formOcc.prev_recebimento_data ?? ""}
@@ -6671,7 +6750,12 @@ function OccurrencePanel({
                 onChange={(e) => updOcc({ prev_recebimento_data: e.target.value || null })}
               />
             </Field>
-            <Field label="1ª parcela — forma de pagamento" colSpan={2}>
+            <Field
+              label="1ª parcela — forma de pagamento"
+              colSpan={2}
+              invalid={Boolean(erroParcela(1))}
+              errorText={erroParcela(1)}
+            >
               <Input
                 value={formOcc.prev_recebimento_forma ?? ""}
                 disabled={!canWrite}
@@ -6681,14 +6765,22 @@ function OccurrencePanel({
             </Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="2ª parcela — valor">
+            <Field
+              label="2ª parcela — valor"
+              invalid={Boolean(erroParcela(2))}
+              errorText={erroParcela(2)}
+            >
               <CurrencyInput
                 value={formOcc.prev_recebimento2_valor}
                 disabled={!canWrite}
                 onChange={(v) => updOcc({ prev_recebimento2_valor: v })}
               />
             </Field>
-            <Field label="2ª parcela — data">
+            <Field
+              label="2ª parcela — data"
+              invalid={Boolean(erroParcela(2))}
+              errorText={erroParcela(2)}
+            >
               <Input
                 type="date"
                 value={formOcc.prev_recebimento2_data ?? ""}
@@ -6696,7 +6788,12 @@ function OccurrencePanel({
                 onChange={(e) => updOcc({ prev_recebimento2_data: e.target.value || null })}
               />
             </Field>
-            <Field label="2ª parcela — forma de pagamento" colSpan={2}>
+            <Field
+              label="2ª parcela — forma de pagamento"
+              colSpan={2}
+              invalid={Boolean(erroParcela(2))}
+              errorText={erroParcela(2)}
+            >
               <Input
                 value={formOcc.prev_recebimento2_forma ?? ""}
                 disabled={!canWrite}
@@ -6706,14 +6803,22 @@ function OccurrencePanel({
             </Field>
           </FieldGrid>
           <FieldGrid>
-            <Field label="3ª parcela — valor">
+            <Field
+              label="3ª parcela — valor"
+              invalid={Boolean(erroParcela(3))}
+              errorText={erroParcela(3)}
+            >
               <CurrencyInput
                 value={formOcc.prev_recebimento3_valor}
                 disabled={!canWrite}
                 onChange={(v) => updOcc({ prev_recebimento3_valor: v })}
               />
             </Field>
-            <Field label="3ª parcela — data">
+            <Field
+              label="3ª parcela — data"
+              invalid={Boolean(erroParcela(3))}
+              errorText={erroParcela(3)}
+            >
               <Input
                 type="date"
                 value={formOcc.prev_recebimento3_data ?? ""}
@@ -6721,7 +6826,12 @@ function OccurrencePanel({
                 onChange={(e) => updOcc({ prev_recebimento3_data: e.target.value || null })}
               />
             </Field>
-            <Field label="3ª parcela — forma de pagamento" colSpan={2}>
+            <Field
+              label="3ª parcela — forma de pagamento"
+              colSpan={2}
+              invalid={Boolean(erroParcela(3))}
+              errorText={erroParcela(3)}
+            >
               <Input
                 value={formOcc.prev_recebimento3_forma ?? ""}
                 disabled={!canWrite}

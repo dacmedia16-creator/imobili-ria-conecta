@@ -194,11 +194,15 @@ export function Field({
   children,
   colSpan,
   hint,
+  invalid = false,
+  errorText,
 }: {
   label: string;
   children: React.ReactNode;
   colSpan?: number;
   hint?: string;
+  invalid?: boolean;
+  errorText?: string;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const guidance = hint ?? getFieldHint(label);
@@ -206,7 +210,11 @@ export function Field({
   return (
     <div className={colSpan === 2 ? "md:col-span-2" : ""}>
       <div className="mb-1.5 flex items-center gap-1.5">
-        <Label className="block text-xs text-muted-foreground">{label}</Label>
+        <Label
+          className={`block text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {label}
+        </Label>
         {guidance && (
           <button
             type="button"
@@ -219,7 +227,20 @@ export function Field({
           </button>
         )}
       </div>
-      {children}
+      <div
+        className={
+          invalid
+            ? "[&_input]:border-destructive [&_input]:ring-1 [&_input]:ring-destructive/30"
+            : undefined
+        }
+      >
+        {children}
+      </div>
+      {invalid && errorText && (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          {errorText}
+        </p>
+      )}
       {guidance && helpOpen && (
         <div
           role="note"
