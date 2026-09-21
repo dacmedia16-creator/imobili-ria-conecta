@@ -50,6 +50,7 @@ function ProducaoPorPessoaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [pontas, setPontas] = useState<ProducaoPonta[]>([]);
   const [filtros, setFiltros] = useState<FiltrosProducao>(filtrosPadrao());
+  const [pessoaSelecionada, setPessoaSelecionada] = useState<string | null>(null);
 
   useEffect(() => {
     if (!allowed) {
@@ -95,6 +96,32 @@ function ProducaoPorPessoaPage() {
   const filtradas = useMemo(() => aplicarFiltrosProducao(pontas, filtros), [pontas, filtros]);
   const resumo = useMemo(() => agruparPorPessoa(filtradas), [filtradas]);
   const totais = useMemo(() => totaisProducao(filtradas), [filtradas]);
+  const operacoesPorPessoa = useMemo(() => {
+    const porPessoa = new Map<string, Set<string>>();
+    for (const ponta of filtradas) {
+      const chave = ponta.pessoaId ?? `sem-vinculo:${ponta.pessoaNome}`;
+      const operacoes = porPessoa.get(chave) ?? new Set<string>();
+      operacoes.add(ponta.saleId);
+      porPessoa.set(chave, operacoes);
+    }
+    return new Map(Array.from(porPessoa, ([chave, operacoes]) => [chave, operacoes.size]));
+  }, [filtradas]);
+  const pontasDetalhadas = useMemo(
+    () =>
+      pessoaSelecionada
+        ? filtradas.filter((ponta) => {
+            const chave = ponta.pessoaId ?? `sem-vinculo:${ponta.pessoaNome}`;
+            return chave === pessoaSelecionada;
+          })
+        : filtradas,
+    [filtradas, pessoaSelecionada],
+  );
+
+  useEffect(() => {
+    if (pessoaSelecionada && !resumo.some((pessoa) => pessoa.chave === pessoaSelecionada)) {
+      setPessoaSelecionada(null);
+    }
+  }, [pessoaSelecionada, resumo]);
 
   if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
 
@@ -138,8 +165,15 @@ function ProducaoPorPessoaPage() {
         teamOptions={teamOptions}
       />
       <TotalsCards totais={totais} />
-      <SummaryTable resumo={resumo} />
-      <DetailTable pontas={filtradas} />
+      <SummaryTable
+        resumo={resumo}
+        operacoesPorPessoa={operacoesPorPessoa}
+        pessoaSelecionada={pessoaSelecionada}
+        onSelecionarPessoa={(chave) =>
+          setPessoaSelecionada((atual) => (atual === chave ? null : chave))
+        }
+      />
+      <DetailTable pontas={pontasDetalhadas} />
 
       <p className="text-xs text-muted-foreground">
         Cada venda completa equivale a 1 venda: numa venda padrão, 0,5 pra quem captou + 0,5 pra

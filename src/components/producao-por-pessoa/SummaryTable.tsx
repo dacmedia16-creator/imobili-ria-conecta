@@ -11,7 +11,19 @@ import type { ResumoPessoa } from "@/lib/producao-por-pessoa-types";
 import { formatarTotalPessoas } from "@/lib/producao-por-pessoa-calc";
 import { formatMoney, formatQtd } from "./format";
 
-export function SummaryTable({ resumo }: { resumo: ResumoPessoa[] }) {
+type SummaryTableProps = {
+  resumo: ResumoPessoa[];
+  operacoesPorPessoa: Map<string, number>;
+  pessoaSelecionada: string | null;
+  onSelecionarPessoa: (chave: string) => void;
+};
+
+export function SummaryTable({
+  resumo,
+  operacoesPorPessoa,
+  pessoaSelecionada,
+  onSelecionarPessoa,
+}: SummaryTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -34,18 +46,22 @@ export function SummaryTable({ resumo }: { resumo: ResumoPessoa[] }) {
                 <TableHead className="text-right">Comissão gerada</TableHead>
                 <TableHead className="text-right">Qtd. captação</TableHead>
                 <TableHead className="text-right">Qtd. venda</TableHead>
+                <TableHead className="text-right">Detalhe</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {resumo.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
                     Nenhuma produção encontrada no período/filtro selecionado.
                   </TableCell>
                 </TableRow>
               )}
               {resumo.map((r, i) => (
-                <TableRow key={r.chave} className={i % 2 === 1 ? "bg-muted/25" : undefined}>
+                <TableRow
+                  key={r.chave}
+                  className={`${i % 2 === 1 ? "bg-muted/25 " : ""}${pessoaSelecionada === r.chave ? "bg-primary/10" : ""}`}
+                >
                   <TableCell className="font-medium">
                     {r.pessoaNome}
                     {!r.pessoaId && (
@@ -67,6 +83,17 @@ export function SummaryTable({ resumo }: { resumo: ResumoPessoa[] }) {
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {formatQtd(r.qtdVenda)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                      onClick={() => onSelecionarPessoa(r.chave)}
+                      aria-pressed={pessoaSelecionada === r.chave}
+                    >
+                      {pessoaSelecionada === r.chave ? "Ocultar" : "Ver"} (
+                      {operacoesPorPessoa.get(r.chave) ?? 0})
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
