@@ -1220,6 +1220,7 @@ export type Database = {
           imovel_endereco: string | null;
           imovel_id: string | null;
           imovel_observacoes: string | null;
+          observacoes_gerais: string | null;
           indicador: string | null;
           indicador_captador: string | null;
           indicador_captador_id: string | null;
@@ -1305,6 +1306,7 @@ export type Database = {
           imovel_endereco?: string | null;
           imovel_id?: string | null;
           imovel_observacoes?: string | null;
+          observacoes_gerais?: string | null;
           indicador?: string | null;
           indicador_captador?: string | null;
           indicador_captador_id?: string | null;
@@ -1390,6 +1392,7 @@ export type Database = {
           imovel_endereco?: string | null;
           imovel_id?: string | null;
           imovel_observacoes?: string | null;
+          observacoes_gerais?: string | null;
           indicador?: string | null;
           indicador_captador?: string | null;
           indicador_captador_id?: string | null;

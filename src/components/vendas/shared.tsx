@@ -165,7 +165,7 @@ const FIELD_HINTS: Record<string, string> = {
   Grupo: "Informe o número ou identificação do grupo do consórcio.",
   Cota: "Informe o número da cota do consórcio.",
   "Observações gerais":
-    "Registre condições importantes do pagamento que não foram informadas nos campos anteriores.",
+    "Registre informações gerais da venda, incluindo condições importantes do pagamento quando necessário.",
   "Valor anunciado (R$)": "Informe o valor inicialmente anunciado para o imóvel.",
   "Valor negociado (R$)": "Informe o valor final combinado entre comprador e vendedor.",
   "Valor total da comissão (R$)":

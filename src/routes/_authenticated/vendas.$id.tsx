@@ -860,6 +860,7 @@ function SaleDetail() {
         "imovel_endereco",
         "codigo_interno",
         "imovel_observacoes",
+        "observacoes_gerais",
         "tempo_venda_dias",
         "midia",
         "corretor_captador",
@@ -1934,6 +1935,13 @@ function SaleDetail() {
                             value={formSale.imovel_observacoes ?? ""}
                             disabled={!editable}
                             onChange={(e) => updResumo({ imovel_observacoes: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Observações gerais" colSpan={2}>
+                          <Textarea
+                            value={formSale.observacoes_gerais ?? ""}
+                            disabled={!editable}
+                            onChange={(e) => updResumo({ observacoes_gerais: e.target.value })}
                           />
                         </Field>
                       </FieldGrid>
@@ -3958,6 +3966,7 @@ function SaleDetail() {
               />
               <ReviewItem label="Mídia" value={sale.midia} />
               <ReviewItem label="Observações do imóvel" value={sale.imovel_observacoes} />
+              <ReviewItem label="Observações gerais" value={sale.observacoes_gerais} />
             </ReviewGroup>
 
             <ReviewGroup title="Equipe">
