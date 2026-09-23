@@ -60,7 +60,8 @@ type InconsistenciaRawRow = {
 type DistribuicaoRawRow = {
   sale_id: string;
   saldo_inicial_imobiliaria: number;
-  saldo_liquido_imobiliaria: number;
+  saldo_liquido_imobiliaria: number | null;
+  saldo_imobiliaria?: number | null;
 };
 
 /** occurrences, tipado à mão: o select usa uma `const` com a lista de colunas (não um literal
@@ -655,7 +656,12 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       valorTotalComissao: Number(r.valor_total_comissao),
       parceriaExterna: occ ? (parceriaPorOcc.get(occ.id) ?? 0) : 0,
       saldoInicialImobiliaria: Number(distribuicao?.saldo_inicial_imobiliaria ?? 0),
-      receitaLiquidaImobiliaria: Number(distribuicao?.saldo_liquido_imobiliaria ?? 0),
+      // Venda padrão retorna saldo_liquido_imobiliaria; Lançamento historicamente
+      // retornava saldo_imobiliaria. Aceitamos os dois contratos durante a
+      // transição e mantemos a camada de cálculo com uma única chave interna.
+      receitaLiquidaImobiliaria: Number(
+        distribuicao?.saldo_liquido_imobiliaria ?? distribuicao?.saldo_imobiliaria ?? 0,
+      ),
     };
   });
 

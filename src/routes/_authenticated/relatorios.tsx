@@ -390,7 +390,8 @@ function RelatoriosPage() {
 
         <TabsContent value="caixa">
           <p className="mb-3 text-xs text-muted-foreground">
-            "Período" aqui filtra pela <b>data de cada parcela prevista</b> de recebimento.
+            "Período" aqui filtra pela <b>data efetiva quando recebido</b> e pela data prevista
+            enquanto pendente.
             {!incluirCanceladas && " Vendas canceladas/arquivadas não entram nos totais."}
           </p>
           <FluxoCaixaTab

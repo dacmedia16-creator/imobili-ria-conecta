@@ -902,4 +902,31 @@ describe("calcularResumo / agruparParcelasPorMes — mesma base que a tabela", (
       2,
     );
   });
+  it("lança o recebido no mês da entrada, sem mover o previsto", () => {
+    const parcela = parcelaBase({
+      occId: "o-cruza-mes",
+      dataPrevista: "2026-08-31",
+      valorBrutoPrevisto: 1000,
+      dataRecebimento: "2026-09-02",
+      valorRecebido: 1000,
+    });
+
+    expect(
+      aplicarFiltrosParcelas([parcela], {
+        ...filtrosPadrao(),
+        dataDe: "2026-09-01",
+        dataAte: "2026-09-30",
+      }),
+    ).toEqual([parcela]);
+    expect(
+      aplicarFiltrosParcelas([parcela], {
+        ...filtrosPadrao(),
+        dataDe: "2026-08-01",
+        dataAte: "2026-08-31",
+      }),
+    ).toEqual([]);
+    expect(agruparParcelasPorMes([parcela])).toEqual([
+      { mes: "2026-09", previsto: 1000, recebido: 1000 },
+    ]);
+  });
 });

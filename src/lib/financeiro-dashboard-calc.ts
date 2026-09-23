@@ -559,18 +559,22 @@ export function calcularResumo(args: {
 }
 
 /** "Previsto vs recebido por mês" — mesmo agrupamento usado no gráfico da Visão Geral, montado a
- * partir das parcelas já filtradas (não duplica a fonte). Mês = mês da data prevista. */
+ * partir das parcelas já filtradas (não duplica a fonte). A competência da linha é a entrada efetiva
+ * quando recebida; enquanto pendente, continua sendo a data prevista. */
 export function agruparParcelasPorMes(
   parcelas: ParcelaRecebimento[],
 ): { mes: string; previsto: number; recebido: number }[] {
   const map = new Map<string, { previsto: number; recebido: number }>();
   for (const p of parcelas.filter((p) => !p.cancelada)) {
-    const mes = p.dataPrevista.slice(0, 7);
-    const cur = map.get(mes) ?? { previsto: 0, recebido: 0 };
-    cur.previsto = Number((cur.previsto + p.valorLiquidoPrevisto).toFixed(2));
-    if (p.dataRecebimento)
-      cur.recebido = Number((cur.recebido + (p.valorRecebido ?? 0)).toFixed(2));
-    map.set(mes, cur);
+    const mesCompetencia = (p.dataRecebimento ?? p.dataPrevista).slice(0, 7);
+    const previsto = map.get(mesCompetencia) ?? { previsto: 0, recebido: 0 };
+    previsto.previsto = Number((previsto.previsto + p.valorLiquidoPrevisto).toFixed(2));
+    map.set(mesCompetencia, previsto);
+
+    if (p.dataRecebimento) {
+      previsto.recebido = Number((previsto.recebido + (p.valorRecebido ?? 0)).toFixed(2));
+      map.set(mesCompetencia, previsto);
+    }
   }
   return Array.from(map.entries())
     .map(([mes, v]) => ({ mes, ...v }))
