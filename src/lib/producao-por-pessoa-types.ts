@@ -7,6 +7,14 @@
 
 export type ModalidadeVenda = "padrao" | "lancamento";
 
+/** Participação de uma pessoa na ponta de venda. A lista vive dentro da operação para que a
+ * cardinalidade da venda continue sendo uma linha por sale_id, mesmo quando há vários vendedores. */
+export type ProducaoVendedorParticipacao = {
+  user_id: string | null;
+  nome: string | null;
+  fracao: number | null;
+};
+
 /** Linha bruta por venda, como devolvida pela RPC producao_por_pessoa_dados() — uma linha por
  * operação efetivada (enviada ao Financeiro), ainda não dividida em pontas. Em venda padrão,
  * captador/vendedor podem ser o gestor ou Team Leader interno daquele lado quando o corretor
@@ -23,6 +31,8 @@ export type ProducaoRawRow = {
   parceria_externa?: number;
   parceria_externa_captacao?: boolean;
   parceria_externa_venda?: boolean;
+  /** Participações da ponta de venda; uma operação continua sendo uma linha da RPC. */
+  vendedor_participacoes?: ProducaoVendedorParticipacao[];
   captador_id: string | null;
   captador_nome: string | null;
   vendedor_id: string | null;

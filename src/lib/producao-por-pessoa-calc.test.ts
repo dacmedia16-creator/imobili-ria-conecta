@@ -294,6 +294,90 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
     });
   });
 
+  it("venda padrão com vários vendedores conta uma operação e rateia só a ponta de venda", () => {
+    const variosVendedores: ProducaoRawRow[] = [
+      {
+        sale_id: "sale-padrao-multi",
+        imovel_id: null,
+        codigo_interno: "63059126147",
+        modalidade: "padrao",
+        concluida_em: "2026-09-07T13:49:39+00:00",
+        valor_negociado: 680000,
+        comissao_bruta: 40800,
+        captador_id: "captador",
+        captador_nome: "Captador",
+        vendedor_id: "vendedor-a",
+        vendedor_nome: "Vendedor A",
+        vendedor_fracao: 0.5714285714,
+      },
+      {
+        sale_id: "sale-padrao-multi",
+        imovel_id: null,
+        codigo_interno: "63059126147",
+        modalidade: "padrao",
+        concluida_em: "2026-09-07T13:49:39+00:00",
+        valor_negociado: 680000,
+        comissao_bruta: 40800,
+        captador_id: "captador",
+        captador_nome: "Captador",
+        vendedor_id: "vendedor-b",
+        vendedor_nome: "Vendedor B",
+        vendedor_fracao: 0.4285714286,
+      },
+    ];
+
+    const resultado = gerarPontas(variosVendedores, new Map(), new Map());
+    expect(resultado).toHaveLength(3);
+    expect(resultado.filter((p) => p.tipo === "captacao")).toHaveLength(1);
+    expect(resultado.filter((p) => p.tipo === "venda")).toHaveLength(2);
+    expect(totaisProducao(resultado)).toEqual({
+      qtdVendas: 1,
+      vgv: 680000,
+      comissao: 40800,
+      qtdCaptacao: 0.5,
+      qtdVenda: 0.5,
+    });
+  });
+
+  it("contrato novo mantém uma linha por venda e explicita as frações da ponta de venda", () => {
+    const pontas = gerarPontas(
+      [
+        {
+          sale_id: "sale-padrao-nested",
+          imovel_id: null,
+          codigo_interno: "630601222-15",
+          modalidade: "padrao",
+          concluida_em: "2026-09-11T22:23:19+00:00",
+          valor_negociado: 2725000,
+          comissao_bruta: 163500,
+          captador_id: "captador",
+          captador_nome: "Captador",
+          vendedor_id: "vendedor-a",
+          vendedor_nome: "Vendedor A",
+          vendedor_fracao: null,
+          vendedor_participacoes: [
+            { user_id: "vendedor-a", nome: "Vendedor A", fracao: 1 / 3 },
+            { user_id: "vendedor-b", nome: "Vendedor B", fracao: 1 / 3 },
+            { user_id: "vendedor-c", nome: "Vendedor C", fracao: 1 / 3 },
+          ],
+        },
+      ],
+      new Map(),
+      new Map(),
+    );
+
+    expect(pontas.filter((p) => p.tipo === "venda")).toHaveLength(3);
+    expect(pontas.reduce((sum, p) => sum + p.qtd, 0)).toBeCloseTo(1, 6);
+    expect(pontas.reduce((sum, p) => sum + p.vgv, 0)).toBeCloseTo(2725000, 2);
+    expect(pontas.reduce((sum, p) => sum + p.comissao, 0)).toBeCloseTo(163500, 2);
+    const totais = totaisProducao(pontas);
+    expect(totais.qtdVendas).toBeCloseTo(1, 6);
+    expect(totais.vgv).toBe(2725000);
+    expect(totais.comissao).toBe(163500);
+    expect(totais.qtdCaptacao).toBeCloseTo(0.5, 6);
+    expect(totais.qtdVenda).toBeCloseTo(0.5, 6);
+  });
+
   it("cada operação soma exatamente 1 venda / 100% do VGV / 100% da comissão entre as pontas", () => {
     for (const saleId of new Set(ROWS.map((r) => r.sale_id))) {
       const doSale = pontas.filter((p) => p.saleId === saleId);

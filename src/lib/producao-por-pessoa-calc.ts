@@ -14,6 +14,7 @@ import type {
   FiltrosProducao,
   ProducaoPonta,
   ProducaoRawRow,
+  ProducaoVendedorParticipacao,
   ResumoPessoa,
   TotaisProducao,
 } from "@/lib/producao-por-pessoa-types";
@@ -33,6 +34,85 @@ function equipeDe(
   return { teamId, teamNome: teamId ? (teamNomeById.get(teamId) ?? null) : null };
 }
 
+/** Normaliza a ponta de venda sem deixar o join 1:N transformar uma operação em várias vendas.
+ * Aceita o contrato novo (uma linha com `vendedor_participacoes`) e o contrato legado (uma linha
+ * por vendedor), para a troca do banco e do frontend continuar reversível durante a publicação. */
+function participacoesDe(rows: ProducaoRawRow[]): ProducaoVendedorParticipacao[] {
+  const primeira = rows[0];
+  const candidatas = rows.flatMap((row) => {
+    if (row.vendedor_participacoes && row.vendedor_participacoes.length > 0) {
+      return row.vendedor_participacoes;
+    }
+    return [
+      {
+        user_id: row.vendedor_id,
+        nome: row.vendedor_nome,
+        fracao: row.vendedor_fracao,
+      },
+    ];
+  });
+
+  const porPessoa = new Map<
+    string,
+    { user_id: string | null; nome: string | null; fracao: number | null }
+  >();
+  for (const candidata of candidatas) {
+    const chave = candidata.user_id ?? `sem-id:${candidata.nome ?? ""}`;
+    const existente = porPessoa.get(chave);
+    if (!existente) {
+      porPessoa.set(chave, { ...candidata });
+      continue;
+    }
+    const fracaoAtual = Number(existente.fracao ?? 0);
+    const fracaoNova = Number(candidata.fracao ?? 0);
+    existente.fracao = fracaoAtual + fracaoNova > 0 ? fracaoAtual + fracaoNova : null;
+    existente.nome ||= candidata.nome;
+  }
+
+  const semDuplicidade = Array.from(porPessoa.values());
+  if (semDuplicidade.length === 0) {
+    return [
+      {
+        user_id: primeira.vendedor_id,
+        nome: primeira.vendedor_nome,
+        fracao: primeira.vendedor_fracao,
+      },
+    ];
+  }
+
+  const somaInformada = semDuplicidade.reduce((sum, p) => sum + Math.max(0, Number(p.fracao ?? 0)), 0);
+  const divisor = somaInformada > 0 ? somaInformada : semDuplicidade.length;
+  return semDuplicidade.map((p) => ({
+    ...p,
+    fracao:
+      somaInformada > 0
+        ? Math.max(0, Number(p.fracao ?? 0)) / divisor
+        : 1 / semDuplicidade.length,
+  }));
+}
+
+/** Rateia dinheiro em centavos e entrega o resíduo de arredondamento à última participação, para
+ * que a soma exibida feche exatamente com a operação. Quantidades permanecem fracionárias. */
+function ratearValores(
+  vendedores: ProducaoVendedorParticipacao[],
+  vgvTotal: number,
+  comissaoTotal: number,
+): Array<{ vgv: number; comissao: number }> {
+  let vgvUsado = 0;
+  let comissaoUsada = 0;
+  return vendedores.map((vendedor, index) => {
+    const ultimo = index === vendedores.length - 1;
+    const fracao = Math.max(0, Math.min(1, Number(vendedor.fracao ?? 0)));
+    const vgv = ultimo ? round2(vgvTotal - vgvUsado) : round2(vgvTotal * fracao);
+    const comissao = ultimo
+      ? round2(comissaoTotal - comissaoUsada)
+      : round2(comissaoTotal * fracao);
+    vgvUsado = round2(vgvUsado + vgv);
+    comissaoUsada = round2(comissaoUsada + comissao);
+    return { vgv, comissao };
+  });
+}
+
 /** Transforma cada venda bruta da RPC nas suas pontas (captação/venda). `teamIdByPessoa` e
  * `teamNomeById` resolvem a equipe de cada pessoa — mesmo padrão de resolução usado no
  * Comparativo 6% (membro de team_members OU líder/líder-auxiliar da própria equipe). */
@@ -43,7 +123,15 @@ export function gerarPontas(
 ): ProducaoPonta[] {
   const pontas: ProducaoPonta[] = [];
 
-  for (const r of rows) {
+  const porVenda = new Map<string, ProducaoRawRow[]>();
+  for (const row of rows) {
+    const atuais = porVenda.get(row.sale_id) ?? [];
+    atuais.push(row);
+    porVenda.set(row.sale_id, atuais);
+  }
+
+  for (const vendaRows of porVenda.values()) {
+    const r = vendaRows[0];
     const proprias = metricasSemParceria({
       vgv: r.valor_negociado,
       comissaoBruta: r.comissao_bruta,
@@ -59,20 +147,25 @@ export function gerarPontas(
       concluidaEm: r.concluida_em,
     };
 
+    const vendedores = participacoesDe(vendaRows);
+
     if (r.modalidade === "lancamento") {
-      const { teamId, teamNome } = equipeDe(r.vendedor_id, teamIdByPessoa, teamNomeById);
-      const fracao = Math.max(0, Math.min(1, Number(r.vendedor_fracao ?? 1)));
-      pontas.push({
-        ...base,
-        tipo: "venda",
-        pessoaId: r.vendedor_id,
-        pessoaNome: r.vendedor_nome ?? "Não vinculado",
-        teamId,
-        teamNome,
-        qtd: fracao,
-        vgv: round2(valorNegociado * fracao),
-        comissao: round2(comissaoBruta * fracao),
-      });
+      const valoresRateados = ratearValores(vendedores, valorNegociado, comissaoBruta);
+      for (const [index, vendedor] of vendedores.entries()) {
+        const { teamId, teamNome } = equipeDe(vendedor.user_id, teamIdByPessoa, teamNomeById);
+        const fracao = Math.max(0, Math.min(1, Number(vendedor.fracao ?? 0)));
+        pontas.push({
+          ...base,
+          tipo: "venda",
+          pessoaId: vendedor.user_id,
+          pessoaNome: vendedor.nome ?? "Não vinculado",
+          teamId,
+          teamNome,
+          qtd: fracao,
+          vgv: valoresRateados[index].vgv,
+          comissao: valoresRateados[index].comissao,
+        });
+      }
       continue;
     }
 
@@ -98,18 +191,26 @@ export function gerarPontas(
     }
 
     if (!r.parceria_externa_venda) {
-      const venda = equipeDe(r.vendedor_id, teamIdByPessoa, teamNomeById);
-      pontas.push({
-        ...base,
-        tipo: "venda",
-        pessoaId: r.vendedor_id,
-        pessoaNome: r.vendedor_nome ?? "Não vinculado",
-        teamId: venda.teamId,
-        teamNome: venda.teamNome,
-        qtd: 0.5,
-        vgv: round2(valorNegociado / divisorMetricas),
-        comissao: round2(comissaoBruta / divisorMetricas),
-      });
+      const valoresRateados = ratearValores(
+        vendedores,
+        valorNegociado / divisorMetricas,
+        comissaoBruta / divisorMetricas,
+      );
+      for (const [index, vendedor] of vendedores.entries()) {
+        const venda = equipeDe(vendedor.user_id, teamIdByPessoa, teamNomeById);
+        const fracao = Math.max(0, Math.min(1, Number(vendedor.fracao ?? 0)));
+        pontas.push({
+          ...base,
+          tipo: "venda",
+          pessoaId: vendedor.user_id,
+          pessoaNome: vendedor.nome ?? "Não vinculado",
+          teamId: venda.teamId,
+          teamNome: venda.teamNome,
+          qtd: fracao * 0.5,
+          vgv: valoresRateados[index].vgv,
+          comissao: valoresRateados[index].comissao,
+        });
+      }
     }
   }
 
@@ -140,11 +241,11 @@ export function agruparPorPessoa(pontas: ProducaoPonta[]): ResumoPessoa[] {
       };
       porPessoa.set(chave, r);
     }
-    r.qtdVendas = round2(r.qtdVendas + p.qtd);
+    r.qtdVendas += p.qtd;
     r.vgv = round2(r.vgv + p.vgv);
     r.comissao = round2(r.comissao + p.comissao);
-    if (p.tipo === "captacao") r.qtdCaptacao = round2(r.qtdCaptacao + p.qtd);
-    else r.qtdVenda = round2(r.qtdVenda + p.qtd);
+    if (p.tipo === "captacao") r.qtdCaptacao += p.qtd;
+    else r.qtdVenda += p.qtd;
   }
 
   return Array.from(porPessoa.values()).sort((a, b) => b.comissao - a.comissao);
@@ -170,11 +271,11 @@ export function formatarTotalOperacoes(total: number): string {
 export function totaisProducao(pontas: ProducaoPonta[]): TotaisProducao {
   return pontas.reduce(
     (acc, p) => {
-      acc.qtdVendas = round2(acc.qtdVendas + p.qtd);
+      acc.qtdVendas += p.qtd;
       acc.vgv = round2(acc.vgv + p.vgv);
       acc.comissao = round2(acc.comissao + p.comissao);
-      if (p.tipo === "captacao") acc.qtdCaptacao = round2(acc.qtdCaptacao + p.qtd);
-      else acc.qtdVenda = round2(acc.qtdVenda + p.qtd);
+      if (p.tipo === "captacao") acc.qtdCaptacao += p.qtd;
+      else acc.qtdVenda += p.qtd;
       return acc;
     },
     { qtdVendas: 0, vgv: 0, comissao: 0, qtdCaptacao: 0, qtdVenda: 0 } as TotaisProducao,
