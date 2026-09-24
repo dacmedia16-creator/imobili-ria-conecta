@@ -31,6 +31,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
 import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
@@ -86,6 +87,7 @@ type ReportOccurrence = Pick<
   | "financiamento_banco"
   | "financiamento_correspondente"
   | "financiamento_valor"
+  | "oba_credito"
   | "reopened_at"
   | "reopen_reason"
 >;
@@ -204,7 +206,7 @@ function RelatoriosPage() {
     const { data: o } = await supabase
       .from("occurrences")
       .select(
-        "id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, reopened_at, reopen_reason",
+        "id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, oba_credito, reopened_at, reopen_reason",
       )
       .or(occFilter);
     setOccs(o ?? []);
@@ -975,6 +977,7 @@ function FinanciamentosTab({
 }) {
   const [bancoQ, setBancoQ] = useState("");
   const [somenteAbertos, setSomenteAbertos] = useState(true);
+  const [obaFiltro, setObaFiltro] = useState<"todos" | "somente" | "sem">("todos");
 
   const rows = useMemo(() => {
     return occs
@@ -987,10 +990,12 @@ function FinanciamentosTab({
           return false;
         if (bancoQ && !(o.financiamento_banco ?? "").toLowerCase().includes(bancoQ.toLowerCase()))
           return false;
+        if (obaFiltro === "somente" && !o.oba_credito) return false;
+        if (obaFiltro === "sem" && o.oba_credito) return false;
         return true;
       })
       .map((o) => ({ occ: o, sale: saleById[o.sale_id] }));
-  }, [occs, saleById, matchesCorretor, dateFrom, dateTo, bancoQ, somenteAbertos]);
+  }, [occs, saleById, matchesCorretor, dateFrom, dateTo, bancoQ, somenteAbertos, obaFiltro]);
 
   const total = rows.reduce((s, r) => s + Number(r.occ.financiamento_valor ?? 0), 0);
 
@@ -1003,6 +1008,7 @@ function FinanciamentosTab({
         Banco: r.occ.financiamento_banco ?? "",
         Correspondente: r.occ.financiamento_correspondente ?? "",
         ValorFinanciado: Number(r.occ.financiamento_valor ?? 0).toFixed(2),
+        ObaCredito: r.occ.oba_credito ? "Sim" : "Não",
         PrevisaoLiberacao: r.occ.financiamento_previsao ?? "",
         StatusVenda: r.sale ? STATUS_LABEL[r.sale.status as SaleStatus] : "",
       })),
@@ -1010,7 +1016,7 @@ function FinanciamentosTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground">Valor total financiado (filtro atual)</p>
@@ -1044,6 +1050,24 @@ function FinanciamentosTab({
             </Select>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <Label>Oba Crédito</Label>
+            <Select
+              value={obaFiltro}
+              onValueChange={(v) => setObaFiltro(v as "todos" | "somente" | "sem")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os financiamentos</SelectItem>
+                <SelectItem value="somente">Somente Oba Crédito</SelectItem>
+                <SelectItem value="sem">Sem Oba Crédito</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -1059,13 +1083,14 @@ function FinanciamentosTab({
                 <TableHead>Banco</TableHead>
                 <TableHead>Correspondente</TableHead>
                 <TableHead>Valor</TableHead>
+                <TableHead>Oba Crédito</TableHead>
                 <TableHead>Previsão liberação</TableHead>
                 <TableHead>Status da venda</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
-                <EmptyRow colSpan={7}>
+                <EmptyRow colSpan={8}>
                   Nenhum financiamento encontrado no período/filtro selecionado.
                 </EmptyRow>
               )}
@@ -1086,6 +1111,13 @@ function FinanciamentosTab({
                     {r.occ.financiamento_correspondente ?? "—"}
                   </TableCell>
                   <TableCell>{money(r.occ.financiamento_valor)}</TableCell>
+                  <TableCell>
+                    {r.occ.oba_credito ? (
+                      <Badge variant="secondary">Oba Crédito</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>{dateBR(r.occ.financiamento_previsao)}</TableCell>
                   <TableCell>
                     {r.sale ? <StatusBadge status={r.sale.status as SaleStatus} /> : "—"}
