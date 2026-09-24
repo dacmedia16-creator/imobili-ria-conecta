@@ -207,6 +207,8 @@ export function DocumentsPanel({
   canModerate,
   canUseAi,
   canManageContratos,
+  canUploadCertidoes,
+  canManageCertidaoDrafts,
   canDownloadAll,
   onChange,
   activeParte: activeParteProp,
@@ -221,6 +223,8 @@ export function DocumentsPanel({
   canModerate: boolean;
   canUseAi: boolean;
   canManageContratos: boolean;
+  canUploadCertidoes: boolean;
+  canManageCertidaoDrafts: boolean;
   canDownloadAll: boolean;
   onChange: () => void;
   /** Opcional: deixa o pai comandar qual bloco (comprador_1, juridico, ...) está ativo — usado pelo
@@ -735,9 +739,9 @@ export function DocumentsPanel({
     })),
     { parte: "imovel", tipos: DOC_TYPES.filter((t) => t.grupo === "imovel") },
     { parte: "outros", tipos: DOC_TYPES.filter((t) => t.grupo === "outros") },
-    // Bloco de certidões do jurídico só aparece depois que a venda chega nessa etapa —
-    // antes disso não faz sentido pedir certidão pra ninguém ainda.
-    ...(chegouAoJuridico(saleStatus)
+    // O jurídico pode incluir certidões em venda visível e destravada, mesmo quando
+    // a venda está na etapa de outro responsável.
+    ...(chegouAoJuridico(saleStatus) || canUploadCertidoes
       ? [{ parte: "juridico" as DocParte, tipos: [] as typeof DOC_TYPES }]
       : []),
   ];
@@ -1160,7 +1164,7 @@ export function DocumentsPanel({
                         </Card>
                       ))}
 
-                    {canManageContratos &&
+                    {canManageCertidaoDrafts &&
                       certidaoDrafts.map((draft) => (
                         <Card key={draft.id}>
                           <CardContent className="flex flex-wrap items-center gap-2 p-4">
@@ -1187,7 +1191,7 @@ export function DocumentsPanel({
                           </CardContent>
                         </Card>
                       ))}
-                    {canManageContratos && (
+                    {canManageCertidaoDrafts && (
                       <Button size="sm" variant="outline" onClick={addCertidaoDraft}>
                         <Plus className="mr-1 h-4 w-4" />
                         Adicionar certidão

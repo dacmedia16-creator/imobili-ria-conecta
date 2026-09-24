@@ -1768,6 +1768,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_upload_juridico_certidao: {
+        Args: { _sale_id: string };
+        Returns: boolean;
+      };
       insert_sale_document: {
         Args: {
           _descricao?: string;

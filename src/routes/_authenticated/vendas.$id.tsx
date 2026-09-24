@@ -393,6 +393,7 @@ function SaleDetail() {
     userId: "",
     ...saleManagementCapabilities(null),
   });
+  const [canUploadCertidoes, setCanUploadCertidoes] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
@@ -572,7 +573,7 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability] = await Promise.all([
+    const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability, certidoesCapability] = await Promise.all([
       supabase.from("sales").select("*").eq("id", id).maybeSingle(),
       supabase.from("sale_parties").select("*").eq("sale_id", id),
       supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
@@ -603,6 +604,7 @@ function SaleDetail() {
         .order("created_at", { ascending: false }),
       supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
       supabase.rpc("sale_management_capabilities", { _sale_id: id }),
+      supabase.rpc("can_upload_juridico_certidao", { _sale_id: id }),
     ]);
     // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
@@ -655,6 +657,7 @@ function SaleDetail() {
     setComments(c.data ?? []);
     setCommentRecipients(cr.data ?? []);
     setHistory(h.data ?? []);
+    setCanUploadCertidoes(!certidoesCapability.error && certidoesCapability.data === true);
     setActivity(ac.data ?? []);
     setAceitaFin((oc.data ?? []).some((o) => o.aceita_financeiro));
     setLoading(false);
@@ -1824,9 +1827,11 @@ function SaleDetail() {
           docs={docs}
           parties={parties}
           editable={editable}
-          canModerate={isGestor || isJuridico}
+          canModerate={isGestor || (isJuridico && !["enviada_revisao", "devolvida_ajuste"].includes(status))}
           canUseAi={isOwner}
           canManageContratos={isGestor || isJuridico || isFinanceiro}
+          canUploadCertidoes={isJuridico && canUploadCertidoes}
+          canManageCertidaoDrafts={isJuridico ? canUploadCertidoes : isGestor || isFinanceiro}
           canDownloadAll={podeBaixarDocumentosVenda({ podeVisualizar: true, status })}
           onChange={load}
           activeParte={docParte}
@@ -3509,7 +3514,9 @@ function SaleDetail() {
     <div className="space-y-6">
       {!editable && (
         <div role="status" className="rounded-md border p-3 text-sm text-muted-foreground">
-          Somente leitura: você não tem capacidade de edição nesta venda ou nesta etapa.
+          {isJuridico && canUploadCertidoes
+            ? "Somente leitura dos dados da venda; o Jurídico pode incluir certidões em Documentos."
+            : "Somente leitura: você não tem capacidade de edição nesta venda ou nesta etapa."}
         </div>
       )}
       <div className="flex items-center gap-2 print:hidden">
@@ -3602,15 +3609,17 @@ function SaleDetail() {
               </Button>
             </>
           )}
+          {isJuridico && canUploadCertidoes && (
+            <Button variant="outline" onClick={irParaCertidoes}>
+              <Gavel className="mr-2 h-4 w-4" />
+              Subir certidões
+            </Button>
+          )}
           {isJuridico && status === "em_elaboracao_contrato" && (
             <>
               <Button variant="outline" onClick={openContratoDialog}>
                 <Upload className="mr-2 h-4 w-4" />
                 {contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
-              </Button>
-              <Button variant="outline" onClick={irParaCertidoes}>
-                <Gavel className="mr-2 h-4 w-4" />
-                Subir certidões
               </Button>
               <Button
                 onClick={enviarContratoAoGestor}
