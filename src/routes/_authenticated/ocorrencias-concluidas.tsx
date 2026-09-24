@@ -32,6 +32,7 @@ import {
   mesesOcorrenciasConcluidas,
   resumoOcorrenciasConcluidas,
   montarOcorrenciasConcluidas,
+  podeImprimirOcorrenciasConcluidas,
   podeVerOcorrenciasConcluidas,
   relatorioOcorrenciasConcluidasSchema,
   type CorretorRelatorio,
@@ -75,6 +76,7 @@ type EstadoRelatorio = {
 function OcorrenciasConcluidasPage() {
   const { session, roles, loading: authLoading } = useAuth();
   const allowed = podeVerOcorrenciasConcluidas(roles);
+  const canPrint = podeImprimirOcorrenciasConcluidas(roles);
   const rolesKey = [...roles].sort().join(",");
   const [tentativa, setTentativa] = useState(0);
   const [estado, setEstado] = useState<EstadoRelatorio | null>(null);
@@ -214,6 +216,10 @@ function OcorrenciasConcluidasPage() {
     });
   };
   const imprimirSelecionadas = () => {
+    if (!canPrint) {
+      toast.error("Acesso não autorizado à impressão.");
+      return;
+    }
     if (selectedRows.length === 0) {
       toast.error("Selecione ao menos uma ocorrência para imprimir.");
       return;
@@ -337,41 +343,45 @@ function OcorrenciasConcluidasPage() {
           </Card>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={allFilteredSelected}
-              onCheckedChange={toggleFilteredOccurrences}
-              disabled={rowsFiltradas.length === 0}
-              aria-label="Selecionar todas as ocorrências exibidas"
-            />
-            <span>
-              {selectedRows.length === 0
-                ? "Selecione as ocorrências que deseja imprimir"
-                : `${selectedRows.length} ocorrência(s) selecionada(s)`}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedRows.length > 0 && (
-              <Button variant="ghost" onClick={() => setSelectedOccurrenceIds([])}>
-                Limpar seleção
+        {canPrint && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={allFilteredSelected}
+                onCheckedChange={toggleFilteredOccurrences}
+                disabled={rowsFiltradas.length === 0}
+                aria-label="Selecionar todas as ocorrências exibidas"
+              />
+              <span>
+                {selectedRows.length === 0
+                  ? "Selecione as ocorrências que deseja imprimir"
+                  : `${selectedRows.length} ocorrência(s) selecionada(s)`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedRows.length > 0 && (
+                <Button variant="ghost" onClick={() => setSelectedOccurrenceIds([])}>
+                  Limpar seleção
+                </Button>
+              )}
+              <Button onClick={imprimirSelecionadas} disabled={selectedRows.length === 0}>
+                <Printer className="mr-2 h-4 w-4" />
+                Imprimir selecionadas
               </Button>
-            )}
-            <Button onClick={imprimirSelecionadas} disabled={selectedRows.length === 0}>
-              <Printer className="mr-2 h-4 w-4" />
-              Imprimir selecionadas
-            </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         <Card className="min-w-0">
           <CardContent className="min-w-0 px-3 pt-6 sm:px-6">
             <Table aria-label="Ocorrências concluídas filtradas" className="min-w-[560px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <span className="sr-only">Selecionar</span>
-                  </TableHead>
+                  {canPrint && (
+                    <TableHead className="w-12">
+                      <span className="sr-only">Selecionar</span>
+                    </TableHead>
+                  )}
                   <TableHead>Imóvel / código</TableHead>
                   <TableHead>Corretor</TableHead>
                   <TableHead>Comissão</TableHead>
@@ -382,7 +392,7 @@ function OcorrenciasConcluidasPage() {
                 {rowsFiltradas.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={canPrint ? 5 : 4}
                       className="py-8 text-center text-sm text-muted-foreground"
                     >
                       Nenhuma ocorrência concluída para os filtros selecionados.
@@ -391,13 +401,15 @@ function OcorrenciasConcluidasPage() {
                 )}
                 {rowsFiltradas.map((r) => (
                   <TableRow key={r.ocorrenciaId}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedOccurrenceIds.includes(r.ocorrenciaId)}
-                        onCheckedChange={() => toggleOccurrence(r.ocorrenciaId)}
-                        aria-label={`Selecionar ocorrência de ${r.imovelLabel}`}
-                      />
-                    </TableCell>
+                    {canPrint && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedOccurrenceIds.includes(r.ocorrenciaId)}
+                          onCheckedChange={() => toggleOccurrence(r.ocorrenciaId)}
+                          aria-label={`Selecionar ocorrência de ${r.imovelLabel}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">
                       <Link
                         to="/vendas/$id"

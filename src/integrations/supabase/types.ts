@@ -1603,6 +1603,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      imprimir_ocorrencias_concluidas: {
+        Args: { p_sale_ids: string[] };
+        Returns: Json;
+      };
       relatorio_ocorrencias_concluidas: {
         Args: Record<PropertyKey, never>;
         Returns: Json;

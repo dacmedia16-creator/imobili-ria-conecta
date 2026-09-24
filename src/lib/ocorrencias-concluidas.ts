@@ -19,6 +19,11 @@ export function podeVerOcorrenciasConcluidas(roles: readonly string[]): boolean 
   return roles.some((r) => (PAPEIS_OCORRENCIAS_CONCLUIDAS as readonly string[]).includes(r));
 }
 
+/** Imprimir o documento integral de qualquer equipe exige papel de liderança ativo no servidor. */
+export function podeImprimirOcorrenciasConcluidas(roles: readonly string[]): boolean {
+  return roles.some((role) => role === "gestor" || role === "team_leader");
+}
+
 const idSchema = z.string().min(1);
 
 /** DATE civil; não converte para instante, não aceita timestamp nem data impossível. */

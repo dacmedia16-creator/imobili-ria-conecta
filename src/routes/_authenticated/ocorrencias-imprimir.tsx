@@ -5,7 +5,9 @@ import { useAuth } from "@/lib/auth";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
+import { podeImprimirOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
+import { z } from "zod";
 import type {
   OccurrenceCommissionRow,
   OccurrencePartnerRow,
@@ -31,6 +33,19 @@ type PrintOccurrence = {
   distribuicao: PrintDistribution | null;
 };
 
+const printDocumentsSchema = z.array(
+  z.object({
+    sale: z.object({ id: z.string(), modalidade: z.string().nullable().optional() }).passthrough(),
+    occ: z
+      .object({ id: z.string(), sale_id: z.string(), status: z.literal("concluida") })
+      .passthrough(),
+    parties: z.array(z.object({ sale_id: z.string(), papel: z.string() }).passthrough()),
+    commissions: z.array(z.object({ occurrence_id: z.string() }).passthrough()),
+    partners: z.array(z.object({ occurrence_id: z.string() }).passthrough()),
+    distribuicao: z.object({}).passthrough().nullable(),
+  }),
+);
+
 export const Route = createFileRoute("/_authenticated/ocorrencias-imprimir")({
   head: () => ({ meta: [{ title: "Imprimir ocorrências" }] }),
   beforeLoad: async () => {
@@ -43,21 +58,7 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-imprimir")({
       .select("role")
       .eq("user_id", session.user.id);
     const roles = (data ?? []).map((row) => row.role);
-    if (
-      error ||
-      !roles.some((role) =>
-        [
-          "corretor",
-          "gestor",
-          "team_leader",
-          "admin",
-          "super_admin",
-          "financeiro",
-          "juridico",
-          "lancamento",
-        ].includes(role),
-      )
-    ) {
+    if (error || !podeImprimirOcorrenciasConcluidas(roles)) {
       throw redirect({ to: "/dashboard" });
     }
   },
@@ -95,82 +96,38 @@ function OcorrenciasImprimirPage() {
     let ativo = true;
     const carregar = async () => {
       try {
-        const [salesResult, occurrencesResult, partiesResult, ...distResults] = await Promise.all([
-          supabase.from("sales").select("*").in("id", saleIds),
-          supabase.from("occurrences").select("*").in("sale_id", saleIds).eq("status", "concluida"),
-          supabase.from("sale_parties").select("*").in("sale_id", saleIds),
-          ...saleIds.map((saleId) =>
-            supabase.rpc("calcular_distribuicao_venda", { p_sale_id: saleId }),
-          ),
-        ]);
-        const initialResults = [salesResult, occurrencesResult, partiesResult, ...distResults];
-        const initialFailed = initialResults.find((result) => result.error);
-        if (initialFailed?.error) throw initialFailed.error;
-
-        const occurrenceIds = (occurrencesResult.data ?? []).map((occurrence) => occurrence.id);
-        const [commissionsResult, partnersResult] = await Promise.all([
-          occurrenceIds.length > 0
-            ? supabase
-                .from("occurrence_commissions")
-                .select("*")
-                .in("occurrence_id", occurrenceIds)
-                .order("created_at")
-            : Promise.resolve({ data: [], error: null }),
-          occurrenceIds.length > 0
-            ? supabase
-                .from("occurrence_partners")
-                .select("*")
-                .in("occurrence_id", occurrenceIds)
-                .order("created_at")
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-        if (commissionsResult.error) throw commissionsResult.error;
-        if (partnersResult.error) throw partnersResult.error;
-
-        const salesById = new Map((salesResult.data ?? []).map((sale) => [sale.id, sale]));
-        const occurrencesBySale = new Map<string, OccurrenceRow>();
-        for (const occurrence of occurrencesResult.data ?? []) {
-          occurrencesBySale.set(occurrence.sale_id, occurrence);
+        if (saleIds.length > 50)
+          throw new Error("Selecione no máximo 50 ocorrências por impressão.");
+        const { data, error: rpcError } = await supabase.rpc("imprimir_ocorrencias_concluidas", {
+          p_sale_ids: saleIds,
+        });
+        if (rpcError) throw rpcError;
+        const parsed = printDocumentsSchema.safeParse(data);
+        if (
+          !parsed.success ||
+          parsed.data.length !== saleIds.length ||
+          parsed.data.some(
+            (doc, index) =>
+              doc.sale.id !== saleIds[index] ||
+              doc.occ.sale_id !== saleIds[index] ||
+              doc.parties.some((party) => party.sale_id !== saleIds[index]) ||
+              doc.commissions.some((commission) => commission.occurrence_id !== doc.occ.id) ||
+              doc.partners.some((partner) => partner.occurrence_id !== doc.occ.id),
+          )
+        ) {
+          throw new Error("O documento retornou dados incompletos ou inconsistentes.");
         }
-        const commissionsByOccurrence = new Map<string, OccurrenceCommissionRow[]>();
-        for (const commission of commissionsResult.data ?? []) {
-          const current = commissionsByOccurrence.get(commission.occurrence_id) ?? [];
-          current.push(commission);
-          commissionsByOccurrence.set(commission.occurrence_id, current);
-        }
-        const partnersByOccurrence = new Map<string, OccurrencePartnerRow[]>();
-        for (const partner of partnersResult.data ?? []) {
-          const current = partnersByOccurrence.get(partner.occurrence_id) ?? [];
-          current.push(partner);
-          partnersByOccurrence.set(partner.occurrence_id, current);
-        }
-        const partiesBySale = new Map<string, Record<string, PartyRow>>();
-        for (const party of partiesResult.data ?? []) {
-          const current = partiesBySale.get(party.sale_id) ?? {};
-          current[party.papel] = party;
-          partiesBySale.set(party.sale_id, current);
-        }
-        const distributionsBySale = new Map(
-          saleIds.map((saleId, index) => [
-            saleId,
-            (distResults[index].data as unknown as PrintDistribution | null) ?? null,
-          ]),
-        );
-        const details: PrintOccurrence[] = [];
-        for (const saleId of saleIds) {
-          const sale = salesById.get(saleId);
-          const occ = occurrencesBySale.get(saleId);
-          if (!sale || !occ) continue;
-          details.push({
-            sale,
-            occ,
-            commissions: commissionsByOccurrence.get(occ.id) ?? [],
-            partners: partnersByOccurrence.get(occ.id) ?? [],
-            parties: partiesBySale.get(sale.id) ?? {},
-            distribuicao: distributionsBySale.get(sale.id) ?? null,
-          });
-        }
-        if (details.length === 0) throw new Error("Nenhuma ocorrência concluída foi encontrada.");
+        const details: PrintOccurrence[] = parsed.data.map((doc) => ({
+          sale: doc.sale as unknown as SaleRow,
+          occ: doc.occ as unknown as OccurrenceRow,
+          commissions: doc.commissions as unknown as OccurrenceCommissionRow[],
+          partners: doc.partners as unknown as OccurrencePartnerRow[],
+          parties: Object.fromEntries(doc.parties.map((party) => [party.papel, party])) as Record<
+            string,
+            PartyRow
+          >,
+          distribuicao: doc.distribuicao as PrintDistribution | null,
+        }));
         if (!ativo) return;
         setItems(details);
         setLoading(false);
