@@ -1,4 +1,3 @@
-import { PDFDocument } from "pdf-lib";
 import { toast } from "sonner";
 
 export type PrintableDocument = { file_name: string; url: string };
@@ -29,6 +28,7 @@ async function imageToPngBytes(blob: Blob): Promise<Uint8Array> {
 
 /** Reutilizado pelas vendas e captações; somente URLs assinadas recebidas do storage privado. */
 export async function baixarDocumentosComoPdf(list: PrintableDocument[], nomeArquivo: string) {
+  const { PDFDocument } = await import("pdf-lib");
   const merged = await PDFDocument.create();
   for (const doc of list) {
     const resp = await fetch(doc.url);

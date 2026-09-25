@@ -1,5 +1,3 @@
-import { PDFDocument, StandardFonts } from "pdf-lib";
-
 export type Template = "campolim" | "barao-de-tatui";
 export type CaptureStatus = "rascunho" | "devolvida" | "enviada" | "em_assinatura" | "aprovada";
 export type DocumentKind =
@@ -225,6 +223,8 @@ export async function fillExclusiveTemplate(
   capture: Capture,
   flatten = true,
 ): Promise<Uint8Array> {
+  // Carregar PDF apenas no clique: importar no SSR quebra o Worker inteiro.
+  const { PDFDocument, StandardFonts } = await import("pdf-lib");
   const pdf = await PDFDocument.load(bytes);
   const form = pdf.getForm();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
