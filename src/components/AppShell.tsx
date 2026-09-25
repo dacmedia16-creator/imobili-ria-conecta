@@ -24,6 +24,7 @@ import {
   MapPinned,
   ShieldAlert,
   CheckCircle2,
+  Settings2,
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
@@ -239,10 +240,20 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   ];
 
+  const adminNav: NavItem[] = [
+    {
+      to: "/admin/configuracoes",
+      label: "Configurações",
+      icon: Settings2,
+      show: hasAny(["super_admin"]),
+    },
+  ];
+
   const navGroups: NavGroup[] = [
     { items: primaryNav },
     { label: "Relatórios detalhados", items: reportNav, compact: true },
     { label: "Conta e acesso", items: accountNav, compact: true },
+    { label: "Administração", items: adminNav, compact: true },
   ];
 
   // print:min-h-0 — sem isso essa div ficava reservando uma tela cheia de altura vazia na

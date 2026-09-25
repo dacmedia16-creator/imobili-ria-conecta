@@ -30,6 +30,7 @@ import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_au
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
+import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
@@ -152,6 +153,12 @@ const AuthenticatedVisaoExecutivaRoute =
     path: '/visao-executiva',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminConfiguracoesRoute =
+  AuthenticatedAdminConfiguracoesRouteImport.update({
+    id: '/admin/configuracoes',
+    path: '/admin/configuracoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminPosicionamentoRoute =
   AuthenticatedAdminPosicionamentoRouteImport.update({
     id: '/admin/posicionamento',
@@ -220,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
@@ -282,6 +291,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/reservas-salas'
     | '/visao-executiva'
+    | '/admin/configuracoes'
     | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/exclusividades/$id'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/reservas-salas'
     | '/visao-executiva'
+    | '/admin/configuracoes'
     | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/exclusividades/$id'
@@ -375,6 +387,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/reservas-salas'
     | '/_authenticated/visao-executiva'
+    | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/exclusividades/$id'
@@ -544,6 +557,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/configuracoes': {
+      id: '/_authenticated/admin/configuracoes'
+      path: '/admin/configuracoes'
+      fullPath: '/admin/configuracoes'
+      preLoaderRoute: typeof AuthenticatedAdminConfiguracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/posicionamento': {
       id: '/_authenticated/admin/posicionamento'
       path: '/admin/posicionamento'
@@ -618,6 +638,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedReservasSalasRoute: typeof AuthenticatedReservasSalasRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
+  AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
@@ -644,6 +665,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedReservasSalasRoute: AuthenticatedReservasSalasRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
+  AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
