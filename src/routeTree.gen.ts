@@ -32,6 +32,8 @@ import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authen
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
+import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
@@ -162,6 +164,18 @@ const AuthenticatedAdminUsuariosRoute =
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedExclusividadesIndexRoute =
+  AuthenticatedExclusividadesIndexRouteImport.update({
+    id: '/exclusividades/',
+    path: '/exclusividades/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedExclusividadesIdRoute =
+  AuthenticatedExclusividadesIdRouteImport.update({
+    id: '/exclusividades/$id',
+    path: '/exclusividades/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasIndexRoute =
   AuthenticatedVendasIndexRouteImport.update({
     id: '/vendas/',
@@ -208,8 +222,10 @@ export interface FileRoutesByFullPath {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
 }
@@ -236,8 +252,10 @@ export interface FileRoutesByTo {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/exclusividades': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
 }
@@ -266,8 +284,10 @@ export interface FileRoutesById {
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/_authenticated/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/_authenticated/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
 }
@@ -296,8 +316,10 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/admin/posicionamento'
     | '/admin/usuarios'
+    | '/exclusividades/$id'
     | '/vendas/$id'
     | '/vendas/nova'
+    | '/exclusividades/'
     | '/vendas/'
     | '/vendas/lancamento/nova'
   fileRoutesByTo: FileRoutesByTo
@@ -324,8 +346,10 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/admin/posicionamento'
     | '/admin/usuarios'
+    | '/exclusividades/$id'
     | '/vendas/$id'
     | '/vendas/nova'
+    | '/exclusividades'
     | '/vendas'
     | '/vendas/lancamento/nova'
   id:
@@ -353,8 +377,10 @@ export interface FileRouteTypes {
     | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/usuarios'
+    | '/_authenticated/exclusividades/$id'
     | '/_authenticated/vendas/$id'
     | '/_authenticated/vendas/nova'
+    | '/_authenticated/exclusividades/'
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
   fileRoutesById: FileRoutesById
@@ -532,6 +558,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/exclusividades/': {
+      id: '/_authenticated/exclusividades/'
+      path: '/exclusividades'
+      fullPath: '/exclusividades/'
+      preLoaderRoute: typeof AuthenticatedExclusividadesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/exclusividades/$id': {
+      id: '/_authenticated/exclusividades/$id'
+      path: '/exclusividades/$id'
+      fullPath: '/exclusividades/$id'
+      preLoaderRoute: typeof AuthenticatedExclusividadesIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas/': {
       id: '/_authenticated/vendas/'
       path: '/vendas'
@@ -580,8 +620,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
+  AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
   AuthenticatedVendasNovaRoute: typeof AuthenticatedVendasNovaRoute
+  AuthenticatedExclusividadesIndexRoute: typeof AuthenticatedExclusividadesIndexRoute
   AuthenticatedVendasIndexRoute: typeof AuthenticatedVendasIndexRoute
   AuthenticatedVendasLancamentoNovaRoute: typeof AuthenticatedVendasLancamentoNovaRoute
 }
@@ -604,8 +646,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
+  AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedVendasIdRoute: AuthenticatedVendasIdRoute,
   AuthenticatedVendasNovaRoute: AuthenticatedVendasNovaRoute,
+  AuthenticatedExclusividadesIndexRoute: AuthenticatedExclusividadesIndexRoute,
   AuthenticatedVendasIndexRoute: AuthenticatedVendasIndexRoute,
   AuthenticatedVendasLancamentoNovaRoute:
     AuthenticatedVendasLancamentoNovaRoute,

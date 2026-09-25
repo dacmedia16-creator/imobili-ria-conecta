@@ -502,6 +502,8 @@ export type Database = {
         Row: {
           ativo: boolean;
           avatar_url: string | null;
+          cpf: string | null;
+          creci: string | null;
           created_at: string;
           email: string | null;
           id: string;
@@ -515,6 +517,8 @@ export type Database = {
         Insert: {
           ativo?: boolean;
           avatar_url?: string | null;
+          cpf?: string | null;
+          creci?: string | null;
           created_at?: string;
           email?: string | null;
           id: string;
@@ -528,6 +532,8 @@ export type Database = {
         Update: {
           ativo?: boolean;
           avatar_url?: string | null;
+          cpf?: string | null;
+          creci?: string | null;
           created_at?: string;
           email?: string | null;
           id?: string;

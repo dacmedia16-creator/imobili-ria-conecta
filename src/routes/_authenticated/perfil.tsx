@@ -25,6 +25,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import {
   addPositioningRegion,
   groupRegions,
@@ -56,6 +57,10 @@ function MeuAcesso() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [savingTelefone, setSavingTelefone] = useState(false);
+  const [cpf, setCpf] = useState("");
+  const [creci, setCreci] = useState("");
+  const [registrationLoaded, setRegistrationLoaded] = useState(false);
+  const [savingRegistration, setSavingRegistration] = useState(false);
   const [paginaPessoal, setPaginaPessoal] = useState("");
   const [instagram, setInstagram] = useState("");
   const [savingPublicContacts, setSavingPublicContacts] = useState(false);
@@ -98,6 +103,14 @@ function MeuAcesso() {
         .maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
+      profileRegistrations()
+        .then((rows) => {
+          const mine = rows.find((row) => row.user_id === user.id);
+          setCpf(mine?.cpf ?? "");
+          setCreci(mine?.creci ?? "");
+          setRegistrationLoaded(true);
+        })
+        .catch(() => setRegistrationLoaded(false));
       setAvatarUrl(data?.avatar_url ?? null);
       setPaginaPessoal(data?.pagina_pessoal_url ?? "");
       setInstagram(data?.instagram_url ?? "");
@@ -194,6 +207,21 @@ function MeuAcesso() {
       else toast.success("Telefone salvo");
     } finally {
       setSavingTelefone(false);
+    }
+  };
+
+  const salvarRegistro = async () => {
+    if (!user || !registrationLoaded) return;
+    setSavingRegistration(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ cpf: cpf.trim() || null, creci: creci.trim() || null })
+        .eq("id", user.id);
+      if (error) toast.error(error.message);
+      else toast.success("CPF e CRECI salvos no perfil");
+    } finally {
+      setSavingRegistration(false);
     }
   };
 
@@ -515,6 +543,36 @@ function MeuAcesso() {
               Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.
             </p>
           </div>
+          {canUsePositioning && (
+            <div className="grid max-w-2xl gap-3 border-t pt-4 sm:grid-cols-2">
+              <div>
+                <Label className="mb-1.5 block">CPF do captador</Label>
+                <Input
+                  value={cpf}
+                  maxLength={30}
+                  disabled={!registrationLoaded}
+                  onChange={(e) => setCpf(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">CRECI</Label>
+                <Input
+                  value={creci}
+                  maxLength={50}
+                  disabled={!registrationLoaded}
+                  onChange={(e) => setCreci(e.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                className="w-fit"
+                disabled={savingRegistration || !registrationLoaded}
+                onClick={salvarRegistro}
+              >
+                {savingRegistration ? "Salvando..." : "Salvar CPF e CRECI"}
+              </Button>
+            </div>
+          )}
           {canUsePositioning && (
             <div className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2">
               <div>

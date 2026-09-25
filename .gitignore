@@ -35,3 +35,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Original exclusive-contract templates are provisioned only to the private storage bucket.
+# This repository is public; never add the business PDFs to Git or the web build.
+assets/exclusividade/*.pdf

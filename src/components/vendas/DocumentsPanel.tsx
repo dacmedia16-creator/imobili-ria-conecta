@@ -52,7 +52,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
-import { PDFDocument } from "pdf-lib";
+import { baixarDocumentosComoPdf, isImageFile, printDocumentUrls } from "@/lib/document-actions";
 import { DocStatusBadge } from "./shared";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
@@ -71,104 +71,6 @@ export type DisplayDocument = Omit<
 // Tipos de documento que costumam ser o mesmo arquivo para o casal (certidão de casamento conjunta,
 // comprovante de endereço compartilhado) — só esses ganham a opção "Mesmo do 1º" no 2º comprador/vendedor.
 const REUSABLE_DOC_TYPES = new Set(["certidao", "comprovante_endereco"]);
-
-const isImageFile = (name: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
-const escapeHtml = (s: string) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
-  );
-
-// Converte qualquer imagem (jpg, png, etc.) pra PNG via canvas antes de embutir no PDF —
-// mais simples e robusto do que tentar diferenciar jpg de png na hora de embutir, e cobre
-// formatos que o pdf-lib não lê nativamente.
-async function imageToPngBytes(blob: Blob): Promise<Uint8Array> {
-  const bitmap = await createImageBitmap(blob);
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas indisponível");
-  ctx.drawImage(bitmap, 0, 0);
-  const pngBlob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Falha ao converter imagem"))),
-      "image/png",
-    );
-  });
-  return new Uint8Array(await pngBlob.arrayBuffer());
-}
-
-/** Baixa uma lista de documentos (imagens e/ou PDFs) já mesclados num único arquivo PDF. */
-async function baixarDocumentosComoPdf(
-  list: { file_name: string; url: string }[],
-  nomeArquivo: string,
-) {
-  const merged = await PDFDocument.create();
-  for (const doc of list) {
-    const resp = await fetch(doc.url);
-    if (!resp.ok) continue;
-    const blob = await resp.blob();
-    if (isImageFile(doc.file_name)) {
-      const pngBytes = await imageToPngBytes(blob);
-      const img = await merged.embedPng(pngBytes);
-      const page = merged.addPage([img.width, img.height]);
-      page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
-    } else {
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
-      const pages = await merged.copyPages(src, src.getPageIndices());
-      pages.forEach((p) => merged.addPage(p));
-    }
-  }
-  const mergedBytes = await merged.save();
-  const blobUrl = URL.createObjectURL(
-    new Blob([mergedBytes as BlobPart], { type: "application/pdf" }),
-  );
-  const a = document.createElement("a");
-  a.href = blobUrl;
-  a.download = nomeArquivo;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(blobUrl);
-}
-
-/** Abre uma janela com um documento (ou vários) por página e dispara a impressão do navegador assim que tudo carrega. */
-function printDocumentUrls(list: { file_name: string; url: string }[]) {
-  const w = window.open("", "_blank", "noopener,noreferrer");
-  if (!w) {
-    toast.error("Permita pop-ups para imprimir");
-    return;
-  }
-  const body = list
-    .map(
-      (d) => `
-    <section class="page">
-      <h2>${escapeHtml(d.file_name)}</h2>
-      ${
-        isImageFile(d.file_name)
-          ? `<img src="${d.url}" alt="${escapeHtml(d.file_name)}" />`
-          : `<iframe src="${d.url}" title="${escapeHtml(d.file_name)}"></iframe>`
-      }
-    </section>
-  `,
-    )
-    .join("");
-  w.document.write(`<!doctype html><html><head><title>Imprimir documentos</title><style>
-    body { margin: 0; font-family: sans-serif; }
-    .page { page-break-after: always; padding: 16px; box-sizing: border-box; min-height: 100vh; }
-    .page:last-child { page-break-after: auto; }
-    .page h2 { font-size: 13px; margin: 0 0 8px; color: #333; }
-    .page img { max-width: 100%; max-height: 92vh; display: block; margin: 0 auto; object-fit: contain; }
-    .page iframe { width: 100%; height: 92vh; border: 0; }
-  </style></head><body>${body}</body></html>`);
-  w.document.close();
-  w.onload = () => {
-    w.focus();
-    setTimeout(() => w.print(), 400);
-  };
-}
 
 function ExtractionBadge({ status, loading }: { status?: string; loading?: boolean }) {
   if (loading || status === "pending")

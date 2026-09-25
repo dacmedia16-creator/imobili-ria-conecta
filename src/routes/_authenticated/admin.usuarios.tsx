@@ -51,11 +51,15 @@ import {
 } from "lucide-react";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { filterAdminUsers, type UserStatusFilter } from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
-type AdminUser = Pick<ProfileRow, "id" | "nome" | "email" | "telefone" | "ativo" | "avatar_url">;
+type AdminUser = Pick<
+  ProfileRow,
+  "id" | "nome" | "email" | "telefone" | "cpf" | "creci" | "ativo" | "avatar_url"
+>;
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
@@ -103,6 +107,7 @@ function genPassword() {
 function AdminUsers() {
   const { hasRole, hasAny, user, roles: myRoles } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [registrationLoaded, setRegistrationLoaded] = useState(false);
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
   const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({});
   const [teamsRaw, setTeamsRaw] = useState<
@@ -130,6 +135,8 @@ function AdminUsers() {
     email: string;
     nome: string;
     telefone: string | null;
+    cpf: string | null;
+    creci: string | null;
   } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
@@ -209,7 +216,22 @@ function AdminUsers() {
       .select("id, nome, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
     const { data: cl } = await supabase.from("team_co_leaders").select("team_id, user_id");
-    setUsers(profs ?? []);
+    let registrations: Awaited<ReturnType<typeof profileRegistrations>> = [];
+    try {
+      registrations = await profileRegistrations();
+      setRegistrationLoaded(true);
+    } catch {
+      setRegistrationLoaded(false);
+      setEditingUserFor(null);
+    }
+    const registrationMap = new Map(registrations.map((row) => [row.user_id, row]));
+    setUsers(
+      (profs ?? []).map((p) => ({
+        ...p,
+        cpf: registrationMap.get(p.id)?.cpf ?? null,
+        creci: registrationMap.get(p.id)?.creci ?? null,
+      })),
+    );
     setTeamsRaw(teams ?? []);
     setTeamMembersRaw(t ?? []);
     setCoLeadersRaw(cl ?? []);
@@ -403,7 +425,7 @@ function AdminUsers() {
     // Editar dados básicos (nome/e-mail/telefone) — além de admin/super admin, gestor e team leader
     // também podem corrigir cadastro errado, mas só de quem já está na própria equipe (a lista
     // `visibleUsers` já filtra isso pra quem não é admin-like).
-    const canEditData = canManage && u.id !== user?.id;
+    const canEditData = canManage && registrationLoaded && u.id !== user?.id;
     const isEditingRoles = editingRoles[u.id] === true;
     const ultimoAcesso = lastSignIn[u.id];
     const displayName = u.nome || u.email || u.id;
@@ -463,6 +485,8 @@ function AdminUsers() {
                     email: u.email ?? "",
                     nome: u.nome ?? "",
                     telefone: u.telefone ?? null,
+                    cpf: u.cpf ?? null,
+                    creci: u.creci ?? null,
                   })
                 }
               >
@@ -882,15 +906,31 @@ function EditUserDialog({
   onDone,
   updateFn,
 }: {
-  target: { id: string; email: string; nome: string; telefone: string | null };
+  target: {
+    id: string;
+    email: string;
+    nome: string;
+    telefone: string | null;
+    cpf: string | null;
+    creci: string | null;
+  };
   onDone: () => void;
   updateFn: (args: {
-    data: { userId: string; nome: string; email: string; telefone: string };
+    data: {
+      userId: string;
+      nome: string;
+      email: string;
+      telefone: string;
+      cpf: string | null;
+      creci: string | null;
+    };
   }) => Promise<unknown>;
 }) {
   const [nome, setNome] = useState(target.nome);
   const [email, setEmail] = useState(target.email);
   const [telefone, setTelefone] = useState(target.telefone ?? "");
+  const [cpf, setCpf] = useState(target.cpf ?? "");
+  const [creci, setCreci] = useState(target.creci ?? "");
   const [loading, setLoading] = useState(false);
 
   const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
@@ -903,7 +943,9 @@ function EditUserDialog({
     }
     setLoading(true);
     try {
-      await updateFn({ data: { userId: target.id, nome, email, telefone } });
+      await updateFn({
+        data: { userId: target.id, nome, email, telefone, cpf: cpf || null, creci: creci || null },
+      });
       toast.success("Dados do usuário atualizados.");
       onDone();
     } catch (err: unknown) {
@@ -958,6 +1000,19 @@ function EditUserDialog({
             required
             minLength={10}
             placeholder="(11) 91234-5678"
+          />
+        </div>
+        <div>
+          <Label htmlFor="eu-cpf">CPF do captador</Label>
+          <Input id="eu-cpf" value={cpf} maxLength={30} onChange={(e) => setCpf(e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="eu-creci">CRECI</Label>
+          <Input
+            id="eu-creci"
+            value={creci}
+            maxLength={50}
+            onChange={(e) => setCreci(e.target.value)}
           />
         </div>
         <DialogFooter>

@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import type { ReactNode } from "react";
 import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
+import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
 type NavGroup = { label?: string; items: NavItem[]; compact?: boolean };
@@ -122,6 +123,16 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
 export function AppShell({ children }: { children: ReactNode }) {
   const { hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [exclusiveVisible, setExclusiveVisible] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    exclusiveEnabled().then((enabled) => {
+      if (alive) setExclusiveVisible(enabled);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const router = useRouter();
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
 
@@ -144,6 +155,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const primaryNav: NavItem[] = [
     { to: "/dashboard", label: "Início", icon: Home, show: true },
     { to: "/vendas", label: "Vendas", icon: FileText, show: true },
+    {
+      to: "/exclusividades",
+      label: "Captações exclusivas",
+      icon: FileText,
+      show:
+        exclusiveVisible && hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+    },
     {
       to: "/financeiro",
       label: "Financeiro",

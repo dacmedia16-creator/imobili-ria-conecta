@@ -41,6 +41,8 @@ const resetPasswordSchema = z.object({
 
 const updateUserSchema = z.object({
   userId: z.string().uuid(),
+  cpf: z.string().trim().max(30).nullable(),
+  creci: z.string().trim().max(50).nullable(),
   nome: z
     .string()
     .trim()
@@ -282,7 +284,13 @@ export const updateUser = createServerFn({ method: "POST" })
 
     const { error: profErr } = await supabaseAdmin
       .from("profiles")
-      .update({ nome: data.nome, email: data.email, telefone: data.telefone })
+      .update({
+        nome: data.nome,
+        email: data.email,
+        telefone: data.telefone,
+        cpf: data.cpf || null,
+        creci: data.creci || null,
+      })
       .eq("id", data.userId);
     if (profErr) throw new Error(profErr.message);
 
