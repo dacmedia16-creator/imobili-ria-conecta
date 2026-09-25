@@ -92,9 +92,7 @@ export async function suggestFromLocalFile(
     const task = async () => {
       const [{ createWorker }, pdfjs] = await Promise.all([
         import("tesseract.js"),
-        file.type === "application/pdf"
-          ? import("pdfjs-dist/build/pdf.mjs")
-          : Promise.resolve(null),
+        file.type === "application/pdf" ? import("pdfjs-dist") : Promise.resolve(null),
       ]);
       if (pdfjs) pdfjs.GlobalWorkerOptions.workerSrc = `${assets}/pdf.worker.min.mjs`;
       ocr = await createWorker("por", 1, {
@@ -110,7 +108,6 @@ export async function suggestFromLocalFile(
       if (pdfjs) {
         const loading = pdfjs.getDocument({
           data: new Uint8Array(await file.arrayBuffer()),
-          isEvalSupported: false,
         });
         pdfLoading = loading;
         const pdfDocument = await loading.promise;
