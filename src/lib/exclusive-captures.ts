@@ -78,6 +78,26 @@ export const TEMPLATES: Record<Template, string> = {
   campolim: "RE/MAX Única Escolha I — Campolim",
   "barao-de-tatui": "RE/MAX Única Escolha II — Barão de Tatuí",
 };
+/** Próxima ação da captação, independente do fluxo de vendas. */
+export function captureNextAction(status: CaptureStatus, manager: boolean): string {
+  switch (status) {
+    case "rascunho":
+      return "Conferir documentos e completar dados";
+    case "devolvida":
+      return "Corrigir pendências e reenviar ao gestor";
+    case "enviada":
+      return manager ? "Revisar e encaminhar para assinatura" : "Aguardar revisão do gestor";
+    case "em_assinatura":
+      return manager ? "Anexar contrato assinado e aprovar" : "Aguardar assinatura externa";
+    case "aprovada":
+      return "Captação concluída";
+  }
+}
+
+export function ownerDocumentsComplete(docs: CaptureDocument[], owner: 1 | 2): boolean {
+  const types = new Set(docs.filter((d) => d.owner_index === owner).map((d) => d.kind));
+  return types.has("cnh") || (types.has("rg") && types.has("cpf"));
+}
 export const OWNER_FIELDS: { key: OwnerField; label: string; required?: boolean }[] = [
   { key: "nome_completo", label: "Nome completo", required: true },
   { key: "rg", label: "RG", required: true },
@@ -162,8 +182,7 @@ export function missingRequirements(
     for (const { key, label, required } of OWNER_FIELDS) {
       if (required && !owner[key]?.trim()) missing.push(`Proprietário ${index + 1}: ${label}`);
     }
-    const types = new Set(docs.filter((d) => d.owner_index === index + 1).map((d) => d.kind));
-    if (!(types.has("cnh") || (types.has("rg") && types.has("cpf"))))
+    if (!ownerDocumentsComplete(docs, (index + 1) as 1 | 2))
       missing.push(`Proprietário ${index + 1}: RG e CPF ou CNH`);
   }
   for (const { key, label, required } of PROPERTY_FIELDS) {

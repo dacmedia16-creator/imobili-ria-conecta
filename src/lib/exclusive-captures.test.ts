@@ -4,9 +4,11 @@ import { readFile } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
 import {
   applySuggestedFields,
+  captureNextAction,
   emptyForm,
   fillExclusiveTemplate,
   missingRequirements,
+  ownerDocumentsComplete,
   type Capture,
   type CaptureDocument,
   type Template,
@@ -28,6 +30,20 @@ const doc = (kind: CaptureDocument["kind"], owner_index = 0) =>
   ({ kind, owner_index }) as CaptureDocument;
 
 describe("captação exclusiva", () => {
+  it("mostra próxima ação conforme status e papel, sem usar dados de vendas", () => {
+    expect(captureNextAction("rascunho", false)).toContain("documentos");
+    expect(captureNextAction("devolvida", false)).toContain("reenviar");
+    expect(captureNextAction("enviada", false)).toBe("Aguardar revisão do gestor");
+    expect(captureNextAction("enviada", true)).toContain("assinatura");
+    expect(captureNextAction("em_assinatura", true)).toContain("Anexar contrato assinado");
+    expect(captureNextAction("aprovada", false)).toBe("Captação concluída");
+  });
+  it("confere RG + CPF ou CNH por proprietário, ignorando anexos opcionais", () => {
+    expect(ownerDocumentsComplete([doc("rg", 1), doc("cpf", 1)], 1)).toBe(true);
+    expect(ownerDocumentsComplete([doc("cnh", 2), doc("residencia")], 2)).toBe(true);
+    expect(ownerDocumentsComplete([doc("rg", 1), doc("cpf", 1)], 2)).toBe(false);
+    expect(ownerDocumentsComplete([doc("rg", 1), doc("iptu")], 1)).toBe(false);
+  });
   it("mantém em branco as entradas já conferidas ao aplicar sugestões", () => {
     const form = emptyForm();
     form.proprietario_1.nome_completo = "Nome conferido";
