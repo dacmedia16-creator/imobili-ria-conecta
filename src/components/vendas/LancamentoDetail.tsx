@@ -1224,7 +1224,7 @@ export function LancamentoDetail({
                       disabled={!canEdit}
                       onValueChange={(v) => updComm(c.id, { papel: v })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Papel">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1249,7 +1249,7 @@ export function LancamentoDetail({
                             updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome))
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Beneficiário">
                             <SelectValue placeholder="Selecione um beneficiário" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1269,6 +1269,7 @@ export function LancamentoDetail({
                       );
                     })()}
                     <Input
+                      aria-label="Nome do beneficiário"
                       value={c.nome ?? ""}
                       disabled={!canEdit || !!c.user_id}
                       placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
@@ -1283,6 +1284,7 @@ export function LancamentoDetail({
                   <div className="md:col-span-2">
                     <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
                     <Input
+                      aria-label="Percentual"
                       type="number"
                       step="0.001"
                       value={c.percentual ?? ""}
@@ -1423,6 +1425,7 @@ export function LancamentoDetail({
 
           <SaleSection title="Observações">
             <Textarea
+              aria-label="Observações"
               value={form.negociacao_observacoes ?? ""}
               disabled={!canEdit}
               onChange={(e) => upd({ negociacao_observacoes: e.target.value })}
@@ -1750,7 +1753,7 @@ export function LancamentoDetail({
                       value={c.papel ?? ""}
                       onValueChange={(v) => updEditLinha(c.id, { papel: v })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Papel">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1777,7 +1780,7 @@ export function LancamentoDetail({
                             )
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Beneficiário">
                             <SelectValue placeholder="Selecione um beneficiário" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1797,6 +1800,7 @@ export function LancamentoDetail({
                       );
                     })()}
                     <Input
+                      aria-label="Nome do beneficiário"
                       value={c.nome ?? ""}
                       disabled={!!c.user_id}
                       placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
@@ -1806,6 +1810,7 @@ export function LancamentoDetail({
                   <div className="md:col-span-2">
                     <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
                     <Input
+                      aria-label="Percentual"
                       type="number"
                       step="0.001"
                       value={c.percentual ?? ""}
@@ -1879,6 +1884,7 @@ export function LancamentoDetail({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo da alteração"
             value={editMotivo}
             onChange={(e) => setEditMotivo(e.target.value)}
             placeholder="Ex: corretor informou valor negociado errado, corrigido conforme contrato."
@@ -2036,6 +2042,7 @@ export function LancamentoDetail({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo da devolução"
             placeholder="Motivo da devolução (obrigatório)"
             value={returnMotivo}
             onChange={(e) => setReturnMotivo(e.target.value)}
@@ -2107,6 +2114,7 @@ export function LancamentoDetail({
             <DialogDescription>Descreva o motivo da reabertura.</DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo"
             placeholder="Motivo (obrigatório)"
             value={reopenMotivo}
             onChange={(e) => setReopenMotivo(e.target.value)}

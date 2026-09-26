@@ -105,6 +105,7 @@ export function Filters({
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">Selecionar mês</Label>
             <Input
+              aria-label="Selecionar mês"
               type="month"
               value={mesSelecionado(filtros)}
               onChange={(e) => e.target.value && aplicarAtalho(mesRange(e.target.value))}
@@ -118,7 +119,7 @@ export function Filters({
               value={filtros.modalidade}
               onValueChange={(v) => set("modalidade", v as FiltrosProducao["modalidade"])}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger aria-label="Modalidade" className="w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -137,7 +138,7 @@ export function Filters({
               value={filtros.tipo}
               onValueChange={(v) => set("tipo", v as FiltrosProducao["tipo"])}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger aria-label="Tipo de participação" className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -157,7 +158,7 @@ export function Filters({
                 value={filtros.pessoaId ?? "todas"}
                 onValueChange={(v) => set("pessoaId", v === "todas" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Pessoa" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -179,7 +180,7 @@ export function Filters({
                 value={filtros.teamId ?? "todas"}
                 onValueChange={(v) => set("teamId", v === "todas" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Equipe" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

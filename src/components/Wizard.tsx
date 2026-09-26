@@ -119,7 +119,7 @@ export function Wizard({
           <span className="text-xs text-muted-foreground">{progress}%</span>
         </div>
         <Select value={activeKey} onValueChange={requestChange}>
-          <SelectTrigger className="mt-1">
+          <SelectTrigger aria-label="Etapa" className="mt-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

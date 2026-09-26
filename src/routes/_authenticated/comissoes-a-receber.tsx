@@ -582,7 +582,12 @@ function ComissoesAReceberPage() {
             <Label className="mb-1.5 block text-xs text-muted-foreground">
               Data do recebimento
             </Label>
-            <Input type="date" value={markDate} onChange={(e) => setMarkDate(e.target.value)} />
+            <Input
+              aria-label="Data do recebimento"
+              type="date"
+              value={markDate}
+              onChange={(e) => setMarkDate(e.target.value)}
+            />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={marking}>

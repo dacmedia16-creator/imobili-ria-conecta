@@ -1071,6 +1071,7 @@ export function DocumentsPanel({
                         <Card key={draft.id}>
                           <CardContent className="flex flex-wrap items-center gap-2 p-4">
                             <Input
+                              aria-label="Nome da certidão"
                               placeholder="Nome da certidão (ex: Certidão de ônus reais)"
                               value={draft.nome}
                               onChange={(e) => updCertidaoNome(draft.id, e.target.value)}
@@ -1175,6 +1176,7 @@ export function DocumentsPanel({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo da recusa"
             placeholder="Motivo da recusa (obrigatório)"
             value={rejectMotivo}
             onChange={(e) => setRejectMotivo(e.target.value)}

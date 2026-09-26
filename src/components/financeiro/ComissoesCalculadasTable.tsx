@@ -60,7 +60,7 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
             value={agrupamento}
             onValueChange={(v) => setAgrupamento(v as AgrupamentoComissao)}
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger aria-label="Agrupar por" className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

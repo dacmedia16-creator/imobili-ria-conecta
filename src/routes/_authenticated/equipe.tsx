@@ -319,6 +319,7 @@ function EquipesPage() {
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          aria-label="Buscar equipe"
           className="pl-9"
           placeholder="Buscar equipe..."
           value={search}
@@ -1000,7 +1001,7 @@ function TeamFormDialog({
           <div>
             <Label>Team Leader</Label>
             <Select value={liderId} onValueChange={setLiderId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Team Leader">
                 <SelectValue placeholder="Selecione um gestor" />
               </SelectTrigger>
               <SelectContent>
@@ -1137,7 +1138,7 @@ function MembrosDialog({
                 </p>
               ) : (
                 <Select value={selecionado} onValueChange={setSelecionado}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Corretor">
                     <SelectValue placeholder="Selecione um corretor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1266,7 +1267,7 @@ function CoLideresDialog({
                 </p>
               ) : (
                 <Select value={selecionado} onValueChange={setSelecionado}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Adicionar líder auxiliar">
                     <SelectValue placeholder="Selecione um gestor/team leader" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1337,6 +1338,7 @@ function MetaEditField({
   return (
     <div className="flex items-center gap-1.5">
       <Input
+        aria-label="Meta"
         type="number"
         step="0.01"
         className="h-7 w-28 text-xs"

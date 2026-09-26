@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldLabelContext } from "@/components/ui/field-context";
 import { CircleHelp, Loader2 } from "lucide-react";
 
 export type Saver = () => Promise<boolean>;
@@ -206,11 +207,13 @@ export function Field({
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const guidance = hint ?? getFieldHint(label);
+  const labelId = useId();
 
   return (
     <div className={colSpan === 2 ? "md:col-span-2" : ""}>
       <div className="mb-1.5 flex items-center gap-1.5">
         <Label
+          id={labelId}
           className={`block text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}
         >
           {label}
@@ -234,7 +237,7 @@ export function Field({
             : undefined
         }
       >
-        {children}
+        <FieldLabelContext.Provider value={labelId}>{children}</FieldLabelContext.Provider>
       </div>
       {invalid && errorText && (
         <p role="alert" className="mt-1 text-xs text-destructive">

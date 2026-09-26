@@ -573,39 +573,40 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
-    const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability, certidoesCapability] = await Promise.all([
-      supabase.from("sales").select("*").eq("id", id).maybeSingle(),
-      supabase.from("sale_parties").select("*").eq("sale_id", id),
-      supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
-      supabase.from("sale_bank_accounts").select("*").eq("sale_id", id),
-      supabase
-        .from("sale_documents")
-        .select("*")
-        .eq("sale_id", id)
-        .is("deleted_at", null)
-        .order("created_at"),
-      supabase
-        .from("sale_comments")
-        .select("*")
-        .eq("sale_id", id)
-        .order("created_at", { ascending: false }),
-      supabase.from("sale_comment_recipients").select("*").eq("sale_id", id),
-      supabase
-        .from("sale_status_history")
-        .select("*")
-        .eq("sale_id", id)
-        .order("created_at", { ascending: false }),
-      supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
-      supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
-      supabase
-        .from("activity_logs")
-        .select("*")
-        .eq("sale_id", id)
-        .order("created_at", { ascending: false }),
-      supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
-      supabase.rpc("sale_management_capabilities", { _sale_id: id }),
-      supabase.rpc("can_upload_juridico_certidao", { _sale_id: id }),
-    ]);
+    const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability, certidoesCapability] =
+      await Promise.all([
+        supabase.from("sales").select("*").eq("id", id).maybeSingle(),
+        supabase.from("sale_parties").select("*").eq("sale_id", id),
+        supabase.from("sale_payment").select("*").eq("sale_id", id).maybeSingle(),
+        supabase.from("sale_bank_accounts").select("*").eq("sale_id", id),
+        supabase
+          .from("sale_documents")
+          .select("*")
+          .eq("sale_id", id)
+          .is("deleted_at", null)
+          .order("created_at"),
+        supabase
+          .from("sale_comments")
+          .select("*")
+          .eq("sale_id", id)
+          .order("created_at", { ascending: false }),
+        supabase.from("sale_comment_recipients").select("*").eq("sale_id", id),
+        supabase
+          .from("sale_status_history")
+          .select("*")
+          .eq("sale_id", id)
+          .order("created_at", { ascending: false }),
+        supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
+        supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
+        supabase
+          .from("activity_logs")
+          .select("*")
+          .eq("sale_id", id)
+          .order("created_at", { ascending: false }),
+        supabase.rpc("calcular_distribuicao_venda", { p_sale_id: id }),
+        supabase.rpc("sale_management_capabilities", { _sale_id: id }),
+        supabase.rpc("can_upload_juridico_certidao", { _sale_id: id }),
+      ]);
     // Antes, erro em qualquer uma dessas 10 queries era ignorado silenciosamente — a tela mostrava
     // "sem documentos"/"sem histórico" etc., indistinguível de "realmente não tem nada". Agora pelo
     // menos avisa que algo falhou, em vez de deixar a pessoa achar que os dados sumiram.
@@ -1827,7 +1828,9 @@ function SaleDetail() {
           docs={docs}
           parties={parties}
           editable={editable}
-          canModerate={isGestor || (isJuridico && !["enviada_revisao", "devolvida_ajuste"].includes(status))}
+          canModerate={
+            isGestor || (isJuridico && !["enviada_revisao", "devolvida_ajuste"].includes(status))
+          }
           canUseAi={isOwner}
           canManageContratos={isGestor || isJuridico || isFinanceiro}
           canUploadCertidoes={isJuridico && canUploadCertidoes}
@@ -2089,7 +2092,7 @@ function SaleDetail() {
                                           }}
                                           disabled={!editable || captacaoExterna}
                                         >
-                                          <SelectTrigger className="w-56">
+                                          <SelectTrigger aria-label="Corretor" className="w-56">
                                             <SelectValue placeholder="Selecione o corretor cadastrado" />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -2179,7 +2182,10 @@ function SaleDetail() {
                                             }}
                                             disabled={!editable || captacaoExterna}
                                           >
-                                            <SelectTrigger className="w-56">
+                                            <SelectTrigger
+                                              aria-label="Gestor/Team Leader"
+                                              className="w-56"
+                                            >
                                               <SelectValue placeholder="Selecione" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -2354,7 +2360,7 @@ function SaleDetail() {
                                           }}
                                           disabled={!editable || vendaExterna}
                                         >
-                                          <SelectTrigger className="w-56">
+                                          <SelectTrigger aria-label="Corretor" className="w-56">
                                             <SelectValue placeholder="Selecione o corretor cadastrado" />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -2444,7 +2450,10 @@ function SaleDetail() {
                                             }}
                                             disabled={!editable || vendaExterna}
                                           >
-                                            <SelectTrigger className="w-56">
+                                            <SelectTrigger
+                                              aria-label="Gestor/Team Leader"
+                                              className="w-56"
+                                            >
                                               <SelectValue placeholder="Selecione" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -4753,6 +4762,7 @@ function SaleDetail() {
             <DialogDescription>Descreva o motivo. O corretor será notificado.</DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo da devolução"
             placeholder="Motivo da devolução (obrigatório)"
             value={returnMotivo}
             onChange={(e) => setReturnMotivo(e.target.value)}
@@ -4780,6 +4790,7 @@ function SaleDetail() {
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo"
             placeholder="Motivo (obrigatório)"
             value={archiveMotivo}
             onChange={(e) => setArchiveMotivo(e.target.value)}
@@ -4864,6 +4875,7 @@ function SaleDetail() {
             </div>
             {contratoFaltaDoc && (
               <Textarea
+                aria-label="Descreva o que está faltando"
                 placeholder="Descreva o que está faltando"
                 value={contratoFaltaDocDesc}
                 onChange={(e) => setContratoFaltaDocDesc(e.target.value)}
@@ -5595,6 +5607,7 @@ function SaleReport({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Justificativa"
             placeholder="Justificativa (obrigatória)"
             value={reopenMotivo}
             onChange={(e) => setReopenMotivo(e.target.value)}
@@ -5653,7 +5666,7 @@ function CommentsPanel({
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-2">
           <Select value={escopo} onValueChange={setEscopo}>
-            <SelectTrigger className="md:w-48">
+            <SelectTrigger aria-label="Visibilidade do comentário" className="md:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -5663,6 +5676,7 @@ function CommentsPanel({
             </SelectContent>
           </Select>
           <Textarea
+            aria-label="Escreva um comentário"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Escreva um comentário..."
@@ -6922,7 +6936,7 @@ function OccurrencePanel({
                   onValueChange={(v) => updComm(c.id, { papel: v })}
                   disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Papel">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -6946,7 +6960,7 @@ function OccurrencePanel({
                         updComm(c.id, resolverSelecaoBeneficiario(v, pessoasAtivas, c.nome ?? null))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Beneficiário">
                         <SelectValue placeholder="Selecione uma pessoa" />
                       </SelectTrigger>
                       <SelectContent>
@@ -6966,6 +6980,7 @@ function OccurrencePanel({
                   );
                 })()}
                 <Input
+                  aria-label="Nome do beneficiário"
                   value={c.nome ?? ""}
                   disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c) || !!c.user_id}
                   placeholder={c.user_id ? undefined : "Nome de quem não tem cadastro"}
@@ -6975,6 +6990,7 @@ function OccurrencePanel({
               <div className="md:col-span-2">
                 <Label className="mb-1 block text-xs text-muted-foreground">%</Label>
                 <Input
+                  aria-label="Percentual"
                   type="number"
                   step="0.001"
                   value={c.percentual ?? ""}
@@ -7157,6 +7173,7 @@ function OccurrencePanel({
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Justificativa"
             placeholder="Justificativa (obrigatória)"
             value={reopenMotivo}
             onChange={(e) => setReopenMotivo(e.target.value)}

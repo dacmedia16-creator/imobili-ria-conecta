@@ -615,6 +615,7 @@ function AdminUsers() {
             <div className="relative max-w-xs flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Buscar por nome ou e-mail"
                 className="pl-9"
                 placeholder="Buscar por nome ou e-mail..."
                 value={search}
@@ -631,7 +632,7 @@ function AdminUsers() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger aria-label="Filtrar por papel" className="w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1154,7 +1155,7 @@ function NewUserDialog({
         <div>
           <Label>Papel</Label>
           <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Papel">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

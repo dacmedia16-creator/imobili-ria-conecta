@@ -531,6 +531,7 @@ function MeuAcesso() {
             </Label>
             <div className="flex gap-2">
               <Input
+                aria-label="Telefone (WhatsApp)"
                 placeholder="(11) 91234-5678"
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
@@ -548,6 +549,7 @@ function MeuAcesso() {
               <div>
                 <Label className="mb-1.5 block">CPF do captador</Label>
                 <Input
+                  aria-label="CPF do captador"
                   value={cpf}
                   maxLength={30}
                   disabled={!registrationLoaded}
@@ -557,6 +559,7 @@ function MeuAcesso() {
               <div>
                 <Label className="mb-1.5 block">CRECI</Label>
                 <Input
+                  aria-label="CRECI"
                   value={creci}
                   maxLength={50}
                   disabled={!registrationLoaded}
@@ -580,6 +583,7 @@ function MeuAcesso() {
                   Página pessoal (opcional)
                 </Label>
                 <Input
+                  aria-label="Página pessoal (opcional)"
                   placeholder="https://seusite.com.br"
                   value={paginaPessoal}
                   onChange={(e) => setPaginaPessoal(e.target.value)}
@@ -590,6 +594,7 @@ function MeuAcesso() {
                   Instagram (opcional)
                 </Label>
                 <Input
+                  aria-label="Instagram (opcional)"
                   placeholder="@seuusuario"
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
@@ -626,6 +631,7 @@ function MeuAcesso() {
               posicionar. Todos os corretores ativos aparecem na vitrine pública.
             </p>
             <Input
+              aria-label="Buscar bairro, condomínio, cidade ou zona"
               value={positioningSearch}
               onChange={(event) => setPositioningSearch(event.target.value)}
               placeholder="Buscar bairro, condomínio, cidade ou zona"
@@ -715,6 +721,7 @@ function MeuAcesso() {
             <div>
               <Label>Nome</Label>
               <Input
+                aria-label="Nome"
                 value={suggestion.nome}
                 onChange={(e) => setSuggestion((s) => ({ ...s, nome: e.target.value }))}
                 placeholder="Ex.: Alphaville Nova Esplanada"
@@ -723,6 +730,7 @@ function MeuAcesso() {
             <div>
               <Label>Cidade</Label>
               <Input
+                aria-label="Cidade"
                 value={suggestion.cidade}
                 onChange={(e) => setSuggestion((s) => ({ ...s, cidade: e.target.value }))}
               />
@@ -730,6 +738,7 @@ function MeuAcesso() {
             <div>
               <Label>Zona (opcional)</Label>
               <Input
+                aria-label="Zona (opcional)"
                 value={suggestion.zona}
                 onChange={(e) => setSuggestion((s) => ({ ...s, zona: e.target.value }))}
                 placeholder="Ex.: Sul"
@@ -741,7 +750,7 @@ function MeuAcesso() {
                 value={suggestion.tipo}
                 onValueChange={(tipo) => setSuggestion((s) => ({ ...s, tipo }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Tipo">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -775,6 +784,7 @@ function MeuAcesso() {
             <div>
               <Label className="mb-1.5 block text-xs text-muted-foreground">Nova senha</Label>
               <Input
+                aria-label="Nova senha"
                 type="password"
                 minLength={8}
                 value={novaSenha}
@@ -787,6 +797,7 @@ function MeuAcesso() {
                 Confirmar nova senha
               </Label>
               <Input
+                aria-label="Confirmar nova senha"
                 type="password"
                 minLength={8}
                 value={confirmarSenha}

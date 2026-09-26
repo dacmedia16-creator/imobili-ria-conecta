@@ -49,6 +49,7 @@ export function Filters({
       <CardHeader className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
+            aria-label="Buscar por código ou identificação do imóvel"
             placeholder="Buscar por código ou identificação do imóvel"
             value={filtros.busca}
             onChange={(e) => set("busca", e.target.value)}
@@ -87,6 +88,7 @@ export function Filters({
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
               <Input
+                aria-label="Data inicial"
                 type="date"
                 value={filtros.dataDe}
                 onChange={(e) => set("dataDe", e.target.value)}
@@ -96,6 +98,7 @@ export function Filters({
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">até</Label>
               <Input
+                aria-label="Data final"
                 type="date"
                 value={filtros.dataAte}
                 onChange={(e) => set("dataAte", e.target.value)}
@@ -145,7 +148,7 @@ export function Filters({
               value={filtros.modalidade}
               onValueChange={(v) => set("modalidade", v as ComparativoFiltros["modalidade"])}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger aria-label="Modalidade" className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -162,7 +165,7 @@ export function Filters({
               value={filtros.situacao}
               onValueChange={(v) => set("situacao", v as SituacaoFiltro)}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger aria-label="Situação da comissão" className="w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -182,7 +185,7 @@ export function Filters({
                 value={filtros.corretorId ?? "todos"}
                 onValueChange={(v) => set("corretorId", v === "todos" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Corretor" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -204,7 +207,7 @@ export function Filters({
                 value={filtros.teamId ?? "todas"}
                 onValueChange={(v) => set("teamId", v === "todas" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Equipe" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

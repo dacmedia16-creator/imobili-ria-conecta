@@ -264,7 +264,7 @@ function ComissaoCoordenador() {
         </div>
         <div className="flex items-center gap-2 print:hidden">
           <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger aria-label="Mês" className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

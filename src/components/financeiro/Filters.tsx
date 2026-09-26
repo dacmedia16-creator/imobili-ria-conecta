@@ -77,6 +77,7 @@ export function Filters({
             "Bus..." visível. sm: volta ao layout de uma linha só (desktop preservado). */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
+            aria-label="Pesquisar por ocorrência, imóvel ou nome das partes"
             placeholder="Pesquisar por ocorrência, imóvel ou nome das partes"
             value={filtros.busca}
             onChange={(e) => set("busca", e.target.value)}
@@ -117,6 +118,7 @@ export function Filters({
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
               <Input
+                aria-label="Data inicial"
                 type="date"
                 value={filtros.dataDe}
                 onChange={(e) => set("dataDe", e.target.value)}
@@ -126,6 +128,7 @@ export function Filters({
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">até</Label>
               <Input
+                aria-label="Data final"
                 type="date"
                 value={filtros.dataAte}
                 onChange={(e) => set("dataAte", e.target.value)}
@@ -167,7 +170,7 @@ export function Filters({
               value={filtros.modalidade}
               onValueChange={(v) => set("modalidade", v as FinanceiroFiltros["modalidade"])}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger aria-label="Modalidade" className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -186,7 +189,7 @@ export function Filters({
               value={filtros.situacaoRecebimento}
               onValueChange={(v) => set("situacaoRecebimento", v as SituacaoRecebimentoFiltro)}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger aria-label="Situação do recebimento" className="w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -209,7 +212,7 @@ export function Filters({
               value={filtros.papel ?? "todos"}
               onValueChange={(v) => set("papel", v === "todos" ? null : v)}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger aria-label="Papel do beneficiário" className="w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -230,7 +233,7 @@ export function Filters({
                 value={filtros.corretorId ?? "todos"}
                 onValueChange={(v) => set("corretorId", v === "todos" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Corretor" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,7 +255,7 @@ export function Filters({
                 value={filtros.gestorId ?? "todos"}
                 onValueChange={(v) => set("gestorId", v === "todos" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Gestor" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,7 +277,7 @@ export function Filters({
                 value={filtros.teamId ?? "todas"}
                 onValueChange={(v) => set("teamId", v === "todas" ? null : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger aria-label="Equipe" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

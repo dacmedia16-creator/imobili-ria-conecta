@@ -267,6 +267,7 @@ function ExclusiveDetail() {
         {required ? " *" : ""}
       </Label>
       <Input
+        aria-label={label}
         value={value ?? ""}
         maxLength={300}
         disabled={!editable || busy}
@@ -734,6 +735,7 @@ function ExclusiveDetail() {
                 </div>
                 <div className="flex gap-2">
                   <Input
+                    aria-label="Motivo da devolução"
                     placeholder="Motivo da devolução (obrigatório)"
                     maxLength={1000}
                     value={reason}

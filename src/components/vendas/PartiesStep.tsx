@@ -594,7 +594,10 @@ export function PartiesStep({
                       <div className="text-sm font-medium">Dados bancários</div>
                       {editable && outrosVendedoresComConta.length > 0 && (
                         <Select value="" onValueChange={(v) => copiarContaDe(p, v)}>
-                          <SelectTrigger className="w-64">
+                          <SelectTrigger
+                            aria-label="Usar a mesma conta de outro vendedor"
+                            className="w-64"
+                          >
                             <SelectValue placeholder="Usar mesma conta de..." />
                           </SelectTrigger>
                           <SelectContent>

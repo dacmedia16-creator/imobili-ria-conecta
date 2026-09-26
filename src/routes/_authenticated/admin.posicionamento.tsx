@@ -126,6 +126,7 @@ function AdminPositioning() {
                   <div>
                     <Label>Nome</Label>
                     <Input
+                      aria-label="Nome"
                       disabled={!isEditing}
                       value={current.nome}
                       onChange={(e) => setEditing({ ...current, nome: e.target.value })}
@@ -134,6 +135,7 @@ function AdminPositioning() {
                   <div>
                     <Label>Cidade</Label>
                     <Input
+                      aria-label="Cidade"
                       disabled={!isEditing}
                       value={current.cidade}
                       onChange={(e) => setEditing({ ...current, cidade: e.target.value })}
@@ -142,6 +144,7 @@ function AdminPositioning() {
                   <div>
                     <Label>Zona</Label>
                     <Input
+                      aria-label="Zona"
                       disabled={!isEditing}
                       value={current.zona ?? ""}
                       onChange={(e) => setEditing({ ...current, zona: e.target.value })}
@@ -154,7 +157,7 @@ function AdminPositioning() {
                       value={current.tipo}
                       onValueChange={(tipo) => setEditing({ ...current, tipo })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Tipo">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

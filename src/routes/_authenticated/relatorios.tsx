@@ -333,15 +333,26 @@ function RelatoriosPage() {
           </div>
           <div>
             <Label>Período — de</Label>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            <Input
+              aria-label="Período — de"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
           </div>
           <div>
             <Label>Período — até</Label>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <Input
+              aria-label="Período — até"
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
           </div>
           <div className="min-w-48 flex-1">
             <Label>Corretor</Label>
             <Input
+              aria-label="Corretor"
               placeholder="Filtrar por nome do corretor"
               value={corretorQ}
               onChange={(e) => setCorretorQ(e.target.value)}
@@ -766,7 +777,12 @@ function FluxoCaixaTab({
               <Label className="mb-1.5 block text-xs text-muted-foreground">
                 Data do recebimento
               </Label>
-              <Input type="date" value={recData} onChange={(e) => setRecData(e.target.value)} />
+              <Input
+                aria-label="Data do recebimento"
+                type="date"
+                value={recData}
+                onChange={(e) => setRecData(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -887,7 +903,7 @@ function ComissoesTab({
             <div>
               <Label>Papel</Label>
               <Select value={papelFilter} onValueChange={setPapelFilter}>
-                <SelectTrigger className="w-56">
+                <SelectTrigger aria-label="Papel" className="w-56">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1027,6 +1043,7 @@ function FinanciamentosTab({
           <CardContent className="pt-6">
             <Label>Banco / correspondente</Label>
             <Input
+              aria-label="Banco / correspondente"
               placeholder="Filtrar por nome"
               value={bancoQ}
               onChange={(e) => setBancoQ(e.target.value)}
@@ -1040,7 +1057,7 @@ function FinanciamentosTab({
               value={somenteAbertos ? "abertos" : "todos"}
               onValueChange={(v) => setSomenteAbertos(v === "abertos")}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Situação">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1057,7 +1074,7 @@ function FinanciamentosTab({
               value={obaFiltro}
               onValueChange={(v) => setObaFiltro(v as "todos" | "somente" | "sem")}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Oba Crédito">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

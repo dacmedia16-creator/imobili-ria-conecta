@@ -115,6 +115,7 @@ function SpecialistsPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Nome, bairro ou condomínio"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Nome, bairro ou condomínio"
@@ -122,7 +123,7 @@ function SpecialistsPage() {
               />
             </div>
             <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-              <SelectTrigger className="text-foreground">
+              <SelectTrigger aria-label="Região" className="text-foreground">
                 <SelectValue placeholder="Todas as regiões" />
               </SelectTrigger>
               <SelectContent>

@@ -424,6 +424,7 @@ function VisaoExecutiva() {
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">Selecionar mês</Label>
             <Input
+              aria-label="Selecionar mês"
               type="month"
               value={mes}
               onChange={(e) => e.target.value && setPeriodo(mesRange(e.target.value))}
@@ -433,6 +434,7 @@ function VisaoExecutiva() {
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">Data inicial</Label>
             <Input
+              aria-label="Data inicial"
               type="date"
               value={periodo.de}
               max={periodo.ate}
@@ -443,6 +445,7 @@ function VisaoExecutiva() {
           <div>
             <Label className="mb-1 block text-xs text-muted-foreground">Data final</Label>
             <Input
+              aria-label="Data final"
               type="date"
               value={periodo.ate}
               min={periodo.de}

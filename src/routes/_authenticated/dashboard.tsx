@@ -980,7 +980,7 @@ function MovimentacaoPeriodoSection() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={search.periodo} onValueChange={mudarPeriodo}>
-            <SelectTrigger className="w-40 shrink-0">
+            <SelectTrigger aria-label="Período" className="w-40 shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

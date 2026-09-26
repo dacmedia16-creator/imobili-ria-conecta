@@ -572,6 +572,7 @@ function SalesList() {
         <CardHeader className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Input
+              aria-label="Buscar por código, imóvel ou pessoa envolvida"
               placeholder="Buscar por código, imóvel ou pessoa envolvida"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -595,7 +596,7 @@ function SalesList() {
             className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}
           >
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="md:w-64">
+              <SelectTrigger aria-label="Status" className="md:w-64">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -608,7 +609,7 @@ function SalesList() {
               </SelectContent>
             </Select>
             <Select value={vezFilter} onValueChange={setVezFilter}>
-              <SelectTrigger className="md:w-56">
+              <SelectTrigger aria-label="Aguardando ação de" className="md:w-56">
                 <SelectValue placeholder="Aguardando ação de" />
               </SelectTrigger>
               <SelectContent>
@@ -623,7 +624,7 @@ function SalesList() {
             {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
               teamOptions.length > 0 && (
                 <Select value={equipeFilter} onValueChange={setEquipeFilter}>
-                  <SelectTrigger className="md:w-56">
+                  <SelectTrigger aria-label="Equipe" className="md:w-56">
                     <SelectValue placeholder="Equipe" />
                   </SelectTrigger>
                   <SelectContent>
