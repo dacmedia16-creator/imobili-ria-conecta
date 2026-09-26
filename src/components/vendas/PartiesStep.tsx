@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -60,6 +70,7 @@ export function PartiesStep({
     return m;
   });
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  const [papelParaRemover, setPapelParaRemover] = useState<string | null>(null);
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
   const [saving, setSaving] = useState(false);
 
@@ -433,7 +444,7 @@ export function PartiesStep({
                       size="sm"
                       variant="ghost"
                       className="text-muted-foreground"
-                      onClick={() => removePapel(p)}
+                      onClick={() => setPapelParaRemover(p)}
                     >
                       Remover
                     </Button>
@@ -670,6 +681,37 @@ export function PartiesStep({
         onChange={setActivePapel}
         hideNav
       />
+
+      <AlertDialog
+        open={!!papelParaRemover}
+        onOpenChange={(open) => {
+          if (!open) setPapelParaRemover(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remover {papelParaRemover ? parteLabel(papelParaRemover) : "esta parte"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados desta parte e a conta bancária vinculada serão apagados desta venda. Essa
+              ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const papel = papelParaRemover;
+                setPapelParaRemover(null);
+                if (papel) void removePapel(papel);
+              }}
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
