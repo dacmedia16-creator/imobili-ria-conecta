@@ -106,7 +106,9 @@ function AuthPage() {
                     <Label htmlFor="email">E-mail</Label>
                     <Input
                       id="email"
+                      autoComplete="username"
                       type="email"
+                      spellCheck={false}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -117,6 +119,7 @@ function AuthPage() {
                     <div className="relative">
                       <Input
                         id="password"
+                        autoComplete="current-password"
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -185,7 +188,9 @@ function AuthPage() {
                   <Label htmlFor="email-recuperar">E-mail</Label>
                   <Input
                     id="email-recuperar"
+                    autoComplete="email"
                     type="email"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required

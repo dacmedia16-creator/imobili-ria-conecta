@@ -559,6 +559,7 @@ export function PartiesStep({
                     <Field label="E-mail">
                       <Input
                         type="email"
+                        spellCheck={false}
                         value={forms[p].email ?? ""}
                         onChange={(e) => update(p, "email", e.target.value)}
                         disabled={!editable}

@@ -72,6 +72,7 @@ function TrocarSenhaPage() {
               <Label htmlFor="nova-senha">Nova senha</Label>
               <Input
                 id="nova-senha"
+                autoComplete="new-password"
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
@@ -83,6 +84,7 @@ function TrocarSenhaPage() {
               <Label htmlFor="confirmar-senha">Confirmar nova senha</Label>
               <Input
                 id="confirmar-senha"
+                autoComplete="new-password"
                 type="password"
                 value={confirmacao}
                 onChange={(e) => setConfirmacao(e.target.value)}

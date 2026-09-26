@@ -12,11 +12,14 @@ describe("Field liga o rótulo ao campo (acessibilidade)", () => {
       h(
         Fragment,
         null,
-        h(Field, { label: "Matrícula" }, h(Input)),
-        h(Field, { label: "Obs" }, h(Textarea)),
-        h(Field, { label: "Mídia" }, h(Select, null, h(SelectTrigger, null, h(SelectValue)))),
+        h(Field, { label: "Matrícula", children: h(Input) }),
+        h(Field, { label: "Obs", children: h(Textarea) }),
+        h(Field, {
+          label: "Mídia",
+          children: h(Select, null, h(SelectTrigger, null, h(SelectValue))),
+        }),
         h(Input),
-        h(Field, { label: "X" }, h(Input, { "aria-label": "Manual" })),
+        h(Field, { label: "X", children: h(Input, { "aria-label": "Manual" }) }),
       ),
     );
     const ids = [...html.matchAll(/<label[^>]*id="([^"]+)"/g)].map((m) => m[1]);

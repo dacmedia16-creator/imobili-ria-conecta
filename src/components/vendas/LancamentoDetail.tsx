@@ -1072,6 +1072,7 @@ export function LancamentoDetail({
               <Field label="E-mail">
                 <Input
                   type="email"
+                  spellCheck={false}
                   value={partiesForm.vendedor_1?.email ?? ""}
                   disabled={!canEdit}
                   onChange={(e) => updParty("vendedor_1", { email: e.target.value })}
@@ -1116,6 +1117,7 @@ export function LancamentoDetail({
                     <Field label="E-mail">
                       <Input
                         type="email"
+                        spellCheck={false}
                         value={partiesForm[papel]?.email ?? ""}
                         disabled={!canEdit}
                         onChange={(e) => updParty(papel, { email: e.target.value })}

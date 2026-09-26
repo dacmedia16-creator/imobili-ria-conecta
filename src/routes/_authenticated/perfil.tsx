@@ -785,6 +785,7 @@ function MeuAcesso() {
               <Label className="mb-1.5 block text-xs text-muted-foreground">Nova senha</Label>
               <Input
                 aria-label="Nova senha"
+                autoComplete="new-password"
                 type="password"
                 minLength={8}
                 value={novaSenha}
@@ -798,6 +799,7 @@ function MeuAcesso() {
               </Label>
               <Input
                 aria-label="Confirmar nova senha"
+                autoComplete="new-password"
                 type="password"
                 minLength={8}
                 value={confirmarSenha}

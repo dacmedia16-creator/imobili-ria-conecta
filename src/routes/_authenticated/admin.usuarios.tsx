@@ -989,6 +989,7 @@ function EditUserDialog({
           <Input
             id="eu-email"
             type="email"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -1101,6 +1102,7 @@ function NewUserDialog({
           <Input
             id="nu-email"
             type="email"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
