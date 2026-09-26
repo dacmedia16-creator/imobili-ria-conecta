@@ -206,6 +206,7 @@ export function Field({
   errorText?: string;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const fieldRef = useRef<HTMLDivElement>(null);
   const guidance = hint ?? getFieldHint(label);
   const labelId = useId();
 
@@ -214,7 +215,14 @@ export function Field({
       <div className="mb-1.5 flex items-center gap-1.5">
         <Label
           id={labelId}
-          className={`block text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}
+          className={`block cursor-pointer text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}
+          onClick={() =>
+            fieldRef.current
+              ?.querySelector<HTMLElement>(
+                "input:not([type=hidden]), textarea, select, [role=combobox]",
+              )
+              ?.focus()
+          }
         >
           {label}
         </Label>
@@ -231,6 +239,7 @@ export function Field({
         )}
       </div>
       <div
+        ref={fieldRef}
         className={
           invalid
             ? "[&_input]:border-destructive [&_input]:ring-1 [&_input]:ring-destructive/30"

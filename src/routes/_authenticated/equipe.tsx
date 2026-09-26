@@ -1047,6 +1047,7 @@ function MembrosDialog({
   const [selecionado, setSelecionado] = useState("");
   const [loadingCandidatos, setLoadingCandidatos] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   const carregarCandidatos = useCallback(async () => {
     setLoadingCandidatos(true);
@@ -1086,8 +1087,13 @@ function MembrosDialog({
   const remover = async (membroId: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase.from("team_members").delete().eq("membro_id", membroId);
+      const { error } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("team_id", team.id)
+        .eq("membro_id", membroId);
       if (error) throw error;
+      setPendingRemoval(null);
       toast.success("Corretor removido");
       await carregarCandidatos();
       onChanged();
@@ -1119,7 +1125,7 @@ function MembrosDialog({
                   size="sm"
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => remover(id)}
+                  onClick={() => setPendingRemoval(id)}
                   title="Remover da equipe"
                 >
                   <X className="h-4 w-4 text-muted-foreground" />
@@ -1157,6 +1163,34 @@ function MembrosDialog({
           </div>
         </div>
       </DialogContent>
+      <AlertDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(open) => !open && setPendingRemoval(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover corretor desta equipe?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {profiles[pendingRemoval ?? ""]?.nome ?? "Este corretor"} deixará de ser membro de{" "}
+              {team.nome}. Confirme para alterar o vínculo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                if (pendingRemoval) {
+                  event.preventDefault();
+                  void remover(pendingRemoval);
+                }
+              }}
+            >
+              Remover da equipe
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
@@ -1181,6 +1215,7 @@ function CoLideresDialog({
 }) {
   const [selecionado, setSelecionado] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   const candidatos = useMemo(
     () => gestores.filter((g) => g.id !== team.lider_id && !coLiderIds.includes(g.id)),
@@ -1214,6 +1249,7 @@ function CoLideresDialog({
         .eq("team_id", team.id)
         .eq("user_id", userId);
       if (error) throw error;
+      setPendingRemoval(null);
       toast.success("Líder auxiliar removido");
       onChanged();
     } catch (err: unknown) {
@@ -1250,7 +1286,7 @@ function CoLideresDialog({
                   size="sm"
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => remover(id)}
+                  onClick={() => setPendingRemoval(id)}
                   title="Remover como líder auxiliar"
                 >
                   <X className="h-4 w-4 text-muted-foreground" />
@@ -1286,6 +1322,34 @@ function CoLideresDialog({
           </div>
         </div>
       </DialogContent>
+      <AlertDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(open) => !open && setPendingRemoval(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover líder auxiliar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {profiles[pendingRemoval ?? ""]?.nome ?? "Este líder"} perderá as permissões de
+              liderança auxiliar na equipe {team.nome}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                if (pendingRemoval) {
+                  event.preventDefault();
+                  void remover(pendingRemoval);
+                }
+              }}
+            >
+              Remover liderança
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -116,8 +116,14 @@ export function Filters({
         >
           <div className="flex flex-wrap items-center gap-2">
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">De</Label>
+              <Label
+                htmlFor="fin-data-de"
+                className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+              >
+                De
+              </Label>
               <Input
+                id="fin-data-de"
                 aria-label="Data inicial"
                 type="date"
                 value={filtros.dataDe}
@@ -126,8 +132,14 @@ export function Filters({
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">até</Label>
+              <Label
+                htmlFor="fin-data-ate"
+                className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+              >
+                até
+              </Label>
               <Input
+                id="fin-data-ate"
                 aria-label="Data final"
                 type="date"
                 value={filtros.dataAte}
@@ -165,12 +177,17 @@ export function Filters({
           </div>
 
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Modalidade</Label>
+            <Label
+              htmlFor="fin-modalidade"
+              className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+            >
+              Modalidade
+            </Label>
             <Select
               value={filtros.modalidade}
               onValueChange={(v) => set("modalidade", v as FinanceiroFiltros["modalidade"])}
             >
-              <SelectTrigger aria-label="Modalidade" className="w-44">
+              <SelectTrigger id="fin-modalidade" aria-label="Modalidade" className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -182,14 +199,21 @@ export function Filters({
           </div>
 
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">
+            <Label
+              htmlFor="fin-situacao"
+              className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+            >
               Situação do recebimento
             </Label>
             <Select
               value={filtros.situacaoRecebimento}
               onValueChange={(v) => set("situacaoRecebimento", v as SituacaoRecebimentoFiltro)}
             >
-              <SelectTrigger aria-label="Situação do recebimento" className="w-52">
+              <SelectTrigger
+                id="fin-situacao"
+                aria-label="Situação do recebimento"
+                className="w-52"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -205,14 +229,17 @@ export function Filters({
           </div>
 
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">
+            <Label
+              htmlFor="fin-papel"
+              className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+            >
               Papel do beneficiário
             </Label>
             <Select
               value={filtros.papel ?? "todos"}
               onValueChange={(v) => set("papel", v === "todos" ? null : v)}
             >
-              <SelectTrigger aria-label="Papel do beneficiário" className="w-52">
+              <SelectTrigger id="fin-papel" aria-label="Papel do beneficiário" className="w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -228,12 +255,17 @@ export function Filters({
 
           {corretorOptions.length > 0 && (
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Corretor</Label>
+              <Label
+                htmlFor="fin-corretor"
+                className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+              >
+                Corretor
+              </Label>
               <Select
                 value={filtros.corretorId ?? "todos"}
                 onValueChange={(v) => set("corretorId", v === "todos" ? null : v)}
               >
-                <SelectTrigger aria-label="Corretor" className="w-52">
+                <SelectTrigger id="fin-corretor" aria-label="Corretor" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,12 +282,17 @@ export function Filters({
 
           {gestorOptions.length > 0 && (
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Gestor</Label>
+              <Label
+                htmlFor="fin-gestor"
+                className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+              >
+                Gestor
+              </Label>
               <Select
                 value={filtros.gestorId ?? "todos"}
                 onValueChange={(v) => set("gestorId", v === "todos" ? null : v)}
               >
-                <SelectTrigger aria-label="Gestor" className="w-52">
+                <SelectTrigger id="fin-gestor" aria-label="Gestor" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -272,12 +309,17 @@ export function Filters({
 
           {teamOptions.length > 0 && (
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Equipe</Label>
+              <Label
+                htmlFor="fin-equipe"
+                className="mb-1 block cursor-pointer text-xs text-muted-foreground"
+              >
+                Equipe
+              </Label>
               <Select
                 value={filtros.teamId ?? "todas"}
                 onValueChange={(v) => set("teamId", v === "todas" ? null : v)}
               >
-                <SelectTrigger aria-label="Equipe" className="w-52">
+                <SelectTrigger id="fin-equipe" aria-label="Equipe" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -27,14 +27,19 @@ function TrocarSenhaPage() {
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldError, setFieldError] = useState<{
+    field: "nova-senha" | "confirmar-senha";
+    message: string;
+  } | null>(null);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (senha !== confirmacao) {
       e.currentTarget.querySelector<HTMLInputElement>("#confirmar-senha")?.focus();
-      toast.error("As senhas não coincidem.");
+      setFieldError({ field: "confirmar-senha", message: "As senhas não coincidem." });
       return;
     }
+    setFieldError(null);
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
@@ -75,25 +80,49 @@ function TrocarSenhaPage() {
               <Label htmlFor="nova-senha">Nova senha</Label>
               <Input
                 id="nova-senha"
+                aria-invalid={fieldError?.field === "nova-senha"}
+                aria-describedby={
+                  fieldError?.field === "nova-senha" ? "nova-senha-erro" : undefined
+                }
                 autoComplete="new-password"
                 type="password"
                 value={senha}
-                onChange={(e) => setSenha(e.target.value)}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                  setFieldError(null);
+                }}
                 required
                 minLength={8}
               />
+              {fieldError?.field === "nova-senha" && (
+                <p id="nova-senha-erro" role="alert" className="mt-1 text-sm text-destructive">
+                  {fieldError.message}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="confirmar-senha">Confirmar nova senha</Label>
               <Input
                 id="confirmar-senha"
+                aria-invalid={fieldError?.field === "confirmar-senha"}
+                aria-describedby={
+                  fieldError?.field === "confirmar-senha" ? "confirmar-senha-erro" : undefined
+                }
                 autoComplete="new-password"
                 type="password"
                 value={confirmacao}
-                onChange={(e) => setConfirmacao(e.target.value)}
+                onChange={(e) => {
+                  setConfirmacao(e.target.value);
+                  setFieldError(null);
+                }}
                 required
                 minLength={8}
               />
+              {fieldError?.field === "confirmar-senha" && (
+                <p id="confirmar-senha-erro" role="alert" className="mt-1 text-sm text-destructive">
+                  {fieldError.message}
+                </p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Salvando…" : "Salvar e continuar"}

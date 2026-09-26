@@ -412,6 +412,7 @@ function SaleDetail() {
   // "Adicionar parcela" (ou já existir valor salvo — aí aparecem sozinhas ao carregar a venda).
   const [showParcela2Recebimento, setShowParcela2Recebimento] = useState(false);
   const [showParcela3Recebimento, setShowParcela3Recebimento] = useState(false);
+  const [pendingParcelaRemoval, setPendingParcelaRemoval] = useState<2 | 3 | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -1185,6 +1186,23 @@ function SaleDetail() {
     setFormSale((f) => ({ ...f, ...patch }));
     setDirtyResumo(true);
     setResumoSaveFailed(false);
+  };
+
+  const solicitarRemocaoParcela = (parcela: 2 | 3) => {
+    const preenchida =
+      parcela === 2
+        ? formSale.previsao_recebimento2_valor != null ||
+          !!formSale.previsao_recebimento2_data ||
+          !!formSale.previsao_recebimento2_forma ||
+          formSale.previsao_recebimento3_valor != null ||
+          !!formSale.previsao_recebimento3_data ||
+          !!formSale.previsao_recebimento3_forma
+        : formSale.previsao_recebimento3_valor != null ||
+          !!formSale.previsao_recebimento3_data ||
+          !!formSale.previsao_recebimento3_forma;
+    if (preenchida) setPendingParcelaRemoval(parcela);
+    else if (parcela === 2) removerParcela2Recebimento();
+    else removerParcela3Recebimento();
   };
 
   const removerParcela2Recebimento = () => {
@@ -2966,7 +2984,7 @@ function SaleDetail() {
                                   size="sm"
                                   variant="ghost"
                                   className="text-muted-foreground hover:text-destructive"
-                                  onClick={removerParcela2Recebimento}
+                                  onClick={() => solicitarRemocaoParcela(2)}
                                 >
                                   <XCircle className="mr-1 h-4 w-4" />
                                   Remover 2ª parcela
@@ -3018,7 +3036,7 @@ function SaleDetail() {
                                   size="sm"
                                   variant="ghost"
                                   className="text-muted-foreground hover:text-destructive"
-                                  onClick={removerParcela3Recebimento}
+                                  onClick={() => solicitarRemocaoParcela(3)}
                                 >
                                   <XCircle className="mr-1 h-4 w-4" />
                                   Remover 3ª parcela
@@ -5010,6 +5028,38 @@ function SaleDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={pendingParcelaRemoval !== null}
+        onOpenChange={(open) => !open && setPendingParcelaRemoval(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover {pendingParcelaRemoval}ª parcela?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados preenchidos desta parcela serão limpos da venda e o salvamento automático
+              poderá registrar essa alteração.
+              {pendingParcelaRemoval === 2 &&
+              (formSale.previsao_recebimento3_valor != null ||
+                formSale.previsao_recebimento3_data ||
+                formSale.previsao_recebimento3_forma)
+                ? " A 3ª parcela ocupará o lugar da 2ª."
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingParcelaRemoval === 2) removerParcela2Recebimento();
+                if (pendingParcelaRemoval === 3) removerParcela3Recebimento();
+                setPendingParcelaRemoval(null);
+              }}
+            >
+              Remover parcela
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

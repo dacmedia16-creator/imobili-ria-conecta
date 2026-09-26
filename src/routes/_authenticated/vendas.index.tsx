@@ -129,11 +129,37 @@ function readSalesListState(): Partial<SalesListState> | null {
   }
 }
 
+// Lê apenas parâmetros conhecidos; valores inválidos não alteram a consulta nem o estado salvo.
+function readSalesFiltersFromUrl(): Partial<SalesListState> | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("filtros")) return null;
+  const result: Partial<SalesListState> = {};
+  const status = params.get("status");
+  if (status && (status === "todas" || status in STATUS_LABEL)) result.statusFilter = status;
+  const vez = params.get("vez");
+  if (vez && (vez === "todas" || vez in VEZ_DE_AGIR_LABEL)) result.vezFilter = vez;
+  const validDate = (value: string | null) =>
+    value !== null &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value;
+  if (validDate(params.get("de"))) result.dataDe = params.get("de")!;
+  if (validDate(params.get("ate"))) result.dataAte = params.get("ate")!;
+  if (params.get("de") === "") result.dataDe = "";
+  if (params.get("ate") === "") result.dataAte = "";
+  if (params.has("q")) result.q = (params.get("q") ?? "").slice(0, 200);
+  if (params.get("minhaVez") === "1") result.soMinhaVez = true;
+  const equipe = params.get("equipe");
+  if (equipe && /^[0-9a-f-]{36}$/i.test(equipe)) result.equipeFilter = equipe;
+  return result;
+}
+
 function SalesList() {
   const { user, roles, hasAny } = useAuth();
   const router = useRouter();
   const periodoInicialRef = useRef(periodoInicialVendas());
-  const [savedListState] = useState(readSalesListState);
+  const [savedListState] = useState(() => readSalesFiltersFromUrl() ?? readSalesListState());
   const [sales, setSales] = useState<SalesListRow[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState(0);
@@ -166,6 +192,24 @@ function SalesList() {
   const canFilterByTeam = hasAny(["juridico", "admin", "super_admin", "financeiro"]);
   const waitingForSavedTeamFilter =
     canFilterByTeam && equipeFilter !== "todas" && !teamOptionsLoaded;
+
+  useEffect(() => {
+    // Atualiza apenas esta entrada de histórico; um link compartilhado reproduz os filtros.
+    // Preserva window.history.state para não quebrar o roteador nas próximas navegações.
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams();
+    params.set("filtros", "1");
+    if (statusFilter !== "todas") params.set("status", statusFilter);
+    if (vezFilter !== "todas") params.set("vez", vezFilter);
+    params.set("de", dataDe);
+    params.set("ate", dataAte);
+    if (q) params.set("q", q);
+    if (soMinhaVez) params.set("minhaVez", "1");
+    if (equipeFilter !== "todas" && canFilterByTeam) params.set("equipe", equipeFilter);
+    url.search = params.toString();
+    if (window.location.href !== url.href)
+      window.history.replaceState(window.history.state, "", url);
+  }, [statusFilter, vezFilter, dataDe, dataAte, q, soMinhaVez, equipeFilter, canFilterByTeam]);
 
   useEffect(() => {
     try {
@@ -717,9 +761,7 @@ function SalesList() {
           )}
         </CardHeader>
         <CardContent>
-          {loading && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
-          )}
+          {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>}
           {!loading && loadError && (
             <div role="alert" className="py-8 text-center text-sm">
               Não foi possível carregar as vendas.
