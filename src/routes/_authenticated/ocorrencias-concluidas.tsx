@@ -154,7 +154,7 @@ function OcorrenciasConcluidasPage() {
   if (authLoading)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Carregando...
+        Carregando…
       </p>
     );
   if (!session || !allowed) {
@@ -177,7 +177,7 @@ function OcorrenciasConcluidasPage() {
   ) {
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Carregando...
+        Carregando…
       </p>
     );
   }

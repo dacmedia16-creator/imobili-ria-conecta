@@ -227,7 +227,7 @@ function ExclusiveDetail() {
       toast.error(errorMessage(e, "Falha ao reunir documentos"));
     }
   };
-  if (loading) return <p>Carregando captação...</p>;
+  if (loading) return <p>Carregando captação…</p>;
   if (!capture || !form)
     return (
       <p>

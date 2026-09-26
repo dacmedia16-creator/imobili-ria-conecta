@@ -321,14 +321,14 @@ function EquipesPage() {
         <Input
           aria-label="Buscar equipe"
           className="pl-9"
-          placeholder="Buscar equipe..."
+          placeholder="Buscar equipe…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Carregando...</p>
+        <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : filteredTop.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma equipe encontrada.</p>
       ) : (
@@ -1020,7 +1020,7 @@ function TeamFormDialog({
           </div>
           <DialogFooter>
             <Button type="submit" disabled={saving || !nome.trim() || !liderId}>
-              {saving ? "Salvando..." : "Salvar"}
+              {saving ? "Salvando…" : "Salvar"}
             </Button>
           </DialogFooter>
         </form>
@@ -1131,7 +1131,7 @@ function MembrosDialog({
             <div className="flex-1">
               <Label>Adicionar corretor</Label>
               {loadingCandidatos ? (
-                <p className="text-sm text-muted-foreground">Carregando...</p>
+                <p className="text-sm text-muted-foreground">Carregando…</p>
               ) : candidatos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nenhum corretor disponível — todos já estão em alguma equipe.
@@ -1496,7 +1496,7 @@ function DesempenhoDialog({
           </p>
         </DialogHeader>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
+          <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-5">

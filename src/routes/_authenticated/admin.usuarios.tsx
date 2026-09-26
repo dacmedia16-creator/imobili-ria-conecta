@@ -511,7 +511,7 @@ function AdminUsers() {
                 disabled={enteringAs === u.id}
               >
                 <LogIn className="mr-1.5 h-4 w-4" />
-                {enteringAs === u.id ? "Entrando..." : "Entrar como usuário"}
+                {enteringAs === u.id ? "Entrando…" : "Entrar como usuário"}
               </Button>
             )}
             {canResetPassword && (
@@ -617,7 +617,7 @@ function AdminUsers() {
               <Input
                 aria-label="Buscar por nome ou e-mail"
                 className="pl-9"
-                placeholder="Buscar por nome ou e-mail..."
+                placeholder="Buscar por nome ou e-mail…"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -896,7 +896,7 @@ function ResetPasswordDialog({
         </div>
         <DialogFooter>
           <Button type="submit" disabled={loading}>
-            {loading ? "Salvando..." : "Redefinir senha"}
+            {loading ? "Salvando…" : "Redefinir senha"}
           </Button>
         </DialogFooter>
       </form>
@@ -1021,7 +1021,7 @@ function EditUserDialog({
         </div>
         <DialogFooter>
           <Button type="submit" disabled={loading}>
-            {loading ? "Salvando..." : "Salvar"}
+            {loading ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
       </form>
@@ -1171,7 +1171,7 @@ function NewUserDialog({
         </div>
         <DialogFooter>
           <Button type="submit" disabled={loading}>
-            {loading ? "Criando..." : "Criar usuário"}
+            {loading ? "Criando…" : "Criar usuário"}
           </Button>
         </DialogFooter>
       </form>

@@ -370,7 +370,7 @@ function VisaoExecutiva() {
   }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa]);
 
   if (authLoading || loading || (ehLider && temEquipe === null)) {
-    return <p className="text-sm text-muted-foreground">Carregando...</p>;
+    return <p className="text-sm text-muted-foreground">Carregando…</p>;
   }
 
   if (!allowed) {
@@ -1006,7 +1006,7 @@ function DetalheComissao({
         {erro ? (
           <p className="py-8 text-center text-sm text-destructive">{erro}</p>
         ) : linhas == null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
         ) : linhas.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Nenhuma venda no período.

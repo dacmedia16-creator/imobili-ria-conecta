@@ -336,7 +336,7 @@ function ComissoesAReceberPage() {
     }
   };
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   if (!allowed) {
     return (
@@ -409,7 +409,7 @@ function ComissoesAReceberPage() {
           </Tabs>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
             <Input
-              placeholder="Buscar imóvel, corretor ou forma..."
+              placeholder="Buscar imóvel, corretor ou forma…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Buscar recebimentos"
@@ -594,7 +594,7 @@ function ComissoesAReceberPage() {
               Cancelar
             </Button>
             <Button onClick={confirmarSelecionadas} disabled={marking || !markDate}>
-              {marking ? "Salvando..." : "Confirmar"}
+              {marking ? "Salvando…" : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

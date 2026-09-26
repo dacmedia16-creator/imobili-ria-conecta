@@ -613,7 +613,7 @@ function SalesList() {
                 <SelectValue placeholder="Aguardando ação de" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todas">Aguardando ação de...</SelectItem>
+                <SelectItem value="todas">Aguardando ação de…</SelectItem>
                 {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
@@ -718,7 +718,7 @@ function SalesList() {
         </CardHeader>
         <CardContent>
           {loading && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
           )}
           {!loading && loadError && (
             <div role="alert" className="py-8 text-center text-sm">
@@ -993,7 +993,7 @@ function SalesList() {
               onClick={onConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Excluindo..." : "Excluir venda"}
+              {deleting ? "Excluindo…" : "Excluir venda"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

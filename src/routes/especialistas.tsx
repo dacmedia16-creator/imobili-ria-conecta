@@ -150,7 +150,7 @@ function SpecialistsPage() {
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {loading
-                    ? "Buscando..."
+                    ? "Buscando…"
                     : `${specialists.length} ${specialists.length === 1 ? "corretor encontrado" : "corretores encontrados"}`}
                 </p>
               </div>

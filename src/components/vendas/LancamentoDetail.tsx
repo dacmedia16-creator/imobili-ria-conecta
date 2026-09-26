@@ -1395,7 +1395,7 @@ export function LancamentoDetail({
                 <Input
                   value={form.previsao_recebimento2_forma ?? ""}
                   disabled={!canEdit}
-                  placeholder="PIX, TED, boleto..."
+                  placeholder="PIX, TED, boleto…"
                   onChange={(e) => upd({ previsao_recebimento2_forma: e.target.value })}
                 />
               </Field>
@@ -1418,7 +1418,7 @@ export function LancamentoDetail({
                 <Input
                   value={form.previsao_recebimento3_forma ?? ""}
                   disabled={!canEdit}
-                  placeholder="PIX, TED, boleto..."
+                  placeholder="PIX, TED, boleto…"
                   onChange={(e) => upd({ previsao_recebimento3_forma: e.target.value })}
                 />
               </Field>
@@ -1438,7 +1438,7 @@ export function LancamentoDetail({
       )}
 
       {!canEdit && loadingOcc && (
-        <p className="py-8 text-center text-sm text-muted-foreground">Carregando ocorrência...</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">Carregando ocorrência…</p>
       )}
 
       {!canEdit && !editOcc && !loadingOcc && occ && (
@@ -1627,7 +1627,7 @@ export function LancamentoDetail({
               <Field label="1ª parcela — forma de pagamento" colSpan={2}>
                 <Input
                   value={editResumo.previsao_recebimento_forma ?? ""}
-                  placeholder="PIX, TED, boleto..."
+                  placeholder="PIX, TED, boleto…"
                   onChange={(e) => updEditResumo({ previsao_recebimento_forma: e.target.value })}
                 />
               </Field>
@@ -1649,7 +1649,7 @@ export function LancamentoDetail({
               <Field label="2ª parcela — forma de pagamento" colSpan={2}>
                 <Input
                   value={editResumo.previsao_recebimento2_forma ?? ""}
-                  placeholder="PIX, TED, boleto..."
+                  placeholder="PIX, TED, boleto…"
                   onChange={(e) => updEditResumo({ previsao_recebimento2_forma: e.target.value })}
                 />
               </Field>
@@ -1671,7 +1671,7 @@ export function LancamentoDetail({
               <Field label="3ª parcela — forma de pagamento" colSpan={2}>
                 <Input
                   value={editResumo.previsao_recebimento3_forma ?? ""}
-                  placeholder="PIX, TED, boleto..."
+                  placeholder="PIX, TED, boleto…"
                   onChange={(e) => updEditResumo({ previsao_recebimento3_forma: e.target.value })}
                 />
               </Field>
@@ -2075,7 +2075,7 @@ export function LancamentoDetail({
               confirmado, essa distribuição fica registrada no histórico.
             </DialogDescription>
           </DialogHeader>
-          {concludeLoading && <p className="text-sm text-muted-foreground">Recalculando...</p>}
+          {concludeLoading && <p className="text-sm text-muted-foreground">Recalculando…</p>}
           {!concludeLoading && concludeDist && (
             <div className="space-y-3">
               <DistribuicaoResumo dist={concludeDist} />

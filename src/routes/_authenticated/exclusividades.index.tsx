@@ -59,7 +59,7 @@ function ExclusiveList() {
         <CardContent className="flex flex-wrap gap-3">
           {(Object.entries(TEMPLATES) as [Template, string][]).map(([key, label]) => (
             <Button key={key} disabled={!!creating} onClick={() => create(key)}>
-              {creating === key ? "Criando..." : label}
+              {creating === key ? "Criando…" : label}
             </Button>
           ))}
         </CardContent>
@@ -70,7 +70,7 @@ function ExclusiveList() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           {loading ? (
-            <p>Carregando...</p>
+            <p>Carregando…</p>
           ) : captures.length === 0 ? (
             <p>Nenhuma captação disponível.</p>
           ) : (

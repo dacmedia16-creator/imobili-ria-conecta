@@ -535,7 +535,7 @@ function RoomReservationsPage() {
                 <CardTitle className="text-base">Disponibilidade</CardTitle>
                 <CardDescription>
                   {loadingReservations
-                    ? "Carregando agenda compartilhada..."
+                    ? "Carregando agenda compartilhada…"
                     : "Horários de 08:00 às 18:00. Clique em um horário livre para reservar."}
                 </CardDescription>
               </div>

@@ -599,7 +599,7 @@ export function PartiesStep({
                             aria-label="Usar a mesma conta de outro vendedor"
                             className="w-64"
                           >
-                            <SelectValue placeholder="Usar mesma conta de..." />
+                            <SelectValue placeholder="Usar mesma conta de…" />
                           </SelectTrigger>
                           <SelectContent>
                             {outrosVendedoresComConta.map((op) => (

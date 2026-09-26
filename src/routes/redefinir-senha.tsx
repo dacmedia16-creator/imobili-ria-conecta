@@ -90,7 +90,7 @@ function RedefinirSenhaPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Salvando..." : "Redefinir senha"}
+              {loading ? "Salvando…" : "Redefinir senha"}
             </Button>
           </form>
         </CardContent>

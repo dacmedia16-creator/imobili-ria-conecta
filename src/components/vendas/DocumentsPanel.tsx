@@ -784,7 +784,7 @@ export function DocumentsPanel({
                 {applying ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {progress ? `Lendo ${progress.done}/${progress.total}...` : "Aplicando..."}
+                    {progress ? `Lendo ${progress.done}/${progress.total}…` : "Aplicando…"}
                   </>
                 ) : (
                   <>
@@ -1079,7 +1079,7 @@ export function DocumentsPanel({
                             />
                             <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
                               <Upload className="h-4 w-4" />
-                              <span>{uploadingCertidao[draft.id] ? "Enviando..." : "Enviar"}</span>
+                              <span>{uploadingCertidao[draft.id] ? "Enviando…" : "Enviar"}</span>
                               <input
                                 type="file"
                                 accept=".pdf,.jpg,.jpeg,.png"
@@ -1156,7 +1156,7 @@ export function DocumentsPanel({
                 if (pendingDelete) removeDoc(pendingDelete);
               }}
             >
-              {deleting ? "Excluindo..." : "Excluir"}
+              {deleting ? "Excluindo…" : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

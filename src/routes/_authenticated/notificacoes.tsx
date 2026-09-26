@@ -107,7 +107,7 @@ function NotificationsPage() {
           <CardTitle className="text-base">{tab === "nao_lidas" ? "Não lidas" : "Lidas"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+          {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
           {!loading && items.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma notificação.</p>
           )}
@@ -152,7 +152,7 @@ function NotificationsPage() {
           {!loading && hasMore && (
             <div className="flex justify-center pt-2">
               <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? "Carregando..." : "Carregar mais"}
+                {loadingMore ? "Carregando…" : "Carregar mais"}
               </Button>
             </div>
           )}

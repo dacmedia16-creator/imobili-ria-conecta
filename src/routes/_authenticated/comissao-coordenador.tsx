@@ -237,7 +237,7 @@ function ComissaoCoordenador() {
     };
   }, [mes, allowed]);
 
-  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   if (!allowed) {
     return (
@@ -282,7 +282,7 @@ function ComissaoCoordenador() {
         </div>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+      {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
       {erro && <p className="text-sm text-destructive">{erro}</p>}
 
       {!loading && !erro && relatorio && relatorio.secoes.length === 0 && (

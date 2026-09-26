@@ -1066,7 +1066,7 @@ function SaleDetail() {
   }, [anyDirtyAnywhere]);
 
   if (loading || !sale)
-    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>;
+    return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
 
   // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
   // ver LancamentoDetail.
@@ -2915,7 +2915,7 @@ function SaleDetail() {
                           <Field label="1ª parcela — forma de pagamento">
                             <Input
                               value={formSale.previsao_recebimento_forma ?? ""}
-                              placeholder="PIX, TED, boleto..."
+                              placeholder="PIX, TED, boleto…"
                               disabled={!editableComissao}
                               onChange={(e) =>
                                 updResumo({ previsao_recebimento_forma: e.target.value })
@@ -2951,7 +2951,7 @@ function SaleDetail() {
                               <Field label="2ª parcela — forma de pagamento">
                                 <Input
                                   value={formSale.previsao_recebimento2_forma ?? ""}
-                                  placeholder="PIX, TED, boleto..."
+                                  placeholder="PIX, TED, boleto…"
                                   disabled={!editableComissao}
                                   onChange={(e) =>
                                     updResumo({ previsao_recebimento2_forma: e.target.value })
@@ -3003,7 +3003,7 @@ function SaleDetail() {
                               <Field label="3ª parcela — forma de pagamento">
                                 <Input
                                   value={formSale.previsao_recebimento3_forma ?? ""}
-                                  placeholder="PIX, TED, boleto..."
+                                  placeholder="PIX, TED, boleto…"
                                   disabled={!editableComissao}
                                   onChange={(e) =>
                                     updResumo({ previsao_recebimento3_forma: e.target.value })
@@ -3831,7 +3831,7 @@ function SaleDetail() {
               onClick={onConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Excluindo..." : "Excluir venda"}
+              {deleting ? "Excluindo…" : "Excluir venda"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4449,7 +4449,7 @@ function SaleDetail() {
 
       {saving && (
         <p className="fixed bottom-4 right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">
-          Salvando...
+          Salvando…
         </p>
       )}
 
@@ -4920,7 +4920,7 @@ function SaleDetail() {
               {contratoUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enviando...
+                  Enviando…
                 </>
               ) : (
                 <>
@@ -4998,7 +4998,7 @@ function SaleDetail() {
               {contratoAssinadoUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enviando...
+                  Enviando…
                 </>
               ) : (
                 <>
@@ -5194,7 +5194,7 @@ function OccurrenceReviewPanel({
     await doFinalizar();
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Carregando revisão...</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando revisão…</p>;
   if (!occ)
     return (
       <p className="text-sm text-muted-foreground">
@@ -5492,7 +5492,7 @@ function SaleReport({
     })();
   }, [sale.id]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">Carregando relatório...</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando relatório…</p>;
 
   return (
     <div className="space-y-6">
@@ -5679,7 +5679,7 @@ function CommentsPanel({
             aria-label="Escreva um comentário"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Escreva um comentário..."
+            placeholder="Escreva um comentário…"
           />
           <Button onClick={add} className="self-start">
             Adicionar
@@ -6499,7 +6499,7 @@ function OccurrencePanel({
     .map((parcela) => erroParcela(parcela.numero))
     .filter((mensagem): mensagem is string => Boolean(mensagem));
 
-  if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
   if (!occ) {
     return (
       <Card>
@@ -6792,7 +6792,7 @@ function OccurrencePanel({
                 value={formOcc.prev_recebimento_forma ?? ""}
                 disabled={!canWrite}
                 onChange={(e) => updOcc({ prev_recebimento_forma: e.target.value })}
-                placeholder="PIX, TED, boleto..."
+                placeholder="PIX, TED, boleto…"
               />
             </Field>
           </FieldGrid>
@@ -6830,7 +6830,7 @@ function OccurrencePanel({
                 value={formOcc.prev_recebimento2_forma ?? ""}
                 disabled={!canWrite}
                 onChange={(e) => updOcc({ prev_recebimento2_forma: e.target.value })}
-                placeholder="PIX, TED, boleto..."
+                placeholder="PIX, TED, boleto…"
               />
             </Field>
           </FieldGrid>
@@ -6868,7 +6868,7 @@ function OccurrencePanel({
                 value={formOcc.prev_recebimento3_forma ?? ""}
                 disabled={!canWrite}
                 onChange={(e) => updOcc({ prev_recebimento3_forma: e.target.value })}
-                placeholder="PIX, TED, boleto..."
+                placeholder="PIX, TED, boleto…"
               />
             </Field>
           </FieldGrid>

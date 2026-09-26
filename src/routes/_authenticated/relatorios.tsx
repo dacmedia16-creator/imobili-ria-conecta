@@ -288,7 +288,7 @@ function RelatoriosPage() {
     !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
 
   if (authLoading || loading)
-    return <p className="text-sm text-muted-foreground">Carregando relatórios...</p>;
+    return <p className="text-sm text-muted-foreground">Carregando relatórios…</p>;
 
   if (!allowed) {
     return (
@@ -790,7 +790,7 @@ function FluxoCaixaTab({
               Cancelar
             </Button>
             <Button onClick={confirmarRecebido} disabled={saving || !recData}>
-              {saving ? "Salvando..." : "Confirmar"}
+              {saving ? "Salvando…" : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

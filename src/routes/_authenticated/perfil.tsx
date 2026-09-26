@@ -512,7 +512,7 @@ function MeuAcesso() {
                 </Button>
                 {avatarFile && (
                   <Button size="sm" onClick={salvarAvatar} disabled={savingAvatar}>
-                    {savingAvatar ? "Salvando..." : "Salvar foto"}
+                    {savingAvatar ? "Salvando…" : "Salvar foto"}
                   </Button>
                 )}
               </div>
@@ -537,7 +537,7 @@ function MeuAcesso() {
                 onChange={(e) => setTelefone(e.target.value)}
               />
               <Button size="sm" onClick={salvarTelefone} disabled={savingTelefone}>
-                {savingTelefone ? "Salvando..." : "Salvar"}
+                {savingTelefone ? "Salvando…" : "Salvar"}
               </Button>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
@@ -572,7 +572,7 @@ function MeuAcesso() {
                 disabled={savingRegistration || !registrationLoaded}
                 onClick={salvarRegistro}
               >
-                {savingRegistration ? "Salvando..." : "Salvar CPF e CRECI"}
+                {savingRegistration ? "Salvando…" : "Salvar CPF e CRECI"}
               </Button>
             </div>
           )}
@@ -607,7 +607,7 @@ function MeuAcesso() {
                   onClick={salvarContatosPublicos}
                   disabled={savingPublicContacts}
                 >
-                  {savingPublicContacts ? "Salvando..." : "Salvar links públicos"}
+                  {savingPublicContacts ? "Salvando…" : "Salvar links públicos"}
                 </Button>
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   Esses links só aparecem na vitrine se o perfil público estiver ativado.
@@ -700,7 +700,7 @@ function MeuAcesso() {
             )}
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={salvarPosicionamento} disabled={savingPositioning}>
-                {savingPositioning ? "Salvando..." : "Salvar posicionamento"}
+                {savingPositioning ? "Salvando…" : "Salvar posicionamento"}
               </Button>
               <Button variant="outline" asChild>
                 <Link to="/especialistas" target="_blank">
@@ -767,7 +767,7 @@ function MeuAcesso() {
               Cancelar
             </Button>
             <Button onClick={enviarSugestao} disabled={savingSuggestion}>
-              {savingSuggestion ? "Enviando..." : "Enviar sugestão"}
+              {savingSuggestion ? "Enviando…" : "Enviar sugestão"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -812,7 +812,7 @@ function MeuAcesso() {
               onClick={trocarSenha}
               disabled={trocandoSenha || !novaSenha || !confirmarSenha}
             >
-              {trocandoSenha ? "Salvando..." : "Alterar senha"}
+              {trocandoSenha ? "Salvando…" : "Alterar senha"}
             </Button>
           </div>
         </CardContent>

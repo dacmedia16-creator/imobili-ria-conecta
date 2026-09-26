@@ -153,7 +153,7 @@ function AuthPage() {
                     </button>
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Aguarde..." : "Entrar"}
+                    {loading ? "Aguarde…" : "Entrar"}
                   </Button>
                 </form>
                 <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -197,7 +197,7 @@ function AuthPage() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={recuperando}>
-                  {recuperando ? "Enviando..." : "Enviar link de recuperação"}
+                  {recuperando ? "Enviando…" : "Enviar link de recuperação"}
                 </Button>
                 <button
                   type="button"

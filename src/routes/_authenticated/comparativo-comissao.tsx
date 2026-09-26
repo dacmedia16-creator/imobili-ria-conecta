@@ -96,7 +96,7 @@ function ComparativoComissaoPage() {
   const filtradas = useMemo(() => aplicarFiltros(rows, filtros), [rows, filtros]);
   const resumo = useMemo(() => resumoComparativo(filtradas), [filtradas]);
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   if (!allowed) {
     return (

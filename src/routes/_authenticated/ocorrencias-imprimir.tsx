@@ -151,7 +151,7 @@ function OcorrenciasImprimirPage() {
 
   if (authLoading || loading)
     return (
-      <p className="p-6 text-sm text-muted-foreground print:hidden">Preparando ocorrências...</p>
+      <p className="p-6 text-sm text-muted-foreground print:hidden">Preparando ocorrências…</p>
     );
   if (error)
     return (

@@ -64,7 +64,7 @@ export function ExclusiveSettingsPanel({
             disabled={saving}
             onClick={() => (enabled ? onChange(false) : onConfirmEnableChange(true))}
           >
-            {saving ? "Salvando..." : enabled ? "Desligar captações" : "Ligar captações"}
+            {saving ? "Salvando…" : enabled ? "Desligar captações" : "Ligar captações"}
           </Button>
         )}
         <AlertDialog open={confirmEnable} onOpenChange={onConfirmEnableChange}>
@@ -109,7 +109,7 @@ function AdminSettings() {
     if (canManage) void reload();
   }, [canManage]);
 
-  if (loading) return <p>Carregando acesso...</p>;
+  if (loading) return <p>Carregando acesso…</p>;
   if (!canManage) return <p>Apenas Super Admin pode alterar as configurações.</p>;
 
   const change = async (next: boolean) => {

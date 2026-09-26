@@ -93,7 +93,7 @@ function TrocarSenhaPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar e continuar"}
+              {loading ? "Salvando…" : "Salvar e continuar"}
             </Button>
           </form>
         </CardContent>

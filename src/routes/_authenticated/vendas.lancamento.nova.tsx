@@ -53,7 +53,7 @@ function NewLancamento() {
     }
   };
 
-  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   if (!allowed) {
     return (
@@ -110,7 +110,7 @@ function NewLancamento() {
               />
             </div>
             <Button type="submit" disabled={loading}>
-              {loading ? "Criando..." : "Criar rascunho"}
+              {loading ? "Criando…" : "Criar rascunho"}
             </Button>
           </form>
         </CardContent>

@@ -338,7 +338,7 @@ function Dashboard() {
         )}
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+      {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
 
       {isFinanceiro && <ResumoGestorMes />}
 
@@ -721,7 +721,7 @@ function ResumoGestorMes() {
             </div>
           ) : !resumo ? (
             <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
-              Carregando resumo mensal...
+              Carregando resumo mensal…
             </div>
           ) : (
             <>
@@ -1021,7 +1021,7 @@ function MovimentacaoPeriodoSection() {
         {periodoResolvido.incompleto ? (
           <p className="text-sm text-muted-foreground">{periodoResolvido.label}</p>
         ) : carregando ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
+          <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : erro ? (
           <p className="text-sm text-destructive">{erro}</p>
         ) : (

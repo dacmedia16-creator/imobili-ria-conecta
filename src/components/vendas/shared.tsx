@@ -43,13 +43,13 @@ export function AutosaveStatus({ saving, dirty }: { saving: boolean; dirty: bool
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
-        Salvando...
+        Salvando…
       </div>
     );
   if (dirty)
     return (
       <div className="text-xs text-muted-foreground">
-        Alterações pendentes — salvando em instantes...
+        Alterações pendentes — salvando em instantes…
       </div>
     );
   return null;
