@@ -58,7 +58,7 @@ function ContaMaxBridge() {
           {status === "loading" ? (
             <span
               aria-label="Carregando"
-              className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"
+              className="h-8 w-8 animate-spin motion-reduce:animate-none rounded-full border-4 border-muted border-t-primary"
             />
           ) : null}
           <p className="text-muted-foreground">{message}</p>

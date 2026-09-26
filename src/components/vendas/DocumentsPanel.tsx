@@ -76,7 +76,7 @@ function ExtractionBadge({ status, loading }: { status?: string; loading?: boole
   if (loading || status === "pending")
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-900">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
         IA lendo
       </span>
     );
@@ -754,7 +754,7 @@ export function DocumentsPanel({
               disabled={docs.length === 0 || printingAll}
             >
               {printingAll ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
               ) : (
                 <Printer className="mr-2 h-4 w-4" />
               )}
@@ -768,7 +768,7 @@ export function DocumentsPanel({
                 disabled={docs.length === 0 || downloadingAll}
               >
                 {downloadingAll ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
@@ -783,7 +783,7 @@ export function DocumentsPanel({
               >
                 {applying ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
                     {progress ? `Lendo ${progress.done}/${progress.total}…` : "Aplicando…"}
                   </>
                 ) : (
@@ -798,7 +798,8 @@ export function DocumentsPanel({
         </CardContent>
         {canUseAi && anyPending && !applying && (
           <CardContent className="pt-0 text-xs text-muted-foreground">
-            <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Lendo documento(s)...
+            <Loader2 className="mr-1 inline h-3 w-3 animate-spin motion-reduce:animate-none" />{" "}
+            Lendo documento(s)…
           </CardContent>
         )}
       </Card>

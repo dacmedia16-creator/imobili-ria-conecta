@@ -506,7 +506,12 @@ function FrontPage() {
           <div className="corner-red" />
 
           <Link to="/auth" className="logo" aria-label="Entrar no portal">
-            <img src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
+            <img
+              src="/remax-logo-transparent.png"
+              width={1600}
+              height={756}
+              alt="RE/MAX Única Escolha"
+            />
           </Link>
 
           <div className="titleblock">
@@ -625,7 +630,13 @@ function FrontPage() {
       <div className="mobile-stage">
         <div className="mheader">
           <Link to="/auth" aria-label="Entrar no portal">
-            <img className="mlogo" src="/remax-logo-transparent.png" alt="RE/MAX Única Escolha" />
+            <img
+              className="mlogo"
+              src="/remax-logo-transparent.png"
+              width={1600}
+              height={756}
+              alt="RE/MAX Única Escolha"
+            />
           </Link>
           <a
             href={ADM_MAX_LOGIN_URL}

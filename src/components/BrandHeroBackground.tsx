@@ -13,6 +13,8 @@ export function BrandHeroBackground() {
 
       <img
         src="/remax-pin-watermark.png"
+        width={1200}
+        height={1200}
         alt=""
         className="absolute right-[8%] top-[14%] w-[30%] max-w-[460px] opacity-[0.05]"
       />

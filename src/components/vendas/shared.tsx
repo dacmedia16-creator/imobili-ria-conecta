@@ -42,7 +42,7 @@ export function AutosaveStatus({ saving, dirty }: { saving: boolean; dirty: bool
   if (saving)
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
         Salvando…
       </div>
     );

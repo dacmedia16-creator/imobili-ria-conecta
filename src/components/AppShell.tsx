@@ -66,7 +66,7 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
   return (
     <div className="relative z-10 flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
-        <img src="/remax-icon.png" alt="RE/MAX" className="h-8 w-8" />
+        <img src="/remax-icon.png" width={4500} height={4500} alt="RE/MAX" className="h-8 w-8" />
         <div className="leading-tight">
           <span className="block font-semibold tracking-tight">RE/MAX Portal</span>
           <span className="block text-xs text-white/70">Única Escolha</span>
@@ -286,7 +286,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}
       >
         <div className="flex items-center gap-2">
-          <img src="/remax-icon.png" alt="RE/MAX" className="h-7 w-7" />
+          <img src="/remax-icon.png" width={4500} height={4500} alt="RE/MAX" className="h-7 w-7" />
           <span className="font-semibold tracking-tight">RE/MAX Portal</span>
         </div>
         <div className="flex items-center gap-1">

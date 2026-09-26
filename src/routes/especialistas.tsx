@@ -91,7 +91,13 @@ function SpecialistsPage() {
     <div className="min-h-screen bg-gradient-to-b from-[#071a44] via-[#0d2d6c] to-slate-100">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
         <Link to="/" aria-label="Voltar ao Hub Única Escolha">
-          <img src="/remax-logo-white.png" alt="RE/MAX Única Escolha" className="h-11 w-auto" />
+          <img
+            src="/remax-logo-white.png"
+            width={1600}
+            height={756}
+            alt="RE/MAX Única Escolha"
+            className="h-11 w-auto"
+          />
         </Link>
         <Button variant="secondary" size="sm" asChild>
           <Link to="/auth">Área interna</Link>

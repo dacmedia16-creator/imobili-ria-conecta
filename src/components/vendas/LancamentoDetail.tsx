@@ -1870,7 +1870,9 @@ export function LancamentoDetail({
 
           <div className="flex justify-end">
             <Button onClick={() => setEditMotivoOpen(true)} disabled={salvandoEdicao}>
-              {salvandoEdicao ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {salvandoEdicao ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : null}
               Salvar edição
             </Button>
           </div>
@@ -1904,7 +1906,9 @@ export function LancamentoDetail({
               onClick={confirmarSalvarEdicaoFinanceiro}
               disabled={!editMotivo.trim() || salvandoEdicao}
             >
-              {salvandoEdicao ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {salvandoEdicao ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : null}
               Confirmar e salvar
             </Button>
           </DialogFooter>
@@ -1916,7 +1920,7 @@ export function LancamentoDetail({
           <AutosaveStatus saving={false} dirty={anyDirty} />
           <Button onClick={enviarFinanceiro} disabled={sending || anyDirty}>
             {sending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
             ) : (
               <Send className="mr-2 h-4 w-4" />
             )}
@@ -2055,7 +2059,10 @@ export function LancamentoDetail({
               Cancelar
             </Button>
             <Button onClick={submitReturn} disabled={!returnMotivo.trim() || returning}>
-              {returning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Devolver
+              {returning ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : null}
+              Devolver
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2099,7 +2106,7 @@ export function LancamentoDetail({
               disabled={concluding || concludeLoading || !concludeDist?.calculo_valido}
             >
               {concluding ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
               ) : (
                 <CheckCircle2 className="mr-2 h-4 w-4" />
               )}
@@ -2127,7 +2134,10 @@ export function LancamentoDetail({
               Cancelar
             </Button>
             <Button onClick={submitReopen} disabled={!reopenMotivo.trim() || reopening}>
-              {reopening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Reabrir
+              {reopening ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : null}
+              Reabrir
             </Button>
           </DialogFooter>
         </DialogContent>

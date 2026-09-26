@@ -54,6 +54,8 @@ function RedefinirSenhaPage() {
       <BrandHeroBackground />
       <img
         src="/remax-logo-white.png"
+        width={1600}
+        height={756}
         alt="RE/MAX Imóveis — Única Escolha"
         className="relative z-10 mb-6 h-14 w-auto"
       />

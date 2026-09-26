@@ -68,6 +68,8 @@ function AuthPage() {
         <BrandHeroBackground />
         <img
           src="/remax-logo-white.png"
+          width={1600}
+          height={756}
           alt="RE/MAX Imóveis — Única Escolha"
           className="relative z-10 h-14 w-auto self-start"
         />
@@ -90,6 +92,8 @@ function AuthPage() {
           <CardHeader className="space-y-3 px-8 pt-8 text-center">
             <img
               src="/remax-logo.png"
+              width={11134}
+              height={5263}
               alt="RE/MAX Imóveis — Única Escolha"
               className="mx-auto h-12 w-auto lg:hidden"
             />
