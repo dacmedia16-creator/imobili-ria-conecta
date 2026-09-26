@@ -532,6 +532,9 @@ function MeuAcesso() {
             <div className="flex gap-2">
               <Input
                 aria-label="Telefone (WhatsApp)"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="(11) 91234-5678"
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}

@@ -262,6 +262,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   // com a primeira saindo em branco.
   return (
     <div className="min-h-screen bg-background print:min-h-0">
+      <a
+        href="#conteudo-principal"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary print:hidden"
+      >
+        Pular para o conteúdo
+      </a>
       {impersonation && (
         <div className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-lg print:hidden">
           <ShieldAlert className="h-4 w-4" />
@@ -314,7 +320,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className={`md:pl-60 print:pl-0 ${impersonation ? "pt-12" : ""}`}>
+      <main
+        id="conteudo-principal"
+        tabIndex={-1}
+        className={`md:pl-60 print:pl-0 ${impersonation ? "pt-12" : ""}`}
+      >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden justify-end md:flex print:hidden">
             <NotificationBell />

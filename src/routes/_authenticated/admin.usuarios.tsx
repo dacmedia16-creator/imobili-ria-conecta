@@ -941,6 +941,7 @@ function EditUserDialog({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nomeCompletoInvalido) {
+      e.currentTarget.querySelector<HTMLInputElement>("#eu-nome, #nu-nome")?.focus();
       toast.error("Digite o nome completo (nome e sobrenome).");
       return;
     }
@@ -999,6 +1000,9 @@ function EditUserDialog({
           <Label htmlFor="eu-telefone">Telefone (WhatsApp)</Label>
           <Input
             id="eu-telefone"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             value={telefone}
             onChange={(e) => setTelefone(e.target.value)}
             required
@@ -1057,6 +1061,7 @@ function NewUserDialog({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nomeCompletoInvalido) {
+      e.currentTarget.querySelector<HTMLInputElement>("#eu-nome, #nu-nome")?.focus();
       toast.error("Digite o nome completo (nome e sobrenome).");
       return;
     }
@@ -1112,6 +1117,9 @@ function NewUserDialog({
           <Label htmlFor="nu-telefone">Telefone (WhatsApp)</Label>
           <Input
             id="nu-telefone"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             value={telefone}
             onChange={(e) => setTelefone(e.target.value)}
             required

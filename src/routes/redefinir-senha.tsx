@@ -29,10 +29,12 @@ function RedefinirSenhaPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (senha.length < 8) {
+      e.currentTarget.querySelector<HTMLInputElement>("#nova-senha")?.focus();
       toast.error("A senha precisa ter pelo menos 8 caracteres.");
       return;
     }
     if (senha !== confirmacao) {
+      e.currentTarget.querySelector<HTMLInputElement>("#confirmar-senha")?.focus();
       toast.error("As senhas não coincidem.");
       return;
     }

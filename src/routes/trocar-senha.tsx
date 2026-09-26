@@ -31,6 +31,7 @@ function TrocarSenhaPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (senha !== confirmacao) {
+      e.currentTarget.querySelector<HTMLInputElement>("#confirmar-senha")?.focus();
       toast.error("As senhas não coincidem.");
       return;
     }
