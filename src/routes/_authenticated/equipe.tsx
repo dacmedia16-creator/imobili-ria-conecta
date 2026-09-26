@@ -717,6 +717,7 @@ function TeamCard({
               size="icon"
               variant="outline"
               title="Ver equipe"
+              aria-label="Ver equipe"
               onClick={() => onMembros(team)}
             >
               <Users className="h-4 w-4" />
@@ -743,6 +744,7 @@ function TeamCard({
               size="icon"
               variant="outline"
               title="Desempenho"
+              aria-label="Desempenho"
               onClick={() => onDesempenho(team)}
             >
               <TrendingUp className="h-4 w-4" />
@@ -751,14 +753,27 @@ function TeamCard({
               size="icon"
               variant="outline"
               title="Criar sub-equipe"
+              aria-label="Criar sub-equipe"
               onClick={() => onCreateSub(team)}
             >
               <FolderPlus className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" title="Editar" onClick={() => onEdit(team)}>
+            <Button
+              size="icon"
+              variant="outline"
+              title="Editar"
+              aria-label="Editar"
+              onClick={() => onEdit(team)}
+            >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="outline" title="Excluir" onClick={() => onDelete(team)}>
+            <Button
+              size="icon"
+              variant="outline"
+              title="Excluir"
+              aria-label="Excluir"
+              onClick={() => onDelete(team)}
+            >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -788,6 +803,7 @@ function TeamCard({
                       size="icon"
                       variant="outline"
                       title="Ver equipe"
+                      aria-label="Ver equipe"
                       onClick={() => onMembros(sub)}
                     >
                       <Users className="h-4 w-4" />
@@ -814,6 +830,7 @@ function TeamCard({
                       size="icon"
                       variant="outline"
                       title="Desempenho"
+                      aria-label="Desempenho"
                       onClick={() => onDesempenho(sub)}
                     >
                       <TrendingUp className="h-4 w-4" />
@@ -822,6 +839,7 @@ function TeamCard({
                       size="icon"
                       variant="outline"
                       title="Editar"
+                      aria-label="Editar"
                       onClick={() => onEdit(sub)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -830,6 +848,7 @@ function TeamCard({
                       size="icon"
                       variant="outline"
                       title="Excluir"
+                      aria-label="Excluir"
                       onClick={() => onDelete(sub)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />

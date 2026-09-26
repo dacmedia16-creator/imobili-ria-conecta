@@ -877,6 +877,7 @@ function ResetPasswordDialog({
               size="icon"
               onClick={() => setPassword(genPassword())}
               title="Gerar senha"
+              aria-label="Gerar senha"
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
@@ -886,6 +887,7 @@ function ResetPasswordDialog({
               size="icon"
               onClick={copyCreds}
               title="Copiar credenciais"
+              aria-label="Copiar credenciais"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -1130,6 +1132,7 @@ function NewUserDialog({
               size="icon"
               onClick={() => setPassword(genPassword())}
               title="Gerar senha"
+              aria-label="Gerar senha"
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
@@ -1139,6 +1142,7 @@ function NewUserDialog({
               size="icon"
               onClick={copyCreds}
               title="Copiar credenciais"
+              aria-label="Copiar credenciais"
             >
               <Copy className="h-4 w-4" />
             </Button>
