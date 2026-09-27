@@ -14,10 +14,9 @@ import type {
   InconsistenciaRow,
 } from "@/lib/comparativo-comissao-types";
 import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
+import { fetchResolverEquipe, meioDiaSaoPaulo } from "@/lib/equipe-vigente";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
-type TeamMemberRow = { membro_id: string; team_id: string };
-type CoLeaderRow = { user_id: string; team_id: string };
 
 // "as any" só no nome da RPC: as duas funções já existem no banco (20260813010000), com a correção
 // de regra de 20260813020000_corrige_efetivacao_comparativo_comissao.sql ainda não aplicada — e de
@@ -32,47 +31,21 @@ async function callRpc<T>(name: string): Promise<T[]> {
   return data ?? [];
 }
 
-/** Corretor → equipe: membro (team_members) OU líder/líder-auxiliar da própria equipe (teams.lider_id
- * / team_co_leaders) — mesmo cálculo já usado no filtro por equipe de vendas.index.tsx, pra não
- * perder quem sobe venda em nome próprio sendo também líder (ex.: Lançamento + Gestor acumulados). */
-function resolverEquipePorCorretor(
-  teams: TeamRow[],
-  members: TeamMemberRow[],
-  coLeaders: CoLeaderRow[],
-) {
-  const teamIdByCorretor = new Map<string, string>();
-  for (const m of members)
-    if (!teamIdByCorretor.has(m.membro_id)) teamIdByCorretor.set(m.membro_id, m.team_id);
-  for (const t of teams)
-    if (t.lider_id && !teamIdByCorretor.has(t.lider_id)) teamIdByCorretor.set(t.lider_id, t.id);
-  for (const c of coLeaders)
-    if (!teamIdByCorretor.has(c.user_id)) teamIdByCorretor.set(c.user_id, c.team_id);
-  return teamIdByCorretor;
-}
-
 export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]> {
   const candidatos = await callRpc<ComparativoRawRow>("comparativo_comissao_6pct");
   if (candidatos.length === 0) return [];
 
-  const [{ data: profiles }, { data: teams }, { data: members }, { data: coLeaders }] =
-    await Promise.all([
-      supabase.from("profiles").select("id, nome"),
-      supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
-      supabase.from("team_members").select("membro_id, team_id"),
-      supabase.from("team_co_leaders").select("user_id, team_id"),
-    ]);
+  const [{ data: profiles }, { data: teams }, resolverEquipe] = await Promise.all([
+    supabase.from("profiles").select("id, nome"),
+    supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
+    fetchResolverEquipe(),
+  ]);
 
   const nomePorId = new Map<string, string>();
   for (const p of profiles ?? []) nomePorId.set(p.id, p.nome ?? p.id);
 
   const teamsArr = (teams ?? []) as TeamRow[];
   const teamById = new Map(teamsArr.map((t) => [t.id, t]));
-  const teamIdByCorretor = resolverEquipePorCorretor(
-    teamsArr,
-    (members ?? []) as TeamMemberRow[],
-    (coLeaders ?? []) as CoLeaderRow[],
-  );
-
   const rows: ComparativoRowComCalculo[] = [];
   for (const raw of candidatos) {
     // Revalidação defensiva: a RPC já só devolve linha elegível, mas o frontend nunca aceita
@@ -89,7 +62,8 @@ export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]
     )
       continue;
 
-    const teamId = teamIdByCorretor.get(raw.corretor_id) ?? null;
+    // Equipe vigente na data da assinatura (itens 7 e 8).
+    const teamId = resolverEquipe(raw.corretor_id, meioDiaSaoPaulo(raw.data_fechamento));
     const team = teamId ? (teamById.get(teamId) ?? null) : null;
     const gestorId = team?.lider_id ?? null;
 

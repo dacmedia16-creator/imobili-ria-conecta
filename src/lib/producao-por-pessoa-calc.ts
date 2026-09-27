@@ -24,13 +24,21 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 
 const CHAVE_SEM_VINCULO = "sem-vinculo";
 
+/** Mapa fixo pessoa→equipe (legado/testes) ou resolvedor pela equipe vigente na data da venda. */
+export type EquipePorPessoa =
+  Map<string, string> | ((pessoaId: string, em: string | null) => string | null);
+
 function equipeDe(
   pessoaId: string | null,
-  teamIdByPessoa: Map<string, string>,
+  teamIdByPessoa: EquipePorPessoa,
   teamNomeById: Map<string, string>,
+  em: string | null = null,
 ): { teamId: string | null; teamNome: string | null } {
   if (!pessoaId) return { teamId: null, teamNome: null };
-  const teamId = teamIdByPessoa.get(pessoaId) ?? null;
+  const teamId =
+    typeof teamIdByPessoa === "function"
+      ? teamIdByPessoa(pessoaId, em)
+      : (teamIdByPessoa.get(pessoaId) ?? null);
   return { teamId, teamNome: teamId ? (teamNomeById.get(teamId) ?? null) : null };
 }
 
@@ -80,14 +88,15 @@ function participacoesDe(rows: ProducaoRawRow[]): ProducaoVendedorParticipacao[]
     ];
   }
 
-  const somaInformada = semDuplicidade.reduce((sum, p) => sum + Math.max(0, Number(p.fracao ?? 0)), 0);
+  const somaInformada = semDuplicidade.reduce(
+    (sum, p) => sum + Math.max(0, Number(p.fracao ?? 0)),
+    0,
+  );
   const divisor = somaInformada > 0 ? somaInformada : semDuplicidade.length;
   return semDuplicidade.map((p) => ({
     ...p,
     fracao:
-      somaInformada > 0
-        ? Math.max(0, Number(p.fracao ?? 0)) / divisor
-        : 1 / semDuplicidade.length,
+      somaInformada > 0 ? Math.max(0, Number(p.fracao ?? 0)) / divisor : 1 / semDuplicidade.length,
   }));
 }
 
@@ -118,7 +127,7 @@ function ratearValores(
  * Comparativo 6% (membro de team_members OU líder/líder-auxiliar da própria equipe). */
 export function gerarPontas(
   rows: ProducaoRawRow[],
-  teamIdByPessoa: Map<string, string>,
+  teamIdByPessoa: EquipePorPessoa,
   teamNomeById: Map<string, string>,
 ): ProducaoPonta[] {
   const pontas: ProducaoPonta[] = [];
@@ -152,7 +161,12 @@ export function gerarPontas(
     if (r.modalidade === "lancamento") {
       const valoresRateados = ratearValores(vendedores, valorNegociado, comissaoBruta);
       for (const [index, vendedor] of vendedores.entries()) {
-        const { teamId, teamNome } = equipeDe(vendedor.user_id, teamIdByPessoa, teamNomeById);
+        const { teamId, teamNome } = equipeDe(
+          vendedor.user_id,
+          teamIdByPessoa,
+          teamNomeById,
+          r.concluida_em,
+        );
         const fracao = Math.max(0, Math.min(1, Number(vendedor.fracao ?? 0)));
         pontas.push({
           ...base,
@@ -176,7 +190,7 @@ export function gerarPontas(
     // "sem vínculo" e não pode gerar uma ponta fictícia no relatório. As métricas próprias da
     // unidade (já sem a parceria) ficam distribuídas somente entre os lados internos restantes.
     if (!r.parceria_externa_captacao) {
-      const captacao = equipeDe(r.captador_id, teamIdByPessoa, teamNomeById);
+      const captacao = equipeDe(r.captador_id, teamIdByPessoa, teamNomeById, r.concluida_em);
       pontas.push({
         ...base,
         tipo: "captacao",
@@ -197,7 +211,7 @@ export function gerarPontas(
         comissaoBruta / divisorMetricas,
       );
       for (const [index, vendedor] of vendedores.entries()) {
-        const venda = equipeDe(vendedor.user_id, teamIdByPessoa, teamNomeById);
+        const venda = equipeDe(vendedor.user_id, teamIdByPessoa, teamNomeById, r.concluida_em);
         const fracao = Math.max(0, Math.min(1, Number(vendedor.fracao ?? 0)));
         pontas.push({
           ...base,
