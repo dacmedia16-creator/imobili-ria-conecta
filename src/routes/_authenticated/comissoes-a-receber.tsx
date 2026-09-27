@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
-import { Wallet } from "lucide-react";
+import { Download, Wallet } from "lucide-react";
+import { exportCsv } from "@/lib/csv";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
@@ -83,6 +84,7 @@ function ComissoesAReceberPage() {
   const [occs, setOccs] = useState<PaymentOccurrence[]>([]);
   const [sales, setSales] = useState<SaleSummary[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  const [partesPorVenda, setPartesPorVenda] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [markDate, setMarkDate] = useState(todayISO());
@@ -115,8 +117,23 @@ function ComissoesAReceberPage() {
         .select("id, imovel_id, codigo_interno, corretor_id, status")
         .in("id", saleIds);
       setSales(s ?? []);
+      // Nomes das partes (somente nome/razão social) para a busca e o CSV — nunca documentos.
+      const { data: partes } = await supabase
+        .from("sale_parties")
+        .select("sale_id, nome, razao_social")
+        .in("sale_id", saleIds);
+      const porVenda: Record<string, string[]> = {};
+      for (const p of partes ?? []) {
+        const nome = p.nome || p.razao_social;
+        if (!nome) continue;
+        (porVenda[p.sale_id] ??= []).push(nome);
+      }
+      setPartesPorVenda(
+        Object.fromEntries(Object.entries(porVenda).map(([k, v]) => [k, v.join(", ")])),
+      );
     } else {
       setSales([]);
+      setPartesPorVenda({});
     }
 
     const { data: prof } = await supabase.from("profiles").select("id, nome");
@@ -234,27 +251,28 @@ function ComissoesAReceberPage() {
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     [allRows, profileName],
   );
-  const rows = useMemo(() => {
+  // Filtros de busca, corretor, forma e período: valem para a tabela E para os cards de total
+  // (decisão de Denis 27/09). A aba (a receber/recebidas) e o prazo só recortam a tabela.
+  const filteredRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
     return allRows.filter((row) => {
-      if (view !== "todas" && row.status !== (view === "recebidas" ? "recebida" : "pendente"))
-        return false;
-      if (deadlineFilter !== "todos") {
-        if (row.status === "recebida") return false;
-        const vencida = Boolean(row.data && row.data < hoje);
-        if (deadlineFilter === "vencidas" && !vencida) return false;
-        if (deadlineFilter === "a_vencer" && vencida) return false;
-      }
       if (brokerFilter !== "todos" && row.sale.corretor_id !== brokerFilter) return false;
       if (formFilter !== "todos" && row.forma !== formFilter) return false;
       const referenceDate = row.status === "recebida" ? (row.recebidoEm ?? row.data) : row.data;
       if (dateFrom && (!referenceDate || referenceDate < dateFrom)) return false;
       if (dateTo && (!referenceDate || referenceDate > dateTo)) return false;
       if (query) {
-        const haystack =
-          `${saleLabel(row.sale)} ${corretorNome(row.sale)} ${row.forma ?? ""}`.toLocaleLowerCase(
-            "pt-BR",
-          );
+        const haystack = [
+          saleLabel(row.sale),
+          row.sale.codigo_interno,
+          row.sale.imovel_id,
+          corretorNome(row.sale),
+          row.forma,
+          partesPorVenda[row.sale.id],
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase("pt-BR");
         if (!haystack.includes(query)) return false;
       }
       return true;
@@ -265,21 +283,53 @@ function ComissoesAReceberPage() {
     corretorNome,
     dateFrom,
     dateTo,
-    deadlineFilter,
     formFilter,
-    hoje,
+    partesPorVenda,
     saleLabel,
     search,
-    view,
   ]);
+
+  const rows = useMemo(
+    () =>
+      filteredRows.filter((row) => {
+        if (view !== "todas" && row.status !== (view === "recebidas" ? "recebida" : "pendente"))
+          return false;
+        if (deadlineFilter !== "todos") {
+          if (row.status === "recebida") return false;
+          const vencida = Boolean(row.data && row.data < hoje);
+          if (deadlineFilter === "vencidas" && !vencida) return false;
+          if (deadlineFilter === "a_vencer" && vencida) return false;
+        }
+        return true;
+      }),
+    [filteredRows, view, deadlineFilter, hoje],
+  );
 
   useEffect(() => {
     setSelected(new Set());
   }, [brokerFilter, dateFrom, dateTo, deadlineFilter, formFilter, search, view]);
 
-  const pendingRows = allRows.filter((r) => r.status === "pendente");
-  const receivedRows = allRows.filter((r) => r.status === "recebida");
+  const pendingRows = filteredRows.filter((r) => r.status === "pendente");
+  const receivedRows = filteredRows.filter((r) => r.status === "recebida");
   const selectableRows = rows.filter((r) => r.status === "pendente");
+
+  const exportarCsv = () =>
+    exportCsv(
+      `recebimentos-${hoje}.csv`,
+      rows.map((r) => ({
+        Ocorrência: r.sale.codigo_interno ?? "",
+        Imóvel: saleLabel(r.sale),
+        Partes: partesPorVenda[r.sale.id] ?? "",
+        Corretor: corretorNome(r.sale),
+        Parcela: r.parcela,
+        "Data prevista": r.data ?? "",
+        Forma: r.forma ?? "",
+        "Valor (nossa parte)": r.valor,
+        "Recebido em": r.recebidoEm ?? "",
+        "Valor recebido": r.recebidoValor ?? "",
+        Situação: r.status === "recebida" ? "Recebida" : "A receber",
+      })),
+    );
 
   const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.key));
   const toggleAll = (checked: boolean) =>
@@ -405,12 +455,12 @@ function ComissoesAReceberPage() {
             <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
               <TabsTrigger value="pendentes">A receber ({pendingRows.length})</TabsTrigger>
               <TabsTrigger value="recebidas">Recebidas ({receivedRows.length})</TabsTrigger>
-              <TabsTrigger value="todas">Todas ({allRows.length})</TabsTrigger>
+              <TabsTrigger value="todas">Todas ({filteredRows.length})</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
             <Input
-              placeholder="Buscar imóvel, corretor ou forma…"
+              placeholder="Buscar ocorrência, imóvel, partes, corretor ou forma…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Buscar recebimentos"
@@ -468,10 +518,16 @@ function ComissoesAReceberPage() {
                 <option value="a_vencer">A vencer</option>
               </select>
             </div>
-            <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
-              <Wallet className="mr-2 h-4 w-4" />
-              Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como recebida(s)
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={rows.length === 0} onClick={exportarCsv}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar CSV
+              </Button>
+              <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
+                <Wallet className="mr-2 h-4 w-4" />
+                Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como recebida(s)
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

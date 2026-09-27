@@ -750,7 +750,7 @@ function SalesList() {
           {!loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
               {totalCount} {totalCount === 1 ? "venda no período" : "vendas no período"}
-              {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total`}
+              {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total (sem canceladas)`}
               <br />
               {contratosAssinadosCount}{" "}
               {contratosAssinadosCount === 1

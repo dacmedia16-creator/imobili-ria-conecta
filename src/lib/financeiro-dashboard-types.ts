@@ -55,6 +55,9 @@ export type ParcelaRecebimento = {
   valorRecebido: number | null;
   diferenca: number | null;
   situacao: SituacaoParcela;
+  /** Pessoas internas citadas nas comissões da venda (occurrence_commissions.user_id). O filtro
+   * de corretor casa o responsável da venda OU qualquer participante (decisão de Denis 27/09). */
+  participantesIds?: string[];
 };
 
 export type OrigemComissao = "automatica" | "manual";
@@ -70,6 +73,7 @@ export type ComissaoCalculada = {
   dataEfetivacao: string | null;
   modalidade: string;
   saleCorretorId: string;
+  participantesIds?: string[];
   papel: string;
   beneficiarioNome: string | null;
   beneficiarioUserId: string | null;
@@ -197,6 +201,7 @@ export type EfetivacaoVenda = {
   /** Mesma fonte de Desempenho: calcular_distribuicao_venda(sales). */
   saldoInicialImobiliaria?: number;
   receitaLiquidaImobiliaria?: number;
+  participantesIds?: string[];
 };
 
 export type ResumoFinanceiro = {

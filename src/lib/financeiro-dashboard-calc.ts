@@ -315,6 +315,15 @@ export function montarComissaoCalculada(args: {
   };
 }
 
+/** Filtro de corretor: responsável da venda OU participante citado nas comissões. */
+export function participaDaVenda(
+  corretorId: string,
+  responsavelId: string | null | undefined,
+  participantesIds: string[] | undefined,
+): boolean {
+  return responsavelId === corretorId || (participantesIds ?? []).includes(corretorId);
+}
+
 export function aplicarFiltrosParcelas(
   parcelas: ParcelaRecebimento[],
   filtros: FinanceiroFiltros,
@@ -328,7 +337,8 @@ export function aplicarFiltrosParcelas(
     if (filtros.dataDe && dataDoPeriodo && dataDoPeriodo < filtros.dataDe) return false;
     if (filtros.dataAte && dataDoPeriodo && dataDoPeriodo > filtros.dataAte) return false;
     if (filtros.modalidade !== "todas" && p.modalidade !== filtros.modalidade) return false;
-    if (filtros.corretorId && p.corretorId !== filtros.corretorId) return false;
+    if (filtros.corretorId && !participaDaVenda(filtros.corretorId, p.corretorId, p.participantesIds))
+      return false;
     if (filtros.gestorId && p.gestorId !== filtros.gestorId) return false;
     if (filtros.teamId && p.teamId !== filtros.teamId) return false;
     if (filtros.situacaoRecebimento !== "todas") {
@@ -362,7 +372,11 @@ export function aplicarFiltrosComissoes(
     if (filtros.dataDe && r.dataEfetivacao && r.dataEfetivacao < filtros.dataDe) return false;
     if (filtros.dataAte && r.dataEfetivacao && r.dataEfetivacao > filtros.dataAte) return false;
     if (filtros.modalidade !== "todas" && r.modalidade !== filtros.modalidade) return false;
-    if (filtros.corretorId && r.saleCorretorId !== filtros.corretorId) return false;
+    if (
+      filtros.corretorId &&
+      !participaDaVenda(filtros.corretorId, r.saleCorretorId, r.participantesIds)
+    )
+      return false;
     if (filtros.gestorId && r.gestorId !== filtros.gestorId) return false;
     if (filtros.teamId && r.teamId !== filtros.teamId) return false;
     if (filtros.papel && r.papel !== filtros.papel) return false;
@@ -390,7 +404,8 @@ export function aplicarFiltrosEfetivacao(
     if (filtros.dataDe && r.dataEfetivacao < filtros.dataDe) return false;
     if (filtros.dataAte && r.dataEfetivacao > filtros.dataAte) return false;
     if (filtros.modalidade !== "todas" && r.modalidade !== filtros.modalidade) return false;
-    if (filtros.corretorId && r.corretorId !== filtros.corretorId) return false;
+    if (filtros.corretorId && !participaDaVenda(filtros.corretorId, r.corretorId, r.participantesIds))
+      return false;
     if (filtros.gestorId && r.gestorId !== filtros.gestorId) return false;
     if (filtros.teamId && r.teamId !== filtros.teamId) return false;
     if (

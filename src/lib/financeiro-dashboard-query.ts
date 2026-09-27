@@ -254,6 +254,18 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const occByOccId = new Map((occs ?? []).map((o) => [o.id, o]));
   const extraIds = new Set((extras ?? []).map((e) => e.id));
 
+  // Filtro de corretor (decisão de Denis 27/09): responsável da venda OU pessoa interna citada nas
+  // comissões da ocorrência. Participante externo sem cadastro não entra.
+  const participantesPorVenda = new Map<string, string[]>();
+  for (const c of commissions ?? []) {
+    if (!c.user_id || c.sem_cadastro_confirmado) continue;
+    const occ = occByOccId.get(c.occurrence_id);
+    if (!occ) continue;
+    const atuais = participantesPorVenda.get(occ.sale_id) ?? [];
+    if (!atuais.includes(c.user_id)) atuais.push(c.user_id);
+    participantesPorVenda.set(occ.sale_id, atuais);
+  }
+
   // Duas fontes de parceria externa somadas na mesma chave por ocorrência — nenhuma das duas é
   // receita da imobiliária, ver comentário no topo do arquivo. occurrence_partners é da ocorrência
   // inteira; occurrence_commissions (sem_cadastro_confirmado) é de um beneficiário específico.
@@ -412,6 +424,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           hoje,
         }),
       );
+      parcelas[parcelas.length - 1].participantesIds = participantesPorVenda.get(sale.id) ?? [];
     });
 
     // Em vendas de Lançamento, o prêmio/bônus (occurrences.premio_valor) é somado à comissão só na
@@ -555,6 +568,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       managedBySale: row.managed_by_sale,
       parcelasDaVenda,
     });
+    comissao.participantesIds = participantesPorVenda.get(sale.id) ?? [];
     comissoes.push(comissao);
 
     if (!comissao.beneficiarioNome && !comissao.beneficiarioUserId) {
@@ -663,10 +677,16 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       receitaLiquidaImobiliaria: Number(
         distribuicao?.saldo_liquido_imobiliaria ?? distribuicao?.saldo_imobiliaria ?? 0,
       ),
+      participantesIds: participantesPorVenda.get(r.sale_id) ?? [],
     };
   });
 
-  const corretorOptions = Array.from(new Set((sales ?? []).map((s) => s.corretor_id)))
+  const corretorOptions = Array.from(
+    new Set([
+      ...(sales ?? []).map((s) => s.corretor_id),
+      ...[...participantesPorVenda.values()].flat(),
+    ]),
+  )
     .map((id) => ({ id, label: nomePorId.get(id) ?? id }))
     .sort((a, b) => a.label.localeCompare(b.label));
   const gestorIds = new Set<string>();

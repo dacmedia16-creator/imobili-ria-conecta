@@ -584,7 +584,7 @@ function VisaoGeralCard({
             <p className="text-xl font-semibold">{money(totais.negociado)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Comissão gerada pela REMAX</p>
+            <p className="text-xs text-muted-foreground">Comissão paga às pessoas</p>
             <p className="text-xl font-semibold">{money(totais.comissao)}</p>
           </div>
         </div>
@@ -653,7 +653,7 @@ function VisaoGeralCard({
                 <TableHead>Cadastradas</TableHead>
                 <TableHead>Participações</TableHead>
                 <TableHead>VGV atribuído à REMAX</TableHead>
-                <TableHead>Comissão gerada</TableHead>
+                <TableHead>Comissão paga às pessoas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
