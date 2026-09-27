@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,8 @@ import type {
   SaleRow,
 } from "@/lib/database.types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { confirmarLinhaAlterada } from "@/lib/relatorios-integridade";
+import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 
 type ReportSale = Pick<
   SaleRow,
@@ -146,6 +148,8 @@ function RelatoriosPage() {
   const allowed = hasAny(["financeiro", "admin", "super_admin"]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadVersion = useRef(0);
   const [sales, setSales] = useState<ReportSale[]>([]);
   const [occs, setOccs] = useState<ReportOccurrence[]>([]);
   const [comms, setComms] = useState<OccurrenceCommissionRow[]>([]);
@@ -180,74 +184,114 @@ function RelatoriosPage() {
   // linha que deveria aparecer. Casos "sempre aparece independente do período" (financiamento sem
   // previsão ainda definida) entram como uma condição incondicional à parte.
   const load = useCallback(async () => {
+    const versao = ++loadVersion.current;
     setLoading(true);
-    const vendasValidas = await fetchVendasComerciaisValidas();
-    setVendaComercialEm(Object.fromEntries(vendasValidas.map((v) => [v.sale_id, v.venda_em])));
-    // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
-    // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
-    // exata do dia final — quase nunca, o que na prática anulava essa condição.
-    const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
-    const timestampWindow = (col: string) =>
-      `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
-    const occFilterParts = [
-      dateWindow("prev_recebimento_data"),
-      dateWindow("prev_recebimento2_data"),
-      dateWindow("prev_recebimento3_data"),
-      dateWindow("prev_recebimento_recebido_em"),
-      dateWindow("prev_recebimento2_recebido_em"),
-      dateWindow("prev_recebimento3_recebido_em"),
-      dateWindow("data_assinatura"),
-      timestampWindow("created_at"),
-      dateWindow("financiamento_previsao"),
-      "and(financiamento.is.true,financiamento_previsao.is.null)",
-    ];
-    if (vendasValidas.length)
-      occFilterParts.push(`sale_id.in.(${vendasValidas.map((v) => v.sale_id).join(",")})`);
-    const occFilter = occFilterParts.join(",");
-    const { data: o } = await supabase
-      .from("occurrences")
-      .select(
-        "id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, oba_credito, reopened_at, reopen_reason",
-      )
-      .or(occFilter);
-    setOccs(o ?? []);
+    setLoadError(null);
+    try {
+      const vendasValidas = await fetchVendasComerciaisValidas();
+      // Colunas "date" comparam direto com dateFrom/dateTo; colunas timestamptz (created_at) precisam
+      // do horário de fim de dia no limite superior, senão o "lte" só bate em registros de meia-noite
+      // exata do dia final — quase nunca, o que na prática anulava essa condição.
+      const dateWindow = (col: string) => `and(${col}.gte.${dateFrom},${col}.lte.${dateTo})`;
+      const timestampWindow = (col: string) =>
+        `and(${col}.gte.${dateFrom}T00:00:00,${col}.lte.${dateTo}T23:59:59.999)`;
+      const occFilterParts = [
+        dateWindow("prev_recebimento_data"),
+        dateWindow("prev_recebimento2_data"),
+        dateWindow("prev_recebimento3_data"),
+        dateWindow("prev_recebimento_recebido_em"),
+        dateWindow("prev_recebimento2_recebido_em"),
+        dateWindow("prev_recebimento3_recebido_em"),
+        dateWindow("data_assinatura"),
+        timestampWindow("created_at"),
+        dateWindow("financiamento_previsao"),
+        "and(financiamento.is.true,financiamento_previsao.is.null)",
+      ];
+      if (vendasValidas.length)
+        occFilterParts.push(`sale_id.in.(${vendasValidas.map((v) => v.sale_id).join(",")})`);
+      const occFilter = occFilterParts.join(",");
+      const o = await consultarTodasLinhas("ocorrências", (a, b) =>
+        supabase
+          .from("occurrences")
+          .select(
+            "id, sale_id, valor_comissao, prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor, data_assinatura, created_at, financiamento, financiamento_previsao, financiamento_banco, financiamento_correspondente, financiamento_valor, oba_credito, reopened_at, reopen_reason",
+            { count: "exact" },
+          )
+          .or(occFilter)
+          .order("id")
+          .range(a, b),
+      );
 
-    // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
-    // nome/label das ocorrências já trazidas acima — union das duas necessidades.
-    const occSaleIds = Array.from(new Set((o ?? []).map((r) => r.sale_id)));
-    const updatedAtWindow = timestampWindow("updated_at");
-    const salesFilter = occSaleIds.length
-      ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})`
-      : updatedAtWindow;
-    const { data: s } = await supabase
-      .from("sales")
-      .select(
-        "id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at",
-      )
-      .or(salesFilter);
-    setSales(s ?? []);
+      // A aba "Funil" filtra sales por updated_at; as demais abas só precisam de sales pra resolver
+      // nome/label das ocorrências já trazidas acima — union das duas necessidades.
+      const occSaleIds = Array.from(new Set((o ?? []).map((r) => r.sale_id)));
+      const updatedAtWindow = timestampWindow("updated_at");
+      const salesFilter = occSaleIds.length
+        ? `${updatedAtWindow},id.in.(${occSaleIds.join(",")})`
+        : updatedAtWindow;
+      const s = await consultarTodasLinhas("vendas", (a, b) =>
+        supabase
+          .from("sales")
+          .select(
+            "id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at",
+            { count: "exact" },
+          )
+          .or(salesFilter)
+          .order("id")
+          .range(a, b),
+      );
 
-    const occIds = (o ?? []).map((r) => r.id);
-    if (occIds.length) {
-      const [{ data: c }, { data: p }] = await Promise.all([
-        supabase.from("occurrence_commissions").select("*").in("occurrence_id", occIds),
-        supabase.from("occurrence_partners").select("*").in("occurrence_id", occIds),
-      ]);
-      setComms(c ?? []);
-      setPartners(p ?? []);
-    } else {
-      setComms([]);
-      setPartners([]);
+      const occIds = o.map((r) => r.id);
+      let c: OccurrenceCommissionRow[] = [];
+      let p: OccurrencePartnerRow[] = [];
+      if (occIds.length) {
+        for (let offset = 0; offset < occIds.length; offset += 100) {
+          const ids = occIds.slice(offset, offset + 100);
+          const [commRows, partnerRows] = await Promise.all([
+            consultarTodasLinhas("comissões", (a, b) =>
+              supabase
+                .from("occurrence_commissions")
+                .select("*", { count: "exact" })
+                .in("occurrence_id", ids)
+                .order("id")
+                .range(a, b),
+            ),
+            consultarTodasLinhas("parcerias", (a, b) =>
+              supabase
+                .from("occurrence_partners")
+                .select("*", { count: "exact" })
+                .in("occurrence_id", ids)
+                .order("id")
+                .range(a, b),
+            ),
+          ]);
+          c.push(...commRows);
+          p.push(...partnerRows);
+        }
+      }
+      const prof = await consultarTodasLinhas("perfis", (a, b) =>
+        supabase.from("profiles").select("id, nome", { count: "exact" }).order("id").range(a, b),
+      );
+      const names: Record<string, string> = {};
+      for (const item of prof) names[item.id] = item.nome ?? item.id;
+      if (versao !== loadVersion.current) return;
+      setVendaComercialEm(Object.fromEntries(vendasValidas.map((v) => [v.sale_id, v.venda_em])));
+      setOccs(o);
+      setSales(s);
+      setComms(c);
+      setPartners(p);
+      setProfileName(names);
+    } catch (error) {
+      if (versao === loadVersion.current)
+        setLoadError(error instanceof Error ? error.message : "Falha ao carregar relatórios.");
+    } finally {
+      if (versao === loadVersion.current) setLoading(false);
     }
-    const { data: prof } = await supabase.from("profiles").select("id, nome");
-    const names: Record<string, string> = {};
-    for (const p of prof ?? []) names[p.id] = p.nome ?? p.id;
-    setProfileName(names);
-    setLoading(false);
   }, [dateFrom, dateTo]);
 
   useEffect(() => {
     if (!allowed) {
+      ++loadVersion.current;
       setLoading(false);
       return;
     }
@@ -297,6 +341,19 @@ function RelatoriosPage() {
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           Esta área é restrita ao Financeiro e a administradores. Se você acredita que deveria ter
           acesso, peça ao administrador.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card className="border-destructive/40">
+        <CardContent className="space-y-3 py-8 text-sm text-destructive">
+          <p>Relatórios indisponíveis: {loadError}. Nenhum total ou CSV parcial foi publicado.</p>
+          <Button type="button" variant="outline" onClick={() => void load()}>
+            Tentar novamente
+          </Button>
         </CardContent>
       </Card>
     );
@@ -620,33 +677,35 @@ function FluxoCaixaTab({
     if (!marcando) return;
     setSaving(true);
     try {
-      const { error } = await supabase
+      const result = await supabase
         .from("occurrences")
         .update(recebimentoPatch(marcando.parcela, recData, recValor))
-        .eq("id", marcando.occId);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+        .eq("id", marcando.occId)
+        .select("id");
+      confirmarLinhaAlterada(result, marcando.occId);
       toast.success("Recebimento registrado");
       setMarcando(null);
       onChange();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao registrar recebimento.");
     } finally {
       setSaving(false);
     }
   };
 
   const desfazerRecebido = async (occId: string, parcela: number) => {
-    const { error } = await supabase
-      .from("occurrences")
-      .update(recebimentoPatch(parcela, null, null))
-      .eq("id", occId);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const result = await supabase
+        .from("occurrences")
+        .update(recebimentoPatch(parcela, null, null))
+        .eq("id", occId)
+        .select("id");
+      confirmarLinhaAlterada(result, occId);
+      toast.success("Desfeito");
+      onChange();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao desfazer recebimento.");
     }
-    toast.success("Desfeito");
-    onChange();
   };
 
   return (

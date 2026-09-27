@@ -28,6 +28,7 @@ import type {
   ParcelaRecebimento,
 } from "@/lib/financeiro-dashboard-types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 type TeamMemberRow = { membro_id: string; team_id: string };
@@ -107,19 +108,6 @@ async function callRpc<T>(name: string): Promise<T[]> {
   return data ?? [];
 }
 
-function exigirDados<T>(
-  resultado: { data: T | null; error: { message: string } | null },
-  origem: string,
-): T {
-  if (resultado.error) {
-    throw new Error(`Dados financeiros incompletos (${origem}): ${resultado.error.message}`);
-  }
-  if (resultado.data == null) {
-    throw new Error(`Dados financeiros incompletos (${origem}): resposta vazia inesperada.`);
-  }
-  return resultado.data;
-}
-
 function resolverEquipePorCorretor(
   teams: TeamRow[],
   members: TeamMemberRow[],
@@ -166,49 +154,100 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     efetivadasRaw,
     inconsistencias,
     distribuicoes,
-    occsResult,
-    salesResult,
-    commissionsResult,
-    partnersResult,
-    extrasResult,
-    profilesResult,
-    partiesResult,
-    teamsResult,
-    membersResult,
-    coLeadersResult,
+    occs,
+    sales,
+    commissions,
+    partners,
+    extras,
+    profiles,
+    parties,
+    teams,
+    members,
+    coLeaders,
   ] = await Promise.all([
     callRpc<EfetivacaoRawRow>("vendas_comerciais_canonicas"),
     callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
     callRpc<DistribuicaoRawRow>("financeiro_distribuicao_vendas"),
-    supabase.from("occurrences").select(OCC_COLUMNS) as unknown as Promise<{
-      data: OccRow[] | null;
-      error: { message: string } | null;
-    }>,
-    supabase.from("sales").select("id, status, corretor_id, imovel_id, codigo_interno, modalidade"),
-    supabase
-      .from("occurrence_commissions")
-      .select(
-        "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id, sem_cadastro_confirmado",
-      ),
-    supabase.from("occurrence_partners").select("occurrence_id, valor"),
-    supabase.from("sale_commission_extras").select("id"),
-    supabase.from("profiles").select("id, nome"),
-    supabase.from("sale_parties").select("sale_id, nome, razao_social, papel"),
-    supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
-    supabase.from("team_members").select("membro_id, team_id"),
-    supabase.from("team_co_leaders").select("user_id, team_id"),
+    consultarTodasLinhas<OccRow>(
+      "ocorrências",
+      (a, b) =>
+        supabase
+          .from("occurrences")
+          .select(OCC_COLUMNS, { count: "exact" })
+          .order("id")
+          .range(a, b) as unknown as Promise<{
+          data: OccRow[] | null;
+          error: { message: string } | null;
+          count: number | null;
+        }>,
+    ),
+    consultarTodasLinhas("vendas", (a, b) =>
+      supabase
+        .from("sales")
+        .select("id, status, corretor_id, imovel_id, codigo_interno, modalidade", {
+          count: "exact",
+        })
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("comissões", (a, b) =>
+      supabase
+        .from("occurrence_commissions")
+        .select(
+          "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id, sem_cadastro_confirmado",
+          { count: "exact" },
+        )
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("parcerias", (a, b) =>
+      supabase
+        .from("occurrence_partners")
+        .select("id, occurrence_id, valor", { count: "exact" })
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("comissões extras", (a, b) =>
+      supabase
+        .from("sale_commission_extras")
+        .select("id", { count: "exact" })
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("usuários", (a, b) =>
+      supabase.from("profiles").select("id, nome", { count: "exact" }).order("id").range(a, b),
+    ),
+    consultarTodasLinhas("partes das vendas", (a, b) =>
+      supabase
+        .from("sale_parties")
+        .select("id, sale_id, nome, razao_social, papel", { count: "exact" })
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("equipes", (a, b) =>
+      supabase
+        .from("teams")
+        .select("id, nome, parent_team_id, lider_id", { count: "exact" })
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("membros das equipes", (a, b) =>
+      supabase
+        .from("team_members")
+        .select("membro_id, team_id", { count: "exact" })
+        .order("team_id")
+        .order("membro_id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas("colíderes das equipes", (a, b) =>
+      supabase
+        .from("team_co_leaders")
+        .select("user_id, team_id", { count: "exact" })
+        .order("team_id")
+        .order("user_id")
+        .range(a, b),
+    ),
   ]);
-
-  const occs = exigirDados(occsResult, "ocorrências");
-  const sales = exigirDados(salesResult, "vendas");
-  const commissions = exigirDados(commissionsResult, "comissões");
-  const partners = exigirDados(partnersResult, "parcerias");
-  const extras = exigirDados(extrasResult, "comissões extras");
-  const profiles = exigirDados(profilesResult, "usuários");
-  const parties = exigirDados(partiesResult, "partes das vendas");
-  const teams = exigirDados(teamsResult, "equipes");
-  const members = exigirDados(membersResult, "membros das equipes");
-  const coLeaders = exigirDados(coLeadersResult, "colíderes das equipes");
 
   const nomePorId = new Map<string, string>();
   for (const p of profiles ?? []) nomePorId.set(p.id, p.nome ?? p.id);

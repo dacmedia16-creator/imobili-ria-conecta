@@ -1,10 +1,15 @@
 export type AtalhoPeriodoRelatorios = "mes_atual" | "mes_anterior";
 
-function dataIsoLocal(data: Date): string {
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
+function anoMesSaoPaulo(data: Date): { ano: number; mes: number } {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(data);
+  return {
+    ano: Number(partes.find((p) => p.type === "year")?.value),
+    mes: Number(partes.find((p) => p.type === "month")?.value),
+  };
 }
 
 export function periodoMensalRelatorios(
@@ -12,11 +17,11 @@ export function periodoMensalRelatorios(
   agora = new Date(),
 ): { de: string; ate: string } {
   const deslocamento = periodo === "mes_anterior" ? -1 : 0;
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth() + deslocamento;
-
+  const { ano, mes } = anoMesSaoPaulo(agora);
+  const primeiro = new Date(Date.UTC(ano, mes - 1 + deslocamento, 1));
+  const ultimo = new Date(Date.UTC(ano, mes + deslocamento, 0));
   return {
-    de: dataIsoLocal(new Date(ano, mes, 1)),
-    ate: dataIsoLocal(new Date(ano, mes + 1, 0)),
+    de: primeiro.toISOString().slice(0, 10),
+    ate: ultimo.toISOString().slice(0, 10),
   };
 }

@@ -22,4 +22,20 @@ describe("periodoMensalRelatorios", () => {
       ate: "2025-12-31",
     });
   });
+  it("usa o mês de São Paulo na virada, mesmo em instante UTC do mês seguinte", () => {
+    expect(periodoMensalRelatorios("mes_atual", new Date("2026-10-01T02:30:00Z"))).toEqual({
+      de: "2026-09-01",
+      ate: "2026-09-30",
+    });
+    expect(periodoMensalRelatorios("mes_anterior", new Date("2026-01-01T02:30:00Z"))).toEqual({
+      de: "2025-11-01",
+      ate: "2025-11-30",
+    });
+  });
+  it("avança somente após a virada de São Paulo, inclusive em fevereiro bissexto", () => {
+    expect(periodoMensalRelatorios("mes_anterior", new Date("2024-03-01T03:01:00Z"))).toEqual({
+      de: "2024-02-01",
+      ate: "2024-02-29",
+    });
+  });
 });
