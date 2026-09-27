@@ -337,7 +337,7 @@ function OcorrenciasConcluidasPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-xs text-muted-foreground">Total de comissões</p>
+              <p className="text-xs text-muted-foreground">Total de comissões (parte da imobiliária)</p>
               <p className="text-xl font-semibold text-primary">{money(totalComissao)}</p>
             </CardContent>
           </Card>
@@ -384,7 +384,7 @@ function OcorrenciasConcluidasPage() {
                   )}
                   <TableHead>Imóvel / código</TableHead>
                   <TableHead>Corretor</TableHead>
-                  <TableHead>Comissão</TableHead>
+                  <TableHead title="Comissão da ocorrência menos parceria externa">Comissão (imobiliária)</TableHead>
                   <TableHead>Data da assinatura</TableHead>
                 </TableRow>
               </TableHeader>
