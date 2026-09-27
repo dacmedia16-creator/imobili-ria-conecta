@@ -9,8 +9,9 @@ import type {
   OrdenacaoCampo,
   OrdenacaoDirecao,
 } from "@/lib/comparativo-comissao-types";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+const hojeISO = () => hojeSaoPaulo();
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const isoDe = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 

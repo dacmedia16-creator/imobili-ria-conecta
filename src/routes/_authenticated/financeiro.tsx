@@ -26,6 +26,7 @@ import { RecebimentosTable } from "@/components/financeiro/RecebimentosTable";
 import { ComissoesCalculadasTable } from "@/components/financeiro/ComissoesCalculadasTable";
 import { AgingPanel } from "@/components/financeiro/AgingPanel";
 import { DivergenciasList } from "@/components/financeiro/DivergenciasList";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({ meta: [{ title: "Financeiro" }] }),
@@ -50,7 +51,7 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
   component: CentralFinanceiraPage,
 });
 
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+const hojeISO = () => hojeSaoPaulo();
 
 function CentralFinanceiraPage() {
   const { hasAny, loading: authLoading } = useAuth();

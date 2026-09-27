@@ -27,6 +27,7 @@ import type {
   EfetivacaoVenda,
   ParcelaRecebimento,
 } from "@/lib/financeiro-dashboard-types";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 type TeamMemberRow = { membro_id: string; team_id: string };
@@ -159,7 +160,7 @@ export type FinanceiroBundle = {
 };
 
 export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeSaoPaulo();
 
   const [
     efetivadasRaw,

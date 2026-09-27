@@ -28,6 +28,7 @@ import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 type PaymentOccurrence = Pick<
   OccurrenceRow,
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/_authenticated/comissoes-a-receber")({
   component: ComissoesAReceberPage,
 });
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => hojeSaoPaulo();
 
 const OCC_COLUMNS =
   "id, sale_id, valor_comissao, prev_recebimento_data, prev_recebimento_valor, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, prev_recebimento2_data, prev_recebimento2_valor, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, prev_recebimento3_data, prev_recebimento3_valor, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor";

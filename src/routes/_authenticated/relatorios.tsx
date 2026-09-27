@@ -47,6 +47,7 @@ import type {
   OccurrenceUpdate,
   SaleRow,
 } from "@/lib/database.types";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 type ReportSale = Pick<
   SaleRow,
@@ -111,7 +112,7 @@ const dateBR = (v: unknown) => {
   if (!(typeof v === "string" || typeof v === "number" || v instanceof Date)) return "—";
   return new Date(v).toLocaleDateString("pt-BR");
 };
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => hojeSaoPaulo();
 const recebimentoPatch = (
   parcela: number,
   data: string | null,
