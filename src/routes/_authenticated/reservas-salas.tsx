@@ -84,11 +84,12 @@ type Reservation = {
   notes: string;
   status: "confirmed" | "canceled";
   canCancel: boolean;
+  hasDetails: boolean;
 };
 
 type DraftReservation = Omit<
   Reservation,
-  "id" | "groupId" | "status" | "participants" | "responsibleId" | "canCancel"
+  "id" | "groupId" | "status" | "participants" | "responsibleId" | "canCancel" | "hasDetails"
 > & {
   participants: string;
   period: RoomReservationPeriod;
@@ -152,6 +153,38 @@ const mapReservation = (
   notes: row.notes,
   status: row.status as Reservation["status"],
   canCancel,
+  hasDetails: true,
+});
+
+type RoomOccupancyRow = {
+  id: string;
+  reservation_group_id: string;
+  room: string;
+  reserved_date: string;
+  start_time: string;
+  end_time: string;
+  responsible_id: string;
+  responsible_name: string | null;
+};
+
+// Reserva de outra pessoa sem permissão de detalhe: só sala, horário e quem reservou.
+const mapOccupancy = (row: RoomOccupancyRow): Reservation => ({
+  id: row.id,
+  groupId: row.reservation_group_id,
+  room: row.room as Reservation["room"],
+  date: row.reserved_date,
+  endDate: row.reserved_date,
+  start: row.start_time.slice(0, 5),
+  end: row.end_time.slice(0, 5),
+  responsibleId: row.responsible_id,
+  responsible: row.responsible_name ?? "Reservada",
+  participants: [],
+  participantUserIds: [],
+  purpose: "",
+  notes: "",
+  status: "confirmed",
+  canCancel: false,
+  hasDetails: false,
 });
 
 const groupReservationsByPeriod = (items: Reservation[]): Reservation[] => {
@@ -213,13 +246,16 @@ function RoomReservationsPage() {
     }
 
     setLoadingReservations(true);
+    // Detalhes completos: o banco (RLS) só devolve as reservas que o usuário pode ver.
     const { data, error } = await supabase
       .from("room_reservations")
       .select("*")
       .order("reserved_date", { ascending: true })
       .order("start_time", { ascending: true });
+    // Ocupação: todos veem sala, horário e quem reservou, sem finalidade/participantes/observações.
+    const { data: occupancy, error: occupancyError } = await supabase.rpc("list_room_occupancy");
 
-    if (error) {
+    if (error || occupancyError) {
       setLoadError("Não foi possível carregar a agenda compartilhada.");
       setReservations([]);
     } else {
@@ -254,12 +290,20 @@ function RoomReservationsPage() {
           return allowed === true;
         }),
       );
-      setReservations(
-        mapped.map((reservation, index) => ({
-          ...reservation,
-          canCancel: cancelable[index] ?? false,
-        })),
-      );
+      const detailed = mapped.map((reservation, index) => ({
+        ...reservation,
+        canCancel: cancelable[index] ?? false,
+      }));
+      const detailedIds = new Set(detailed.map((reservation) => reservation.id));
+      const occupancyOnly = (occupancy ?? [])
+        .filter((row) => !detailedIds.has(row.id))
+        .map((row) =>
+          mapOccupancy({
+            ...row,
+            responsible_name: namesById.get(row.responsible_id) ?? row.responsible_name,
+          }),
+        );
+      setReservations([...detailed, ...occupancyOnly]);
     }
     setLoadingReservations(false);
   }, [fallbackResponsibleName, user]);
@@ -574,13 +618,14 @@ function RoomReservationsPage() {
                         className="min-h-16 min-w-0 flex-1 rounded-md border border-primary/20 bg-primary/10 p-2 text-left transition hover:bg-primary/15"
                         onClick={() => setSelectedReservation(reservation)}
                         title={`Ver reserva de ${reservation.responsible}`}
-                        aria-label={`Ver reserva de ${reservation.responsible}, ${reservation.purpose}, das ${reservation.start} às ${reservation.end}`}
+                        aria-label={`Ver reserva de ${reservation.responsible}${reservation.hasDetails ? `, ${reservation.purpose}` : ""}, das ${reservation.start} às ${reservation.end}`}
                       >
                         <div className="truncate text-xs font-semibold text-primary">
                           {reservation.responsible}
                         </div>
                         <div className="mt-1 truncate text-[11px] text-muted-foreground">
-                          {reservation.purpose} · {reservation.start}–{reservation.end}
+                          {reservation.hasDetails ? `${reservation.purpose} · ` : "Ocupada · "}
+                          {reservation.start}–{reservation.end}
                         </div>
                       </button>
                     ) : (
@@ -965,10 +1010,12 @@ function RoomReservationsPage() {
                   <div className="text-xs text-muted-foreground">Sala</div>
                   <div className="font-medium">{selectedReservation.room}</div>
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Finalidade</div>
-                  <div className="font-medium">{selectedReservation.purpose}</div>
-                </div>
+                {selectedReservation.hasDetails && (
+                  <div>
+                    <div className="text-xs text-muted-foreground">Finalidade</div>
+                    <div className="font-medium">{selectedReservation.purpose}</div>
+                  </div>
+                )}
                 <div>
                   <div className="text-xs text-muted-foreground">Data</div>
                   <div className="font-medium">
@@ -987,6 +1034,12 @@ function RoomReservationsPage() {
                   <div className="text-xs text-muted-foreground">Participantes</div>
                   <div>{selectedReservation.participants.join(", ")}</div>
                 </div>
+              )}
+              {!selectedReservation.hasDetails && (
+                <p className="text-xs text-muted-foreground">
+                  Sala ocupada. Os demais detalhes são visíveis apenas para quem reservou, os
+                  participantes e a gestão.
+                </p>
               )}
               {selectedReservation.notes && (
                 <div>

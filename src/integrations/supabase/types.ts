@@ -1656,6 +1656,19 @@ export type Database = {
           remaining_cancellations: number;
         }[];
       };
+      list_room_occupancy: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string;
+          reservation_group_id: string;
+          room: string;
+          reserved_date: string;
+          start_time: string;
+          end_time: string;
+          responsible_id: string;
+          responsible_name: string | null;
+        }[];
+      };
       list_room_reservation_users: {
         Args: Record<PropertyKey, never>;
         Returns: {
