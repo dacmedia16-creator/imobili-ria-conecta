@@ -11,6 +11,9 @@ const PAPEIS_COORDENACAO = new Set([
   "gestor",
   "team_leader",
   "coordenador_lancamento",
+  // Coordenador extra gravado como "outro" (ex.: 2º coordenador de Lançamento). Antes sumia do
+  // relatório (decisão de Denis 27/09: deve aparecer como linha de coordenação da própria pessoa).
+  "outro",
 ]);
 const PAPEIS_MEMBRO = new Set(["corretor_captador", "corretor_vendedor"]);
 
@@ -22,6 +25,10 @@ export type LinhaComissaoCoordenador = {
   nome: string | null;
   valor: number | string | null;
   sem_cadastro_confirmado: boolean;
+  /** Cargo e líderes das equipes do corretor, vindos da RPC (não dependem da RLS de user_roles). */
+  cargo_gestor?: boolean;
+  cargo_team_leader?: boolean;
+  lideres_equipe?: string[];
 };
 
 /** true = tem o cargo na equipe (não confundir com `lider_*`, que é o vínculo NAQUELA venda). */
@@ -155,7 +162,10 @@ export function agruparComissaoPorCoordenador(
       let dono: LinhaComissaoCoordenador | null = null;
       if (!vendedorEhLiderDeVerdade) {
         const papelLider = papelLiderDoMembro(m.papel, m.modalidade);
-        dono = coordenacao.find((c) => c.papel === papelLider) ?? null;
+        dono = escolherDono(
+          coordenacao.filter((c) => c.papel === papelLider),
+          m.lideres_equipe ?? [],
+        );
       }
       const chave = vendedorEhLiderDeVerdade || !dono ? chaveDe(m) : chaveDe(dono);
       const nomeSecao =
@@ -266,6 +276,42 @@ export function agruparComissaoPorCoordenador(
   };
 }
 
+/**
+ * Quando a venda tem mais de um líder no mesmo papel (ex.: dois team_leader num Lançamento), o
+ * dono da linha do corretor precisa ser determinístico (antes dependia da ordem das linhas):
+ * 1º o líder da equipe do corretor; 2º o de maior valor; 3º nome; 4º user_id.
+ */
+export function escolherDono(
+  candidatos: LinhaComissaoCoordenador[],
+  lideresEquipeDoMembro: string[],
+): LinhaComissaoCoordenador | null {
+  if (candidatos.length === 0) return null;
+  const daEquipe = new Set(lideresEquipeDoMembro);
+  return [...candidatos].sort((a, b) => {
+    const ea = a.user_id && daEquipe.has(a.user_id) ? 0 : 1;
+    const eb = b.user_id && daEquipe.has(b.user_id) ? 0 : 1;
+    if (ea !== eb) return ea - eb;
+    const dv = Number(b.valor ?? 0) - Number(a.valor ?? 0);
+    if (dv !== 0) return dv;
+    const dn = (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR");
+    if (dn !== 0) return dn;
+    return (a.user_id ?? "").localeCompare(b.user_id ?? "");
+  })[0];
+}
+
+/** Cargos vindos da própria RPC: a mesma visão para Admin e para quem é só Financeiro. */
+export function cargosDasLinhas(linhas: LinhaComissaoCoordenador[]): CargoPorUsuario {
+  const cargos: CargoPorUsuario = {};
+  for (const l of linhas) {
+    if (!l.user_id) continue;
+    const c = cargos[l.user_id] ?? { gestor: false, teamLeader: false };
+    if (l.cargo_gestor) c.gestor = true;
+    if (l.cargo_team_leader) c.teamLeader = true;
+    cargos[l.user_id] = c;
+  }
+  return cargos;
+}
+
 /** Busca os dados do mês (RPC) + os cargos (gestor/team_leader) de todo mundo que aparece nas
  * linhas, e já devolve agrupado. `p_mes` no formato "YYYY-MM-01". */
 export async function fetchComissaoPorCoordenador(
@@ -274,21 +320,5 @@ export async function fetchComissaoPorCoordenador(
   const { data, error } = await supabase.rpc("comissao_coordenador_dados", { p_mes: mesIso });
   if (error) throw error;
   const linhas = (data ?? []) as LinhaComissaoCoordenador[];
-  const ids = [...new Set(linhas.map((l) => l.user_id).filter((id): id is string => !!id))];
-  const cargos: CargoPorUsuario = {};
-  if (ids.length > 0) {
-    const { data: roles, error: rolesErr } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .in("user_id", ids)
-      .in("role", ["gestor", "team_leader"]);
-    if (rolesErr) throw rolesErr;
-    for (const r of roles ?? []) {
-      const c = cargos[r.user_id] ?? { gestor: false, teamLeader: false };
-      if (r.role === "gestor") c.gestor = true;
-      if (r.role === "team_leader") c.teamLeader = true;
-      cargos[r.user_id] = c;
-    }
-  }
-  return agruparComissaoPorCoordenador(linhas, cargos);
+  return agruparComissaoPorCoordenador(linhas, cargosDasLinhas(linhas));
 }
