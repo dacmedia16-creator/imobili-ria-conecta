@@ -5,11 +5,35 @@ import { useId } from "react";
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
 // troca de senha, etc.) que dependia de "/" encaminhar pro dashboard agora aponta direto pra
 // "/dashboard", pra não perder esse comportamento em nenhum desses fluxos.
+const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
+
 export const Route = createFileRoute("/")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Hub Única Escolha — RE/MAX Imóveis" }] }),
-  component: FrontPage,
+  head: () => ({
+    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "Hub Única Escolha — RE/MAX Imóveis" }],
+  }),
+  component: IS_HOMOLOG ? HomologHome : FrontPage,
 });
+
+function HomologHome() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#0b1330] p-6 text-white">
+      <div className="w-full max-w-md rounded-xl border border-white/20 bg-white/10 p-8 text-center shadow-xl">
+        <h1 className="text-3xl font-bold">ADM MAX</h1>
+        <p className="mt-2 text-sm text-white/70">
+          Ambiente interno de homologação · dados fictícios
+        </p>
+        <p className="mt-6">Gestão de imobiliárias, equipes, vendas e relatórios em um só lugar.</p>
+        <Link
+          to="/auth"
+          className="mt-8 inline-block rounded-md bg-white px-6 py-3 font-semibold text-[#0b1330] hover:bg-white/90"
+        >
+          Acessar demonstração
+        </Link>
+      </div>
+    </main>
+  );
+}
 
 /** Cada card abre o sistema externo correspondente numa aba nova.
  * Sem `href` = sistema ainda não tem endereço definido, aparece marcado "Em breve". */

@@ -11,13 +11,15 @@ export function BrandHeroBackground() {
         }}
       />
 
-      <img
-        src="/remax-pin-watermark.png"
-        width={1200}
-        height={1200}
-        alt=""
-        className="absolute right-[8%] top-[14%] w-[30%] max-w-[460px] opacity-[0.05]"
-      />
+      {import.meta.env.VITE_HOMOLOG_ONLY !== "true" && (
+        <img
+          src="/remax-pin-watermark.png"
+          width={1200}
+          height={1200}
+          alt=""
+          className="absolute right-[8%] top-[14%] w-[30%] max-w-[460px] opacity-[0.05]"
+        />
+      )}
 
       <svg className="absolute left-0 top-0 h-[50%] w-[40%]" viewBox="0 0 400 400" fill="none">
         <defs>

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -31,12 +31,23 @@ import {
 
 export const Route = createFileRoute("/especialistas")({
   ssr: false,
+  beforeLoad: () => {
+    if (import.meta.env.VITE_HOMOLOG_ONLY === "true") throw redirect({ to: "/auth" });
+  },
   head: () => ({
     meta: [
-      { title: "Especialistas por região — RE/MAX Única Escolha" },
+      {
+        title:
+          import.meta.env.VITE_HOMOLOG_ONLY === "true"
+            ? "ADM MAX — Homologação"
+            : "Especialistas por região — RE/MAX Única Escolha",
+      },
       {
         name: "description",
-        content: "Encontre corretores RE/MAX Única Escolha por bairro, condomínio ou cidade.",
+        content:
+          import.meta.env.VITE_HOMOLOG_ONLY === "true"
+            ? "Ambiente interno de demonstração do ADM MAX."
+            : "Encontre corretores RE/MAX Única Escolha por bairro, condomínio ou cidade.",
       },
     ],
   }),

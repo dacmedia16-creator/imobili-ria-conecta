@@ -51,6 +51,18 @@ type TeamInfo = {
 
 function MeuAcesso() {
   const { user, roles, hasAny } = useAuth();
+  const userId = user?.id;
+  const [platformAdmin, setPlatformAdmin] = useState(false);
+  useEffect(() => {
+    if (import.meta.env.VITE_HOMOLOG_ONLY !== "true" || !userId) return;
+    let alive = true;
+    supabase.rpc("is_platform_super_admin").then(({ data, error }) => {
+      if (alive) setPlatformAdmin(!error && data === true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
   const canUsePositioning = roles.some((role) =>
     (["corretor", "gestor", "team_leader"] as AppRole[]).includes(role),
   );
@@ -525,8 +537,14 @@ function MeuAcesso() {
             <span className="text-muted-foreground">Email:</span> <b>{user?.email}</b>
           </div>
           <div>
-            <span className="text-muted-foreground">Papéis:</span>{" "}
-            <b>{roles.map((r) => ROLE_LABEL[r]).join(", ") || "Sem papel"}</b>
+            <span className="text-muted-foreground">
+              {platformAdmin ? "Acesso à plataforma / papéis da agência:" : "Papéis:"}
+            </span>{" "}
+            <b>
+              {platformAdmin && "Super-admin da plataforma"}
+              {platformAdmin && roles.length > 0 ? " · " : ""}
+              {roles.map((r) => ROLE_LABEL[r]).join(", ") || (platformAdmin ? "" : "Sem papel")}
+            </b>
           </div>
           <div className="max-w-sm">
             <Label className="mb-1.5 block text-xs text-muted-foreground">

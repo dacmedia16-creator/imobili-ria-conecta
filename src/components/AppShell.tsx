@@ -38,10 +38,22 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 
+const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
+type AgencyBrand = { nome: string; logoUrl: string | null; color: string | null };
 type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
 type NavGroup = { label?: string; items: NavItem[]; compact?: boolean };
 
-function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
+function SidebarNav({
+  groups,
+  onNavigate,
+  platformAdmin,
+  agencyBrand,
+}: {
+  groups: NavGroup[];
+  onNavigate?: () => void;
+  platformAdmin: boolean;
+  agencyBrand: AgencyBrand | null;
+}) {
   const { user, roles, signOut, impersonation, restoreSuperAdmin } = useAuth();
   const router = useRouter();
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
@@ -62,16 +74,41 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
       return;
     }
     await signOut();
-    window.location.assign("https://conta-max-poc.dacmedia16.workers.dev/logout");
+    window.location.assign(
+      IS_HOMOLOG ? "/auth" : "https://conta-max-poc.dacmedia16.workers.dev/logout",
+    );
   };
 
   return (
     <div className="relative z-10 flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
-        <img src="/remax-icon.png" width={4500} height={4500} alt="RE/MAX" className="h-8 w-8" />
+      <div
+        className="flex items-center gap-2 border-b border-white/10 px-5 py-4"
+        style={IS_HOMOLOG && agencyBrand?.color ? { borderColor: agencyBrand.color } : undefined}
+      >
+        {IS_HOMOLOG ? (
+          agencyBrand?.logoUrl ? (
+            <img
+              src={agencyBrand.logoUrl}
+              alt={`Logo ${agencyBrand.nome}`}
+              className="h-8 w-8 object-contain"
+            />
+          ) : (
+            <Building2 className="h-8 w-8" aria-hidden />
+          )
+        ) : (
+          <img src="/remax-icon.png" width={4500} height={4500} alt="RE/MAX" className="h-8 w-8" />
+        )}
         <div className="leading-tight">
-          <span className="block font-semibold tracking-tight">RE/MAX Portal</span>
-          <span className="block text-xs text-white/70">Única Escolha</span>
+          <span className="block font-semibold tracking-tight">
+            {IS_HOMOLOG ? "ADM MAX · Homologação" : "RE/MAX Portal"}
+          </span>
+          <span className="block text-xs text-white/70">
+            {IS_HOMOLOG
+              ? platformAdmin
+                ? "Plataforma"
+                : (agencyBrand?.nome ?? "Agência não identificada")
+              : "Única Escolha"}
+          </span>
         </div>
       </div>
       <nav className="flex-1 space-y-5 overflow-y-auto p-3">
@@ -107,7 +144,11 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
       <div className="border-t border-white/10 p-3 text-xs">
         <div className="mb-1 truncate font-medium text-white">{user?.email}</div>
         <div className="mb-2 text-white/70">
-          {roles.map((r) => ROLE_LABEL[r]).join(", ") || "Sem papel"}
+          {IS_HOMOLOG && platformAdmin && (
+            <div className="font-semibold text-white">Super-admin da plataforma</div>
+          )}
+          {roles.length > 0 && <div>{roles.map((r) => ROLE_LABEL[r]).join(", ")}</div>}
+          {!platformAdmin && roles.length === 0 && "Sem papel"}
         </div>
         <Button
           variant="ghost"
@@ -116,7 +157,11 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
           onClick={handleSignOut}
         >
           <LogOut className="h-4 w-4" />{" "}
-          {impersonation ? "Retornar ao Super Admin" : "Sair da Conta MAX"}
+          {impersonation
+            ? "Retornar ao Super Admin"
+            : IS_HOMOLOG
+              ? "Sair da homologação"
+              : "Sair da Conta MAX"}
         </Button>
       </div>
     </div>
@@ -124,24 +169,47 @@ function SidebarNav({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: (
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
+  const { user, hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
+  const userId = user?.id;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
+  const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Só mostra o menu;
   // a rota, o servidor e as RPCs platform_* repetem a verificação.
   const [platformAdmin, setPlatformAdmin] = useState(false);
   useEffect(() => {
     let alive = true;
+    setPlatformAdmin(false);
+    setAgencyBrand(null);
     exclusiveEnabled().then((enabled) => {
       if (alive) setExclusiveVisible(enabled);
     });
     supabase.rpc("is_platform_super_admin").then(({ data, error }) => {
       if (alive) setPlatformAdmin(!error && data === true);
     });
+    if (IS_HOMOLOG && userId) {
+      // A agência vem do JWT no banco, nunca de um seletor do navegador.
+      supabase.rpc("current_org_id").then(async ({ data: orgId, error }) => {
+        if (error || !orgId) return;
+        const { data: org, error: orgError } = await supabase
+          .from("organizations")
+          .select("nome, logo_path, cor_primaria")
+          .eq("id", orgId)
+          .maybeSingle();
+        if (!alive || orgError || !org) return;
+        setAgencyBrand({
+          nome: org.nome,
+          logoUrl: org.logo_path
+            ? supabase.storage.from("organization-logos").getPublicUrl(org.logo_path).data.publicUrl
+            : null,
+          color: org.cor_primaria,
+        });
+      });
+    }
     return () => {
       alive = false;
     };
-  }, []);
+  }, [userId]);
   const router = useRouter();
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
 
@@ -299,15 +367,39 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <BrandHeroBackground />
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
-        <SidebarNav groups={navGroups} />
+        <SidebarNav groups={navGroups} platformAdmin={platformAdmin} agencyBrand={agencyBrand} />
       </aside>
 
       <header
         className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}
       >
         <div className="flex items-center gap-2">
-          <img src="/remax-icon.png" width={4500} height={4500} alt="RE/MAX" className="h-7 w-7" />
-          <span className="font-semibold tracking-tight">RE/MAX Portal</span>
+          {IS_HOMOLOG ? (
+            agencyBrand?.logoUrl ? (
+              <img
+                src={agencyBrand.logoUrl}
+                alt={`Logo ${agencyBrand.nome}`}
+                className="h-7 w-7 object-contain"
+              />
+            ) : (
+              <Building2 className="h-7 w-7" aria-hidden />
+            )
+          ) : (
+            <img
+              src="/remax-icon.png"
+              width={4500}
+              height={4500}
+              alt="RE/MAX"
+              className="h-7 w-7"
+            />
+          )}
+          <span className="font-semibold tracking-tight">
+            {IS_HOMOLOG
+              ? platformAdmin
+                ? "ADM MAX · Plataforma"
+                : (agencyBrand?.nome ?? "ADM MAX · Homologação")
+              : "RE/MAX Portal"}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <NotificationBell />
@@ -328,7 +420,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
               <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
               <SheetDescription className="sr-only">Links de navegação do portal</SheetDescription>
-              <SidebarNav groups={navGroups} onNavigate={() => setMobileNavOpen(false)} />
+              <SidebarNav
+                groups={navGroups}
+                platformAdmin={platformAdmin}
+                agencyBrand={agencyBrand}
+                onNavigate={() => setMobileNavOpen(false)}
+              />
             </SheetContent>
           </Sheet>
         </div>

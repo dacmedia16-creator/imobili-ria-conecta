@@ -85,13 +85,20 @@ function AuthPage() {
     <div className="flex min-h-screen">
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 text-white lg:flex">
         <BrandHeroBackground />
-        <img
-          src="/remax-logo-white.png"
-          width={1600}
-          height={756}
-          alt="RE/MAX Imóveis — Única Escolha"
-          className="relative z-10 h-14 w-auto self-start"
-        />
+        {IS_HOMOLOG ? (
+          <div className="relative z-10 text-3xl font-bold">
+            ADM MAX{" "}
+            <span className="block text-sm font-normal text-white/70">Homologação interna</span>
+          </div>
+        ) : (
+          <img
+            src="/remax-logo-white.png"
+            width={1600}
+            height={756}
+            alt="RE/MAX Imóveis — Única Escolha"
+            className="relative z-10 h-14 w-auto self-start"
+          />
+        )}
         <div className="relative z-10 max-w-sm space-y-3">
           <h1 className="text-3xl font-semibold leading-tight">
             Da negociação ao contrato assinado, em um só lugar.
@@ -102,21 +109,29 @@ function AuthPage() {
           </p>
         </div>
         <p className="relative z-10 text-xs text-white/60">
-          © {new Date().getFullYear()} RE/MAX Imóveis Única Escolha
+          {IS_HOMOLOG
+            ? "ADM MAX · Ambiente de homologação"
+            : `© ${new Date().getFullYear()} RE/MAX Imóveis Única Escolha`}
         </p>
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-muted/40 p-4">
         <Card className="w-full max-w-lg border-0 shadow-lg lg:border lg:shadow-sm">
           <CardHeader className="space-y-3 px-8 pt-8 text-center">
-            <img
-              src="/remax-logo.png"
-              width={11134}
-              height={5263}
-              alt="RE/MAX Imóveis — Única Escolha"
-              className="mx-auto h-12 w-auto lg:hidden"
-            />
-            <CardTitle className="text-xl">Portal Interno</CardTitle>
+            {IS_HOMOLOG ? (
+              <div className="mx-auto text-2xl font-bold text-[#0b1330] lg:hidden">ADM MAX</div>
+            ) : (
+              <img
+                src="/remax-logo.png"
+                width={11134}
+                height={5263}
+                alt="RE/MAX Imóveis — Única Escolha"
+                className="mx-auto h-12 w-auto lg:hidden"
+              />
+            )}
+            <CardTitle className="text-xl">
+              {IS_HOMOLOG ? "Demonstração interna" : "Portal Interno"}
+            </CardTitle>
             <CardDescription>
               {IS_HOMOLOG
                 ? "Homologação — acesso por link no e-mail"

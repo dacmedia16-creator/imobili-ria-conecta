@@ -59,13 +59,17 @@ function RedefinirSenhaPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
       <BrandHeroBackground />
-      <img
-        src="/remax-logo-white.png"
-        width={1600}
-        height={756}
-        alt="RE/MAX Imóveis — Única Escolha"
-        className="relative z-10 mb-6 h-14 w-auto"
-      />
+      {import.meta.env.VITE_HOMOLOG_ONLY === "true" ? (
+        <div className="relative z-10 mb-6 text-2xl font-bold text-white">ADM MAX</div>
+      ) : (
+        <img
+          src="/remax-logo-white.png"
+          width={1600}
+          height={756}
+          alt="RE/MAX Imóveis — Única Escolha"
+          className="relative z-10 mb-6 h-14 w-auto"
+        />
+      )}
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <KeyRound className="mx-auto h-8 w-8 text-primary" />

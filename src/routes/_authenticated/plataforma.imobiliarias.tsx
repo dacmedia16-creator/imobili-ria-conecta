@@ -198,6 +198,11 @@ function PlatformOrganizations() {
   const inviteFn = useServerFn(invitePlatformOrganizationAdmin);
 
   const [orgs, setOrgs] = useState<OrganizationSummary[] | null>(null);
+  // A demonstração mostra A/B sem apagar os registros E2E e seus logs de auditoria.
+  const [showTestOrganizations, setShowTestOrganizations] = useState(false);
+  const visibleOrgs = import.meta.env.VITE_HOMOLOG_ONLY === "true" && !showTestOrganizations
+    ? orgs?.filter((o) => o.slug === "unica-escolha" || o.slug === "agencia-b-homolog")
+    : orgs;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<OrganizationSummary | "new" | null>(null);
   const [inviting, setInviting] = useState<OrganizationSummary | null>(null);
@@ -354,6 +359,14 @@ function PlatformOrganizations() {
         Área exclusiva do super-admin da plataforma. Gestores e administradores das imobiliárias não
         veem esta tela.
       </p>
+      {import.meta.env.VITE_HOMOLOG_ONLY === "true" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+          <span>Exibição de demonstração: somente agências fictícias A e B. Registros E2E preservados.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowTestOrganizations((v) => !v)}>
+            {showTestOrganizations ? "Ocultar registros de teste" : "Ver registros de teste"}
+          </Button>
+        </div>
+      )}
 
       {loadError && (
         <Card>
@@ -366,7 +379,7 @@ function PlatformOrganizations() {
       {!orgs && !loadError && <p>Carregando imobiliárias…</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {(orgs ?? []).map((o) => (
+        {(visibleOrgs ?? []).map((o) => (
           <Card key={o.id} className={o.status === "suspensa" ? "opacity-70" : ""}>
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div className="flex items-center gap-3">
