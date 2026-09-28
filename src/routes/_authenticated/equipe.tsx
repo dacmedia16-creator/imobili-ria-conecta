@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 import { useAuth } from "@/lib/auth";
 import { listCorretoresDisponiveis, listGestores } from "@/lib/team.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,7 +108,11 @@ type Profile = { id: string; nome: string; email: string | null };
 type PerformanceSale = Pick<
   SaleRow,
   "id" | "corretor_id" | "status" | "valor_negociado" | "valor_total_comissao"
-> & { venda_comercial_valida?: boolean };
+> & { venda_comercial_valida?: boolean; corretores_ids?: string[] };
+
+/** Corretores participantes da venda (atribuição); quem só cadastrou entra apenas sem participante. */
+const corretoresDaPerformance = (s: PerformanceSale) =>
+  s.corretores_ids && s.corretores_ids.length > 0 ? s.corretores_ids : [s.corretor_id];
 
 function EquipesPage() {
   const { user, hasAny } = useAuth();
@@ -165,10 +170,17 @@ function EquipesPage() {
     setCoLeaders(cl ?? []);
     setTeamLeaderIds((roles ?? []).map((r) => r.user_id));
     const idsValidos = new Set(vendasValidas.map((v) => v.sale_id));
+    let participantes = new Map<string, string[]>();
+    try {
+      participantes = await buscarCorretoresPorVenda((salesRes.data ?? []).map((s) => s.id));
+    } catch (e) {
+      console.error("buscarCorretoresPorVenda (Visão geral):", e);
+    }
     setAllSales(
       (salesRes.data ?? []).map((s) => ({
         ...s,
         venda_comercial_valida: idsValidos.has(s.id),
+        corretores_ids: participantes.get(s.id),
       })),
     );
 
@@ -176,7 +188,9 @@ function EquipesPage() {
     (t ?? []).forEach((x) => ids.add(x.lider_id));
     (tm ?? []).forEach((x) => ids.add(x.membro_id));
     (cl ?? []).forEach((x) => ids.add(x.user_id));
-    (salesRes.data ?? []).forEach((s) => ids.add(s.corretor_id));
+    (salesRes.data ?? []).forEach((s) =>
+      (participantes.get(s.id) ?? [s.corretor_id]).forEach((id) => ids.add(id)),
+    );
     const idList = Array.from(ids);
     const { data: profs } = idList.length
       ? await supabase.from("profiles").select("id, nome, email").in("id", idList)
@@ -487,12 +501,12 @@ function VisaoGeralCard({
     const teamNameById = new Map(teams.map((t) => [t.id, t.nome]));
     const ids = new Set<string>([
       ...members.map((m) => m.membro_id),
-      ...allSales.map((s) => s.corretor_id),
+      ...allSales.flatMap(corretoresDaPerformance),
       ...atribuicao.map((a) => a.user_id),
     ]);
     return Array.from(ids)
       .map((id) => {
-        const vendas = allSales.filter((s) => s.corretor_id === id);
+        const vendas = allSales.filter((s) => corretoresDaPerformance(s).includes(id));
         const comercial = porPessoa.get(id);
         return {
           id,

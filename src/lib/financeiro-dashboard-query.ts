@@ -28,6 +28,7 @@ import type {
   ParcelaRecebimento,
 } from "@/lib/financeiro-dashboard-types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { montarCorretoresPorVenda } from "@/lib/sale-participantes";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
@@ -184,9 +185,12 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     consultarTodasLinhas("vendas", (a, b) =>
       supabase
         .from("sales")
-        .select("id, status, corretor_id, imovel_id, codigo_interno, modalidade", {
-          count: "exact",
-        })
+        .select(
+          "id, status, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade",
+          {
+            count: "exact",
+          },
+        )
         .order("id")
         .range(a, b),
     ),
@@ -210,7 +214,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     consultarTodasLinhas("comissões extras", (a, b) =>
       supabase
         .from("sale_commission_extras")
-        .select("id", { count: "exact" })
+        .select("id, sale_id, papel, user_id", { count: "exact" })
         .order("id")
         .range(a, b),
     ),
@@ -293,6 +297,20 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   const occByOccId = new Map((occs ?? []).map((o) => [o.id, o]));
   const extraIds = new Set((extras ?? []).map((e) => e.id));
 
+  // Atribuição (corretor/equipe/gestor) = corretores PARTICIPANTES da venda, nunca quem só cadastrou
+  // (sales.corretor_id). Com mais de um participante, o primeiro captador/vendedor define a equipe
+  // exibida; o filtro por corretor continua valendo para todos (participantesIds).
+  const corretoresPorVenda = montarCorretoresPorVenda(sales ?? [], extras ?? []);
+  const corretorPrincipal = (saleId: string, criador: string) =>
+    corretoresPorVenda.get(saleId)?.[0] ?? criador;
+  const participantesDaVenda = (saleId: string) =>
+    Array.from(
+      new Set([
+        ...(corretoresPorVenda.get(saleId) ?? []),
+        ...(participantesPorVenda.get(saleId) ?? []),
+      ]),
+    );
+
   // Filtro de corretor (decisão de Denis 27/09): responsável da venda OU pessoa interna citada nas
   // comissões da ocorrência. Participante externo sem cadastro não entra.
   const participantesPorVenda = new Map<string, string[]>();
@@ -349,7 +367,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       continue;
     }
     const cancelada = sale.status === "cancelada" || sale.status === "arquivada";
-    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(sale.corretor_id);
+    const corretorDaVenda = corretorPrincipal(sale.id, sale.corretor_id);
+    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(corretorDaVenda);
     const parceriaOcc = parceriaPorOcc.get(occ.id) ?? 0;
     const imovelLabel = saleLabel(sale);
 
@@ -446,8 +465,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           parcela: n,
           imovelLabel,
           codigoInterno: sale.codigo_interno,
-          corretorId: sale.corretor_id,
-          corretorNome: nomePorId.get(sale.corretor_id) ?? sale.corretor_id,
+          corretorId: corretorDaVenda,
+          corretorNome: nomePorId.get(corretorDaVenda) ?? corretorDaVenda,
           teamId,
           teamNome,
           gestorId,
@@ -463,7 +482,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           hoje,
         }),
       );
-      parcelas[parcelas.length - 1].participantesIds = participantesPorVenda.get(sale.id) ?? [];
+      parcelas[parcelas.length - 1].participantesIds = participantesDaVenda(sale.id);
     });
 
     // Em vendas de Lançamento, o prêmio/bônus (occurrences.premio_valor) é somado à comissão só na
@@ -540,7 +559,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         linkTo: `/vendas/${sale.id}`,
       });
     }
-    if (!teamIdByCorretor.has(sale.corretor_id)) {
+    if (!teamIdByCorretor.has(corretorPrincipal(sale.id, sale.corretor_id))) {
       divergencias.push({
         id: `equipe-nao-resolvida:${sale.id}`,
         gravidade: "baixa",
@@ -570,7 +589,9 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     if (!sale) continue;
     const efet = efetivacaoBySaleId.get(sale.id);
     if (!efet) continue;
-    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(sale.corretor_id);
+    const { teamId, teamNome, gestorId, gestorNome } = equipeDoCorretor(
+      corretorPrincipal(sale.id, sale.corretor_id),
+    );
 
     const parcelasDaVenda = ([1, 2, 3] as const)
       .map((n) => {
@@ -594,7 +615,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       codigoInterno: sale.codigo_interno,
       dataEfetivacao: efet.data_fechamento,
       modalidade: sale.modalidade,
-      saleCorretorId: sale.corretor_id,
+      saleCorretorId: corretorPrincipal(sale.id, sale.corretor_id),
       teamId,
       teamNome,
       gestorId,
@@ -607,7 +628,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       managedBySale: row.managed_by_sale,
       parcelasDaVenda,
     });
-    comissao.participantesIds = participantesPorVenda.get(sale.id) ?? [];
+    comissao.participantesIds = participantesDaVenda(sale.id);
     comissoes.push(comissao);
 
     if (!comissao.beneficiarioNome && !comissao.beneficiarioUserId) {
@@ -694,7 +715,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
   }
 
   const efetivadas: EfetivacaoVenda[] = (efetivadasRaw ?? []).map((r) => {
-    const { teamId, gestorId } = equipeDoCorretor(r.corretor_id);
+    const corretorDaVenda = corretorPrincipal(r.sale_id, r.corretor_id);
+    const { teamId, gestorId } = equipeDoCorretor(corretorDaVenda);
     const occ = occBySaleId.get(r.sale_id);
     const distribuicao = distribuicaoPorVenda.get(r.sale_id);
     return {
@@ -703,7 +725,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       codigoInterno: r.codigo_interno,
       dataEfetivacao: r.data_fechamento,
       modalidade: r.modalidade,
-      corretorId: r.corretor_id,
+      corretorId: corretorDaVenda,
       teamId,
       gestorId,
       valorNegociado: Number(r.valor_negociado),
@@ -716,13 +738,13 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       receitaLiquidaImobiliaria: Number(
         distribuicao?.saldo_liquido_imobiliaria ?? distribuicao?.saldo_imobiliaria ?? 0,
       ),
-      participantesIds: participantesPorVenda.get(r.sale_id) ?? [],
+      participantesIds: participantesDaVenda(r.sale_id),
     };
   });
 
   const corretorOptions = Array.from(
     new Set([
-      ...(sales ?? []).map((s) => s.corretor_id),
+      ...[...corretoresPorVenda.values()].flat(),
       ...[...participantesPorVenda.values()].flat(),
     ]),
   )
