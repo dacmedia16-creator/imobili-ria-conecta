@@ -37,7 +37,10 @@ CREATE TABLE public.organization_members (
   CONSTRAINT organization_members_one_org_per_user UNIQUE (user_id)
 );
 
-CREATE TABLE public.platform_admins (
+-- Pode já existir: a publicação isolada 20260929090000_excluir_cancelar_venda (produção da Única
+-- Escolha) cria esta tabela e is_platform_super_admin com o MESMO esquema e cadastra o dono da
+-- plataforma. Aqui só se cria se faltar; o conteúdo existente é preservado.
+CREATE TABLE IF NOT EXISTS public.platform_admins (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -68,7 +71,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
   SELECT public.user_org(auth.uid())
 $$;
 
-CREATE FUNCTION public.is_platform_super_admin(_user uuid DEFAULT auth.uid()) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_platform_super_admin(_user uuid DEFAULT auth.uid()) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
   SELECT _user IS NOT NULL AND EXISTS (SELECT 1 FROM public.platform_admins WHERE user_id = _user)
 $$;

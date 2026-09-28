@@ -233,12 +233,20 @@ DROP FUNCTION public.mt_inherit_org();
 DROP FUNCTION public.mt_profiles_org();
 DROP FUNCTION public.mt_room_participants_same_org();
 DROP FUNCTION public.platform_create_organization(text, text);
-DROP TABLE public.platform_admins;
 DROP TABLE public.organization_members;
 DROP TABLE public.organizations;
 DROP FUNCTION public.current_org_id();
 DROP FUNCTION public.user_org(uuid);
-DROP FUNCTION public.is_platform_super_admin(uuid);
+-- platform_admins/is_platform_super_admin criadas pela publicação 20260929090000 (marca no COMMENT)
+-- ficam: pertencem à regra de cancelar venda, não à 1a. (Depois das policies de organizations,
+-- que dependem da função.)
+DO $$ BEGIN
+  IF obj_description('public.platform_admins'::regclass, 'pg_class') IS DISTINCT FROM
+     'origem:20260929090000_excluir_cancelar_venda' THEN
+    DROP TABLE public.platform_admins;
+    DROP FUNCTION public.is_platform_super_admin(uuid);
+  END IF;
+END $$;
 DROP FUNCTION public.legacy_default_org_id();
 
 COMMIT;

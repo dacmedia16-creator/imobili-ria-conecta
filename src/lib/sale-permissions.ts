@@ -68,6 +68,15 @@ export function gestorPodeEncerrar(isGestor: boolean, status: SaleStatus): boole
   return gestorPodeEditar(isGestor, status, false);
 }
 
+/** Cancelar venda (regra de Denis, 28/09/2026): só o dono da plataforma (platform_admins), e só
+ * depois do rascunho — rascunho se exclui, não se cancela. Espelha o bloco "cancelada" do trigger
+ * validate_sale_status_transition, que é a autoridade. */
+export function podeCancelarVenda(isPlatformAdmin: boolean, status: SaleStatus): boolean {
+  return (
+    isPlatformAdmin && status !== "rascunho" && status !== "cancelada" && status !== "arquivada"
+  );
+}
+
 export function juridicoPodeEditar(isJuridico: boolean, status: SaleStatus): boolean {
   return (
     isJuridico && (["aprovada_gestor", "em_elaboracao_contrato"] as SaleStatus[]).includes(status)
