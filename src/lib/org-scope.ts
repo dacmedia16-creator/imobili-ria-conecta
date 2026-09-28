@@ -53,6 +53,24 @@ export async function listOrgUserIds(admin: OrgAdminClient, orgId: string): Prom
   return new Set((data ?? []).map((row: { id: string }) => row.id));
 }
 
+/**
+ * Último acesso (auth.users.last_sign_in_at) SÓ dos usuários da agência. Usa a RPC
+ * `mt_2b_org_auth_users` (EXECUTE só para service_role), que junta organization_members com
+ * auth.users no banco — o servidor nunca pagina o auth.users global de todas as agências.
+ */
+export async function listOrgLastSignIns(
+  admin: OrgAdminClient,
+  orgId: string,
+): Promise<Record<string, string | null>> {
+  const { data, error } = await admin.rpc("mt_2b_org_auth_users", { _org: orgId });
+  if (error) throw new Error(error.message);
+  const map: Record<string, string | null> = {};
+  for (const row of (data ?? []) as { user_id: string; last_sign_in_at: string | null }[]) {
+    map[row.user_id] = row.last_sign_in_at ?? null;
+  }
+  return map;
+}
+
 /** Confirma que o registro (por id) pertence à agência. */
 export async function rowBelongsToOrg(
   admin: OrgAdminClient,

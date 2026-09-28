@@ -1,6 +1,6 @@
 /**
  * Suíte de integração das regras financeiras — chama as RPCs reais (calcular_distribuicao_venda,
- * sync_occurrence_commissions, visao_executiva_stats, metas_progresso) contra o Supabase do projeto
+ * sync_occurrence_commissions, participacoes_comerciais_validas, metas_progresso) contra o Supabase do projeto
  * (mesmo processo usado manualmente durante o desenvolvimento: INSERT de vendas de teste marcadas
  * com codigo_interno único, nunca UPDATE — trg_sales_comissao_lock/trg_validate_sale_status bloqueiam
  * UPDATE fora do fluxo autenticado da tela, mas não bloqueiam INSERT). Cada teste cria seus próprios
@@ -50,15 +50,14 @@ type Distribuicao = {
 type VisaoExecutivaStats = {
   ranking_corretor: { corretor_id: string; comissao: number }[];
   ranking_equipe: { team_id: string | null; comissao: number; vendas_fechadas: number }[];
-  resumo_operacional: {
-    vgv: number;
-    comissao_bruta_operacao: number;
-    parceria_externa: number;
-    parte_unidade: number;
-    receita_liquida_imobiliaria: number;
-    quantidade_vendas: number;
-    quantidade_captacoes: number;
-  };
+};
+type Participacao = {
+  sale_id: string;
+  user_id: string;
+  valor_individual: number;
+  valor_equipe: number;
+  conta_equipe: boolean;
+  team_id: string | null;
 };
 type MetasProgresso = { corretor: { corretor_id: string; comissao_realizada: number }[] };
 
@@ -183,35 +182,74 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     if (error) throw error;
   }
 
-  async function visaoExecutiva() {
-    // A RPC foi removida em 20260901222000_centraliza_atribuicao_comercial.sql e não existe mais no
-    // banco (types.ts regenerado na Fase 2a); este teste de integração está obsoleto — pendência.
-    const { data, error } = await supabaseAdmin.rpc("visao_executiva_stats" as never);
+  // A antiga visao_executiva_stats() foi removida em 20260901222000_centraliza_atribuicao_comercial.sql.
+  // A fonte canônica atual da atribuição (ranking individual, equipe, metas e detalhe do Desempenho)
+  // é participacoes_comerciais_validas(); as RPCs de tela (desempenho_*_periodo) exigem papel via
+  // auth.uid() e não respondem ao service_role, por isso a suíte agrega a fonte canônica diretamente.
+  async function participacoes() {
+    const { data, error } = await supabaseAdmin.rpc("participacoes_comerciais_validas");
     if (error) throw error;
-    return data as unknown as VisaoExecutivaStats;
+    return (data ?? []) as Participacao[];
+  }
+
+  /** Mesmo agrupamento da Visão Executiva: individual por pessoa; equipe só com conta_equipe
+   * (team_id null = grupo "Sem equipe"), venda contada uma vez por equipe. */
+  async function visaoExecutiva(): Promise<VisaoExecutivaStats> {
+    const rows = await participacoes();
+    const porCorretor = new Map<string, number>();
+    const porEquipe = new Map<string | null, { comissao: number; vendas: Set<string> }>();
+    for (const r of rows) {
+      porCorretor.set(r.user_id, (porCorretor.get(r.user_id) ?? 0) + Number(r.valor_individual));
+      if (!r.conta_equipe) continue;
+      const eq = porEquipe.get(r.team_id) ?? { comissao: 0, vendas: new Set<string>() };
+      eq.comissao += Number(r.valor_equipe);
+      eq.vendas.add(r.sale_id);
+      porEquipe.set(r.team_id, eq);
+    }
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    return {
+      ranking_corretor: [...porCorretor].map(([corretor_id, c]) => ({
+        corretor_id,
+        comissao: round2(c),
+      })),
+      ranking_equipe: [...porEquipe].map(([team_id, e]) => ({
+        team_id,
+        comissao: round2(e.comissao),
+        vendas_fechadas: e.vendas.size,
+      })),
+    };
   }
 
   async function comissaoRankingCorretor(userId: string) {
     const stats = await visaoExecutiva();
-    const row = (stats.ranking_corretor ?? []).find((r) => r.corretor_id === userId);
+    const row = stats.ranking_corretor.find((r) => r.corretor_id === userId);
     return row ? Number(row.comissao) : 0;
   }
 
   async function comissaoRankingEquipe(teamId: string) {
     const stats = await visaoExecutiva();
-    const row = (stats.ranking_equipe ?? []).find((r) => r.team_id === teamId);
+    const row = stats.ranking_equipe.find((r) => r.team_id === teamId);
     return row ? Number(row.comissao) : 0;
   }
 
   async function vendasFechadasRankingEquipe(teamId: string) {
     const stats = await visaoExecutiva();
-    const row = (stats.ranking_equipe ?? []).find((r) => r.team_id === teamId);
+    const row = stats.ranking_equipe.find((r) => r.team_id === teamId);
     return row ? Number(row.vendas_fechadas) : 0;
   }
 
-  async function resumoOperacional() {
-    const stats = await visaoExecutiva();
-    return stats.resumo_operacional;
+  /** Resumo da operação para UMA venda: a tela (resumo_desempenho_periodo) soma
+   * calcular_distribuicao_venda() de cada venda de vendas_comerciais_canonicas(). */
+  async function resumoDaVenda(saleId: string) {
+    const { data, error } = await supabaseAdmin.rpc("vendas_comerciais_canonicas");
+    if (error) throw error;
+    const entra = ((data ?? []) as { sale_id: string }[]).some((v) => v.sale_id === saleId);
+    const d = await distribuicao(saleId);
+    return {
+      entra,
+      comissao_bruta_operacao: entra ? d.comissao_bruta : 0,
+      receita_liquida_imobiliaria: entra ? d.saldo_liquido_imobiliaria : 0,
+    };
   }
 
   async function metasProgressoCorretor(
@@ -1389,10 +1427,9 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     if (metaErr) throw metaErr;
     createdMetaIds.push(metaRow.id);
 
-    const [captadorAntes, vendedorAntes, resumoAntes, metaCaptadorAntes] = await Promise.all([
+    const [captadorAntes, vendedorAntes, metaCaptadorAntes] = await Promise.all([
       comissaoRankingCorretor(captadorId),
       comissaoRankingCorretor(vendedorId),
-      resumoOperacional(),
       metasProgressoCorretor(captadorId),
     ]);
 
@@ -1432,10 +1469,10 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     expect(Number(linhaVendedor?.valor)).toBe(dist.liquido_vendedor);
 
     // Visão Executiva: o ranking do captador/vendedor bate com o mesmo líquido gravado acima.
-    const [captadorDepois, vendedorDepois, resumoDepois, metaCaptadorDepois] = await Promise.all([
+    const [captadorDepois, vendedorDepois, resumoVenda, metaCaptadorDepois] = await Promise.all([
       comissaoRankingCorretor(captadorId),
       comissaoRankingCorretor(vendedorId),
-      resumoOperacional(),
+      resumoDaVenda(saleId),
       metasProgressoCorretor(captadorId),
     ]);
     expect(captadorDepois - captadorAntes).toBe(dist.liquido_captador);
@@ -1444,13 +1481,10 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
     // pessoa, mesmo líquido — não pode divergir do ranking_corretor acima.
     expect(metaCaptadorDepois - metaCaptadorAntes).toBe(dist.liquido_captador);
 
-    // resumo_operacional (mesma tela) usa a mesma calcular_distribuicao_venda() por baixo — os
-    // agregados da operação também batem com o que a RPC calculou pra essa venda especificamente.
-    expect(resumoDepois.comissao_bruta_operacao - resumoAntes.comissao_bruta_operacao).toBe(
-      dist.comissao_bruta,
-    );
-    expect(resumoDepois.receita_liquida_imobiliaria - resumoAntes.receita_liquida_imobiliaria).toBe(
-      dist.saldo_liquido_imobiliaria,
-    );
+    // Resumo da operação (mesma tela) soma calcular_distribuicao_venda() das vendas canônicas: a
+    // venda entra no resumo e contribui exatamente com o que a RPC calculou para ela.
+    expect(resumoVenda.entra).toBe(true);
+    expect(resumoVenda.comissao_bruta_operacao).toBe(dist.comissao_bruta);
+    expect(resumoVenda.receita_liquida_imobiliaria).toBe(dist.saldo_liquido_imobiliaria);
   });
 });

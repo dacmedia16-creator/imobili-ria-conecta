@@ -305,13 +305,13 @@ export const setUserRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Último login (auth.users.last_sign_in_at) de cada usuário — só dá pra ler via Admin API
- * (service role), não existe em public.profiles nem é exposto por RLS comum. */
+/** Último login (auth.users.last_sign_in_at) dos usuários da própria agência — lido pelo
+ * servidor (service role) via RPC por agência; não existe em public.profiles nem é exposto por RLS. */
 export const listLastSignIns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { userId } = context;
-    const { supabaseAdmin, admin, orgId, actor, scope } = await callerContext(userId);
+    const { admin, orgId, actor, scope } = await callerContext(userId);
     if (
       !actor.roles.some((r) =>
         (["admin", "super_admin", "gestor", "team_leader"] as ManagedRole[]).includes(r),
@@ -320,16 +320,6 @@ export const listLastSignIns = createServerFn({ method: "GET" })
       throw new Error("Você não tem permissão para ver essa informação.");
     }
 
-    // auth.users é global: devolve só usuários da agência de quem pergunta.
-    const orgUserIds = await scope.listOrgUserIds(admin, orgId);
-    const map: Record<string, string | null> = {};
-    let page = 1;
-    for (;;) {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) throw new Error(error.message);
-      for (const u of data.users) if (orgUserIds.has(u.id)) map[u.id] = u.last_sign_in_at ?? null;
-      if (data.users.length < 1000) break;
-      page += 1;
-    }
-    return map;
+    // auth.users é global: a RPC do banco devolve só os usuários da agência de quem pergunta.
+    return scope.listOrgLastSignIns(admin, orgId);
   });

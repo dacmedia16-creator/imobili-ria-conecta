@@ -25,7 +25,9 @@ import {
   ShieldAlert,
   CheckCircle2,
   Settings2,
+  Building2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -125,10 +127,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
+  // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Só mostra o menu;
+  // a rota, o servidor e as RPCs platform_* repetem a verificação.
+  const [platformAdmin, setPlatformAdmin] = useState(false);
   useEffect(() => {
     let alive = true;
     exclusiveEnabled().then((enabled) => {
       if (alive) setExclusiveVisible(enabled);
+    });
+    supabase.rpc("is_platform_super_admin").then(({ data, error }) => {
+      if (alive) setPlatformAdmin(!error && data === true);
     });
     return () => {
       alive = false;
@@ -246,6 +254,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       label: "Configurações",
       icon: Settings2,
       show: hasAny(["super_admin"]),
+    },
+    {
+      to: "/plataforma/imobiliarias",
+      label: "Imobiliárias",
+      icon: Building2,
+      show: platformAdmin,
     },
   ];
 

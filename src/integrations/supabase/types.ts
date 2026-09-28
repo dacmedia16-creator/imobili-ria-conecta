@@ -1400,28 +1400,40 @@ export type Database = {
       };
       organizations: {
         Row: {
+          cnpj: string | null;
+          cor_primaria: string | null;
+          cor_secundaria: string | null;
           created_at: string;
           created_by: string | null;
           id: string;
           legacy_default: boolean;
+          logo_path: string | null;
           nome: string;
           slug: string;
           status: string;
         };
         Insert: {
+          cnpj?: string | null;
+          cor_primaria?: string | null;
+          cor_secundaria?: string | null;
           created_at?: string;
           created_by?: string | null;
           id?: string;
           legacy_default?: boolean;
+          logo_path?: string | null;
           nome: string;
           slug: string;
           status?: string;
         };
         Update: {
+          cnpj?: string | null;
+          cor_primaria?: string | null;
+          cor_secundaria?: string | null;
           created_at?: string;
           created_by?: string | null;
           id?: string;
           legacy_default?: boolean;
+          logo_path?: string | null;
           nome?: string;
           slug?: string;
           status?: string;
@@ -3630,6 +3642,14 @@ export type Database = {
         Args: { _email: string; _id: string; _meta: Json; _org: string };
         Returns: undefined;
       };
+      mt_2b_org_auth_users: {
+        Args: { _org: string };
+        Returns: {
+          email: string;
+          last_sign_in_at: string;
+          user_id: string;
+        }[];
+      };
       participacoes_comerciais_validas: {
         Args: never;
         Returns: {
@@ -3652,6 +3672,15 @@ export type Database = {
       };
       platform_update_organization: {
         Args: { _id: string; _nome: string; _slug: string };
+        Returns: undefined;
+      };
+      platform_update_organization_profile: {
+        Args: {
+          _cnpj: string;
+          _cor_primaria: string;
+          _cor_secundaria: string;
+          _id: string;
+        };
         Returns: undefined;
       };
       producao_por_pessoa_dados: { Args: never; Returns: Json };
