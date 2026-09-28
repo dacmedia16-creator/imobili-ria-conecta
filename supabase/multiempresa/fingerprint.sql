@@ -7,7 +7,9 @@ SELECT md5(string_agg(x, E'\n' ORDER BY x)) FROM (
   UNION ALL SELECT 'idx:' || indexdef FROM pg_indexes WHERE schemaname = 'public'
   UNION ALL SELECT 'pol:' || schemaname || '.' || tablename || '.' || policyname || ':' || permissive || ':' || cmd || ':' || coalesce(qual, '') || ':' || coalesce(with_check, '')
     FROM pg_policies WHERE schemaname IN ('public', 'storage')
-  UNION ALL SELECT 'fn:' || p.oid::regprocedure::text || ':' || md5(pg_get_functiondef(p.oid)) || ':' || coalesce(p.proacl::text, '')
+  -- ACLs são conjuntos: CREATE OR REPLACE pode reordenar entradas sem mudar privilégios.
+  UNION ALL SELECT 'fn:' || p.oid::regprocedure::text || ':' || md5(pg_get_functiondef(p.oid)) || ':' ||
+      coalesce((SELECT string_agg(acl::text, ',' ORDER BY acl::text) FROM unnest(p.proacl) acl), '')
     FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p')
     AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
   UNION ALL SELECT 'trg:' || pg_get_triggerdef(t.oid) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
