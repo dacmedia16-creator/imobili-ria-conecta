@@ -120,7 +120,14 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
     }
     // Usuários primeiro (ON DELETE CASCADE em membros/perfis/papéis), depois as agências fictícias.
     for (const id of createdUsers) await admin.auth.admin.deleteUser(id);
-    for (const org of createdOrgs) await admin.from("organizations").delete().eq("id", org);
+    for (const org of new Set(createdOrgs)) {
+      if ([ORG_A, ORG_B].includes(org)) continue;
+      // Trilha de auditoria da agência fictícia (FK activity_logs_org_fk) sai junto; sem isso a
+      // agência C sobrava na homologação a cada execução.
+      await admin.from("activity_logs").delete().eq("organization_id", org);
+      const r = await admin.from("organizations").delete().eq("id", org);
+      if (r.error) console.log(`LIMPEZA agência: ${r.error.message}`);
+    }
   }, 90_000);
 
   it("superadmin da plataforma cria a agência C com CNPJ, cores, logo e 1º admin por convite", async () => {

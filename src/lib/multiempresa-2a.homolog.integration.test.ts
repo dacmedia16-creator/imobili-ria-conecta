@@ -30,7 +30,8 @@ const ENABLED =
 
 const ORG_A = "00000000-0000-4000-8000-000000000001"; // organização legada (sem dados reais)
 const ORG_B = "2a000000-0000-4000-8000-0000000000b0"; // Agência B fictícia
-const RUN = Date.now().toString(36);
+// Sufixo aleatório: E2E em paralelo podem nascer no mesmo ms (a limpeza filtra por RUN).
+const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Homolog-${RUN}-x9!`;
 
 const guardFetch: typeof fetch = (input, init) => {
@@ -113,7 +114,10 @@ describe.skipIf(!ENABLED)("multiempresa 2a — homologação real (Auth + Storag
               for (const d of deep ?? []) paths.push(`${prefix}/${dir.name}/${f.name}/${d.name}`);
             }
           }
-          if (paths.length) await admin.storage.from(bucket).remove(paths);
+          // Só os arquivos DESTE ensaio (nome com o RUN): não apaga documentos de outras execuções
+          // paralelas nem dados de demonstração que vivem nos prefixos das agências A/B.
+          const mine = paths.filter((p) => p.includes(`-${RUN}.`));
+          if (mine.length) await admin.storage.from(bucket).remove(mine);
         }
       }
     }
