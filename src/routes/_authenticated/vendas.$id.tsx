@@ -107,6 +107,7 @@ import {
   gestorPodeEditar,
   juridicoPodeEditar,
   gestorPodeEncerrar,
+  podeCancelarVenda,
   podeEditarVenda,
   comissaoValorExcedido,
   podeVerOcorrencia,
@@ -394,6 +395,23 @@ function SaleDetail() {
     ...saleManagementCapabilities(null),
   });
   const [canUploadCertidoes, setCanUploadCertidoes] = useState(false);
+  // Dono da plataforma (platform_admins): único que cancela venda. Falha fechada — erro = false.
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  useEffect(() => {
+    if (!user?.id) {
+      setIsPlatformAdmin(false);
+      return;
+    }
+    let ativo = true;
+    (supabase.rpc as unknown as (fn: string) => PromiseLike<{ data: unknown; error: unknown }>)(
+      "is_platform_super_admin",
+    ).then(({ data, error }) => {
+      if (ativo) setIsPlatformAdmin(!error && data === true);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [user?.id]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [contratoDialogOpen, setContratoDialogOpen] = useState(false);
@@ -3805,18 +3823,18 @@ function SaleDetail() {
           )}
 
           {canCloseSale && status !== "arquivada" && status !== "cancelada" && (
-            <>
-              <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
-                Arquivar
-              </Button>
-              <Button
-                variant="outline"
-                className="text-destructive hover:text-destructive"
-                onClick={() => openArchiveDialog("cancelada")}
-              >
-                Cancelar venda
-              </Button>
-            </>
+            <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
+              Arquivar
+            </Button>
+          )}
+          {podeCancelarVenda(isPlatformAdmin, status) && (
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => openArchiveDialog("cancelada")}
+            >
+              Cancelar venda
+            </Button>
           )}
 
           {canDelete && (
