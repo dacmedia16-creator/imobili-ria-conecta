@@ -184,7 +184,9 @@ describe.skipIf(!HAS_SUPABASE_ADMIN_ENV)("Regras financeiras (integração via R
   }
 
   async function visaoExecutiva() {
-    const { data, error } = await supabaseAdmin.rpc("visao_executiva_stats");
+    // A RPC foi removida em 20260901222000_centraliza_atribuicao_comercial.sql e não existe mais no
+    // banco (types.ts regenerado na Fase 2a); este teste de integração está obsoleto — pendência.
+    const { data, error } = await supabaseAdmin.rpc("visao_executiva_stats" as never);
     if (error) throw error;
     return data as unknown as VisaoExecutivaStats;
   }

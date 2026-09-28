@@ -158,7 +158,9 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
 
     const { data: extractions } = await supabase
       .from("document_extractions")
-      .select("raw_json, sale_documents(tipo, parte)")
+      // FK nomeada: a multiempresa (1b) adicionou uma 2ª FK composta (document_id, organization_id)
+      // e o embed sem dica fica ambíguo no PostgREST (PGRST201).
+      .select("raw_json, sale_documents!document_extractions_document_id_fkey(tipo, parte)")
       .eq("sale_id", data.saleId)
       .eq("status", "done");
 

@@ -87,7 +87,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM mt_1b_definer;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM mt_1b_definer;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public, auth, storage FROM mt_1b_definer;
 REVOKE SELECT ON storage.objects FROM mt_1b_definer;
-REVOKE USAGE ON SCHEMA public, auth, storage FROM mt_1b_definer;
+REVOKE ALL ON SCHEMA public, auth, storage FROM mt_1b_definer;
 REVOKE authenticated FROM mt_1b_definer;
 DROP TABLE public.mt_1b_function_backup;
 DROP FUNCTION public.mt_1b_set_org();

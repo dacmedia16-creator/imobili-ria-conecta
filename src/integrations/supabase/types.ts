@@ -14,6 +14,7 @@ export type Database = {
           autor_id: string | null;
           created_at: string;
           id: string;
+          organization_id: string;
           payload: Json | null;
           sale_id: string | null;
         };
@@ -22,6 +23,7 @@ export type Database = {
           autor_id?: string | null;
           created_at?: string;
           id?: string;
+          organization_id?: string;
           payload?: Json | null;
           sale_id?: string | null;
         };
@@ -30,16 +32,38 @@ export type Database = {
           autor_id?: string | null;
           created_at?: string;
           id?: string;
+          organization_id?: string;
           payload?: Json | null;
           sale_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "activity_logs_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "activity_logs_sale_id_fkey";
             columns: ["sale_id"];
             isOneToOne: false;
             referencedRelation: "sales";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_activity_logs_autor_id_org_fk";
+            columns: ["autor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_activity_logs_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
           },
         ];
       };
@@ -54,6 +78,7 @@ export type Database = {
           endereco: string | null;
           id: string;
           nome: string | null;
+          organization_id: string;
           profissao: string | null;
           razao_social: string | null;
           rg: string | null;
@@ -72,6 +97,7 @@ export type Database = {
           endereco?: string | null;
           id?: string;
           nome?: string | null;
+          organization_id?: string;
           profissao?: string | null;
           razao_social?: string | null;
           rg?: string | null;
@@ -90,6 +116,7 @@ export type Database = {
           endereco?: string | null;
           id?: string;
           nome?: string | null;
+          organization_id?: string;
           profissao?: string | null;
           razao_social?: string | null;
           rg?: string | null;
@@ -98,7 +125,110 @@ export type Database = {
           updated_at?: string;
           updated_by?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "clientes_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      conta_max_identity_links: {
+        Row: {
+          active: boolean;
+          adm_user_id: string;
+          created_at: string;
+          id: string;
+          revoked_at: string | null;
+          workos_user_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          adm_user_id: string;
+          created_at?: string;
+          id?: string;
+          revoked_at?: string | null;
+          workos_user_id: string;
+        };
+        Update: {
+          active?: boolean;
+          adm_user_id?: string;
+          created_at?: string;
+          id?: string;
+          revoked_at?: string | null;
+          workos_user_id?: string;
+        };
         Relationships: [];
+      };
+      conta_max_ticket_uses: {
+        Row: {
+          expires_at: string;
+          jti: string;
+          used_at: string;
+        };
+        Insert: {
+          expires_at: string;
+          jti: string;
+          used_at?: string;
+        };
+        Update: {
+          expires_at?: string;
+          jti?: string;
+          used_at?: string;
+        };
+        Relationships: [];
+      };
+      corretor_positioning_regions: {
+        Row: {
+          corretor_id: string;
+          created_at: string;
+          organization_id: string;
+          region_id: number;
+        };
+        Insert: {
+          corretor_id: string;
+          created_at?: string;
+          organization_id?: string;
+          region_id: number;
+        };
+        Update: {
+          corretor_id?: string;
+          created_at?: string;
+          organization_id?: string;
+          region_id?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "corretor_positioning_regions_corretor_id_fkey";
+            columns: ["corretor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "corretor_positioning_regions_corretor_org_fk";
+            columns: ["corretor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "corretor_positioning_regions_region_id_fkey";
+            columns: ["region_id"];
+            isOneToOne: false;
+            referencedRelation: "positioning_regions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "corretor_positioning_regions_region_org_fk";
+            columns: ["region_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "positioning_regions";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
       };
       document_extractions: {
         Row: {
@@ -106,6 +236,7 @@ export type Database = {
           document_id: string;
           error: string | null;
           id: string;
+          organization_id: string;
           raw_json: Json | null;
           sale_id: string;
           status: string;
@@ -116,6 +247,7 @@ export type Database = {
           document_id: string;
           error?: string | null;
           id?: string;
+          organization_id?: string;
           raw_json?: Json | null;
           sale_id: string;
           status?: string;
@@ -126,6 +258,7 @@ export type Database = {
           document_id?: string;
           error?: string | null;
           id?: string;
+          organization_id?: string;
           raw_json?: Json | null;
           sale_id?: string;
           status?: string;
@@ -140,11 +273,398 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "document_extractions_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "document_extractions_sale_id_fkey";
             columns: ["sale_id"];
             isOneToOne: false;
             referencedRelation: "sales";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_document_extractions_document_id_org_fk";
+            columns: ["document_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_documents";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_document_extractions_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      exclusive_capture_setting_history: {
+        Row: {
+          action: string;
+          actor_id: string;
+          changed_at: string;
+          id: string;
+          organization_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_id: string;
+          changed_at?: string;
+          id?: string;
+          organization_id?: string;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string;
+          changed_at?: string;
+          id?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exclusive_capture_setting_history_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_capture_setting_history_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_capture_setting_history_actor_id_org_fk";
+            columns: ["actor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      exclusive_capture_settings: {
+        Row: {
+          enabled: boolean;
+          id: boolean;
+          organization_id: string;
+        };
+        Insert: {
+          enabled?: boolean;
+          id?: boolean;
+          organization_id?: string;
+        };
+        Update: {
+          enabled?: boolean;
+          id?: boolean;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exclusive_capture_settings_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      exclusive_captures: {
+        Row: {
+          broker_cpf: string;
+          broker_creci: string;
+          broker_name: string;
+          captor_id: string;
+          created_at: string;
+          created_by: string;
+          created_on_sp: string;
+          form_data: Json;
+          id: string;
+          organization_id: string;
+          status: string;
+          template: string;
+          updated_at: string;
+        };
+        Insert: {
+          broker_cpf?: string;
+          broker_creci?: string;
+          broker_name?: string;
+          captor_id: string;
+          created_at?: string;
+          created_by: string;
+          created_on_sp?: string;
+          form_data?: Json;
+          id?: string;
+          organization_id?: string;
+          status?: string;
+          template: string;
+          updated_at?: string;
+        };
+        Update: {
+          broker_cpf?: string;
+          broker_creci?: string;
+          broker_name?: string;
+          captor_id?: string;
+          created_at?: string;
+          created_by?: string;
+          created_on_sp?: string;
+          form_data?: Json;
+          id?: string;
+          organization_id?: string;
+          status?: string;
+          template?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exclusive_captures_captor_id_fkey";
+            columns: ["captor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_captures_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_captures_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_captures_captor_id_org_fk";
+            columns: ["captor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_captures_created_by_org_fk";
+            columns: ["created_by", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      exclusive_documents: {
+        Row: {
+          capture_id: string;
+          created_at: string;
+          file_name: string;
+          id: string;
+          kind: string;
+          organization_id: string;
+          owner_index: number;
+          storage_path: string;
+          uploaded_by: string;
+        };
+        Insert: {
+          capture_id: string;
+          created_at?: string;
+          file_name: string;
+          id?: string;
+          kind: string;
+          organization_id?: string;
+          owner_index?: number;
+          storage_path: string;
+          uploaded_by: string;
+        };
+        Update: {
+          capture_id?: string;
+          created_at?: string;
+          file_name?: string;
+          id?: string;
+          kind?: string;
+          organization_id?: string;
+          owner_index?: number;
+          storage_path?: string;
+          uploaded_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exclusive_documents_capture_id_fkey";
+            columns: ["capture_id"];
+            isOneToOne: false;
+            referencedRelation: "exclusive_captures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_documents_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_documents_uploaded_by_fkey";
+            columns: ["uploaded_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_documents_capture_id_org_fk";
+            columns: ["capture_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "exclusive_captures";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_documents_uploaded_by_org_fk";
+            columns: ["uploaded_by", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      exclusive_history: {
+        Row: {
+          action: string;
+          actor_id: string;
+          capture_id: string;
+          created_at: string;
+          detail: string | null;
+          id: number;
+          organization_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_id: string;
+          capture_id: string;
+          created_at?: string;
+          detail?: string | null;
+          id?: never;
+          organization_id?: string;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string;
+          capture_id?: string;
+          created_at?: string;
+          detail?: string | null;
+          id?: never;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exclusive_history_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_history_capture_id_fkey";
+            columns: ["capture_id"];
+            isOneToOne: false;
+            referencedRelation: "exclusive_captures";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exclusive_history_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_history_actor_id_org_fk";
+            columns: ["actor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_exclusive_history_capture_id_org_fk";
+            columns: ["capture_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "exclusive_captures";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      juridico_agent_audit: {
+        Row: {
+          action: string;
+          agent_name: string;
+          created_at: string;
+          document_id: string | null;
+          id: string;
+          organization_id: string;
+          request_id: string | null;
+          result_count: number;
+          sale_id: string | null;
+        };
+        Insert: {
+          action: string;
+          agent_name: string;
+          created_at?: string;
+          document_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          request_id?: string | null;
+          result_count: number;
+          sale_id?: string | null;
+        };
+        Update: {
+          action?: string;
+          agent_name?: string;
+          created_at?: string;
+          document_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          request_id?: string | null;
+          result_count?: number;
+          sale_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "juridico_agent_audit_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "juridico_agent_audit_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "juridico_agent_audit_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "mt_1b_juridico_agent_audit_document_id_org_fk";
+            columns: ["document_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_documents";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_juridico_agent_audit_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
           },
         ];
       };
@@ -156,6 +676,7 @@ export type Database = {
           id: string;
           mes: string;
           meta_comissao: number;
+          organization_id: string;
           team_id: string | null;
           tipo: string;
           updated_at: string;
@@ -167,6 +688,7 @@ export type Database = {
           id?: string;
           mes: string;
           meta_comissao: number;
+          organization_id?: string;
           team_id?: string | null;
           tipo: string;
           updated_at?: string;
@@ -178,11 +700,19 @@ export type Database = {
           id?: string;
           mes?: string;
           meta_comissao?: number;
+          organization_id?: string;
           team_id?: string | null;
           tipo?: string;
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "metas_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "metas_team_id_fkey";
             columns: ["team_id"];
@@ -190,7 +720,136 @@ export type Database = {
             referencedRelation: "teams";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "mt_1b_metas_corretor_id_org_fk";
+            columns: ["corretor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_metas_created_by_org_fk";
+            columns: ["created_by", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_metas_team_id_org_fk";
+            columns: ["team_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "organization_id"];
+          },
         ];
+      };
+      mt_1b_function_backup: {
+        Row: {
+          anon_exec: boolean;
+          ddl: string;
+          owner_name: string;
+          signature: string;
+        };
+        Insert: {
+          anon_exec?: boolean;
+          ddl: string;
+          owner_name: string;
+          signature: string;
+        };
+        Update: {
+          anon_exec?: boolean;
+          ddl?: string;
+          owner_name?: string;
+          signature?: string;
+        };
+        Relationships: [];
+      };
+      mt_1c_function_backup: {
+        Row: {
+          ddl: string | null;
+          signature: string | null;
+        };
+        Insert: {
+          ddl?: string | null;
+          signature?: string | null;
+        };
+        Update: {
+          ddl?: string | null;
+          signature?: string | null;
+        };
+        Relationships: [];
+      };
+      mt_1c_policy_backup: {
+        Row: {
+          cmd: string | null;
+          permissive: string | null;
+          policyname: unknown;
+          qual: string | null;
+          roles: unknown[] | null;
+          with_check: string | null;
+        };
+        Insert: {
+          cmd?: string | null;
+          permissive?: string | null;
+          policyname?: unknown;
+          qual?: string | null;
+          roles?: unknown[] | null;
+          with_check?: string | null;
+        };
+        Update: {
+          cmd?: string | null;
+          permissive?: string | null;
+          policyname?: unknown;
+          qual?: string | null;
+          roles?: unknown[] | null;
+          with_check?: string | null;
+        };
+        Relationships: [];
+      };
+      mt_1d_function_backup: {
+        Row: {
+          ddl: string;
+          signature: string;
+        };
+        Insert: {
+          ddl: string;
+          signature: string;
+        };
+        Update: {
+          ddl?: string;
+          signature?: string;
+        };
+        Relationships: [];
+      };
+      mt_1e_function_backup: {
+        Row: {
+          ddl: string;
+          signature: string;
+        };
+        Insert: {
+          ddl: string;
+          signature: string;
+        };
+        Update: {
+          ddl?: string;
+          signature?: string;
+        };
+        Relationships: [];
+      };
+      mt_2a_function_backup: {
+        Row: {
+          ddl: string;
+          signature: string;
+        };
+        Insert: {
+          ddl: string;
+          signature: string;
+        };
+        Update: {
+          ddl?: string;
+          signature?: string;
+        };
+        Relationships: [];
       };
       notifications: {
         Row: {
@@ -198,6 +857,7 @@ export type Database = {
           id: string;
           lida: boolean;
           mensagem: string | null;
+          organization_id: string;
           sale_id: string | null;
           tipo: string;
           titulo: string;
@@ -208,6 +868,7 @@ export type Database = {
           id?: string;
           lida?: boolean;
           mensagem?: string | null;
+          organization_id?: string;
           sale_id?: string | null;
           tipo: string;
           titulo: string;
@@ -218,12 +879,34 @@ export type Database = {
           id?: string;
           lida?: boolean;
           mensagem?: string | null;
+          organization_id?: string;
           sale_id?: string | null;
           tipo?: string;
           titulo?: string;
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "mt_1b_notifications_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_notifications_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "notifications_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "notifications_sale_id_fkey";
             columns: ["sale_id"];
@@ -241,6 +924,7 @@ export type Database = {
           managed_by_sale: boolean;
           nome: string | null;
           occurrence_id: string;
+          organization_id: string;
           papel: string;
           percentual: number | null;
           sale_commission_extra_id: string | null;
@@ -255,6 +939,7 @@ export type Database = {
           managed_by_sale?: boolean;
           nome?: string | null;
           occurrence_id: string;
+          organization_id?: string;
           papel: string;
           percentual?: number | null;
           sale_commission_extra_id?: string | null;
@@ -269,6 +954,7 @@ export type Database = {
           managed_by_sale?: boolean;
           nome?: string | null;
           occurrence_id?: string;
+          organization_id?: string;
           papel?: string;
           percentual?: number | null;
           sale_commission_extra_id?: string | null;
@@ -278,10 +964,38 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "mt_1b_occurrence_commissions_occurrence_id_org_fk";
+            columns: ["occurrence_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "occurrences";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_occurrence_commissions_sale_commission_extra_id_org_fk";
+            columns: ["sale_commission_extra_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_commission_extras";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_occurrence_commissions_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "occurrence_commissions_occurrence_id_fkey";
             columns: ["occurrence_id"];
             isOneToOne: false;
             referencedRelation: "occurrences";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "occurrence_commissions_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
             referencedColumns: ["id"];
           },
           {
@@ -304,6 +1018,7 @@ export type Database = {
           id: string;
           nome: string | null;
           occurrence_id: string;
+          organization_id: string;
           percentual: number | null;
           pix: string | null;
           tipo: string | null;
@@ -319,6 +1034,7 @@ export type Database = {
           id?: string;
           nome?: string | null;
           occurrence_id: string;
+          organization_id?: string;
           percentual?: number | null;
           pix?: string | null;
           tipo?: string | null;
@@ -334,6 +1050,7 @@ export type Database = {
           id?: string;
           nome?: string | null;
           occurrence_id?: string;
+          organization_id?: string;
           percentual?: number | null;
           pix?: string | null;
           tipo?: string | null;
@@ -341,10 +1058,24 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "mt_1b_occurrence_partners_occurrence_id_org_fk";
+            columns: ["occurrence_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "occurrences";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "occurrence_partners_occurrence_id_fkey";
             columns: ["occurrence_id"];
             isOneToOne: false;
             referencedRelation: "occurrences";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "occurrence_partners_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
             referencedColumns: ["id"];
           },
         ];
@@ -367,6 +1098,7 @@ export type Database = {
           nota_fiscal_obrigatoria: boolean | null;
           oba_credito: boolean;
           observacoes: string | null;
+          organization_id: string;
           percentual_comissao: number | null;
           premio_valor: number | null;
           prev_recebimento_data: string | null;
@@ -413,6 +1145,7 @@ export type Database = {
           nota_fiscal_obrigatoria?: boolean | null;
           oba_credito?: boolean;
           observacoes?: string | null;
+          organization_id?: string;
           percentual_comissao?: number | null;
           premio_valor?: number | null;
           prev_recebimento_data?: string | null;
@@ -459,6 +1192,7 @@ export type Database = {
           nota_fiscal_obrigatoria?: boolean | null;
           oba_credito?: boolean;
           observacoes?: string | null;
+          organization_id?: string;
           percentual_comissao?: number | null;
           premio_valor?: number | null;
           prev_recebimento_data?: string | null;
@@ -496,83 +1230,216 @@ export type Database = {
             referencedRelation: "sales";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "occurrences_sale_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
         ];
       };
-      profiles: {
+      operational_impersonation_actions: {
+        Row: {
+          actor_user_id: string;
+          created_at: string;
+          id: number;
+          impersonation_session_id: string;
+          operation: string;
+          organization_id: string;
+          record_id: string | null;
+          table_name: string;
+          target_user_id: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          created_at?: string;
+          id?: never;
+          impersonation_session_id: string;
+          operation: string;
+          organization_id?: string;
+          record_id?: string | null;
+          table_name: string;
+          target_user_id: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          created_at?: string;
+          id?: never;
+          impersonation_session_id?: string;
+          operation?: string;
+          organization_id?: string;
+          record_id?: string | null;
+          table_name?: string;
+          target_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_operational_impersonation_actions_actor_user_id_org_fk";
+            columns: ["actor_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_operational_impersonation_actions_impersonation_session_i";
+            columns: ["impersonation_session_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "operational_impersonation_sessions";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_operational_impersonation_actions_target_user_id_org_fk";
+            columns: ["target_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "operational_impersonation_actions_impersonation_session_id_fkey";
+            columns: ["impersonation_session_id"];
+            isOneToOne: false;
+            referencedRelation: "operational_impersonation_sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "operational_impersonation_actions_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      operational_impersonation_sessions: {
+        Row: {
+          actor_user_id: string;
+          auth_session_id: string | null;
+          ended_at: string | null;
+          id: string;
+          organization_id: string;
+          requested_at: string;
+          started_at: string | null;
+          status: string;
+          target_user_id: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          auth_session_id?: string | null;
+          ended_at?: string | null;
+          id?: string;
+          organization_id?: string;
+          requested_at?: string;
+          started_at?: string | null;
+          status?: string;
+          target_user_id: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          auth_session_id?: string | null;
+          ended_at?: string | null;
+          id?: string;
+          organization_id?: string;
+          requested_at?: string;
+          started_at?: string | null;
+          status?: string;
+          target_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_operational_impersonation_sessions_actor_user_id_org_fk";
+            columns: ["actor_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_operational_impersonation_sessions_target_user_id_org_fk";
+            columns: ["target_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "operational_impersonation_sessions_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      organization_members: {
         Row: {
           ativo: boolean;
-          avatar_url: string | null;
-          cpf: string | null;
-          creci: string | null;
           created_at: string;
-          email: string | null;
-          id: string;
-          nome: string;
-          public_profile_enabled: boolean;
-          pagina_pessoal_url: string | null;
-          instagram_url: string | null;
-          telefone: string | null;
-          updated_at: string;
+          organization_id: string;
+          user_id: string;
         };
         Insert: {
           ativo?: boolean;
-          avatar_url?: string | null;
-          cpf?: string | null;
-          creci?: string | null;
           created_at?: string;
-          email?: string | null;
-          id: string;
-          nome?: string;
-          public_profile_enabled?: boolean;
-          pagina_pessoal_url?: string | null;
-          instagram_url?: string | null;
-          telefone?: string | null;
-          updated_at?: string;
+          organization_id?: string;
+          user_id: string;
         };
         Update: {
           ativo?: boolean;
-          avatar_url?: string | null;
-          cpf?: string | null;
-          creci?: string | null;
           created_at?: string;
-          email?: string | null;
+          organization_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      organizations: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          legacy_default: boolean;
+          nome: string;
+          slug: string;
+          status: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
           id?: string;
+          legacy_default?: boolean;
+          nome: string;
+          slug: string;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          legacy_default?: boolean;
           nome?: string;
-          public_profile_enabled?: boolean;
-          pagina_pessoal_url?: string | null;
-          instagram_url?: string | null;
-          telefone?: string | null;
-          updated_at?: string;
+          slug?: string;
+          status?: string;
         };
         Relationships: [];
       };
-      positioning_regions: {
+      platform_admins: {
         Row: {
-          ativo: boolean;
-          cidade: string;
           created_at: string;
-          id: number;
-          nome: string;
-          tipo: string;
-          zona: string | null;
+          user_id: string;
         };
         Insert: {
-          ativo?: boolean;
-          cidade: string;
           created_at?: string;
-          id?: number;
-          nome: string;
-          tipo?: string;
-          zona?: string | null;
+          user_id: string;
         };
         Update: {
-          ativo?: boolean;
-          cidade?: string;
           created_at?: string;
-          id?: number;
-          nome?: string;
-          tipo?: string;
-          zona?: string | null;
+          user_id?: string;
         };
         Relationships: [];
       };
@@ -582,6 +1449,7 @@ export type Database = {
           created_at: string;
           id: string;
           nome: string;
+          organization_id: string;
           region_id: number | null;
           reviewed_at: string | null;
           reviewed_by: string | null;
@@ -595,6 +1463,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           nome: string;
+          organization_id?: string;
           region_id?: number | null;
           reviewed_at?: string | null;
           reviewed_by?: string | null;
@@ -608,6 +1477,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           nome?: string;
+          organization_id?: string;
           region_id?: number | null;
           reviewed_at?: string | null;
           reviewed_by?: string | null;
@@ -616,38 +1486,336 @@ export type Database = {
           tipo?: string;
           zona?: string | null;
         };
-        Relationships: [];
-      };
-      corretor_positioning_regions: {
-        Row: {
-          corretor_id: string;
-          created_at: string;
-          region_id: number;
-        };
-        Insert: {
-          corretor_id: string;
-          created_at?: string;
-          region_id: number;
-        };
-        Update: {
-          corretor_id?: string;
-          created_at?: string;
-          region_id?: number;
-        };
         Relationships: [
           {
-            foreignKeyName: "corretor_positioning_regions_corretor_id_fkey";
-            columns: ["corretor_id"];
+            foreignKeyName: "positioning_region_suggestions_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "positioning_region_suggestions_region_id_fkey";
+            columns: ["region_id"];
+            isOneToOne: false;
+            referencedRelation: "positioning_regions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "positioning_region_suggestions_region_org_fk";
+            columns: ["region_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "positioning_regions";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "positioning_region_suggestions_reviewed_by_fkey";
+            columns: ["reviewed_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "corretor_positioning_regions_region_id_fkey";
-            columns: ["region_id"];
+            foreignKeyName: "positioning_region_suggestions_suggested_by_fkey";
+            columns: ["suggested_by"];
             isOneToOne: false;
-            referencedRelation: "positioning_regions";
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "positioning_region_suggestions_suggested_by_org_fk";
+            columns: ["suggested_by", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      positioning_regions: {
+        Row: {
+          ativo: boolean;
+          cidade: string;
+          created_at: string;
+          id: number;
+          nome: string;
+          organization_id: string;
+          tipo: string;
+          zona: string | null;
+        };
+        Insert: {
+          ativo?: boolean;
+          cidade: string;
+          created_at?: string;
+          id?: number;
+          nome: string;
+          organization_id?: string;
+          tipo?: string;
+          zona?: string | null;
+        };
+        Update: {
+          ativo?: boolean;
+          cidade?: string;
+          created_at?: string;
+          id?: number;
+          nome?: string;
+          organization_id?: string;
+          tipo?: string;
+          zona?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "positioning_regions_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      profiles: {
+        Row: {
+          ativo: boolean;
+          avatar_url: string | null;
+          cpf: string | null;
+          created_at: string;
+          creci: string | null;
+          email: string | null;
+          id: string;
+          instagram_url: string | null;
+          nome: string;
+          organization_id: string;
+          pagina_pessoal_url: string | null;
+          public_profile_enabled: boolean;
+          telefone: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          ativo?: boolean;
+          avatar_url?: string | null;
+          cpf?: string | null;
+          created_at?: string;
+          creci?: string | null;
+          email?: string | null;
+          id: string;
+          instagram_url?: string | null;
+          nome?: string;
+          organization_id?: string;
+          pagina_pessoal_url?: string | null;
+          public_profile_enabled?: boolean;
+          telefone?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          ativo?: boolean;
+          avatar_url?: string | null;
+          cpf?: string | null;
+          created_at?: string;
+          creci?: string | null;
+          email?: string | null;
+          id?: string;
+          instagram_url?: string | null;
+          nome?: string;
+          organization_id?: string;
+          pagina_pessoal_url?: string | null;
+          public_profile_enabled?: boolean;
+          telefone?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      room_reservation_cancellation_penalties: {
+        Row: {
+          blocked_until: string | null;
+          late_cancellation_count: number;
+          organization_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          blocked_until?: string | null;
+          late_cancellation_count?: number;
+          organization_id?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          blocked_until?: string | null;
+          late_cancellation_count?: number;
+          organization_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_room_reservation_cancellation_penalties_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "room_reservation_cancellation_penalties_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      room_reservation_reminder_deliveries: {
+        Row: {
+          last_error: string | null;
+          organization_id: string;
+          phone: string;
+          recipient_id: string;
+          reservation_id: string;
+          sent_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          last_error?: string | null;
+          organization_id?: string;
+          phone: string;
+          recipient_id: string;
+          reservation_id: string;
+          sent_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          last_error?: string | null;
+          organization_id?: string;
+          phone?: string;
+          recipient_id?: string;
+          reservation_id?: string;
+          sent_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_room_reservation_reminder_deliveries_recipient_id_org_fk";
+            columns: ["recipient_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_room_reservation_reminder_deliveries_reservation_id_org_f";
+            columns: ["reservation_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "room_reservations";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "room_reservation_reminder_deliveries_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "room_reservation_reminder_deliveries_reservation_id_fkey";
+            columns: ["reservation_id"];
+            isOneToOne: false;
+            referencedRelation: "room_reservations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      room_reservations: {
+        Row: {
+          canceled_at: string | null;
+          canceled_by: string | null;
+          cancellation_deadline_minutes: number;
+          created_at: string;
+          end_time: string;
+          id: string;
+          late_cancellation: boolean;
+          notes: string;
+          organization_id: string;
+          participant_user_ids: string[];
+          participants: string[];
+          purpose: string;
+          reminder_minutes_before: number;
+          reminder_sent_at: string | null;
+          reservation_group_id: string;
+          reserved_date: string;
+          responsible_id: string;
+          responsible_name: string;
+          room: string;
+          start_time: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          canceled_at?: string | null;
+          canceled_by?: string | null;
+          cancellation_deadline_minutes?: number;
+          created_at?: string;
+          end_time: string;
+          id?: string;
+          late_cancellation?: boolean;
+          notes?: string;
+          organization_id?: string;
+          participant_user_ids?: string[];
+          participants?: string[];
+          purpose: string;
+          reminder_minutes_before?: number;
+          reminder_sent_at?: string | null;
+          reservation_group_id?: string;
+          reserved_date: string;
+          responsible_id: string;
+          responsible_name: string;
+          room: string;
+          start_time: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          canceled_at?: string | null;
+          canceled_by?: string | null;
+          cancellation_deadline_minutes?: number;
+          created_at?: string;
+          end_time?: string;
+          id?: string;
+          late_cancellation?: boolean;
+          notes?: string;
+          organization_id?: string;
+          participant_user_ids?: string[];
+          participants?: string[];
+          purpose?: string;
+          reminder_minutes_before?: number;
+          reminder_sent_at?: string | null;
+          reservation_group_id?: string;
+          reserved_date?: string;
+          responsible_id?: string;
+          responsible_name?: string;
+          room?: string;
+          start_time?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "room_reservations_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "room_reservations_responsible_org_fk";
+            columns: ["responsible_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
           },
         ];
       };
@@ -658,6 +1826,7 @@ export type Database = {
           conta: string | null;
           created_at: string;
           id: string;
+          organization_id: string;
           parte: string;
           pix: string | null;
           sale_id: string;
@@ -669,6 +1838,7 @@ export type Database = {
           conta?: string | null;
           created_at?: string;
           id?: string;
+          organization_id?: string;
           parte: string;
           pix?: string | null;
           sale_id: string;
@@ -680,6 +1850,7 @@ export type Database = {
           conta?: string | null;
           created_at?: string;
           id?: string;
+          organization_id?: string;
           parte?: string;
           pix?: string | null;
           sale_id?: string;
@@ -687,7 +1858,94 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "mt_1b_sale_bank_accounts_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sale_bank_accounts_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "sale_bank_accounts_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sale_comment_recipients: {
+        Row: {
+          comment_id: string;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          read_at: string | null;
+          sale_id: string;
+          user_id: string;
+        };
+        Insert: {
+          comment_id: string;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          read_at?: string | null;
+          sale_id: string;
+          user_id: string;
+        };
+        Update: {
+          comment_id?: string;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          read_at?: string | null;
+          sale_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_sale_comment_recipients_comment_id_org_fk";
+            columns: ["comment_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_comments";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_comment_recipients_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_comment_recipients_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sale_comment_recipients_comment_id_fkey";
+            columns: ["comment_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_comments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sale_comment_recipients_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sale_comment_recipients_sale_id_fkey";
             columns: ["sale_id"];
             isOneToOne: false;
             referencedRelation: "sales";
@@ -702,6 +1960,7 @@ export type Database = {
           doc_id: string | null;
           escopo: string;
           id: string;
+          organization_id: string;
           sale_id: string;
           texto: string;
         };
@@ -711,6 +1970,7 @@ export type Database = {
           doc_id?: string | null;
           escopo?: string;
           id?: string;
+          organization_id?: string;
           sale_id: string;
           texto: string;
         };
@@ -720,10 +1980,32 @@ export type Database = {
           doc_id?: string | null;
           escopo?: string;
           id?: string;
+          organization_id?: string;
           sale_id?: string;
           texto?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "mt_1b_sale_comments_autor_id_org_fk";
+            columns: ["autor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_comments_doc_id_org_fk";
+            columns: ["doc_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sale_documents";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_comments_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
           {
             foreignKeyName: "sale_comments_doc_id_fkey";
             columns: ["doc_id"];
@@ -732,49 +2014,14 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "sale_comments_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "sale_comments_sale_id_fkey";
-            columns: ["sale_id"];
-            isOneToOne: false;
-            referencedRelation: "sales";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      sale_comment_recipients: {
-        Row: {
-          comment_id: string;
-          created_at: string;
-          id: string;
-          read_at: string | null;
-          sale_id: string;
-          user_id: string;
-        };
-        Insert: {
-          comment_id: string;
-          created_at?: string;
-          id?: string;
-          read_at?: string | null;
-          sale_id: string;
-          user_id: string;
-        };
-        Update: {
-          comment_id?: string;
-          created_at?: string;
-          id?: string;
-          read_at?: string | null;
-          sale_id?: string;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "sale_comment_recipients_comment_id_fkey";
-            columns: ["comment_id"];
-            isOneToOne: false;
-            referencedRelation: "sale_comments";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "sale_comment_recipients_sale_id_fkey";
             columns: ["sale_id"];
             isOneToOne: false;
             referencedRelation: "sales";
@@ -788,6 +2035,7 @@ export type Database = {
           id: string;
           lado: string | null;
           nome: string | null;
+          organization_id: string;
           origem: string;
           papel: string | null;
           percentual: number | null;
@@ -801,6 +2049,7 @@ export type Database = {
           id?: string;
           lado?: string | null;
           nome?: string | null;
+          organization_id?: string;
           origem?: string;
           papel?: string | null;
           percentual?: number | null;
@@ -814,6 +2063,7 @@ export type Database = {
           id?: string;
           lado?: string | null;
           nome?: string | null;
+          organization_id?: string;
           origem?: string;
           papel?: string | null;
           percentual?: number | null;
@@ -823,6 +2073,27 @@ export type Database = {
           valor?: number | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "mt_1b_sale_commission_extras_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_commission_extras_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sale_commission_extras_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "sale_commission_extras_sale_id_fkey";
             columns: ["sale_id"];
@@ -849,6 +2120,7 @@ export type Database = {
           file_name: string | null;
           id: string;
           motivo_recusa: string | null;
+          organization_id: string;
           parte: string;
           sale_id: string;
           status: Database["public"]["Enums"]["doc_status"];
@@ -867,6 +2139,7 @@ export type Database = {
           file_name?: string | null;
           id?: string;
           motivo_recusa?: string | null;
+          organization_id?: string;
           parte?: string;
           sale_id: string;
           status?: Database["public"]["Enums"]["doc_status"];
@@ -885,6 +2158,7 @@ export type Database = {
           file_name?: string | null;
           id?: string;
           motivo_recusa?: string | null;
+          organization_id?: string;
           parte?: string;
           sale_id?: string;
           status?: Database["public"]["Enums"]["doc_status"];
@@ -902,6 +2176,53 @@ export type Database = {
             referencedRelation: "sales";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "sale_documents_sale_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      sale_juridico_reached: {
+        Row: {
+          organization_id: string;
+          reached_at: string;
+          sale_id: string;
+        };
+        Insert: {
+          organization_id?: string;
+          reached_at?: string;
+          sale_id: string;
+        };
+        Update: {
+          organization_id?: string;
+          reached_at?: string;
+          sale_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_sale_juridico_reached_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sale_juridico_reached_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sale_juridico_reached_sale_id_fkey";
+            columns: ["sale_id"];
+            isOneToOne: true;
+            referencedRelation: "sales";
+            referencedColumns: ["id"];
+          },
         ];
       };
       sale_parties: {
@@ -914,6 +2235,7 @@ export type Database = {
           endereco: string | null;
           id: string;
           nome: string | null;
+          organization_id: string;
           papel: string;
           profissao: string | null;
           razao_social: string | null;
@@ -932,6 +2254,7 @@ export type Database = {
           endereco?: string | null;
           id?: string;
           nome?: string | null;
+          organization_id?: string;
           papel: string;
           profissao?: string | null;
           razao_social?: string | null;
@@ -950,6 +2273,7 @@ export type Database = {
           endereco?: string | null;
           id?: string;
           nome?: string | null;
+          organization_id?: string;
           papel?: string;
           profissao?: string | null;
           razao_social?: string | null;
@@ -961,10 +2285,31 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "mt_1b_sale_parties_cliente_id_org_fk";
+            columns: ["cliente_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "clientes";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_parties_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "sale_parties_cliente_id_fkey";
             columns: ["cliente_id"];
             isOneToOne: false;
             referencedRelation: "clientes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sale_parties_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
             referencedColumns: ["id"];
           },
           {
@@ -995,6 +2340,7 @@ export type Database = {
           financiamento_valor: number | null;
           oba_credito: boolean;
           observacoes: string | null;
+          organization_id: string;
           pagamento_final_data: string | null;
           pagamento_final_valor: number | null;
           parcela1_data: string | null;
@@ -1022,6 +2368,7 @@ export type Database = {
           financiamento_valor?: number | null;
           oba_credito?: boolean;
           observacoes?: string | null;
+          organization_id?: string;
           pagamento_final_data?: string | null;
           pagamento_final_valor?: number | null;
           parcela1_data?: string | null;
@@ -1049,6 +2396,7 @@ export type Database = {
           financiamento_valor?: number | null;
           oba_credito?: boolean;
           observacoes?: string | null;
+          organization_id?: string;
           pagamento_final_data?: string | null;
           pagamento_final_valor?: number | null;
           parcela1_data?: string | null;
@@ -1066,6 +2414,13 @@ export type Database = {
             referencedRelation: "sales";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "sale_payment_sale_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
         ];
       };
       sale_status_history: {
@@ -1075,6 +2430,7 @@ export type Database = {
           de: Database["public"]["Enums"]["sale_status"] | null;
           id: string;
           motivo: string | null;
+          organization_id: string;
           para: Database["public"]["Enums"]["sale_status"];
           sale_id: string;
         };
@@ -1084,6 +2440,7 @@ export type Database = {
           de?: Database["public"]["Enums"]["sale_status"] | null;
           id?: string;
           motivo?: string | null;
+          organization_id?: string;
           para: Database["public"]["Enums"]["sale_status"];
           sale_id: string;
         };
@@ -1093,10 +2450,32 @@ export type Database = {
           de?: Database["public"]["Enums"]["sale_status"] | null;
           id?: string;
           motivo?: string | null;
+          organization_id?: string;
           para?: Database["public"]["Enums"]["sale_status"];
           sale_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "mt_1b_sale_status_history_autor_id_org_fk";
+            columns: ["autor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_sale_status_history_sale_id_org_fk";
+            columns: ["sale_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "sales";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sale_status_history_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "sale_status_history_sale_id_fkey";
             columns: ["sale_id"];
@@ -1105,105 +2484,6 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
-      };
-      room_reservations: {
-        Row: {
-          canceled_at: string | null;
-          canceled_by: string | null;
-          cancellation_deadline_minutes: number;
-          created_at: string;
-          end_time: string;
-          id: string;
-          late_cancellation: boolean;
-          notes: string;
-          participants: string[];
-          participant_user_ids: string[];
-          purpose: string;
-          reminder_minutes_before: number;
-          reminder_sent_at: string | null;
-          reserved_date: string;
-          reservation_group_id: string;
-          responsible_id: string;
-          responsible_name: string;
-          room: string;
-          start_time: string;
-          status: string;
-          updated_at: string;
-        };
-        Insert: {
-          canceled_at?: string | null;
-          canceled_by?: string | null;
-          cancellation_deadline_minutes?: number;
-          created_at?: string;
-          end_time: string;
-          id?: string;
-          late_cancellation?: boolean;
-          notes?: string;
-          participants?: string[];
-          participant_user_ids?: string[];
-          purpose: string;
-          reminder_minutes_before?: number;
-          reminder_sent_at?: string | null;
-          reserved_date: string;
-          reservation_group_id?: string;
-          responsible_id: string;
-          responsible_name: string;
-          room: string;
-          start_time: string;
-          status?: string;
-          updated_at?: string;
-        };
-        Update: {
-          canceled_at?: string | null;
-          canceled_by?: string | null;
-          cancellation_deadline_minutes?: number;
-          created_at?: string;
-          end_time?: string;
-          id?: string;
-          late_cancellation?: boolean;
-          notes?: string;
-          participants?: string[];
-          participant_user_ids?: string[];
-          purpose?: string;
-          reminder_minutes_before?: number;
-          reminder_sent_at?: string | null;
-          reserved_date?: string;
-          reservation_group_id?: string;
-          responsible_id?: string;
-          responsible_name?: string;
-          room?: string;
-          start_time?: string;
-          status?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      room_reservation_reminder_deliveries: {
-        Row: {
-          last_error: string | null;
-          phone: string;
-          recipient_id: string;
-          reservation_id: string;
-          sent_at: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          last_error?: string | null;
-          phone: string;
-          recipient_id: string;
-          reservation_id: string;
-          sent_at?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          last_error?: string | null;
-          phone?: string;
-          recipient_id?: string;
-          reservation_id?: string;
-          sent_at?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [];
       };
       sales: {
         Row: {
@@ -1226,7 +2506,6 @@ export type Database = {
           imovel_endereco: string | null;
           imovel_id: string | null;
           imovel_observacoes: string | null;
-          observacoes_gerais: string | null;
           indicador: string | null;
           indicador_captador: string | null;
           indicador_captador_id: string | null;
@@ -1246,13 +2525,15 @@ export type Database = {
           modalidade: string;
           negociacao_observacoes: string | null;
           nota_fiscal_obrigatoria: boolean;
+          observacoes_gerais: string | null;
+          organization_id: string;
           parceria_agencia: string | null;
           parceria_banco: string | null;
           parceria_conta: string | null;
           parceria_cpf_cnpj: string | null;
-          parceria_nome: string | null;
           parceria_externa_captacao: boolean;
           parceria_externa_venda: boolean;
+          parceria_nome: string | null;
           parceria_percentual: number | null;
           parceria_pix: string | null;
           parceria_tipo: string | null;
@@ -1312,7 +2593,6 @@ export type Database = {
           imovel_endereco?: string | null;
           imovel_id?: string | null;
           imovel_observacoes?: string | null;
-          observacoes_gerais?: string | null;
           indicador?: string | null;
           indicador_captador?: string | null;
           indicador_captador_id?: string | null;
@@ -1332,13 +2612,15 @@ export type Database = {
           modalidade?: string;
           negociacao_observacoes?: string | null;
           nota_fiscal_obrigatoria?: boolean;
+          observacoes_gerais?: string | null;
+          organization_id?: string;
           parceria_agencia?: string | null;
           parceria_banco?: string | null;
           parceria_conta?: string | null;
           parceria_cpf_cnpj?: string | null;
-          parceria_nome?: string | null;
           parceria_externa_captacao?: boolean;
           parceria_externa_venda?: boolean;
+          parceria_nome?: string | null;
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_tipo?: string | null;
@@ -1398,7 +2680,6 @@ export type Database = {
           imovel_endereco?: string | null;
           imovel_id?: string | null;
           imovel_observacoes?: string | null;
-          observacoes_gerais?: string | null;
           indicador?: string | null;
           indicador_captador?: string | null;
           indicador_captador_id?: string | null;
@@ -1418,13 +2699,15 @@ export type Database = {
           modalidade?: string;
           negociacao_observacoes?: string | null;
           nota_fiscal_obrigatoria?: boolean;
+          observacoes_gerais?: string | null;
+          organization_id?: string;
           parceria_agencia?: string | null;
           parceria_banco?: string | null;
           parceria_conta?: string | null;
           parceria_cpf_cnpj?: string | null;
-          parceria_nome?: string | null;
           parceria_externa_captacao?: boolean;
           parceria_externa_venda?: boolean;
+          parceria_nome?: string | null;
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_tipo?: string | null;
@@ -1466,11 +2749,60 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "sales_coordenador_org_fk";
+            columns: ["coordenador_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_corretor_captador_org_fk";
+            columns: ["corretor_captador_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_corretor_org_fk";
+            columns: ["corretor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_corretor_vendedor_org_fk";
+            columns: ["corretor_vendedor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_indicador_captador_org_fk";
+            columns: ["indicador_captador_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_indicador_vendedor_org_fk";
+            columns: ["indicador_vendedor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "sales_lider_captador_id_fkey";
             columns: ["lider_captador_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sales_lider_captador_org_fk";
+            columns: ["lider_captador_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
           },
           {
             foreignKeyName: "sales_lider_vendedor_id_fkey";
@@ -1479,25 +2811,70 @@ export type Database = {
             referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "sales_lider_vendedor_org_fk";
+            columns: ["lider_vendedor_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "sales_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sales_team_leader_org_fk";
+            columns: ["team_leader_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
         ];
       };
       team_co_leaders: {
         Row: {
           created_at: string;
+          organization_id: string;
           team_id: string;
           user_id: string;
         };
         Insert: {
           created_at?: string;
+          organization_id?: string;
           team_id: string;
           user_id: string;
         };
         Update: {
           created_at?: string;
+          organization_id?: string;
           team_id?: string;
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "mt_1b_team_co_leaders_team_id_org_fk";
+            columns: ["team_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_team_co_leaders_user_id_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "team_co_leaders_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "team_co_leaders_team_id_fkey";
             columns: ["team_id"];
@@ -1512,6 +2889,7 @@ export type Database = {
           created_at: string;
           id: string;
           membro_id: string;
+          organization_id: string;
           team_id: string;
           tipo: string;
         };
@@ -1519,6 +2897,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           membro_id: string;
+          organization_id?: string;
           team_id: string;
           tipo?: string;
         };
@@ -1526,12 +2905,92 @@ export type Database = {
           created_at?: string;
           id?: string;
           membro_id?: string;
+          organization_id?: string;
           team_id?: string;
           tipo?: string;
         };
         Relationships: [
           {
+            foreignKeyName: "team_members_membro_org_fk";
+            columns: ["membro_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "team_members_team_id_fkey";
+            columns: ["team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "team_members_team_org_fk";
+            columns: ["team_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
+      };
+      team_membership_history: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          membro_id: string;
+          organization_id: string;
+          origem: string;
+          team_id: string;
+          vigente_ate: string | null;
+          vigente_de: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          membro_id: string;
+          organization_id?: string;
+          origem?: string;
+          team_id: string;
+          vigente_ate?: string | null;
+          vigente_de: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          membro_id?: string;
+          organization_id?: string;
+          origem?: string;
+          team_id?: string;
+          vigente_ate?: string | null;
+          vigente_de?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_team_membership_history_membro_id_org_fk";
+            columns: ["membro_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_team_membership_history_team_id_org_fk";
+            columns: ["team_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "team_membership_history_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "team_membership_history_team_id_fkey";
             columns: ["team_id"];
             isOneToOne: false;
             referencedRelation: "teams";
@@ -1546,6 +3005,7 @@ export type Database = {
           id: string;
           lider_id: string;
           nome: string;
+          organization_id: string;
           parent_team_id: string | null;
           updated_at: string;
         };
@@ -1555,6 +3015,7 @@ export type Database = {
           id?: string;
           lider_id: string;
           nome?: string;
+          organization_id?: string;
           parent_team_id?: string | null;
           updated_at?: string;
         };
@@ -1564,15 +3025,86 @@ export type Database = {
           id?: string;
           lider_id?: string;
           nome?: string;
+          organization_id?: string;
           parent_team_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
           {
+            foreignKeyName: "teams_lider_org_fk";
+            columns: ["lider_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "teams_organization_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "teams_parent_org_fk";
+            columns: ["parent_team_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
             foreignKeyName: "teams_parent_team_id_fkey";
             columns: ["parent_team_id"];
             isOneToOne: false;
             referencedRelation: "teams";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      user_preview_audit: {
+        Row: {
+          action: string;
+          actor_user_id: string;
+          created_at: string;
+          id: number;
+          organization_id: string;
+          target_user_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_user_id: string;
+          created_at?: string;
+          id?: number;
+          organization_id?: string;
+          target_user_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string;
+          created_at?: string;
+          id?: number;
+          organization_id?: string;
+          target_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mt_1b_user_preview_audit_actor_user_id_org_fk";
+            columns: ["actor_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "mt_1b_user_preview_audit_target_user_id_org_fk";
+            columns: ["target_user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+          {
+            foreignKeyName: "user_preview_audit_org_fk";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
             referencedColumns: ["id"];
           },
         ];
@@ -1583,6 +3115,7 @@ export type Database = {
           id: string;
           notificar_toda_atualizacao: boolean;
           notificar_whatsapp: boolean;
+          organization_id: string;
           role: Database["public"]["Enums"]["app_role"];
           user_id: string;
         };
@@ -1591,6 +3124,7 @@ export type Database = {
           id?: string;
           notificar_toda_atualizacao?: boolean;
           notificar_whatsapp?: boolean;
+          organization_id?: string;
           role: Database["public"]["Enums"]["app_role"];
           user_id: string;
         };
@@ -1599,34 +3133,44 @@ export type Database = {
           id?: string;
           notificar_toda_atualizacao?: boolean;
           notificar_whatsapp?: boolean;
+          organization_id?: string;
           role?: Database["public"]["Enums"]["app_role"];
           user_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_profile_org_fk";
+            columns: ["user_id", "organization_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id", "organization_id"];
+          },
+        ];
       };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      imprimir_ocorrencias_concluidas: {
-        Args: { p_sale_ids: string[] };
-        Returns: Json;
-      };
-      relatorio_ocorrencias_concluidas: {
-        Args: Record<PropertyKey, never>;
-        Returns: Json;
-      };
       archive_sale_document: {
         Args: { _document_id: string };
         Returns: undefined;
       };
+      atribuicao_comercial_resumo: { Args: never; Returns: Json };
       calcular_distribuicao_venda:
         | {
             Args: { p_sale: Database["public"]["Tables"]["sales"]["Row"] };
             Returns: Json;
           }
         | { Args: { p_sale_id: string }; Returns: Json };
+      can_cancel_room_reservation: {
+        Args: { _actor?: string; _responsible_id: string };
+        Returns: boolean;
+      };
+      can_edit_sale_as_co_leader: {
+        Args: { _sale_id: string };
+        Returns: boolean;
+      };
       can_edit_sale_comissao: {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;
@@ -1635,74 +3179,45 @@ export type Database = {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;
       };
-      can_cancel_room_reservation: {
-        Args: { _actor?: string; _responsible_id: string };
+      can_manage_sale_as_co_leader: {
+        Args: { _sale_id: string };
         Returns: boolean;
       };
-      cancel_room_reservation: {
-        Args: { _reservation_id: string };
-        Returns: {
-          blocked_until: string | null;
-          late_cancellation_count: number;
-          remaining_cancellations: number;
-          was_late_cancellation: boolean;
-        }[];
+      can_read_principal_sale_as_co_leader: {
+        Args: { _sale_id: string };
+        Returns: boolean;
       };
-      get_room_reservation_cancellation_status: {
-        Args: { _user?: string };
-        Returns: {
-          blocked_until: string | null;
-          late_cancellation_count: number;
-          remaining_cancellations: number;
-        }[];
+      can_read_sale_juridico_certidao: {
+        Args: { _sale_id: string };
+        Returns: boolean;
       };
-      list_room_occupancy: {
-        Args: Record<PropertyKey, never>;
-        Returns: {
-          id: string;
-          reservation_group_id: string;
-          room: string;
-          reserved_date: string;
-          start_time: string;
-          end_time: string;
-          responsible_id: string;
-          responsible_name: string | null;
-        }[];
+      can_upload_juridico_certidao: {
+        Args: { _sale_id: string };
+        Returns: boolean;
       };
-      list_room_reservation_users: {
-        Args: Record<PropertyKey, never>;
-        Returns: {
-          id: string;
-          nome: string | null;
-        }[];
-      };
-      list_vendas_comerciais_paginadas: {
+      can_view_room_reservation: {
         Args: {
-          _ate?: string;
-          _corretor_ids?: string[];
-          _desde?: string;
-          _page?: number;
-          _page_size?: number;
-          _q?: string;
-          _status?: string;
-          _statuses?: string[];
+          _actor?: string;
+          _participant_user_ids: string[];
+          _responsible_id: string;
         };
-        Returns: Json;
+        Returns: boolean;
       };
       can_view_sale: {
         Args: { _sale_id: string; _user: string };
         Returns: boolean;
       };
+      cancel_room_reservation: {
+        Args: { _reservation_id: string };
+        Returns: {
+          blocked_until: string;
+          late_cancellation_count: number;
+          remaining_cancellations: number;
+          was_late_cancellation: boolean;
+        }[];
+      };
       change_sale_status: {
         Args: { _motivo?: string; _new_status: string; _sale_id: string };
-        Returns: undefined;
-      };
-      sale_management_capabilities: {
-        Args: { _sale_id: string };
-        Returns: Json;
-      };
-      marcar_contrato_assinado_e_criar_ocorrencia: {
-        Args: { _sale_id: string };
         Returns: undefined;
       };
       cliente_historico: {
@@ -1716,6 +3231,10 @@ export type Database = {
         }[];
       };
       comissao_coordenador_dados: { Args: { p_mes: string }; Returns: Json };
+      comissoes_carteira_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
       comparativo_comissao_6pct: {
         Args: never;
         Returns: {
@@ -1725,6 +3244,7 @@ export type Database = {
           evento_fechamento: string;
           imovel_id: string;
           modalidade: string;
+          parceria_externa: number;
           percentual_comissao: number;
           sale_id: string;
           status: string;
@@ -1758,11 +3278,78 @@ export type Database = {
         Args: { p_sale_id: string };
         Returns: Json;
       };
+      current_org_id: { Args: never; Returns: string };
       dashboard_movimentacao_periodo: {
         Args: { _fim: string; _inicio: string };
         Returns: Json;
       };
       dashboard_stats: { Args: never; Returns: Json };
+      desempenho_contexto_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_detalhe_corretor_proprio_periodo: {
+        Args: { _ate: string; _corretor_id: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_detalhe_periodo: {
+        Args: {
+          _ate: string;
+          _corretor_id?: string;
+          _de: string;
+          _sem_equipe?: boolean;
+          _team_id?: string;
+        };
+        Returns: Json;
+      };
+      desempenho_empresa_carteira_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_empresa_contexto_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_empresa_metas_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_empresa_ranking_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_empresa_resumo_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_equipe_carteira_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_equipe_contexto_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_equipe_metas_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_equipe_ranking_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_equipe_resumo_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_ranking_corretor_proprio_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      desempenho_ranking_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
       editar_ocorrencia_lancamento_financeiro: {
         Args: {
           p_linhas: Json;
@@ -1772,6 +3359,79 @@ export type Database = {
           p_sale_patch: Json;
         };
         Returns: Json;
+      };
+      equipe_vigencias: { Args: never; Returns: Json };
+      equipe_vigente: { Args: { _em: string; _user: string }; Returns: string };
+      exclusive_actor_active: { Args: { _actor: string }; Returns: boolean };
+      exclusive_can_view: {
+        Args: { _actor: string; _id: string };
+        Returns: boolean;
+      };
+      exclusive_capture_enabled: { Args: never; Returns: boolean };
+      exclusive_capture_set_enabled: {
+        Args: { _enabled: boolean };
+        Returns: boolean;
+      };
+      exclusive_create: { Args: { _template: string }; Returns: string };
+      exclusive_is_editor: {
+        Args: { _actor: string; _id: string };
+        Returns: boolean;
+      };
+      exclusive_is_manager: {
+        Args: { _actor: string; _id: string };
+        Returns: boolean;
+      };
+      exclusive_profile_registration: {
+        Args: never;
+        Returns: {
+          cpf: string;
+          creci: string;
+          user_id: string;
+        }[];
+      };
+      exclusive_register_document: {
+        Args: {
+          _file_name: string;
+          _id: string;
+          _kind: string;
+          _owner: number;
+          _path: string;
+        };
+        Returns: undefined;
+      };
+      exclusive_required_fields: {
+        Args: { _cpf: string; _creci: string; _form: Json };
+        Returns: boolean;
+      };
+      exclusive_save: {
+        Args: {
+          _broker_cpf: string;
+          _broker_creci: string;
+          _form: Json;
+          _id: string;
+        };
+        Returns: undefined;
+      };
+      exclusive_transition: {
+        Args: { _action: string; _detail?: string; _id: string };
+        Returns: undefined;
+      };
+      exclusive_valid_cpf: { Args: { _value: string }; Returns: boolean };
+      financeiro_distribuicao_vendas: {
+        Args: never;
+        Returns: {
+          saldo_inicial_imobiliaria: number;
+          saldo_liquido_imobiliaria: number;
+          sale_id: string;
+        }[];
+      };
+      get_room_reservation_cancellation_status: {
+        Args: { _user?: string };
+        Returns: {
+          blocked_until: string;
+          late_cancellation_count: number;
+          remaining_cancellations: number;
+        }[];
       };
       has_any_role: {
         Args: {
@@ -1787,9 +3447,9 @@ export type Database = {
         };
         Returns: boolean;
       };
-      can_upload_juridico_certidao: {
-        Args: { _sale_id: string };
-        Returns: boolean;
+      imprimir_ocorrencias_concluidas: {
+        Args: { p_sale_ids: string[] };
+        Returns: Json;
       };
       insert_sale_document: {
         Args: {
@@ -1811,6 +3471,7 @@ export type Database = {
           file_name: string | null;
           id: string;
           motivo_recusa: string | null;
+          organization_id: string;
           parte: string;
           sale_id: string;
           status: Database["public"]["Enums"]["doc_status"];
@@ -1832,10 +3493,16 @@ export type Database = {
         Args: { _lider: string; _membro: string };
         Returns: boolean;
       };
+      is_platform_super_admin: { Args: { _user?: string }; Returns: boolean };
       is_sale_locked: { Args: { _sale_id: string }; Returns: boolean };
       leads_team_or_parent: {
         Args: { _team_id: string; _user: string };
         Returns: boolean;
+      };
+      legacy_default_org_id: { Args: never; Returns: string };
+      link_conta_max_identity_by_email: {
+        Args: { p_email: string; p_workos_user_id: string };
+        Returns: string;
       };
       list_active_corretores: {
         Args: never;
@@ -1873,34 +3540,129 @@ export type Database = {
           id: number;
           nome: string;
           tipo: string;
-          zona: string | null;
+          zona: string;
         }[];
       };
       list_public_specialists: {
         Args: { _region_id?: number; _search?: string };
         Returns: {
-          avatar_url: string | null;
+          avatar_url: string;
           id: string;
-          instagram_url: string | null;
+          instagram_url: string;
           nome: string;
-          pagina_pessoal_url: string | null;
+          pagina_pessoal_url: string;
           regioes: Json;
-          telefone: string | null;
+          telefone: string;
         }[];
       };
-      metas_progresso: { Args: { _mes: string }; Returns: Json };
-      producao_por_pessoa_dados: { Args: never; Returns: Json };
-      salvar_divisao_comissao_lancamento: {
-        Args: { p_linhas: Json; p_sale_id: string };
+      list_room_occupancy: {
+        Args: never;
+        Returns: {
+          end_time: string;
+          id: string;
+          reservation_group_id: string;
+          reserved_date: string;
+          responsible_id: string;
+          responsible_name: string;
+          room: string;
+          start_time: string;
+        }[];
+      };
+      list_room_reservation_users: {
+        Args: never;
+        Returns: {
+          id: string;
+          nome: string;
+        }[];
+      };
+      list_vendas_comerciais_paginadas: {
+        Args: {
+          _ate?: string;
+          _corretor_ids?: string[];
+          _desde?: string;
+          _page?: number;
+          _page_size?: number;
+          _q?: string;
+          _status?: string;
+          _statuses?: string[];
+        };
         Returns: Json;
       };
-      save_my_positioning: {
-        Args: { _public_enabled: boolean; _region_ids: number[] };
+      list_vendas_comerciais_paginadas_fila: {
+        Args: {
+          _ate?: string;
+          _corretor_ids?: string[];
+          _desde?: string;
+          _page?: number;
+          _page_size?: number;
+          _q?: string;
+          _status?: string;
+          _statuses?: string[];
+        };
+        Returns: Json;
+      };
+      marcar_contrato_assinado_e_criar_ocorrencia: {
+        Args: { _sale_id: string };
         Returns: undefined;
       };
-      submit_positioning_region_suggestion: {
-        Args: { _cidade: string; _nome: string; _tipo: string; _zona: string };
+      metas_progresso: { Args: { _mes: string }; Returns: Json };
+      metas_progresso_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
+      };
+      metricas_venda_sem_parceria: {
+        Args: never;
+        Returns: {
+          comissao_bruta: number;
+          parceria_externa: number;
+          sale_id: string;
+          vgv: number;
+        }[];
+      };
+      mt_1b_gate: { Args: { _target_org?: string }; Returns: boolean };
+      mt_1c_relative_path: { Args: { _name: string }; Returns: string };
+      mt_1c_storage_scope: {
+        Args: { _bucket: string; _name: string; _new_only?: boolean };
+        Returns: boolean;
+      };
+      mt_1d_is_service: { Args: never; Returns: boolean };
+      mt_2a_provision_user: {
+        Args: { _email: string; _id: string; _meta: Json; _org: string };
+        Returns: undefined;
+      };
+      participacoes_comerciais_validas: {
+        Args: never;
+        Returns: {
+          conta_equipe: boolean;
+          sale_id: string;
+          team_id: string;
+          user_id: string;
+          valor_equipe: number;
+          valor_individual: number;
+          venda_em: string;
+        }[];
+      };
+      platform_create_organization: {
+        Args: { _nome: string; _slug: string };
         Returns: string;
+      };
+      platform_set_organization_status: {
+        Args: { _id: string; _status: string };
+        Returns: undefined;
+      };
+      platform_update_organization: {
+        Args: { _id: string; _nome: string; _slug: string };
+        Returns: undefined;
+      };
+      producao_por_pessoa_dados: { Args: never; Returns: Json };
+      record_user_preview_event: {
+        Args: { p_action: string; p_target_user_id: string };
+        Returns: undefined;
+      };
+      relatorio_ocorrencias_concluidas: { Args: never; Returns: Json };
+      resumo_desempenho_periodo: {
+        Args: { _ate: string; _de: string };
+        Returns: Json;
       };
       review_positioning_region_suggestion: {
         Args: {
@@ -1913,11 +3675,43 @@ export type Database = {
         };
         Returns: number;
       };
+      sale_management_capabilities: {
+        Args: { _sale_id: string };
+        Returns: Json;
+      };
+      salvar_divisao_comissao_lancamento: {
+        Args: { p_linhas: Json; p_sale_id: string };
+        Returns: Json;
+      };
+      save_my_positioning: {
+        Args: { _public_enabled: boolean; _region_ids: number[] };
+        Returns: undefined;
+      };
       sees_own_team_leader: {
         Args: { _profile_id: string; _user: string };
         Returns: boolean;
       };
       sees_team: { Args: { _team_id: string; _user: string }; Returns: boolean };
+      sincronizar_base_financeira_ocorrencia: {
+        Args: { p_sale_id: string };
+        Returns: undefined;
+      };
+      sincronizar_ocorrencia_antes_financeiro: {
+        Args: { p_sale_id: string };
+        Returns: undefined;
+      };
+      sincronizar_previsao_ocorrencia_pendente: {
+        Args: { p_sale_id: string };
+        Returns: undefined;
+      };
+      status_exige_composicao_pagamento_valida: {
+        Args: { p_status: Database["public"]["Enums"]["sale_status"] };
+        Returns: boolean;
+      };
+      submit_positioning_region_suggestion: {
+        Args: { _cidade: string; _nome: string; _tipo: string; _zona: string };
+        Returns: string;
+      };
       sync_occurrence_commissions: {
         Args: { _sale_id: string };
         Returns: undefined;
@@ -1930,19 +3724,48 @@ export type Database = {
         };
         Returns: undefined;
       };
+      user_org: { Args: { _user: string }; Returns: string };
+      validar_composicao_pagamento_venda: {
+        Args: { p_sale_id: string };
+        Returns: Json;
+      };
+      validar_participantes_internos_venda: {
+        Args: { p_sale_id: string };
+        Returns: Json;
+      };
       validar_previsao_recebimento: {
         Args: { p_occ: Database["public"]["Tables"]["occurrences"]["Row"] };
         Returns: Json;
       };
-      visao_executiva_detalhe_comissao: {
-        Args: {
-          _corretor_id?: string;
-          _sem_equipe?: boolean;
-          _team_id?: string;
-        };
-        Returns: Json;
+      vendas_comerciais_canonicas: {
+        Args: never;
+        Returns: {
+          codigo_interno: string;
+          comissao_bruta: number;
+          comissao_propria: number;
+          corretor_id: string;
+          data_fechamento: string;
+          imovel_id: string;
+          modalidade: string;
+          occurrence_concluida_count: number;
+          occurrence_count: number;
+          parceria_externa: number;
+          percentual_comissao: number;
+          sale_id: string;
+          status: string;
+          valor_negociado: number;
+          valor_total_comissao: number;
+          venda_em: string;
+          vgv_proprio: number;
+        }[];
       };
-      visao_executiva_stats: { Args: never; Returns: Json };
+      vendas_comerciais_validas: {
+        Args: never;
+        Returns: {
+          sale_id: string;
+          venda_em: string;
+        }[];
+      };
     };
     Enums: {
       app_role:
@@ -2106,6 +3929,7 @@ export const Constants = {
         "super_admin",
         "team_leader",
         "lancamento",
+        "staff",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [

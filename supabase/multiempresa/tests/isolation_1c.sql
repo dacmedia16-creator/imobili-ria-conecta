@@ -15,7 +15,10 @@ CREATE FUNCTION mt_1c_test.try(query text) RETURNS text LANGUAGE plpgsql AS $$
  EXCEPTION WHEN OTHERS THEN RETURN 'erro:'||SQLSTATE||':'||SQLERRM; END $$;
 CREATE FUNCTION mt_1c_test.login(u uuid) RETURNS void LANGUAGE plpgsql AS $$ BEGIN
  PERFORM set_config('request.jwt.claims',json_build_object('sub',u,'role','authenticated')::text,true);
- PERFORM set_config('role','authenticated',true); END $$;
+ PERFORM set_config('role','authenticated',true);
+ -- Supabase hospedado: storage.protect_delete só aceita DELETE vindo da Storage API, que liga
+ -- esta flag na transação. Simula a API; RLS continua decidindo o que pode ser excluído.
+ PERFORM set_config('storage.allow_delete_query','true',true); END $$;
 CREATE FUNCTION mt_1c_test.logout() RETURNS void LANGUAGE plpgsql AS $$ BEGIN
  PERFORM set_config('request.jwt.claims','',true); END $$;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA mt_1c_test TO authenticated;

@@ -45,7 +45,7 @@ ALTER TABLE public.conta_max_ticket_uses ENABLE ROW LEVEL SECURITY;
 CREATE FUNCTION public.mt_1b_gate(_target_org uuid DEFAULT NULL) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
   SELECT CASE WHEN current_setting('role', true) = 'service_role'
-    OR (current_setting('role', true) = 'none' AND session_user = 'supabase_admin')
+    OR (current_setting('role', true) = 'none' AND session_user IN ('supabase_admin', 'postgres'))
     THEN true
     ELSE auth.uid() IS NOT NULL AND public.current_org_id() IS NOT NULL
       AND (_target_org IS NULL OR _target_org = public.current_org_id()) END
@@ -72,7 +72,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
       SELECT 1 FROM public.organization_members caller
       WHERE caller.user_id=auth.uid() AND caller.organization_id=m.organization_id AND caller.ativo
     ) OR current_setting('role',true)='service_role'
-      OR (current_setting('role',true)='none' AND session_user='supabase_admin'))
+      OR (current_setting('role',true)='none' AND session_user IN ('supabase_admin','postgres')))
 $$;
 CREATE OR REPLACE FUNCTION public.current_org_id() RETURNS uuid
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
@@ -205,6 +205,16 @@ CREATE UNIQUE INDEX metas_equipe_mes_key ON public.metas(organization_id,team_id
 -- e gate RESTRICTIVE por organização continuam valendo. Em funções privilegiadas
 -- preserva-se a permissão interna histórica, nunca a leitura/escrita cruzada.
 CREATE ROLE mt_1b_definer NOLOGIN NOINHERIT NOBYPASSRLS;
+-- No Supabase hospedado a migration roda como `postgres` (sem superusuário): ALTER ... OWNER TO
+-- exige poder assumir o novo dono, e CREATE OR REPLACE/rollback posteriores exigem ser
+-- "dono" (herdar o papel). O papel dedicado tem menos privilégios que `postgres`: herdar não amplia nada.
+DO $grant$ BEGIN
+  IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
+    EXECUTE format('GRANT mt_1b_definer TO %I WITH INHERIT TRUE, SET TRUE', current_user);
+    -- Temporário: revogado ao fim da migration (só é exigido no momento do ALTER OWNER).
+    GRANT CREATE ON SCHEMA public TO mt_1b_definer;
+  END IF;
+END $grant$;
 GRANT authenticated TO mt_1b_definer WITH INHERIT TRUE, SET FALSE;
 GRANT USAGE ON SCHEMA public, auth, storage TO mt_1b_definer;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO mt_1b_definer;
@@ -269,7 +279,7 @@ BEGIN
     body := split_part(split_part(p.ddl, 'AS $function$', 2), '$function$', 1);
     IF body='' THEN RAISE EXCEPTION 'DDL inesperado: %',p.proname; END IF;
     body := regexp_replace(btrim(body), ';[[:space:]]*$', '');
-    guarded := E'\n  SELECT COALESCE((' || body || E'\n  ),false) AND public.mt_1b_gate() AND ((' || p.condition || E')\n    OR current_setting(''role'',true)=''service_role''\n    OR (current_setting(''role'',true)=''none'' AND session_user=''supabase_admin''));\n';
+    guarded := E'\n  SELECT COALESCE((' || body || E'\n  ),false) AND public.mt_1b_gate() AND ((' || p.condition || E')\n    OR current_setting(''role'',true)=''service_role''\n    OR (current_setting(''role'',true)=''none'' AND session_user IN (''supabase_admin'',''postgres'')));\n';
     def := replace(p.ddl, split_part(split_part(p.ddl,'AS $function$',2),'$function$',1), guarded);
     EXECUTE def;
   END LOOP;
@@ -312,6 +322,7 @@ BEGIN
 END $owner$;
 -- A função de identidade permanece inacessível ao usuário final.
 REVOKE EXECUTE ON FUNCTION public.link_conta_max_identity_by_email(text,text) FROM PUBLIC, anon, authenticated;
+REVOKE CREATE ON SCHEMA public FROM mt_1b_definer;
 
 
 COMMIT;

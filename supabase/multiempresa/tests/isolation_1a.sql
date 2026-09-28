@@ -144,7 +144,9 @@ GRANT EXECUTE ON FUNCTION mt_test.visible_other(text) TO authenticated;
 DO $$ BEGIN NULL; END $$;
 SELECT mt_test.login('10000000-0000-4000-8000-000000000001');
 SELECT mt_test.check('A admin le 0 linhas de B em todas as tabelas nucleo', mt_test.visible_other('') = '', mt_test.visible_other(''));
-SELECT mt_test.check('A admin continua vendo o legado (venda A)', mt_test.cnt('SELECT 1 FROM public.sales') = 1);
+-- Contagem restrita à venda sintética do seed: a homologação pode ter outros dados fictícios persistentes.
+SELECT mt_test.check('A admin continua vendo o legado (venda A)', mt_test.cnt(
+  $q$SELECT 1 FROM public.sales WHERE id = '15000000-0000-4000-8000-000000000001'$q$) = 1);
 SELECT mt_test.check('A admin: can_view_sale em venda B = false',
   NOT public.can_view_sale('10000000-0000-4000-8000-000000000001', '25000000-0000-4000-8000-000000000001'));
 SELECT mt_test.check('A admin: list_room_occupancy so da propria agencia', mt_test.cnt('SELECT 1 FROM public.list_room_occupancy()') = 1);
@@ -197,7 +199,9 @@ SELECT mt_test.check('regiao aprovada em B pertence a B',
 
 -- Denis (plataforma) sem membership de agência: não lê dados operacionais de nenhuma agência pela RLS.
 SELECT mt_test.login('d0000000-0000-4000-8000-000000000001');
-SELECT mt_test.check('super-admin da plataforma ve as duas organizacoes', mt_test.cnt('SELECT 1 FROM public.organizations') = 2);
+SELECT mt_test.check('super-admin da plataforma ve as duas organizacoes', mt_test.cnt(
+  'SELECT 1 FROM public.organizations WHERE id IN (public.legacy_default_org_id(), '
+  || quote_literal(:'org_b') || '::uuid)') = 2);
 SELECT mt_test.logout(); RESET ROLE;
 
 -- Membro inativo / agência suspensa: fica sem acesso.

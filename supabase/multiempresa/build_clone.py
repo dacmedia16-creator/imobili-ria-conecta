@@ -124,6 +124,9 @@ for f in load('functions'):
 # 20260925100000_exclusive_captures.sql, coerente com relacl de profiles (authenticated sem SELECT de tabela).
 w('GRANT SELECT (id, nome, email, telefone, ativo, created_at, updated_at, avatar_url, '
   'public_profile_enabled, pagina_pessoal_url, instagram_url) ON public.profiles TO authenticated;')
+# Confirmado na leitura read-only da produção em 28/09/2026 (Fase 2a): além dos 11 acima, só existe
+# UPDATE(enabled) para service_role (redundante com o grant de tabela, mantido por fidelidade).
+w('GRANT UPDATE (enabled) ON public.exclusive_capture_settings TO service_role;')
 
 for b in load('buckets'):
     mimes = 'NULL' if b['allowed_mime_types'] is None else "ARRAY[" + ','.join(f"'{m}'" for m in b['allowed_mime_types']) + ']'
