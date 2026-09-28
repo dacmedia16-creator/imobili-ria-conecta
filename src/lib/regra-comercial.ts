@@ -30,5 +30,6 @@ export function regraComercialVigente(data: string = new Date().toISOString().sl
   return vigentes[0];
 }
 
-/** Percentual de referência vigente (hoje: 6% para todas as agências). */
-export const PERCENTUAL_COMISSAO_PADRAO = regraComercialVigente().percentualComissaoPadrao;
+/** Referência estática de 6% (inclusive no carregamento do Worker, quando o relógio pode ser 1970).
+ * A seleção por data deve acontecer em funções executadas após a requisição, via regraComercialVigente(). */
+export const PERCENTUAL_COMISSAO_PADRAO = REGRAS_COMERCIAIS[0].percentualComissaoPadrao;
