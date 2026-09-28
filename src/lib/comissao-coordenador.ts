@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PERCENTUAL_COMISSAO_PADRAO } from "@/lib/regra-comercial";
 
 /** Papéis que representam a comissão de QUEM SUPERVISIONA a venda (nunca uma venda própria) —
  * `lider_captador`/`lider_vendedor` (padrão, ligados a um captador/vendedor específico da mesma
@@ -79,7 +80,8 @@ export type RelatorioComissaoCoordenador = {
   totalVgv6pct: number;
 };
 
-const vgv6 = (valor: number) => Math.round((valor / 0.06) * 100) / 100;
+const vgv6 = (valor: number) =>
+  Math.round((valor / (PERCENTUAL_COMISSAO_PADRAO / 100)) * 100) / 100;
 
 /**
  * Agrupa as linhas brutas de `comissao_coordenador_dados()` na estrutura do relatório —

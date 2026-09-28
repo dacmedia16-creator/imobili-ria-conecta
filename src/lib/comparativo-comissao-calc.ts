@@ -12,9 +12,10 @@ import type {
   ResumoComparativo,
   SituacaoComissao,
 } from "@/lib/comparativo-comissao-types";
+import { PERCENTUAL_COMISSAO_PADRAO } from "@/lib/regra-comercial";
 
-/** Padrão de comparação — comissão de 6% sobre o valor negociado. */
-export const PERCENTUAL_PADRAO = 6;
+/** Padrão de comparação — comissão de 6% sobre o valor negociado (regra comercial central). */
+export const PERCENTUAL_PADRAO = PERCENTUAL_COMISSAO_PADRAO;
 /** Tolerância de arredondamento pra decidir "igual a 6%" (pontos percentuais). */
 const TOLERANCIA_SITUACAO_PP = 0.001;
 /** Tolerância pra sinalizar "Divergência no cadastro" entre sales.percentual_comissao e o

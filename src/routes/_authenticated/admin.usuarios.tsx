@@ -7,8 +7,17 @@ import {
   createUser,
   listLastSignIns,
   resetUserPassword,
+  setUserActive,
+  setUserRole,
   updateUser,
 } from "@/lib/admin-users.functions";
+import {
+  decideUserAction,
+  grantableRoles,
+  type Actor,
+  type Decision,
+  type ManagedRole,
+} from "@/lib/user-management-policy";
 import {
   finalizeOperationalImpersonation,
   restoreOperationalImpersonation,
@@ -80,13 +89,15 @@ const ROLES: AppRole[] = [
   "staff",
 ];
 
+// Regra única (user-management-policy.ts): a mesma decisão é repetida no servidor e no banco.
 function allowedRolesFor(roles: AppRole[]): AppRole[] {
-  if (roles.includes("super_admin")) return [...ROLES];
-  if (roles.includes("admin"))
-    return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "lancamento", "staff"];
-  if (roles.includes("gestor") || roles.includes("team_leader")) return ["corretor"];
-  return [];
+  return grantableRoles(roles as ManagedRole[]).filter((r): r is AppRole =>
+    (ROLES as string[]).includes(r),
+  );
 }
+
+// A lista só traz usuários da própria agência (RLS); a tela usa um marcador de agência comum.
+const SAME_ORG = "agencia-atual";
 
 function initials(nameOrEmail: string) {
   const base = nameOrEmail.split("@")[0].trim();
@@ -142,6 +153,8 @@ function AdminUsers() {
   const listLastSignInsFn = useServerFn(listLastSignIns);
   const resetPasswordFn = useServerFn(resetUserPassword);
   const updateUserFn = useServerFn(updateUser);
+  const setUserActiveFn = useServerFn(setUserActive);
+  const setUserRoleFn = useServerFn(setUserRole);
   const startImpersonationFn = useServerFn(startOperationalImpersonation);
   const finalizeImpersonationFn = useServerFn(finalizeOperationalImpersonation);
   const restoreImpersonationFn = useServerFn(restoreOperationalImpersonation);
@@ -340,47 +353,41 @@ function AdminUsers() {
       </p>
     );
 
+  const actor: Actor = { userId: user?.id ?? "", orgId: SAME_ORG, roles: myRoles as ManagedRole[] };
+  const decide = (
+    u: AdminUser,
+    action: "edit_user" | "reset_password" | "set_active" | "change_roles",
+    role?: AppRole,
+  ): Decision =>
+    decideUserAction(
+      actor,
+      action,
+      {
+        userId: u.id,
+        orgId: SAME_ORG,
+        roles: (rolesByUser[u.id] ?? []) as ManagedRole[],
+        ledByActor: (teamLeads[u.id] ?? []).includes(user?.id ?? ""),
+      },
+      role,
+    );
+
+  // Papéis e ativação passam pelo servidor (regra única + agência); o banco barra o resto.
   const toggleRole = async (userId: string, role: AppRole, has: boolean) => {
-    if (userId === user?.id) {
-      toast.error("Você não pode alterar o próprio perfil");
-      return;
-    }
-    if ((role === "admin" || role === "super_admin") && !isSuper) {
-      toast.error("Apenas super admin pode conceder este papel");
-      return;
-    }
-    if (has) {
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", role);
-      if (error) toast.error(error.message);
-    } else {
-      // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
-      // nasce desligado pra eles (ver mesmo comentário em admin-users.functions.ts).
-      const { error } = await supabase.from("user_roles").insert({
-        user_id: userId,
-        role,
-        ...(role === "juridico" || role === "financeiro"
-          ? { notificar_toda_atualizacao: false }
-          : {}),
-      });
-      if (error) toast.error(error.message);
+    try {
+      await setUserRoleFn({ data: { userId, role, grant: !has } });
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Não foi possível alterar o papel."));
     }
     load();
   };
 
   const toggleAtivo = async (userId: string, ativo: boolean) => {
-    if (userId === user?.id) {
-      toast.error("Você não pode desativar o próprio usuário");
-      return;
-    }
-    const { error } = await supabase.from("profiles").update({ ativo: !ativo }).eq("id", userId);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await setUserActiveFn({ data: { userId, ativo: !ativo } });
       toast.success(ativo ? "Usuário desativado" : "Usuário ativado");
       load();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Não foi possível alterar o status do usuário."));
     }
   };
 
@@ -417,15 +424,26 @@ function AdminUsers() {
 
   const renderUserCard = (u: AdminUser, badge?: "Líder" | "Líder auxiliar") => {
     const userRoles = rolesByUser[u.id] ?? [];
-    const canEditThis = isAdminLike && u.id !== user?.id;
-    // Gestor/team leader só vê a própria equipe e só pode redefinir senha de corretor. A mesma
-    // regra é repetida e validada no servidor; este controle é apenas a apresentação da interface.
-    const canResetPassword =
-      u.id !== user?.id && (isAdminLike || (canManage && userRoles.includes("corretor")));
-    // Editar dados básicos (nome/e-mail/telefone) — além de admin/super admin, gestor e team leader
-    // também podem corrigir cadastro errado, mas só de quem já está na própria equipe (a lista
-    // `visibleUsers` já filtra isso pra quem não é admin-like).
-    const canEditData = canManage && registrationLoaded && u.id !== user?.id;
+    // Mesma regra do servidor (user-management-policy.ts); aqui só decide o que mostrar e explica
+    // por que uma ação não está disponível. O servidor e o banco repetem a validação.
+    const isSelf = u.id === user?.id;
+    const dEdit = decide(u, "edit_user");
+    const dReset = decide(u, "reset_password");
+    const dActive = decide(u, "set_active");
+    const dRoles = decide(u, "change_roles");
+    const canEditThis = dRoles.allowed;
+    const canResetPassword = dReset.allowed;
+    const canEditData = dEdit.allowed && registrationLoaded;
+    const canToggleActive = dActive.allowed;
+    const unavailable = isSelf
+      ? []
+      : [
+          ...new Set(
+            [dEdit, dReset, dActive, ...(isAdminLike ? [] : [dRoles])]
+              .filter((d): d is Extract<Decision, { allowed: false }> => !d.allowed)
+              .map((d) => d.reason),
+          ),
+        ];
     const isEditingRoles = editingRoles[u.id] === true;
     const ultimoAcesso = lastSignIn[u.id];
     const displayName = u.nome || u.email || u.id;
@@ -530,18 +548,22 @@ function AdminUsers() {
                 Redefinir senha
               </Button>
             )}
-            {isAdminLike && (
+            {canToggleActive && (
               <Button
                 size="sm"
                 variant={u.ativo === false ? "default" : "outline"}
                 onClick={() => toggleAtivo(u.id, u.ativo !== false)}
-                disabled={u.id === user?.id}
               >
                 {u.ativo === false ? "Ativar" : "Desativar"}
               </Button>
             )}
           </div>
         </div>
+        {unavailable.length > 0 && (
+          <div className="mb-2 text-xs text-muted-foreground" data-testid="acoes-indisponiveis">
+            Ações indisponíveis: {unavailable.join(" ")}
+          </div>
+        )}
         {isAdminLike && (
           <div className="text-xs text-muted-foreground">
             Líderes deste usuário:{" "}
@@ -565,7 +587,8 @@ function AdminUsers() {
           <div className="mt-3 flex flex-wrap gap-1.5 border-t pt-3">
             {ROLES.map((r) => {
               const has = userRoles.includes(r);
-              const restrict = (r === "admin" || r === "super_admin") && !isSuper;
+              const d = decide(u, "change_roles", r);
+              const restrict = !d.allowed;
               return (
                 <Button
                   key={r}
@@ -573,7 +596,7 @@ function AdminUsers() {
                   variant={has ? "default" : "outline"}
                   onClick={() => toggleRole(u.id, r, has)}
                   disabled={restrict}
-                  title={restrict ? "Apenas super admin" : ""}
+                  title={d.allowed ? "" : d.reason}
                 >
                   {ROLE_LABEL[r]}
                 </Button>
@@ -588,7 +611,16 @@ function AdminUsers() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Usuários e perfis</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Usuários e perfis</h1>
+          <p className="text-xs text-muted-foreground">
+            Você gerencia somente usuários da sua agência.{" "}
+            {isAdminLike
+              ? "Só o super admin da agência concede ou retira papel de administrador."
+              : "Gestor e team leader cadastram corretores e gerenciam só a própria equipe; papéis são alterados por administradores."}{" "}
+            Novas imobiliárias são cadastradas apenas pelo super-admin da plataforma.
+          </p>
+        </div>
         {allowedRoles.length > 0 && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>

@@ -1,43 +1,41 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  canResetAnotherUsersPassword,
-  type UserManagementRole,
-} from "@/lib/admin-user-permissions";
 import { z } from "zod";
 import type { OrgAdminClient } from "@/lib/org-scope";
+import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-policy";
 
-/** Cliente service_role + agência ativa de quem chama (falha fechada). */
-async function adminInCallerOrg(callerId: string) {
+/**
+ * Gestão de usuários da agência (multiempresa, marco 1e). Toda decisão papel × ação × agência vem
+ * da regra única `user-management-policy.ts`, aplicada em `user-management.server.ts` ANTES de usar
+ * o service_role. Admin e gestor só alcançam usuários da própria agência; gestor não cria/promove
+ * administrador; ninguém altera o próprio papel nem move usuário entre agências.
+ */
+
+/** Cliente service_role + agência ativa + papéis de quem chama (falha fechada). */
+async function callerContext(callerId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const scope = await import("@/lib/org-scope");
+  const policy = await import("@/lib/user-management.server");
   const admin = supabaseAdmin as unknown as OrgAdminClient;
   const orgId = await scope.resolveActiveOrg(admin, callerId);
-  return { supabaseAdmin, admin, orgId, scope };
+  const actor = await policy.loadActor(admin, orgId, callerId);
+  return { supabaseAdmin, admin, orgId, actor, scope, policy };
 }
 
-const ROLES = [
-  "corretor",
-  "gestor",
-  "team_leader",
-  "juridico",
-  "financeiro",
-  "admin",
-  "super_admin",
-  "staff",
-] as const;
-type Role = (typeof ROLES)[number];
+const ROLES = ALL_MANAGED_ROLES as [ManagedRole, ...ManagedRole[]];
+
+const fullName = z
+  .string()
+  .trim()
+  .min(2)
+  .max(120)
+  .refine(
+    (v) => v.trim().split(/\s+/).filter(Boolean).length >= 2,
+    "Digite o nome completo (nome e sobrenome).",
+  );
 
 const schema = z.object({
-  nome: z
-    .string()
-    .trim()
-    .min(2)
-    .max(120)
-    .refine(
-      (v) => v.trim().split(/\s+/).filter(Boolean).length >= 2,
-      "Digite o nome completo (nome e sobrenome).",
-    ),
+  nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
   password: z.string().min(8).max(72),
@@ -53,50 +51,29 @@ const updateUserSchema = z.object({
   userId: z.string().uuid(),
   cpf: z.string().trim().max(30).nullable(),
   creci: z.string().trim().max(50).nullable(),
-  nome: z
-    .string()
-    .trim()
-    .min(2)
-    .max(120)
-    .refine(
-      (v) => v.trim().split(/\s+/).filter(Boolean).length >= 2,
-      "Digite o nome completo (nome e sobrenome).",
-    ),
+  nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
 });
 
-function allowedRolesFor(callerRoles: Role[]): Role[] {
-  if (callerRoles.includes("super_admin")) return [...ROLES];
-  if (callerRoles.includes("admin"))
-    return ["corretor", "gestor", "team_leader", "juridico", "financeiro", "staff"];
-  if (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) return ["corretor"];
-  return [];
-}
+const setActiveSchema = z.object({ userId: z.string().uuid(), ativo: z.boolean() });
+const setRoleSchema = z.object({
+  userId: z.string().uuid(),
+  role: z.enum(ROLES),
+  grant: z.boolean(),
+});
 
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => schema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
+    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(userId);
+    policy.assertCreateAllowed(actor, data.role);
+    const callerRoles = actor.roles;
 
-    const { data: myRoles, error: rolesErr } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
-
-    const allowed = allowedRolesFor(callerRoles);
-    if (allowed.length === 0) throw new Error("Você não tem permissão para criar usuários.");
-    if (!allowed.includes(data.role)) {
-      throw new Error(`Seu perfil não pode criar usuários do tipo "${data.role}".`);
-    }
-
-    // Multiempresa: o novo usuário nasce na agência de quem cadastra. A organização vai em
-    // app_metadata (só o servidor grava) e handle_new_user cria perfil/vínculo nessa agência.
-    const { supabaseAdmin, admin, orgId } = await adminInCallerOrg(userId);
-
+    // O novo usuário nasce na agência de quem cadastra. A organização vai em app_metadata
+    // (só o servidor grava) e handle_new_user cria perfil/vínculo nessa agência.
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -187,53 +164,18 @@ export const createUser = createServerFn({ method: "POST" })
     return { id: newId, email: data.email };
   });
 
-/** Redefine a senha de outro usuário. Admin/super admin podem redefinir qualquer conta;
- * gestor/team leader, somente corretores que pertencem à própria equipe. */
+/** Redefine a senha de outro usuário da própria agência. Admin/super admin: qualquer conta da
+ * agência; gestor/team leader: somente corretores da própria equipe. */
 export const resetUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => resetPasswordSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId: callerId } = context;
+    const { userId: callerId } = context;
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para trocar a sua própria senha.');
     }
-
-    const { data: myRoles, error: rolesErr } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
-    if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
-    const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
-    const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
-    if (!isAdminLike && !isTeamLead) {
-      throw new Error("Você não tem permissão para redefinir a senha de outro usuário.");
-    }
-
-    if (!isAdminLike) {
-      const [{ data: leads, error: leadErr }, { data: targetRoles, error: targetRolesErr }] =
-        await Promise.all([
-          supabase.rpc("is_lead_of", { _lider: callerId, _membro: data.userId }),
-          supabase.from("user_roles").select("role").eq("user_id", data.userId),
-        ]);
-      if (leadErr) throw new Error(leadErr.message);
-      if (targetRolesErr) throw new Error(targetRolesErr.message);
-
-      const targetRoleNames = (targetRoles ?? []).map((r) => r.role as UserManagementRole);
-      if (
-        !canResetAnotherUsersPassword({
-          callerRoles: callerRoles as UserManagementRole[],
-          targetRoles: targetRoleNames,
-          isLeadOfTarget: Boolean(leads),
-        })
-      ) {
-        throw new Error("Você só pode redefinir a senha de corretores da sua própria equipe.");
-      }
-    }
-
-    // Multiempresa: admin/super_admin da agência só alcança usuários da própria agência.
-    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(callerId);
-    await scope.assertUserInOrg(admin, orgId, data.userId);
+    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(callerId);
+    await policy.assertUserActionAllowed(admin, actor, "reset_password", data.userId);
 
     // updateUserById substitui user_metadata inteiro — busca o atual pra não perder o que já tem lá.
     const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
@@ -259,42 +201,19 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Corrige nome/e-mail/telefone de outro usuário quando algo foi preenchido errado no cadastro.
- * Admin/super admin podem editar qualquer um; gestor/team leader só quem está na própria equipe
- * (mesma regra estrutural de is_lead_of usada nas policies de venda). E-mail muda tanto o profile
- * quanto o login em auth.users (senão a pessoa nunca mais entra com o e-mail certo). */
+/** Corrige nome/e-mail/telefone de outro usuário da própria agência. Admin/super admin: qualquer
+ * um da agência; gestor/team leader: só quem está na própria equipe (is_lead_of). E-mail muda
+ * tanto o profile quanto o login em auth.users. */
 export const updateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => updateUserSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId: callerId } = context;
+    const { userId: callerId } = context;
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para editar seus próprios dados.');
     }
-
-    const { data: myRoles, error: rolesErr } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
-    if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
-
-    const isAdminLike = callerRoles.some((r) => (["admin", "super_admin"] as Role[]).includes(r));
-    const isTeamLead = callerRoles.some((r) => (["gestor", "team_leader"] as Role[]).includes(r));
-    if (!isAdminLike && !isTeamLead) {
-      throw new Error("Você não tem permissão para editar usuários.");
-    }
-    if (!isAdminLike) {
-      const { data: leads, error: leadErr } = await supabase.rpc("is_lead_of", {
-        _lider: callerId,
-        _membro: data.userId,
-      });
-      if (leadErr) throw new Error(leadErr.message);
-      if (!leads) throw new Error("Você só pode editar membros da sua equipe.");
-    }
-
-    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(callerId);
-    await scope.assertUserInOrg(admin, orgId, data.userId);
+    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(callerId);
+    await policy.assertUserActionAllowed(admin, actor, "edit_user", data.userId);
 
     const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
       data.userId,
@@ -330,29 +249,78 @@ export const updateUser = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Ativa/desativa usuário da própria agência. Admin: qualquer um da agência (exceto a si mesmo);
+ * gestor/team leader: só corretores da própria equipe. */
+export const setUserActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => setActiveSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { userId: callerId } = context;
+    const { admin, orgId, actor, policy } = await callerContext(callerId);
+    await policy.assertUserActionAllowed(admin, actor, "set_active", data.userId);
+    const { error } = await admin
+      .from("profiles")
+      .update({ ativo: data.ativo })
+      .eq("organization_id", orgId)
+      .eq("id", data.userId);
+    if (error) throw new Error(error.message);
+    await admin.from("activity_logs").insert({
+      organization_id: orgId,
+      autor_id: callerId,
+      sale_id: null,
+      acao: data.ativo ? "user_activated" : "user_deactivated",
+      payload: { target_user: data.userId },
+    });
+    return { ok: true };
+  });
+
+/** Concede/retira papel de usuário da própria agência. Só admin/super admin; admin não mexe em
+ * papel de administrador; ninguém altera o próprio papel. */
+export const setUserRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => setRoleSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { userId: callerId } = context;
+    const { admin, orgId, actor, policy } = await callerContext(callerId);
+    await policy.assertUserActionAllowed(admin, actor, "change_roles", data.userId, data.role);
+    if (data.grant) {
+      const { error } = await admin.from("user_roles").insert({
+        organization_id: orgId,
+        user_id: data.userId,
+        role: data.role,
+        ...(data.role === "juridico" || data.role === "financeiro"
+          ? { notificar_toda_atualizacao: false }
+          : {}),
+      });
+      if (error && !/duplicate|unique/i.test(error.message)) throw new Error(error.message);
+    } else {
+      const { error } = await admin
+        .from("user_roles")
+        .delete()
+        .eq("organization_id", orgId)
+        .eq("user_id", data.userId)
+        .eq("role", data.role);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
 /** Último login (auth.users.last_sign_in_at) de cada usuário — só dá pra ler via Admin API
  * (service role), não existe em public.profiles nem é exposto por RLS comum. */
 export const listLastSignIns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-
-    const { data: myRoles, error: rolesErr } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (rolesErr) throw new Error(rolesErr.message);
-    const callerRoles = (myRoles ?? []).map((r) => r.role as Role);
+    const { userId } = context;
+    const { supabaseAdmin, admin, orgId, actor, scope } = await callerContext(userId);
     if (
-      !callerRoles.some((r) =>
-        (["admin", "super_admin", "gestor", "team_leader"] as Role[]).includes(r),
+      !actor.roles.some((r) =>
+        (["admin", "super_admin", "gestor", "team_leader"] as ManagedRole[]).includes(r),
       )
     ) {
       throw new Error("Você não tem permissão para ver essa informação.");
     }
 
     // auth.users é global: devolve só usuários da agência de quem pergunta.
-    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(userId);
     const orgUserIds = await scope.listOrgUserIds(admin, orgId);
     const map: Record<string, string | null> = {};
     let page = 1;

@@ -24,6 +24,13 @@ Marco 1d: `bash supabase/multiempresa/run-1d.sh` após 1a+1b+1c. Sobe PostgREST 
 SQL 1a–1d, a fixture sintética A↔B e `src/lib/multiempresa-1d.integration.test.ts`; limpa a fixture,
 ensaia o rollback (fingerprint idêntico) e reaplica. Nenhum WhatsApp é enviado.
 
+Marco 1e: `bash supabase/multiempresa/run-1e.sh` após 1a–1d. Aplica a fronteira admin/gestor
+(`migrations/20260928040000_mt_fase1e_fronteira_admin.sql`), roda as suítes SQL 1a–1e, o Vitest 1d e o
+`src/lib/multiempresa-1e.integration.test.ts` (matriz papel × ação × agência no servidor e, com JWT de
+usuário, direto no banco), ensaia o rollback (fingerprint idêntico, suítes 1a–1d verdes sem 1e) e reaplica.
+Regra única de gestão de usuários: `src/lib/user-management-policy.ts`; regra comercial central
+versionada: `src/lib/regra-comercial.ts`.
+
 Ensaio completo (recria container local, upgrade, testes, rollback, reaplicação):
 
     CATALOG_DIR=/caminho/privado/catalog bash supabase/multiempresa/run-1a.sh
