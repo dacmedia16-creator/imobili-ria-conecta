@@ -22,6 +22,8 @@ export type VendaComercialPaginada = {
   modalidade: string;
   data_assinatura: string | null;
   data_venda: string;
+  /** Corretores participantes (atribuição). `corretor_id` é só quem cadastrou. */
+  corretores_ids?: string[];
 };
 export type VendasComerciaisPaginadas = {
   rows: VendaComercialPaginada[];

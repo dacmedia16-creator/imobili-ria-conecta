@@ -106,8 +106,10 @@ import {
   deleteSaleCascade,
 } from "@/lib/permissions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
+import { buscarResponsaveisDaVenda } from "@/lib/sale-participantes";
 import {
   getSaleRoleFlags,
+  responsaveisDaVenda,
   isSaleLocked,
   corretorPodeEditar,
   gestorPodeEditar,
@@ -776,7 +778,8 @@ function SaleDetail() {
     if (capability.error) throw capability.error;
     const effective = saleManagementCapabilities(capability.data);
     const saleTeamIds = new Set(teamIds);
-    if (effective.teamOwner) saleTeamIds.add(current.data.corretor_id);
+    if (effective.teamOwner)
+      for (const r of responsaveisDaVenda(current.data, commissionExtras)) saleTeamIds.add(r);
     const canSync = podeSincronizarResumo(
       effective.canManage
         ? roles
@@ -789,7 +792,8 @@ function SaleDetail() {
     if (canSync) return true;
     // Dono em rascunho pode preencher sua venda antes de existir ocorrência (regra do banco).
     const ownerDraft =
-      current.data.corretor_id === user?.id &&
+      !!user?.id &&
+      responsaveisDaVenda(current.data, commissionExtras).includes(user.id) &&
       corretorPodeEditar(true, current.data.status) &&
       !isSaleLocked(current.data.status, occurrence.data?.aceita_financeiro ?? false);
     if ((dirtyExtras || temEdicaoFinanceiraResumo(patch)) && !(ownerDraft && !occurrence.data))
@@ -1110,7 +1114,7 @@ function SaleDetail() {
     isAdminLike,
     isGestor: hasManagerRole,
     isJuridico,
-  } = getSaleRoleFlags(roles, sale.corretor_id, user?.id);
+  } = getSaleRoleFlags(roles, responsaveisDaVenda(sale, commissionExtras), user?.id);
   const managementCurrent = management.saleId === id && management.userId === user?.id;
   const isGestor =
     hasManagerRole && managementCurrent && management.canManage && management.canEdit;
@@ -5540,14 +5544,20 @@ function SaleReport({
       // (só financeiro/admin fazem), não faz parte da esteira normal de "sua vez"/"toda atualização"
       // coberta por proximoResponsavelRoles, e decidimos não expandir o alcance do WhatsApp pra esse
       // caso agora. Só o corretor é avisado (sino), e não duplica se ele mesmo tiver reaberto.
-      if (sale.corretor_id && sale.corretor_id !== user?.id) {
-        await supabase.from("notifications").insert({
-          user_id: sale.corretor_id,
-          sale_id: sale.id,
-          tipo: "occurrence_reopened",
-          titulo: "Ocorrência reaberta",
-          mensagem: motivo,
-        });
+      // Avisa os corretores participantes (não quem só cadastrou a venda).
+      const destinatarios = (await buscarResponsaveisDaVenda(sale.id)).filter(
+        (uid) => uid !== user?.id,
+      );
+      if (destinatarios.length > 0) {
+        await supabase.from("notifications").insert(
+          destinatarios.map((uid) => ({
+            user_id: uid,
+            sale_id: sale.id,
+            tipo: "occurrence_reopened",
+            titulo: "Ocorrência reaberta",
+            mensagem: motivo,
+          })),
+        );
       }
       toast.success("Ocorrência reaberta");
       setReopenOpen(false);
@@ -6523,19 +6533,20 @@ function OccurrencePanel({
       });
       // Não passa por notifySaleStatusChange de propósito — ver mesmo comentário na outra ocorrência
       // desse bloco (reabertura é ação corretiva rara, fora da esteira normal de sua vez/toda atualização).
-      const { data: s } = await supabase
-        .from("sales")
-        .select("corretor_id")
-        .eq("id", saleId)
-        .maybeSingle();
-      if (s?.corretor_id && s.corretor_id !== user?.id) {
-        await supabase.from("notifications").insert({
-          user_id: s.corretor_id,
-          sale_id: saleId,
-          tipo: "occurrence_reopened",
-          titulo: "Ocorrência reaberta",
-          mensagem: motivo,
-        });
+      // Avisa os corretores participantes (não quem só cadastrou a venda).
+      const destinatarios = (await buscarResponsaveisDaVenda(saleId)).filter(
+        (uid) => uid !== user?.id,
+      );
+      if (destinatarios.length > 0) {
+        await supabase.from("notifications").insert(
+          destinatarios.map((uid) => ({
+            user_id: uid,
+            sale_id: saleId,
+            tipo: "occurrence_reopened",
+            titulo: "Ocorrência reaberta",
+            mensagem: motivo,
+          })),
+        );
       }
       toast.success("Ocorrência reaberta");
       setReopenOpen(false);

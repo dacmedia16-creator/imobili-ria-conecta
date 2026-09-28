@@ -70,6 +70,7 @@ import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { registrarVendaAction } from "@/lib/registrar-venda";
+import { corretoresDaLinha, responsaveisDaLinha } from "@/lib/sale-permissions";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 
@@ -88,7 +89,22 @@ type RawSale = Pick<
   | "modalidade"
   | "data_assinatura"
 >;
-type SalesListRow = RawSale & { data_venda: string };
+type SalesListRow = RawSale & { data_venda: string; corretores_ids?: string[] | null };
+
+/** Nomes dos corretores participantes (não de quem cadastrou a venda). */
+function nomesCorretores(s: SalesListRow, profileName: Record<string, string>): string {
+  return corretoresDaLinha(s)
+    .map((id) => profileName[id] ?? "—")
+    .join(", ");
+}
+function nomesLideres(
+  s: SalesListRow,
+  profileName: Record<string, string>,
+  liderIdByCorretor: Record<string, string>,
+): string {
+  const ids = [...new Set(corretoresDaLinha(s).map((id) => liderIdByCorretor[id]).filter(Boolean))];
+  return ids.map((id) => profileName[id] ?? "—").join(", ");
+}
 
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
@@ -518,12 +534,14 @@ function SalesList() {
       if (isOverseer) return false;
       return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
         papel === "corretor"
-          ? s.corretor_id === user?.id
+          ? !!user?.id && responsaveisDaLinha(s).includes(user.id)
           : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — sem esse filtro,
             // quem também é jurídico/financeiro (e por isso enxerga vendas de times que não lidera) via
             // o badge acender pra toda venda parada numa etapa do gestor, mesmo fora da própria equipe.
+            // "Corretor da venda" = participantes, não quem cadastrou.
             papel === "gestor"
-            ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
+            ? hasAny(["gestor", "team_leader"]) &&
+              responsaveisDaLinha(s).some((id) => teamIds.has(id))
             : hasAny([papel]),
       );
     },
@@ -846,10 +864,10 @@ function SalesList() {
                             {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
                           </div>
                           <div className="truncate text-sm text-muted-foreground">
-                            {profileName[s.corretor_id] ?? "—"}
+                            {nomesCorretores(s, profileName)}
                             {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
-                              liderIdByCorretor[s.corretor_id] && (
-                                <> · {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}</>
+                              nomesLideres(s, profileName, liderIdByCorretor) && (
+                                <> · {nomesLideres(s, profileName, liderIdByCorretor)}</>
                               )}
                           </div>
                         </div>
@@ -927,11 +945,11 @@ function SalesList() {
                             {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {profileName[s.corretor_id] ?? "—"}
+                            {nomesCorretores(s, profileName)}
                           </TableCell>
                           {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
                             <TableCell className="text-muted-foreground">
-                              {profileName[liderIdByCorretor[s.corretor_id]] ?? "—"}
+                              {nomesLideres(s, profileName, liderIdByCorretor) || "—"}
                             </TableCell>
                           )}
                           <TableCell className="text-muted-foreground">

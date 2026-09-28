@@ -57,6 +57,7 @@ import { DocStatusBadge } from "./shared";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import { storageOrganizationPath } from "@/lib/storage-org";
+import { buscarResponsaveisDaVenda } from "@/lib/sale-participantes";
 
 export type DisplayDocument = Omit<
   DocumentRow,
@@ -522,20 +523,18 @@ export function DocumentsPanel({
         acao: "document_rejected",
         payload: { doc_id: doc.id, tipo: doc.tipo, motivo },
       });
-      // Notificar o corretor da venda
-      const { data: sale } = await supabase
-        .from("sales")
-        .select("corretor_id, imovel_id, codigo_interno")
-        .eq("id", saleId)
-        .maybeSingle();
-      if (sale?.corretor_id) {
-        await supabase.from("notifications").insert({
-          user_id: sale.corretor_id,
-          sale_id: saleId,
-          tipo: "document_rejected",
-          titulo: `Documento recusado: ${doc.tipo}`,
-          mensagem: motivo,
-        });
+      // Notificar os corretores participantes da venda (não quem só a cadastrou).
+      const destinatarios = await buscarResponsaveisDaVenda(saleId);
+      if (destinatarios.length > 0) {
+        await supabase.from("notifications").insert(
+          destinatarios.map((uid) => ({
+            user_id: uid,
+            sale_id: saleId,
+            tipo: "document_rejected",
+            titulo: `Documento recusado: ${doc.tipo}`,
+            mensagem: motivo,
+          })),
+        );
       }
       setPendingReject(null);
       onChange();

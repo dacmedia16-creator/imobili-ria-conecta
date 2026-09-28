@@ -62,6 +62,7 @@ import {
   valorSelectBeneficiario,
 } from "@/lib/lancamento-pessoas";
 import { calcularDistribuicaoLancamento } from "@/lib/lancamento-distribuicao";
+import { responsaveisDaVenda } from "@/lib/sale-permissions";
 import { sanitizeLancamentoResumoPayload } from "@/lib/lancamento-resumo";
 import type {
   ActivityLogRow,
@@ -209,7 +210,8 @@ export function LancamentoDetail({
 }) {
   const { user, hasAny } = useAuth();
   const router = useRouter();
-  const isOwner = sale.corretor_id === user?.id;
+  // Lançamento: quem cadastrou é o operador do fluxo (responsaveisDaVenda), sem atribuição comercial.
+  const isOwner = !!user?.id && responsaveisDaVenda(sale, commissionExtras).includes(user.id);
   const isFinanceiro = hasAny(["financeiro", "admin", "super_admin"]);
   const canEdit = (sale.status === "rascunho" || sale.status === "devolvida_ajuste") && isOwner;
   const isResend = sale.status === "devolvida_ajuste";

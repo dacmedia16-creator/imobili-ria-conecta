@@ -8,6 +8,32 @@ import {
   STATUS_LABEL,
   type SaleStatus,
 } from "@/lib/status";
+import { responsaveisDaVenda } from "@/lib/sale-permissions";
+
+type Participavel = Parameters<typeof responsaveisDaVenda>[0];
+
+/**
+ * Corretores participantes da venda e líderes (principal + auxiliar) das equipes deles, só dentro
+ * da agência da venda (service_role ignora RLS: filtro explícito por organization_id).
+ */
+async function responsaveisELideresNaAgencia(
+  admin: OrgAdminClient,
+  orgId: string,
+  sale: Participavel & { id: string },
+  leaderIdsForCorretor: (a: OrgAdminClient, o: string, c: string | null) => Promise<string[]>,
+): Promise<{ responsaveis: string[]; liderIds: string[] }> {
+  const { data: extrasVenda } = await admin
+    .from("sale_commission_extras")
+    .select("papel, user_id")
+    .eq("organization_id", orgId)
+    .eq("sale_id", sale.id);
+  const responsaveis = responsaveisDaVenda(
+    sale,
+    (extrasVenda ?? []) as { papel: string | null; user_id: string | null }[],
+  );
+  const listas = await Promise.all(responsaveis.map((id) => leaderIdsForCorretor(admin, orgId, id)));
+  return { responsaveis, liderIds: Array.from(new Set(listas.flat())) };
+}
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
@@ -98,7 +124,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const { data: sale } = await supabase
       .from("sales")
       .select(
-        "id, corretor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
+        "id, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
       )
       .eq("id", data.saleId)
       .maybeSingle();
@@ -116,15 +142,21 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const orgId = await saleOrg(admin, sale.id);
     if (!orgId) return { notified: 0, sent: 0 };
 
-    // Líder auxiliar ("braço direito") recebe os mesmos avisos que o líder principal, escopado
-    // à(s) mesma(s) equipe(s) — team_co_leaders soma à lista, não substitui.
-    const liderIds = await leaderIdsForCorretor(admin, orgId, sale.corretor_id);
+    // Avisos "de corretor" e liderança seguem os PARTICIPANTES da venda, não quem a cadastrou
+    // (decisão de Denis, 28/09/2026). Criador sem participação não recebe aviso de corretor.
+    // Líder auxiliar ("braço direito") soma à lista; tudo escopado à agência da venda.
+    const { responsaveis, liderIds } = await responsaveisELideresNaAgencia(
+      admin,
+      orgId,
+      sale,
+      leaderIdsForCorretor,
+    );
 
     // Nome do corretor e do(s) gestor(es)/lider(es) envolvidos na venda, pra aparecer nas
     // notificações (sino e WhatsApp) — sem isso quem recebe o aviso não sabe de qual corretor/time
     // se trata sem abrir o link.
     const envolvidosIds = Array.from(
-      new Set([sale.corretor_id, ...liderIds].filter((id): id is string => !!id)),
+      new Set([...responsaveis, ...liderIds].filter((id): id is string => !!id)),
     );
     const envolvidosProfiles = await profilesInOrg<{ id: string; nome: string | null }>(
       admin,
@@ -133,7 +165,11 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       "id, nome",
     );
     const nomeById = new Map(envolvidosProfiles.map((p) => [p.id, p.nome]));
-    const corretorNome = sale.corretor_id ? nomeById.get(sale.corretor_id) : null;
+    const corretorNome =
+      responsaveis
+        .map((id) => nomeById.get(id))
+        .filter((n): n is string => !!n)
+        .join(", ") || null;
     const gestorNomes = liderIds
       .map((id) => nomeById.get(id))
       .filter((n): n is string => !!n)
@@ -145,7 +181,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const roleNext = proximoResponsavelRoles(status)[0];
     const proximoIds = new Set<string>();
     if (roleNext === "corretor") {
-      if (sale.corretor_id) proximoIds.add(sale.corretor_id);
+      for (const r of responsaveis) proximoIds.add(r);
     } else if (roleNext === "gestor") {
       for (const l of liderIds) proximoIds.add(l);
     } else if (roleNext) {
@@ -158,7 +194,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       string,
       "corretor" | "gestor" | "juridico" | "financeiro"
     >();
-    if (sale.corretor_id) atualizacaoPapelById.set(sale.corretor_id, "corretor");
+    for (const r of responsaveis) atualizacaoPapelById.set(r, "corretor");
     for (const l of liderIds)
       if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
     if (chegouAoJuridico(status, sale.modalidade)) {
@@ -339,7 +375,9 @@ export const notifySaleComment = createServerFn({ method: "POST" })
         .maybeSingle(),
       supabase
         .from("sales")
-        .select("id, corretor_id, status, imovel_id, codigo_interno")
+        .select(
+          "id, corretor_id, corretor_captador_id, corretor_vendedor_id, modalidade, status, imovel_id, codigo_interno",
+        )
         .eq("id", data.saleId)
         .maybeSingle(),
     ]);
@@ -352,11 +390,17 @@ export const notifySaleComment = createServerFn({ method: "POST" })
     const admin = supabaseAdmin as unknown as OrgAdminClient;
     const orgId = await saleOrg(admin, sale.id);
     if (!orgId) return { notified: 0 };
-    const liderIds = await leaderIdsForCorretor(admin, orgId, sale.corretor_id);
+    // Mesmo critério do aviso de etapa: participantes, não quem cadastrou.
+    const { responsaveis, liderIds } = await responsaveisELideresNaAgencia(
+      admin,
+      orgId,
+      sale,
+      leaderIdsForCorretor,
+    );
 
     const roleNext = proximoResponsavelRoles(sale.status as SaleStatus)[0];
     const recipientIds = new Set<string>();
-    if (roleNext === "corretor" && sale.corretor_id) recipientIds.add(sale.corretor_id);
+    if (roleNext === "corretor") responsaveis.forEach((id) => recipientIds.add(id));
     else if (roleNext === "gestor") liderIds.forEach((id) => recipientIds.add(id));
     else if (roleNext) {
       (await roleUserIds(admin, orgId, roleNext)).forEach((id) => recipientIds.add(id));
