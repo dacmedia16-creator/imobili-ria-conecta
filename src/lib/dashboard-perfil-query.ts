@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { classificarGrupoVenda, type GrupoVenda, type SaleStatus } from "@/lib/status";
 import { fetchMetricasSemParceria } from "@/lib/metricas-sem-parceria-query";
+import { corretoresDaVenda } from "@/lib/sale-permissions";
 
 export type ResumoGrupoVenda = { quantidade: number; vgv: number };
 export type ResumoPorGrupo = Record<GrupoVenda, ResumoGrupoVenda>;
@@ -48,12 +49,40 @@ export async function fetchResumoGrupoVenda(
   corretorIds: string[] | "todas",
 ): Promise<ResumoPorGrupo> {
   if (corretorIds !== "todas" && corretorIds.length === 0) return resumoVazio();
-  let query = supabase.from("sales").select("id, status, valor_negociado");
-  if (corretorIds !== "todas") query = query.in("corretor_id", corretorIds);
-  const [{ data, error }, metricas] = await Promise.all([query, fetchMetricasSemParceria()]);
+  // Atribuição pelos PARTICIPANTES da venda (captador, vendedor e extras corretor_*), nunca por
+  // quem cadastrou (sales.corretor_id só vale como fallback quando não há participante).
+  const [{ data, error }, extrasRes, metricas] = await Promise.all([
+    supabase
+      .from("sales")
+      .select("id, status, valor_negociado, corretor_id, corretor_captador_id, corretor_vendedor_id"),
+    corretorIds === "todas"
+      ? Promise.resolve({ data: [], error: null })
+      : // Todos os extras de corretor (não só os do alvo): sem eles, uma venda cujos corretores
+        // estão só em extras cairia no fallback do criador e contaria para ele.
+        supabase
+          .from("sale_commission_extras")
+          .select("sale_id, papel, user_id")
+          .in("papel", ["corretor_captador", "corretor_vendedor"]),
+    fetchMetricasSemParceria(),
+  ]);
   if (error) throw error;
+  if (extrasRes.error) throw extrasRes.error;
+  const extrasPorVenda = new Map<string, { papel: string | null; user_id: string | null }[]>();
+  for (const e of (extrasRes.data ?? []) as {
+    sale_id: string;
+    papel: string | null;
+    user_id: string | null;
+  }[]) {
+    extrasPorVenda.set(e.sale_id, [...(extrasPorVenda.get(e.sale_id) ?? []), e]);
+  }
+  const alvo = corretorIds === "todas" ? null : new Set(corretorIds);
+  const linhas = (data ?? []).filter(
+    (v) =>
+      !alvo ||
+      corretoresDaVenda(v, extrasPorVenda.get(v.id) ?? []).some((id) => alvo.has(id)),
+  );
   return agruparVendasPorGrupoComVgv(
-    (data ?? []).map((v) => ({
+    linhas.map((v) => ({
       status: v.status,
       valor_negociado: metricas.get(v.id)?.vgvProprio ?? 0,
     })),

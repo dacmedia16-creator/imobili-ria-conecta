@@ -5,7 +5,12 @@ import type {
   OccurrenceCommissionRow,
   OccurrencePartnerRow,
 } from "@/lib/database.types";
-import { getSaleRoleFlags, gestorPodeEditar, isSaleLocked } from "@/lib/sale-permissions";
+import {
+  getSaleRoleFlags,
+  gestorPodeEditar,
+  isSaleLocked,
+  responsaveisDaVenda,
+} from "@/lib/sale-permissions";
 import { papelDaExtra, userIdParaExtra } from "@/lib/sale-financial-calc";
 
 // Mesmas capacidades da tela e trava de aceite. RLS continua sendo a autoridade final.
@@ -16,10 +21,16 @@ export function podeSincronizarResumo(
   teamIds: Set<string>,
   aceitaFin: boolean,
 ): boolean {
-  const flags = getSaleRoleFlags(roles, sale.corretor_id, userId);
+  // Liderança pelos responsáveis (participantes), não por quem cadastrou a venda.
+  const responsaveis = responsaveisDaVenda(sale);
+  const flags = getSaleRoleFlags(roles, responsaveis, userId);
   return (
     flags.isFinanceiro ||
-    (gestorPodeEditar(flags.isGestor, sale.status, teamIds.has(sale.corretor_id)) &&
+    (gestorPodeEditar(
+      flags.isGestor,
+      sale.status,
+      responsaveis.some((id) => teamIds.has(id)),
+    ) &&
       !isSaleLocked(sale.status, aceitaFin))
   );
 }

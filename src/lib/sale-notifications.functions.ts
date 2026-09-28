@@ -7,6 +7,7 @@ import {
   STATUS_LABEL,
   type SaleStatus,
 } from "@/lib/status";
+import { responsaveisDaVenda } from "@/lib/sale-permissions";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
@@ -99,7 +100,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const { data: sale } = await supabase
       .from("sales")
       .select(
-        "id, corretor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
+        "id, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
       )
       .eq("id", data.saleId)
       .maybeSingle();
@@ -110,10 +111,18 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     // exige papel elevado — o service role resolve os dois casos aqui.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Avisos "de corretor" e liderança seguem os PARTICIPANTES da venda, não quem a cadastrou
+    // (decisão de Denis, 28/09/2026). Criador sem participação não recebe aviso de corretor.
+    const { data: extrasVenda } = await supabaseAdmin
+      .from("sale_commission_extras")
+      .select("papel, user_id")
+      .eq("sale_id", sale.id);
+    const responsaveis = responsaveisDaVenda(sale, extrasVenda ?? []);
+
     const { data: tm } = await supabaseAdmin
       .from("team_members")
       .select("team_id")
-      .eq("membro_id", sale.corretor_id);
+      .in("membro_id", responsaveis);
     const teamIds = Array.from(new Set((tm ?? []).map((t: TeamMemberRow) => t.team_id)));
     let liderIds: string[] = [];
     if (teamIds.length) {
@@ -135,13 +144,17 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     // notificações (sino e WhatsApp) — sem isso quem recebe o aviso não sabe de qual corretor/time
     // se trata sem abrir o link.
     const envolvidosIds = Array.from(
-      new Set([sale.corretor_id, ...liderIds].filter((id): id is string => !!id)),
+      new Set([...responsaveis, ...liderIds].filter((id): id is string => !!id)),
     );
     const { data: envolvidosProfiles } = envolvidosIds.length
       ? await supabaseAdmin.from("profiles").select("id, nome").in("id", envolvidosIds)
       : { data: [] as { id: string; nome: string | null }[] };
     const nomeById = new Map((envolvidosProfiles ?? []).map((p) => [p.id, p.nome]));
-    const corretorNome = sale.corretor_id ? nomeById.get(sale.corretor_id) : null;
+    const corretorNome =
+      responsaveis
+        .map((id) => nomeById.get(id))
+        .filter((n): n is string => !!n)
+        .join(", ") || null;
     const gestorNomes = liderIds
       .map((id) => nomeById.get(id))
       .filter((n): n is string => !!n)
@@ -153,7 +166,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const roleNext = proximoResponsavelRoles(status)[0];
     const proximoIds = new Set<string>();
     if (roleNext === "corretor") {
-      if (sale.corretor_id) proximoIds.add(sale.corretor_id);
+      for (const r of responsaveis) proximoIds.add(r);
     } else if (roleNext === "gestor") {
       for (const l of liderIds) proximoIds.add(l);
     } else if (roleNext) {
@@ -170,7 +183,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       string,
       "corretor" | "gestor" | "juridico" | "financeiro"
     >();
-    if (sale.corretor_id) atualizacaoPapelById.set(sale.corretor_id, "corretor");
+    for (const r of responsaveis) atualizacaoPapelById.set(r, "corretor");
     for (const l of liderIds)
       if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
     if (chegouAoJuridico(status, sale.modalidade)) {
@@ -350,17 +363,25 @@ export const notifySaleComment = createServerFn({ method: "POST" })
         .maybeSingle(),
       supabase
         .from("sales")
-        .select("id, corretor_id, status, imovel_id, codigo_interno")
+        .select(
+          "id, corretor_id, corretor_captador_id, corretor_vendedor_id, modalidade, status, imovel_id, codigo_interno",
+        )
         .eq("id", data.saleId)
         .maybeSingle(),
     ]);
     if (!comment || !sale || comment.autor_id !== userId) return { notified: 0 };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Mesmo critério do aviso de etapa: participantes, não quem cadastrou.
+    const { data: extrasVenda } = await supabaseAdmin
+      .from("sale_commission_extras")
+      .select("papel, user_id")
+      .eq("sale_id", sale.id);
+    const responsaveis = responsaveisDaVenda(sale, extrasVenda ?? []);
     const { data: tm } = await supabaseAdmin
       .from("team_members")
       .select("team_id")
-      .eq("membro_id", sale.corretor_id);
+      .in("membro_id", responsaveis);
     const teamIds = Array.from(new Set((tm ?? []).map((row: TeamMemberRow) => row.team_id)));
     let liderIds: string[] = [];
     if (teamIds.length) {
@@ -378,7 +399,7 @@ export const notifySaleComment = createServerFn({ method: "POST" })
 
     const roleNext = proximoResponsavelRoles(sale.status as SaleStatus)[0];
     const recipientIds = new Set<string>();
-    if (roleNext === "corretor" && sale.corretor_id) recipientIds.add(sale.corretor_id);
+    if (roleNext === "corretor") responsaveis.forEach((id) => recipientIds.add(id));
     else if (roleNext === "gestor") liderIds.forEach((id) => recipientIds.add(id));
     else if (roleNext) {
       const { data: users } = await supabaseAdmin

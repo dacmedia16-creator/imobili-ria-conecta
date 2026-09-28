@@ -53,6 +53,7 @@ import {
   MovimentacaoCard,
   ResumoGrupoVendaCards,
 } from "@/components/dashboard/shared";
+import { responsaveisDaVenda } from "@/lib/sale-permissions";
 import {
   Plus,
   FileText,
@@ -151,7 +152,7 @@ type DashboardStats = {
 };
 
 const RECENTES_COLUMNS =
-  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, updated_at, created_at";
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, corretor_captador_id, corretor_vendedor_id, modalidade, updated_at, created_at";
 
 type VendaRecente = {
   id: string;
@@ -160,6 +161,9 @@ type VendaRecente = {
   imovel_id: string | null;
   codigo_interno: string | null;
   corretor_id: string;
+  corretor_captador_id: string | null;
+  corretor_vendedor_id: string | null;
+  modalidade: string;
   updated_at: string;
   created_at: string;
   data_venda: string | null;
@@ -597,11 +601,12 @@ function Dashboard() {
               !hasAny(["admin", "super_admin"]) &&
               proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
                 papel === "corretor"
-                  ? s.corretor_id === user?.id
+                  ? !!user?.id && responsaveisDaVenda(s).includes(user.id)
                   : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
-                    // mesmo comentário em vendas.index.tsx.
+                    // mesmo comentário em vendas.index.tsx. Corretor = participantes, não criador.
                     papel === "gestor"
-                    ? hasAny(["gestor", "team_leader"]) && teamIds.has(s.corretor_id)
+                    ? hasAny(["gestor", "team_leader"]) &&
+                      responsaveisDaVenda(s).some((id) => teamIds.has(id))
                     : hasAny([papel]),
               );
             return (

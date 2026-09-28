@@ -1,15 +1,66 @@
 import type { AppRole } from "@/lib/auth";
 import type { SaleStatus } from "@/lib/status";
 
+type SaleParticipantes = {
+  corretor_id: string;
+  corretor_captador_id?: string | null;
+  corretor_vendedor_id?: string | null;
+  modalidade?: string | null;
+};
+type ExtraParticipante = { papel: string | null; user_id: string | null };
+
+/** Corretores participantes da venda (atribuição de venda/produção/comissão), espelho de
+ * public.sale_corretores. `sales.corretor_id` é só quem CADASTROU (autoria) — entra apenas como
+ * fallback quando ainda não há nenhum corretor definido (rascunho recém-criado). */
+export function corretoresDaVenda(
+  sale: SaleParticipantes,
+  extras: ExtraParticipante[] = [],
+): string[] {
+  const ids = new Set<string>();
+  if (sale.corretor_captador_id) ids.add(sale.corretor_captador_id);
+  if (sale.corretor_vendedor_id) ids.add(sale.corretor_vendedor_id);
+  for (const e of extras)
+    if (e.user_id && (e.papel === "corretor_captador" || e.papel === "corretor_vendedor"))
+      ids.add(e.user_id);
+  if (ids.size === 0 && sale.corretor_id) ids.add(sale.corretor_id);
+  return [...ids];
+}
+
+/** Quem age na etapa do corretor (espelho de public.sale_responsaveis): os participantes na
+ * venda padrão; no Lançamento, o operador que cadastrou (fluxo operacional, sem atribuição). */
+export function responsaveisDaVenda(
+  sale: SaleParticipantes,
+  extras: ExtraParticipante[] = [],
+): string[] {
+  if (sale.modalidade === "lancamento") return [sale.corretor_id];
+  return corretoresDaVenda(sale, extras);
+}
+
+/** Linha de listagem (RPC list_vendas_comerciais_paginadas*): `corretores_ids` já vem calculado
+ * no banco (sale_corretores). Sem a coluna (resposta antiga), cai no criador. */
+export type LinhaVendaParticipantes = {
+  corretor_id: string;
+  modalidade?: string | null;
+  corretores_ids?: string[] | null;
+};
+export function corretoresDaLinha(s: LinhaVendaParticipantes): string[] {
+  return s.corretores_ids && s.corretores_ids.length > 0 ? s.corretores_ids : [s.corretor_id];
+}
+export function responsaveisDaLinha(s: LinhaVendaParticipantes): string[] {
+  return s.modalidade === "lancamento" ? [s.corretor_id] : corretoresDaLinha(s);
+}
+
 /** Papéis do usuário logado em relação a uma venda específica — extraído de vendas.$id.tsx,
- * que antes chamava hasAny/hasRole (do hook useAuth) direto no corpo do componente. */
+ * que antes chamava hasAny/hasRole (do hook useAuth) direto no corpo do componente.
+ * `responsaveis`: IDs de quem responde pela etapa do corretor (ver responsaveisDaVenda). */
 export function getSaleRoleFlags(
   roles: AppRole[],
-  saleCorretorId: string,
+  responsaveis: string | string[],
   userId: string | undefined,
 ) {
+  const ids = Array.isArray(responsaveis) ? responsaveis : [responsaveis];
   return {
-    isOwner: saleCorretorId === userId,
+    isOwner: !!userId && ids.includes(userId),
     isFinanceiro: roles.some((r) =>
       (["financeiro", "admin", "super_admin"] as AppRole[]).includes(r),
     ),
