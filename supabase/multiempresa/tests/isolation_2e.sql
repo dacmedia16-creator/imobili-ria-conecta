@@ -177,8 +177,10 @@ SELECT mt_2e_test.check('rascunho: dono exclui',
   mt_2e_test.del('2e000000-0000-4000-8000-0000000000a3','2e050000-0000-4000-8000-000000000001') = 'ok:1');
 SELECT mt_2e_test.check('rascunho: gestor lider da equipe exclui',
   mt_2e_test.del('2e000000-0000-4000-8000-0000000000a1','2e050000-0000-4000-8000-000000000001') = 'ok:1');
-SELECT mt_2e_test.check('rascunho: financeiro exclui',
-  mt_2e_test.del('2e000000-0000-4000-8000-0000000000a5','2e050000-0000-4000-8000-000000000001') = 'ok:1');
+-- A 2f (decisão final de Denis) tira o financeiro da exclusão; com a 2f aplicada, espera-se recusa.
+SELECT mt_2e_test.check('rascunho: financeiro exclui (2e) / NAO exclui (com 2f)',
+  mt_2e_test.del('2e000000-0000-4000-8000-0000000000a5','2e050000-0000-4000-8000-000000000001')
+    = CASE WHEN to_regclass('public.mt_2f_backup') IS NULL THEN 'ok:1' ELSE 'ok:0' END);
 SELECT mt_2e_test.check('rascunho: admin exclui',
   mt_2e_test.del('2e000000-0000-4000-8000-0000000000a7','2e050000-0000-4000-8000-000000000001') = 'ok:1');
 -- Rascunho: quem não edita não exclui.

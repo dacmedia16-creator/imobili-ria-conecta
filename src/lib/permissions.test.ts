@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-import { canDeleteSale } from "./permissions";
+import { canCancelSale, canDeleteSale } from "./permissions";
 import type { AppRole } from "@/lib/auth";
 
 // Decisão de Denis (28/09/2026): excluir venda SOMENTE em rascunho, por quem pode editá-la;
@@ -15,19 +15,21 @@ const venda = (status?: string) => ({ id: "v1", corretor_id: DONO, status });
 const equipe = new Set([DONO]);
 
 describe("canDeleteSale — só rascunho", () => {
-  it("rascunho: dono, líder da equipe, financeiro, admin e super_admin veem Excluir", () => {
+  it("rascunho: criador, líder da equipe do criador, admin e super_admin veem Excluir", () => {
     expect(canDeleteSale(DONO, as(["corretor"]), venda("rascunho"), new Set())).toBe(true);
+    expect(canDeleteSale(DONO, as(["lancamento"]), venda("rascunho"), new Set())).toBe(true);
     expect(canDeleteSale(OUTRO, as(["gestor"]), venda("rascunho"), equipe)).toBe(true);
     expect(canDeleteSale(OUTRO, as(["team_leader"]), venda("rascunho"), equipe)).toBe(true);
-    for (const r of ["financeiro", "admin", "super_admin"] as AppRole[])
+    for (const r of ["admin", "super_admin"] as AppRole[])
       expect(canDeleteSale(OUTRO, as([r]), venda("rascunho"), new Set())).toBe(true);
   });
 
-  it("rascunho: líder de outra equipe, staff e jurídico não veem Excluir", () => {
+  it("rascunho: participante que não criou, líder de outra equipe, financeiro, jurídico, lançamento e staff não veem Excluir", () => {
+    expect(canDeleteSale(OUTRO, as(["corretor"]), venda("rascunho"), new Set())).toBe(false);
     expect(canDeleteSale(OUTRO, as(["gestor"]), venda("rascunho"), new Set())).toBe(false);
     expect(canDeleteSale(OUTRO, as(["team_leader"]), venda("rascunho"), new Set())).toBe(false);
-    expect(canDeleteSale(OUTRO, as(["staff"]), venda("rascunho"), new Set())).toBe(false);
-    expect(canDeleteSale(OUTRO, as(["juridico"]), venda("rascunho"), new Set())).toBe(false);
+    for (const r of ["financeiro", "juridico", "lancamento", "staff"] as AppRole[])
+      expect(canDeleteSale(OUTRO, as([r]), venda("rascunho"), equipe)).toBe(false);
   });
 
   it.each(["devolvida_ajuste", "enviada_revisao", "aprovada_gestor", "ocorrencia_concluida"])(
@@ -51,6 +53,43 @@ describe("canDeleteSale — só rascunho", () => {
       "utf8",
     );
     expect(lista).toMatch(/\|\s*"status"/);
+  });
+});
+
+describe("canCancelSale — só o dono da plataforma, depois do rascunho (fase 2f)", () => {
+  const etapas = [
+    "enviada_revisao",
+    "devolvida_ajuste",
+    "aprovada_gestor",
+    "em_elaboracao_contrato",
+    "aguardando_assinatura",
+    "contrato_assinado",
+    "ocorrencia_pendente",
+    "ocorrencia_analise_financeiro",
+    "ocorrencia_concluida",
+    "arquivada",
+  ];
+  it.each(etapas)("%s: dono da plataforma vê Cancelar; os demais não", (status) => {
+    expect(canCancelSale(true, status)).toBe(true);
+    expect(canCancelSale(false, status)).toBe(false);
+    expect(canCancelSale(undefined, status)).toBe(false);
+  });
+  it("rascunho, já cancelada ou status desconhecido: ninguém vê Cancelar", () => {
+    for (const s of ["rascunho", "cancelada", undefined, null, ""])
+      expect(canCancelSale(true, s)).toBe(false);
+  });
+  it("a tela usa o banco (is_platform_super_admin) e a RPC platform_cancel_sale, não o papel da agência", () => {
+    const tela = readFileSync(
+      new URL("../routes/_authenticated/vendas.$id.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(tela).toContain('supabase.rpc("is_platform_super_admin")');
+    expect(tela).toContain("canCancelSale(isPlatformAdmin, status)");
+    expect(tela).toContain("cancelSaleAsPlatform(");
+    // O botão Cancelar não depende mais de canCloseSale (admin/gestor).
+    expect(tela).toMatch(/\{canCancel && \(\s*<Button/);
+    const lib = readFileSync(new URL("./permissions.ts", import.meta.url), "utf8");
+    expect(lib).toContain('rpc("platform_cancel_sale"');
   });
 });
 

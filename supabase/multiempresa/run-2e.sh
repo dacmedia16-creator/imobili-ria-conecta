@@ -17,6 +17,8 @@ UP="$HERE/migrations/20260928090000_mt_fase2e_permissoes_perfis.sql"
 DOWN="$HERE/migrations/20260928090000_mt_fase2e_permissoes_perfis.down.sql"
 [[ "$("${PSQL[@]}" -At -c "SELECT to_regclass('public.mt_2d_function_backup') IS NOT NULL")" == "t" ]] \
   || { printf 'Alvo deve ter 1a–2d\n' >&2; exit 1; }
+[[ "$("${PSQL[@]}" -At -c "SELECT to_regclass('public.mt_2f_backup') IS NULL")" == "t" ]] \
+  || { printf 'Alvo tem 2f: rode run-2f.sh (o down da 2e por baixo da 2f é proibido)\n' >&2; exit 1; }
 if [[ "$("${PSQL[@]}" -At -c "SELECT to_regclass('public.mt_2e_backup') IS NOT NULL")" == "t" ]]; then
   "${PSQL[@]}" < "$DOWN"; printf 'Alvo tinha 2e: down aplicado antes do ensaio\n'
 fi

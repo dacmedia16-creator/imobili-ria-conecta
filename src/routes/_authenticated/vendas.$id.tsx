@@ -99,7 +99,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import {
+  canCancelSale,
+  canDeleteSale,
+  cancelSaleAsPlatform,
+  deleteSaleCascade,
+} from "@/lib/permissions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
 import {
   getSaleRoleFlags,
@@ -418,6 +423,19 @@ function SaleDetail() {
   useEffect(() => {
     if (!user) return;
     fetchLedMemberIds(user.id).then(setTeamIds);
+  }, [user]);
+
+  // Cancelar venda é só do dono da plataforma (fase 2f). O banco confirma; erro ou dúvida = não.
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    supabase.rpc("is_platform_super_admin").then(({ data, error }) => {
+      if (alive) setIsPlatformAdmin(!error && data === true);
+    });
+    return () => {
+      alive = false;
+    };
   }, [user]);
 
   // Busca o(s) líder(es) — líder principal + líder da equipe-mãe (se houver) + líderes auxiliares —
@@ -1104,8 +1122,10 @@ function SaleDetail() {
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
+  // Arquivar: regra antiga, inalterada. Cancelar: só o dono da plataforma (canCancelSale).
   const canCloseSale =
     isAdminLike || (gestorPodeEncerrar(isGestor, status) && managesOwner && !locked);
+  const canCancel = canCancelSale(isPlatformAdmin, status);
 
   const onConfirmDelete = async () => {
     setDeleting(true);
@@ -1750,6 +1770,25 @@ function SaleDetail() {
   const submitArchive = async () => {
     if (!archiveMotivo.trim()) {
       toast.error("Motivo é obrigatório");
+      return;
+    }
+    if (archiveTarget === "cancelada") {
+      // Caminho único do cancelamento (dono da plataforma, auditado no banco). A RPC antiga
+      // change_sale_status recusa 'cancelada' desde a fase 2f.
+      if (!(await flushAllDirty())) return;
+      try {
+        await cancelSaleAsPlatform(id, archiveMotivo.trim());
+      } catch (err: unknown) {
+        toast.error(errorMessage(err, "Falha ao cancelar venda"));
+        load();
+        return;
+      }
+      notifySaleStatusChange({
+        data: { saleId: id, status: "cancelada", motivo: archiveMotivo.trim() },
+      }).catch(() => {});
+      toast.success(`Status alterado para "${STATUS_LABEL.cancelada}"`);
+      setArchiveOpen(false);
+      load();
       return;
     }
     await changeStatus(archiveTarget, archiveMotivo);
@@ -3810,18 +3849,19 @@ function SaleDetail() {
           )}
 
           {canCloseSale && status !== "arquivada" && status !== "cancelada" && (
-            <>
-              <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
-                Arquivar
-              </Button>
-              <Button
-                variant="outline"
-                className="text-destructive hover:text-destructive"
-                onClick={() => openArchiveDialog("cancelada")}
-              >
-                Cancelar venda
-              </Button>
-            </>
+            <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
+              Arquivar
+            </Button>
+          )}
+
+          {canCancel && (
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => openArchiveDialog("cancelada")}
+            >
+              Cancelar venda
+            </Button>
           )}
 
           {canDelete && (

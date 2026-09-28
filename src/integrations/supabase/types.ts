@@ -3666,6 +3666,10 @@ export type Database = {
         Args: { _nome: string; _slug: string };
         Returns: string;
       };
+      platform_cancel_sale: {
+        Args: { _motivo: string; _sale_id: string };
+        Returns: undefined;
+      };
       platform_set_organization_status: {
         Args: { _id: string; _status: string };
         Returns: undefined;
