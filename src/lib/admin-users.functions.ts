@@ -5,6 +5,16 @@ import {
   type UserManagementRole,
 } from "@/lib/admin-user-permissions";
 import { z } from "zod";
+import type { OrgAdminClient } from "@/lib/org-scope";
+
+/** Cliente service_role + agência ativa de quem chama (falha fechada). */
+async function adminInCallerOrg(callerId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const scope = await import("@/lib/org-scope");
+  const admin = supabaseAdmin as unknown as OrgAdminClient;
+  const orgId = await scope.resolveActiveOrg(admin, callerId);
+  return { supabaseAdmin, admin, orgId, scope };
+}
 
 const ROLES = [
   "corretor",
@@ -83,13 +93,16 @@ export const createUser = createServerFn({ method: "POST" })
       throw new Error(`Seu perfil não pode criar usuários do tipo "${data.role}".`);
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Multiempresa: o novo usuário nasce na agência de quem cadastra. A organização vai em
+    // app_metadata (só o servidor grava) e handle_new_user cria perfil/vínculo nessa agência.
+    const { supabaseAdmin, admin, orgId } = await adminInCallerOrg(userId);
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
       email_confirm: true,
       user_metadata: { nome: data.nome },
+      app_metadata: { organization_id: orgId },
     });
     if (createErr || !created?.user) {
       const msg = createErr?.message ?? "Falha ao criar usuário";
@@ -101,8 +114,14 @@ export const createUser = createServerFn({ method: "POST" })
 
     // Trigger handle_new_user já criou profile + role 'corretor'.
     if (data.role !== "corretor") {
-      await supabaseAdmin.from("user_roles").delete().eq("user_id", newId).eq("role", "corretor");
-      const { error: insErr } = await supabaseAdmin.from("user_roles").insert({
+      await admin
+        .from("user_roles")
+        .delete()
+        .eq("organization_id", orgId)
+        .eq("user_id", newId)
+        .eq("role", "corretor");
+      const { error: insErr } = await admin.from("user_roles").insert({
+        organization_id: orgId,
         user_id: newId,
         role: data.role,
         // Jurídico/financeiro não têm "dono" de venda como corretor/gestor — "a cada atualização"
@@ -123,9 +142,10 @@ export const createUser = createServerFn({ method: "POST" })
       !callerRoles.includes("super_admin") &&
       data.role === "corretor"
     ) {
-      const { data: existingTeam } = await supabaseAdmin
+      const { data: existingTeam } = await admin
         .from("teams")
         .select("id")
+        .eq("organization_id", orgId)
         .eq("lider_id", userId)
         .is("parent_team_id", null)
         .order("created_at", { ascending: true })
@@ -134,26 +154,34 @@ export const createUser = createServerFn({ method: "POST" })
 
       let teamId = existingTeam?.id as string | undefined;
       if (!teamId) {
-        const { data: callerProfile } = await supabaseAdmin
+        const { data: callerProfile } = await admin
           .from("profiles")
           .select("nome")
+          .eq("organization_id", orgId)
           .eq("id", userId)
           .maybeSingle();
-        const { data: newTeam, error: teamErr } = await supabaseAdmin
+        const { data: newTeam, error: teamErr } = await admin
           .from("teams")
-          .insert({ lider_id: userId, nome: `Equipe de ${callerProfile?.nome ?? "gestor"}` })
+          .insert({
+            organization_id: orgId,
+            lider_id: userId,
+            nome: `Equipe de ${callerProfile?.nome ?? "gestor"}`,
+          })
           .select("id")
           .single();
         if (teamErr) throw new Error(teamErr.message);
         teamId = newTeam.id;
       }
-      await supabaseAdmin.from("team_members").insert({ team_id: teamId, membro_id: newId });
+      await admin
+        .from("team_members")
+        .insert({ organization_id: orgId, team_id: teamId, membro_id: newId });
     }
 
     // Garante nome/telefone atualizados no profile (handle_new_user só preenche nome/email)
-    await supabaseAdmin
+    await admin
       .from("profiles")
       .update({ nome: data.nome, telefone: data.telefone })
+      .eq("organization_id", orgId)
       .eq("id", newId);
 
     return { id: newId, email: data.email };
@@ -203,7 +231,9 @@ export const resetUserPassword = createServerFn({ method: "POST" })
       }
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Multiempresa: admin/super_admin da agência só alcança usuários da própria agência.
+    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(callerId);
+    await scope.assertUserInOrg(admin, orgId, data.userId);
 
     // updateUserById substitui user_metadata inteiro — busca o atual pra não perder o que já tem lá.
     const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
@@ -218,7 +248,8 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     if (updErr) throw new Error(updErr.message);
 
     // Auditoria sem armazenar ou expor a senha temporária.
-    await supabaseAdmin.from("activity_logs").insert({
+    await admin.from("activity_logs").insert({
+      organization_id: orgId,
       autor_id: callerId,
       sale_id: null,
       acao: "user_password_reset",
@@ -262,7 +293,8 @@ export const updateUser = createServerFn({ method: "POST" })
       if (!leads) throw new Error("Você só pode editar membros da sua equipe.");
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(callerId);
+    await scope.assertUserInOrg(admin, orgId, data.userId);
 
     const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
       data.userId,
@@ -282,7 +314,7 @@ export const updateUser = createServerFn({ method: "POST" })
       }
     }
 
-    const { error: profErr } = await supabaseAdmin
+    const { error: profErr } = await admin
       .from("profiles")
       .update({
         nome: data.nome,
@@ -291,6 +323,7 @@ export const updateUser = createServerFn({ method: "POST" })
         cpf: data.cpf || null,
         creci: data.creci || null,
       })
+      .eq("organization_id", orgId)
       .eq("id", data.userId);
     if (profErr) throw new Error(profErr.message);
 
@@ -318,13 +351,15 @@ export const listLastSignIns = createServerFn({ method: "GET" })
       throw new Error("Você não tem permissão para ver essa informação.");
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // auth.users é global: devolve só usuários da agência de quem pergunta.
+    const { supabaseAdmin, admin, orgId, scope } = await adminInCallerOrg(userId);
+    const orgUserIds = await scope.listOrgUserIds(admin, orgId);
     const map: Record<string, string | null> = {};
     let page = 1;
     for (;;) {
       const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
       if (error) throw new Error(error.message);
-      for (const u of data.users) map[u.id] = u.last_sign_in_at ?? null;
+      for (const u of data.users) if (orgUserIds.has(u.id)) map[u.id] = u.last_sign_in_at ?? null;
       if (data.users.length < 1000) break;
       page += 1;
     }

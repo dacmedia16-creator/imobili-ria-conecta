@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { bridgeOrgGate } from "./core.ts";
 
 const encoder = new TextEncoder();
 const cors = {
@@ -116,6 +117,9 @@ Deno.serve(async (req) => {
     if (linkMutationError) return response({ error: "identity_link_failed" }, 500);
     link = { adm_user_id: admUserId };
   }
+  // Multiempresa: só emite sessão para usuário de agência ativa (e da agência do ticket, se houver).
+  const gate = await bridgeOrgGate(admin, link.adm_user_id, payload.organization_id);
+  if (!gate.ok) return response({ error: gate.error }, 403);
   const { data: userData, error: userError } = await admin.auth.admin.getUserById(link.adm_user_id);
   if (userError || !userData.user?.email)
     return response({ error: "linked_user_unavailable" }, 403);

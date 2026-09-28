@@ -19,6 +19,11 @@ O down bloqueia agência nova ou objeto prefixado até reconciliação/backup.
 `avatars` continua público para URLs públicas históricas: suas URLs não passam por
 RLS; a separação de caminhos não equivale à privacidade da imagem.
 
+Marco 1d: `bash supabase/multiempresa/run-1d.sh` após 1a+1b+1c. Sobe PostgREST local
+(`local-rest.sh`, só 127.0.0.1, JWT efêmero fora do repo), aplica a migration 1d, roda as suítes
+SQL 1a–1d, a fixture sintética A↔B e `src/lib/multiempresa-1d.integration.test.ts`; limpa a fixture,
+ensaia o rollback (fingerprint idêntico) e reaplica. Nenhum WhatsApp é enviado.
+
 Ensaio completo (recria container local, upgrade, testes, rollback, reaplicação):
 
     CATALOG_DIR=/caminho/privado/catalog bash supabase/multiempresa/run-1a.sh

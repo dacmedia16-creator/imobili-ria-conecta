@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { OrgAdminClient } from "@/lib/org-scope";
 import {
   chegouAoJuridico,
   proximoResponsavelRoles,
@@ -18,8 +19,6 @@ const NotifyInput = z.object({
   motivo: z.string().nullable().optional(),
 });
 
-type TeamMemberRow = { team_id: string };
-type TeamRow = { lider_id: string | null };
 type UserRoleRow = {
   user_id: string;
   role: string;
@@ -109,27 +108,17 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     // enxerga a si mesmo/seu próprio líder), e o insert em `notifications` pra outro usuário também
     // exige papel elevado — o service role resolve os dois casos aqui.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Multiempresa: service_role ignora RLS, então todo acesso abaixo é filtrado pela agência da
+    // própria venda (lida no servidor). Destinatários de outra agência nunca entram.
+    const { saleOrg, leaderIdsForCorretor, profilesInOrg, roleUserIds, roleRowsInOrg, keepOrgMembers } =
+      await import("@/lib/sale-notifications.server");
+    const admin = supabaseAdmin as unknown as OrgAdminClient;
+    const orgId = await saleOrg(admin, sale.id);
+    if (!orgId) return { notified: 0, sent: 0 };
 
-    const { data: tm } = await supabaseAdmin
-      .from("team_members")
-      .select("team_id")
-      .eq("membro_id", sale.corretor_id);
-    const teamIds = Array.from(new Set((tm ?? []).map((t: TeamMemberRow) => t.team_id)));
-    let liderIds: string[] = [];
-    if (teamIds.length) {
-      // Líder auxiliar ("braço direito") recebe os mesmos avisos que o líder principal, escopado
-      // à(s) mesma(s) equipe(s) — team_co_leaders soma à lista, não substitui.
-      const [{ data: teams }, { data: coLeaders }] = await Promise.all([
-        supabaseAdmin.from("teams").select("lider_id").in("id", teamIds),
-        supabaseAdmin.from("team_co_leaders").select("user_id").in("team_id", teamIds),
-      ]);
-      liderIds = Array.from(
-        new Set([
-          ...(teams ?? []).map((t: TeamRow) => t.lider_id).filter((id): id is string => !!id),
-          ...(coLeaders ?? []).map((c: { user_id: string }) => c.user_id),
-        ]),
-      );
-    }
+    // Líder auxiliar ("braço direito") recebe os mesmos avisos que o líder principal, escopado
+    // à(s) mesma(s) equipe(s) — team_co_leaders soma à lista, não substitui.
+    const liderIds = await leaderIdsForCorretor(admin, orgId, sale.corretor_id);
 
     // Nome do corretor e do(s) gestor(es)/lider(es) envolvidos na venda, pra aparecer nas
     // notificações (sino e WhatsApp) — sem isso quem recebe o aviso não sabe de qual corretor/time
@@ -137,10 +126,13 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const envolvidosIds = Array.from(
       new Set([sale.corretor_id, ...liderIds].filter((id): id is string => !!id)),
     );
-    const { data: envolvidosProfiles } = envolvidosIds.length
-      ? await supabaseAdmin.from("profiles").select("id, nome").in("id", envolvidosIds)
-      : { data: [] as { id: string; nome: string | null }[] };
-    const nomeById = new Map((envolvidosProfiles ?? []).map((p) => [p.id, p.nome]));
+    const envolvidosProfiles = await profilesInOrg<{ id: string; nome: string | null }>(
+      admin,
+      orgId,
+      envolvidosIds,
+      "id, nome",
+    );
+    const nomeById = new Map(envolvidosProfiles.map((p) => [p.id, p.nome]));
     const corretorNome = sale.corretor_id ? nomeById.get(sale.corretor_id) : null;
     const gestorNomes = liderIds
       .map((id) => nomeById.get(id))
@@ -157,11 +149,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     } else if (roleNext === "gestor") {
       for (const l of liderIds) proximoIds.add(l);
     } else if (roleNext) {
-      const { data: users } = await supabaseAdmin
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", roleNext);
-      for (const u of users ?? []) proximoIds.add(u.user_id);
+      for (const id of await roleUserIds(admin, orgId, roleNext)) proximoIds.add(id);
     }
 
     // "Toda atualização" — corretor/gestor da equipe (como sempre), mais jurídico (só depois que a
@@ -174,30 +162,28 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     for (const l of liderIds)
       if (!atualizacaoPapelById.has(l)) atualizacaoPapelById.set(l, "gestor");
     if (chegouAoJuridico(status, sale.modalidade)) {
-      const { data: juridicoUsers } = await supabaseAdmin
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "juridico");
-      for (const u of juridicoUsers ?? [])
-        if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "juridico");
+      for (const id of await roleUserIds(admin, orgId, "juridico"))
+        if (!atualizacaoPapelById.has(id)) atualizacaoPapelById.set(id, "juridico");
     }
-    const { data: financeiroUsers } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "financeiro");
-    for (const u of financeiroUsers ?? [])
-      if (!atualizacaoPapelById.has(u.user_id)) atualizacaoPapelById.set(u.user_id, "financeiro");
+    for (const id of await roleUserIds(admin, orgId, "financeiro"))
+      if (!atualizacaoPapelById.has(id)) atualizacaoPapelById.set(id, "financeiro");
 
     proximoIds.delete(userId); // quem fez a ação não precisa ser avisado de si mesmo
     atualizacaoPapelById.delete(userId);
 
+    // Defesa extra: descarta qualquer candidato que não seja perfil da agência da venda.
+    const membros = await keepOrgMembers(admin, orgId, [
+      ...proximoIds,
+      ...atualizacaoPapelById.keys(),
+    ]);
+    for (const id of Array.from(proximoIds)) if (!membros.has(id)) proximoIds.delete(id);
+    for (const id of Array.from(atualizacaoPapelById.keys()))
+      if (!membros.has(id)) atualizacaoPapelById.delete(id);
+
     const candidateIds = Array.from(new Set([...proximoIds, ...atualizacaoPapelById.keys()]));
     if (candidateIds.length === 0) return { notified: 0, sent: 0 };
 
-    const { data: rolesRows } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id, role, notificar_whatsapp, notificar_toda_atualizacao")
-      .in("user_id", candidateIds);
+    const rolesRows = await roleRowsInOrg<UserRoleRow>(admin, orgId, candidateIds);
 
     const label = sale.imovel_id || sale.codigo_interno || `venda #${sale.id.slice(0, 8)}`;
     const statusLabel = STATUS_LABEL[status] ?? data.status;
@@ -252,8 +238,9 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     }
 
     if (inAppPorUsuario.size > 0) {
-      await supabaseAdmin.from("notifications").insert(
+      await admin.from("notifications").insert(
         Array.from(inAppPorUsuario, ([user_id, { titulo, mensagem }]) => ({
+          organization_id: orgId,
           user_id,
           sale_id: sale.id,
           tipo: "status_change",
@@ -272,12 +259,13 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const erros: { status: number | null; corpo: string }[] = [];
     const apiKey = process.env.ZIONTALK_API_KEY;
     if (apiKey && whatsappPorUsuario.size > 0) {
-      const { data: profiles } = await supabaseAdmin
-        .from("profiles")
-        .select("id, telefone, ativo")
-        .in("id", Array.from(whatsappPorUsuario.keys()));
+      const profiles = await profilesInOrg<{
+        id: string;
+        telefone: string | null;
+        ativo: boolean | null;
+      }>(admin, orgId, Array.from(whatsappPorUsuario.keys()), "id, telefone, ativo");
 
-      for (const p of profiles ?? []) {
+      for (const p of profiles) {
         if (p.ativo === false) continue;
         const phone = normalizePhone(p.telefone);
         if (!phone) continue;
@@ -312,7 +300,8 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       }
     }
 
-    await supabaseAdmin.from("activity_logs").insert({
+    await admin.from("activity_logs").insert({
+      organization_id: orgId,
       autor_id: userId,
       sale_id: sale.id,
       acao: "whatsapp_notification_result",
@@ -357,59 +346,49 @@ export const notifySaleComment = createServerFn({ method: "POST" })
     if (!comment || !sale || comment.autor_id !== userId) return { notified: 0 };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: tm } = await supabaseAdmin
-      .from("team_members")
-      .select("team_id")
-      .eq("membro_id", sale.corretor_id);
-    const teamIds = Array.from(new Set((tm ?? []).map((row: TeamMemberRow) => row.team_id)));
-    let liderIds: string[] = [];
-    if (teamIds.length) {
-      const [{ data: teams }, { data: coLeaders }] = await Promise.all([
-        supabaseAdmin.from("teams").select("lider_id").in("id", teamIds),
-        supabaseAdmin.from("team_co_leaders").select("user_id").in("team_id", teamIds),
-      ]);
-      liderIds = Array.from(
-        new Set([
-          ...(teams ?? []).map((row: TeamRow) => row.lider_id).filter((id): id is string => !!id),
-          ...(coLeaders ?? []).map((row: { user_id: string }) => row.user_id),
-        ]),
-      );
-    }
+    const { saleOrg, leaderIdsForCorretor, roleUserIds, keepOrgMembers } = await import(
+      "@/lib/sale-notifications.server"
+    );
+    const admin = supabaseAdmin as unknown as OrgAdminClient;
+    const orgId = await saleOrg(admin, sale.id);
+    if (!orgId) return { notified: 0 };
+    const liderIds = await leaderIdsForCorretor(admin, orgId, sale.corretor_id);
 
     const roleNext = proximoResponsavelRoles(sale.status as SaleStatus)[0];
     const recipientIds = new Set<string>();
     if (roleNext === "corretor" && sale.corretor_id) recipientIds.add(sale.corretor_id);
     else if (roleNext === "gestor") liderIds.forEach((id) => recipientIds.add(id));
     else if (roleNext) {
-      const { data: users } = await supabaseAdmin
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", roleNext);
-      (users ?? []).forEach((row) => recipientIds.add(row.user_id));
+      (await roleUserIds(admin, orgId, roleNext)).forEach((id) => recipientIds.add(id));
     }
     recipientIds.delete(userId);
+    const membros = await keepOrgMembers(admin, orgId, recipientIds);
+    for (const id of Array.from(recipientIds)) if (!membros.has(id)) recipientIds.delete(id);
     if (recipientIds.size === 0) return { notified: 0 };
 
     const label = sale.imovel_id || sale.codigo_interno || `venda #${sale.id.slice(0, 8)}`;
-    const { data: existingRecipients } = await supabaseAdmin
+    const { data: existingRecipients } = await admin
       .from("sale_comment_recipients")
       .select("user_id")
+      .eq("organization_id", orgId)
       .eq("comment_id", comment.id);
     if (existingRecipients && existingRecipients.length > 0) {
       return { notified: existingRecipients.length };
     }
     const recipients = Array.from(recipientIds).map((user_id) => ({
+      organization_id: orgId,
       comment_id: comment.id,
       sale_id: sale.id,
       user_id,
     }));
-    const { error: recipientError } = await supabaseAdmin
+    const { error: recipientError } = await admin
       .from("sale_comment_recipients")
       .upsert(recipients, { onConflict: "comment_id,user_id", ignoreDuplicates: true });
     if (recipientError) return { notified: 0 };
 
-    const { error: notificationError } = await supabaseAdmin.from("notifications").insert(
+    const { error: notificationError } = await admin.from("notifications").insert(
       Array.from(recipientIds, (user_id) => ({
+        organization_id: orgId,
         user_id,
         sale_id: sale.id,
         tipo: "sale_comment",
@@ -418,9 +397,10 @@ export const notifySaleComment = createServerFn({ method: "POST" })
       })),
     );
     if (notificationError) {
-      await supabaseAdmin
+      await admin
         .from("sale_comment_recipients")
         .delete()
+        .eq("organization_id", orgId)
         .eq("comment_id", comment.id)
         .in("user_id", Array.from(recipientIds));
       return { notified: 0 };

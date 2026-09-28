@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import type { OrgAdminClient } from "@/lib/org-scope";
 
 const startSchema = z.object({ targetUserId: z.string().uuid() });
 const auditSchema = z.object({ auditId: z.string().uuid() });
@@ -54,9 +55,13 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as ImpersonationClient;
-    const { data: profile, error: profileError } = await admin
+    // Multiempresa: o Super Admin da agência só entra como usuário da própria agência.
+    const { resolveActiveOrg } = await import("@/lib/org-scope");
+    const orgId = await resolveActiveOrg(supabaseAdmin as unknown as OrgAdminClient, actorUserId);
+    const { data: profile, error: profileError } = await (supabaseAdmin as unknown as OrgAdminClient)
       .from("profiles")
       .select("id, nome, email, ativo")
+      .eq("organization_id", orgId)
       .eq("id", data.targetUserId)
       .maybeSingle();
     if (profileError || !profile) throw new Error("Usuário não encontrado.");
@@ -76,9 +81,14 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
       throw new Error(linkError?.message ?? "Não foi possível criar a sessão operacional.");
     }
 
-    const { data: audit, error: auditError } = await admin
+    const { data: audit, error: auditError } = await (supabaseAdmin as unknown as OrgAdminClient)
       .from("operational_impersonation_sessions")
-      .insert({ actor_user_id: actorUserId, target_user_id: data.targetUserId, status: "pending" })
+      .insert({
+        organization_id: orgId,
+        actor_user_id: actorUserId,
+        target_user_id: data.targetUserId,
+        status: "pending",
+      })
       .select("id")
       .single();
     if (auditError || !audit) throw new Error(auditError?.message ?? "Falha ao iniciar auditoria.");

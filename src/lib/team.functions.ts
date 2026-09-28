@@ -2,11 +2,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import type { OrgAdminClient } from "@/lib/org-scope";
+
+/** Service_role limitado à agência de quem chama (as listas abaixo ignorariam a RLS). */
+async function adminInCallerOrg(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { resolveActiveOrg } = await import("@/lib/org-scope");
+  const admin = supabaseAdmin as unknown as OrgAdminClient;
+  return { admin, orgId: await resolveActiveOrg(admin, userId) };
+}
 
 /**
  * team_id/lider_id de outras pessoas não são visíveis via RLS pra um gestor comum quando o
  * lookup depende de user_roles de terceiros (RLS só libera user_roles pra si mesmo/admin) —
- * por isso essas duas consultas passam pelo service role, igual antes.
+ * por isso essas duas consultas passam pelo service role, igual antes, agora sempre filtradas
+ * pela agência de quem chama.
  */
 async function assertCanManageTeams(supabase: SupabaseClient<Database>, userId: string) {
   const { data: myRoles, error } = await supabase
@@ -29,28 +39,9 @@ export const listCorretoresDisponiveis = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await assertCanManageTeams(supabase, userId);
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [{ data: corretorRoles, error: rErr }, { data: jaVinculados, error: tErr }] =
-      await Promise.all([
-        supabaseAdmin.from("user_roles").select("user_id").eq("role", "corretor"),
-        supabaseAdmin.from("team_members").select("membro_id"),
-      ]);
-    if (rErr) throw new Error(rErr.message);
-    if (tErr) throw new Error(tErr.message);
-
-    const jaIds = new Set((jaVinculados ?? []).map((r) => r.membro_id));
-    const candidatoIds = Array.from(new Set((corretorRoles ?? []).map((r) => r.user_id))).filter(
-      (id) => !jaIds.has(id),
-    );
-    if (candidatoIds.length === 0) return [];
-
-    const { data: profs, error: pErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, nome, email")
-      .in("id", candidatoIds);
-    if (pErr) throw new Error(pErr.message);
-    return (profs ?? []).sort((a, b) => (a.nome ?? "").localeCompare(b.nome ?? ""));
+    const { admin, orgId } = await adminInCallerOrg(userId);
+    const { listAvailableCorretores } = await import("@/lib/team.server");
+    return listAvailableCorretores(admin, orgId);
   });
 
 export const listGestores = createServerFn({ method: "GET" })
@@ -58,23 +49,9 @@ export const listGestores = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await assertCanManageTeams(supabase, userId);
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { admin, orgId } = await adminInCallerOrg(userId);
     // Candidatos a "Team Leader" de uma equipe: quem já tem papel gestor OU team_leader
     // (enforce_team_leader_role no banco só aceita um desses dois pra teams.lider_id).
-    const { data: gestorRoles, error: rErr } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .in("role", ["gestor", "team_leader"]);
-    if (rErr) throw new Error(rErr.message);
-
-    const ids = Array.from(new Set((gestorRoles ?? []).map((r) => r.user_id)));
-    if (ids.length === 0) return [];
-
-    const { data: profs, error: pErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, nome, email")
-      .in("id", ids);
-    if (pErr) throw new Error(pErr.message);
-    return (profs ?? []).sort((a, b) => (a.nome ?? "").localeCompare(b.nome ?? ""));
+    const { listLeaderCandidates } = await import("@/lib/team.server");
+    return listLeaderCandidates(admin, orgId);
   });
