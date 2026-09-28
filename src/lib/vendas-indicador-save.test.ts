@@ -7,7 +7,7 @@ import {
   temEdicaoFinanceiraResumo,
   resumoTemPendencia,
 } from "./resumo-sync-guard";
-import { corretorPodeEditar, isSaleLocked } from "./sale-permissions";
+import { corretorPodeEditar, isSaleLocked, responsaveisDaVenda } from "./sale-permissions";
 import { saleManagementCapabilities } from "./sale-management-capabilities";
 
 // OFFLINE: executa os handlers extraídos do TSX real. Somente as fronteiras React/Supabase
@@ -102,6 +102,7 @@ function harness(initial = fixture()) {
     temEdicaoFinanceiraResumo,
     resumoTemPendencia,
     corretorPodeEditar,
+    responsaveisDaVenda,
     isSaleLocked,
     asDistribution: (value: unknown) => value,
     id: "sale-fixture",
@@ -353,7 +354,7 @@ describe("remoção de indicadores e retomada — handlers reais, backend MOCK o
     expect(await h.context.saveResumo()).toBe(true);
     h.db().status = status;
     h.context.roles = [role];
-    h.context.user = { id: role === "corretor" ? "owner-fixture" : "juridico-fixture" };
+    h.context.user = { id: role === "corretor" ? "person-a" : "juridico-fixture" };
     await h.remount();
     h.calls.length = 0;
     h.failure.rpc = { code: "42501" }; // Seria negada se fosse chamada.

@@ -15,6 +15,7 @@ import type {
 } from "@/lib/comparativo-comissao-types";
 import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
 import { fetchResolverEquipe, meioDiaSaoPaulo } from "@/lib/equipe-vigente";
+import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 
@@ -35,11 +36,14 @@ export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]
   const candidatos = await callRpc<ComparativoRawRow>("comparativo_comissao_6pct");
   if (candidatos.length === 0) return [];
 
-  const [{ data: profiles }, { data: teams }, resolverEquipe] = await Promise.all([
-    supabase.from("profiles").select("id, nome"),
-    supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
-    fetchResolverEquipe(),
-  ]);
+  const [{ data: profiles }, { data: teams }, resolverEquipe, corretoresPorVenda] =
+    await Promise.all([
+      supabase.from("profiles").select("id, nome"),
+      supabase.from("teams").select("id, nome, parent_team_id, lider_id"),
+      fetchResolverEquipe(),
+      // Corretor/equipe = participante da venda, não quem cadastrou (raw.corretor_id).
+      buscarCorretoresPorVenda(candidatos.map((c) => c.sale_id)),
+    ]);
 
   const nomePorId = new Map<string, string>();
   for (const p of profiles ?? []) nomePorId.set(p.id, p.nome ?? p.id);
@@ -62,8 +66,10 @@ export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]
     )
       continue;
 
-    // Equipe vigente na data da assinatura (itens 7 e 8).
-    const teamId = resolverEquipe(raw.corretor_id, meioDiaSaoPaulo(raw.data_fechamento));
+    // Equipe vigente na data da assinatura (itens 7 e 8), pelo corretor participante principal.
+    const corretores = corretoresPorVenda.get(raw.sale_id) ?? [raw.corretor_id];
+    const corretorDaVenda = corretores[0] ?? raw.corretor_id;
+    const teamId = resolverEquipe(corretorDaVenda, meioDiaSaoPaulo(raw.data_fechamento));
     const team = teamId ? (teamById.get(teamId) ?? null) : null;
     const gestorId = team?.lider_id ?? null;
 
@@ -85,7 +91,8 @@ export async function fetchComparativoRows(): Promise<ComparativoRowComCalculo[]
 
     rows.push({
       ...rowSemParceria,
-      corretorNome: nomePorId.get(raw.corretor_id) ?? raw.corretor_id,
+      corretor_id: corretorDaVenda,
+      corretorNome: corretores.map((id) => nomePorId.get(id) ?? id).join(", "),
       teamId,
       teamNome: team?.nome ?? null,
       gestorId,

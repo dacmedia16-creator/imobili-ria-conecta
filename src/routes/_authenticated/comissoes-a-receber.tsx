@@ -30,6 +30,7 @@ import { Download, Wallet } from "lucide-react";
 import { exportCsv } from "@/lib/csv";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 
 type PaymentOccurrence = Pick<
   OccurrenceRow,
@@ -84,6 +85,8 @@ function ComissoesAReceberPage() {
   const [occs, setOccs] = useState<PaymentOccurrence[]>([]);
   const [sales, setSales] = useState<SaleSummary[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  // Corretores participantes por venda (atribuição). Quem só cadastrou não é "o corretor".
+  const [corretoresPorVenda, setCorretoresPorVenda] = useState<Map<string, string[]>>(new Map());
   const [partesPorVenda, setPartesPorVenda] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -117,6 +120,12 @@ function ComissoesAReceberPage() {
         .select("id, imovel_id, codigo_interno, corretor_id, status")
         .in("id", saleIds);
       setSales(s ?? []);
+      try {
+        setCorretoresPorVenda(await buscarCorretoresPorVenda(saleIds));
+      } catch (e) {
+        console.error("buscarCorretoresPorVenda (comissões a receber):", e);
+        setCorretoresPorVenda(new Map());
+      }
       // Nomes das partes (somente nome/razão social) para a busca e o CSV — nunca documentos.
       const { data: partes } = await supabase
         .from("sale_parties")
@@ -133,6 +142,7 @@ function ComissoesAReceberPage() {
       );
     } else {
       setSales([]);
+      setCorretoresPorVenda(new Map());
       setPartesPorVenda({});
     }
 
@@ -232,9 +242,18 @@ function ComissoesAReceberPage() {
       sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—"),
     [],
   );
+  const corretoresDe = useCallback(
+    (sale: SaleSummary) => corretoresPorVenda.get(sale.id) ?? [sale.corretor_id],
+    [corretoresPorVenda],
+  );
   const corretorNome = useCallback(
-    (sale: SaleSummary | undefined) => (sale ? (profileName[sale.corretor_id] ?? "—") : "—"),
-    [profileName],
+    (sale: SaleSummary | undefined) =>
+      sale
+        ? corretoresDe(sale)
+            .map((id) => profileName[id] ?? "—")
+            .join(", ") || "—"
+        : "—",
+    [profileName, corretoresDe],
   );
 
   const formas = useMemo(
@@ -246,17 +265,17 @@ function ComissoesAReceberPage() {
   );
   const corretores = useMemo(
     () =>
-      Array.from(new Set(allRows.map((r) => r.sale.corretor_id)))
+      Array.from(new Set(allRows.flatMap((r) => corretoresDe(r.sale))))
         .map((id) => ({ id, name: profileName[id] ?? id }))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
-    [allRows, profileName],
+    [allRows, profileName, corretoresDe],
   );
   // Filtros de busca, corretor, forma e período: valem para a tabela E para os cards de total
   // (decisão de Denis 27/09). A aba (a receber/recebidas) e o prazo só recortam a tabela.
   const filteredRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("pt-BR");
     return allRows.filter((row) => {
-      if (brokerFilter !== "todos" && row.sale.corretor_id !== brokerFilter) return false;
+      if (brokerFilter !== "todos" && !corretoresDe(row.sale).includes(brokerFilter)) return false;
       if (formFilter !== "todos" && row.forma !== formFilter) return false;
       const referenceDate = row.status === "recebida" ? (row.recebidoEm ?? row.data) : row.data;
       if (dateFrom && (!referenceDate || referenceDate < dateFrom)) return false;
@@ -280,6 +299,7 @@ function ComissoesAReceberPage() {
   }, [
     allRows,
     brokerFilter,
+    corretoresDe,
     corretorNome,
     dateFrom,
     dateTo,
@@ -519,7 +539,12 @@ function ComissoesAReceberPage() {
               </select>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={rows.length === 0} onClick={exportarCsv}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={rows.length === 0}
+                onClick={exportarCsv}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 Exportar CSV
               </Button>

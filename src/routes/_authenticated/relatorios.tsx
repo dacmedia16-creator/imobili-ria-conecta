@@ -50,6 +50,7 @@ import type {
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { confirmarLinhaAlterada } from "@/lib/relatorios-integridade";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
+import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 
 type ReportSale = Pick<
   SaleRow,
@@ -156,6 +157,8 @@ function RelatoriosPage() {
   const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [vendaComercialEm, setVendaComercialEm] = useState<Record<string, string>>({});
   const [profileName, setProfileName] = useState<Record<string, string>>({});
+  // Corretores participantes por venda: nome/filtro "Corretor" segue quem participa, não quem cadastrou.
+  const [corretoresPorVenda, setCorretoresPorVenda] = useState<Map<string, string[]>>(new Map());
 
   const [dateFrom, setDateFrom] = useState(monthsAgoISO(3));
   const [dateTo, setDateTo] = useState(todayISO());
@@ -274,7 +277,9 @@ function RelatoriosPage() {
       );
       const names: Record<string, string> = {};
       for (const item of prof) names[item.id] = item.nome ?? item.id;
+      const participantes = await buscarCorretoresPorVenda(s.map((x) => x.id));
       if (versao !== loadVersion.current) return;
+      setCorretoresPorVenda(participantes);
       setVendaComercialEm(Object.fromEntries(vendasValidas.map((v) => [v.sale_id, v.venda_em])));
       setOccs(o);
       setSales(s);
@@ -328,7 +333,11 @@ function RelatoriosPage() {
   const saleLabel = (sale: ReportSale | undefined) =>
     sale?.imovel_id || sale?.codigo_interno || (sale ? `Venda #${sale.id.slice(0, 8)}` : "—");
   const corretorNome = (sale: ReportSale | undefined) =>
-    sale ? (profileName[sale.corretor_id] ?? "—") : "—";
+    sale
+      ? (corretoresPorVenda.get(sale.id) ?? [sale.corretor_id])
+          .map((id) => profileName[id] ?? "—")
+          .join(", ") || "—"
+      : "—";
   const matchesCorretor = (sale: ReportSale | undefined) =>
     !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
 
