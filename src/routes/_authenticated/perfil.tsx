@@ -26,6 +26,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
+import { storageOrganizationPath } from "@/lib/storage-org";
 import {
   addPositioningRegion,
   groupRegions,
@@ -365,7 +366,7 @@ function MeuAcesso() {
     if (!user || !avatarFile) return;
     setSavingAvatar(true);
     try {
-      const path = `${user.id}/avatar`;
+      const path = await storageOrganizationPath(`${user.id}/avatar`);
       const { error: upErr } = await supabase.storage
         .from("avatars")
         .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
@@ -388,6 +389,8 @@ function MeuAcesso() {
       setAvatarPreview(null);
       setAvatarFile(null);
       toast.success("Foto de perfil atualizada");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Falha ao atualizar foto");
     } finally {
       setSavingAvatar(false);
     }

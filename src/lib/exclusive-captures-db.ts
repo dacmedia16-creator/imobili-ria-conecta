@@ -9,6 +9,7 @@ import type {
   Template,
 } from "./exclusive-captures";
 import { normalizeForm } from "./exclusive-captures";
+import { storageOrganizationPath } from "./storage-org";
 
 // Tipos das novas tabelas/RPCs são gerados pelo Supabase somente após a migration.
 // Isolar o cast evita editar types.ts, que é gerado automaticamente pelo projeto.
@@ -103,7 +104,7 @@ export async function uploadCaptureDocument(
     throw new Error("Envie PDF/JPG/PNG/WEBP de até 16 MB");
   if ((kind === "gerado" || kind === "assinado") && ext !== "pdf")
     throw new Error("Contrato deve ser PDF");
-  const path = `${id}/${crypto.randomUUID()}.${ext}`;
+  const path = await storageOrganizationPath(`${id}/${crypto.randomUUID()}.${ext}`);
   const { error } = await bucket().upload(path, file, { upsert: false, contentType: file.type });
   check(error);
   const { error: registerError } = await db.rpc("exclusive_register_document", {
@@ -123,12 +124,16 @@ export async function signedDocument(doc: CaptureDocument): Promise<string> {
 }
 export async function downloadCaptureTemplate(template: Template): Promise<Uint8Array> {
   if (template !== "campolim" && template !== "barao-de-tatui") throw new Error("Modelo inválido");
+  const prefixedPath = await storageOrganizationPath(`${template}.pdf`);
   const { data, error } = await supabase.storage
     .from("exclusive-templates")
-    .download(`${template}.pdf`);
-  check(error);
-  if (!data) throw new Error("Modelo indisponível");
-  return new Uint8Array(await data.arrayBuffer());
+    .download(prefixedPath);
+  if (data) return new Uint8Array(await data.arrayBuffer());
+  // Apenas a agência histórica pode ler o modelo sem prefixo (RLS decide).
+  const legacy = await supabase.storage.from("exclusive-templates").download(`${template}.pdf`);
+  check(legacy.error ?? error);
+  if (!legacy.data) throw new Error("Modelo indisponível");
+  return new Uint8Array(await legacy.data.arrayBuffer());
 }
 export async function signedDocuments(
   docs: CaptureDocument[],

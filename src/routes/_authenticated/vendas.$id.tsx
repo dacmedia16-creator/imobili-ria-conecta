@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { storageOrganizationPath } from "@/lib/storage-org";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1601,7 +1602,7 @@ function SaleDetail() {
     try {
       if (contratoFile) {
         const ext = contratoFile.name.split(".").pop();
-        const path = `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`;
+        const path = await storageOrganizationPath(`${id}/outros/contrato/${crypto.randomUUID()}.${ext}`);
         const { error: upErr } = await supabase.storage
           .from("sale-documents")
           .upload(path, contratoFile, { upsert: false });
@@ -1653,6 +1654,8 @@ function SaleDetail() {
       setContratoDialogOpen(false);
       setContratoFile(null);
       load();
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao enviar contrato"));
     } finally {
       setContratoUploading(false);
     }
@@ -1684,7 +1687,7 @@ function SaleDetail() {
     setContratoAssinadoUploading(true);
     try {
       const ext = contratoAssinadoFile.name.split(".").pop();
-      const path = `${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`;
+      const path = await storageOrganizationPath(`${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`);
       const { error: upErr } = await supabase.storage
         .from("sale-documents")
         .upload(path, contratoAssinadoFile, { upsert: false });
@@ -1715,6 +1718,8 @@ function SaleDetail() {
       setContratoAssinadoDialogOpen(false);
       setContratoAssinadoFile(null);
       load();
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao enviar contrato assinado"));
     } finally {
       setContratoAssinadoUploading(false);
     }

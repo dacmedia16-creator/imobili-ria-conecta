@@ -56,6 +56,7 @@ import { baixarDocumentosComoPdf, isImageFile, printDocumentUrls } from "@/lib/d
 import { DocStatusBadge } from "./shared";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { storageOrganizationPath } from "@/lib/storage-org";
 
 export type DisplayDocument = Omit<
   DocumentRow,
@@ -164,7 +165,7 @@ export function DocumentsPanel({
     setUploadingCertidao((m) => ({ ...m, [draftId]: true }));
     try {
       const ext = file.name.split(".").pop();
-      const path = `${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`;
+      const path = await storageOrganizationPath(`${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`);
       const { error } = await supabase.storage
         .from("sale-documents")
         .upload(path, file, { upsert: false });
@@ -198,6 +199,8 @@ export function DocumentsPanel({
         return next.length > 0 ? next : [{ id: crypto.randomUUID(), nome: "" }];
       });
       onChange();
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Falha ao enviar certidão"));
     } finally {
       setUploadingCertidao((m) => {
         const next = { ...m };
@@ -342,7 +345,13 @@ export function DocumentsPanel({
 
   const upload = async (tipo: string, parte: DocParte, file: File) => {
     const ext = file.name.split(".").pop();
-    const path = `${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`;
+    let path: string;
+    try {
+      path = await storageOrganizationPath(`${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`);
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Organização não disponível"));
+      return;
+    }
     const { error } = await supabase.storage
       .from("sale-documents")
       .upload(path, file, { upsert: false });
