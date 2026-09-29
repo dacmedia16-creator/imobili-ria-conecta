@@ -41,7 +41,8 @@ AS $function$
       OR s.lider_vendedor_id = _user
       OR EXISTS (SELECT 1 FROM public.sale_commission_extras sce WHERE sce.sale_id = s.id AND sce.user_id = _user)
       OR public.has_any_role(_user, ARRAY['financeiro','admin','super_admin']::public.app_role[])
-      OR (public.has_any_role(_user, ARRAY['gestor','team_leader']::public.app_role[]) AND public.is_lead_of(_user, s.corretor_id))
+      OR (public.has_any_role(_user, ARRAY['gestor','team_leader']::public.app_role[])
+          AND (public.is_lead_of(_user, s.corretor_id) OR public.is_lead_of_sale_corretor(_user, s.id)))
       OR (public.has_role(_user,'juridico'::public.app_role) AND s.status::text = ANY (ARRAY[
         'aprovada_gestor','enviada_juridico','em_elaboracao_contrato',
         'contrato_conferencia_gestor','contrato_conferencia_corretor','contrato_ok_corretor',

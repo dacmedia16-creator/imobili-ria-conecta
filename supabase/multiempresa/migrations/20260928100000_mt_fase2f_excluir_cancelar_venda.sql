@@ -49,8 +49,10 @@ DO $$ BEGIN
      OR to_regclass('public.platform_admins') IS NULL
      OR to_regprocedure('public.is_platform_super_admin(uuid)') IS NULL
      OR to_regprocedure('public.is_lead_of(uuid,uuid)') IS NULL
-     OR to_regprocedure('public.current_org_id()') IS NULL THEN
-    RAISE EXCEPTION 'Pre-requisitos 1a-2e ausentes; abortando 2f';
+     OR to_regprocedure('public.current_org_id()') IS NULL
+     OR to_regprocedure('public.is_sale_responsavel(uuid,uuid)') IS NULL
+     OR to_regprocedure('public.is_lead_of_sale_responsavel(uuid,uuid)') IS NULL THEN
+    RAISE EXCEPTION 'Pre-requisitos 1a-2e / 20260929100000 (atribuicao) ausentes; abortando 2f';
   END IF;
 END $$;
 
@@ -95,7 +97,7 @@ CREATE OR REPLACE FUNCTION public.validate_sale_status_transition()
 AS $function$
 declare
   actor uuid := auth.uid();
-  is_owner boolean := (old.corretor_id = auth.uid());
+  is_owner boolean := public.is_sale_responsavel(auth.uid(), old.id);
   allowed boolean := false;
   from_status text := old.status::text;
   to_status text := new.status::text;
@@ -119,7 +121,7 @@ begin
 
   if to_status = 'arquivada'
      and public.has_any_role(actor, array['gestor','team_leader']::app_role[])
-     and public.is_lead_of(actor, old.corretor_id)
+     and public.is_lead_of_sale_responsavel(actor, old.id)
      and from_status in (
        'enviada_revisao', 'contrato_conferencia_gestor', 'contrato_ok_corretor',
        'aguardando_assinatura', 'contrato_assinado', 'ocorrencia_pendente',
@@ -142,7 +144,7 @@ begin
      and from_status = 'rascunho'
      and to_status = 'aprovada_gestor'
      and public.has_any_role(actor, array['gestor','team_leader']::app_role[])
-     and public.is_lead_of(actor, old.corretor_id) then
+     and public.is_lead_of_sale_responsavel(actor, old.id) then
     allowed := true;
   end if;
 
