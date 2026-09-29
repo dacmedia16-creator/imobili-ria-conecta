@@ -184,6 +184,12 @@ import type {
   SaleUpdate,
 } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import {
+  DETAIL_NOT_FOUND_MESSAGE,
+  isDetailRouteId,
+  resolveDetailRouteState,
+} from "@/lib/detail-route-state";
+import { DetailNotFound } from "@/components/DetailNotFound";
 
 type ActivityPayload = {
   tipo?: string;
@@ -332,6 +338,9 @@ function SaleDetail() {
   // salvo, não o buffer não salvo do Resumo — atualiza de novo assim que o autosave roda.
   const [distribuicao, setDistribuicao] = useState<StandardDistribution | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saleLoadError, setSaleLoadError] = useState<{ code?: string; message?: string } | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
@@ -596,6 +605,13 @@ function SaleDetail() {
     // (enviar documento, salvar, etc.) isso desmontava a página inteira e resetava a aba/bloco
     // ativo de cada etapa (Documentos, Resumo, Partes, Pagamento) de volta pro padrão.
     if (!hasLoadedOnceRef.current) setLoading(true);
+    // ID malformado: nem consulta o banco. Mesmo estado neutro de "não encontrada ou sem acesso".
+    if (!isDetailRouteId(id)) {
+      setSale(null);
+      setSaleLoadError(null);
+      setLoading(false);
+      return;
+    }
     const [s, p, pay, ba, d, c, cr, h, oc, ce, ac, dist, capability, certidoesCapability] =
       await Promise.all([
         supabase.from("sales").select("*").eq("id", id).maybeSingle(),
@@ -648,6 +664,17 @@ function SaleDetail() {
       dist.error,
       capability.error,
     ].filter(Boolean);
+    // Venda inexistente, de outra imobiliária ou sem permissão: o RLS devolve zero linhas (as
+    // demais consultas vêm vazias ou negadas). Antes a tela ficava presa em "Carregando…" para
+    // sempre; agora encerra o carregamento num estado neutro, sem toast que diferencie os casos.
+    if (!s.data) {
+      if (loadErrors.length > 0) console.error("Venda indisponível:", s.error?.code ?? "sem linha");
+      setSale(null);
+      setSaleLoadError(s.error ?? null);
+      setLoading(false);
+      return;
+    }
+    setSaleLoadError(null);
     if (loadErrors.length > 0) {
       console.error("Falha ao carregar dados da venda:", loadErrors);
       toast.error("Alguns dados da venda não puderam ser carregados. Tente atualizar a página.");
@@ -1090,8 +1117,26 @@ function SaleDetail() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [anyDirtyAnywhere]);
 
-  if (loading || !sale)
+  const detailState = resolveDetailRouteState({ loading, record: sale, error: saleLoadError });
+  if (detailState === "loading" || !sale) {
+    if (detailState === "not_found" || detailState === "error")
+      return (
+        <DetailNotFound
+          message={DETAIL_NOT_FOUND_MESSAGE.venda}
+          backTo="/vendas"
+          backLabel="Voltar para vendas"
+          onRetry={
+            detailState === "error"
+              ? () => {
+                  hasLoadedOnceRef.current = false;
+                  void load();
+                }
+              : undefined
+          }
+        />
+      );
     return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
+  }
 
   // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
   // ver LancamentoDetail.

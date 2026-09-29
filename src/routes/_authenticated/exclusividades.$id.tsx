@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { DETAIL_NOT_FOUND_MESSAGE, isDetailRouteId } from "@/lib/detail-route-state";
+import { DetailNotFound } from "@/components/DetailNotFound";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   downloadCaptureTemplate,
@@ -118,10 +120,18 @@ function ExclusiveDetail() {
     setDirty(false);
   }, [id]);
   useEffect(() => {
+    // ID malformado, inexistente ou de outra imobiliária caem no mesmo estado neutro abaixo, sem
+    // toast com a mensagem crua do banco (que diferenciaria os casos).
+    if (!isDetailRouteId(id)) {
+      setCapture(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     reload()
-      .catch((e) => toast.error(errorMessage(e, "Sem acesso a esta captação")))
+      .catch(() => setCapture(null))
       .finally(() => setLoading(false));
-  }, [reload]);
+  }, [id, reload]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -230,12 +240,11 @@ function ExclusiveDetail() {
   if (loading) return <p>Carregando captação…</p>;
   if (!capture || !form)
     return (
-      <p>
-        Captação não encontrada ou acesso negado.{" "}
-        <Link to="/exclusividades" className="underline">
-          Voltar
-        </Link>
-      </p>
+      <DetailNotFound
+        message={DETAIL_NOT_FOUND_MESSAGE.captacao}
+        backTo="/exclusividades"
+        backLabel="Voltar para exclusividades"
+      />
     );
   const missing = missingRequirements(
     form,
