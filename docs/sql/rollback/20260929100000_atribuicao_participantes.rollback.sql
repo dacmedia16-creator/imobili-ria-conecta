@@ -1,5 +1,5 @@
 -- ROLLBACK de 20260929100000_atribuicao_participantes.sql
--- Definições literais copiadas da PRODUÇÃO (somente leitura, 28/09/2026) antes da mudança.
+-- Definições literais copiadas da PRODUÇÃO (somente leitura, 29/09/2026, após 20260929090000_excluir_cancelar_venda) antes da mudança.
 -- Restaura as funções e a policy sales_select e remove os helpers novos. Não altera dados.
 BEGIN;
 
@@ -115,6 +115,17 @@ declare
   to_status text := new.status::text;
 begin
   if new.status is not distinct from old.status then return new; end if;
+
+  if to_status = 'cancelada' then
+    if from_status = 'rascunho' then
+      raise exception 'Venda em rascunho não é cancelada: exclua o rascunho.' using errcode = '42501';
+    end if;
+    if not (public.is_active_user(actor) and public.is_platform_super_admin(actor)) then
+      raise exception 'Somente o dono da plataforma pode cancelar vendas.' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
   if public.has_any_role(actor, array['admin','super_admin']::app_role[]) then return new; end if;
 
   if to_status in ('cancelada', 'arquivada')
