@@ -47,7 +47,7 @@ import type {
   OccurrenceUpdate,
   SaleRow,
 } from "@/lib/database.types";
-import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { dataCivilSaoPaulo, hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { confirmarLinhaAlterada } from "@/lib/relatorios-integridade";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
@@ -131,9 +131,10 @@ const monthsAgoISO = (n: number) => {
   d.setMonth(d.getMonth() - n);
   return d.toISOString().slice(0, 10);
 };
+// Timestamps (venda_em, updated_at) chegam em UTC: compara pela data civil de São Paulo.
 const inRange = (dateStr: string | null | undefined, from: string, to: string) => {
-  if (!dateStr) return false;
-  const d = dateStr.slice(0, 10);
+  const d = dataCivilSaoPaulo(dateStr);
+  if (!d) return false;
   return (!from || d >= from) && (!to || d <= to);
 };
 
@@ -954,7 +955,7 @@ function ComissoesTab({
         Beneficiario: r.nome ?? "",
         Percentual: r.percentual ?? "",
         Valor: r.valor.toFixed(2),
-        DataVendaComercial: vendaComercialEm[r.occ.sale_id]?.slice(0, 10) ?? "",
+        DataVendaComercial: dataCivilSaoPaulo(vendaComercialEm[r.occ.sale_id]) ?? "",
       })),
     );
 

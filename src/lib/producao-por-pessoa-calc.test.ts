@@ -619,6 +619,27 @@ describe("aplicarFiltrosProducao — mesma fixture", () => {
     const saleIds = new Set(filtradas.map((p) => p.saleId));
     expect(saleIds).toEqual(new Set(["sale-5", "sale-7"]));
   });
+
+  it("usa o mês da assinatura em São Paulo, não o dia UTC (31/08 21:10 SP é agosto)", () => {
+    // O banco devolve timestamptz em UTC: 31/08 21:10 em SP chega como 2026-09-01T00:10:00+00:00.
+    const assinadaNaVirada = gerarPontas(
+      [{ ...ROWS[0], sale_id: "virada", concluida_em: "2026-09-01T00:10:00+00:00" }],
+      TEAM_ID_POR_PESSOA,
+      TEAM_NOME_POR_ID,
+    );
+    const agosto = aplicarFiltrosProducao(assinadaNaVirada, {
+      ...base,
+      dataDe: "2026-08-01",
+      dataAte: "2026-08-31",
+    });
+    const setembro = aplicarFiltrosProducao(assinadaNaVirada, {
+      ...base,
+      dataDe: "2026-09-01",
+      dataAte: "2026-09-30",
+    });
+    expect(agosto.length).toBeGreaterThan(0);
+    expect(setembro).toHaveLength(0);
+  });
 });
 
 describe("acesso ao relatório Produção por pessoa", () => {
