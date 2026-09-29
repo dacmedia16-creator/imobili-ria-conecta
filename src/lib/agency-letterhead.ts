@@ -5,6 +5,12 @@ const LEGACY_ORG_ID = "00000000-0000-4000-8000-000000000001";
 const LEGACY_LEGAL_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
 const LEGACY_CRECI = "CRECI: 29.886-J";
 
+// Marca fixa da agência histórica (Única Escolha), a mesma já usada no build de produção.
+// Outras agências só têm logo quando cadastram o próprio (organization-logos).
+export function fixedLogoForOrganization(id: string): string | null {
+  return id === LEGACY_ORG_ID ? "/remax-icon.png" : null;
+}
+
 export type AgencyLetterhead = { name: string; creci: string | null };
 
 export function letterheadForOrganization(id: string, name: string): AgencyLetterhead {

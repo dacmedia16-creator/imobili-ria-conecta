@@ -37,6 +37,7 @@ import { endOperationalImpersonation } from "@/lib/user-impersonation.functions"
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
+import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 type AgencyBrand = { nome: string; logoUrl: string | null; color: string | null };
@@ -201,7 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           nome: org.nome,
           logoUrl: org.logo_path
             ? supabase.storage.from("organization-logos").getPublicUrl(org.logo_path).data.publicUrl
-            : null,
+            : fixedLogoForOrganization(orgId),
           color: org.cor_primaria,
         });
       });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { letterheadForOrganization } from "./agency-letterhead";
+import { fixedLogoForOrganization, letterheadForOrganization } from "./agency-letterhead";
 
 describe("cabeçalho impresso por imobiliária", () => {
   it("preserva a razão social e o CRECI da agência histórica", () => {
@@ -17,6 +17,12 @@ describe("cabeçalho impresso por imobiliária", () => {
       name: "Agência B",
       creci: null,
     });
+  });
+  it("usa a marca fixa RE/MAX só para a agência histórica sem logo próprio", () => {
+    expect(fixedLogoForOrganization("00000000-0000-4000-8000-000000000001")).toBe(
+      "/remax-icon.png",
+    );
+    expect(fixedLogoForOrganization("2a000000-0000-4000-8000-0000000000b0")).toBeNull();
   });
   it("recusa uma imobiliária sem nome", () => {
     expect(() => letterheadForOrganization("2a000000-0000-4000-8000-0000000000b0", " ")).toThrow();
