@@ -22,6 +22,19 @@ CREATE FUNCTION vua_test.conta(st text, de date, ate date) RETURNS integer LANGU
  SELECT (public.list_vendas_comerciais_paginadas(0, 10, st, NULL, de, ate, 'VUA-', NULL)->>'total_count')::integer $$;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA vua_test TO authenticated;
 
+-- Multiempresa (branch feat/multiempresa-fase1): as tabelas exigem organization_id. Dentro desta
+-- transação (desfeita no ROLLBACK), os dados sintéticos entram na agência legada por DEFAULT.
+DO $mt$ DECLARE t text; o uuid; BEGIN
+  IF to_regclass('public.organizations') IS NULL THEN RETURN; END IF;
+  SELECT id INTO o FROM public.organizations ORDER BY created_at LIMIT 1;
+  FOR t IN SELECT c.table_name FROM information_schema.columns c
+    JOIN information_schema.tables x ON x.table_schema = c.table_schema AND x.table_name = c.table_name
+      AND x.table_type = 'BASE TABLE'
+    WHERE c.table_schema = 'public' AND c.column_name = 'organization_id' AND c.column_default IS NULL LOOP
+    EXECUTE format('ALTER TABLE public.%I ALTER COLUMN organization_id SET DEFAULT %L::uuid', t, o);
+  END LOOP;
+END $mt$;
+
 -- ---------- Dados sintéticos ----------
 -- C: corretor (cria/participa). F: financeiro (fila "Só minha vez").
 INSERT INTO auth.users (id, email, raw_user_meta_data, raw_app_meta_data) VALUES
@@ -32,6 +45,12 @@ INSERT INTO public.user_roles (user_id, role) VALUES
   ('5a000000-0000-4000-8000-00000000000c','corretor'),
   ('5a000000-0000-4000-8000-00000000000f','financeiro')
 ON CONFLICT DO NOTHING;
+DO $mt$ BEGIN
+  IF to_regclass('public.organization_members') IS NOT NULL THEN
+    INSERT INTO public.organization_members (user_id)
+    SELECT id FROM auth.users WHERE id::text LIKE '5a000000-%' ON CONFLICT DO NOTHING;
+  END IF;
+END $mt$;
 
 -- R: padrão REASSINADA (25/08 e 04/09); a ocorrência guardou só a 1ª data (25/08). Concluída.
 -- N: padrão assinada 31/08 às 23:30 em São Paulo (= 01/09 02:30 UTC) → deve ficar em 31/08.
