@@ -11,6 +11,9 @@ import { Eye, EyeOff } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
+// Homologação: mesmo login Google da produção (Conta MAX), com entrada e segredo próprios.
+const HOMOLOG_GOOGLE_LOGIN_URL =
+  "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max-homolog";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -43,23 +46,6 @@ function AuthPage() {
       router.navigate({ to: "/dashboard", replace: true });
     } catch (err: unknown) {
       toast.error(errorMessage(err, "Falha ao autenticar"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth` },
-      });
-      if (error) throw error;
-      setLinkEnviado(true);
-    } catch (err: unknown) {
-      toast.error(errorMessage(err, "Falha ao enviar o link de acesso"));
     } finally {
       setLoading(false);
     }
@@ -134,7 +120,7 @@ function AuthPage() {
             </CardTitle>
             <CardDescription>
               {IS_HOMOLOG
-                ? "Homologação — acesso por link no e-mail"
+                ? "Homologação — acesso com Google"
                 : modo === "login"
                   ? "Acesse com sua conta corporativa"
                   : "Recuperar senha"}
@@ -142,29 +128,14 @@ function AuthPage() {
           </CardHeader>
           <CardContent className="px-8 pb-8">
             {IS_HOMOLOG ? (
-              linkEnviado ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  Se o e-mail estiver cadastrado, um link de acesso foi enviado. Confira sua caixa
-                  de entrada.
+              <div className="space-y-4 text-center">
+                <Button asChild className="w-full">
+                  <a href={HOMOLOG_GOOGLE_LOGIN_URL}>Entrar com Google</a>
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  O acesso passa pela Conta MAX, igual à produção.
                 </p>
-              ) : (
-                <form onSubmit={onMagicLink} className="space-y-5">
-                  <div>
-                    <Label htmlFor="email-homolog">E-mail autorizado</Label>
-                    <Input
-                      id="email-homolog"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Aguarde…" : "Enviar link de acesso"}
-                  </Button>
-                </form>
-              )
+              </div>
             ) : modo === "login" ? (
               <>
                 <form onSubmit={onSubmit} className="space-y-5">
