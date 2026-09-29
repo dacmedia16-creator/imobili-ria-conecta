@@ -34,7 +34,7 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead>Operação</TableHead>
-                <TableHead>Enviada ao Financeiro em</TableHead>
+                <TableHead>Data da venda</TableHead>
                 <TableHead>Ponta</TableHead>
                 <TableHead>Pessoa</TableHead>
                 <TableHead>Equipe</TableHead>
@@ -53,7 +53,9 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
               )}
               {ordenadas.map((p, i) => (
                 <TableRow
-                  key={`${p.saleId}-${p.tipo}`}
+                  // Venda com vários vendedores gera várias pontas "venda": a chave precisa da
+                  // pessoa, senão o React reaproveita linhas erradas e deixa linha fantasma.
+                  key={`${p.saleId}-${p.tipo}-${p.pessoaId ?? `sem-vinculo:${p.pessoaNome}`}-${i}`}
                   className={i % 2 === 1 ? "bg-muted/25" : undefined}
                 >
                   <TableCell className="font-medium">

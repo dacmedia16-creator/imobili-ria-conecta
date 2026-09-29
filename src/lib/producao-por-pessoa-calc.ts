@@ -19,6 +19,7 @@ import type {
   TotaisProducao,
 } from "@/lib/producao-por-pessoa-types";
 import { metricasSemParceria } from "@/lib/metricas-sem-parceria";
+import { dataCivilSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -301,9 +302,11 @@ export function aplicarFiltrosProducao(
   filtros: FiltrosProducao,
 ): ProducaoPonta[] {
   return pontas.filter((p) => {
-    const dataConclusao = p.concluidaEm.slice(0, 10);
-    if (filtros.dataDe && dataConclusao < filtros.dataDe) return false;
-    if (filtros.dataAte && dataConclusao > filtros.dataAte) return false;
+    // Mês/dia comercial = data da assinatura em São Paulo (concluidaEm é timestamptz em UTC).
+    const dataConclusao = dataCivilSaoPaulo(p.concluidaEm);
+    if ((filtros.dataDe || filtros.dataAte) && !dataConclusao) return false;
+    if (filtros.dataDe && dataConclusao! < filtros.dataDe) return false;
+    if (filtros.dataAte && dataConclusao! > filtros.dataAte) return false;
     if (filtros.pessoaId && p.pessoaId !== filtros.pessoaId) return false;
     if (filtros.teamId && p.teamId !== filtros.teamId) return false;
     if (filtros.modalidade !== "todas" && p.modalidade !== filtros.modalidade) return false;

@@ -11,5 +11,7 @@ export const formatQtd = (v: number | null | undefined) =>
     ? v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
     : "—";
 
+// Sempre no horário de Brasília: o mesmo fuso usado pelo filtro de mês (assinatura às 21h10 de
+// 31/08 é 31/08, mesmo num navegador em UTC).
 export const formatDateTimeBR = (v: string | null | undefined) =>
-  v ? new Date(v).toLocaleDateString("pt-BR") : "—";
+  v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "—";
