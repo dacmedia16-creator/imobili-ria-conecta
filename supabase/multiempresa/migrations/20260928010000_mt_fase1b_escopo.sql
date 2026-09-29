@@ -118,6 +118,23 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.mt_1b_set_org() FROM PUBLIC, anon, authenticated;
 
+-- Dados reais: linhas antigas de occurrence_commissions violam a CHECK NOT VALID abaixo
+-- (valida só escritas novas). O backfill faz UPDATE e a reavaliaria nessas linhas. Retira a
+-- CHECK só durante o backfill e a recria IDÊNTICA (mesma definição, NOT VALID) nesta mesma
+-- transação. Nenhuma linha de negócio é alterada; a regra segue valendo para escritas novas.
+CREATE TEMP TABLE mt_1b_saved_check ON COMMIT DROP AS
+  SELECT conname::text, conrelid::regclass::text tab, pg_get_constraintdef(oid) def
+  FROM pg_constraint
+  WHERE conrelid = 'public.occurrence_commissions'::regclass
+    AND conname = 'occurrence_commissions_exige_vinculo_ou_confirmacao';
+DO $drop_check$
+DECLARE c record;
+BEGIN
+  FOR c IN SELECT * FROM mt_1b_saved_check LOOP
+    EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', c.tab, c.conname);
+  END LOOP;
+END $drop_check$;
+
 DO $migration$
 DECLARE r record; c record; n bigint; _first uuid; _missing text := '';
 BEGIN
@@ -175,6 +192,16 @@ BEGIN
     END IF;
   END LOOP;
 END $migration$;
+
+-- Recria a CHECK retirada acima com a definição exata e sem validar linhas antigas.
+DO $restore_check$
+DECLARE c record;
+BEGIN
+  FOR c IN SELECT * FROM mt_1b_saved_check LOOP
+    EXECUTE format('ALTER TABLE %s ADD CONSTRAINT %I %s', c.tab, c.conname,
+      CASE WHEN c.def LIKE '% NOT VALID' THEN c.def ELSE c.def || ' NOT VALID' END);
+  END LOOP;
+END $restore_check$;
 
 -- O trigger legado de papéis gera log sem sale_id/autor_id no cadastro servidor.
 -- O escopo vem da própria linha de papel, nunca de um default global em novos dados.
