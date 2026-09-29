@@ -71,8 +71,9 @@ DO $$ DECLARE st text; i int := 0; sid uuid; BEGIN
             EXCEPT SELECT unnest(ARRAY['cancelada','arquivada']) LOOP
     i := i + 1;
     sid := ('ec05ffff-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid;
-    INSERT INTO public.sales(id,corretor_id,corretor_vendedor_id,imovel_id,status)
-      VALUES (sid,'ec000000-0000-4000-8000-000000000001','ec000000-0000-4000-8000-000000000002',
+    -- Criador também é captador: após 20260929100000 o líder só gerencia vendas em que lidera um participante.
+    INSERT INTO public.sales(id,corretor_id,corretor_captador_id,corretor_vendedor_id,imovel_id,status)
+      VALUES (sid,'ec000000-0000-4000-8000-000000000001','ec000000-0000-4000-8000-000000000001','ec000000-0000-4000-8000-000000000002',
               'ECV-' || st, st::public.sale_status);
     INSERT INTO ecv_test.vendas VALUES (st, sid);
   END LOOP;
