@@ -502,8 +502,8 @@ function RoomReservationsPage() {
         <AlertTitle>Agenda compartilhada</AlertTitle>
         <AlertDescription>
           As reservas são salvas no banco da imobiliária. O cancelamento pode ser feito a qualquer
-          momento pelo responsável; gestores, team leaders, staff, administradores e super
-          administradores podem cancelar qualquer reserva da imobiliária. Cancelamentos
+          momento pelo responsável; gestores e team leaders, as reservas da própria equipe; staff,
+          administradores e super administradores, qualquer reserva da imobiliária. Cancelamentos
           feitos pelo responsável depois da primeira hora contam para a regra de bloqueio: ao
           atingir 3, o usuário fica 7 dias corridos sem poder reservar.
         </AlertDescription>
@@ -689,7 +689,7 @@ function RoomReservationsPage() {
             <CardHeader>
               <CardTitle className="text-base">Reservas que posso cancelar</CardTitle>
               <CardDescription>
-                Reservas da sua equipe ou todas as reservas, conforme o seu perfil.
+                Reservas da sua equipe ou de toda a imobiliária, conforme o seu perfil.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -734,8 +734,9 @@ function RoomReservationsPage() {
             <div className="flex gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
               <span>
-                Responsável cancela a própria reserva; gestores, team leaders, staff,
-                administradores e super administradores, qualquer reserva da imobiliária.
+                Responsável cancela a própria reserva; gestores e team leaders, as da própria
+                equipe; staff, administradores e super administradores, qualquer reserva da
+                imobiliária.
               </span>
             </div>
             <div className="flex gap-2">

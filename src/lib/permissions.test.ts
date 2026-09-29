@@ -93,14 +93,42 @@ describe("canCancelSale — só o dono da plataforma, depois do rascunho (fase 2
   });
 });
 
-describe("reserva de sala — texto da tela alinhado (team leader = gestor)", () => {
+describe("reserva de sala — gestor e team leader só a própria equipe (fase 2h, Denis 29/09)", () => {
   const tela = readFileSync(
     new URL("../routes/_authenticated/reservas-salas.tsx", import.meta.url),
     "utf8",
   );
-  it("não promete mais escopo só da equipe para líderes", () => {
-    expect(tela).not.toContain("líderes podem cancelar a própria equipe");
-    expect(tela).not.toContain("líderes, a própria equipe");
-    expect(tela).toContain("team leaders");
+  const semQuebra = tela.replace(/\s+/g, " ");
+  it("texto da tela diz que gestor e team leader cancelam só a própria equipe", () => {
+    expect(semQuebra).toContain("gestores e team leaders, as reservas da própria equipe");
+    expect(semQuebra).toContain("gestores e team leaders, as da própria equipe");
+    expect(semQuebra).not.toMatch(/gestores, team leaders, staff/);
+  });
+  it("botão Cancelar depende do banco (can_cancel_room_reservation), não do papel na tela", () => {
+    expect(tela).toContain('supabase.rpc("can_cancel_room_reservation"');
+    expect(tela).toMatch(/\{selectedReservation\?\.canCancel && \(/);
+    expect(tela).toContain("reservation.canCancel && reservation.responsibleId !== user?.id");
+    // Reserva que só aparece na grade de ocupação nunca mostra Cancelar.
+    expect(tela).toMatch(/const mapOccupancy[\s\S]*?canCancel: false,/);
+  });
+  it("migration 2h restringe gestor/team_leader por is_lead_of nas duas funções, com .down", () => {
+    const dir = new URL("../../supabase/multiempresa/migrations/", import.meta.url);
+    const up = readFileSync(new URL("20260928120000_mt_fase2h_reservas_equipe.sql", dir), "utf8");
+    const down = readFileSync(
+      new URL("20260928120000_mt_fase2h_reservas_equipe.down.sql", dir),
+      "utf8",
+    );
+    for (const fn of ["can_cancel_room_reservation", "can_view_room_reservation"]) {
+      const body = up.split(`FUNCTION public.${fn}(`)[1].split("$function$;")[0];
+      expect(body).toContain("ARRAY['admin', 'super_admin', 'staff']");
+      expect(body).toMatch(
+        /ARRAY\['gestor', 'team_leader'\][\s\S]*AND public\.is_lead_of\(_actor, _responsible_id\)/,
+      );
+      expect(body).toContain(
+        "public.mt_in_ctx_org(_actor) AND public.mt_in_ctx_org(_responsible_id)",
+      );
+    }
+    expect(down).toContain("FROM public.mt_2h_backup");
+    expect(down).toContain("DROP TABLE public.mt_2h_backup");
   });
 });

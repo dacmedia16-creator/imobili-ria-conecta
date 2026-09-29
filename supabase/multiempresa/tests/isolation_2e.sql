@@ -1,6 +1,7 @@
 -- Ensaio 2e: decisões de Denis (28/09/2026) sobre perfis.
 --  * Financeiro edita todas as vendas e comissões da agência (confirmação, sem mudança).
---  * Team Leader = Gestor: cancelar/ver reserva de qualquer pessoa da agência e ler vínculos da agência.
+--  * Team Leader = Gestor: cancelar/ver reserva de qualquer pessoa da agência (substituído pela 2h: só a
+--    própria equipe) e ler vínculos da agência.
 --  * Staff cancela reserva de qualquer pessoa da agência (confirmação, sem mudança).
 --  * Excluir venda: só em 'rascunho' e só quem pode editar aquela venda; nas demais etapas, só cancelar.
 --  * Cancelar venda: NÃO muda; o levantamento sai nas linhas 'CANCEL:' (sem asserção).
@@ -115,8 +116,11 @@ RESET ROLE;
 
 -- ---------- 2. Team Leader = Gestor (reservas e vínculos da agência) ----------
 SELECT mt_2e_test.as_user('2e000000-0000-4000-8000-0000000000a1');
-SELECT mt_2e_test.check('gestor: cancela reserva de outra equipe (antes e depois)',
-  public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000a4'));
+-- A 2h (decisão de Denis de 29/09) restringe gestor/team_leader à própria equipe; com a 2h aplicada,
+-- as verificações de "outra equipe" abaixo passam a esperar recusa.
+SELECT mt_2e_test.check('gestor: cancela reserva de outra equipe (2e) / NAO cancela (com 2h)',
+  public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000a4')
+    = (to_regclass('public.mt_2h_backup') IS NULL));
 SELECT mt_2e_test.check('gestor: NAO cancela reserva da agencia B',
   NOT public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000b2'));
 SELECT mt_2e_test.check('gestor: le vinculos da propria agencia',
@@ -125,12 +129,15 @@ RESET ROLE;
 SELECT mt_2e_test.as_user('2e000000-0000-4000-8000-0000000000a2');
 SELECT mt_2e_test.check('team_leader: cancela reserva da propria equipe',
   public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000a4'));
-SELECT mt_2e_test.check('team_leader: cancela reserva de OUTRA equipe (igual gestor)',
-  public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000a3'));
-SELECT mt_2e_test.check('team_leader: RPC cancel_room_reservation de outra equipe funciona',
-  mt_2e_test.dry_rpc($$SELECT * FROM public.cancel_room_reservation('2e070000-0000-4000-8000-0000000000a3')$$) = 'ok');
-SELECT mt_2e_test.check('team_leader: ve detalhes da reserva de outra equipe (igual gestor)',
-  (SELECT count(*) FROM public.room_reservations WHERE id = '2e070000-0000-4000-8000-0000000000a3') = 1);
+SELECT mt_2e_test.check('team_leader: cancela reserva de OUTRA equipe (2e) / NAO cancela (com 2h)',
+  public.can_cancel_room_reservation('2e000000-0000-4000-8000-0000000000a3')
+    = (to_regclass('public.mt_2h_backup') IS NULL));
+SELECT mt_2e_test.check('team_leader: RPC cancel_room_reservation de outra equipe funciona (2e) / recusa (com 2h)',
+  (mt_2e_test.dry_rpc($$SELECT * FROM public.cancel_room_reservation('2e070000-0000-4000-8000-0000000000a3')$$) = 'ok')
+    = (to_regclass('public.mt_2h_backup') IS NULL));
+SELECT mt_2e_test.check('team_leader: ve detalhes da reserva de outra equipe (2e) / NAO ve (com 2h)',
+  (SELECT count(*) FROM public.room_reservations WHERE id = '2e070000-0000-4000-8000-0000000000a3')
+    = CASE WHEN to_regclass('public.mt_2h_backup') IS NULL THEN 1 ELSE 0 END);
 SELECT mt_2e_test.check('team_leader: le vinculos da propria agencia (igual gestor)',
   (SELECT count(*) FROM public.organization_members WHERE user_id::text LIKE '2e000000-%-0000000000a%') = 8);
 SELECT mt_2e_test.check('team_leader: NAO le vinculos da agencia B',
