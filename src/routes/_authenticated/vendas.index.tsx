@@ -774,7 +774,8 @@ function SalesList() {
               {contratosAssinadosCount === 1
                 ? "venda efetivada no período"
                 : "vendas efetivadas no período"}
-              {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX`}
+              {" (todos os status; não segue o filtro de status)"}
+              {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX (sem a parte de parceiros)`}
             </p>
           )}
         </CardHeader>
