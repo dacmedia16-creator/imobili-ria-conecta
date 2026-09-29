@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import { podeImprimirOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { LANCAMENTO_COMISSAO_PAPEIS } from "@/lib/status";
+import { loadAgencyLetterhead, type AgencyLetterhead } from "@/lib/agency-letterhead";
 import { z } from "zod";
 import type {
   OccurrenceCommissionRow,
@@ -16,15 +17,13 @@ import type {
   SaleRow,
 } from "@/lib/database.types";
 
-const AGENCY_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
-const AGENCY_CRECI = "CRECI: 29.886-J";
-
 type PrintDistribution = {
   saldo_liquido_imobiliaria?: number | null;
   saldo_imobiliaria?: number | null;
 };
 
 type PrintOccurrence = {
+  letterhead: AgencyLetterhead;
   sale: SaleRow;
   occ: OccurrenceRow;
   commissions: OccurrenceCommissionRow[];
@@ -35,7 +34,13 @@ type PrintOccurrence = {
 
 const printDocumentsSchema = z.array(
   z.object({
-    sale: z.object({ id: z.string(), modalidade: z.string().nullable().optional() }).passthrough(),
+    sale: z
+      .object({
+        id: z.string(),
+        organization_id: z.string().uuid(),
+        modalidade: z.string().nullable().optional(),
+      })
+      .passthrough(),
     occ: z
       .object({ id: z.string(), sale_id: z.string(), status: z.literal("concluida") })
       .passthrough(),
@@ -117,7 +122,16 @@ function OcorrenciasImprimirPage() {
         ) {
           throw new Error("O documento retornou dados incompletos ou inconsistentes.");
         }
+        // Só libera a impressão após identificar a imobiliária de CADA venda.
+        const letterheads = new Map(
+          await Promise.all(
+            [...new Set(parsed.data.map((doc) => doc.sale.organization_id))].map(
+              async (id) => [id, await loadAgencyLetterhead(id)] as const,
+            ),
+          ),
+        );
         const details: PrintOccurrence[] = parsed.data.map((doc) => ({
+          letterhead: letterheads.get(doc.sale.organization_id)!,
           sale: doc.sale as unknown as SaleRow,
           occ: doc.occ as unknown as OccurrenceRow,
           commissions: doc.commissions as unknown as OccurrenceCommissionRow[],
@@ -172,8 +186,10 @@ function OcorrenciasImprimirPage() {
         >
           <div className="mb-3 flex items-center justify-between border-b pb-2 print:hidden">
             <div>
-              <div className="text-sm font-bold">{AGENCY_NAME}</div>
-              <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+              <div className="text-sm font-bold">{item.letterhead.name}</div>
+              {item.letterhead.creci && (
+                <div className="text-xs text-muted-foreground">{item.letterhead.creci}</div>
+              )}
             </div>
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
@@ -181,8 +197,10 @@ function OcorrenciasImprimirPage() {
             </Button>
           </div>
           <div className="mb-3 hidden border-b pb-2 print:block">
-            <div className="text-sm font-bold">{AGENCY_NAME}</div>
-            <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+            <div className="text-sm font-bold">{item.letterhead.name}</div>
+            {item.letterhead.creci && (
+              <div className="text-xs text-muted-foreground">{item.letterhead.creci}</div>
+            )}
           </div>
           <OccurrenceReportBody
             sale={item.sale}

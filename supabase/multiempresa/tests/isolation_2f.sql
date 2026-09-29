@@ -108,6 +108,31 @@ INSERT INTO public.sales(id,corretor_id,imovel_id,status,organization_id) VALUES
 CREATE TABLE mt_2f_test.st AS SELECT id, status::text AS st FROM public.sales WHERE imovel_id LIKE '2F-ST-%';
 GRANT SELECT ON mt_2f_test.st TO authenticated;
 
+-- Regressão: a 20260929100000 não pode remover a guarda de agência de funções
+-- SECURITY DEFINER. Também recusa sondagem com _user/_lider forjado de B.
+SELECT mt_2f_test.as_user('2f000000-0000-4000-8000-0000000000a7');
+SELECT mt_2f_test.check('A admin nao ve venda B pela RPC', NOT public.can_view_sale(
+ '2f000000-0000-4000-8000-0000000000a7','2f050000-0000-4000-8000-0000000000b1'));
+SELECT mt_2f_test.check('A admin nao edita etapa/comissao B pelas RPCs',
+ NOT public.can_edit_sale_stage('2f000000-0000-4000-8000-0000000000a7','2f050000-0000-4000-8000-0000000000b1')
+ AND NOT public.can_edit_sale_comissao('2f000000-0000-4000-8000-0000000000a7','2f050000-0000-4000-8000-0000000000b1'));
+SELECT mt_2f_test.check('A nao sonda participantes de B por _user forjado',
+ NOT public.is_sale_corretor('2f000000-0000-4000-8000-0000000000b2','2f050000-0000-4000-8000-0000000000b1')
+ AND NOT public.is_sale_responsavel('2f000000-0000-4000-8000-0000000000b2','2f050000-0000-4000-8000-0000000000b1'));
+SELECT mt_2f_test.check('A nao obtem ids de participantes de B',
+ cardinality(public.sale_corretores_ids('2f050000-0000-4000-8000-0000000000b1')) = 0);
+RESET ROLE;
+SELECT set_config('request.jwt.claims','',true);
+SELECT mt_2f_test.as_user('2f000000-0000-4000-8000-0000000000b1');
+SELECT mt_2f_test.check('B admin nao ve nem edita venda A pelas RPCs',
+ NOT public.can_view_sale('2f000000-0000-4000-8000-0000000000b1','2f050000-0000-4000-8000-000000000001')
+ AND NOT public.can_edit_sale_comissao('2f000000-0000-4000-8000-0000000000b1','2f050000-0000-4000-8000-000000000001'));
+SELECT mt_2f_test.check('B ve venda propria e atribui participante B',
+ public.can_view_sale('2f000000-0000-4000-8000-0000000000b1','2f050000-0000-4000-8000-0000000000b1')
+ AND public.is_sale_corretor('2f000000-0000-4000-8000-0000000000b2','2f050000-0000-4000-8000-0000000000b1'));
+RESET ROLE;
+SELECT set_config('request.jwt.claims','',true);
+
 -- ---------- 1. Excluir em rascunho ----------
 SELECT mt_2f_test.check('excluir rascunho: ' || v.who || CASE WHEN v.exp = 'ok:1' THEN ' exclui' ELSE ' NAO exclui' END,
   mt_2f_test.del(v.u::uuid, v.sale::uuid) = v.exp)

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { storageOrganizationPath } from "@/lib/storage-org";
+import { useAgencyLetterhead } from "@/lib/agency-letterhead";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5113,10 +5114,6 @@ function SaleDetail() {
   );
 }
 
-// Cabeçalho impresso na "Ocorrência de compra e venda" — dados da imobiliária (letterhead).
-const AGENCY_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
-const AGENCY_CRECI = "CRECI: 29.886-J";
-
 /** Papéis de comprador_N/vendedor_N com nome preenchido, em ordem — usado nos resumos/diálogos de conferência. */
 function partiesComNome(parties: Record<string, PartyRow>): string[] {
   return Object.keys(parties)
@@ -5184,6 +5181,7 @@ function OccurrenceReviewPanel({
   const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
+  const letterhead = useAgencyLetterhead(sale.organization_id);
   const [confirmExcedidoOpen, setConfirmExcedidoOpen] = useState(false);
   const [excedidoMotivo, setExcedidoMotivo] = useState("");
 
@@ -5306,14 +5304,19 @@ function OccurrenceReviewPanel({
       <div className="print:border print:border-foreground/30 print:p-4">
         <div className="mb-3 flex items-center justify-between border-b pb-2">
           <div>
-            <div className="text-sm font-bold">{AGENCY_NAME}</div>
-            <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+            <div className="text-sm font-bold">
+              {letterhead?.letterhead?.name ?? letterhead?.error ?? "Identificando imobiliária…"}
+            </div>
+            {letterhead?.letterhead?.creci && (
+              <div className="text-xs text-muted-foreground">{letterhead.letterhead.creci}</div>
+            )}
           </div>
           <Button
             variant="outline"
             size="sm"
             className="print:hidden"
             onClick={() => window.print()}
+            disabled={!letterhead?.letterhead}
           >
             Imprimir
           </Button>
@@ -5430,6 +5433,7 @@ function SaleReport({
   const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [reopening, setReopening] = useState(false);
+  const letterhead = useAgencyLetterhead(sale.organization_id);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState("");
 
@@ -5604,8 +5608,12 @@ function SaleReport({
       <div className="print:border print:border-foreground/30 print:p-4">
         <div className="mb-3 flex items-center justify-between border-b pb-2">
           <div>
-            <div className="text-sm font-bold">{AGENCY_NAME}</div>
-            <div className="text-xs text-muted-foreground">{AGENCY_CRECI}</div>
+            <div className="text-sm font-bold">
+              {letterhead?.letterhead?.name ?? letterhead?.error ?? "Identificando imobiliária…"}
+            </div>
+            {letterhead?.letterhead?.creci && (
+              <div className="text-xs text-muted-foreground">{letterhead.letterhead.creci}</div>
+            )}
           </div>
           <div className="flex gap-2 print:hidden">
             {canReopen && occ && (
@@ -5614,7 +5622,12 @@ function SaleReport({
                 Reabrir ocorrência
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              disabled={!letterhead?.letterhead}
+            >
               Imprimir
             </Button>
           </div>
