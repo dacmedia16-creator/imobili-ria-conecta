@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 // igual a vendas_comerciais_validas() (Denis, 27/09/2026; correção autorizada em 29/09/2026).
 const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 const norm = (s: string) => s.replace(/--.*$/gm, "").replace(/\s+/g, " ").toLowerCase();
-const up = ler("supabase/migrations/20260929180000_vendas_data_ultima_assinatura.sql");
+// Suspensa (30/09/2026): revertida na produção por timeout para gestor/team leader; fica fora de
+// supabase/migrations para nenhum `db push` ou script reaplicá-la até existir a versão otimizada.
+const up = ler("docs/sql/suspensas/20260929180000_vendas_data_ultima_assinatura.sql");
 const down = ler("docs/sql/rollback/20260929180000_vendas_data_ultima_assinatura.rollback.sql");
 const tela = ler("src/routes/_authenticated/vendas.index.tsx");
 

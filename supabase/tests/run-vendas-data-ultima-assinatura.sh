@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 CONTAINER="${CONTAINER:?defina CONTAINER (Postgres local descartável)}"
 PSQL=(docker exec -i -e PGPASSWORD=localtest "$CONTAINER" psql -h 127.0.0.1 -X -q -At -v ON_ERROR_STOP=1 -U supabase_admin -d postgres)
-UP="$ROOT/supabase/migrations/20260929180000_vendas_data_ultima_assinatura.sql"
+UP="$ROOT/docs/sql/suspensas/20260929180000_vendas_data_ultima_assinatura.sql"  # suspensa em 30/09 (ver README)
 DOWN="$ROOT/docs/sql/rollback/20260929180000_vendas_data_ultima_assinatura.rollback.sql"
 SUITE="$HERE/vendas_data_ultima_assinatura.sql"
 # A suíte abre e fecha a própria transação; para empilhar up/down removemos o BEGIN/ROLLBACK dela.
