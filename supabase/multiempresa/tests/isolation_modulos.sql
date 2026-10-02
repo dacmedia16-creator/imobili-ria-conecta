@@ -21,8 +21,12 @@ BEGIN
 END $$;
 CREATE TABLE mod_test.ids AS SELECT
   (SELECT user_id FROM public.platform_admins LIMIT 1) AS owner,
-  (SELECT r.user_id FROM public.user_roles r WHERE r.role = 'super_admin'
-     AND r.user_id NOT IN (SELECT user_id FROM public.platform_admins) LIMIT 1) AS agency_sa,
+  -- super-admin da agência; sem ele (ex.: homologação), qualquer membro ativo que não seja da plataforma.
+  coalesce((SELECT r.user_id FROM public.user_roles r WHERE r.role = 'super_admin'
+     AND r.user_id NOT IN (SELECT user_id FROM public.platform_admins) LIMIT 1),
+   (SELECT m.user_id FROM public.organization_members m JOIN public.organizations o
+      ON o.id = m.organization_id AND o.legacy_default
+    WHERE m.ativo AND m.user_id NOT IN (SELECT user_id FROM public.platform_admins) LIMIT 1)) AS agency_sa,
   (SELECT id FROM public.organizations WHERE legacy_default) AS org;
 GRANT SELECT ON mod_test.ids TO authenticated;
 
