@@ -10,6 +10,7 @@ import {
   type OperationalImpersonation,
 } from "@/lib/user-impersonation";
 import { restoreOperationalImpersonation } from "@/lib/user-impersonation.functions";
+import { effectiveRoles, fetchPlatformState, type PlatformContext } from "@/lib/platform-context";
 
 export type AppRole =
   | "corretor"
@@ -33,6 +34,13 @@ type AuthCtx = {
   refreshRoles: () => Promise<void>;
   impersonation: OperationalImpersonation | null;
   restoreSuperAdmin: () => Promise<void>;
+  /** Super-admin da PLATAFORMA (platform_admins). Só controla a tela; o banco decide. */
+  platformAdmin: boolean;
+  /** Contexto ativo do super-admin da plataforma numa imobiliária (null = fora). */
+  platformContext: PlatformContext | null;
+  /** true depois que o estado da plataforma foi lido (evita piscar a faixa/redirecionar cedo). */
+  platformReady: boolean;
+  refreshPlatform: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
@@ -42,15 +50,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [impersonation, setImpersonation] = useState<OperationalImpersonation | null>(null);
+  const [platformAdmin, setPlatformAdmin] = useState(false);
+  const [platformContext, setPlatformContext] = useState<PlatformContext | null>(null);
+  const [platformReady, setPlatformReady] = useState(false);
   const restoreImpersonationFn = useServerFn(restoreOperationalImpersonation);
 
-  const loadRoles = async (uid: string | undefined) => {
+  // Papéis reais (user_roles) + estado da plataforma. No contexto de uma imobiliária, os papéis
+  // são os VIRTUAIS de administrador que o banco concede ao ator (nada é gravado em user_roles).
+  const loadRoles = async (uid: string | undefined, force = false) => {
     if (!uid) {
       setRoles([]);
+      setPlatformAdmin(false);
+      setPlatformContext(null);
+      setPlatformReady(true);
       return;
     }
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", uid);
-    setRoles((data ?? []).map((r) => r.role as AppRole));
+    const [{ data }, state] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", uid),
+      fetchPlatformState(uid, { force }),
+    ]);
+    setPlatformAdmin(state.isPlatformAdmin);
+    setPlatformContext(state.context);
+    setRoles(
+      effectiveRoles(
+        (data ?? []).map((r) => r.role as AppRole),
+        state.context,
+      ),
+    );
+    setPlatformReady(true);
   };
 
   useEffect(() => {
@@ -100,6 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshRoles: async () => loadRoles(session?.user.id),
     impersonation: impersonationMatchesSession(impersonation, session) ? impersonation : null,
     restoreSuperAdmin,
+    platformAdmin,
+    platformContext,
+    platformReady,
+    refreshPlatform: async () => loadRoles(session?.user.id, true),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

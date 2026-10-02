@@ -4,21 +4,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { OrgAdminClient } from "@/lib/org-scope";
 
-/** Service_role limitado à agência de quem chama (as listas abaixo ignorariam a RLS). */
-async function adminInCallerOrg(userId: string) {
+/** Service_role limitado à agência de quem chama (as listas abaixo ignorariam a RLS). Para o
+ * super-admin da plataforma no contexto de uma imobiliária, a agência é a do contexto (só leitura). */
+async function adminInCallerOrg(supabase: SupabaseClient<Database>, userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { resolveActiveOrg } = await import("@/lib/org-scope");
+  const { resolveCallerScope } = await import("@/lib/org-scope");
   const admin = supabaseAdmin as unknown as OrgAdminClient;
-  return { admin, orgId: await resolveActiveOrg(admin, userId) };
+  return { admin, ...(await resolveCallerScope(supabase, admin, userId)) };
 }
 
 /**
  * team_id/lider_id de outras pessoas não são visíveis via RLS pra um gestor comum quando o
  * lookup depende de user_roles de terceiros (RLS só libera user_roles pra si mesmo/admin) —
  * por isso essas duas consultas passam pelo service role, igual antes, agora sempre filtradas
- * pela agência de quem chama.
+ * pela agência de quem chama. No contexto da plataforma o ator tem papéis virtuais de admin.
  */
-async function assertCanManageTeams(supabase: SupabaseClient<Database>, userId: string) {
+async function assertCanManageTeams(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  inPlatformContext: boolean,
+) {
+  if (inPlatformContext) return;
   const { data: myRoles, error } = await supabase
     .from("user_roles")
     .select("role")
@@ -38,8 +44,8 @@ export const listCorretoresDisponiveis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await assertCanManageTeams(supabase, userId);
-    const { admin, orgId } = await adminInCallerOrg(userId);
+    const { admin, orgId, inPlatformContext } = await adminInCallerOrg(supabase, userId);
+    await assertCanManageTeams(supabase, userId, inPlatformContext);
     const { listAvailableCorretores } = await import("@/lib/team.server");
     return listAvailableCorretores(admin, orgId);
   });
@@ -48,8 +54,8 @@ export const listGestores = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await assertCanManageTeams(supabase, userId);
-    const { admin, orgId } = await adminInCallerOrg(userId);
+    const { admin, orgId, inPlatformContext } = await adminInCallerOrg(supabase, userId);
+    await assertCanManageTeams(supabase, userId, inPlatformContext);
     // Candidatos a "Team Leader" de uma equipe: quem já tem papel gestor OU team_leader
     // (enforce_team_leader_role no banco só aceita um desses dois pra teams.lider_id).
     const { listLeaderCandidates } = await import("@/lib/team.server");

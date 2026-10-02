@@ -1,4 +1,4 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
@@ -38,6 +38,16 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
+import {
+  PLATFORM_PANEL_PATH,
+  contextBannerText,
+  exitOrganization,
+  flagContextExpired,
+  formatContextExpiry,
+} from "@/lib/platform-context";
+
+// Ao abrir o app, o super-admin da plataforma (fora de contexto) cai no Painel da Plataforma.
+let platformLandingHandled = false;
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 type AgencyBrand = { nome: string; logoUrl: string | null; color: string | null };
@@ -55,8 +65,7 @@ function SidebarNav({
   platformAdmin: boolean;
   agencyBrand: AgencyBrand | null;
 }) {
-  const { user, roles, signOut, impersonation, restoreSuperAdmin } = useAuth();
-  const router = useRouter();
+  const { user, roles, signOut, impersonation, restoreSuperAdmin, platformContext } = useAuth();
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
 
   const handleSignOut = async () => {
@@ -105,7 +114,7 @@ function SidebarNav({
           </span>
           <span className="block text-xs text-white/70">
             {IS_HOMOLOG
-              ? platformAdmin
+              ? platformAdmin && !platformContext
                 ? "Plataforma"
                 : (agencyBrand?.nome ?? "Agência não identificada")
               : "Única Escolha"}
@@ -170,25 +179,31 @@ function SidebarNav({
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, hasAny, roles, impersonation, restoreSuperAdmin } = useAuth();
+  const {
+    user,
+    hasAny,
+    roles,
+    impersonation,
+    restoreSuperAdmin,
+    platformAdmin,
+    platformContext,
+    platformReady,
+  } = useAuth();
   const userId = user?.id;
+  const contextOrgId = platformContext?.organizationId ?? null;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
-  // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Só mostra o menu;
-  // a rota, o servidor e as RPCs platform_* repetem a verificação.
-  const [platformAdmin, setPlatformAdmin] = useState(false);
+  // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
+  // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
+  // No contexto de uma imobiliária, current_org_id() já devolve a imobiliária do contexto.
   useEffect(() => {
     let alive = true;
-    setPlatformAdmin(false);
     setAgencyBrand(null);
     exclusiveEnabled().then((enabled) => {
       if (alive) setExclusiveVisible(enabled);
     });
-    supabase.rpc("is_platform_super_admin").then(({ data, error }) => {
-      if (alive) setPlatformAdmin(!error && data === true);
-    });
-    if (IS_HOMOLOG && userId) {
+    if ((IS_HOMOLOG || contextOrgId) && userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
       supabase.rpc("current_org_id").then(async ({ data: orgId, error }) => {
         if (error || !orgId) return;
@@ -210,8 +225,47 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [userId]);
+  }, [userId, contextOrgId]);
   const router = useRouter();
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const [leavingContext, setLeavingContext] = useState(false);
+
+  useEffect(() => {
+    if (!platformReady || platformLandingHandled || !userId) return;
+    platformLandingHandled = true;
+    if (platformAdmin && !platformContext && pathname === "/dashboard") {
+      router.navigate({ to: PLATFORM_PANEL_PATH, replace: true });
+    }
+  }, [platformReady, platformAdmin, platformContext, pathname, router, userId]);
+
+  // Sair → RPC de saída → recarrega tudo já no Painel (nenhum dado da imobiliária fica na tela).
+  const leavePlatformContext = async (expired = false) => {
+    if (leavingContext) return;
+    setLeavingContext(true);
+    if (expired && platformContext) flagContextExpired(platformContext.organizationName);
+    try {
+      await exitOrganization();
+    } catch (error: unknown) {
+      if (!expired) {
+        toast.error(errorMessage(error, "Não foi possível sair da imobiliária."));
+        setLeavingContext(false);
+        return;
+      }
+    }
+    window.location.assign(PLATFORM_PANEL_PATH);
+  };
+
+  // A sessão de contexto expira em 8h (o banco para de valer sozinho): volta ao painel com aviso.
+  const contextExpiresAt = platformContext?.expiresAt ?? null;
+  useEffect(() => {
+    if (!contextExpiresAt) return;
+    const ms = Date.parse(contextExpiresAt) - Date.now();
+    const t = window.setTimeout(() => void leavePlatformContext(true), Math.max(ms, 0));
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextExpiresAt]);
+
+  const topBar = Boolean(impersonation || platformContext);
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
 
   const leaveImpersonation = async () => {
@@ -351,6 +405,33 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         Pular para o conteúdo
       </a>
+      {platformContext && !impersonation && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="platform-context-banner"
+          className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-amber-400 px-4 py-2 text-center text-sm font-semibold text-amber-950 shadow-lg print:hidden"
+        >
+          <span
+            className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-amber-950"
+            aria-hidden
+          />
+          <Building2 className="h-4 w-4" aria-hidden />
+          <span>
+            {contextBannerText(platformContext)} — visão da plataforma, como administrador (até{" "}
+            {formatContextExpiry(platformContext)})
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="bg-amber-950 text-white hover:bg-amber-900"
+            disabled={leavingContext}
+            onClick={() => void leavePlatformContext()}
+          >
+            {leavingContext ? "Saindo…" : "Sair"}
+          </Button>
+        </div>
+      )}
       {impersonation && (
         <div className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-lg print:hidden">
           <ShieldAlert className="h-4 w-4" />
@@ -364,7 +445,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <aside
-        className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${impersonation ? "pt-12" : ""}`}
+        className={`fixed inset-y-0 left-0 hidden w-60 flex-col overflow-hidden border-r border-white/10 text-white md:flex print:hidden ${topBar ? "pt-12" : ""}`}
       >
         <BrandHeroBackground />
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
@@ -372,7 +453,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <header
-        className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${impersonation ? "top-12" : "top-0"}`}
+        className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${topBar ? "top-12" : "top-0"}`}
       >
         <div className="flex items-center gap-2">
           {IS_HOMOLOG ? (
@@ -396,7 +477,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           <span className="font-semibold tracking-tight">
             {IS_HOMOLOG
-              ? platformAdmin
+              ? platformAdmin && !platformContext
                 ? "ADM MAX · Plataforma"
                 : (agencyBrand?.nome ?? "ADM MAX · Homologação")
               : "RE/MAX Portal"}
@@ -435,7 +516,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main
         id="conteudo-principal"
         tabIndex={-1}
-        className={`md:pl-60 print:pl-0 ${impersonation ? "pt-12" : ""}`}
+        className={`md:pl-60 print:pl-0 ${topBar ? "pt-12" : ""}`}
       >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden justify-end md:flex print:hidden">

@@ -47,9 +47,13 @@ async function requireSuperAdmin(supabase: SupabaseClient<Database>, userId: str
 
 export const startOperationalImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => startSchema.parse(input))
+  .validator((input: unknown) => startSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId: actorUserId } = context;
+    // Na visão da plataforma, "entrar como usuário" usaria a agência de origem do ator e sairia
+    // da auditoria do contexto: bloqueado até sair da imobiliária.
+    const { assertNotInPlatformContext } = await import("@/lib/org-scope");
+    await assertNotInPlatformContext(supabase);
     await requireSuperAdmin(supabase, actorUserId);
     if (data.targetUserId === actorUserId) throw new Error("Escolha outro usuário.");
 
@@ -58,7 +62,9 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
     // Multiempresa: o Super Admin da agência só entra como usuário da própria agência.
     const { resolveActiveOrg } = await import("@/lib/org-scope");
     const orgId = await resolveActiveOrg(supabaseAdmin as unknown as OrgAdminClient, actorUserId);
-    const { data: profile, error: profileError } = await (supabaseAdmin as unknown as OrgAdminClient)
+    const { data: profile, error: profileError } = await (
+      supabaseAdmin as unknown as OrgAdminClient
+    )
       .from("profiles")
       .select("id, nome, email, ativo")
       .eq("organization_id", orgId)
@@ -102,7 +108,7 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
 
 export const finalizeOperationalImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => auditSchema.parse(input))
+  .validator((input: unknown) => auditSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: targetUserId, claims } = context;
     const authSessionId = typeof claims.session_id === "string" ? claims.session_id : null;
@@ -133,7 +139,7 @@ export const finalizeOperationalImpersonation = createServerFn({ method: "POST" 
 
 export const endOperationalImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => auditSchema.parse(input))
+  .validator((input: unknown) => auditSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: targetUserId, claims } = context;
     const authSessionId = typeof claims.session_id === "string" ? claims.session_id : null;
@@ -157,7 +163,7 @@ export const endOperationalImpersonation = createServerFn({ method: "POST" })
  */
 export const restoreOperationalImpersonation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => auditSchema.parse(input))
+  .validator((input: unknown) => auditSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: targetUserId, claims } = context;
     const authSessionId = typeof claims.session_id === "string" ? claims.session_id : null;

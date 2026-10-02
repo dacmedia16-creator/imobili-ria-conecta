@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,11 +50,7 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id);
-    const roles = (data ?? []).map((r) => r.role);
+    const { roles, error } = await loadMyAccess(session.user.id);
     if (error || !podeVerOcorrenciasConcluidas(roles)) {
       toast.error("Acesso não autorizado.");
       throw redirect({ to: "/dashboard" });
@@ -337,7 +334,9 @@ function OcorrenciasConcluidasPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-xs text-muted-foreground">Total de comissões (parte da imobiliária)</p>
+              <p className="text-xs text-muted-foreground">
+                Total de comissões (parte da imobiliária)
+              </p>
               <p className="text-xl font-semibold text-primary">{money(totalComissao)}</p>
             </CardContent>
           </Card>
@@ -384,7 +383,9 @@ function OcorrenciasConcluidasPage() {
                   )}
                   <TableHead>Imóvel / código</TableHead>
                   <TableHead>Corretor</TableHead>
-                  <TableHead title="Comissão da ocorrência menos parceria externa">Comissão (imobiliária)</TableHead>
+                  <TableHead title="Comissão da ocorrência menos parceria externa">
+                    Comissão (imobiliária)
+                  </TableHead>
                   <TableHead>Data da assinatura</TableHead>
                 </TableRow>
               </TableHeader>

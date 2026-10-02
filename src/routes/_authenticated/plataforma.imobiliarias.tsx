@@ -1,7 +1,19 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, CheckCircle2, CircleSlash, Copy, Pencil, Plus, UserPlus, XCircle } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  CircleSlash,
+  Copy,
+  LogIn,
+  Pencil,
+  Plus,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { enterOrganization, takeContextExpiredFlag } from "@/lib/platform-context";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { errorMessage } from "@/lib/errors";
@@ -225,6 +237,36 @@ function PlatformOrganizations() {
     void reload();
   }, [reload]);
 
+  const { platformContext } = useAuth();
+  const [entering, setEntering] = useState<string | null>(null);
+  const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const name = takeContextExpiredFlag();
+    if (name !== null) setExpiredNotice(name);
+  }, []);
+
+  // Entrar → RPC de entrada (o banco valida platform_admins, sessão de login e status da org) →
+  // recarrega o app inteiro já no contexto, para nenhum dado de outra imobiliária ficar em cache.
+  const enterOrg = async (o: OrganizationSummary) => {
+    setEntering(o.id);
+    try {
+      await enterOrganization(o.id);
+      window.location.assign("/dashboard");
+    } catch (err) {
+      toast.error(errorMessage(err, "Não foi possível entrar na imobiliária"));
+      setEntering(null);
+    }
+  };
+
+  const totals = (visibleOrgs ?? []).reduce(
+    (acc, o) => ({
+      ativas: acc.ativas + (o.status === "ativa" ? 1 : 0),
+      suspensas: acc.suspensas + (o.status === "ativa" ? 0 : 1),
+      membros: acc.membros + o.membros,
+    }),
+    { ativas: 0, suspensas: 0, membros: 0 },
+  );
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({
       ...f,
@@ -349,7 +391,7 @@ function PlatformOrganizations() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-semibold">Plataforma → Imobiliárias</h1>
+          <h1 className="text-2xl font-semibold">Painel da Plataforma</h1>
         </div>
         <Button onClick={openNew}>
           <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
@@ -366,6 +408,41 @@ function PlatformOrganizations() {
             {showTestOrganizations ? "Ocultar registros de teste" : "Ver registros de teste"}
           </Button>
         </div>
+      )}
+
+      {expiredNotice !== null && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950"
+        >
+          <span>
+            Seu acesso à {expiredNotice || "imobiliária"} expirou (limite de 8 horas). Você voltou ao
+            Painel da Plataforma; entre de novo se precisar.
+          </span>
+          <Button size="sm" variant="outline" onClick={() => setExpiredNotice(null)}>
+            Entendi
+          </Button>
+        </div>
+      )}
+      {platformContext && (
+        <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950">
+          Você está dentro da {platformContext.organizationName}. Entrar em outra imobiliária encerra
+          esse acesso; para só voltar à plataforma, use “Sair” na faixa amarela.
+        </div>
+      )}
+      {orgs && (
+        <dl className="grid grid-cols-3 gap-3" aria-label="Totais da plataforma">
+          {[
+            ["Imobiliárias ativas", totals.ativas],
+            ["Suspensas", totals.suspensas],
+            ["Usuários ativos", totals.membros],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border p-3">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="text-2xl font-semibold">{value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
 
       {loadError && (
@@ -422,6 +499,19 @@ function PlatformOrganizations() {
                 </dd>
               </dl>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={o.status !== "ativa" || entering !== null}
+                  onClick={() => void enterOrg(o)}
+                  title={o.status !== "ativa" ? "Imobiliária suspensa" : undefined}
+                >
+                  <LogIn className="mr-1 h-4 w-4" />
+                  {entering === o.id
+                    ? "Entrando…"
+                    : platformContext?.organizationId === o.id
+                      ? "Você está aqui — reentrar"
+                      : "Entrar como administrador"}
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => openEdit(o)}>
                   <Pencil className="mr-1 h-4 w-4" /> Editar
                 </Button>

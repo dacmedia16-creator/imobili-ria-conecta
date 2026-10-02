@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { Button } from "@/components/ui/button";
@@ -58,11 +59,7 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-imprimir")({
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id);
-    const roles = (data ?? []).map((row) => row.role);
+    const { roles, error } = await loadMyAccess(session.user.id);
     if (error || !podeImprimirOcorrenciasConcluidas(roles)) {
       throw redirect({ to: "/dashboard" });
     }

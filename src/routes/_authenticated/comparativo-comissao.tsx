@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { podeAcessarComparativo6pct, resumoComparativo } from "@/lib/comparativo-comissao-calc";
@@ -31,11 +32,7 @@ export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id);
-    const roles = (data ?? []).map((r) => r.role);
+    const { roles } = await loadMyAccess(session.user.id);
     if (!podeAcessarComparativo6pct(roles)) {
       toast.error("Acesso não autorizado.");
       throw redirect({ to: "/dashboard" });

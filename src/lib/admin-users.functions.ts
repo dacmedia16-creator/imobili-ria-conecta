@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import type { OrgAdminClient } from "@/lib/org-scope";
+import type { CallerRpcClient, OrgAdminClient } from "@/lib/org-scope";
 import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-policy";
 
 /**
@@ -11,15 +11,33 @@ import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-polic
  * administrador; ninguém altera o próprio papel nem move usuário entre agências.
  */
 
-/** Cliente service_role + agência ativa + papéis de quem chama (falha fechada). */
-async function callerContext(callerId: string) {
+/**
+ * Cliente service_role + agência ativa + papéis de quem chama (falha fechada).
+ *
+ * Super-admin da plataforma no contexto de uma imobiliária (Parte 2/3): LEITURAS usam a agência
+ * do contexto com os papéis virtuais de administrador; ESCRITAS com service_role são bloqueadas
+ * (elas não passariam pela auditoria do contexto e usariam a agência de origem do ator).
+ */
+async function callerContext(
+  callerId: string,
+  user: CallerRpcClient,
+  mode: "read" | "write" = "write",
+) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const scope = await import("@/lib/org-scope");
   const policy = await import("@/lib/user-management.server");
   const admin = supabaseAdmin as unknown as OrgAdminClient;
-  const orgId = await scope.resolveActiveOrg(admin, callerId);
-  const actor = await policy.loadActor(admin, orgId, callerId);
+  if (mode === "write") await scope.assertNotInPlatformContext(user);
+  const { orgId, inPlatformContext } = await scope.resolveCallerScope(user, admin, callerId);
+  const actor = inPlatformContext
+    ? { userId: callerId, orgId, roles: ["super_admin", "admin"] as ManagedRole[] }
+    : await policy.loadActor(admin, orgId, callerId);
   return { supabaseAdmin, admin, orgId, actor, scope, policy };
+}
+
+async function assertWritable(user: CallerRpcClient) {
+  const scope = await import("@/lib/org-scope");
+  await scope.assertNotInPlatformContext(user);
 }
 
 const ROLES = ALL_MANAGED_ROLES as [ManagedRole, ...ManagedRole[]];
@@ -67,8 +85,9 @@ const setRoleSchema = z.object({
  * equipe do gestor) fica em `createAgencyUser`, a mesma usada pelo E2E da homologação. */
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => schema.parse(input))
+  .validator((input: unknown) => schema.parse(input))
   .handler(async ({ data, context }) => {
+    await assertWritable(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const policy = await import("@/lib/user-management.server");
     return policy.createAgencyUser(
@@ -82,13 +101,16 @@ export const createUser = createServerFn({ method: "POST" })
  * agência; gestor/team leader: somente corretores da própria equipe. */
 export const resetUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => resetPasswordSchema.parse(input))
+  .validator((input: unknown) => resetPasswordSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: callerId } = context;
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para trocar a sua própria senha.');
     }
-    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(callerId);
+    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(
+      callerId,
+      context.supabase,
+    );
     await policy.assertUserActionAllowed(admin, actor, "reset_password", data.userId);
 
     // updateUserById substitui user_metadata inteiro — busca o atual pra não perder o que já tem lá.
@@ -120,13 +142,16 @@ export const resetUserPassword = createServerFn({ method: "POST" })
  * tanto o profile quanto o login em auth.users. */
 export const updateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => updateUserSchema.parse(input))
+  .validator((input: unknown) => updateUserSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: callerId } = context;
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para editar seus próprios dados.');
     }
-    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(callerId);
+    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(
+      callerId,
+      context.supabase,
+    );
     await policy.assertUserActionAllowed(admin, actor, "edit_user", data.userId);
 
     const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
@@ -167,10 +192,10 @@ export const updateUser = createServerFn({ method: "POST" })
  * gestor/team leader: só corretores da própria equipe. */
 export const setUserActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => setActiveSchema.parse(input))
+  .validator((input: unknown) => setActiveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: callerId } = context;
-    const { admin, orgId, actor, policy } = await callerContext(callerId);
+    const { admin, orgId, actor, policy } = await callerContext(callerId, context.supabase);
     await policy.assertUserActionAllowed(admin, actor, "set_active", data.userId);
     const { error } = await admin
       .from("profiles")
@@ -192,8 +217,9 @@ export const setUserActive = createServerFn({ method: "POST" })
  * papel de administrador; ninguém altera o próprio papel. Lógica em `setAgencyUserRole`. */
 export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => setRoleSchema.parse(input))
+  .validator((input: unknown) => setRoleSchema.parse(input))
   .handler(async ({ data, context }) => {
+    await assertWritable(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const policy = await import("@/lib/user-management.server");
     return policy.setAgencyUserRole(
@@ -209,7 +235,7 @@ export const listLastSignIns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { userId } = context;
-    const { admin, orgId, actor, scope } = await callerContext(userId);
+    const { admin, orgId, actor, scope } = await callerContext(userId, context.supabase, "read");
     if (
       !actor.roles.some((r) =>
         (["admin", "super_admin", "gestor", "team_leader"] as ManagedRole[]).includes(r),

@@ -31,6 +31,44 @@ export async function resolveActiveOrg(admin: OrgAdminClient, userId: string): P
   return member.organization_id as string;
 }
 
+/** Cliente com o JWT de quem chama (só para RPCs que dependem de auth.uid()/session_id). */
+// Aceita o cliente tipado (Database) ou não tipado; a RPC nova ainda não está no types.ts gerado.
+export type CallerRpcClient = object;
+type RpcFn = (fn: string) => PromiseLike<{ data: unknown; error: unknown }>;
+const currentOrgRpc = (user: CallerRpcClient) =>
+  ((user as { rpc: RpcFn }).rpc as RpcFn).call(user, "platform_current_org");
+
+export type CallerScope = { orgId: string; inPlatformContext: boolean };
+
+export const PLATFORM_CONTEXT_WRITE_BLOCKED =
+  "Na visão da plataforma esta alteração não é permitida (ela não ficaria na auditoria do acesso). " +
+  "Peça ao administrador da imobiliária ou saia da visão da plataforma.";
+
+/**
+ * Agência de quem chama, considerando o contexto do super-admin da plataforma (Parte 2/3).
+ * `platform_current_org` roda com o JWT do usuário (o banco valida platform_admins + sessão de
+ * login + validade); para usuários comuns devolve null e vale o vínculo normal. Falha fechada.
+ */
+export async function resolveCallerScope(
+  user: CallerRpcClient,
+  admin: OrgAdminClient,
+  userId: string,
+): Promise<CallerScope> {
+  const { data, error } = await currentOrgRpc(user);
+  const ctxOrg =
+    !error && data && typeof data === "object"
+      ? (data as { organization_id?: unknown }).organization_id
+      : null;
+  if (typeof ctxOrg === "string" && ctxOrg) return { orgId: ctxOrg, inPlatformContext: true };
+  return { orgId: await resolveActiveOrg(admin, userId), inPlatformContext: false };
+}
+
+/** Gravações com service_role ficam fora da auditoria do contexto: bloqueia dentro dele. */
+export async function assertNotInPlatformContext(user: CallerRpcClient): Promise<void> {
+  const { data, error } = await currentOrgRpc(user);
+  if (!error && data) throw new OrgScopeError(PLATFORM_CONTEXT_WRITE_BLOCKED);
+}
+
 /** Garante que o usuário-alvo pertence à agência; não revela se existe em outra. */
 export async function assertUserInOrg(
   admin: OrgAdminClient,

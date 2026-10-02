@@ -46,7 +46,9 @@ describe("filtro mensal de ocorrências concluídas", () => {
     );
     expect(pagina).toContain('const [mesSelecionado, setMesSelecionado] = useState("todos")');
     expect(pagina).toContain('.rpc("relatorio_ocorrencias_concluidas")');
-    expect(pagina.match(/\.from\("[^"]+"\)/g)).toEqual(['.from("user_roles")']);
+    // Papéis vêm de loadMyAccess (inclui o contexto da plataforma); nenhuma tabela é lida aqui.
+    expect(pagina.match(/\.from\("[^"]+"\)/g)).toBeNull();
+    expect(pagina).toContain("loadMyAccess(session.user.id)");
     expect(pagina).not.toMatch(/router\.navigate|cursor-pointer/);
     expect(pagina).toContain('to="/vendas/$id"');
     expect(pagina).toContain("Abrir ocorrência de");
