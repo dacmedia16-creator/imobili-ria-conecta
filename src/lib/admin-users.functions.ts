@@ -87,14 +87,28 @@ export const createUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => schema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertWritable(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const policy = await import("@/lib/user-management.server");
-    return policy.createAgencyUser(
-      supabaseAdmin as unknown as OrgAdminClient,
-      context.userId,
-      data,
-    );
+    const scope = await import("@/lib/org-scope");
+    const admin = supabaseAdmin as unknown as OrgAdminClient;
+    // Exceção aprovada por Denis (02/10/2026): na visão da plataforma, o super-admin pode
+    // CADASTRAR usuário na imobiliária do contexto (validada no banco). Demais escritas seguem
+    // bloqueadas. O cadastro fica registrado em activity_logs com o autor real.
+    const ctxOrg = await scope.currentContextOrg(context.supabase);
+    if (!ctxOrg) return policy.createAgencyUser(admin, context.userId, data);
+    const created = await policy.createAgencyUser(admin, context.userId, data, {
+      userId: context.userId,
+      orgId: ctxOrg,
+      roles: ["super_admin", "admin"] as ManagedRole[],
+    });
+    await admin.from("activity_logs").insert({
+      organization_id: ctxOrg,
+      autor_id: context.userId,
+      sale_id: null,
+      acao: "user_created_platform_context",
+      payload: { target_user: created.id, role: data.role },
+    });
+    return created;
   });
 
 /** Redefine a senha de outro usuário da própria agência. Admin/super admin: qualquer conta da

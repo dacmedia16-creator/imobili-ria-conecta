@@ -60,8 +60,11 @@ export async function createAgencyUser(
   admin: OrgAdminClient,
   callerId: string,
   data: CreateAgencyUserInput,
+  actorOverride?: Actor,
 ): Promise<{ id: string; email: string }> {
-  const actor = await loadCallerActor(admin, callerId);
+  // actorOverride: super-admin da plataforma na visão de uma imobiliária (agência do contexto,
+  // validada no banco por platform_current_org); senão, agência ativa de quem chama.
+  const actor = actorOverride ?? (await loadCallerActor(admin, callerId));
   assertCreateAllowed(actor, data.role);
   const orgId = actor.orgId as string;
   const callerRoles = actor.roles;
