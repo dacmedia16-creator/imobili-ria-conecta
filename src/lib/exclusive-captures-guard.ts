@@ -1,11 +1,16 @@
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { exclusiveEnabled } from "./exclusive-captures-db";
+import { fetchPlatformState } from "./platform-context";
 
 /** Guarda a rota diretamente; o banco repete a checagem em todas as leituras e escritas. */
 export async function guardExclusiveRoute() {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session || !(await exclusiveEnabled())) throw redirect({ to: "/dashboard" });
+  // Super-admin da plataforma dentro de uma imobiliária: o perfil dele é de outra imobiliária
+  // (a RLS o esconde aqui); o banco já validou o contexto e concede papéis virtuais de admin.
+  const platform = await fetchPlatformState(session.session.user.id);
+  if (platform.context) return;
   const { data: roles, error } = await supabase
     .from("user_roles")
     .select("role")

@@ -11,6 +11,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { getSession: mocks.getSession }, from: mocks.from },
 }));
 vi.mock("./exclusive-captures-db", () => ({ exclusiveEnabled: mocks.enabled }));
+const platform = vi.hoisted(() => ({ state: vi.fn() }));
+vi.mock("./platform-context", () => ({ fetchPlatformState: platform.state }));
 
 import { guardExclusiveRoute } from "./exclusive-captures-guard";
 
@@ -24,6 +26,7 @@ describe("guarda de rota das captações", () => {
     roles = [{ role: "corretor" }];
     mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "actor" } } } });
     mocks.enabled.mockResolvedValue(true);
+    platform.state.mockResolvedValue({ isPlatformAdmin: false, context: null });
     mocks.from.mockImplementation((table: string) => ({
       select: () => ({
         eq: () =>
@@ -60,5 +63,24 @@ describe("guarda de rota das captações", () => {
   it("permite sessão ativa com papel autorizado", async () => {
     await expect(guardExclusiveRoute()).resolves.toBeUndefined();
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("permite o super-admin da plataforma no contexto de uma imobiliária", async () => {
+    platform.state.mockResolvedValue({
+      isPlatformAdmin: true,
+      context: { organizationId: "o", organizationName: "X", expiresAt: "2999-01-01T00:00:00Z" },
+    });
+    active = false; // o perfil dele não é visível na outra imobiliária
+    roles = [];
+    await expect(guardExclusiveRoute()).resolves.toBeUndefined();
+  });
+
+  it("não libera o contexto quando o módulo está desligado", async () => {
+    mocks.enabled.mockResolvedValue(false);
+    platform.state.mockResolvedValue({
+      isPlatformAdmin: true,
+      context: { organizationId: "o", organizationName: "X", expiresAt: "2999-01-01T00:00:00Z" },
+    });
+    await expect(guardExclusiveRoute()).rejects.toThrow("Rota bloqueada");
   });
 });
