@@ -37,6 +37,7 @@ import { endOperationalImpersonation } from "@/lib/user-impersonation.functions"
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
+import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
   PLATFORM_PANEL_PATH,
@@ -193,6 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const contextOrgId = platformContext?.organizationId ?? null;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
+  const [roomVisible, setRoomVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -202,6 +204,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     setAgencyBrand(null);
     exclusiveEnabled().then((enabled) => {
       if (alive) setExclusiveVisible(enabled);
+    });
+    roomReservationEnabled().then((enabled) => {
+      if (alive) setRoomVisible(enabled);
     });
     if ((IS_HOMOLOG || contextOrgId) && userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -312,7 +317,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: UsersRound,
       show: hasAny(["gestor", "team_leader", "admin", "super_admin"]),
     },
-    { to: "/reservas-salas", label: "Reservar sala", icon: CalendarDays, show: true },
+    { to: "/reservas-salas", label: "Reservar sala", icon: CalendarDays, show: roomVisible },
   ];
 
   const reportNav: NavItem[] = [

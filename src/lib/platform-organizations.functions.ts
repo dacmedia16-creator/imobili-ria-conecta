@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   firstAdminSchema,
   LOGO_TYPES,
+  ORGANIZATION_MODULES,
   organizationFormSchema,
 } from "@/lib/platform-organizations";
 
@@ -59,6 +60,12 @@ const statusSchema = z.object({
   status: z.enum(["ativa", "suspensa"]),
 });
 
+const moduleSchema = z.object({
+  organizationId: z.string().uuid(),
+  module: z.enum(ORGANIZATION_MODULES),
+  enabled: z.boolean(),
+});
+
 const inviteSchema = firstAdminSchema.extend({
   role: z.enum(["super_admin", "admin"]),
   redirectTo: redirectSchema,
@@ -111,6 +118,22 @@ export const setPlatformOrganizationStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { user, admin, callerId, server } = await clients(context);
     await server.setOrganizationStatus(user, admin, callerId, data.organizationId, data.status);
+    return { ok: true };
+  });
+
+export const setPlatformOrganizationModule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => moduleSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { user, admin, callerId, server } = await clients(context);
+    await server.setOrganizationModule(
+      user,
+      admin,
+      callerId,
+      data.organizationId,
+      data.module,
+      data.enabled,
+    );
     return { ok: true };
   });
 

@@ -42,8 +42,10 @@ import type {
   RoomReservationPeriod,
 } from "@/lib/reservas-salas-calc";
 
+import { guardRoomReservationRoute } from "@/lib/room-reservation-module";
 export const Route = createFileRoute("/_authenticated/reservas-salas")({
   head: () => ({ meta: [{ title: "Agendamento de salas" }] }),
+  beforeLoad: guardRoomReservationRoute,
   component: RoomReservationsPage,
 });
 

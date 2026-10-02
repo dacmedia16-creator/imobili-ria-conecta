@@ -28,7 +28,8 @@ export function isValidCnpj(value: string): boolean {
   const d = onlyDigits(value);
   if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
   const calc = (len: number) => {
-    const weights = len === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const weights =
+      len === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     const sum = weights.reduce((acc, w, i) => acc + Number(d[i]) * w, 0);
     const r = sum % 11;
     return r < 2 ? 0 : 11 - r;
@@ -113,10 +114,18 @@ export type OrganizationRow = {
   created_at: string;
 };
 
+export const ORGANIZATION_MODULES = ["captacao_exclusiva", "reserva_salas"] as const;
+export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
+export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
+  captacao_exclusiva: "Captação exclusiva",
+  reserva_salas: "Reserva de salas",
+};
+
 export type OrganizationSummary = OrganizationRow & {
   logoUrl: string | null;
   membros: number;
   administradores: number;
+  modulos: Record<OrganizationModule, boolean>;
 };
 
 /** Mensagem clara para erros comuns do banco (sem expor detalhes internos). */
@@ -129,6 +138,7 @@ export function friendlyOrgError(message: string): string {
   if (/super-admin da plataforma|42501/i.test(message))
     return "Somente o super-admin da plataforma pode fazer isso.";
   if (/nao encontrada|P0002/i.test(message)) return "Imobiliária não encontrada.";
-  if (/check constraint|23514/i.test(message)) return "Dados inválidos (confira CNPJ, cores e identificador).";
+  if (/check constraint|23514/i.test(message))
+    return "Dados inválidos (confira CNPJ, cores e identificador).";
   return message;
 }

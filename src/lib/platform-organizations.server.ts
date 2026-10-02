@@ -16,7 +16,9 @@ import {
   LOGO_MAX_BYTES,
   LOGO_TYPES,
   onlyDigits,
+  ORGANIZATION_MODULES,
   type FirstAdminInput,
+  type OrganizationModule,
   type OrganizationForm,
   type OrganizationRow,
   type OrganizationSummary,
@@ -57,12 +59,26 @@ export async function listOrganizations(
   const { data, error } = await admin.from("organizations").select(ORG_COLUMNS).order("nome");
   if (error) throw new Error(error.message);
   const orgs = (data ?? []) as OrganizationRow[];
-  const [members, roles] = await Promise.all([
+  const [members, roles, modules] = await Promise.all([
     admin.from("organization_members").select("organization_id").eq("ativo", true),
     admin.from("user_roles").select("organization_id, role").in("role", ["admin", "super_admin"]),
+    admin.from("organization_modules").select("organization_id, module, enabled"),
   ]);
   if (members.error) throw new Error(members.error.message);
   if (roles.error) throw new Error(roles.error.message);
+  if (modules.error) throw new Error(modules.error.message);
+  const moduleRows = (modules.data ?? []) as {
+    organization_id: string;
+    module: string;
+    enabled: boolean;
+  }[];
+  const modulesOf = (id: string) =>
+    Object.fromEntries(
+      ORGANIZATION_MODULES.map((m) => [
+        m,
+        moduleRows.some((r) => r.organization_id === id && r.module === m && r.enabled),
+      ]),
+    ) as Record<OrganizationModule, boolean>;
   const count = (rows: { organization_id: string }[] | null, id: string) =>
     (rows ?? []).filter((r) => r.organization_id === id).length;
   return orgs.map((o) => ({
@@ -70,6 +86,7 @@ export async function listOrganizations(
     logoUrl: logoPublicUrl(admin, o.logo_path),
     membros: count(members.data, o.id),
     administradores: count(roles.data, o.id),
+    modulos: modulesOf(o.id),
   }));
 }
 
@@ -136,7 +153,8 @@ function decodeLogo(logo: LogoUpload): { bytes: Uint8Array; ext: string } {
   }
   if (bytes.byteLength === 0) throw new Error("Arquivo de logo vazio.");
   if (bytes.byteLength > LOGO_MAX_BYTES) throw new Error("Logo acima de 1 MB.");
-  const ext = logo.contentType === "image/png" ? "png" : logo.contentType === "image/webp" ? "webp" : "jpg";
+  const ext =
+    logo.contentType === "image/png" ? "png" : logo.contentType === "image/webp" ? "webp" : "jpg";
   return { bytes, ext };
 }
 
@@ -192,7 +210,9 @@ async function createFirstAdmin(
   if (error || !data?.user) {
     const msg = error?.message ?? "Falha ao criar usuário";
     if (/already|registered|exists/i.test(msg)) {
-      throw new Error("Já existe um usuário com esse e-mail (um e-mail pertence a uma só agência).");
+      throw new Error(
+        "Já existe um usuário com esse e-mail (um e-mail pertence a uma só agência).",
+      );
     }
     throw new Error(msg);
   }
@@ -212,7 +232,9 @@ async function createFirstAdmin(
     .eq("organization_id", orgId)
     .eq("user_id", userId)
     .eq("role", "corretor");
-  const ins = await admin.from("user_roles").insert({ organization_id: orgId, user_id: userId, role });
+  const ins = await admin
+    .from("user_roles")
+    .insert({ organization_id: orgId, user_id: userId, role });
   if (ins.error) throw new Error(ins.error.message);
   return userId;
 }
@@ -331,7 +353,31 @@ export async function setOrganizationStatus(
 ) {
   await assertPlatformAdmin(admin, callerId);
   try {
-    await rpcOrThrow(user, "platform_set_organization_status", { _id: organizationId, _status: status });
+    await rpcOrThrow(user, "platform_set_organization_status", {
+      _id: organizationId,
+      _status: status,
+    });
+  } catch (e) {
+    throw new Error(friendlyOrgError(e instanceof Error ? e.message : String(e)));
+  }
+}
+
+/** Liga/desliga um módulo; o banco (platform_set_organization_module) confere platform_admins. */
+export async function setOrganizationModule(
+  user: SupabaseClient,
+  admin: SupabaseClient,
+  callerId: string,
+  organizationId: string,
+  module: OrganizationModule,
+  enabled: boolean,
+) {
+  await assertPlatformAdmin(admin, callerId);
+  try {
+    await rpcOrThrow(user, "platform_set_organization_module", {
+      _org: organizationId,
+      _module: module,
+      _enabled: enabled,
+    });
   } catch (e) {
     throw new Error(friendlyOrgError(e instanceof Error ? e.message : String(e)));
   }

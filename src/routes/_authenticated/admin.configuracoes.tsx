@@ -32,6 +32,8 @@ type PanelProps = {
   onConfirmEnableChange: (open: boolean) => void;
   onChange: (enabled: boolean) => void;
   onReload: () => void;
+  /** Só o super-admin da plataforma altera; os demais apenas veem o estado. */
+  readOnly?: boolean;
 };
 
 export function ExclusiveSettingsPanel({
@@ -41,6 +43,7 @@ export function ExclusiveSettingsPanel({
   onConfirmEnableChange,
   onChange,
   onReload,
+  readOnly = false,
 }: PanelProps) {
   return (
     <Card>
@@ -54,7 +57,12 @@ export function ExclusiveSettingsPanel({
         <p className="text-sm text-muted-foreground">
           Desligar impede novos acessos ao módulo, mas preserva captações, documentos e histórico.
         </p>
-        {enabled === null ? (
+        {readOnly ? (
+          <p className="text-sm">
+            Somente o administrador da plataforma liga ou desliga este módulo (Plataforma →
+            Imobiliárias).
+          </p>
+        ) : enabled === null ? (
           <Button variant="outline" disabled={saving} onClick={onReload}>
             Consultar estado novamente
           </Button>
@@ -90,7 +98,7 @@ export function ExclusiveSettingsPanel({
 }
 
 function AdminSettings() {
-  const { hasRole, loading } = useAuth();
+  const { hasRole, loading, platformAdmin } = useAuth();
   const canManage = hasRole("super_admin");
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -113,7 +121,7 @@ function AdminSettings() {
   if (!canManage) return <p>Apenas Super Admin pode alterar as configurações.</p>;
 
   const change = async (next: boolean) => {
-    if (saving || enabled === null || enabled === next) return;
+    if (!platformAdmin || saving || enabled === null || enabled === next) return;
     setSaving(true);
     try {
       await setExclusiveSetting(next);
@@ -144,6 +152,7 @@ function AdminSettings() {
         onConfirmEnableChange={setConfirmEnable}
         onChange={(next) => void change(next)}
         onReload={() => void reload()}
+        readOnly={!platformAdmin}
       />
     </div>
   );

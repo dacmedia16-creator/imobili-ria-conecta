@@ -21,11 +21,16 @@ import {
   createPlatformOrganization,
   invitePlatformOrganizationAdmin,
   listPlatformOrganizations,
+  setPlatformOrganizationModule,
   setPlatformOrganizationStatus,
   updatePlatformOrganization,
 } from "@/lib/platform-organizations.functions";
+import { Switch } from "@/components/ui/switch";
 import {
   formatCnpj,
+  ORGANIZATION_MODULE_LABELS,
+  ORGANIZATION_MODULES,
+  type OrganizationModule,
   LOGO_MAX_BYTES,
   LOGO_TYPES,
   organizationFormSchema,
@@ -218,6 +223,8 @@ function PlatformOrganizations() {
   const createFn = useServerFn(createPlatformOrganization);
   const updateFn = useServerFn(updatePlatformOrganization);
   const statusFn = useServerFn(setPlatformOrganizationStatus);
+  const moduleFn = useServerFn(setPlatformOrganizationModule);
+  const [savingModule, setSavingModule] = useState<string | null>(null);
   const inviteFn = useServerFn(invitePlatformOrganizationAdmin);
 
   const [orgs, setOrgs] = useState<OrganizationSummary[] | null>(null);
@@ -395,6 +402,22 @@ function PlatformOrganizations() {
     }
   };
 
+  const toggleModule = async (o: OrganizationSummary, m: OrganizationModule, enabled: boolean) => {
+    const label = ORGANIZATION_MODULE_LABELS[m];
+    if (!enabled && !window.confirm(`Desligar ${label} em ${o.nome}? Os dados ficam guardados.`))
+      return;
+    setSavingModule(`${o.id}:${m}`);
+    try {
+      await moduleFn({ data: { organizationId: o.id, module: m, enabled } });
+      toast.success(`${label} ${enabled ? "ligado" : "desligado"} em ${o.nome}`);
+      await reload();
+    } catch (err) {
+      toast.error(errorMessage(err, "Não foi possível alterar o módulo"));
+    } finally {
+      setSavingModule(null);
+    }
+  };
+
   const closeDialogs = () => {
     if (form.logo) URL.revokeObjectURL(form.logo.preview);
     setEditing(null);
@@ -540,6 +563,31 @@ function PlatformOrganizations() {
                   {!o.cor_primaria && !o.cor_secundaria && "—"}
                 </dd>
               </dl>
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Módulos (só você liga ou desliga)
+                </p>
+                {ORGANIZATION_MODULES.map((m) => {
+                  const id = `mod-${o.id}-${m}`;
+                  const on = o.modulos[m];
+                  return (
+                    <div key={m} className="flex items-center justify-between gap-2 text-sm">
+                      <label htmlFor={id}>
+                        {ORGANIZATION_MODULE_LABELS[m]}{" "}
+                        <span className={on ? "text-green-700" : "text-muted-foreground"}>
+                          — {on ? "Ligado" : "Desligado"}
+                        </span>
+                      </label>
+                      <Switch
+                        id={id}
+                        checked={on}
+                        disabled={savingModule !== null}
+                        onCheckedChange={(v) => void toggleModule(o, m, v)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"

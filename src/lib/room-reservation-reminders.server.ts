@@ -26,10 +26,21 @@ export async function runRoomReservationReminders(
     .select("id")
     .eq("status", "ativa");
   if (orgError || !orgs?.length) return { sent: 0, byOrg: {} };
+  // Só imobiliárias com o módulo Reserva de salas ligado (falha na consulta = nenhum lembrete).
+  const { data: modules, error: moduleError } = await admin
+    .from("organization_modules")
+    .select("organization_id")
+    .eq("module", "reserva_salas")
+    .eq("enabled", true);
+  if (moduleError) return { sent: 0, byOrg: {} };
+  const enabledOrgs = new Set(
+    ((modules ?? []) as { organization_id: string }[]).map((m) => m.organization_id),
+  );
 
   let sent = 0;
   const byOrg: Record<string, number> = {};
   for (const { id: orgId } of orgs as { id: string }[]) {
+    if (!enabledOrgs.has(orgId)) continue;
     const { data: reservations, error } = await admin
       .from("room_reservations")
       .select("*")
@@ -67,7 +78,8 @@ export async function runRoomReservationReminders(
         const profile = profileById.get(id);
         if (profile?.ativo === false) continue;
         const phone = normalizePhone(profile?.telefone ?? null);
-        if (phone && ![...phoneByRecipient.values()].includes(phone)) phoneByRecipient.set(id, phone);
+        if (phone && ![...phoneByRecipient.values()].includes(phone))
+          phoneByRecipient.set(id, phone);
       }
       if (!phoneByRecipient.size) continue;
 
