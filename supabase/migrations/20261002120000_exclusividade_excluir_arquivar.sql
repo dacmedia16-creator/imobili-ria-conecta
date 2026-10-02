@@ -84,7 +84,10 @@ BEGIN
   ELSE RAISE EXCEPTION 'Ação inválida'; END IF;
   INSERT INTO public.exclusive_history(capture_id, actor_id, action) VALUES (_id, auth.uid(), _action);
 END $function$;
+-- Mesmo padrão da fase 1b: CREATE temporário só para o ALTER OWNER, revogado em seguida.
+GRANT CREATE ON SCHEMA public TO mt_1b_definer;
 ALTER FUNCTION public.exclusive_archive(uuid, text) OWNER TO mt_1b_definer;
+REVOKE CREATE ON SCHEMA public FROM mt_1b_definer;
 REVOKE ALL ON FUNCTION public.exclusive_archive(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.exclusive_archive(uuid, text) TO authenticated, service_role;
 COMMIT;
