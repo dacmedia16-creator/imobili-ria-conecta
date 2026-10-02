@@ -164,8 +164,10 @@ export async function setAgencyUserRole(
   admin: OrgAdminClient,
   callerId: string,
   data: { userId: string; role: ManagedRole; grant: boolean },
+  actorOverride?: Actor,
 ) {
-  const actor = await loadCallerActor(admin, callerId);
+  // actorOverride: super-admin da plataforma no contexto (agência validada no banco).
+  const actor = actorOverride ?? (await loadCallerActor(admin, callerId));
   const orgId = actor.orgId as string;
   await assertUserActionAllowed(admin, actor, "change_roles", data.userId, data.role);
   if (data.grant) {

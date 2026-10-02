@@ -22,22 +22,49 @@ async function callerContext(
   callerId: string,
   user: CallerRpcClient,
   mode: "read" | "write" = "write",
+  motivo?: string | null,
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const scope = await import("@/lib/org-scope");
   const policy = await import("@/lib/user-management.server");
   const admin = supabaseAdmin as unknown as OrgAdminClient;
-  if (mode === "write") await scope.assertNotInPlatformContext(user);
   const { orgId, inPlatformContext } = await scope.resolveCallerScope(user, admin, callerId);
+  // Gestão de usuários na visão da plataforma (aprovado por Denis, 02/10/2026): o super-admin
+  // pode editar, redefinir senha, ativar/desativar e mudar papéis na imobiliária do contexto
+  // (validada no banco), sempre com motivo obrigatório e registro em activity_logs.
+  if (mode === "write" && inPlatformContext) assertPlatformReason(motivo);
   const actor = inPlatformContext
     ? { userId: callerId, orgId, roles: ["super_admin", "admin"] as ManagedRole[] }
     : await policy.loadActor(admin, orgId, callerId);
-  return { supabaseAdmin, admin, orgId, actor, scope, policy };
+  return { supabaseAdmin, admin, orgId, actor, scope, policy, inPlatformContext };
 }
 
-async function assertWritable(user: CallerRpcClient) {
-  const scope = await import("@/lib/org-scope");
-  await scope.assertNotInPlatformContext(user);
+export const PLATFORM_REASON_REQUIRED =
+  "Na visão da plataforma, informe o motivo da alteração (mínimo 5 caracteres).";
+
+function assertPlatformReason(motivo?: string | null) {
+  if (!motivo || motivo.trim().length < 5) throw new Error(PLATFORM_REASON_REQUIRED);
+}
+
+/** Registro de auditoria; no contexto da plataforma marca a origem e guarda o motivo. */
+async function logUserAction(
+  admin: OrgAdminClient,
+  orgId: string,
+  callerId: string,
+  acao: string,
+  payload: Record<string, unknown>,
+  inPlatformContext: boolean,
+  motivo?: string | null,
+) {
+  await admin.from("activity_logs").insert({
+    organization_id: orgId,
+    autor_id: callerId,
+    sale_id: null,
+    acao: inPlatformContext ? `${acao}_platform_context` : acao,
+    payload: inPlatformContext
+      ? { ...payload, motivo: motivo?.trim(), via: "plataforma" }
+      : payload,
+  });
 }
 
 const ROLES = ALL_MANAGED_ROLES as [ManagedRole, ...ManagedRole[]];
@@ -60,9 +87,12 @@ const schema = z.object({
   role: z.enum(ROLES),
 });
 
+const motivo = z.string().trim().max(300).nullable().optional();
+
 const resetPasswordSchema = z.object({
   userId: z.string().uuid(),
   password: z.string().min(8).max(72),
+  motivo,
 });
 
 const updateUserSchema = z.object({
@@ -72,13 +102,15 @@ const updateUserSchema = z.object({
   nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
+  motivo,
 });
 
-const setActiveSchema = z.object({ userId: z.string().uuid(), ativo: z.boolean() });
+const setActiveSchema = z.object({ userId: z.string().uuid(), ativo: z.boolean(), motivo });
 const setRoleSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum(ROLES),
   grant: z.boolean(),
+  motivo,
 });
 
 /** Cadastro de usuário: nasce na agência de quem cadastra. A lógica (regra + Auth + papéis +
@@ -121,9 +153,11 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para trocar a sua própria senha.');
     }
-    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(
+    const { supabaseAdmin, admin, orgId, actor, policy, inPlatformContext } = await callerContext(
       callerId,
       context.supabase,
+      "write",
+      data.motivo,
     );
     await policy.assertUserActionAllowed(admin, actor, "reset_password", data.userId);
 
@@ -140,13 +174,15 @@ export const resetUserPassword = createServerFn({ method: "POST" })
     if (updErr) throw new Error(updErr.message);
 
     // Auditoria sem armazenar ou expor a senha temporária.
-    await admin.from("activity_logs").insert({
-      organization_id: orgId,
-      autor_id: callerId,
-      sale_id: null,
-      acao: "user_password_reset",
-      payload: { target_user: data.userId },
-    });
+    await logUserAction(
+      admin,
+      orgId,
+      callerId,
+      "user_password_reset",
+      { target_user: data.userId },
+      inPlatformContext,
+      data.motivo,
+    );
 
     return { ok: true };
   });
@@ -162,9 +198,11 @@ export const updateUser = createServerFn({ method: "POST" })
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para editar seus próprios dados.');
     }
-    const { supabaseAdmin, admin, orgId, actor, policy } = await callerContext(
+    const { supabaseAdmin, admin, orgId, actor, policy, inPlatformContext } = await callerContext(
       callerId,
       context.supabase,
+      "write",
+      data.motivo,
     );
     await policy.assertUserActionAllowed(admin, actor, "edit_user", data.userId);
 
@@ -199,6 +237,17 @@ export const updateUser = createServerFn({ method: "POST" })
       .eq("id", data.userId);
     if (profErr) throw new Error(profErr.message);
 
+    if (inPlatformContext) {
+      await logUserAction(
+        admin,
+        orgId,
+        callerId,
+        "user_updated",
+        { target_user: data.userId, email_changed: existing.user.email !== data.email },
+        true,
+        data.motivo,
+      );
+    }
     return { ok: true };
   });
 
@@ -209,7 +258,12 @@ export const setUserActive = createServerFn({ method: "POST" })
   .validator((input: unknown) => setActiveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { userId: callerId } = context;
-    const { admin, orgId, actor, policy } = await callerContext(callerId, context.supabase);
+    const { admin, orgId, actor, policy, inPlatformContext } = await callerContext(
+      callerId,
+      context.supabase,
+      "write",
+      data.motivo,
+    );
     await policy.assertUserActionAllowed(admin, actor, "set_active", data.userId);
     const { error } = await admin
       .from("profiles")
@@ -217,13 +271,15 @@ export const setUserActive = createServerFn({ method: "POST" })
       .eq("organization_id", orgId)
       .eq("id", data.userId);
     if (error) throw new Error(error.message);
-    await admin.from("activity_logs").insert({
-      organization_id: orgId,
-      autor_id: callerId,
-      sale_id: null,
-      acao: data.ativo ? "user_activated" : "user_deactivated",
-      payload: { target_user: data.userId },
-    });
+    await logUserAction(
+      admin,
+      orgId,
+      callerId,
+      data.ativo ? "user_activated" : "user_deactivated",
+      { target_user: data.userId },
+      inPlatformContext,
+      data.motivo,
+    );
     return { ok: true };
   });
 
@@ -233,14 +289,24 @@ export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => setRoleSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertWritable(context.supabase);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const policy = await import("@/lib/user-management.server");
-    return policy.setAgencyUserRole(
-      supabaseAdmin as unknown as OrgAdminClient,
+    const { admin, orgId, actor, policy, inPlatformContext } = await callerContext(
       context.userId,
-      data,
+      context.supabase,
+      "write",
+      data.motivo,
     );
+    if (!inPlatformContext) return policy.setAgencyUserRole(admin, context.userId, data);
+    const res = await policy.setAgencyUserRole(admin, context.userId, data, actor);
+    await logUserAction(
+      admin,
+      orgId,
+      context.userId,
+      data.grant ? "user_role_granted" : "user_role_revoked",
+      { target_user: data.userId, role: data.role },
+      true,
+      data.motivo,
+    );
+    return res;
   });
 
 /** Último login (auth.users.last_sign_in_at) dos usuários da própria agência — lido pelo

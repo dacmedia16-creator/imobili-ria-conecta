@@ -116,7 +116,21 @@ function genPassword() {
 }
 
 function AdminUsers() {
-  const { hasRole, hasAny, user, roles: myRoles } = useAuth();
+  const { hasRole, hasAny, user, roles: myRoles, platformContext } = useAuth();
+  const inPlatform = platformContext !== null;
+  /** Na visão da plataforma toda alteração exige motivo (fica na auditoria da imobiliária). */
+  const askReason = (acao: string): string | null | undefined => {
+    if (!inPlatform) return null;
+    const m = window.prompt(
+      `${acao}\n\nVocê está na visão da plataforma (${platformContext?.organizationName}). Informe o motivo — ele fica registrado na auditoria:`,
+    );
+    if (m === null) return undefined;
+    if (m.trim().length < 5) {
+      toast.error("Informe um motivo com pelo menos 5 caracteres.");
+      return undefined;
+    }
+    return m.trim();
+  };
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [registrationLoaded, setRegistrationLoaded] = useState(false);
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
@@ -373,8 +387,10 @@ function AdminUsers() {
 
   // Papéis e ativação passam pelo servidor (regra única + agência); o banco barra o resto.
   const toggleRole = async (userId: string, role: AppRole, has: boolean) => {
+    const motivo = askReason(`${has ? "Retirar" : "Conceder"} o papel ${ROLE_LABEL[role]}`);
+    if (motivo === undefined) return;
     try {
-      await setUserRoleFn({ data: { userId, role, grant: !has } });
+      await setUserRoleFn({ data: { userId, role, grant: !has, motivo } });
     } catch (error: unknown) {
       toast.error(errorMessage(error, "Não foi possível alterar o papel."));
     }
@@ -382,8 +398,10 @@ function AdminUsers() {
   };
 
   const toggleAtivo = async (userId: string, ativo: boolean) => {
+    const motivo = askReason(ativo ? "Desativar usuário" : "Ativar usuário");
+    if (motivo === undefined) return;
     try {
-      await setUserActiveFn({ data: { userId, ativo: !ativo } });
+      await setUserActiveFn({ data: { userId, ativo: !ativo, motivo } });
       toast.success(ativo ? "Usuário desativado" : "Usuário ativado");
       load();
     } catch (error: unknown) {
@@ -827,6 +845,7 @@ function AdminUsers() {
             target={resetPasswordFor}
             onDone={() => setResetPasswordFor(null)}
             resetFn={resetPasswordFn}
+            requireReason={inPlatform}
           />
         )}
       </Dialog>
@@ -840,6 +859,7 @@ function AdminUsers() {
               load();
             }}
             updateFn={updateUserFn}
+            requireReason={inPlatform}
           />
         )}
       </Dialog>
@@ -851,12 +871,17 @@ function ResetPasswordDialog({
   target,
   onDone,
   resetFn,
+  requireReason = false,
 }: {
   target: { id: string; email: string; nome: string };
   onDone: () => void;
-  resetFn: (args: { data: { userId: string; password: string } }) => Promise<unknown>;
+  resetFn: (args: {
+    data: { userId: string; password: string; motivo?: string | null };
+  }) => Promise<unknown>;
+  requireReason?: boolean;
 }) {
   const [password, setPassword] = useState(() => genPassword());
+  const [motivo, setMotivo] = useState("");
   const [loading, setLoading] = useState(false);
 
   const copyCreds = async () => {
@@ -868,7 +893,9 @@ function ResetPasswordDialog({
     e.preventDefault();
     setLoading(true);
     try {
-      await resetFn({ data: { userId: target.id, password } });
+      await resetFn({
+        data: { userId: target.id, password, motivo: requireReason ? motivo.trim() : null },
+      });
       toast.success(
         `Senha de ${target.nome || target.email} redefinida. Copie e envie a nova senha.`,
         {
@@ -926,8 +953,9 @@ function ResetPasswordDialog({
             </Button>
           </div>
         </div>
+        {requireReason && <ReasonField id="rp-motivo" value={motivo} onChange={setMotivo} />}
         <DialogFooter>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || (requireReason && motivo.trim().length < 5)}>
             {loading ? "Salvando…" : "Redefinir senha"}
           </Button>
         </DialogFooter>
@@ -940,7 +968,9 @@ function EditUserDialog({
   target,
   onDone,
   updateFn,
+  requireReason = false,
 }: {
+  requireReason?: boolean;
   target: {
     id: string;
     email: string;
@@ -958,9 +988,11 @@ function EditUserDialog({
       telefone: string;
       cpf: string | null;
       creci: string | null;
+      motivo?: string | null;
     };
   }) => Promise<unknown>;
 }) {
+  const [motivo, setMotivo] = useState("");
   const [nome, setNome] = useState(target.nome);
   const [email, setEmail] = useState(target.email);
   const [telefone, setTelefone] = useState(target.telefone ?? "");
@@ -980,7 +1012,15 @@ function EditUserDialog({
     setLoading(true);
     try {
       await updateFn({
-        data: { userId: target.id, nome, email, telefone, cpf: cpf || null, creci: creci || null },
+        data: {
+          userId: target.id,
+          nome,
+          email,
+          telefone,
+          cpf: cpf || null,
+          creci: creci || null,
+          motivo: requireReason ? motivo.trim() : null,
+        },
       });
       toast.success("Dados do usuário atualizados.");
       onDone();
@@ -1055,13 +1095,43 @@ function EditUserDialog({
             onChange={(e) => setCreci(e.target.value)}
           />
         </div>
+        {requireReason && <ReasonField id="eu-motivo" value={motivo} onChange={setMotivo} />}
         <DialogFooter>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || (requireReason && motivo.trim().length < 5)}>
             {loading ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
       </form>
     </DialogContent>
+  );
+}
+
+/** Motivo obrigatório na visão da plataforma (vai para a auditoria da imobiliária). */
+function ReasonField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-2 dark:bg-amber-950/30">
+      <Label htmlFor={id}>Motivo (visão da plataforma)</Label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        minLength={5}
+        maxLength={300}
+        placeholder="Ex.: pedido do administrador da imobiliária"
+      />
+      <p className="mt-1 text-xs text-muted-foreground">
+        Fica registrado na auditoria da imobiliária com o seu nome.
+      </p>
+    </div>
   );
 }
 
