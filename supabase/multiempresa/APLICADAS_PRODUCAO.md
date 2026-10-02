@@ -15,3 +15,5 @@ Não aplicada em produção: 20261002000001_mt_dashboard_movimentacao_hist_mater
 
 Backup completo pós-publicação: `/root/.config/max/adm-max-prod-backups/pos-plataforma-20261002T102908Z.dump`
 (gerar novo com `/root/.config/max/adm-max-prod-pg/backup-prod.sh <rotulo>`).
+
+| 20261002000005 | mt_modulos_plataforma | 2026-10-02 ~18:20 | 4 linhas em organization_modules (padrão: captação ligada, reserva ligada); teste isolation_modulos 12/12 com rollback; 235 reservas intactas; backup pre-modulos-20261002T181623Z.dump; Worker 45f0854b (commit fdd8aee) |
