@@ -17,3 +17,4 @@ Backup completo pós-publicação: `/root/.config/max/adm-max-prod-backups/pos-p
 (gerar novo com `/root/.config/max/adm-max-prod-pg/backup-prod.sh <rotulo>`).
 
 | 20261002000005 | mt_modulos_plataforma | 2026-10-02 ~18:20 | 4 linhas em organization_modules (padrão: captação ligada, reserva ligada); teste isolation_modulos 12/12 com rollback; 235 reservas intactas; backup pre-modulos-20261002T181623Z.dump; Worker 45f0854b (commit fdd8aee) |
+| 20261002000006 | mt_captacao_msg_contexto | 2026-10-02 ~18:50 | só muda a mensagem de exclusive_create para o super-admin em contexto de outra imobiliária; teste em contexto confirmou a mensagem (revertido); módulos 12/12; backup pre-msg-captacao-20261002T184504Z.dump |
