@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -117,7 +117,8 @@ async function readLogo(file: File): Promise<Logo> {
   if (file.size > LOGO_MAX_BYTES) throw new Error("Logo acima de 1 MB.");
   const buf = new Uint8Array(await file.arrayBuffer());
   let bin = "";
-  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  for (let i = 0; i < buf.length; i += 0x8000)
+    bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
   return {
     base64: btoa(bin),
     contentType: file.type as Logo["contentType"],
@@ -140,7 +141,11 @@ function StepList({ steps }: { steps: Step[] }) {
           <span>
             <span className="font-medium">{STEP_LABEL[s.key]}</span>
             <span className="sr-only">
-              {s.status === "ok" ? " concluída" : s.status === "erro" ? " com erro" : " não executada"}
+              {s.status === "ok"
+                ? " concluída"
+                : s.status === "erro"
+                  ? " com erro"
+                  : " não executada"}
             </span>
             : {s.message}
           </span>
@@ -154,8 +159,9 @@ function InviteBox({ link }: { link: string }) {
   return (
     <div className="space-y-2 rounded-md border bg-muted/40 p-3">
       <p className="text-sm">
-        Link de primeiro acesso (válido por tempo limitado). <strong>Nenhum e-mail foi enviado</strong>:
-        copie e entregue ao administrador; ele definirá a própria senha.
+        Link de primeiro acesso (válido por tempo limitado).{" "}
+        <strong>Nenhum e-mail foi enviado</strong>: copie e entregue ao administrador; ele definirá
+        a própria senha.
       </p>
       <div className="flex gap-2">
         <Input readOnly value={link} aria-label="Link de convite" className="font-mono text-xs" />
@@ -196,7 +202,12 @@ function ColorField({
           onChange={(e) => onChange(e.target.value)}
           className="h-9 w-12 cursor-pointer rounded border"
         />
-        <Input id={id} placeholder="#RRGGBB" value={value} onChange={(e) => onChange(e.target.value)} />
+        <Input
+          id={id}
+          placeholder="#RRGGBB"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
       </div>
     </div>
   );
@@ -212,9 +223,10 @@ function PlatformOrganizations() {
   const [orgs, setOrgs] = useState<OrganizationSummary[] | null>(null);
   // A demonstração mostra A/B sem apagar os registros E2E e seus logs de auditoria.
   const [showTestOrganizations, setShowTestOrganizations] = useState(false);
-  const visibleOrgs = import.meta.env.VITE_HOMOLOG_ONLY === "true" && !showTestOrganizations
-    ? orgs?.filter((o) => o.slug === "unica-escolha" || o.slug === "agencia-b-homolog")
-    : orgs;
+  const visibleOrgs =
+    import.meta.env.VITE_HOMOLOG_ONLY === "true" && !showTestOrganizations
+      ? orgs?.filter((o) => o.slug === "unica-escolha" || o.slug === "agencia-b-homolog")
+      : orgs;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<OrganizationSummary | "new" | null>(null);
   const [inviting, setInviting] = useState<OrganizationSummary | null>(null);
@@ -313,7 +325,9 @@ function PlatformOrganizations() {
     setSaving(true);
     setSteps(null);
     setLink(null);
-    const logo = form.logo ? { base64: form.logo.base64, contentType: form.logo.contentType } : null;
+    const logo = form.logo
+      ? { base64: form.logo.base64, contentType: form.logo.contentType }
+      : null;
     try {
       if (editing === "new") {
         const r = await createFn({
@@ -370,7 +384,8 @@ function PlatformOrganizations() {
 
   const toggleStatus = async (o: OrganizationSummary) => {
     const next = o.status === "ativa" ? "suspensa" : "ativa";
-    if (next === "suspensa" && !window.confirm(`Suspender ${o.nome}? Os usuários perdem o acesso.`)) return;
+    if (next === "suspensa" && !window.confirm(`Suspender ${o.nome}? Os usuários perdem o acesso.`))
+      return;
     try {
       await statusFn({ data: { organizationId: o.id, status: next } });
       toast.success(next === "ativa" ? "Imobiliária reativada" : "Imobiliária suspensa");
@@ -393,9 +408,14 @@ function PlatformOrganizations() {
           <Building2 className="h-5 w-5 text-primary" />
           <h1 className="text-2xl font-semibold">Painel da Plataforma</h1>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/plataforma/usuarios">Usuários de todas as imobiliárias</Link>
+          </Button>
+          <Button onClick={openNew}>
+            <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
+          </Button>
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         Área exclusiva do super-admin da plataforma. Gestores e administradores das imobiliárias não
@@ -403,8 +423,15 @@ function PlatformOrganizations() {
       </p>
       {import.meta.env.VITE_HOMOLOG_ONLY === "true" && (
         <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
-          <span>Exibição de demonstração: somente agências fictícias A e B. Registros E2E preservados.</span>
-          <Button type="button" size="sm" variant="outline" onClick={() => setShowTestOrganizations((v) => !v)}>
+          <span>
+            Exibição de demonstração: somente agências fictícias A e B. Registros E2E preservados.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setShowTestOrganizations((v) => !v)}
+          >
             {showTestOrganizations ? "Ocultar registros de teste" : "Ver registros de teste"}
           </Button>
         </div>
@@ -416,8 +443,8 @@ function PlatformOrganizations() {
           className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950"
         >
           <span>
-            Seu acesso à {expiredNotice || "imobiliária"} expirou (limite de 8 horas). Você voltou ao
-            Painel da Plataforma; entre de novo se precisar.
+            Seu acesso à {expiredNotice || "imobiliária"} expirou (limite de 8 horas). Você voltou
+            ao Painel da Plataforma; entre de novo se precisar.
           </span>
           <Button size="sm" variant="outline" onClick={() => setExpiredNotice(null)}>
             Entendi
@@ -426,8 +453,8 @@ function PlatformOrganizations() {
       )}
       {platformContext && (
         <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950">
-          Você está dentro da {platformContext.organizationName}. Entrar em outra imobiliária encerra
-          esse acesso; para só voltar à plataforma, use “Sair” na faixa amarela.
+          Você está dentro da {platformContext.organizationName}. Entrar em outra imobiliária
+          encerra esse acesso; para só voltar à plataforma, use “Sair” na faixa amarela.
         </div>
       )}
       {orgs && (
@@ -448,8 +475,12 @@ function PlatformOrganizations() {
       {loadError && (
         <Card>
           <CardContent className="flex items-center justify-between gap-2 pt-6">
-            <p role="alert" className="text-sm text-destructive">{loadError}</p>
-            <Button variant="outline" onClick={() => void reload()}>Tentar novamente</Button>
+            <p role="alert" className="text-sm text-destructive">
+              {loadError}
+            </p>
+            <Button variant="outline" onClick={() => void reload()}>
+              Tentar novamente
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -465,7 +496,11 @@ function PlatformOrganizations() {
                   style={{ background: o.cor_primaria ?? undefined }}
                 >
                   {o.logoUrl ? (
-                    <img src={o.logoUrl} alt={`Logo ${o.nome}`} className="h-full w-full object-contain" />
+                    <img
+                      src={o.logoUrl}
+                      alt={`Logo ${o.nome}`}
+                      className="h-full w-full object-contain"
+                    />
                   ) : (
                     <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden />
                   )}
@@ -489,11 +524,18 @@ function PlatformOrganizations() {
                 <dt className="text-muted-foreground">Usuários ativos</dt>
                 <dd>{o.membros}</dd>
                 <dt className="text-muted-foreground">Administradores</dt>
-                <dd>{o.administradores === 0 ? "Nenhum — convide o primeiro" : o.administradores}</dd>
+                <dd>
+                  {o.administradores === 0 ? "Nenhum — convide o primeiro" : o.administradores}
+                </dd>
                 <dt className="text-muted-foreground">Cores</dt>
                 <dd className="flex gap-1">
                   {[o.cor_primaria, o.cor_secundaria].filter(Boolean).map((c) => (
-                    <span key={c} title={c ?? ""} className="h-4 w-4 rounded border" style={{ background: c ?? undefined }} />
+                    <span
+                      key={c}
+                      title={c ?? ""}
+                      className="h-4 w-4 rounded border"
+                      style={{ background: c ?? undefined }}
+                    />
                   ))}
                   {!o.cor_primaria && !o.cor_secundaria && "—"}
                 </dd>
@@ -515,11 +557,20 @@ function PlatformOrganizations() {
                 <Button size="sm" variant="outline" onClick={() => openEdit(o)}>
                   <Pencil className="mr-1 h-4 w-4" /> Editar
                 </Button>
-                <Button size="sm" variant="outline" disabled={o.status !== "ativa"} onClick={() => openInvite(o)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={o.status !== "ativa"}
+                  onClick={() => openInvite(o)}
+                >
                   <UserPlus className="mr-1 h-4 w-4" /> Convidar administrador
                 </Button>
                 {!o.legacy_default && (
-                  <Button size="sm" variant={o.status === "ativa" ? "destructive" : "default"} onClick={() => void toggleStatus(o)}>
+                  <Button
+                    size="sm"
+                    variant={o.status === "ativa" ? "destructive" : "default"}
+                    onClick={() => void toggleStatus(o)}
+                  >
                     {o.status === "ativa" ? "Suspender" : "Reativar"}
                   </Button>
                 )}
@@ -532,7 +583,9 @@ function PlatformOrganizations() {
       <Dialog open={editing !== null} onOpenChange={(open) => !open && closeDialogs()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing === "new" ? "Nova imobiliária" : "Editar imobiliária"}</DialogTitle>
+            <DialogTitle>
+              {editing === "new" ? "Nova imobiliária" : "Editar imobiliária"}
+            </DialogTitle>
             <DialogDescription>
               Nome, identificador, CNPJ, cores e logo.{" "}
               {editing === "new" && "Opcional: convide o primeiro administrador por link."}
@@ -541,20 +594,46 @@ function PlatformOrganizations() {
           <form className="space-y-4" onSubmit={submitOrg} noValidate>
             <div className="space-y-1">
               <Label htmlFor="org-nome">Nome da imobiliária</Label>
-              <Input id="org-nome" value={form.nome} onChange={(e) => set("nome", e.target.value)} required />
+              <Input
+                id="org-nome"
+                value={form.nome}
+                onChange={(e) => set("nome", e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="org-slug">Identificador</Label>
-              <Input id="org-slug" value={form.slug} onChange={(e) => set("slug", e.target.value)} required />
+              <Input
+                id="org-slug"
+                value={form.slug}
+                onChange={(e) => set("slug", e.target.value)}
+                required
+              />
               <p className="text-xs text-muted-foreground">Letras minúsculas, números e hífen.</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="org-cnpj">CNPJ</Label>
-              <Input id="org-cnpj" inputMode="numeric" placeholder="00.000.000/0000-00" value={form.cnpj} onChange={(e) => set("cnpj", e.target.value)} />
+              <Input
+                id="org-cnpj"
+                inputMode="numeric"
+                placeholder="00.000.000/0000-00"
+                value={form.cnpj}
+                onChange={(e) => set("cnpj", e.target.value)}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <ColorField id="org-cor1" label="Cor principal" value={form.corPrimaria} onChange={(v) => set("corPrimaria", v)} />
-              <ColorField id="org-cor2" label="Cor secundária" value={form.corSecundaria} onChange={(v) => set("corSecundaria", v)} />
+              <ColorField
+                id="org-cor1"
+                label="Cor principal"
+                value={form.corPrimaria}
+                onChange={(v) => set("corPrimaria", v)}
+              />
+              <ColorField
+                id="org-cor2"
+                label="Cor secundária"
+                value={form.corSecundaria}
+                onChange={(v) => set("corSecundaria", v)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="org-logo">Logo (PNG, JPG ou WEBP, até 1 MB)</Label>
@@ -575,7 +654,7 @@ function PlatformOrganizations() {
               />
               {(form.logo || (editing !== "new" && editing?.logoUrl)) && (
                 <img
-                  src={form.logo?.preview ?? (editing !== "new" ? editing?.logoUrl ?? "" : "")}
+                  src={form.logo?.preview ?? (editing !== "new" ? (editing?.logoUrl ?? "") : "")}
                   alt="Pré-visualização do logo"
                   className="mt-2 h-16 w-auto rounded border object-contain"
                 />
@@ -583,26 +662,44 @@ function PlatformOrganizations() {
             </div>
             {editing === "new" && (
               <fieldset className="space-y-3 rounded-md border p-3">
-                <legend className="px-1 text-sm font-medium">Primeiro administrador (convite)</legend>
+                <legend className="px-1 text-sm font-medium">
+                  Primeiro administrador (convite)
+                </legend>
                 <div className="space-y-1">
                   <Label htmlFor="adm-nome">Nome completo</Label>
-                  <Input id="adm-nome" value={form.adminNome} onChange={(e) => set("adminNome", e.target.value)} />
+                  <Input
+                    id="adm-nome"
+                    value={form.adminNome}
+                    onChange={(e) => set("adminNome", e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="adm-email">E-mail</Label>
-                  <Input id="adm-email" type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} />
+                  <Input
+                    id="adm-email"
+                    type="email"
+                    value={form.adminEmail}
+                    onChange={(e) => set("adminEmail", e.target.value)}
+                  />
                 </div>
                 <RoleSelect value={form.adminRole} onChange={(v) => set("adminRole", v)} />
               </fieldset>
             )}
-            {fieldError && <p role="alert" className="text-sm text-destructive">{fieldError}</p>}
+            {fieldError && (
+              <p role="alert" className="text-sm text-destructive">
+                {fieldError}
+              </p>
+            )}
             {steps && <StepList steps={steps} />}
             {link && <InviteBox link={link} />}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialogs}>
                 {steps ? "Fechar" : "Cancelar"}
               </Button>
-              {!(editing === "new" && steps?.some((s) => s.key === "organizacao" && s.status === "ok")) && (
+              {!(
+                editing === "new" &&
+                steps?.some((s) => s.key === "organizacao" && s.status === "ok")
+              ) && (
                 <Button type="submit" disabled={saving}>
                   {saving ? "Salvando…" : editing === "new" ? "Cadastrar" : "Salvar"}
                 </Button>
@@ -617,18 +714,29 @@ function PlatformOrganizations() {
           <DialogHeader>
             <DialogTitle>Convidar administrador — {inviting?.nome}</DialogTitle>
             <DialogDescription>
-              O usuário nasce nesta imobiliária. Se o e-mail já for desta imobiliária, só um novo link é
-              gerado. Nenhum e-mail é enviado.
+              O usuário nasce nesta imobiliária. Se o e-mail já for desta imobiliária, só um novo
+              link é gerado. Nenhum e-mail é enviado.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={submitInvite}>
             <div className="space-y-1">
               <Label htmlFor="inv-nome">Nome completo</Label>
-              <Input id="inv-nome" value={form.adminNome} onChange={(e) => set("adminNome", e.target.value)} required />
+              <Input
+                id="inv-nome"
+                value={form.adminNome}
+                onChange={(e) => set("adminNome", e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="inv-email">E-mail</Label>
-              <Input id="inv-email" type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} required />
+              <Input
+                id="inv-email"
+                type="email"
+                value={form.adminEmail}
+                onChange={(e) => set("adminEmail", e.target.value)}
+                required
+              />
             </div>
             <RoleSelect value={form.adminRole} onChange={(v) => set("adminRole", v)} />
             {steps && <StepList steps={steps} />}
@@ -665,7 +773,9 @@ function RoleSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="super_admin">Super Admin da imobiliária (pode criar administradores)</SelectItem>
+          <SelectItem value="super_admin">
+            Super Admin da imobiliária (pode criar administradores)
+          </SelectItem>
           <SelectItem value="admin">Administrador</SelectItem>
         </SelectContent>
       </Select>

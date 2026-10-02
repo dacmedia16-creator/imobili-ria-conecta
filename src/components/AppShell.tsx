@@ -384,6 +384,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: Building2,
       show: platformAdmin,
     },
+    {
+      to: "/plataforma/usuarios",
+      label: "Usuários da plataforma",
+      icon: Building2,
+      show: platformAdmin,
+    },
   ];
 
   const navGroups: NavGroup[] = [
