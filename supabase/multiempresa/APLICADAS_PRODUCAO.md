@@ -9,6 +9,7 @@ Antes de aplicar qualquer arquivo daqui, confira esta lista E o estado real do b
 | 1a…2h | janela multiempresa (ver docs/PLANO_EXECUCAO_MIGRACAO_PRODUCAO_ADM_MAX.md §10) | 2026-10-01 noite | runbook |
 | 20261002000002 | mt_platform_context | 2026-10-02 ~09:20 | função platform_enter_org existe; teste Denis aprovado |
 | 20261002000003 | mt_p2_indices_rls_authenticated | 2026-10-02 ~09:20 | 0 policies TO public; números dos painéis idênticos |
+| 20261002000004 | mt_leitor_amplo_rls_rapida | 2026-10-02 ~11:50 | 6 policies zz_mt_leitor_amplo_select; números de 4 perfis idênticos antes/depois; backup pre-leitor-amplo-20261002T113742Z.dump |
 
 Não aplicada em produção: 20261002000001_mt_dashboard_movimentacao_hist_materialized (só preparada).
 
