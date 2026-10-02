@@ -46,8 +46,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowRight, FileCheck2, Upload } from "lucide-react";
+import { ArrowRight, Download, Eye, FileCheck2, Printer, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/$id")({
   beforeLoad: guardExclusiveRoute,
@@ -92,7 +99,7 @@ function ExclusiveDetail() {
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [step, setStep] = useState<CaptureStep>("documentos");
-  const [preview, setPreview] = useState<{ name: string; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
   const [suggestions, setSuggestions] = useState<
     {
@@ -284,42 +291,137 @@ function ExclusiveDetail() {
       />
     </div>
   );
-  const fileInput = (label: string, kind: DocumentKind, owner = 0) => {
-    const attached = docs.filter((doc) => doc.kind === kind && doc.owner_index === owner).at(-1);
+  const hasDoc = (kind: DocumentKind, owner: number) =>
+    docs.some((doc) => doc.kind === kind && doc.owner_index === owner);
+  const printOne = (doc: CaptureDocument) => {
+    const printWindow = openDocumentPrintWindow();
+    if (!printWindow) return;
+    void signedDocument(doc)
+      .then((url) => printDocumentUrls([{ file_name: doc.file_name, url }], printWindow))
+      .catch((e: unknown) => {
+        printWindow.close();
+        toast.error(errorMessage(e, "Não foi possível imprimir o documento"));
+      });
+  };
+  const docRow = (doc: CaptureDocument) => (
+    <div
+      key={doc.id}
+      className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm"
+    >
+      <button
+        type="button"
+        className="min-w-0 flex-1 truncate text-left hover:underline"
+        onClick={() => withDoc(doc, (url) => setPreview({ doc, url }))}
+      >
+        {doc.file_name}
+      </button>
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Visualizar"
+          aria-label={`Visualizar ${doc.file_name}`}
+          onClick={() => withDoc(doc, (url) => setPreview({ doc, url }))}
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Imprimir"
+          aria-label={`Imprimir ${doc.file_name}`}
+          onClick={() => printOne(doc)}
+        >
+          <Printer className="h-4 w-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Baixar"
+          aria-label={`Baixar ${doc.file_name}`}
+          onClick={() =>
+            downloadDocument(doc).catch((e) => toast.error(errorMessage(e, "Falha ao baixar")))
+          }
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+  // Mesmo visual dos documentos da venda: um cartão por documento, faixa colorida por parte
+  // (proprietário = âmbar, imóvel = verde), indicador de obrigatório/dispensado e os arquivos
+  // enviados dentro do próprio cartão com Ver/Imprimir/Baixar.
+  const fileInput = (
+    label: string,
+    kind: DocumentKind,
+    owner = 0,
+    opts: { accent?: string; required?: boolean; dispensa?: string } = {},
+  ) => {
+    const list = docs.filter((doc) => doc.kind === kind && doc.owner_index === owner);
+    const attached = list.at(-1);
     const canUpload =
       !busy &&
       (kind === "assinado"
         ? manager && ["enviada", "em_assinatura"].includes(capture.status)
         : editable);
     return (
-      <div key={`${kind}-${owner}`} className="rounded-md border p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{label}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {attached ? `Enviado: ${attached.file_name}` : "Ainda não enviado"}
-            </p>
+      <Card key={`${kind}-${owner}`} className={opts.accent ?? ""}>
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">
+                {label}
+                {opts.required ? <span className="ml-1 text-destructive">*</span> : null}
+              </div>
+              {opts.required && <div className="text-xs text-muted-foreground">Obrigatório</div>}
+              {opts.dispensa && (
+                <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                  {opts.dispensa}
+                </div>
+              )}
+              {!attached && !opts.required && !opts.dispensa && (
+                <div className="text-xs text-muted-foreground">Ainda não enviado</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {attached && <FileCheck2 aria-label="Enviado" className="h-4 w-4 text-emerald-600" />}
+              {canUpload && (
+                <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
+                  <Upload className="h-4 w-4" /> {attached ? "Substituir" : "Enviar"}
+                  <input
+                    type="file"
+                    accept={kind === "assinado" ? ".pdf" : ".pdf,.jpg,.jpeg,.png,.webp"}
+                    aria-label={`Enviar ${label}`}
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) upload(kind, owner, file);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
-          {attached && <FileCheck2 aria-label="Enviado" className="h-4 w-4 text-emerald-600" />}
-          {canUpload && (
-            <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-              <Upload className="h-4 w-4" /> {attached ? "Substituir" : "Enviar"}
-              <input
-                type="file"
-                accept={kind === "assinado" ? ".pdf" : ".pdf,.jpg,.jpeg,.png,.webp"}
-                aria-label={`Enviar ${label}`}
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) upload(kind, owner, file);
-                }}
-              />
-            </label>
-          )}
-        </div>
-      </div>
+          {list.map(docRow)}
+        </CardContent>
+      </Card>
     );
+  };
+  const ownerDocInput = (label: string, kind: "rg" | "cpf" | "cnh", owner: number) => {
+    const temCnh = hasDoc("cnh", owner);
+    const temRgCpf = hasDoc("rg", owner) && hasDoc("cpf", owner);
+    const dispensa =
+      kind !== "cnh" && temCnh
+        ? "Dispensado — CNH enviada"
+        : kind === "cnh" && temRgCpf
+          ? "Dispensado — RG e CPF enviados"
+          : undefined;
+    return fileInput(label, kind, owner, {
+      accent: "border-l-4 border-l-amber-500",
+      required: !dispensa && !hasDoc(kind, owner),
+      dispensa,
+    });
   };
   const ownerFields = (
     scope: "proprietario_1" | "proprietario_2",
@@ -368,6 +470,26 @@ function ExclusiveDetail() {
               <p className="text-muted-foreground">
                 PDF, JPG, PNG ou WEBP de até 16 MB. Os anexos são privados.
               </p>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={docs.length === 0}
+                  onClick={() => allDocs(true)}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Imprimir todos
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={docs.length === 0}
+                  onClick={() => allDocs(false)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Baixar todos (PDF)
+                </Button>
+              </div>
             </CardContent>
           </Card>
           {(["proprietario_1", "proprietario_2"] as const).map((scope, index) => {
@@ -409,10 +531,10 @@ function ExclusiveDetail() {
                           ? "Identificação completa"
                           : "RG + CPF ou CNH pendentes"}
                       </p>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {fileInput("RG", "rg", index + 1)}
-                        {fileInput("CPF", "cpf", index + 1)}
-                        {fileInput("CNH (substitui RG + CPF)", "cnh", index + 1)}
+                      <div className="space-y-3">
+                        {ownerDocInput("RG", "rg", index + 1)}
+                        {ownerDocInput("CPF", "cpf", index + 1)}
+                        {ownerDocInput("CNH (substitui RG + CPF)", "cnh", index + 1)}
                       </div>
                     </>
                   )}
@@ -422,14 +544,35 @@ function ExclusiveDetail() {
           })}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Documentos complementares (opcionais)</CardTitle>
+              <CardTitle className="text-base">Imóvel e complementares (opcionais)</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-3">
-              {fileInput("Comprovante de residência", "residencia")}
-              {fileInput("IPTU", "iptu")}
-              {fileInput("Matrícula", "matricula")}
+            <CardContent className="space-y-3">
+              {fileInput("Comprovante de residência", "residencia", 0, {
+                accent: "border-l-4 border-l-emerald-500",
+              })}
+              {fileInput("IPTU", "iptu", 0, { accent: "border-l-4 border-l-emerald-500" })}
+              {fileInput("Matrícula", "matricula", 0, {
+                accent: "border-l-4 border-l-emerald-500",
+              })}
             </CardContent>
           </Card>
+          {docs.some((d) => d.kind === "gerado" || d.kind === "assinado") && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Contrato</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {docs.some((d) => d.kind === "gerado") &&
+                  fileInput("Contrato gerado", "gerado", 0, {
+                    accent: "border-l-4 border-l-indigo-500",
+                  })}
+                {docs.some((d) => d.kind === "assinado") &&
+                  fileInput("Contrato assinado", "assinado", 0, {
+                    accent: "border-l-4 border-l-indigo-500",
+                  })}
+              </CardContent>
+            </Card>
+          )}
           {editable &&
             pendingSuggestions
               .filter((s) => s.fields.length > 0)
@@ -586,91 +729,6 @@ function ExclusiveDetail() {
           )}
         </>
       )}
-      {step === "documentos" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Documentos privados ({docs.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {docs.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm"
-              >
-                <span className="min-w-40 flex-1 truncate">
-                  {documentLabels[doc.kind]}
-                  {doc.owner_index ? ` · proprietário ${doc.owner_index}` : ""}: {doc.file_name}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => withDoc(doc, (url) => setPreview({ name: doc.file_name, url }))}
-                >
-                  Ver
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    downloadDocument(doc).catch((e) =>
-                      toast.error(errorMessage(e, "Falha ao baixar")),
-                    )
-                  }
-                >
-                  Baixar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const printWindow = openDocumentPrintWindow();
-                    if (!printWindow) return;
-                    void signedDocument(doc)
-                      .then((url) =>
-                        printDocumentUrls([{ file_name: doc.file_name, url }], printWindow),
-                      )
-                      .catch((e: unknown) => {
-                        printWindow.close();
-                        toast.error(errorMessage(e, "Não foi possível imprimir o documento"));
-                      });
-                  }}
-                >
-                  Imprimir
-                </Button>
-              </div>
-            ))}
-            {docs.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button variant="outline" onClick={() => allDocs(false)}>
-                  Baixar todos em PDF
-                </Button>
-                <Button variant="outline" onClick={() => allDocs(true)}>
-                  Imprimir todos
-                </Button>
-              </div>
-            )}
-            {preview && (
-              <div
-                role="dialog"
-                aria-label="Visualização do documento"
-                className="rounded border p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <b>{preview.name}</b>
-                  <Button variant="ghost" onClick={() => setPreview(null)}>
-                    Fechar
-                  </Button>
-                </div>
-                {isImageFile(preview.name) ? (
-                  <img src={preview.url} alt={preview.name} className="max-h-[70vh] max-w-full" />
-                ) : (
-                  <iframe src={preview.url} title={preview.name} className="h-[70vh] w-full" />
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
       {step === "revisao" && (
         <>
           {editable && (
@@ -803,6 +861,49 @@ function ExclusiveDetail() {
           Próximo <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{preview?.doc.file_name}</DialogTitle>
+          </DialogHeader>
+          {preview && (
+            <div className="max-h-[70vh] overflow-auto rounded-md border bg-muted/30">
+              {isImageFile(preview.doc.file_name) ? (
+                <img
+                  src={preview.url}
+                  alt={preview.doc.file_name}
+                  className="mx-auto max-h-[70vh] max-w-full"
+                />
+              ) : (
+                <iframe
+                  src={preview.url}
+                  title={preview.doc.file_name}
+                  className="h-[70vh] w-full"
+                />
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => preview && printOne(preview.doc)}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                preview &&
+                downloadDocument(preview.doc).catch((e) =>
+                  toast.error(errorMessage(e, "Falha ao baixar")),
+                )
+              }
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Baixar
+            </Button>
+            <Button onClick={() => setPreview(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
