@@ -168,18 +168,19 @@ GRANT EXECUTE ON FUNCTION public.platform_enter_org(uuid), public.platform_exit_
   public.platform_current_org() TO authenticated;
 
 -- Base da 2g: mantém memoização por comando para NÃO piorar o dashboard.
--- Inclui session_id na chave do cache, pois uma mesma conexão pode trocar o JWT do mesmo uid.
+-- Chave do cache = comando + claims JWT brutas (inclui sub e session_id): uma mesma conexão
+-- pode trocar o JWT. Comparar o texto evita parse de JSON por linha em cache hit.
 CREATE OR REPLACE FUNCTION public.mt_ctx_org(_current boolean) RETURNS uuid
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE
-  _uid uuid := auth.uid(); _sid text := coalesce(auth.jwt() ->> 'session_id','-');
-  _key text := statement_timestamp()::text || '|' || coalesce(_uid::text, '-') || '|' || _sid;
+  _key text := statement_timestamp()::text || '|' || md5(coalesce(current_setting('request.jwt.claims', true), '-'));
   _val text := current_setting('mt.ctx', true);
-  _u uuid; _c uuid; _override uuid;
+  _uid uuid; _u uuid; _c uuid; _override uuid;
 BEGIN
   IF _val IS NOT NULL AND split_part(_val, '#', 1) = _key THEN
     RETURN nullif(split_part(_val, '#', CASE WHEN _current THEN 3 ELSE 2 END), '')::uuid;
   END IF;
+  _uid := auth.uid();
   IF _uid IS NOT NULL THEN
     _override := public.mt_pc_context_org();
     IF _override IS NOT NULL THEN
@@ -231,41 +232,44 @@ END $$;
 
 -- Papéis virtuais APENAS para o próprio ator da sessão DB válida. Nunca cria user_roles
 -- ou organization_members na agência destino. O teste gate/mt_in_ctx_org continua obrigatório.
+-- Desempenho: mt_in_ctx_org() (já chamado pela versão original) força o mt_ctx_org do comando,
+-- que grava mt.ctx_pc junto do cache; ler o bit depois disso não custa chamadas extras.
 CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE _in boolean := public.mt_in_ctx_org(_user_id);
 BEGIN
-  IF _user_id=auth.uid() AND public.mt_pc_in_context() THEN
-    RETURN _role IS NOT NULL AND public.mt_1b_gate()
-      AND coalesce(public.mt_in_ctx_org(_user_id),false);
+  IF current_setting('mt.ctx_pc',true)='1' AND _user_id=auth.uid() THEN
+    RETURN _role IS NOT NULL AND public.mt_1b_gate() AND coalesce(_in,false);
   END IF;
   RETURN (SELECT COALESCE((SELECT public.is_active_user(_user_id)
     AND EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_user_id AND role=_role)),false)
-    AND public.mt_1b_gate() AND ((public.mt_in_ctx_org(_user_id))
+    AND public.mt_1b_gate() AND (_in
     OR current_setting('role',true)='service_role'
     OR (current_setting('role',true)='none' AND session_user IN ('supabase_admin','postgres'))));
 END $$;
 CREATE OR REPLACE FUNCTION public.has_any_role(_user_id uuid, _roles public.app_role[]) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE _in boolean := public.mt_in_ctx_org(_user_id);
 BEGIN
-  IF _user_id=auth.uid() AND public.mt_pc_in_context() THEN
-    RETURN coalesce(cardinality(_roles)>0,false) AND public.mt_1b_gate()
-      AND coalesce(public.mt_in_ctx_org(_user_id),false);
+  IF current_setting('mt.ctx_pc',true)='1' AND _user_id=auth.uid() THEN
+    RETURN coalesce(cardinality(_roles)>0,false) AND public.mt_1b_gate() AND coalesce(_in,false);
   END IF;
   RETURN (SELECT COALESCE((SELECT public.is_active_user(_user_id)
     AND EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_user_id AND role=ANY(_roles))),false)
-    AND public.mt_1b_gate() AND ((public.mt_in_ctx_org(_user_id))
+    AND public.mt_1b_gate() AND (_in
     OR current_setting('role',true)='service_role'
     OR (current_setting('role',true)='none' AND session_user IN ('supabase_admin','postgres'))));
 END $$;
 CREATE OR REPLACE FUNCTION public.is_active_user(_user uuid) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE _in boolean := public.mt_in_ctx_org(_user);
 BEGIN
-  IF _user=auth.uid() AND public.mt_pc_in_context() THEN
-    RETURN public.mt_1b_gate() AND coalesce(public.mt_in_ctx_org(_user),false);
+  IF current_setting('mt.ctx_pc',true)='1' AND _user=auth.uid() THEN
+    RETURN public.mt_1b_gate() AND coalesce(_in,false);
   END IF;
   RETURN (SELECT COALESCE((SELECT _user IS NOT NULL AND
     COALESCE((SELECT ativo FROM public.profiles WHERE id=_user),true)),false)
-    AND public.mt_1b_gate() AND ((public.mt_in_ctx_org(_user)
+    AND public.mt_1b_gate() AND ((_in
       AND EXISTS (SELECT 1 FROM public.profiles WHERE id=_user AND ativo IS TRUE))
     OR current_setting('role',true)='service_role'
     OR (current_setting('role',true)='none' AND session_user IN ('supabase_admin','postgres'))));
