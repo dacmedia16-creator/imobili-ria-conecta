@@ -5,7 +5,20 @@
 // deno-lint-ignore no-explicit-any
 type AdminClient = any;
 
-export type OrgGate = { ok: true; organizationId: string } | { ok: false; error: string };
+// Exceção: administrador da plataforma (platform_admins) sem vínculo de agência recebe sessão
+// sem agência — ele cai no Painel da Plataforma e só acessa agências via platform_enter_org.
+export type OrgGate =
+  | { ok: true; organizationId: string | null }
+  | { ok: false; error: string };
+
+async function isPlatformAdmin(admin: AdminClient, admUserId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", admUserId)
+    .maybeSingle();
+  return !error && Boolean(data?.user_id);
+}
 
 export async function bridgeOrgGate(
   admin: AdminClient,
@@ -18,7 +31,11 @@ export async function bridgeOrgGate(
     .eq("user_id", admUserId)
     .eq("ativo", true)
     .maybeSingle();
-  if (error || !member?.organization_id) return { ok: false, error: "organization_inactive" };
+  if (error) return { ok: false, error: "organization_inactive" };
+  if (!member?.organization_id) {
+    if (await isPlatformAdmin(admin, admUserId)) return { ok: true, organizationId: null };
+    return { ok: false, error: "organization_inactive" };
+  }
   const { data: org, error: orgError } = await admin
     .from("organizations")
     .select("id")
