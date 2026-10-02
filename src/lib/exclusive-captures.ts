@@ -57,6 +57,7 @@ export type Capture = {
   broker_creci: string;
   created_on_sp: string;
   created_at: string;
+  archived_at?: string | null;
 };
 export type CaptureDocument = {
   id: string;

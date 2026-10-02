@@ -13,7 +13,7 @@ import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowRight, House } from "lucide-react";
+import { Archive, ArrowRight, House } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/")({
   head: () => ({ meta: [{ title: "Captações exclusivas" }] }),
@@ -27,6 +27,9 @@ function ExclusiveList() {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<Template | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = captures.filter((c) => c.archived_at).length;
+  const visible = captures.filter((c) => !!c.archived_at === showArchived);
   useEffect(() => {
     listCaptures()
       .then(setCaptures)
@@ -65,16 +68,20 @@ function ExclusiveList() {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle>Captações acessíveis</CardTitle>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+          <CardTitle>{showArchived ? "Captações arquivadas" : "Captações acessíveis"}</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
+            <Archive className="mr-1 h-4 w-4" />
+            {showArchived ? "Voltar para ativas" : `Arquivadas (${archivedCount})`}
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           {loading ? (
             <p>Carregando…</p>
-          ) : captures.length === 0 ? (
-            <p>Nenhuma captação disponível.</p>
+          ) : visible.length === 0 ? (
+            <p>{showArchived ? "Nenhuma captação arquivada." : "Nenhuma captação disponível."}</p>
           ) : (
-            captures.map((c) => {
+            visible.map((c) => {
               const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
               const property = c.form_data.imovel;
               return (

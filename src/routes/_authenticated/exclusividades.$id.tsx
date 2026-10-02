@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { DETAIL_NOT_FOUND_MESSAGE, isDetailRouteId } from "@/lib/detail-route-state";
@@ -12,6 +12,7 @@ import {
   signedDocument,
   signedDocuments,
   transitionCapture,
+  archiveCapture,
   uploadCaptureDocument,
 } from "@/lib/exclusive-captures-db";
 import {
@@ -54,7 +55,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowRight, Download, Eye, FileCheck2, Printer, Upload } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowRight,
+  Download,
+  Eye,
+  FileCheck2,
+  Printer,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/$id")({
   beforeLoad: guardExclusiveRoute,
@@ -109,7 +120,9 @@ function ExclusiveDetail() {
   >([]);
   const loadedId = useRef<string | null>(null);
   const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
-  const editable = capture?.status === "rascunho" || capture?.status === "devolvida";
+  const navigate = useNavigate();
+  const archived = !!capture?.archived_at;
+  const editable = !archived && (capture?.status === "rascunho" || capture?.status === "devolvida");
   const reload = useCallback(async () => {
     const result = await loadCapture(id);
     if (loadedId.current !== id) {
@@ -225,6 +238,34 @@ function ExclusiveDetail() {
       setReason("");
       toast.success("Histórico atualizado");
     });
+  const lifecycle = async (name: "excluir" | "arquivar" | "desarquivar") => {
+    const ask = {
+      excluir: "Excluir este rascunho? Ele deixará de aparecer na lista.",
+      arquivar:
+        "Arquivar esta captação? Ela sai da lista principal e pode ser desarquivada depois.",
+      desarquivar: "Desarquivar esta captação? Ela volta para a lista principal.",
+    }[name];
+    if (!window.confirm(ask)) return;
+    const done = {
+      excluir: "Rascunho excluído",
+      arquivar: "Captação arquivada",
+      desarquivar: "Captação desarquivada",
+    }[name];
+    if (name !== "excluir")
+      return run(async () => {
+        await archiveCapture(id, name);
+        toast.success(done);
+      });
+    setBusy(true);
+    try {
+      await archiveCapture(id, name);
+      toast.success(done);
+      navigate({ to: "/exclusividades" });
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Ação não concluída"));
+      setBusy(false);
+    }
+  };
   const withDoc = async (doc: CaptureDocument, fn: (url: string) => void | Promise<void>) => {
     try {
       await fn(await signedDocument(doc));
@@ -430,6 +471,9 @@ function ExclusiveDetail() {
     OWNER_FIELDS.map(({ key, label, required }) =>
       field(label, owner[key], (value) => edit(scope, key as OwnerField, value), required),
     );
+  // Mesma regra do banco (exclusive_archive): contrato gerado ou fora do rascunho → arquivar.
+  const hasContract =
+    capture.status !== "rascunho" || docs.some((d) => d.kind === "gerado" || d.kind === "assinado");
   return (
     <div className="space-y-5 pb-10">
       <Link to="/exclusividades" className="text-sm text-primary underline">
@@ -443,6 +487,42 @@ function ExclusiveDetail() {
           {statusLabels[capture.status]} · Criada em {capture.created_on_sp} (São Paulo). Captador:{" "}
           {capture.broker_name}
         </p>
+        {archived && (
+          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {!hasContract ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              disabled={busy}
+              onClick={() => lifecycle("excluir")}
+            >
+              <Trash2 className="mr-1 h-4 w-4" /> Excluir rascunho
+            </Button>
+          ) : archived ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => lifecycle("desarquivar")}
+            >
+              <ArchiveRestore className="mr-1 h-4 w-4" /> Desarquivar
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => lifecycle("arquivar")}
+            >
+              <Archive className="mr-1 h-4 w-4" /> Arquivar
+            </Button>
+          )}
+        </div>
       </div>
       <nav aria-label="Etapas da captação" className="grid gap-2 sm:grid-cols-3">
         {captureSteps.map((item, index) => (

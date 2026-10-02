@@ -87,6 +87,11 @@ export async function transitionCapture(
   });
   check(error);
 }
+// Excluir: só rascunho sem contrato (some da lista). Arquivar/desarquivar: com contrato gerado.
+export async function archiveCapture(id: string, action: "excluir" | "arquivar" | "desarquivar") {
+  const { error } = await db.rpc("exclusive_archive", { _id: id, _action: action });
+  check(error);
+}
 export async function uploadCaptureDocument(
   id: string,
   kind: DocumentKind,
@@ -125,9 +130,7 @@ export async function signedDocument(doc: CaptureDocument): Promise<string> {
 export async function downloadCaptureTemplate(template: Template): Promise<Uint8Array> {
   if (template !== "campolim" && template !== "barao-de-tatui") throw new Error("Modelo inválido");
   const prefixedPath = await storageOrganizationPath(`${template}.pdf`);
-  const { data, error } = await supabase.storage
-    .from("exclusive-templates")
-    .download(prefixedPath);
+  const { data, error } = await supabase.storage.from("exclusive-templates").download(prefixedPath);
   if (data) return new Uint8Array(await data.arrayBuffer());
   // Apenas a agência histórica pode ler o modelo sem prefixo (RLS decide).
   const legacy = await supabase.storage.from("exclusive-templates").download(`${template}.pdf`);
