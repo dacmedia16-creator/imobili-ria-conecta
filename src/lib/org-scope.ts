@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isMissingRpc } from "@/lib/rpc-errors";
 
 /**
  * Escopo de agência (organização) para rotinas que rodam com service_role.
@@ -38,6 +39,25 @@ type RpcFn = (fn: string) => PromiseLike<{ data: unknown; error: unknown }>;
 const currentOrgRpc = (user: CallerRpcClient) =>
   ((user as { rpc: RpcFn }).rpc as RpcFn).call(user, "platform_current_org");
 
+export const PLATFORM_CONTEXT_CHECK_FAILED =
+  "Não foi possível confirmar a imobiliária do acesso. Tente novamente em instantes.";
+
+/**
+ * Org destino do contexto ativo, ou null. Falha fechada: só a RPC inexistente (banco sem a
+ * migration) conta como "sem contexto"; qualquer outro erro (rede, timeout, 5xx) lança, para
+ * nunca cair na imobiliária de origem do ator enquanto a faixa mostra outra.
+ */
+export async function currentContextOrg(user: CallerRpcClient): Promise<string | null> {
+  const { data, error } = await currentOrgRpc(user);
+  if (error) {
+    if (isMissingRpc(error as { code?: string; message?: string })) return null;
+    throw new OrgScopeError(PLATFORM_CONTEXT_CHECK_FAILED);
+  }
+  if (!data || typeof data !== "object") return null;
+  const org = (data as { organization_id?: unknown }).organization_id;
+  return typeof org === "string" && org ? org : null;
+}
+
 export type CallerScope = { orgId: string; inPlatformContext: boolean };
 
 export const PLATFORM_CONTEXT_WRITE_BLOCKED =
@@ -54,19 +74,14 @@ export async function resolveCallerScope(
   admin: OrgAdminClient,
   userId: string,
 ): Promise<CallerScope> {
-  const { data, error } = await currentOrgRpc(user);
-  const ctxOrg =
-    !error && data && typeof data === "object"
-      ? (data as { organization_id?: unknown }).organization_id
-      : null;
-  if (typeof ctxOrg === "string" && ctxOrg) return { orgId: ctxOrg, inPlatformContext: true };
+  const ctxOrg = await currentContextOrg(user);
+  if (ctxOrg) return { orgId: ctxOrg, inPlatformContext: true };
   return { orgId: await resolveActiveOrg(admin, userId), inPlatformContext: false };
 }
 
 /** Gravações com service_role ficam fora da auditoria do contexto: bloqueia dentro dele. */
 export async function assertNotInPlatformContext(user: CallerRpcClient): Promise<void> {
-  const { data, error } = await currentOrgRpc(user);
-  if (!error && data) throw new OrgScopeError(PLATFORM_CONTEXT_WRITE_BLOCKED);
+  if (await currentContextOrg(user)) throw new OrgScopeError(PLATFORM_CONTEXT_WRITE_BLOCKED);
 }
 
 /** Garante que o usuário-alvo pertence à agência; não revela se existe em outra. */

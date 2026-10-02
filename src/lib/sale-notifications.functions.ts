@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import type { OrgAdminClient } from "@/lib/org-scope";
+import { currentContextOrg, type OrgAdminClient } from "@/lib/org-scope";
 import {
   chegouAoJuridico,
   proximoResponsavelRoles,
@@ -33,6 +33,21 @@ async function responsaveisELideresNaAgencia(
   );
   const listas = await Promise.all(responsaveis.map((id) => leaderIdsForCorretor(admin, orgId, id)));
   return { responsaveis, liderIds: Array.from(new Set(listas.flat())) };
+}
+
+/**
+ * Visão da plataforma (super-admin dentro de outra imobiliária): os avisos abaixo gravam com
+ * service_role (notifications, activity_logs, sale_comment_recipients) e mandam WhatsApp para
+ * pessoas reais — nada disso entra na auditoria do contexto. Decisão: SUPRIMIR os avisos enquanto
+ * o contexto estiver ativo. A alteração da venda em si segue pelo JWT e é auditada no banco.
+ * Falha fechada: se não der para confirmar o contexto (rede/5xx), também não avisa.
+ */
+async function avisosSuprimidosNoContexto(user: object): Promise<boolean> {
+  try {
+    return (await currentContextOrg(user)) !== null;
+  } catch {
+    return true;
+  }
 }
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
@@ -117,9 +132,10 @@ function papelBate(roleReal: string, papelBucket: string): boolean {
  */
 export const notifySaleStatusChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => NotifyInput.parse(input))
+  .validator((input: unknown) => NotifyInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (await avisosSuprimidosNoContexto(supabase)) return { notified: 0, sent: 0 };
 
     const { data: sale } = await supabase
       .from("sales")
@@ -363,9 +379,10 @@ const NotifyCommentInput = z.object({
 /** Notifica somente quem está com a próxima ação da venda, sem WhatsApp e sem alterar o fluxo de status. */
 export const notifySaleComment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => NotifyCommentInput.parse(input))
+  .validator((input: unknown) => NotifyCommentInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (await avisosSuprimidosNoContexto(supabase)) return { notified: 0 };
     const [{ data: comment }, { data: sale }] = await Promise.all([
       supabase
         .from("sale_comments")
