@@ -137,7 +137,8 @@ function ExclusiveList() {
                       }
                     </span>
                     <span className="text-muted-foreground">
-                      {c.captor_id === user?.id ? "Sua" : "Equipe"} · {c.created_on_sp}
+                      Criada por {c.broker_name || "—"}
+                      {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}
                     </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
