@@ -25,6 +25,40 @@ export function mesAnteriorRange(): { de: string; ate: string } {
   return mesRange(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
 }
 
+const MESES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+const dataBR = (iso: string) => {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a}`;
+};
+
+/** Texto do período filtrado para o cabeçalho e a impressão: "setembro de 2026" quando o filtro
+ * cobre exatamente um mês; senão "01/09/2026 a 15/09/2026". */
+export function descreverPeriodo(filtros: Pick<FiltrosProducao, "dataDe" | "dataAte">): string {
+  const { dataDe, dataAte } = filtros;
+  if (!dataDe || !dataAte) return "período não definido";
+  const mes = dataDe.slice(0, 7);
+  const cheio = mesRange(mes);
+  if (cheio.de === dataDe && cheio.ate === dataAte) {
+    const [ano, numeroMes] = mes.split("-").map(Number);
+    return `${MESES[numeroMes - 1]} de ${ano}`;
+  }
+  return `${dataBR(dataDe)} a ${dataBR(dataAte)}`;
+}
+
 export function mesSelecionado(filtros: Pick<FiltrosProducao, "dataDe" | "dataAte">): string {
   return filtros.dataDe.slice(0, 7);
 }

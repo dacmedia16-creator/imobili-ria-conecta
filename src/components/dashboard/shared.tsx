@@ -36,7 +36,8 @@ export function InfoDot({ text }: { text: string }) {
           setOpen((v) => !v);
         }}
         onBlur={() => setOpen(false)}
-        className={`grid h-4 w-4 place-items-center rounded-full transition-colors group-hover:bg-primary group-hover:text-primary-foreground ${
+        // Ícone continua com 16px, mas a área de toque é ampliada para ~40px pelo ::after.
+        className={`relative grid h-4 w-4 place-items-center rounded-full transition-colors after:absolute after:-inset-3 after:content-[''] group-hover:bg-primary group-hover:text-primary-foreground ${
           open ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
         }`}
       >

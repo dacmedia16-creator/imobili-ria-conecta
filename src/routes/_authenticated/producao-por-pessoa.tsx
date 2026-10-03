@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import {
   podeAcessarProducaoPorPessoa,
   totaisProducao,
 } from "@/lib/producao-por-pessoa-calc";
-import { filtrosPadrao } from "@/lib/producao-por-pessoa-filters";
+import { descreverPeriodo, filtrosPadrao } from "@/lib/producao-por-pessoa-filters";
 import { fetchProducaoPorPessoa } from "@/lib/producao-por-pessoa-query";
 import type { FiltrosProducao, ProducaoPonta } from "@/lib/producao-por-pessoa-types";
 import { Filters } from "@/components/producao-por-pessoa/Filters";
@@ -48,6 +48,7 @@ function ProducaoPorPessoaPage() {
   const [pontas, setPontas] = useState<ProducaoPonta[]>([]);
   const [filtros, setFiltros] = useState<FiltrosProducao>(filtrosPadrao());
   const [pessoaSelecionada, setPessoaSelecionada] = useState<string | null>(null);
+  const detalheRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!allowed) {
@@ -114,13 +115,35 @@ function ProducaoPorPessoaPage() {
     [filtradas, pessoaSelecionada],
   );
 
+  const pessoaSelecionadaNome = useMemo(
+    () => resumo.find((pessoa) => pessoa.chave === pessoaSelecionada)?.pessoaNome ?? null,
+    [resumo, pessoaSelecionada],
+  );
+
+  const selecionarPessoa = (chave: string) => {
+    const abrindo = pessoaSelecionada !== chave;
+    setPessoaSelecionada(abrindo ? chave : null);
+    // Leva o usuário até o detalhe filtrado: sem isso a tabela de baixo muda fora da tela e parece
+    // que o clique em "Ver" não fez nada.
+    if (abrindo) {
+      requestAnimationFrame(() =>
+        detalheRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
+  };
+
   useEffect(() => {
     if (pessoaSelecionada && !resumo.some((pessoa) => pessoa.chave === pessoaSelecionada)) {
       setPessoaSelecionada(null);
     }
   }, [pessoaSelecionada, resumo]);
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading || loading)
+    return (
+      <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+        Carregando relatório…
+      </p>
+    );
 
   if (!allowed) {
     return (
@@ -137,6 +160,9 @@ function ProducaoPorPessoaPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produção por pessoa</h1>
+          <p className="text-sm font-medium text-foreground">
+            Período: <span className="capitalize">{descreverPeriodo(filtros)}</span>
+          </p>
           <p className="text-sm text-muted-foreground print:hidden">
             Mostra as vendas comerciais válidas no período: contrato assinado na modalidade padrão
             ou entrada no Financeiro para Lançamento. O VGV e a comissão da unidade aparecem sem
@@ -166,11 +192,15 @@ function ProducaoPorPessoaPage() {
         resumo={resumo}
         operacoesPorPessoa={operacoesPorPessoa}
         pessoaSelecionada={pessoaSelecionada}
-        onSelecionarPessoa={(chave) =>
-          setPessoaSelecionada((atual) => (atual === chave ? null : chave))
-        }
+        onSelecionarPessoa={selecionarPessoa}
       />
-      <DetailTable pontas={pontasDetalhadas} />
+      <div ref={detalheRef} className="scroll-mt-4">
+        <DetailTable
+          pontas={pontasDetalhadas}
+          pessoaNome={pessoaSelecionadaNome}
+          onLimparPessoa={() => setPessoaSelecionada(null)}
+        />
+      </div>
 
       <p className="text-xs text-muted-foreground">
         Cada venda completa equivale a 1 venda: numa venda padrão, 0,5 pra quem captou + 0,5 pra

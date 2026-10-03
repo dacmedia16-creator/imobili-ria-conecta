@@ -65,7 +65,7 @@ export function SummaryTable({
                   <TableCell className="font-medium">
                     {r.pessoaNome}
                     {!r.pessoaId && (
-                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                         (sem cadastro vinculado)
                       </span>
                     )}
@@ -87,7 +87,7 @@ export function SummaryTable({
                   <TableCell className="text-right">
                     <button
                       type="button"
-                      className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                      className="min-h-9 rounded px-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => onSelecionarPessoa(r.chave)}
                       aria-pressed={pessoaSelecionada === r.chave}
                     >

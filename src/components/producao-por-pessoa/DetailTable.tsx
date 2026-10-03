@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -15,18 +17,40 @@ import { formatDateTimeBR, formatMoney, formatQtd } from "./format";
 
 const TIPO_LABEL: Record<ProducaoPonta["tipo"], string> = { captacao: "Captação", venda: "Venda" };
 
-export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
+export function DetailTable({
+  pontas,
+  pessoaNome = null,
+  onLimparPessoa,
+}: {
+  pontas: ProducaoPonta[];
+  /** Pessoa escolhida em "Ver" no resumo; null = todas as pessoas do filtro. */
+  pessoaNome?: string | null;
+  onLimparPessoa?: () => void;
+}) {
   const ordenadas = [...pontas].sort((a, b) => b.concluidaEm.localeCompare(a.concluidaEm));
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-baseline gap-x-1 text-base">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <CardTitle className="flex flex-wrap items-baseline gap-x-1 text-base" aria-live="polite">
           <span>Detalhado por operação</span>
+          {pessoaNome && <span>— {pessoaNome}</span>}
           <span className="text-sm font-normal text-muted-foreground">
             ({formatarTotalOperacoes(contarOperacoes(ordenadas))})
           </span>
         </CardTitle>
+        {pessoaNome && onLimparPessoa && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="print:hidden"
+            onClick={onLimparPessoa}
+          >
+            <X className="mr-1 h-4 w-4" />
+            Mostrar todas as pessoas
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="max-h-[70vh] overflow-auto rounded-md border">
@@ -64,7 +88,7 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
                     </Link>
                     <Badge
                       variant="outline"
-                      className={`ml-2 align-middle text-[10px] ${p.modalidade === "lancamento" ? "border-amber-400 text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
+                      className={`ml-2 align-middle text-xs ${p.modalidade === "lancamento" ? "border-amber-400 text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
                     >
                       {p.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
                     </Badge>
@@ -76,9 +100,7 @@ export function DetailTable({ pontas }: { pontas: ProducaoPonta[] }) {
                   <TableCell>
                     {p.pessoaNome}
                     {!p.pessoaId && (
-                      <span className="ml-1.5 text-[10px] text-muted-foreground">
-                        (sem cadastro)
-                      </span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">(sem cadastro)</span>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.teamNome ?? "—"}</TableCell>
