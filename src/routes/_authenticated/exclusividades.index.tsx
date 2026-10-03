@@ -17,7 +17,7 @@ import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Archive, ArrowRight, CalendarClock, House, Trash2 } from "lucide-react";
+import { Archive, ArrowRight, CalendarClock, House, MapPinned, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/")({
   head: () => ({ meta: [{ title: "Captações exclusivas" }] }),
@@ -105,6 +105,11 @@ function ExclusiveList() {
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>{showArchived ? "Captações arquivadas" : "Captações acessíveis"}</CardTitle>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/exclusividades/painel">
+                <MapPinned className="mr-1 h-4 w-4" /> Painel e mapa
+              </Link>
+            </Button>
             {!showArchived && (
               <Button
                 variant={onlyExpiring ? "default" : "outline"}

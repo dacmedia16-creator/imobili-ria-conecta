@@ -35,6 +35,7 @@ import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
+import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
 import { Route as AuthenticatedPlataformaImobiliariasRouteImport } from './routes/_authenticated/plataforma.imobiliarias'
 import { Route as AuthenticatedPlataformaUsuariosRouteImport } from './routes/_authenticated/plataforma.usuarios'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
@@ -185,6 +186,12 @@ const AuthenticatedExclusividadesIdRoute =
     path: '/exclusividades/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedExclusividadesPainelRoute =
+  AuthenticatedExclusividadesPainelRouteImport.update({
+    id: '/exclusividades/painel',
+    path: '/exclusividades/painel',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlataformaImobiliariasRoute =
   AuthenticatedPlataformaImobiliariasRouteImport.update({
     id: '/plataforma/imobiliarias',
@@ -245,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
+  '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -278,6 +286,7 @@ export interface FileRoutesByTo {
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
+  '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -313,6 +322,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
+  '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/_authenticated/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/_authenticated/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/exclusividades/$id'
+    | '/exclusividades/painel'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/admin/posicionamento'
     | '/admin/usuarios'
     | '/exclusividades/$id'
+    | '/exclusividades/painel'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -415,6 +427,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/exclusividades/$id'
+    | '/_authenticated/exclusividades/painel'
     | '/_authenticated/plataforma/imobiliarias'
     | '/_authenticated/plataforma/usuarios'
     | '/_authenticated/vendas/$id'
@@ -618,6 +631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExclusividadesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/exclusividades/painel': {
+      id: '/_authenticated/exclusividades/painel'
+      path: '/exclusividades/painel'
+      fullPath: '/exclusividades/painel'
+      preLoaderRoute: typeof AuthenticatedExclusividadesPainelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plataforma/imobiliarias': {
       id: '/_authenticated/plataforma/imobiliarias'
       path: '/plataforma/imobiliarias'
@@ -682,6 +702,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
+  AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
   AuthenticatedPlataformaImobiliariasRoute: typeof AuthenticatedPlataformaImobiliariasRoute
   AuthenticatedPlataformaUsuariosRoute: typeof AuthenticatedPlataformaUsuariosRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
@@ -711,6 +732,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
+  AuthenticatedExclusividadesPainelRoute:
+    AuthenticatedExclusividadesPainelRoute,
   AuthenticatedPlataformaImobiliariasRoute:
     AuthenticatedPlataformaImobiliariasRoute,
   AuthenticatedPlataformaUsuariosRoute: AuthenticatedPlataformaUsuariosRoute,

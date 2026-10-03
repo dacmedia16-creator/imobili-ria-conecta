@@ -59,6 +59,9 @@ export type Capture = {
   created_at: string;
   archived_at?: string | null;
   signed_on?: string | null;
+  geo_lat?: number | null;
+  geo_lon?: number | null;
+  geo_key?: string | null;
 };
 export type CaptureDocument = {
   id: string;

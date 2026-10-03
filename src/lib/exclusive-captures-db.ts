@@ -99,6 +99,16 @@ export async function addressConflicts(id: string): Promise<AddressConflict[]> {
   check(error);
   return (data ?? []) as AddressConflict[];
 }
+/** Grava a coordenada do endereço (ou "não encontrado": lat/lon nulos) para o mapa. */
+export async function setCaptureGeo(
+  id: string,
+  key: string,
+  lat: number | null,
+  lon: number | null,
+) {
+  const { error } = await db.rpc("exclusive_set_geo", { _id: id, _key: key, _lat: lat, _lon: lon });
+  check(error);
+}
 export async function setCaptureSignedOn(id: string, date: string) {
   const { error } = await db.rpc("exclusive_set_signed_on", { _id: id, _date: date });
   check(error);
