@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { createCapture, listCaptures } from "@/lib/exclusive-captures-db";
+import { archiveCapture, createCapture, listCaptures } from "@/lib/exclusive-captures-db";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   captureNextAction,
@@ -13,7 +13,7 @@ import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Archive, ArrowRight, House } from "lucide-react";
+import { Archive, ArrowRight, House, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/")({
   head: () => ({ meta: [{ title: "Captações exclusivas" }] }),
@@ -30,6 +30,21 @@ function ExclusiveList() {
   const [showArchived, setShowArchived] = useState(false);
   const archivedCount = captures.filter((c) => c.archived_at).length;
   const visible = captures.filter((c) => !!c.archived_at === showArchived);
+  const [removing, setRemoving] = useState<string | null>(null);
+  // Só rascunho; se ele já gerou contrato o banco recusa e orienta a arquivar.
+  const removeDraft = async (c: Capture) => {
+    if (!window.confirm("Excluir este rascunho? Ele deixará de aparecer na lista.")) return;
+    setRemoving(c.id);
+    try {
+      await archiveCapture(c.id, "excluir");
+      setCaptures((list) => list.filter((x) => x.id !== c.id));
+      toast.success("Rascunho excluído");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Não foi possível excluir"));
+    } finally {
+      setRemoving(null);
+    }
+  };
   useEffect(() => {
     listCaptures()
       .then(setCaptures)
@@ -125,10 +140,28 @@ function ExclusiveList() {
                       {c.captor_id === user?.id ? "Sua" : "Equipe"} · {c.created_on_sp}
                     </span>
                   </div>
-                  <p className="mt-3 border-t pt-2 text-sm">
-                    <span className="text-muted-foreground">Próxima ação: </span>
-                    {captureNextAction(c.status, manager)}
-                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Próxima ação: </span>
+                      {captureNextAction(c.status, manager)}
+                    </p>
+                    {c.status === "rascunho" && !c.archived_at && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10"
+                        disabled={removing === c.id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void removeDraft(c);
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" /> Excluir
+                      </Button>
+                    )}
+                  </div>
                 </Link>
               );
             })
