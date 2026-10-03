@@ -92,6 +92,13 @@ export async function archiveCapture(id: string, action: "excluir" | "arquivar" 
   const { error } = await db.rpc("exclusive_archive", { _id: id, _action: action });
   check(error);
 }
+export type AddressConflict = { broker_name: string; status: string; created_on_sp: string };
+/** Outras captações ativas no mesmo endereço (sem dados de proprietário). */
+export async function addressConflicts(id: string): Promise<AddressConflict[]> {
+  const { data, error } = await db.rpc("exclusive_address_conflicts", { _id: id });
+  check(error);
+  return (data ?? []) as AddressConflict[];
+}
 export async function setCaptureSignedOn(id: string, date: string) {
   const { error } = await db.rpc("exclusive_set_signed_on", { _id: id, _date: date });
   check(error);

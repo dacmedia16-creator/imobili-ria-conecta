@@ -14,6 +14,8 @@ import {
   transitionCapture,
   archiveCapture,
   setCaptureSignedOn,
+  addressConflicts,
+  type AddressConflict,
   uploadCaptureDocument,
 } from "@/lib/exclusive-captures-db";
 import {
@@ -119,6 +121,7 @@ function ExclusiveDetail() {
   const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
+  const [conflicts, setConflicts] = useState<AddressConflict[]>([]);
   const [suggestions, setSuggestions] = useState<
     {
       scope: "proprietario_1" | "proprietario_2" | "imovel";
@@ -145,6 +148,10 @@ function ExclusiveDetail() {
     setDocs(result.docs);
     setHistory(result.history);
     setSignedOn(result.capture.signed_on ?? hojeSaoPaulo());
+    // Aviso de endereço repetido: falha aqui nunca bloqueia a tela.
+    addressConflicts(id)
+      .then(setConflicts)
+      .catch(() => setConflicts([]));
     setDirty(false);
   }, [id]);
   useEffect(() => {
@@ -505,6 +512,23 @@ function ExclusiveDetail() {
           {statusLabels[capture.status]} · Criada em {capture.created_on_sp} (São Paulo). Captador:{" "}
           {capture.broker_name}
         </p>
+        {conflicts.length > 0 && (
+          <div
+            role="alert"
+            className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          >
+            <strong>Atenção: já existe captação ativa neste endereço.</strong>
+            <ul className="mt-1 list-disc pl-5">
+              {conflicts.map((c, i) => (
+                <li key={i}>
+                  {c.broker_name || "—"} · {statusLabels[c.status as Capture["status"]] ?? c.status}{" "}
+                  · criada em {formatDateBR(c.created_on_sp)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs">Confira com o gestor antes de seguir com esta captação.</p>
+          </div>
+        )}
         {capture.status === "aprovada" && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             {validity ? (
