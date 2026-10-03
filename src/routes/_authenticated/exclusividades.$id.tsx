@@ -13,11 +13,16 @@ import {
   signedDocuments,
   transitionCapture,
   archiveCapture,
+  setCaptureSignedOn,
   uploadCaptureDocument,
 } from "@/lib/exclusive-captures-db";
 import {
   applySuggestedFields,
+  captureValidity,
   emptyOwner,
+  formatDateBR,
+  VALIDITY_STYLE,
+  validityText,
   fillExclusiveTemplate,
   missingRequirements,
   ownerDocumentsComplete,
@@ -43,6 +48,7 @@ import {
   printDocumentUrls,
 } from "@/lib/document-actions";
 import { errorMessage } from "@/lib/errors";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -112,6 +118,7 @@ function ExclusiveDetail() {
   const [step, setStep] = useState<CaptureStep>("documentos");
   const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
+  const [signedOn, setSignedOn] = useState("");
   const [suggestions, setSuggestions] = useState<
     {
       scope: "proprietario_1" | "proprietario_2" | "imovel";
@@ -137,6 +144,7 @@ function ExclusiveDetail() {
     setCreci(result.capture.broker_creci);
     setDocs(result.docs);
     setHistory(result.history);
+    setSignedOn(result.capture.signed_on ?? hojeSaoPaulo());
     setDirty(false);
   }, [id]);
   useEffect(() => {
@@ -193,14 +201,15 @@ function ExclusiveDetail() {
   const generate = () =>
     run(async () => {
       if (!capture || !form) return;
-      // A versão é sempre invalidada antes de gerar. A data vem do banco (fuso SP), nunca do relógio do browser.
+      // A versão é sempre invalidada antes de gerar.
       await saveCapture(id, form, cpf, creci);
-      const bytes = await fillExclusiveTemplate(await downloadCaptureTemplate(capture.template), {
-        ...capture,
-        form_data: form,
-        broker_cpf: cpf,
-        broker_creci: creci,
-      });
+      // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
+      const bytes = await fillExclusiveTemplate(
+        await downloadCaptureTemplate(capture.template),
+        { ...capture, form_data: form, broker_cpf: cpf, broker_creci: creci },
+        true,
+        hojeSaoPaulo(),
+      );
       const file = new File([bytes as BlobPart], `contrato-exclusividade-${id.slice(0, 8)}.pdf`, {
         type: "application/pdf",
       });
@@ -235,6 +244,9 @@ function ExclusiveDetail() {
       if (name === "enviar" && !window.confirm("Você conferiu o PDF gerado e todos os documentos?"))
         return;
       await transitionCapture(id, name, name === "devolver" ? reason : undefined);
+      // Vigência conta da assinatura: grava a data informada pelo gestor (padrão hoje).
+      if (name === "aprovar" && signedOn && signedOn !== hojeSaoPaulo())
+        await setCaptureSignedOn(id, signedOn);
       setReason("");
       toast.success("Histórico atualizado");
     });
@@ -472,6 +484,12 @@ function ExclusiveDetail() {
       field(label, owner[key], (value) => edit(scope, key as OwnerField, value), required),
     );
   // Mesma regra do banco (exclusive_archive): contrato gerado ou fora do rascunho → arquivar.
+  const validity = captureValidity(capture, hojeSaoPaulo());
+  const saveSignedOn = () =>
+    run(async () => {
+      await setCaptureSignedOn(id, signedOn);
+      toast.success("Data de assinatura atualizada");
+    });
   const hasContract =
     capture.status !== "rascunho" || docs.some((d) => d.kind === "gerado" || d.kind === "assinado");
   return (
@@ -487,6 +505,45 @@ function ExclusiveDetail() {
           {statusLabels[capture.status]} · Criada em {capture.created_on_sp} (São Paulo). Captador:{" "}
           {capture.broker_name}
         </p>
+        {capture.status === "aprovada" && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            {validity ? (
+              <>
+                <span
+                  className={`rounded-full px-2 py-0.5 font-medium ${VALIDITY_STYLE[validity.level]}`}
+                >
+                  {validityText(validity)}
+                </span>
+                <span className="text-muted-foreground">
+                  Exclusividade de {validity.days} dias: assinada em {formatDateBR(validity.start)},
+                  válida até {formatDateBR(validity.end)}.
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Data de assinatura não registrada.</span>
+            )}
+            {manager && !archived && (
+              <span className="flex items-center gap-1">
+                <Input
+                  type="date"
+                  aria-label="Data de assinatura"
+                  className="h-8 w-40"
+                  max={hojeSaoPaulo()}
+                  value={signedOn}
+                  onChange={(e) => setSignedOn(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !signedOn || signedOn === capture.signed_on}
+                  onClick={saveSignedOn}
+                >
+                  Corrigir data
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
         {archived && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
@@ -867,6 +924,22 @@ function ExclusiveDetail() {
               <CardContent className="space-y-3">
                 <p className="text-sm">{clicksignManualInstructions}</p>
                 {fileInput("Contrato assinado (PDF)", "assinado")}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="signed-on">Data de assinatura do contrato</Label>
+                    <Input
+                      id="signed-on"
+                      type="date"
+                      className="w-44"
+                      max={hojeSaoPaulo()}
+                      value={signedOn}
+                      onChange={(e) => setSignedOn(e.target.value)}
+                    />
+                  </div>
+                  <p className="pb-2 text-xs text-muted-foreground">
+                    O prazo da exclusividade conta a partir desta data.
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {capture.status === "enviada" && (
                     <Button variant="outline" disabled={busy} onClick={() => action("assinatura")}>

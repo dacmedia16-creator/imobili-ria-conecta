@@ -92,6 +92,10 @@ export async function archiveCapture(id: string, action: "excluir" | "arquivar" 
   const { error } = await db.rpc("exclusive_archive", { _id: id, _action: action });
   check(error);
 }
+export async function setCaptureSignedOn(id: string, date: string) {
+  const { error } = await db.rpc("exclusive_set_signed_on", { _id: id, _date: date });
+  check(error);
+}
 export async function uploadCaptureDocument(
   id: string,
   kind: DocumentKind,

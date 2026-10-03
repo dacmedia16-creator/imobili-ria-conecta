@@ -58,6 +58,7 @@ export type Capture = {
   created_on_sp: string;
   created_at: string;
   archived_at?: string | null;
+  signed_on?: string | null;
 };
 export type CaptureDocument = {
   id: string;
@@ -242,6 +243,7 @@ export async function fillExclusiveTemplate(
   bytes: Uint8Array,
   capture: Capture,
   flatten = true,
+  contractDate?: string,
 ): Promise<Uint8Array> {
   // Carregar PDF apenas no clique: importar no SSR quebra o Worker inteiro.
   const { PDFDocument, StandardFonts } = await import("pdf-lib");
@@ -268,8 +270,9 @@ export async function fillExclusiveTemplate(
     set(names[0], data.testemunha_1[key]);
     set(names[1], data.testemunha_2[key]);
   }
-  const [year, month, day] = capture.created_on_sp.split("-").map(Number);
-  if (!year || !month || !day) throw new Error("Data civil de criação inválida");
+  // Data do contrato: dia em que ele é gerado (SP); sem ela, a data de criação.
+  const [year, month, day] = (contractDate ?? capture.created_on_sp).split("-").map(Number);
+  if (!year || !month || !day) throw new Error("Data civil do contrato inválida");
   const monthName = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     timeZone: "America/Sao_Paulo",
@@ -302,3 +305,44 @@ export function applySuggestedFields(
   }
   return { ...form, [scope]: target };
 }
+
+export type ValidityLevel = "ok" | "atencao" | "urgente" | "vencida";
+export type Validity = {
+  start: string;
+  end: string;
+  days: number;
+  daysLeft: number;
+  level: ValidityLevel;
+};
+const dayMs = 86400000;
+const utcDay = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+/** Vigência da exclusividade: conta da DATA DE ASSINATURA (cláusula 1.2) pelo prazo em dias.
+ * Sem data de assinatura registrada ainda não há vigência. `today` = data civil em SP. */
+export function captureValidity(
+  c: Pick<Capture, "signed_on" | "form_data">,
+  today: string,
+): Validity | null {
+  const days = Number.parseInt(c.form_data?.condicoes?.prazo_dias_numero ?? "", 10);
+  if (!c.signed_on || !/^\d{4}-\d{2}-\d{2}$/.test(c.signed_on) || !(days > 0)) return null;
+  const endMs = utcDay(c.signed_on) + days * dayMs;
+  const end = new Date(endMs).toISOString().slice(0, 10);
+  const daysLeft = Math.round((endMs - utcDay(today)) / dayMs);
+  const level: ValidityLevel =
+    daysLeft < 0 ? "vencida" : daysLeft <= 7 ? "urgente" : daysLeft <= 30 ? "atencao" : "ok";
+  return { start: c.signed_on, end, days, daysLeft, level };
+}
+export const formatDateBR = (iso: string) => iso.split("-").reverse().join("/");
+export function validityText(v: Validity): string {
+  if (v.daysLeft < 0) return `Vencida em ${formatDateBR(v.end)}`;
+  if (v.daysLeft === 0) return "Vence hoje";
+  return `Vence em ${v.daysLeft} dia${v.daysLeft === 1 ? "" : "s"} (${formatDateBR(v.end)})`;
+}
+export const VALIDITY_STYLE: Record<ValidityLevel, string> = {
+  ok: "bg-emerald-100 text-emerald-800",
+  atencao: "bg-amber-100 text-amber-900",
+  urgente: "bg-red-100 text-red-800",
+  vencida: "bg-muted text-muted-foreground line-through",
+};

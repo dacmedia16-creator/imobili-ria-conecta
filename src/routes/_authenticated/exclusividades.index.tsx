@@ -5,15 +5,19 @@ import { archiveCapture, createCapture, listCaptures } from "@/lib/exclusive-cap
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   captureNextAction,
+  captureValidity,
+  VALIDITY_STYLE,
+  validityText,
   TEMPLATES,
   type Capture,
   type Template,
 } from "@/lib/exclusive-captures";
 import { errorMessage } from "@/lib/errors";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Archive, ArrowRight, House, Trash2 } from "lucide-react";
+import { Archive, ArrowRight, CalendarClock, House, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/")({
   head: () => ({ meta: [{ title: "Captações exclusivas" }] }),
@@ -28,8 +32,23 @@ function ExclusiveList() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<Template | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [onlyExpiring, setOnlyExpiring] = useState(false);
+  const today = hojeSaoPaulo();
   const archivedCount = captures.filter((c) => c.archived_at).length;
-  const visible = captures.filter((c) => !!c.archived_at === showArchived);
+  // "Vencendo": exclusividade assinada que vence em até 30 dias ou já venceu (renovar).
+  const expiring = (c: Capture) => {
+    const v = captureValidity(c, today);
+    return !!v && v.daysLeft <= 30;
+  };
+  const expiringCount = captures.filter((c) => !c.archived_at && expiring(c)).length;
+  const visible = captures
+    .filter((c) => !!c.archived_at === showArchived)
+    .filter((c) => showArchived || !onlyExpiring || expiring(c))
+    .sort((a, b) =>
+      onlyExpiring
+        ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
+        : 0,
+    );
   const [removing, setRemoving] = useState<string | null>(null);
   // Só rascunho; se ele já gerou contrato o banco recusa e orienta a arquivar.
   const removeDraft = async (c: Capture) => {
@@ -85,20 +104,39 @@ function ExclusiveList() {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>{showArchived ? "Captações arquivadas" : "Captações acessíveis"}</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
-            <Archive className="mr-1 h-4 w-4" />
-            {showArchived ? "Voltar para ativas" : `Arquivadas (${archivedCount})`}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {!showArchived && (
+              <Button
+                variant={onlyExpiring ? "default" : "outline"}
+                size="sm"
+                onClick={() => setOnlyExpiring((v) => !v)}
+              >
+                <CalendarClock className="mr-1 h-4 w-4" />
+                {onlyExpiring ? "Ver todas" : `Vencendo (${expiringCount})`}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
+              <Archive className="mr-1 h-4 w-4" />
+              {showArchived ? "Voltar para ativas" : `Arquivadas (${archivedCount})`}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           {loading ? (
             <p>Carregando…</p>
           ) : visible.length === 0 ? (
-            <p>{showArchived ? "Nenhuma captação arquivada." : "Nenhuma captação disponível."}</p>
+            <p>
+              {showArchived
+                ? "Nenhuma captação arquivada."
+                : onlyExpiring
+                  ? "Nenhuma exclusividade vencendo nos próximos 30 dias."
+                  : "Nenhuma captação disponível."}
+            </p>
           ) : (
             visible.map((c) => {
               const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
               const property = c.form_data.imovel;
+              const validity = captureValidity(c, today);
               return (
                 <Link
                   key={c.id}
@@ -136,6 +174,13 @@ function ExclusiveList() {
                         }[c.status]
                       }
                     </span>
+                    {validity && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-medium ${VALIDITY_STYLE[validity.level]}`}
+                      >
+                        {validityText(validity)}
+                      </span>
+                    )}
                     <span className="text-muted-foreground">
                       Criada por {c.broker_name || "—"}
                       {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}
