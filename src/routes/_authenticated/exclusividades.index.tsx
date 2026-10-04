@@ -27,6 +27,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Archive, ArrowRight, CalendarClock, House, MapPinned, Trash2 } from "lucide-react";
 
+/** "Rua X, 268 — Apto 12 · Bairro · Sorocaba/SP" (só o que estiver preenchido). */
+function fullAddress(i: Capture["form_data"]["imovel"] | undefined): string {
+  const t = (x?: string) => x?.trim() ?? "";
+  const rua = [t(i?.endereco), t(i?.complemento)].filter(Boolean).join(" — ");
+  const cidade = [t(i?.municipio), t(i?.estado)].filter(Boolean).join("/");
+  return [rua, t(i?.bairro), cidade].filter(Boolean).join(" · ");
+}
+
 export const Route = createFileRoute("/_authenticated/exclusividades/")({
   head: () => ({ meta: [{ title: "Captações exclusivas" }] }),
   beforeLoad: guardExclusiveRoute,
@@ -190,6 +198,11 @@ function ExclusiveList() {
                           {property.endereco || property.tipo_imovel || "Imóvel a identificar"}
                         </span>
                       </div>
+                      {fullAddress(property) && (
+                        <p className="mt-1 text-sm" title={fullAddress(property)}>
+                          {fullAddress(property)}
+                        </p>
+                      )}
                       <p className="mt-1 truncate text-sm text-muted-foreground">
                         {c.form_data.proprietario_1?.nome_completo || "Proprietário a preencher"}
                         {c.form_data.proprietario_2?.nome_completo
