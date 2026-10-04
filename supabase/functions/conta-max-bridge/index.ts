@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { bridgeOrgGate } from "./core.ts";
+import { bridgeOrgGate, resolveBridgeLink } from "./core.ts";
 
 const encoder = new TextEncoder();
 const cors = {
@@ -64,59 +64,10 @@ Deno.serve(async (req) => {
     .from("conta_max_ticket_uses")
     .insert({ jti: payload.jti, expires_at: new Date(payload.exp * 1000).toISOString() });
   if (useError) return response({ error: "ticket_reused" }, 409);
-  let { data: link } = await admin
-    .from("conta_max_identity_links")
-    .select("adm_user_id")
-    .eq("workos_user_id", payload.sub)
-    .eq("active", true)
-    .maybeSingle();
-  if (!link) {
-    const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-    if (usersError) return response({ error: "identity_lookup_failed" }, 500);
-    const matches = usersPage.users.filter(
-      (user) =>
-        String(user.email ?? "")
-          .trim()
-          .toLowerCase() === payload.email,
-    );
-    if (matches.length !== 1)
-      return response(
-        { error: matches.length === 0 ? "account_email_not_found" : "account_email_ambiguous" },
-        403,
-      );
-    const admUserId = matches[0].id;
-
-    const { data: conflictingLink, error: conflictLookupError } = await admin
-      .from("conta_max_identity_links")
-      .select("adm_user_id")
-      .eq("workos_user_id", payload.sub)
-      .maybeSingle();
-    if (conflictLookupError) return response({ error: "identity_lookup_failed" }, 500);
-    if (conflictingLink && conflictingLink.adm_user_id !== admUserId)
-      return response({ error: "identity_conflict" }, 403);
-
-    const { data: existingAdmLink, error: existingLinkError } = await admin
-      .from("conta_max_identity_links")
-      .select("id")
-      .eq("adm_user_id", admUserId)
-      .maybeSingle();
-    if (existingLinkError) return response({ error: "identity_lookup_failed" }, 500);
-
-    const linkMutation = existingAdmLink
-      ? admin
-          .from("conta_max_identity_links")
-          .update({ workos_user_id: payload.sub, active: true, revoked_at: null })
-          .eq("id", existingAdmLink.id)
-      : admin
-          .from("conta_max_identity_links")
-          .insert({ workos_user_id: payload.sub, adm_user_id: admUserId, active: true });
-    const { error: linkMutationError } = await linkMutation;
-    if (linkMutationError) return response({ error: "identity_link_failed" }, 500);
-    link = { adm_user_id: admUserId };
-  }
+  // Nunca sobrescreve nem reativa vínculo existente (ver resolveBridgeLink em core.ts).
+  const resolved = await resolveBridgeLink(admin, String(payload.sub), payload.email);
+  if (!resolved.ok) return response({ error: resolved.error }, resolved.status);
+  const link = { adm_user_id: resolved.admUserId };
   // Multiempresa: só emite sessão para usuário de agência ativa (e da agência do ticket, se houver).
   const gate = await bridgeOrgGate(admin, link.adm_user_id, payload.organization_id);
   if (!gate.ok) return response({ error: gate.error }, 403);
