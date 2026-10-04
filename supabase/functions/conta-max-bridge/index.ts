@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { bridgeOrgGate, resolveBridgeLink } from "./core.ts";
+import { bridgeOrgGate, resolveBridgeLink, ticketEmailVerified } from "./core.ts";
 
 const encoder = new TextEncoder();
 const cors = {
@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
   const { ticket } = await req.json().catch(() => ({ ticket: "" }));
   const payload = await verify(String(ticket ?? ""), secret);
   if (!payload) return response({ error: "invalid_ticket" }, 401);
+  if (!ticketEmailVerified(payload)) return response({ error: "email_not_verified" }, 403);
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { error: useError } = await admin
     .from("conta_max_ticket_uses")

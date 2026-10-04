@@ -20,6 +20,13 @@ async function isPlatformAdmin(admin: AdminClient, admUserId: string): Promise<b
   return !error && Boolean(data?.user_id);
 }
 
+// O ticket só vale se a Conta MAX afirmar que o e-mail foi verificado no WorkOS.
+// ATENÇÃO na publicação: só publique esta exigência DEPOIS que a Conta MAX já estiver
+// emitindo tickets com `email_verified: true`; antes disso, todo login seria recusado.
+export function ticketEmailVerified(payload: { email_verified?: unknown }): boolean {
+  return payload?.email_verified === true;
+}
+
 // Vínculo Conta MAX (workos_user_id) ↔ usuário do ADM.
 // Regra de segurança: o e-mail do ticket só serve para criar o PRIMEIRO vínculo de um usuário do ADM.
 // - vínculo ativo do mesmo sub → entra;

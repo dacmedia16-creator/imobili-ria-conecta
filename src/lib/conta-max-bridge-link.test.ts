@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveBridgeLink } from "../../supabase/functions/conta-max-bridge/core.ts";
+import {
+  resolveBridgeLink,
+  ticketEmailVerified,
+} from "../../supabase/functions/conta-max-bridge/core.ts";
 
 // Banco falso em memória: dados 100% fictícios.
 type Link = { id: string; workos_user_id: string; adm_user_id: string; active: boolean };
@@ -42,6 +45,16 @@ function fakeAdmin(links: Link[], users: Array<{ id: string; email: string }>) {
 }
 
 const VITIMA = { id: "adm-vitima", email: "vitima@exemplo.test" };
+
+describe("ticketEmailVerified (conta-max-bridge)", () => {
+  it("só aceita email_verified === true", () => {
+    expect(ticketEmailVerified({ email_verified: true })).toBe(true);
+    for (const v of [false, undefined, null, "true", 1]) {
+      expect(ticketEmailVerified({ email_verified: v })).toBe(false);
+    }
+    expect(ticketEmailVerified({})).toBe(false);
+  });
+});
 
 describe("resolveBridgeLink (conta-max-bridge)", () => {
   it("primeiro vínculo: usuário sem vínculo → insert", async () => {
