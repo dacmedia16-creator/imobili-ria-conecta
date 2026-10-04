@@ -111,14 +111,12 @@ function SidebarNav({
         )}
         <div className="leading-tight">
           <span className="block font-semibold tracking-tight">
-            {IS_HOMOLOG ? "ADM MAX · Homologação" : "RE/MAX Portal"}
+            {IS_HOMOLOG ? "ADM MAX · Homologação" : "ADM MAX"}
           </span>
           <span className="block text-xs text-white/70">
-            {IS_HOMOLOG
-              ? platformAdmin && !platformContext
-                ? "Plataforma"
-                : (agencyBrand?.nome ?? "Agência não identificada")
-              : "Única Escolha"}
+            {platformAdmin && !platformContext
+              ? "Plataforma"
+              : (agencyBrand?.nome ?? (IS_HOMOLOG ? "Agência não identificada" : "\u00a0"))}
           </span>
         </div>
       </div>
@@ -208,7 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     roomReservationEnabled().then((enabled) => {
       if (alive) setRoomVisible(enabled);
     });
-    if ((IS_HOMOLOG || contextOrgId) && userId) {
+    if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
       supabase.rpc("current_org_id").then(async ({ data: orgId, error }) => {
         if (error || !orgId) return;
@@ -505,7 +503,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? platformAdmin && !platformContext
                 ? "ADM MAX · Plataforma"
                 : (agencyBrand?.nome ?? "ADM MAX · Homologação")
-              : "RE/MAX Portal"}
+              : platformAdmin && !platformContext
+                ? "ADM MAX · Plataforma"
+                : agencyBrand?.nome
+                  ? `ADM MAX · ${agencyBrand.nome}`
+                  : "ADM MAX"}
           </span>
         </div>
         <div className="flex items-center gap-1">
