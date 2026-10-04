@@ -792,7 +792,15 @@ function VisaoExecutiva() {
                     {(!podeAlternarVisao || visao === "empresa") && (
                       <TabsTrigger value="equipe">Por equipe</TabsTrigger>
                     )}
+                    <TabsTrigger value="total">Total geral</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="total">
+                    <RankingTotalGeral
+                      totais={comissaoStats?.comissao_por_corretor ?? {}}
+                      comoCorretor={comissaoComoCorretor}
+                      profileName={profileName}
+                    />
+                  </TabsContent>
                   {(!podeAlternarVisao || visao === "equipe") && (
                     <TabsContent value="corretor">
                       <RankingTable
@@ -912,6 +920,69 @@ function ResumoCard({
         <p className="text-xs text-muted-foreground pr-4">{label}</p>
       </CardContent>
     </Card>
+  );
+}
+
+/** Ranking pelo ganho total de cada pessoa: como corretor + como gestor/Team Leader/coordenação.
+ * Usa os mesmos valores do quadro "Comissão por corretor" (Total = soma das duas partes). */
+function RankingTotalGeral({
+  totais,
+  comoCorretor,
+  profileName,
+}: {
+  totais: Record<string, number | string>;
+  comoCorretor: Record<string, number>;
+  profileName: Record<string, string>;
+}) {
+  const linhas = Object.entries(totais)
+    .map(([id, v]) => {
+      const total = Number(v ?? 0);
+      const corretor = comoCorretor[id] ?? 0;
+      return { id, total, corretor, equipe: Math.max(total - corretor, 0) };
+    })
+    .filter((l) => l.total > 0)
+    .sort((a, b) => b.total - a.total);
+  if (linhas.length === 0)
+    return <p className="py-8 text-center text-sm text-muted-foreground">Sem dados no período.</p>;
+  return (
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead className="text-right">Como corretor</TableHead>
+            <TableHead className="text-right">Como gestor / Team Leader</TableHead>
+            <TableHead className="text-right">Total geral</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {linhas.map((l, i) => (
+            <TableRow key={l.id}>
+              <TableCell className="font-medium">
+                <span className="inline-flex items-center gap-2">
+                  {i < 3 && (
+                    <span
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{ background: i === 0 ? "#c9971f" : i === 1 ? "#9aa0a6" : "#b0703a" }}
+                    >
+                      {i + 1}
+                    </span>
+                  )}
+                  {profileName[l.id] ?? `${l.id.slice(0, 8)}…`}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">{money(l.corretor)}</TableCell>
+              <TableCell className="text-right">{money(l.equipe)}</TableCell>
+              <TableCell className="text-right font-semibold">{money(l.total)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <p className="pt-2 text-xs text-muted-foreground">
+        Total geral = o que a pessoa ganhou como corretor (captação e venda próprias) + como gestor,
+        Team Leader ou coordenação de lançamento.
+      </p>
+    </>
   );
 }
 
