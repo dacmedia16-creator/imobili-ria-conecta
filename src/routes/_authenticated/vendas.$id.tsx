@@ -1014,6 +1014,13 @@ function SaleDetail() {
       // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
       // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
       let resolvedExtras = formExtras;
+      if (dirtyExtras && formExtras.some((r) => !r.user_id && !(r.nome ?? "").trim())) {
+        setResumoSaveFailed(true);
+        toast.error(
+          "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.",
+        );
+        return false;
+      }
       if (dirtyExtras) {
         const currentIds = new Set(formExtras.filter((r) => !r._new).map((r) => r.id));
         const removed = commissionExtras.filter((r) => !currentIds.has(r.id));
