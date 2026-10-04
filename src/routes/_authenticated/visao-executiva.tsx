@@ -209,6 +209,7 @@ function VisaoExecutiva() {
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
   const [buscaComissao, setBuscaComissao] = useState("");
+  const [comissaoComoCorretor, setComissaoComoCorretor] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!ehLider || !user?.id) {
@@ -357,6 +358,14 @@ function VisaoExecutiva() {
       setProfileName(names);
       setMetas((metasRes.data as unknown as MetaProgresso) ?? { corretor: [], equipe: [] });
       setComissaoStats((carteiraRes.data as unknown as ComissaoPorStatusStats) ?? null);
+      // Parte de cada pessoa como corretora (captação/venda própria), mesma base do Ranking.
+      const proprio: Record<string, number> = {};
+      for (const r of (rankingPessoalRes.data ?? []) as unknown as Array<{
+        corretor_id: string;
+        comissao: number | string | null;
+      }>)
+        proprio[r.corretor_id] = Number(r.comissao ?? 0);
+      setComissaoComoCorretor(proprio);
       setOperacaoRemax(
         (operacaoRes.data as unknown as ResumoDesempenho) ?? {
           vgv_proprio: 0,
@@ -640,12 +649,34 @@ function VisaoExecutiva() {
               {comissaoFiltrada.length === 0 && (
                 <p className="py-2 text-muted-foreground">Nenhum nome encontrado.</p>
               )}
-              {comissaoFiltrada.map(([cid, valor]) => (
-                <div key={cid} className="flex items-center justify-between rounded-md border p-2">
-                  <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
-                  <span className="font-medium">{money(Number(valor))}</span>
+              {comissaoFiltrada.length > 0 && (
+                <div className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(5.5rem,auto))] gap-x-3 px-2 pb-1 text-xs text-muted-foreground">
+                  <span>Nome</span>
+                  <span className="text-right">Como corretor</span>
+                  <span className="text-right">Como equipe</span>
+                  <span className="text-right">Total</span>
                 </div>
-              ))}
+              )}
+              {comissaoFiltrada.map(([cid, valor]) => {
+                const total = Number(valor);
+                const comoCorretor = comissaoComoCorretor[cid] ?? 0;
+                const comoEquipe = Math.max(total - comoCorretor, 0);
+                return (
+                  <div
+                    key={cid}
+                    className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(5.5rem,auto))] items-center gap-x-3 rounded-md border p-2"
+                  >
+                    <span className="truncate">{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
+                    <span className="text-right">{money(comoCorretor)}</span>
+                    <span className="text-right">{money(comoEquipe)}</span>
+                    <span className="text-right font-medium">{money(total)}</span>
+                  </div>
+                );
+              })}
+              <p className="pt-1 text-xs text-muted-foreground">
+                Como corretor: captação e venda próprias. Como equipe: líder, gestor e coordenação
+                de lançamento. Total: soma das duas.
+              </p>
             </CardContent>
           </Card>
         )}
