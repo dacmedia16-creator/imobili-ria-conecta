@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   captureUnitLabel,
   contractSource,
+  emptyForm,
   emptyOwner,
   fillExclusiveTemplate,
+  logoCommercialName,
+  normalizeForm,
+  unitForoDefaults,
   type Capture,
   type ExclusiveUnit,
 } from "./exclusive-captures";
@@ -23,6 +27,49 @@ const unit = (over: Partial<ExclusiveUnit> = {}): ExclusiveUnit => ({
   contrato_antigo: false,
   ativo: true,
   ...over,
+});
+
+describe("logo da pág. 6 e foro da unidade", () => {
+  it("logo da pág. 6 mostra só o nome comercial, sem RE/MAX e sem número da unidade", () => {
+    const unica = { nome: "Única Escolha I", nome_comercial: "RE/MAX ÚNICA ESCOLHA" };
+    expect(logoCommercialName(unica)).toBe("Única Escolha");
+    expect(logoCommercialName({ ...unica, nome: "Única Escolha II" })).toBe("Única Escolha");
+    expect(
+      logoCommercialName({ nome: "Horizonte Campinas", nome_comercial: "RE/MAX Horizonte" }),
+    ).toBe("Horizonte");
+    expect(logoCommercialName({ nome: "X", nome_comercial: "REMAX PRAIA DO SOL" })).toBe(
+      "Praia do Sol",
+    );
+  });
+  it("captação nova usa a cidade da unidade no foro", () => {
+    const u = unit({ cidade: "Campinas", estado: "São Paulo" });
+    expect(unitForoDefaults(u)).toEqual({ foro_comarca: "Campinas", foro_estado: "São Paulo" });
+    const f = normalizeForm({}, u);
+    expect(f.condicoes.foro_comarca).toBe("Campinas");
+    expect(f.condicoes.prazo_dias_numero).toBe("180");
+    expect(emptyForm().condicoes.foro_comarca).toBe("Sorocaba");
+  });
+  it("foro já gravado (captação existente ou editado pelo corretor) não muda", () => {
+    const u = unit({ cidade: "Campinas" });
+    const salvo = normalizeForm(
+      { condicoes: { ...emptyForm().condicoes, foro_comarca: "Sorocaba" } },
+      u,
+    );
+    expect(salvo.condicoes.foro_comarca).toBe("Sorocaba");
+    const editado = normalizeForm(
+      { condicoes: { ...emptyForm().condicoes, foro_comarca: "Valinhos" } },
+      u,
+    );
+    expect(editado.condicoes.foro_comarca).toBe("Valinhos");
+    // Sem unidade: comportamento antigo.
+    expect(normalizeForm({}).condicoes.foro_comarca).toBe("Sorocaba");
+  });
+  it("troca de unidade antes de salvar acompanha a nova cidade", () => {
+    const a = unit({ cidade: "Campinas" });
+    const b = unit({ id: "u2", cidade: "Jundiaí" });
+    expect(normalizeForm({}, a).condicoes.foro_comarca).toBe("Campinas");
+    expect(normalizeForm({}, b).condicoes.foro_comarca).toBe("Jundiaí");
+  });
 });
 
 describe("unidade da captação", () => {

@@ -32,8 +32,10 @@ import {
   OWNER_FIELDS,
   PROPERTY_FIELDS,
   TERMS_FIELDS,
+  captureUnit,
   captureUnitLabel,
   contractSource,
+  normalizeForm,
   type Capture,
   type CaptureDocument,
   type ExclusiveUnit,
@@ -147,7 +149,8 @@ function ExclusiveDetail() {
       loadedId.current = id;
     }
     setCapture(result.capture);
-    setForm(result.capture.form_data);
+    // Foro ainda não gravado = cidade/estado da unidade; foro já salvo (ou editado) é mantido.
+    setForm(normalizeForm(result.savedForm, captureUnit(result.capture, unitList)));
     setCpf(result.capture.broker_cpf);
     setCreci(result.capture.broker_creci);
     setDocs(result.docs);

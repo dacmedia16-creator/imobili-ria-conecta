@@ -40,9 +40,12 @@ export async function listCaptures(): Promise<Capture[]> {
   check(error);
   return ((data ?? []) as Capture[]).map((c) => ({ ...c, form_data: normalizeForm(c.form_data) }));
 }
-export async function loadCapture(
-  id: string,
-): Promise<{ capture: Capture; docs: CaptureDocument[]; history: CaptureEvent[] }> {
+export async function loadCapture(id: string): Promise<{
+  capture: Capture;
+  savedForm: Partial<CaptureForm>;
+  docs: CaptureDocument[];
+  history: CaptureEvent[];
+}> {
   const { data, error } = await db.from("exclusive_captures").select("*").eq("id", id).single();
   check(error);
   const [{ data: docs, error: docError }, { data: history, error: histError }] = await Promise.all([
@@ -58,6 +61,8 @@ export async function loadCapture(
   const capture = data as Capture;
   return {
     capture: { ...capture, form_data: normalizeForm(capture.form_data) },
+    // Como está gravado (sem defaults): a tela decide o foro padrão pela unidade.
+    savedForm: (capture.form_data ?? {}) as Partial<CaptureForm>,
     docs: (docs ?? []) as CaptureDocument[],
     history: (history ?? []) as CaptureEvent[],
   };

@@ -241,14 +241,29 @@ export function emptyForm(): CaptureForm {
     testemunha_2: emptyWitness(),
   };
 }
-export function normalizeForm(value: Partial<CaptureForm> | null | undefined): CaptureForm {
+/** Foro padrão da captação nova: cidade/estado da unidade escolhida (Sorocaba/SP sem unidade). */
+export function unitForoDefaults(
+  unit: Pick<ExclusiveUnit, "cidade" | "estado"> | null | undefined,
+): Pick<Terms, "foro_comarca" | "foro_estado"> {
+  const d = defaultTerms();
+  return {
+    foro_comarca: unit?.cidade?.trim() || d.foro_comarca,
+    foro_estado: unit?.estado?.trim() || d.foro_estado,
+  };
+}
+/** `unit`: só preenche o foro que ainda não foi gravado na captação; foro já salvo (inclusive
+ * editado pelo corretor) nunca é sobrescrito. */
+export function normalizeForm(
+  value: Partial<CaptureForm> | null | undefined,
+  unit?: Pick<ExclusiveUnit, "cidade" | "estado"> | null,
+): CaptureForm {
   return {
     proprietario_1: { ...emptyOwner(), ...value?.proprietario_1 },
     ...(value?.proprietario_2
       ? { proprietario_2: { ...emptyOwner(), ...value.proprietario_2 } }
       : {}),
     imovel: { ...emptyProperty(), ...value?.imovel },
-    condicoes: { ...defaultTerms(), ...value?.condicoes },
+    condicoes: { ...defaultTerms(), ...(unit ? unitForoDefaults(unit) : {}), ...value?.condicoes },
     testemunha_1: { ...emptyWitness(), ...value?.testemunha_1 },
     testemunha_2: { ...emptyWitness(), ...value?.testemunha_2 },
   };
@@ -343,6 +358,21 @@ const UNIT_CRECI_POS: [page: number, x: number, y: number][] = [
   [4, 96.51, 40.8],
 ];
 export const UNIT_TEXT_LIMITS = { clausulaB: 225, logo: 108 };
+const SMALL_WORDS = new Set(["de", "da", "do", "das", "dos", "e"]);
+/** Nome sob o logo da pág. 6: só o nome comercial, sem o prefixo "RE/MAX" e sem o número da
+ * unidade (ex.: "RE/MAX ÚNICA ESCOLHA" → "Única Escolha"; "RE/MAX Horizonte" → "Horizonte").
+ * Texto todo em maiúsculas vira "Título", como o logo atual. */
+export function logoCommercialName(unit: Pick<ExclusiveUnit, "nome" | "nome_comercial">): string {
+  const name = (unit.nome_comercial || unit.nome).replace(/^\s*RE\/?\s?MAX\b\s*/i, "").trim();
+  if (name !== name.toLocaleUpperCase("pt-BR")) return name;
+  return name
+    .toLocaleLowerCase("pt-BR")
+    .split(/\s+/)
+    .map((w, i) =>
+      i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1),
+    )
+    .join(" ");
+}
 /** Tamanho máximo por campo da unidade, igual ao que os PDFs antigos exibiam. */
 const UNIT_FIELD_SIZE: Record<string, number> = { Franquia: 15.49, REMAX_2: 8.54 };
 /** Pág. 6: faixa branca sob o "RE/MAX" do logo (cobre as bordas da área apagada da imagem). */
@@ -417,7 +447,8 @@ export async function fillExclusiveTemplate(
       height: LOGO6.y1 - LOGO6.y0,
       color: rgb(1, 1, 1),
     });
-    const logoName = unit.nome.trim();
+    // Págs. 1-5 mostram o nome da unidade; a pág. 6, só o nome comercial (como no contrato atual).
+    const logoName = logoCommercialName(unit);
     const logoSize = fit(logoName, bold, 15, UNIT_TEXT_LIMITS.logo);
     pages[5].drawText(logoName, {
       x: LOGO6.centerX - bold.widthOfTextAtSize(logoName, logoSize) / 2,
