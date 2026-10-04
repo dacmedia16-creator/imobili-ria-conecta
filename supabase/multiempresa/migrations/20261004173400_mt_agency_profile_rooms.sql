@@ -86,7 +86,7 @@ BEGIN
     RAISE EXCEPTION 'Campos inválidos' USING ERRCODE='22023';
   END IF;
   IF _data ? 'logo_path' AND nullif(_data->>'logo_path','') IS NOT NULL
-    AND left(_data->>'logo_path', length(_org::text) + 1) <> _org::text || '/' THEN
+    AND (_data->>'logo_path' !~ ('^' || _org::text || '/logo-[A-Za-z0-9-]+[.](png|jpg|webp)$')) THEN
     RAISE EXCEPTION 'Logo deve pertencer à imobiliária' USING ERRCODE='42501';
   END IF;
   UPDATE public.organizations SET
