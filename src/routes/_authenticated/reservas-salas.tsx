@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, Info, Plus, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -34,7 +34,6 @@ import {
   getRoomReservationPeriodTimes,
   intervalsOverlap,
   ROOM_RESERVATION_PURPOSES,
-  ROOM_RESERVATION_ROOMS,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
 import type {
@@ -42,6 +41,7 @@ import type {
   RoomReservationPeriod,
 } from "@/lib/reservas-salas-calc";
 
+import { listAgencyRooms } from "@/lib/agency-profile";
 import { guardRoomReservationRoute } from "@/lib/room-reservation-module";
 export const Route = createFileRoute("/_authenticated/reservas-salas")({
   head: () => ({ meta: [{ title: "Agendamento de salas" }] }),
@@ -49,7 +49,6 @@ export const Route = createFileRoute("/_authenticated/reservas-salas")({
   component: RoomReservationsPage,
 });
 
-const ROOMS = ROOM_RESERVATION_ROOMS;
 const TIME_SLOTS = [
   "08:00",
   "09:00",
@@ -73,7 +72,7 @@ const RESERVATION_PERIODS: Array<{ value: RoomReservationPeriod; label: string }
 type Reservation = {
   id: string;
   groupId: string;
-  room: (typeof ROOMS)[number];
+  room: string;
   date: string;
   endDate: string;
   start: string;
@@ -211,13 +210,33 @@ const groupReservationsByPeriod = (items: Reservation[]): Reservation[] => {
 };
 
 function RoomReservationsPage() {
-  const { user } = useAuth();
+  const { user, hasAny } = useAuth();
+  const [rooms, setRooms] = useState<string[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
+  const [roomError, setRoomError] = useState(false);
+  const canManageRooms = hasAny(["admin", "super_admin"]);
+  useEffect(() => {
+    let active = true;
+    void listAgencyRooms()
+      .then((items) => {
+        if (active) setRooms(items.filter((room) => room.ativo).map((room) => room.nome));
+      })
+      .catch(() => {
+        if (active) setRoomError(true);
+      })
+      .finally(() => {
+        if (active) setLoadingRooms(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
   const initialDate = todayISO();
   const fallbackResponsibleName =
     user?.user_metadata?.nome ?? user?.user_metadata?.full_name ?? user?.email ?? "Usuário atual";
   const [responsibleName, setResponsibleName] = useState(fallbackResponsibleName);
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [roomFilter, setRoomFilter] = useState<"all" | (typeof ROOMS)[number]>("all");
+  const [roomFilter, setRoomFilter] = useState<string>("all");
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
@@ -227,7 +246,7 @@ function RoomReservationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [draft, setDraft] = useState<DraftReservation>({
-    room: "Barão Sala 2",
+    room: "",
     date: initialDate,
     endDate: initialDate,
     start: "14:00",
@@ -314,7 +333,7 @@ function RoomReservationsPage() {
     void loadReservations();
   }, [loadReservations]);
 
-  const visibleRooms = roomFilter === "all" ? ROOMS : [roomFilter];
+  const visibleRooms = roomFilter === "all" ? rooms : rooms.filter((room) => room === roomFilter);
   const activeReservations = reservations.filter(
     (reservation) => reservation.status === "confirmed",
   );
@@ -343,7 +362,8 @@ function RoomReservationsPage() {
   );
   const conflict = conflictingDates.length > 0;
 
-  const openNewReservation = (room: (typeof ROOMS)[number] = "Barão Sala 2", start = "14:00") => {
+  const openNewReservation = (room = rooms[0], start = "14:00") => {
+    if (!room || !rooms.includes(room)) return;
     setDraft({
       room,
       date: selectedDate,
@@ -372,6 +392,10 @@ function RoomReservationsPage() {
   const saveReservation = async () => {
     if (!user) {
       toast.error("Faça login para criar uma reserva.");
+      return;
+    }
+    if (!rooms.includes(draft.room)) {
+      toast.error("Escolha uma sala ativa da sua imobiliária.");
       return;
     }
     if (
@@ -475,7 +499,7 @@ function RoomReservationsPage() {
     toast.success(getRoomReservationCancellationNotice(nextStatus, data.was_late_cancellation));
   };
 
-  const reservationForSlot = (room: (typeof ROOMS)[number], slot: string) =>
+  const reservationForSlot = (room: string, slot: string) =>
     selectedReservations.find(
       (reservation) =>
         reservation.room === room &&
@@ -494,7 +518,10 @@ function RoomReservationsPage() {
             Consulte a disponibilidade e reserve uma sala sem conflito de horários.
           </p>
         </div>
-        <Button onClick={() => openNewReservation()}>
+        <Button
+          onClick={() => openNewReservation()}
+          disabled={loadingRooms || roomError || rooms.length === 0}
+        >
           <Plus className="mr-2 h-4 w-4" /> Reservar sala
         </Button>
       </div>
@@ -510,6 +537,30 @@ function RoomReservationsPage() {
           atingir 3, o usuário fica 7 dias corridos sem poder reservar.
         </AlertDescription>
       </Alert>
+      {roomError && (
+        <Alert variant="destructive">
+          <XCircle className="h-4 w-4" />
+          <AlertTitle>Salas indisponíveis</AlertTitle>
+          <AlertDescription>
+            Não foi possível carregar as salas. Tente novamente mais tarde.
+          </AlertDescription>
+        </Alert>
+      )}
+      {!loadingRooms && !roomError && rooms.length === 0 && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>Nenhuma sala cadastrada</AlertTitle>
+          <AlertDescription>
+            {canManageRooms ? (
+              <Link to="/admin/dados-imobiliaria" className="underline">
+                Cadastrar a primeira sala
+              </Link>
+            ) : (
+              "Peça ao administrador da imobiliária para cadastrar uma sala."
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       {loadError && (
         <Alert variant="destructive">
           <XCircle className="h-4 w-4" />
@@ -556,7 +607,7 @@ function RoomReservationsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as salas</SelectItem>
-                  {ROOMS.map((room) => (
+                  {rooms.map((room) => (
                     <SelectItem key={room} value={room}>
                       {room}
                     </SelectItem>
@@ -776,7 +827,7 @@ function RoomReservationsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOMS.map((room) => (
+                  {rooms.map((room) => (
                     <SelectItem key={room} value={room}>
                       {room}
                     </SelectItem>

@@ -7,6 +7,7 @@ import {
   SITUATION_COLOR,
   SITUATION_LABEL,
 } from "@/lib/exclusive-captures-dashboard";
+import { agencyCity, agencyUf } from "@/lib/agency-profile";
 import { formatDateBR, validityText, type Capture } from "@/lib/exclusive-captures";
 
 /** Mapa das captações (OpenStreetMap). Popup só com dados do imóvel — nunca do proprietário.
@@ -14,10 +15,14 @@ import { formatDateBR, validityText, type Capture } from "@/lib/exclusive-captur
 export function CapturesMap({
   captures,
   today,
+  city,
+  uf,
   onOpen,
 }: {
   captures: Capture[];
   today: string;
+  city: string | null;
+  uf: string | null;
   onOpen: (id: string) => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -74,7 +79,25 @@ export function CapturesMap({
       const lf = (mod as unknown as { default?: typeof import("leaflet") }).default ?? mod;
       if (cancelled || !el.current || map.current) return;
       L.current = lf;
-      map.current = lf.map(el.current).setView([-23.5015, -47.4526], 12); // Sorocaba
+      const isSorocaba =
+        agencyCity(city).toLocaleLowerCase("pt-BR") === "sorocaba" &&
+        agencyUf(uf, city).toUpperCase() === "SP";
+      map.current = lf
+        .map(el.current)
+        .setView(isSorocaba ? [-23.5015, -47.4526] : [-15.8, -47.9], 12);
+      if (city?.trim() && !isSorocaba) {
+        const q = [agencyCity(city), agencyUf(uf, city), "Brasil"].filter(Boolean).join(", ");
+        void fetch(
+          "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=" +
+            encodeURIComponent(q),
+        )
+          .then((response) => (response.ok ? response.json() : []))
+          .then((hits: { lat: string; lon: string }[]) => {
+            if (!cancelled && map.current && hits[0] && !captures.some((c) => c.geo_lat != null))
+              map.current.setView([Number(hits[0].lat), Number(hits[0].lon)], 12);
+          })
+          .catch(() => {});
+      }
       lf.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -89,7 +112,7 @@ export function CapturesMap({
       layer.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [city, uf]);
   useEffect(draw, [captures, today]);
 
   return <div ref={el} className="h-[420px] w-full rounded-md border" style={{ zIndex: 0 }} />;

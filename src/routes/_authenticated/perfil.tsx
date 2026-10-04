@@ -25,6 +25,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
 import {
@@ -82,9 +83,10 @@ function MeuAcesso() {
   const [positioningSearch, setPositioningSearch] = useState("");
   const [savingPositioning, setSavingPositioning] = useState(false);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
+  const [agencyLocation, setAgencyLocation] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState({
     nome: "",
-    cidade: "Sorocaba",
+    cidade: agencyCity(null),
     zona: "",
     tipo: "bairro",
   });
@@ -145,6 +147,16 @@ function MeuAcesso() {
       setNotifAtualizacaoPorPapel(mapAtualizacao);
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !canUsePositioning) return;
+    void loadAgencyProfile()
+      .then((agency) => {
+        setAgencyLocation(agency.cidade);
+        setSuggestion((current) => ({ ...current, cidade: agencyCity(agency.cidade) }));
+      })
+      .catch(() => {});
+  }, [user, canUsePositioning]);
 
   useEffect(() => {
     if (!user || !canUsePositioning) return;
@@ -323,7 +335,7 @@ function MeuAcesso() {
         },
         ...current,
       ]);
-      setSuggestion({ nome: "", cidade: "Sorocaba", zona: "", tipo: "bairro" });
+      setSuggestion({ nome: "", cidade: agencyCity(agencyLocation), zona: "", tipo: "bairro" });
       setSuggestionOpen(false);
       toast.success("Sugestão enviada para análise");
     } finally {

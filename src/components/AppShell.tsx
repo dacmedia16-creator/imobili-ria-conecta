@@ -380,6 +380,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const adminNav: NavItem[] = [
     {
+      to: "/admin/dados-imobiliaria",
+      label: "Dados da imobiliária",
+      icon: Building2,
+      show: hasAny(["admin", "super_admin"]),
+    },
+    {
       to: "/admin/unidades-captacao",
       label: "Unidades da captação",
       icon: Building2,

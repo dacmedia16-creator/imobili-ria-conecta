@@ -1,3 +1,4 @@
+import { agencyCity, agencyUf } from "./agency-profile";
 import {
   captureUnitKey,
   captureUnitLabel,
@@ -210,10 +211,13 @@ export function geoKey(c: Capture): string {
   return parts.join("|");
 }
 /** Consultas ao OpenStreetMap, da mais precisa para a aproximada (rua -> rua sem número -> bairro). */
-export function geoQueries(c: Capture): string[] {
+export function geoQueries(
+  c: Capture,
+  agency?: { cidade: string | null; uf: string | null },
+): string[] {
   const i = c.form_data.imovel;
-  const city = clean(i?.municipio) || "Sorocaba";
-  const uf = clean(i?.estado) || "SP";
+  const city = clean(i?.municipio) || agencyCity(agency?.cidade);
+  const uf = clean(i?.estado) || agencyUf(agency?.uf, agency?.cidade);
   const rua = clean(i?.endereco).replace(/,\s*$/, "");
   const semNumero = rua.replace(/[,\s]+\d+\s*[a-z]?$/i, "").replace(/,.*$/, "");
   const bairro = clean(i?.bairro);

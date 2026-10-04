@@ -32,6 +32,7 @@ import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authen
 import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
+import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUnidadesCaptacaoRouteImport } from './routes/_authenticated/admin.unidades-captacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
@@ -170,6 +171,12 @@ const AuthenticatedAdminConfiguracoesRoute =
     path: '/admin/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminDadosImobiliariaRoute =
+  AuthenticatedAdminDadosImobiliariaRouteImport.update({
+    id: '/admin/dados-imobiliaria',
+    path: '/admin/dados-imobiliaria',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminPosicionamentoRoute =
   AuthenticatedAdminPosicionamentoRouteImport.update({
     id: '/admin/posicionamento',
@@ -264,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
+  '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -300,6 +308,7 @@ export interface FileRoutesByTo {
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
+  '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -338,6 +347,7 @@ export interface FileRoutesById {
   '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
+  '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/admin/configuracoes'
+    | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/admin/configuracoes'
+    | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
@@ -449,6 +461,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/configuracoes'
+    | '/_authenticated/admin/dados-imobiliaria'
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/unidades-captacao'
     | '/_authenticated/admin/usuarios'
@@ -636,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/dados-imobiliaria': {
+      id: '/_authenticated/admin/dados-imobiliaria'
+      path: '/admin/dados-imobiliaria'
+      fullPath: '/admin/dados-imobiliaria'
+      preLoaderRoute: typeof AuthenticatedAdminDadosImobiliariaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/posicionamento': {
       id: '/_authenticated/admin/posicionamento'
       path: '/admin/posicionamento'
@@ -740,6 +760,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedVendasPorRegiaoRoute: typeof AuthenticatedVendasPorRegiaoRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
+  AuthenticatedAdminDadosImobiliariaRoute: typeof AuthenticatedAdminDadosImobiliariaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUnidadesCaptacaoRoute: typeof AuthenticatedAdminUnidadesCaptacaoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
@@ -772,6 +793,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedVendasPorRegiaoRoute: AuthenticatedVendasPorRegiaoRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
+  AuthenticatedAdminDadosImobiliariaRoute:
+    AuthenticatedAdminDadosImobiliariaRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
   AuthenticatedAdminUnidadesCaptacaoRoute:
     AuthenticatedAdminUnidadesCaptacaoRoute,

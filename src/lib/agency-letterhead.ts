@@ -1,34 +1,37 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const db = supabase as unknown as SupabaseClient;
 
 const LEGACY_ORG_ID = "00000000-0000-4000-8000-000000000001";
-const LEGACY_LEGAL_NAME = "IMOBILIÁRIA RE/MAX ÚNICA NEGÓCIOS IMOB. LTDA";
-const LEGACY_CRECI = "CRECI: 29.886-J";
 
-// Marca fixa da agência histórica (Única Escolha), a mesma já usada no build de produção.
-// Outras agências só têm logo quando cadastram o próprio (organization-logos).
+// Logo histórica preservada enquanto a agência não cadastrar logo próprio.
 export function fixedLogoForOrganization(id: string): string | null {
   return id === LEGACY_ORG_ID ? "/remax-icon.png" : null;
 }
 
 export type AgencyLetterhead = { name: string; creci: string | null };
 
-export function letterheadForOrganization(id: string, name: string): AgencyLetterhead {
-  if (!name.trim()) throw new Error("A imobiliária não tem nome cadastrado.");
-  return id === LEGACY_ORG_ID
-    ? { name: LEGACY_LEGAL_NAME, creci: LEGACY_CRECI }
-    : { name: name.trim(), creci: null };
+export function letterheadForOrganization(
+  name: string,
+  legalName: string | null,
+  creci: string | null,
+): AgencyLetterhead {
+  const title = legalName?.trim() || name.trim();
+  if (!title) throw new Error("A imobiliária não tem nome cadastrado.");
+  return { name: title, creci: creci?.trim() || null };
 }
 
 export async function loadAgencyLetterhead(organizationId: string): Promise<AgencyLetterhead> {
   if (!organizationId) throw new Error("Imobiliária da venda não identificada.");
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("organizations")
-    .select("nome")
+    .select("nome, razao_social, creci")
     .eq("id", organizationId)
     .maybeSingle();
   if (error || !data) throw new Error("Não foi possível identificar a imobiliária da venda.");
-  return letterheadForOrganization(organizationId, data.nome);
+  return letterheadForOrganization(data.nome, data.razao_social, data.creci);
 }
 
 export function useAgencyLetterhead(organizationId: string) {

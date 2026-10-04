@@ -24,6 +24,7 @@ import {
   type Group,
   type Situation,
 } from "@/lib/exclusive-captures-dashboard";
+import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { errorMessage } from "@/lib/errors";
@@ -41,8 +42,8 @@ export const Route = createFileRoute("/_authenticated/exclusividades/painel")({
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** OpenStreetMap/Nominatim: só o endereço do imóvel, 1 consulta por segundo (política de uso). */
-async function geocode(c: Capture): Promise<[number, number] | null> {
-  for (const q of geoQueries(c)) {
+async function geocode(c: Capture, agency: AgencyProfile | null): Promise<[number, number] | null> {
+  for (const q of geoQueries(c, agency ?? undefined)) {
     const url =
       "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=" +
       encodeURIComponent(q);
@@ -96,6 +97,7 @@ function CapturesDashboard() {
   const today = hojeSaoPaulo();
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [units, setUnits] = useState<ExclusiveUnit[]>([]);
+  const [agency, setAgency] = useState<AgencyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [hidden, setHidden] = useState<Situation[]>([]);
@@ -103,10 +105,11 @@ function CapturesDashboard() {
   const started = useRef(false);
 
   useEffect(() => {
-    Promise.all([listCaptures(), listUnits()])
-      .then(([list, unitList]) => {
+    Promise.all([listCaptures(), listUnits(), loadAgencyProfile()])
+      .then(([list, unitList, agencyProfile]) => {
         setCaptures(list);
         setUnits(unitList);
+        setAgency(agencyProfile);
       })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
@@ -122,7 +125,7 @@ function CapturesDashboard() {
       setLocating({ done: 0, total: pending.length });
       for (const [i, c] of pending.entries()) {
         try {
-          const hit = await geocode(c);
+          const hit = await geocode(c, agency);
           const key = geoKey(c);
           await setCaptureGeo(c.id, key, hit?.[0] ?? null, hit?.[1] ?? null);
           setCaptures((list) =>
@@ -139,7 +142,7 @@ function CapturesDashboard() {
       }
       setLocating(null);
     })();
-  }, [loading, captures]);
+  }, [loading, captures, agency]);
 
   const filtered = useMemo(
     () => applyFilters(captures, filters, today, units),
@@ -236,6 +239,8 @@ function CapturesDashboard() {
               <CapturesMap
                 captures={onMap}
                 today={today}
+                city={agency?.cidade ?? null}
+                uf={agency?.uf ?? null}
                 onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
               />
               <p className="text-xs text-muted-foreground">
