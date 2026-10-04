@@ -573,6 +573,18 @@ function SaleDetail() {
   const liderOptionsTodos = useMemo(() => {
     return [...todosUsuariosComoLideres].sort((a, b) => a.nome.localeCompare(b.nome));
   }, [todosUsuariosComoLideres]);
+  // Campo principal "Gestor/Team Leader" do captador/vendedor: só quem é gestor ou lidera equipe.
+  // Evita gravar como líder alguém sem equipe (ex.: perfil só admin). Mantém o valor já salvo na
+  // venda, mesmo fora da lista, para não apagar registros antigos ao abrir a tela.
+  const lideresReais = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string }>();
+    [...gestoresGerais, ...teamLeadersGerais].forEach((l) => map.set(l.id, l));
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [gestoresGerais, teamLeadersGerais]);
+  const opcoesLider = (atualId?: string | null, atualNome?: string | null) => {
+    if (!atualId || lideresReais.some((l) => l.id === atualId)) return lideresReais;
+    return [...lideresReais, { id: atualId, nome: atualNome ?? atualId }];
+  };
   // Indicador: quem indicou o negócio pode ser corretor OU gestor/team leader (achado real — Rodrigo
   // Becchelli e Rafaela Galbi Farrão Fuentes têm cadastro, mas como gestor, não corretor, então não
   // apareciam em corretorOptions) — junta as 3 listas de gente ativa, sem restringir por papel nem
@@ -1672,7 +1684,9 @@ function SaleDetail() {
     try {
       if (contratoFile) {
         const ext = contratoFile.name.split(".").pop();
-        const path = await storageOrganizationPath(`${id}/outros/contrato/${crypto.randomUUID()}.${ext}`);
+        const path = await storageOrganizationPath(
+          `${id}/outros/contrato/${crypto.randomUUID()}.${ext}`,
+        );
         const { error: upErr } = await supabase.storage
           .from("sale-documents")
           .upload(path, contratoFile, { upsert: false });
@@ -1757,7 +1771,9 @@ function SaleDetail() {
     setContratoAssinadoUploading(true);
     try {
       const ext = contratoAssinadoFile.name.split(".").pop();
-      const path = await storageOrganizationPath(`${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`);
+      const path = await storageOrganizationPath(
+        `${id}/outros/contrato_assinado/${crypto.randomUUID()}.${ext}`,
+      );
       const { error: upErr } = await supabase.storage
         .from("sale-documents")
         .upload(path, contratoAssinadoFile, { upsert: false });
@@ -2251,7 +2267,10 @@ function SaleDetail() {
                                     <Select
                                       value={formSale.lider_captador_id || "none"}
                                       onValueChange={(v) => {
-                                        const l = liderOptionsTodos.find((o) => o.id === v);
+                                        const l = opcoesLider(
+                                          formSale.lider_captador_id,
+                                          formSale.lider_captador_nome,
+                                        ).find((o) => o.id === v);
                                         updResumo({
                                           lider_captador_id: v === "none" ? null : v,
                                           lider_captador_nome: l ? l.nome : null,
@@ -2265,8 +2284,11 @@ function SaleDetail() {
                                       <SelectContent>
                                         <SelectItem value="none">—</SelectItem>
                                         <SelectGroup>
-                                          <SelectLabel>Usuários ativos</SelectLabel>
-                                          {liderOptionsTodos.map((l) => (
+                                          <SelectLabel>Gestores e líderes de equipe</SelectLabel>
+                                          {opcoesLider(
+                                            formSale.lider_captador_id,
+                                            formSale.lider_captador_nome,
+                                          ).map((l) => (
                                             <SelectItem key={l.id} value={l.id}>
                                               {l.nome}
                                             </SelectItem>
@@ -2519,7 +2541,10 @@ function SaleDetail() {
                                     <Select
                                       value={formSale.lider_vendedor_id || "none"}
                                       onValueChange={(v) => {
-                                        const l = liderOptionsTodos.find((o) => o.id === v);
+                                        const l = opcoesLider(
+                                          formSale.lider_vendedor_id,
+                                          formSale.lider_vendedor_nome,
+                                        ).find((o) => o.id === v);
                                         updResumo({
                                           lider_vendedor_id: v === "none" ? null : v,
                                           lider_vendedor_nome: l ? l.nome : null,
@@ -2533,8 +2558,11 @@ function SaleDetail() {
                                       <SelectContent>
                                         <SelectItem value="none">—</SelectItem>
                                         <SelectGroup>
-                                          <SelectLabel>Usuários ativos</SelectLabel>
-                                          {liderOptionsTodos.map((l) => (
+                                          <SelectLabel>Gestores e líderes de equipe</SelectLabel>
+                                          {opcoesLider(
+                                            formSale.lider_vendedor_id,
+                                            formSale.lider_vendedor_nome,
+                                          ).map((l) => (
                                             <SelectItem key={l.id} value={l.id}>
                                               {l.nome}
                                             </SelectItem>
