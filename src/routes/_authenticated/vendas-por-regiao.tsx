@@ -1,5 +1,5 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, MapPin, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,11 +15,44 @@ import { brl } from "@/lib/exclusive-captures-dashboard";
 import {
   agruparPorRegiao,
   filtrarVendas,
+  geoKeyVenda,
+  geoQueriesVenda,
   montarVendas,
+  nomeExibicao,
+  vendasNoMapa,
+  vendasPendentesGeo,
   type FiltrosRegiao,
+  type SaleGeo,
   type VendaRegiao,
   type VendaRegiaoRow,
 } from "@/lib/vendas-por-regiao";
+import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
+import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// sale_geo/sale_set_geo (migration 20261005090000) ainda não constam do types.ts gerado.
+const db = supabase as unknown as SupabaseClient;
+const COR_PADRAO = "#2563eb";
+const COR_LANCAMENTO = "#f59e0b";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** OpenStreetMap/Nominatim: só o endereço do imóvel, 1 consulta por segundo (política de uso). */
+async function geocode(
+  v: VendaRegiao,
+  agency: AgencyProfile | null,
+): Promise<[number, number] | null> {
+  for (const q of geoQueriesVenda(v, agency ?? undefined)) {
+    const url =
+      "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=" +
+      encodeURIComponent(q);
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    await sleep(1100);
+    if (!r.ok) throw new Error(`OpenStreetMap ${r.status}`);
+    const [hit] = (await r.json()) as { lat: string; lon: string }[];
+    if (hit) return [Number(hit.lat), Number(hit.lon)];
+  }
+  return null;
+}
 
 const PAPEIS: AppRole[] = ["admin", "super_admin", "financeiro", "gestor", "team_leader"];
 
@@ -49,6 +82,11 @@ function VendasPorRegiaoPage() {
   const [vendas, setVendas] = useState<VendaRegiao[]>([]);
   const [filtros, setFiltros] = useState<FiltrosRegiao>({ dataDe: "", dataAte: "", busca: "" });
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [agency, setAgency] = useState<AgencyProfile | null>(null);
+  const [geo, setGeo] = useState<Map<string, SaleGeo>>(new Map());
+  const [localizando, setLocalizando] = useState<{ feitos: number; total: number } | null>(null);
+  const iniciouGeo = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!allowed) {
@@ -58,23 +96,99 @@ function VendasPorRegiaoPage() {
     let cancelado = false;
     setLoading(true);
     setErro(null);
-    supabase
-      .rpc("vendas_por_regiao" as never)
-      .then(({ data, error }) => {
-        if (cancelado) return;
-        if (error) setErro(error.message);
-        else setVendas(montarVendas((data ?? []) as unknown as VendaRegiaoRow[]));
-      })
-      .then(
-        () => !cancelado && setLoading(false),
-        () => !cancelado && setLoading(false),
-      );
+    // Coordenadas e perfil são opcionais: se falharem, o relatório continua (mapa sem pinos/centro padrão).
+    // Tudo carrega junto para a fila de localização não refazer coordenadas que já existem.
+    void Promise.allSettled([
+      supabase.rpc("vendas_por_regiao" as never),
+      db.from("sale_geo").select("sale_id,geo_key,geo_lat,geo_lon"),
+      loadAgencyProfile(),
+    ]).then(([rv, rg, ra]) => {
+      if (cancelado) return;
+      if (rv.status === "rejected") setErro(String(rv.reason));
+      else if (rv.value.error) setErro(rv.value.error.message);
+      else setVendas(montarVendas((rv.value.data ?? []) as unknown as VendaRegiaoRow[]));
+      if (rg.status === "fulfilled" && !rg.value.error && rg.value.data) {
+        setGeo(new Map((rg.value.data as SaleGeo[]).map((g) => [g.sale_id, g])));
+      } else {
+        iniciouGeo.current = true; // sem leitura das coordenadas, não geocodifica nem grava nada
+      }
+      if (ra.status === "fulfilled") setAgency(ra.value);
+      setLoading(false);
+    });
     return () => {
       cancelado = true;
     };
   }, [allowed]);
 
+  // Localiza no mapa as vendas cujo endereço ainda não tem coordenada (ou mudou). Uma vez por visita.
+  useEffect(() => {
+    if (loading || iniciouGeo.current || !vendas.length) return;
+    const pendentes = vendasPendentesGeo(vendas, geo);
+    if (!pendentes.length) return;
+    iniciouGeo.current = true;
+    void (async () => {
+      setLocalizando({ feitos: 0, total: pendentes.length });
+      for (const [i, v] of pendentes.entries()) {
+        try {
+          const hit = await geocode(v, agency);
+          const key = geoKeyVenda(v);
+          const { error } = await db.rpc("sale_set_geo", {
+            _sale_id: v.saleId,
+            _key: key,
+            _lat: hit?.[0] ?? null,
+            _lon: hit?.[1] ?? null,
+          });
+          if (error) throw error;
+          setGeo((m) => {
+            const n = new Map(m);
+            n.set(v.saleId, {
+              sale_id: v.saleId,
+              geo_key: key,
+              geo_lat: hit?.[0] ?? null,
+              geo_lon: hit?.[1] ?? null,
+            });
+            return n;
+          });
+        } catch {
+          break; // serviço indisponível ou sem permissão: tenta de novo na próxima visita
+        }
+        setLocalizando({ feitos: i + 1, total: pendentes.length });
+      }
+      setLocalizando(null);
+    })();
+    // geo/agency lidos uma vez no início; não reiniciar a fila a cada coordenada gravada
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, vendas]);
+
   const filtradas = useMemo(() => filtrarVendas(vendas, filtros), [vendas, filtros]);
+  const { noMapa, semLocal } = useMemo(() => vendasNoMapa(filtradas, geo), [filtradas, geo]);
+  const pinos = useMemo<Pino[]>(
+    () =>
+      noMapa.map((v) => ({
+        id: v.saleId,
+        lat: v.lat,
+        lon: v.lon,
+        color: v.modalidade === "lancamento" ? COR_LANCAMENTO : COR_PADRAO,
+        lines: [
+          {
+            text: `${v.codigo} · ${v.modalidade === "lancamento" ? "Lançamento" : "Padrão"}`,
+            bold: true,
+          },
+          { text: v.endereco || "Sem endereço cadastrado" },
+          {
+            text: [
+              v.bairro ? nomeExibicao(v.bairro) : "",
+              nomeExibicao(v.cidade.split("|")[0] ?? ""),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          },
+          { text: `VGV ${brl(v.vgv)} · assinada em ${fmtData(v.data)}` },
+        ],
+        actionLabel: "Abrir venda →",
+      })),
+    [noMapa],
+  );
   const cidades = useMemo(() => agruparPorRegiao(filtradas), [filtradas]);
   const totalVgv = filtradas.reduce((s, v) => s + v.vgv, 0);
   const semEndereco = filtradas.filter((v) => !v.bairro || !v.cidade).length;
@@ -199,6 +313,41 @@ function VendasPorRegiaoPage() {
           </CardContent>
         </Card>
       </div>
+
+      {filtradas.length > 0 && (
+        <Card className="print:hidden">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-base">Mapa</CardTitle>
+            <div className="flex flex-wrap gap-3 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_PADRAO }} />
+                Padrão
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_LANCAMENTO }} />
+                Lançamento
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <PinsMap
+              pins={pinos}
+              city={agency?.cidade ?? null}
+              uf={agency?.uf ?? null}
+              onOpen={(id) => navigate({ to: "/vendas/$id", params: { id } })}
+            />
+            <p className="text-xs text-muted-foreground">
+              {localizando
+                ? `Localizando endereços no mapa… ${localizando.feitos}/${localizando.total}. `
+                : ""}
+              {semLocal > 0
+                ? `${semLocal} ${semLocal === 1 ? "venda sem localização" : "vendas sem localização"} no mapa (sem endereço ou endereço não encontrado). `
+                : "Todas as vendas filtradas estão no mapa. "}
+              Localização aproximada pelo OpenStreetMap.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {cidades.length === 0 && (
         <Card>

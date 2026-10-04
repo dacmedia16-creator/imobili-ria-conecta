@@ -101,6 +101,75 @@ export function filtrarVendas(vendas: VendaRegiao[], f: FiltrosRegiao): VendaReg
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// Mapa: coordenada da venda pelo endereço do imóvel (OpenStreetMap/Nominatim, nunca dado de cliente).
+
+export type SaleGeo = {
+  sale_id: string;
+  geo_key: string;
+  geo_lat: number | null;
+  geo_lon: number | null;
+};
+
+const limpa = (v: string | null | undefined) => (v ?? "").replace(/\s+/g, " ").trim();
+
+/** Endereço normalizado usado na busca. Vazio = sem endereço para localizar. Se mudar, refaz a busca. */
+export function geoKeyVenda(v: VendaRegiao): string {
+  const [cidade, uf] = v.cidade.split("|");
+  const parts = [v.endereco, v.bairro, cidade, uf].map((p) => limpa(p).toLowerCase());
+  if (!parts[0] && !parts[1]) return "";
+  return parts.join("|");
+}
+
+/** Consultas ao OpenStreetMap, da mais precisa para a aproximada (rua -> rua sem número -> bairro). */
+export function geoQueriesVenda(
+  v: VendaRegiao,
+  agency?: { cidade: string | null; uf: string | null },
+): string[] {
+  const [c, u] = v.cidade.split("|");
+  const city = limpa(c) || limpa(agency?.cidade) || "Sorocaba";
+  const uf = limpa(u) || (limpa(c) ? "" : limpa(agency?.uf) || (limpa(agency?.cidade) ? "" : "SP"));
+  const local = [city, uf, "Brasil"].filter(Boolean).join(", ");
+  const rua = limpa(v.endereco).replace(/,\s*$/, "");
+  const semNumero = rua.replace(/[,\s]+(\d+\s*[a-z]?|s\/?n)$/i, "").replace(/,.*$/, "");
+  const bairro = limpa(v.bairro);
+  const q: string[] = [];
+  if (rua) q.push(`${rua}, ${bairro ? bairro + ", " : ""}${local}`);
+  if (semNumero && semNumero !== rua) q.push(`${semNumero}, ${local}`);
+  if (bairro) q.push(`${bairro}, ${local}`);
+  return q;
+}
+
+export type VendaNoMapa = VendaRegiao & { lat: number; lon: number };
+
+/** Separa as vendas filtradas entre as que têm coordenada e as que ficam fora do mapa. */
+export function vendasNoMapa(
+  vendas: VendaRegiao[],
+  geo: Map<string, SaleGeo>,
+): { noMapa: VendaNoMapa[]; semLocal: number } {
+  const noMapa: VendaNoMapa[] = [];
+  let semLocal = 0;
+  for (const v of vendas) {
+    const g = geo.get(v.saleId);
+    const key = geoKeyVenda(v);
+    if (g && key && g.geo_key === key && g.geo_lat != null && g.geo_lon != null)
+      noMapa.push({ ...v, lat: g.geo_lat, lon: g.geo_lon });
+    else semLocal++;
+  }
+  return { noMapa, semLocal };
+}
+
+/** Vendas cujo endereço ainda não foi procurado (ou mudou desde a última busca). */
+export function vendasPendentesGeo(
+  vendas: VendaRegiao[],
+  geo: Map<string, SaleGeo>,
+): VendaRegiao[] {
+  return vendas.filter((v) => {
+    const key = geoKeyVenda(v);
+    return key !== "" && geo.get(v.saleId)?.geo_key !== key;
+  });
+}
+
 /** Grafia mais frequente entre as variações do mesmo nome. */
 function maisFrequente(nomes: string[]): string {
   const c = new Map<string, number>();
