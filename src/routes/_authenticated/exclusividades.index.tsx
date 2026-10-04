@@ -19,6 +19,7 @@ import {
   type Filters,
 } from "@/lib/exclusive-captures-dashboard";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
+import { CaptureSummaryDialog } from "@/components/exclusividades/CaptureSummaryDialog";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ function ExclusiveList() {
         : 0,
     );
   const [removing, setRemoving] = useState<string | null>(null);
+  const [summary, setSummary] = useState<Capture | null>(null);
   // Só rascunho; se ele já gerou contrato o banco recusa e orienta a arquivar.
   const removeDraft = async (c: Capture) => {
     if (!window.confirm("Excluir este rascunho? Ele deixará de aparecer na lista.")) return;
@@ -173,6 +175,12 @@ function ExclusiveList() {
                   to="/exclusividades/$id"
                   params={{ id: c.id }}
                   className="group rounded-md border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
+                  onClick={(e) => {
+                    // Aprovada: abre o resumo da gestão; Ctrl/Cmd+clique continua abrindo a captação.
+                    if (c.status !== "aprovada" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+                    e.preventDefault();
+                    setSummary(c);
+                  }}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -244,6 +252,7 @@ function ExclusiveList() {
           )}
         </CardContent>
       </Card>
+      <CaptureSummaryDialog capture={summary} today={today} onClose={() => setSummary(null)} />
     </div>
   );
 }
