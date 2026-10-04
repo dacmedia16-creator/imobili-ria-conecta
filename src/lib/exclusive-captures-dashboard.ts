@@ -45,22 +45,56 @@ export function situation(c: Capture, today: string): { s: Situation; v: Validit
   return { s: "rascunho", v };
 }
 
-export type Filters = { periodo: string; corretor: string; unidade: string; bairro: string };
-export const EMPTY_FILTERS: Filters = { periodo: "tudo", corretor: "", unidade: "", bairro: "" };
+export type Filters = {
+  periodo: string;
+  corretor: string;
+  unidade: string;
+  bairro: string;
+  situacao: string;
+  busca: string;
+};
+export const EMPTY_FILTERS: Filters = {
+  periodo: "tudo",
+  corretor: "",
+  unidade: "",
+  bairro: "",
+  situacao: "",
+  busca: "",
+};
+const fold = (x: string) =>
+  x
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 const dayMs = 86_400_000;
 const utc = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
-/** Período pela data de criação da captação (São Paulo). */
-export function applyFilters(list: Capture[], f: Filters, today: string): Capture[] {
+/** Uma captação passa nos filtros? (período pela data de criação, em São Paulo). Não olha arquivamento. */
+export function matchFilters(c: Capture, f: Filters, today: string): boolean {
   const days = f.periodo === "tudo" ? null : Number(f.periodo);
-  return list.filter(
-    (c) =>
-      !c.archived_at &&
-      (days === null || utc(today) - utc(c.created_on_sp) <= days * dayMs) &&
-      (!f.corretor || c.broker_name === f.corretor) &&
-      (!f.unidade || c.template === f.unidade) &&
-      (!f.bairro || bairroLabel(c) === f.bairro),
-  );
+  if (days !== null && utc(today) - utc(c.created_on_sp) > days * dayMs) return false;
+  if (f.corretor && (c.broker_name || "—") !== f.corretor) return false;
+  if (f.unidade && c.template !== f.unidade) return false;
+  if (f.bairro && bairroLabel(c) !== f.bairro) return false;
+  if (f.situacao && situation(c, today).s !== f.situacao) return false;
+  if (f.busca) {
+    const i = c.form_data.imovel;
+    const hay = fold([i?.endereco, i?.bairro, i?.tipo_imovel, c.broker_name].join(" "));
+    if (
+      !fold(f.busca)
+        .split(/\s+/)
+        .every((w) => hay.includes(w))
+    )
+      return false;
+  }
+  return true;
 }
+/** Captações ativas (não arquivadas) que passam nos filtros. */
+export function applyFilters(list: Capture[], f: Filters, today: string): Capture[] {
+  return list.filter((c) => !c.archived_at && matchFilters(c, f, today));
+}
+export const filtersActive = (f: Filters) =>
+  (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).some((k) => f[k] !== EMPTY_FILTERS[k]);
 
 export type Group = { key: string; total: number; aprovadas: number; valor: number };
 export type Dashboard = {

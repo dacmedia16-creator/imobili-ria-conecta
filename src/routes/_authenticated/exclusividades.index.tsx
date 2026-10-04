@@ -12,6 +12,13 @@ import {
   type Capture,
   type Template,
 } from "@/lib/exclusive-captures";
+import {
+  EMPTY_FILTERS,
+  filtersActive,
+  matchFilters,
+  type Filters,
+} from "@/lib/exclusive-captures-dashboard";
+import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
@@ -33,6 +40,7 @@ function ExclusiveList() {
   const [creating, setCreating] = useState<Template | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [onlyExpiring, setOnlyExpiring] = useState(false);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const today = hojeSaoPaulo();
   const archivedCount = captures.filter((c) => c.archived_at).length;
   // "Vencendo": exclusividade assinada que vence em até 30 dias ou já venceu (renovar).
@@ -44,6 +52,7 @@ function ExclusiveList() {
   const visible = captures
     .filter((c) => !!c.archived_at === showArchived)
     .filter((c) => showArchived || !onlyExpiring || expiring(c))
+    .filter((c) => matchFilters(c, filters, today))
     .sort((a, b) =>
       onlyExpiring
         ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
@@ -126,7 +135,21 @@ function ExclusiveList() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
+        <CardContent className="space-y-3 border-b pb-4">
+          <CapturesFilters
+            captures={captures.filter((c) => !!c.archived_at === showArchived)}
+            value={filters}
+            onChange={setFilters}
+            showSearch
+          />
+          {!loading && (
+            <p className="text-xs text-muted-foreground">
+              {visible.length} captação(ões)
+              {filtersActive(filters) ? " com os filtros aplicados" : ""}
+            </p>
+          )}
+        </CardContent>
+        <CardContent className="grid gap-3 pt-4 md:grid-cols-2">
           {loading ? (
             <p>Carregando…</p>
           ) : visible.length === 0 ? (
@@ -135,7 +158,9 @@ function ExclusiveList() {
                 ? "Nenhuma captação arquivada."
                 : onlyExpiring
                   ? "Nenhuma exclusividade vencendo nos próximos 30 dias."
-                  : "Nenhuma captação disponível."}
+                  : filtersActive(filters)
+                    ? "Nenhuma captação com esses filtros."
+                    : "Nenhuma captação disponível."}
             </p>
           ) : (
             visible.map((c) => {

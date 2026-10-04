@@ -25,6 +25,7 @@ import {
   type Situation,
 } from "@/lib/exclusive-captures-dashboard";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
+import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
@@ -52,35 +53,6 @@ async function geocode(c: Capture): Promise<[number, number] | null> {
     if (hit) return [Number(hit.lat), Number(hit.lon)];
   }
   return null;
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: [string, string][];
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-      {label}
-      <select
-        className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {options.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 }
 
 function Ranking({ title, rows }: { title: string; rows: Group[] }) {
@@ -173,8 +145,6 @@ function CapturesDashboard() {
   const onMap = filtered.filter((c) => !hidden.includes(situation(c, today).s));
   const semLocal = filtered.filter((c) => c.geo_lat == null).length;
   const active = captures.filter((c) => !c.archived_at);
-  const uniq = (xs: string[]) => [...new Set(xs)].sort((a, b) => a.localeCompare(b));
-  const set = (k: keyof Filters) => (v: string) => setFilters((f) => ({ ...f, [k]: v }));
 
   const kpi = (label: string, value: string | number, color?: string) => (
     <div className="rounded-md border p-3">
@@ -203,43 +173,8 @@ function CapturesDashboard() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Select
-            label="Período (criação)"
-            value={filters.periodo}
-            onChange={set("periodo")}
-            options={[
-              ["tudo", "Tudo"],
-              ["30", "Últimos 30 dias"],
-              ["90", "Últimos 90 dias"],
-              ["180", "Últimos 180 dias"],
-              ["365", "Últimos 12 meses"],
-            ]}
-          />
-          <Select
-            label="Corretor"
-            value={filters.corretor}
-            onChange={set("corretor")}
-            options={[
-              ["", "Todos"],
-              ...uniq(active.map((c) => c.broker_name || "—")).map((n): [string, string] => [n, n]),
-            ]}
-          />
-          <Select
-            label="Unidade"
-            value={filters.unidade}
-            onChange={set("unidade")}
-            options={[["", "Todas"], ...(Object.entries(TEMPLATES) as [string, string][])]}
-          />
-          <Select
-            label="Bairro"
-            value={filters.bairro}
-            onChange={set("bairro")}
-            options={[
-              ["", "Todos"],
-              ...uniq(active.map(bairroLabel)).map((n): [string, string] => [n, n]),
-            ]}
-          />
+        <CardContent className="pt-6">
+          <CapturesFilters captures={active} value={filters} onChange={setFilters} />
         </CardContent>
       </Card>
 

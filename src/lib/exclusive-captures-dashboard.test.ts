@@ -80,6 +80,22 @@ describe("painel de captações", () => {
     expect(applyFilters(list, { ...EMPTY_FILTERS, periodo: "30" }, "2026-10-03")).toHaveLength(1);
     expect(applyFilters(list, { ...EMPTY_FILTERS, corretor: "Bia" }, "2026-10-03")).toHaveLength(1);
     expect(applyFilters(list, EMPTY_FILTERS, "2026-10-03")).toHaveLength(3);
+    const ruas = [
+      mk({ endereco: "Rua Inglaterra, 348", bairro: "Jardim Europa" }),
+      mk({ endereco: "Av. São Paulo" }),
+    ];
+    expect(
+      applyFilters(ruas, { ...EMPTY_FILTERS, busca: "inglaterra europa" }, "2026-10-03"),
+    ).toHaveLength(1);
+    expect(applyFilters(ruas, { ...EMPTY_FILTERS, busca: "sao paulo" }, "2026-10-03")).toHaveLength(
+      1,
+    );
+    expect(
+      applyFilters(ruas, { ...EMPTY_FILTERS, situacao: "rascunho" }, "2026-10-03"),
+    ).toHaveLength(2);
+    expect(
+      applyFilters(ruas, { ...EMPTY_FILTERS, situacao: "em_vigor" }, "2026-10-03"),
+    ).toHaveLength(0);
   });
   it("monta buscas do mapa sem dado de proprietário, da mais precisa para a aproximada", () => {
     const c = mk({ endereco: "Rua Comendador Vicente Amaral 3333,", bairro: "Jardim Guarujá" });
