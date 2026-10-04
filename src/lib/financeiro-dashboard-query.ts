@@ -392,7 +392,9 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         Number(valor) > 0 &&
         formaPreenchida;
 
-      if (previsaoIniciada && !previsaoCompleta) {
+      // Vendas já concluídas antes da trava de 21/09/2026 ficaram sem a forma de recebimento.
+      // Decisão de Denis (04/10/2026): não mexer nelas e não acusar divergência de cadastro.
+      if (previsaoIniciada && !previsaoCompleta && sale.status !== "ocorrencia_concluida") {
         divergencias.push({
           id: `parcela-previsao-incompleta:${occ.id}:${n}`,
           gravidade: recebidoEm ? "alta" : "media",
@@ -496,7 +498,8 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     );
     if (
       (occ.valor_comissao != null || occ.premio_valor != null) &&
-      Math.abs(somaParcelasPrevistas - comissaoEsperada) > 0.01
+      // Compara em centavos inteiros: em ponto flutuante, 1 centavo de arredondamento vira 0,0100…01.
+      Math.abs(Math.round(somaParcelasPrevistas * 100) - Math.round(comissaoEsperada * 100)) > 1
     ) {
       const premioTxt = occ.premio_valor
         ? ` + premio_valor (R$ ${Number(occ.premio_valor).toFixed(2)})`
@@ -559,7 +562,10 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         linkTo: `/vendas/${sale.id}`,
       });
     }
-    if (!teamIdByCorretor.has(corretorPrincipal(sale.id, sale.corretor_id))) {
+    if (
+      sale.status !== "ocorrencia_concluida" &&
+      !teamIdByCorretor.has(corretorPrincipal(sale.id, sale.corretor_id))
+    ) {
       divergencias.push({
         id: `equipe-nao-resolvida:${sale.id}`,
         gravidade: "baixa",
