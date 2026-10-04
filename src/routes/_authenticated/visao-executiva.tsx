@@ -808,6 +808,8 @@ function VisaoExecutiva() {
                             metaRealizado: meta?.comissao_realizada ?? 0,
                           };
                         })}
+                        rotuloComissao="Comissão como corretor"
+                        nota="Só captações e vendas próprias. O que a pessoa ganhou como líder, gestor ou coordenação de lançamento aparece no quadro Comissão por corretor, na coluna Como equipe."
                         onSelect={(row) =>
                           setDetalheSel({ tipo: "corretor", id: row.id, nome: row.nome })
                         }
@@ -914,7 +916,13 @@ function ResumoCard({
 function RankingTable({
   rows,
   onSelect,
+  rotuloComissao = "Comissão",
+  nota,
 }: {
+  /** Título da coluna de comissão (deixa claro o que o valor soma). */
+  rotuloComissao?: string;
+  /** Explicação curta exibida abaixo da tabela. */
+  nota?: string;
   rows: {
     id: string;
     nome: string;
@@ -932,48 +940,51 @@ function RankingTable({
   if (sorted.length === 0)
     return <p className="py-8 text-center text-sm text-muted-foreground">Sem dados no período.</p>;
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Nome</TableHead>
-          <TableHead className="text-right">Fechadas</TableHead>
-          <TableHead className="text-right">Comissão</TableHead>
-          <TableHead>Meta do período</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sorted.map((r, i) => (
-          <TableRow key={r.id}>
-            <TableCell className="font-medium">
-              <button
-                type="button"
-                onClick={() => onSelect({ id: r.id, nome: r.nome })}
-                className="inline-flex items-center gap-2 text-primary hover:underline"
-              >
-                {i < 3 && (
-                  <span
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ background: i === 0 ? "#c9971f" : i === 1 ? "#9aa0a6" : "#b0703a" }}
-                  >
-                    {i + 1}
-                  </span>
-                )}
-                {r.nome}
-              </button>
-            </TableCell>
-            <TableCell className="text-right">{r.vendas}</TableCell>
-            <TableCell className="text-right">{money(r.comissao)}</TableCell>
-            <TableCell>
-              {r.meta != null ? (
-                <MetaCell realizado={r.metaRealizado} meta={r.meta} />
-              ) : (
-                <span className="text-xs text-muted-foreground">Sem meta</span>
-              )}
-            </TableCell>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead className="text-right">Fechadas</TableHead>
+            <TableHead className="text-right">{rotuloComissao}</TableHead>
+            <TableHead>Meta do período</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {sorted.map((r, i) => (
+            <TableRow key={r.id}>
+              <TableCell className="font-medium">
+                <button
+                  type="button"
+                  onClick={() => onSelect({ id: r.id, nome: r.nome })}
+                  className="inline-flex items-center gap-2 text-primary hover:underline"
+                >
+                  {i < 3 && (
+                    <span
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{ background: i === 0 ? "#c9971f" : i === 1 ? "#9aa0a6" : "#b0703a" }}
+                    >
+                      {i + 1}
+                    </span>
+                  )}
+                  {r.nome}
+                </button>
+              </TableCell>
+              <TableCell className="text-right">{r.vendas}</TableCell>
+              <TableCell className="text-right">{money(r.comissao)}</TableCell>
+              <TableCell>
+                {r.meta != null ? (
+                  <MetaCell realizado={r.metaRealizado} meta={r.meta} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">Sem meta</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {nota && <p className="pt-2 text-xs text-muted-foreground">{nota}</p>}
+    </>
   );
 }
 
