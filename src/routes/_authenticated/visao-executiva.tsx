@@ -614,12 +614,17 @@ function VisaoExecutiva() {
               <CardTitle className="text-base">Comissão por corretor</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              {Object.entries(comissaoStats?.comissao_por_corretor ?? {}).map(([cid, valor]) => (
-                <div key={cid} className="flex items-center justify-between rounded-md border p-2">
-                  <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
-                  <span className="font-medium">{money(Number(valor))}</span>
-                </div>
-              ))}
+              {Object.entries(comissaoStats?.comissao_por_corretor ?? {})
+                .sort(([, a], [, b]) => Number(b) - Number(a))
+                .map(([cid, valor]) => (
+                  <div
+                    key={cid}
+                    className="flex items-center justify-between rounded-md border p-2"
+                  >
+                    <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
+                    <span className="font-medium">{money(Number(valor))}</span>
+                  </div>
+                ))}
             </CardContent>
           </Card>
         )}
