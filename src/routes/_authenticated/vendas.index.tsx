@@ -102,7 +102,13 @@ function nomesLideres(
   profileName: Record<string, string>,
   liderIdByCorretor: Record<string, string>,
 ): string {
-  const ids = [...new Set(corretoresDaLinha(s).map((id) => liderIdByCorretor[id]).filter(Boolean))];
+  const ids = [
+    ...new Set(
+      corretoresDaLinha(s)
+        .map((id) => liderIdByCorretor[id])
+        .filter(Boolean),
+    ),
+  ];
   return ids.map((id) => profileName[id] ?? "—").join(", ");
 }
 
@@ -635,7 +641,7 @@ function SalesList() {
           <div className="flex items-center gap-2">
             <Input
               aria-label="Buscar por código, imóvel ou pessoa envolvida"
-              placeholder="Buscar por código, imóvel ou pessoa envolvida"
+              placeholder="Buscar por código, imóvel, endereço, bairro ou pessoa"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="flex-1 md:max-w-sm"
@@ -768,7 +774,8 @@ function SalesList() {
           {!loading && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
               {totalCount} {totalCount === 1 ? "venda no período" : "vendas no período"}
-              {totalValor > 0 && ` · R$ ${totalValor.toLocaleString("pt-BR")} no total (sem canceladas)`}
+              {totalValor > 0 &&
+                ` · R$ ${totalValor.toLocaleString("pt-BR")} no total (sem canceladas)`}
               <br />
               {contratosAssinadosCount}{" "}
               {contratosAssinadosCount === 1

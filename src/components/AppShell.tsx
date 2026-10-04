@@ -336,6 +336,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       show: hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]),
     },
     {
+      to: "/vendas-por-regiao",
+      label: "Vendas por região",
+      icon: MapPinned,
+      show: hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]),
+    },
+    {
       to: "/relatorios",
       label: "Relatórios financeiros",
       icon: BarChart3,

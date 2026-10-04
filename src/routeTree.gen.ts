@@ -29,6 +29,7 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
+import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
@@ -150,6 +151,12 @@ const AuthenticatedReservasSalasRoute =
     path: '/reservas-salas',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedVendasPorRegiaoRoute =
+  AuthenticatedVendasPorRegiaoRouteImport.update({
+    id: '/vendas-por-regiao',
+    path: '/vendas-por-regiao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVisaoExecutivaRoute =
   AuthenticatedVisaoExecutivaRouteImport.update({
     id: '/visao-executiva',
@@ -247,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
+  '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -281,6 +289,7 @@ export interface FileRoutesByTo {
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
+  '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
+  '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/producao-por-pessoa'
     | '/relatorios'
     | '/reservas-salas'
+    | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/admin/configuracoes'
     | '/admin/posicionamento'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/producao-por-pessoa'
     | '/relatorios'
     | '/reservas-salas'
+    | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/admin/configuracoes'
     | '/admin/posicionamento'
@@ -422,6 +434,7 @@ export interface FileRouteTypes {
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
     | '/_authenticated/reservas-salas'
+    | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/posicionamento'
@@ -589,6 +602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReservasSalasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/vendas-por-regiao': {
+      id: '/_authenticated/vendas-por-regiao'
+      path: '/vendas-por-regiao'
+      fullPath: '/vendas-por-regiao'
+      preLoaderRoute: typeof AuthenticatedVendasPorRegiaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/visao-executiva': {
       id: '/_authenticated/visao-executiva'
       path: '/visao-executiva'
@@ -697,6 +717,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedReservasSalasRoute: typeof AuthenticatedReservasSalasRoute
+  AuthenticatedVendasPorRegiaoRoute: typeof AuthenticatedVendasPorRegiaoRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
@@ -727,6 +748,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedReservasSalasRoute: AuthenticatedReservasSalasRoute,
+  AuthenticatedVendasPorRegiaoRoute: AuthenticatedVendasPorRegiaoRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
