@@ -830,6 +830,8 @@ function VisaoExecutiva() {
                             metaRealizado: meta?.comissao_realizada ?? 0,
                           };
                         })}
+                        rotuloComissao="Comissão da equipe (soma dos membros)"
+                        nota="Soma do que cada membro ganhou nas vendas da equipe: corretores, líder e gestor. Não é o ganho individual do líder. Coordenação de lançamento não entra nesta soma."
                         onSelect={(row) => {
                           if (!podeAlternarVisao) {
                             setDetalheSel({
