@@ -1,4 +1,11 @@
-import { captureValidity, TEMPLATES, type Capture, type Validity } from "./exclusive-captures";
+import {
+  captureUnitKey,
+  captureUnitLabel,
+  captureValidity,
+  type Capture,
+  type ExclusiveUnit,
+  type Validity,
+} from "./exclusive-captures";
 
 /** "R$ 870.000,00", "730.000", "195.000,00" -> número em reais (null se vazio/ilegível). */
 export function parseBRL(raw: string | undefined | null): number | null {
@@ -70,11 +77,16 @@ const fold = (x: string) =>
 const dayMs = 86_400_000;
 const utc = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 /** Uma captação passa nos filtros? (período pela data de criação, em São Paulo). Não olha arquivamento. */
-export function matchFilters(c: Capture, f: Filters, today: string): boolean {
+export function matchFilters(
+  c: Capture,
+  f: Filters,
+  today: string,
+  units: ExclusiveUnit[] = [],
+): boolean {
   const days = f.periodo === "tudo" ? null : Number(f.periodo);
   if (days !== null && utc(today) - utc(c.created_on_sp) > days * dayMs) return false;
   if (f.corretor && (c.broker_name || "—") !== f.corretor) return false;
-  if (f.unidade && c.template !== f.unidade) return false;
+  if (f.unidade && captureUnitKey(c, units) !== f.unidade) return false;
   if (f.bairro && bairroLabel(c) !== f.bairro) return false;
   if (f.situacao && situation(c, today).s !== f.situacao) return false;
   if (f.busca) {
@@ -90,8 +102,13 @@ export function matchFilters(c: Capture, f: Filters, today: string): boolean {
   return true;
 }
 /** Captações ativas (não arquivadas) que passam nos filtros. */
-export function applyFilters(list: Capture[], f: Filters, today: string): Capture[] {
-  return list.filter((c) => !c.archived_at && matchFilters(c, f, today));
+export function applyFilters(
+  list: Capture[],
+  f: Filters,
+  today: string,
+  units: ExclusiveUnit[] = [],
+): Capture[] {
+  return list.filter((c) => !c.archived_at && matchFilters(c, f, today, units));
 }
 export const filtersActive = (f: Filters) =>
   (Object.keys(EMPTY_FILTERS) as (keyof Filters)[]).some((k) => f[k] !== EMPTY_FILTERS[k]);
@@ -110,7 +127,11 @@ export type Dashboard = {
   proximosVencimentos: { c: Capture; v: Validity }[];
 };
 /** Indicadores gerenciais das captações ativas (já filtradas e já restritas pelo banco às permitidas). */
-export function buildDashboard(list: Capture[], today: string): Dashboard {
+export function buildDashboard(
+  list: Capture[],
+  today: string,
+  units: ExclusiveUnit[] = [],
+): Dashboard {
   const porSituacao: Record<Situation, number> = {
     em_vigor: 0,
     vencendo: 0,
@@ -157,7 +178,7 @@ export function buildDashboard(list: Capture[], today: string): Dashboard {
     };
     add(groups.c, c.broker_name || "—");
     add(groups.b, bairroLabel(c));
-    add(groups.u, TEMPLATES[c.template] ?? c.template);
+    add(groups.u, captureUnitLabel(c, units));
   }
   const sort = (m: Map<string, Group>) =>
     [...m.values()].sort(

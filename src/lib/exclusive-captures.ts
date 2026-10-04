@@ -1,4 +1,43 @@
-export type Template = "campolim" | "barao-de-tatui";
+/** PDF usado na geração: os 2 modelos antigos da Única Escolha ou o contrato-base RE/MAX. */
+export type Template = "campolim" | "barao-de-tatui" | "remax-padrao";
+export type LegacyTemplate = Exclude<Template, "remax-padrao">;
+/** Unidade cadastrada pela imobiliária (exclusive_units). */
+export type ExclusiveUnit = {
+  id: string;
+  nome: string;
+  creci: string;
+  razao_social: string;
+  endereco: string;
+  cidade: string;
+  estado: string;
+  cnpj: string;
+  nome_comercial: string;
+  legacy_template: LegacyTemplate | null;
+  contrato_antigo: boolean;
+  ativo: boolean;
+};
+export type UnitField = Exclude<
+  keyof ExclusiveUnit,
+  "id" | "legacy_template" | "contrato_antigo" | "ativo"
+>;
+export const UNIT_FIELDS: { key: UnitField; label: string; placeholder: string }[] = [
+  { key: "nome", label: "Nome da unidade", placeholder: "Ex.: Única Escolha I" },
+  { key: "creci", label: "CRECI da unidade", placeholder: "Ex.: 38086-J" },
+  {
+    key: "razao_social",
+    label: "Razão social",
+    placeholder: "Ex.: XYZ NEGÓCIOS IMOBILIÁRIOS LTDA",
+  },
+  { key: "cnpj", label: "CNPJ", placeholder: "00.000.000/0000-00" },
+  { key: "endereco", label: "Endereço da sede", placeholder: "Rua, número - complemento - bairro" },
+  { key: "cidade", label: "Cidade", placeholder: "Ex.: Sorocaba" },
+  { key: "estado", label: "Estado", placeholder: "Ex.: São Paulo" },
+  {
+    key: "nome_comercial",
+    label: "Nome comercial (assinatura e cláusula)",
+    placeholder: "Ex.: RE/MAX ÚNICA ESCOLHA",
+  },
+];
 export type CaptureStatus = "rascunho" | "devolvida" | "enviada" | "em_assinatura" | "aprovada";
 export type DocumentKind =
   "rg" | "cpf" | "cnh" | "residencia" | "iptu" | "matricula" | "gerado" | "assinado";
@@ -50,6 +89,8 @@ export type Capture = {
   id: string;
   captor_id: string;
   template: Template;
+  /** Unidade escolhida na criação; nulo nas captações anteriores ao cadastro de unidades. */
+  unit_id?: string | null;
   status: CaptureStatus;
   form_data: CaptureForm;
   broker_name: string;
@@ -79,10 +120,49 @@ export type CaptureEvent = {
   created_at: string;
 };
 
+/** Rótulo das captações antigas (sem unit_id), anteriores ao cadastro de unidades. */
 export const TEMPLATES: Record<Template, string> = {
   campolim: "RE/MAX Única Escolha I — Campolim",
   "barao-de-tatui": "RE/MAX Única Escolha II — Barão de Tatuí",
+  "remax-padrao": "Contrato-base RE/MAX",
 };
+/** Unidade da captação: a gravada nela ou, nas antigas, a unidade ligada ao mesmo PDF antigo. */
+export function captureUnit(
+  c: Pick<Capture, "unit_id" | "template">,
+  units: ExclusiveUnit[],
+): ExclusiveUnit | null {
+  if (c.unit_id) return units.find((u) => u.id === c.unit_id) ?? null;
+  return units.find((u) => u.legacy_template === c.template) ?? null;
+}
+/** Chave estável da unidade para filtro/ranking (antigas sem unidade cadastrada: o modelo). */
+export function captureUnitKey(
+  c: Pick<Capture, "unit_id" | "template">,
+  units: ExclusiveUnit[],
+): string {
+  return captureUnit(c, units)?.id ?? c.unit_id ?? `modelo:${c.template}`;
+}
+export function captureUnitLabel(
+  c: Pick<Capture, "unit_id" | "template">,
+  units: ExclusiveUnit[],
+): string {
+  return captureUnit(c, units)?.nome ?? (c.unit_id ? "Unidade" : (TEMPLATES[c.template] ?? ""));
+}
+/**
+ * Qual PDF gerar. Decidido na hora da geração pela unidade: a chave contrato_antigo da unidade
+ * permite voltar/sair dos PDFs antigos sem mexer nas captações. Captação antiga sem unidade
+ * cadastrada continua no PDF gravado nela.
+ */
+export function contractSource(
+  c: Pick<Capture, "unit_id" | "template">,
+  units: ExclusiveUnit[],
+): { file: Template; unit: ExclusiveUnit | null } {
+  const unit = captureUnit(c, units);
+  if (unit?.contrato_antigo && unit.legacy_template)
+    return { file: unit.legacy_template, unit: null };
+  if (unit) return { file: "remax-padrao", unit };
+  if (c.template === "remax-padrao") throw new Error("Unidade da captação não encontrada");
+  return { file: c.template, unit: null };
+}
 /** Próxima ação da captação, independente do fluxo de vendas. */
 export function captureNextAction(status: CaptureStatus, manager: boolean): string {
   switch (status) {
@@ -241,25 +321,112 @@ const witnessFields: Record<WitnessField, [string, string]> = {
   cpf: ["Individual TaxpaGFByer Registry", "Individual Taxpayer Registry"],
 };
 
-/** Recebe os bytes do modelo ORIGINAL, nunca dados de exemplo do protótipo. */
+/** Campos AcroForm da unidade no contrato-base (vazios no PDF; vêm de exclusive_units). */
+const UNIT_PDF_FIELDS: Record<string, (u: ExclusiveUnit) => string> = {
+  Franquia: (u) => u.nome, // nome sob o logo, págs. 1-5
+  REMAX: (u) => u.razao_social,
+  undefined: (u) => u.nome.toLocaleUpperCase("pt-BR"),
+  with: (u) => u.endereco,
+  "registered with the CNPJME under number": (u) => u.cidade,
+  "registered with the CNPJME undger number": (u) => u.estado,
+  undefined_2: (u) => u.cnpj,
+  // A assinatura já imprime "RE/MAX" antes do campo.
+  REMAX_2: (u) => u.nome_comercial.replace(/^\s*RE\/?MAX\s*/i, ""),
+};
+/** Texto fixo da unidade removido do contrato-base: reescrito na mesma posição do original
+ * (coordenadas pdf-lib, origem embaixo; medidas nos PDFs da Única Escolha). */
+const UNIT_CRECI_POS: [page: number, x: number, y: number][] = [
+  [0, 97.49, 25.77],
+  [1, 95.53, 40.8],
+  [2, 466.33, 718.26],
+  [3, 96.51, 40.15],
+  [4, 96.51, 40.8],
+];
+export const UNIT_TEXT_LIMITS = { clausulaB: 225, logo: 108 };
+/** Tamanho máximo por campo da unidade, igual ao que os PDFs antigos exibiam. */
+const UNIT_FIELD_SIZE: Record<string, number> = { Franquia: 15.49, REMAX_2: 8.54 };
+/** Pág. 6: faixa branca sob o "RE/MAX" do logo (cobre as bordas da área apagada da imagem). */
+const LOGO6 = { x0: 427, x1: 539, y0: 760.4, y1: 784.6, centerX: 482.4, baseline: 766.58 };
+
+/** Recebe os bytes do modelo ORIGINAL, nunca dados de exemplo do protótipo. Com `unit`, o PDF é
+ * o contrato-base e os dados da unidade são preenchidos aqui. */
 export async function fillExclusiveTemplate(
   bytes: Uint8Array,
   capture: Capture,
   flatten = true,
   contractDate?: string,
+  unit?: ExclusiveUnit | null,
 ): Promise<Uint8Array> {
   // Carregar PDF apenas no clique: importar no SSR quebra o Worker inteiro.
-  const { PDFDocument, StandardFonts } = await import("pdf-lib");
+  const { PDFDocument, StandardFonts, TextAlignment, rgb } = await import("pdf-lib");
   const pdf = await PDFDocument.load(bytes);
   const form = pdf.getForm();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fields = new Map(form.getFields().map((field) => [field.getName(), field]));
-  const set = (name: string, value: string) => {
+  const set = (name: string, value: string, appearanceFont = font) => {
     if (!fields.has(name)) throw new Error(`Campo não encontrado no modelo: ${name}`);
     const field = form.getTextField(name);
     field.setText(value || "");
-    field.updateAppearances(font);
+    field.updateAppearances(appearanceFont);
   };
+  if (unit) {
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    for (const [name, value] of Object.entries(UNIT_PDF_FIELDS)) {
+      // Contrato-base tem tamanho fixo (14pt); os PDFs antigos usavam tamanho automático
+      // (~11,8pt; 15,5 no logo; 8,5 na assinatura). Reduz até caber na largura do campo.
+      const f = name === "Franquia" ? bold : font;
+      const text = value(unit).trim();
+      if (!fields.has(name)) throw new Error(`Campo não encontrado no modelo: ${name}`);
+      const field = form.getTextField(name);
+      // Menor widget do campo (o nome sob o logo se repete nas págs. 1-5).
+      const widths = field.acroField.getWidgets().map((w) => w.getRectangle().width);
+      const width = Math.min(...widths) - 4;
+      const cap = UNIT_FIELD_SIZE[name] ?? 11.84;
+      const size = Math.min(cap, (cap * width) / Math.max(1, f.widthOfTextAtSize(text, cap)));
+      const fixed = Math.floor(size * 100) / 100;
+      field.setFontSize(fixed);
+      // O DA do widget (21pt no logo, 14pt no quadro) tem prioridade sobre o do campo.
+      for (const w of field.acroField.getWidgets()) {
+        const da = w.getDefaultAppearance();
+        if (da) w.setDefaultAppearance(da.replace(/[\d.]+(\s+Tf)/, `${fixed}$1`));
+      }
+      // Nome sob o logo: centralizado, como nos PDFs antigos.
+      if (name === "Franquia") field.setAlignment(TextAlignment.Center);
+      set(name, text, f);
+    }
+    const pages = pdf.getPages();
+    if (pages.length !== 6) throw new Error("Contrato-base inesperado");
+    const fit = (text: string, f: typeof font, size: number, max: number) =>
+      Math.min(size, (size * max) / Math.max(1, f.widthOfTextAtSize(text, size)));
+    const creci = `CRECI ${unit.creci.trim()}`;
+    for (const [p, x, y] of UNIT_CRECI_POS)
+      pages[p].drawText(creci, { x, y, size: 8, font, color: rgb(0.047, 0.11, 0.224) });
+    // Pág. 6: cláusula B. e nome da unidade sob o logo.
+    const clause = ` A IMOBILIÁRIA ${unit.nome_comercial.trim().toLocaleUpperCase("pt-BR")}, acima mencionada,`;
+    pages[5].drawText(clause, {
+      x: 323.65,
+      y: 645.12,
+      size: fit(clause, font, 8.5, UNIT_TEXT_LIMITS.clausulaB),
+      font,
+      color: rgb(0.137, 0.122, 0.125),
+    });
+    pages[5].drawRectangle({
+      x: LOGO6.x0,
+      y: LOGO6.y0,
+      width: LOGO6.x1 - LOGO6.x0,
+      height: LOGO6.y1 - LOGO6.y0,
+      color: rgb(1, 1, 1),
+    });
+    const logoName = unit.nome.trim();
+    const logoSize = fit(logoName, bold, 15, UNIT_TEXT_LIMITS.logo);
+    pages[5].drawText(logoName, {
+      x: LOGO6.centerX - bold.widthOfTextAtSize(logoName, logoSize) / 2,
+      y: LOGO6.baseline,
+      size: logoSize,
+      font: bold,
+      color: rgb(0.005, 0.112, 0.234),
+    });
+  }
   const data = normalizeForm(capture.form_data);
   for (const [key, names] of Object.entries(ownerFields) as [OwnerField, [string, string]][]) {
     set(names[0], data.proprietario_1[key]);

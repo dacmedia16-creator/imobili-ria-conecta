@@ -6,7 +6,9 @@ import type {
   CaptureEvent,
   CaptureForm,
   DocumentKind,
+  ExclusiveUnit,
   Template,
+  UnitField,
 } from "./exclusive-captures";
 import { normalizeForm } from "./exclusive-captures";
 import { storageOrganizationPath } from "./storage-org";
@@ -60,8 +62,23 @@ export async function loadCapture(
     history: (history ?? []) as CaptureEvent[],
   };
 }
-export async function createCapture(template: Template): Promise<string> {
-  const { data, error } = await db.rpc("exclusive_create", { _template: template });
+/** Unidades da imobiliária atual (RLS filtra pela organização). */
+export async function listUnits(): Promise<ExclusiveUnit[]> {
+  const { data, error } = await db.from("exclusive_units").select("*").order("nome");
+  check(error);
+  return (data ?? []) as ExclusiveUnit[];
+}
+export async function saveUnit(
+  id: string | null,
+  data: Pick<ExclusiveUnit, UnitField> & { ativo: boolean },
+): Promise<string> {
+  const { data: out, error } = await db.rpc("exclusive_unit_save", { _id: id, _data: data });
+  check(error);
+  if (typeof out !== "string") throw new Error("Unidade não foi salva");
+  return out;
+}
+export async function createCapture(unitId: string): Promise<string> {
+  const { data, error } = await db.rpc("exclusive_create_unit", { _unit_id: unitId });
   check(error);
   if (typeof data !== "string") throw new Error("Captação não foi criada");
   return data;
@@ -149,6 +166,15 @@ export async function signedDocument(doc: CaptureDocument): Promise<string> {
   return data.signedUrl;
 }
 export async function downloadCaptureTemplate(template: Template): Promise<Uint8Array> {
+  if (template === "remax-padrao") {
+    // Contrato-base comum a todas as imobiliárias (caminho fixo, só leitura).
+    const base = await supabase.storage
+      .from("exclusive-templates")
+      .download("base/remax-padrao.pdf");
+    check(base.error);
+    if (!base.data) throw new Error("Modelo indisponível");
+    return new Uint8Array(await base.data.arrayBuffer());
+  }
   if (template !== "campolim" && template !== "barao-de-tatui") throw new Error("Modelo inválido");
   const prefixedPath = await storageOrganizationPath(`${template}.pdf`);
   const { data, error } = await supabase.storage.from("exclusive-templates").download(prefixedPath);

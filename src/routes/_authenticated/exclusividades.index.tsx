@@ -1,16 +1,21 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { archiveCapture, createCapture, listCaptures } from "@/lib/exclusive-captures-db";
+import {
+  archiveCapture,
+  createCapture,
+  listCaptures,
+  listUnits,
+} from "@/lib/exclusive-captures-db";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   captureNextAction,
+  captureUnitLabel,
   captureValidity,
   VALIDITY_STYLE,
   validityText,
-  TEMPLATES,
   type Capture,
-  type Template,
+  type ExclusiveUnit,
 } from "@/lib/exclusive-captures";
 import {
   EMPTY_FILTERS,
@@ -46,7 +51,8 @@ function ExclusiveList() {
   const navigate = useNavigate();
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState<Template | null>(null);
+  const [units, setUnits] = useState<ExclusiveUnit[]>([]);
+  const [creating, setCreating] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [onlyExpiring, setOnlyExpiring] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -61,7 +67,7 @@ function ExclusiveList() {
   const visible = captures
     .filter((c) => !!c.archived_at === showArchived)
     .filter((c) => showArchived || !onlyExpiring || expiring(c))
-    .filter((c) => matchFilters(c, filters, today))
+    .filter((c) => matchFilters(c, filters, today, units))
     .sort((a, b) =>
       onlyExpiring
         ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
@@ -84,15 +90,19 @@ function ExclusiveList() {
     }
   };
   useEffect(() => {
-    listCaptures()
-      .then(setCaptures)
+    Promise.all([listCaptures(), listUnits()])
+      .then(([list, unitList]) => {
+        setCaptures(list);
+        setUnits(unitList);
+      })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
   }, []);
-  const create = async (template: Template) => {
-    setCreating(template);
+  const activeUnits = units.filter((u) => u.ativo);
+  const create = async (unitId: string) => {
+    setCreating(unitId);
     try {
-      const id = await createCapture(template);
+      const id = await createCapture(unitId);
       navigate({ to: "/exclusividades/$id", params: { id } });
     } catch (e: unknown) {
       toast.error(errorMessage(e, "Falha ao criar captação"));
@@ -113,11 +123,23 @@ function ExclusiveList() {
           <CardTitle>Nova captação</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          {(Object.entries(TEMPLATES) as [Template, string][]).map(([key, label]) => (
-            <Button key={key} disabled={!!creating} onClick={() => create(key)}>
-              {creating === key ? "Criando…" : label}
+          {activeUnits.map((u) => (
+            <Button key={u.id} disabled={!!creating} onClick={() => create(u.id)}>
+              {creating === u.id ? "Criando…" : u.nome}
             </Button>
           ))}
+          {!loading && activeUnits.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma unidade cadastrada.{" "}
+              {hasAny(["admin", "super_admin"]) ? (
+                <Link to="/admin/unidades-captacao" className="text-primary underline">
+                  Cadastre a primeira unidade
+                </Link>
+              ) : (
+                "Peça ao administrador da imobiliária para cadastrar as unidades."
+              )}
+            </p>
+          )}
         </CardContent>
       </Card>
       <Card>
@@ -151,6 +173,7 @@ function ExclusiveList() {
             value={filters}
             onChange={setFilters}
             showSearch
+            units={units}
           />
           {!loading && (
             <p className="text-xs text-muted-foreground">
@@ -213,7 +236,9 @@ function ExclusiveList() {
                     <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="rounded-full border px-2 py-0.5">{TEMPLATES[c.template]}</span>
+                    <span className="rounded-full border px-2 py-0.5">
+                      {captureUnitLabel(c, units)}
+                    </span>
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
                       {
                         {
@@ -265,7 +290,12 @@ function ExclusiveList() {
           )}
         </CardContent>
       </Card>
-      <CaptureSummaryDialog capture={summary} today={today} onClose={() => setSummary(null)} />
+      <CaptureSummaryDialog
+        capture={summary}
+        today={today}
+        onClose={() => setSummary(null)}
+        units={units}
+      />
     </div>
   );
 }

@@ -1,13 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { listCaptures, setCaptureGeo } from "@/lib/exclusive-captures-db";
+import { listCaptures, listUnits, setCaptureGeo } from "@/lib/exclusive-captures-db";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   formatDateBR,
-  TEMPLATES,
   validityText,
   VALIDITY_STYLE,
   type Capture,
+  type ExclusiveUnit,
 } from "@/lib/exclusive-captures";
 import {
   applyFilters,
@@ -95,6 +95,7 @@ function CapturesDashboard() {
   const navigate = useNavigate();
   const today = hojeSaoPaulo();
   const [captures, setCaptures] = useState<Capture[]>([]);
+  const [units, setUnits] = useState<ExclusiveUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [hidden, setHidden] = useState<Situation[]>([]);
@@ -102,8 +103,11 @@ function CapturesDashboard() {
   const started = useRef(false);
 
   useEffect(() => {
-    listCaptures()
-      .then(setCaptures)
+    Promise.all([listCaptures(), listUnits()])
+      .then(([list, unitList]) => {
+        setCaptures(list);
+        setUnits(unitList);
+      })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
   }, []);
@@ -138,10 +142,10 @@ function CapturesDashboard() {
   }, [loading, captures]);
 
   const filtered = useMemo(
-    () => applyFilters(captures, filters, today),
-    [captures, filters, today],
+    () => applyFilters(captures, filters, today, units),
+    [captures, filters, today, units],
   );
-  const d = useMemo(() => buildDashboard(filtered, today), [filtered, today]);
+  const d = useMemo(() => buildDashboard(filtered, today, units), [filtered, today, units]);
   const onMap = filtered.filter((c) => !hidden.includes(situation(c, today).s));
   const semLocal = filtered.filter((c) => c.geo_lat == null).length;
   const active = captures.filter((c) => !c.archived_at);
@@ -174,7 +178,7 @@ function CapturesDashboard() {
 
       <Card>
         <CardContent className="pt-6">
-          <CapturesFilters captures={active} value={filters} onChange={setFilters} />
+          <CapturesFilters captures={active} value={filters} onChange={setFilters} units={units} />
         </CardContent>
       </Card>
 

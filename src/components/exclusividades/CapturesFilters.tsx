@@ -1,6 +1,11 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { TEMPLATES, type Capture } from "@/lib/exclusive-captures";
+import {
+  captureUnitKey,
+  captureUnitLabel,
+  type Capture,
+  type ExclusiveUnit,
+} from "@/lib/exclusive-captures";
 import {
   bairroLabel,
   EMPTY_FILTERS,
@@ -46,12 +51,19 @@ export function CapturesFilters({
   value,
   onChange,
   showSearch = false,
+  units = [],
 }: {
   captures: Capture[];
   value: Filters;
   onChange: (f: Filters) => void;
   showSearch?: boolean;
+  units?: ExclusiveUnit[];
 }) {
+  const unitOptions = [
+    ...new Map(
+      captures.map((c): [string, string] => [captureUnitKey(c, units), captureUnitLabel(c, units)]),
+    ),
+  ].sort((a, b) => a[1].localeCompare(b[1]));
   const set = (k: keyof Filters) => (v: string) => onChange({ ...value, [k]: v });
   return (
     <div className="space-y-3">
@@ -81,7 +93,7 @@ export function CapturesFilters({
           label="Unidade"
           value={value.unidade}
           onChange={set("unidade")}
-          options={[["", "Todas"], ...(Object.entries(TEMPLATES) as [string, string][])]}
+          options={[["", "Todas"], ...unitOptions]}
         />
         <Select
           label="Bairro"

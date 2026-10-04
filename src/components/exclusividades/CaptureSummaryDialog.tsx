@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import {
   captureValidity,
   formatDateBR,
-  TEMPLATES,
+  captureUnitLabel,
   validityText,
   VALIDITY_STYLE,
   type Capture,
+  type ExclusiveUnit,
 } from "@/lib/exclusive-captures";
 import { brl, parseBRL } from "@/lib/exclusive-captures-dashboard";
 import { ArrowRight } from "lucide-react";
@@ -23,10 +24,12 @@ export function CaptureSummaryDialog({
   capture,
   today,
   onClose,
+  units = [],
 }: {
   capture: Capture | null;
   today: string;
   onClose: () => void;
+  units?: ExclusiveUnit[];
 }) {
   const c = capture;
   const i = c?.form_data.imovel;
@@ -130,7 +133,7 @@ export function CaptureSummaryDialog({
                     : "",
               )}
               {row("Captador", c.broker_name ?? "")}
-              {row("Unidade", TEMPLATES[c.template] ?? "")}
+              {row("Unidade", captureUnitLabel(c, units))}
             </div>
 
             <div className="flex justify-end">

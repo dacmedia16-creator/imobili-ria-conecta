@@ -33,6 +33,7 @@ import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_auth
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
+import { Route as AuthenticatedAdminUnidadesCaptacaoRouteImport } from './routes/_authenticated/admin.unidades-captacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
@@ -175,6 +176,12 @@ const AuthenticatedAdminPosicionamentoRoute =
     path: '/admin/posicionamento',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminUnidadesCaptacaoRoute =
+  AuthenticatedAdminUnidadesCaptacaoRouteImport.update({
+    id: '/admin/unidades-captacao',
+    path: '/admin/unidades-captacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUsuariosRoute =
   AuthenticatedAdminUsuariosRouteImport.update({
     id: '/admin/usuarios',
@@ -258,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
@@ -293,6 +301,7 @@ export interface FileRoutesByTo {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
@@ -330,6 +339,7 @@ export interface FileRoutesById {
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/_authenticated/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/admin/configuracoes'
     | '/admin/posicionamento'
+    | '/admin/unidades-captacao'
     | '/admin/usuarios'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/admin/configuracoes'
     | '/admin/posicionamento'
+    | '/admin/unidades-captacao'
     | '/admin/usuarios'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
@@ -438,6 +450,7 @@ export interface FileRouteTypes {
     | '/_authenticated/visao-executiva'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/posicionamento'
+    | '/_authenticated/admin/unidades-captacao'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
@@ -630,6 +643,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPosicionamentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/unidades-captacao': {
+      id: '/_authenticated/admin/unidades-captacao'
+      path: '/admin/unidades-captacao'
+      fullPath: '/admin/unidades-captacao'
+      preLoaderRoute: typeof AuthenticatedAdminUnidadesCaptacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/usuarios': {
       id: '/_authenticated/admin/usuarios'
       path: '/admin/usuarios'
@@ -721,6 +741,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
+  AuthenticatedAdminUnidadesCaptacaoRoute: typeof AuthenticatedAdminUnidadesCaptacaoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
@@ -752,6 +773,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
+  AuthenticatedAdminUnidadesCaptacaoRoute:
+    AuthenticatedAdminUnidadesCaptacaoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedExclusividadesPainelRoute:

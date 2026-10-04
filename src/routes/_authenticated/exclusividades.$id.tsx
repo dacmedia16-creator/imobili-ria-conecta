@@ -7,6 +7,7 @@ import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   downloadCaptureTemplate,
   downloadDocument,
+  listUnits,
   loadCapture,
   saveCapture,
   signedDocument,
@@ -31,9 +32,11 @@ import {
   OWNER_FIELDS,
   PROPERTY_FIELDS,
   TERMS_FIELDS,
-  TEMPLATES,
+  captureUnitLabel,
+  contractSource,
   type Capture,
   type CaptureDocument,
+  type ExclusiveUnit,
   type CaptureEvent,
   type CaptureForm,
   type DocumentKind,
@@ -109,6 +112,7 @@ function ExclusiveDetail() {
   const { id } = Route.useParams();
   const { user, hasAny } = useAuth();
   const [capture, setCapture] = useState<Capture | null>(null);
+  const [units, setUnits] = useState<ExclusiveUnit[]>([]);
   const [form, setForm] = useState<CaptureForm | null>(null);
   const [cpf, setCpf] = useState("");
   const [creci, setCreci] = useState("");
@@ -134,7 +138,8 @@ function ExclusiveDetail() {
   const archived = !!capture?.archived_at;
   const editable = !archived && (capture?.status === "rascunho" || capture?.status === "devolvida");
   const reload = useCallback(async () => {
-    const result = await loadCapture(id);
+    const [result, unitList] = await Promise.all([loadCapture(id), listUnits()]);
+    setUnits(unitList);
     if (loadedId.current !== id) {
       setSuggestions([]);
       setPreview(null);
@@ -211,11 +216,14 @@ function ExclusiveDetail() {
       // A versão é sempre invalidada antes de gerar.
       await saveCapture(id, form, cpf, creci);
       // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
+      // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
+      const source = contractSource(capture, units);
       const bytes = await fillExclusiveTemplate(
-        await downloadCaptureTemplate(capture.template),
+        await downloadCaptureTemplate(source.file),
         { ...capture, form_data: form, broker_cpf: cpf, broker_creci: creci },
         true,
         hojeSaoPaulo(),
+        source.unit,
       );
       const file = new File([bytes as BlobPart], `contrato-exclusividade-${id.slice(0, 8)}.pdf`, {
         type: "application/pdf",
@@ -506,7 +514,7 @@ function ExclusiveDetail() {
       </Link>
       <div>
         <h1 className="text-2xl font-semibold">
-          Captação exclusiva · {TEMPLATES[capture.template]}
+          Captação exclusiva · {captureUnitLabel(capture, units)}
         </h1>
         <p className="text-sm text-muted-foreground">
           {statusLabels[capture.status]} · Criada em {capture.created_on_sp} (São Paulo). Captador:{" "}
