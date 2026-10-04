@@ -327,12 +327,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: Percent,
       show: hasAny(["admin", "super_admin", "financeiro"]),
     },
-    {
-      to: "/comissao-coordenador",
-      label: "Comissão por Coordenador",
-      icon: Receipt,
-      show: hasAny(["admin", "super_admin", "financeiro"]),
-    },
+    // "Comissão por Coordenador" saiu do menu em 04/10/2026 (repetia o Desempenho → Por equipe).
+    // A rota /comissao-coordenador continua existindo; apagar se ninguém sentir falta em ~30 dias.
     {
       to: "/producao-por-pessoa",
       label: "Produção por pessoa",
