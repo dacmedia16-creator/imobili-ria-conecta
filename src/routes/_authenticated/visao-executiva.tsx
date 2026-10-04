@@ -208,6 +208,7 @@ function VisaoExecutiva() {
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
+  const [buscaComissao, setBuscaComissao] = useState("");
 
   useEffect(() => {
     if (!ehLider || !user?.id) {
@@ -391,6 +392,21 @@ function VisaoExecutiva() {
   const maxDias = Math.max(1, ...etapas.map((e) => e.dias));
   const gargalo =
     etapas.length > 1 ? etapas.reduce((max, e) => (e.dias > max.dias ? e : max), etapas[0]) : null;
+
+  // Busca ignora maiúsculas e acentos ("virginia" encontra "Virgínia").
+  const normalizarBusca = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  const termoBuscaComissao = normalizarBusca(buscaComissao);
+  const comissaoFiltrada = Object.entries(comissaoStats?.comissao_por_corretor ?? {})
+    .filter(
+      ([cid]) =>
+        !termoBuscaComissao || normalizarBusca(profileName[cid] ?? "").includes(termoBuscaComissao),
+    )
+    .sort(([, a], [, b]) => Number(b) - Number(a));
 
   return (
     <div className="space-y-6">
@@ -614,17 +630,22 @@ function VisaoExecutiva() {
               <CardTitle className="text-base">Comissão por corretor</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              {Object.entries(comissaoStats?.comissao_por_corretor ?? {})
-                .sort(([, a], [, b]) => Number(b) - Number(a))
-                .map(([cid, valor]) => (
-                  <div
-                    key={cid}
-                    className="flex items-center justify-between rounded-md border p-2"
-                  >
-                    <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
-                    <span className="font-medium">{money(Number(valor))}</span>
-                  </div>
-                ))}
+              <Input
+                aria-label="Pesquisar por nome"
+                placeholder="Pesquisar por nome…"
+                value={buscaComissao}
+                onChange={(e) => setBuscaComissao(e.target.value)}
+                className="mb-2 sm:max-w-xs"
+              />
+              {comissaoFiltrada.length === 0 && (
+                <p className="py-2 text-muted-foreground">Nenhum nome encontrado.</p>
+              )}
+              {comissaoFiltrada.map(([cid, valor]) => (
+                <div key={cid} className="flex items-center justify-between rounded-md border p-2">
+                  <span>{profileName[cid] ?? `${cid.slice(0, 8)}…`}</span>
+                  <span className="font-medium">{money(Number(valor))}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
