@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { buscarCep, COLUNAS_ENDERECO, enderecoDaExtracao, mesmaRua } from "@/lib/endereco-imovel";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
@@ -170,6 +171,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
     const salePatch: Record<string, Json | undefined> = {};
     const paymentPatch: Record<string, Json | undefined> = {};
     const partiesPatch: Record<string, Record<string, Json | undefined>> = {};
+    let enderecoComCep = false;
 
     for (const ext of extractions) {
       const r = (ext.raw_json ?? {}) as ExtractionData;
@@ -182,6 +184,18 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         assign(salePatch, "imovel_id", r.codigo_imovel);
         assign(salePatch, "iptu", r.iptu ?? r.numero_iptu ?? r.inscricao_iptu);
         assign(salePatch, "imovel_endereco", r.endereco_imovel);
+        if (r.endereco_imovel || r.endereco_cep || r.endereco_logradouro) {
+          const partes = enderecoDaExtracao(r);
+          // Documento com CEP (geralmente IPTU) define as partes: vale mais que matrícula sem CEP.
+          if (partes.cep && !enderecoComCep) {
+            enderecoComCep = true;
+            for (const k of Object.keys(COLUNAS_ENDERECO) as (keyof typeof COLUNAS_ENDERECO)[])
+              if (partes[k]) salePatch[COLUNAS_ENDERECO[k]] = partes[k];
+          } else {
+            for (const k of Object.keys(COLUNAS_ENDERECO) as (keyof typeof COLUNAS_ENDERECO)[])
+              assign(salePatch, COLUNAS_ENDERECO[k], partes[k]);
+          }
+        }
         if (r.valor_venal) assign(salePatch, "valor_anunciado", num(r.valor_venal));
         if (r.valor_negociado) assign(salePatch, "valor_negociado", num(r.valor_negociado));
         // Só a matrícula tem a descrição completa do imóvel — um IPTU ou uma CND de condomínio
@@ -259,6 +273,21 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           assign(p, "endereco", endereco);
           assign(p, "regime_casamento", regimeCasamento);
         }
+      }
+    }
+
+    // CEP encontrado: rua/bairro/cidade/UF oficiais do ViaCEP prevalecem (só o CEP sai daqui).
+    if (typeof salePatch.imovel_cep === "string") {
+      const via = await buscarCep(salePatch.imovel_cep);
+      const ruaDoc =
+        typeof salePatch.imovel_logradouro === "string" ? salePatch.imovel_logradouro : null;
+      if (via && !mesmaRua(ruaDoc, via.logradouro)) {
+        delete salePatch.imovel_cep; // CEP não bate com a rua do documento: corretor confere.
+      } else if (via) {
+        if (via.logradouro) salePatch.imovel_logradouro = via.logradouro;
+        if (via.bairro) salePatch.imovel_bairro = via.bairro;
+        if (via.cidade) salePatch.imovel_cidade = via.cidade;
+        if (via.uf) salePatch.imovel_uf = via.uf;
       }
     }
 
@@ -511,6 +540,13 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   "iptu": string|null,
   "inscricao_iptu": string|null,
   "endereco_imovel": string|null,
+  "endereco_cep": string|null,
+  "endereco_logradouro": string|null,
+  "endereco_numero": string|null,
+  "endereco_complemento": string|null,
+  "endereco_bairro": string|null,
+  "endereco_cidade": string|null,
+  "endereco_uf": string|null,
   "area_total": string|null,
   "area_construida": string|null,
   "valor_venal": string|null,
@@ -520,6 +556,9 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   // Matrícula traz a descrição completa do imóvel (cômodos, medidas, confrontações, unidade,
   // bloco/torre, vaga de garagem, fração ideal etc.) — sem essa instrução explícita a IA tende a
   // devolver um resumo curto (ou nada) em vez do texto integral que o corretor quer aproveitar.
+  // Endereço: o texto completo continua em "endereco_imovel" (como sempre foi); as partes
+  // separadas alimentam o relatório por bairro/cidade.
+  const enderecoHint = `\n\nEm "endereco_imovel" mantenha o endereço completo como consta no documento. Preencha também as partes separadas: "endereco_logradouro" (tipo e nome da via, sem número), "endereco_numero", "endereco_complemento" (apto, bloco, torre, casa, unidade, lote/quadra), "endereco_bairro" (o bairro ou loteamento; não use zona fiscal como "Região Sul"), "endereco_cidade", "endereco_uf" (sigla) e "endereco_cep" (só se aparecer no documento; nunca invente).`;
   const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma. NÃO copie texto de certidões de débito, IPTU ou outros documentos — só o que está literalmente na matrícula.`;
   const commonPessoaJuridica = `\n\nCampos de pessoa jurídica possíveis:
 {
@@ -536,6 +575,7 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
     return (
       base +
       commonImovel(tipo === "matricula") +
+      enderecoHint +
       (tipo === "matricula" ? matriculaDescricaoHint : "")
     );
   if (isPessoaJuridica) return base + commonPessoaJuridica;
@@ -545,7 +585,8 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
     return (
       base +
       commonImovel(tipo === "matricula") +
+      enderecoHint +
       (tipo === "matricula" ? matriculaDescricaoHint : "")
     );
-  return base + commonPessoal + commonImovel(false);
+  return base + commonPessoal + commonImovel(false) + enderecoHint;
 }

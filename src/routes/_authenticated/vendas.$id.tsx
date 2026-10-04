@@ -48,6 +48,8 @@ import {
   PARCERIA_TIPOS,
   MIDIA_OPTIONS,
   validarProntaParaRevisao,
+  enderecoFaltando,
+  mensagemEnderecoFaltando,
   validarComposicaoPagamento,
   validarDocsAprovadosParaJuridico,
   proximoResponsavel,
@@ -154,6 +156,7 @@ import {
   DocStatusBadge,
 } from "@/components/vendas/shared";
 import { PartiesStep } from "@/components/vendas/PartiesStep";
+import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
@@ -343,6 +346,7 @@ function SaleDetail() {
   );
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [mostrarErrosEndereco, setMostrarErrosEndereco] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -926,6 +930,13 @@ function SaleDetail() {
         "matricula",
         "iptu",
         "imovel_endereco",
+        "imovel_cep",
+        "imovel_logradouro",
+        "imovel_numero",
+        "imovel_complemento",
+        "imovel_bairro",
+        "imovel_cidade",
+        "imovel_uf",
         "codigo_interno",
         "imovel_observacoes",
         "observacoes_gerais",
@@ -1868,7 +1879,26 @@ function SaleDetail() {
     setArchiveOpen(false);
   };
   const attemptSendForReview = () => setReviewOpen(true);
+  // Endereço incompleto: explica o motivo, volta para o Resumo e marca os campos em vermelho.
+  const barrarPorEndereco = (): boolean => {
+    const falta = enderecoFaltando(formSale as unknown as Record<string, unknown>);
+    if (!falta.length) return false;
+    setMostrarErrosEndereco(true);
+    setReviewOpen(false);
+    setApproveJuridicoOpen(false);
+    setStep("resumo");
+    toast.error(mensagemEnderecoFaltando(falta), { duration: 8000 });
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document
+          .getElementById("endereco-imovel-partes")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    });
+    return true;
+  };
   const confirmSendForReview = async () => {
+    if (barrarPorEndereco()) return;
     if (pendencias.length > 0) {
       toast.error("Corrija as pendências antes de enviar");
       return;
@@ -2032,6 +2062,16 @@ function SaleDetail() {
                             onChange={(e) => updResumo({ imovel_endereco: e.target.value })}
                           />
                         </Field>
+                        <EnderecoPartesFields
+                          value={formSale}
+                          disabled={!editable}
+                          onChange={(patch) => updResumo(patch)}
+                          faltando={
+                            mostrarErrosEndereco
+                              ? enderecoFaltando(formSale as unknown as Record<string, unknown>)
+                              : []
+                          }
+                        />
                         <Field label="Código interno">
                           <Input
                             value={formSale.codigo_interno ?? ""}
@@ -4126,6 +4166,10 @@ function SaleDetail() {
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
               <ReviewItem label="Endereço" value={sale.imovel_endereco} />
+              <ReviewItem
+                label="Bairro / cidade"
+                value={[sale.imovel_bairro, sale.imovel_cidade].filter(Boolean).join(" – ") || null}
+              />
               <ReviewItem
                 label="Tempo de venda"
                 value={sale.tempo_venda_dias != null ? `${sale.tempo_venda_dias} dias` : null}

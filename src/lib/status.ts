@@ -527,12 +527,35 @@ export function validarComposicaoPagamento(
 export const CHECKS_NAO_DOCUMENTAIS = [
   "imovel",
   "matricula",
+  "endereco",
   "vendedor",
   "comprador",
   "valor_negociado",
   "comissao",
   "pagamento",
 ] as const;
+
+/** Partes do endereço exigidas antes de a venda seguir ao gestor/jurídico (CEP e complemento opcionais). */
+export const ENDERECO_OBRIGATORIO = [
+  { coluna: "imovel_logradouro", label: "Rua" },
+  { coluna: "imovel_numero", label: "Número" },
+  { coluna: "imovel_bairro", label: "Bairro" },
+  { coluna: "imovel_cidade", label: "Cidade" },
+  { coluna: "imovel_uf", label: "UF" },
+] as const;
+
+/** Colunas do endereço que faltam (vazias). Número aceita "S/N". */
+export function enderecoFaltando(sale: Record<string, unknown> | null | undefined): string[] {
+  return ENDERECO_OBRIGATORIO.filter(({ coluna }) => {
+    const v = sale?.[coluna];
+    return typeof v !== "string" || !v.trim();
+  }).map(({ coluna }) => coluna);
+}
+
+export function mensagemEnderecoFaltando(colunas: string[]): string {
+  const labels = ENDERECO_OBRIGATORIO.filter((c) => colunas.includes(c.coluna)).map((c) => c.label);
+  return `Complete o endereço do imóvel (falta: ${labels.join(", ")}). Sem ele a venda não segue para o gestor e o jurídico.`;
+}
 
 /**
  * Valida se a venda está pronta para ser enviada para revisão do gestor.
@@ -551,6 +574,9 @@ export function validarProntaParaRevisao(
     pend.push({ campo: "imovel", mensagem: "Falta identificar o imóvel (ID ou código interno)" });
   if (!sale?.matricula)
     pend.push({ campo: "matricula", mensagem: "Falta informar a matrícula do imóvel" });
+  const faltaEndereco = enderecoFaltando(sale as unknown as Record<string, unknown>);
+  if (faltaEndereco.length)
+    pend.push({ campo: "endereco", mensagem: mensagemEnderecoFaltando(faltaEndereco) });
 
   // Partes
   const vendedor = parties?.vendedor_1;
