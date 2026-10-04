@@ -269,6 +269,12 @@ function AgencySettings() {
                 />
                 Ativa
               </label>
+              {editingRoom.id && (
+                <p className="text-xs text-muted-foreground sm:col-span-4">
+                  Esta sala tem reservas futuras? Cancele ou aguarde as reservas futuras para
+                  renomear ou desativar.
+                </p>
+              )}
               <div className="flex gap-2 sm:col-span-4">
                 <Button onClick={saveRoom} disabled={saving || !editingRoom.nome.trim()}>
                   Salvar sala
