@@ -5,6 +5,8 @@
  * Regra de divisão (validada por simulação em chat com dados reais antes de virar código):
  * - Venda padrão = 1 venda completa, dividida em 2 pontas iguais: captação (0,5) + venda (0,5), cada
  *   uma com metade do VGV e metade da comissão bruta da operação.
+ * - Venda em parceria com outra imobiliária (uma ponta externa) = 1 venda inteira para a ponta
+ *   interna (decisão de Denis, 04/10/2026): a quantidade não é dividida com a imobiliária parceira.
  * - Venda de Lançamento = 1 venda inteira distribuída entre os vendedores proporcionalmente à
  *   comissão de cada um. Com um vendedor, ele recebe 100%; com dois em partes iguais, 50% cada.
  * A soma das pontas de uma operação sempre fecha em 1 venda / 100% do VGV / 100% da comissão —
@@ -199,7 +201,8 @@ export function gerarPontas(
         pessoaNome: r.captador_nome ?? "Não vinculado",
         teamId: captacao.teamId,
         teamNome: captacao.teamNome,
-        qtd: 0.5,
+        // Se a outra imobiliária fez a venda, a venda inteira (1) conta pra quem captou aqui.
+        qtd: r.parceria_externa_venda ? 1 : 0.5,
         vgv: round2(valorNegociado / divisorMetricas),
         comissao: round2(comissaoBruta / divisorMetricas),
       });
@@ -221,7 +224,8 @@ export function gerarPontas(
           pessoaNome: vendedor.nome ?? "Não vinculado",
           teamId: venda.teamId,
           teamNome: venda.teamNome,
-          qtd: fracao * 0.5,
+          // Se a outra imobiliária captou, a venda inteira (1) conta pra quem vendeu aqui.
+          qtd: fracao * (r.parceria_externa_captacao ? 1 : 0.5),
           vgv: valoresRateados[index].vgv,
           comissao: valoresRateados[index].comissao,
         });

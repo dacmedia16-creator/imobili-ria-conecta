@@ -35,8 +35,9 @@ export function SummaryTable({
         </CardTitle>
         <p className="text-sm text-muted-foreground">
           <strong className="font-medium text-foreground">Como contar:</strong> duas pontas (captou
-          e vendeu) = 1 venda. Só captação ou só venda = 0,5. Lançamento: a venda inteira vai para
-          quem vendeu, dividida se houver mais de um corretor.
+          e vendeu) = 1 venda. Só captação ou só venda = 0,5. Parceria com outra imobiliária = 1
+          para a nossa ponta. Lançamento: a venda inteira vai para quem vendeu, dividida se houver
+          mais de um corretor.
         </p>
       </CardHeader>
       <CardContent>

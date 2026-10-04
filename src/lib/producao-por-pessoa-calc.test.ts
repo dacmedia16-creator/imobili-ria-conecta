@@ -152,7 +152,7 @@ describe("parceria externa", () => {
     );
 
     expect(pontas).toHaveLength(1);
-    expect(pontas[0]).toMatchObject({ tipo: "captacao", qtd: 0.5, vgv: 200000, comissao: 12000 });
+    expect(pontas[0]).toMatchObject({ tipo: "captacao", qtd: 1, vgv: 200000, comissao: 12000 });
     expect(pontas.some((p) => p.pessoaNome === "Não vinculado")).toBe(false);
   });
 
@@ -175,7 +175,7 @@ describe("parceria externa", () => {
     );
 
     expect(pontas).toHaveLength(1);
-    expect(pontas[0]).toMatchObject({ tipo: "venda", qtd: 0.5, vgv: 92500, comissao: 5550 });
+    expect(pontas[0]).toMatchObject({ tipo: "venda", qtd: 1, vgv: 92500, comissao: 5550 });
     expect(pontas.some((p) => p.pessoaNome === "Não vinculado")).toBe(false);
   });
 

@@ -28,7 +28,7 @@ export function DetailTable({
   onLimparPessoa?: () => void;
 }) {
   const ordenadas = [...pontas].sort((a, b) => b.concluidaEm.localeCompare(a.concluidaEm));
-  // O que a pessoa fez em cada venda: as duas pontas (= 1) ou só uma (= 0,5).
+  // O que a pessoa fez em cada venda: duas pontas (= 1), só uma (= 0,5) ou parceria externa (= 1).
   const chavePessoa = (p: ProducaoPonta) => `${p.saleId}|${p.pessoaId ?? `sem:${p.pessoaNome}`}`;
   const tiposPorPessoaVenda = new Map<string, Set<ProducaoPonta["tipo"]>>();
   for (const p of pontas) {
@@ -40,6 +40,8 @@ export function DetailTable({
     if (p.modalidade === "lancamento") return "Venda de Lançamento";
     const tipos = tiposPorPessoaVenda.get(chavePessoa(p));
     if (tipos?.has("captacao") && tipos.has("venda")) return "Duas pontas";
+    if (p.qtd > 0.5 && p.tipo === "captacao") return "Captação (venda por outra imobiliária)";
+    if (p.qtd > 0.5 && p.tipo === "venda") return "Venda (captação por outra imobiliária)";
     return p.tipo === "captacao" ? "Só captação" : "Só venda";
   };
 

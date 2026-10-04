@@ -40,17 +40,17 @@ export function TotalsCards({ totais }: { totais: TotaisProducao }) {
         destaque
         label="Vendas equivalentes"
         valor={formatQtd(totais.qtdVendas)}
-        info="Duas pontas (captou e vendeu) = 1 venda. Só captação ou só venda = 0,5. Lançamento: 1 venda inteira para quem vendeu, dividida se houver mais de um vendedor."
+        info="Duas pontas (captou e vendeu) = 1 venda. Só captação ou só venda = 0,5. Parceria com outra imobiliária = 1 para a nossa ponta. Lançamento: 1 venda inteira para quem vendeu, dividida se houver mais de um vendedor."
       />
       <Card1
         label="Pontas de captação"
         valor={formatQtd(totais.qtdCaptacao)}
-        info="Cada captação conta 0,5 venda equivalente."
+        info="Cada captação conta 0,5; se outra imobiliária vendeu, conta 1."
       />
       <Card1
         label="Pontas de venda"
         valor={formatQtd(totais.qtdVenda)}
-        info="Cada venda padrão conta 0,5; Lançamento conta a venda inteira para quem vendeu."
+        info="Cada venda padrão conta 0,5; se outra imobiliária captou, conta 1. Lançamento conta a venda inteira para quem vendeu."
       />
     </div>
   );
