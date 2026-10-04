@@ -26,13 +26,18 @@ export function SummaryTable({
 }: SummaryTableProps) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-2">
         <CardTitle className="flex flex-wrap items-baseline gap-x-1 text-base">
           <span>Resumo consolidado por pessoa</span>
           <span className="text-sm font-normal text-muted-foreground">
             ({formatarTotalPessoas(resumo.length)})
           </span>
         </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          <strong className="font-medium text-foreground">Como contar:</strong> duas pontas (captou
+          e vendeu) = 1 venda. Só captação ou só venda = 0,5. Lançamento: a venda inteira vai para
+          quem vendeu, dividida se houver mais de um corretor.
+        </p>
       </CardHeader>
       <CardContent>
         <div className="max-h-[70vh] overflow-auto rounded-md border">
@@ -41,18 +46,17 @@ export function SummaryTable({
               <TableRow>
                 <TableHead>Pessoa</TableHead>
                 <TableHead>Equipe</TableHead>
-                <TableHead className="text-right">Vendas equiv.</TableHead>
-                <TableHead className="text-right">VGV gerado</TableHead>
-                <TableHead className="text-right">Comissão gerada</TableHead>
-                <TableHead className="text-right">Qtd. captação</TableHead>
-                <TableHead className="text-right">Qtd. venda</TableHead>
+                <TableHead className="text-right">Vendas equivalentes</TableHead>
+                <TableHead className="text-right">Captações</TableHead>
+                <TableHead className="text-right">Vendas</TableHead>
+                <TableHead className="text-right">VGV que participou</TableHead>
                 <TableHead className="text-right">Detalhe</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {resumo.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                     Nenhuma produção encontrada no período/filtro selecionado.
                   </TableCell>
                 </TableRow>
@@ -74,16 +78,13 @@ export function SummaryTable({
                   <TableCell className="text-right tabular-nums">
                     {formatQtd(r.qtdVendas)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatMoney(r.vgv)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(r.comissao)}
-                  </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {formatQtd(r.qtdCaptacao)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {formatQtd(r.qtdVenda)}
                   </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMoney(r.vgv)}</TableCell>
                   <TableCell className="text-right">
                     <button
                       type="button"

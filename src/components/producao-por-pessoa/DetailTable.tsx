@@ -28,6 +28,20 @@ export function DetailTable({
   onLimparPessoa?: () => void;
 }) {
   const ordenadas = [...pontas].sort((a, b) => b.concluidaEm.localeCompare(a.concluidaEm));
+  // O que a pessoa fez em cada venda: as duas pontas (= 1) ou só uma (= 0,5).
+  const chavePessoa = (p: ProducaoPonta) => `${p.saleId}|${p.pessoaId ?? `sem:${p.pessoaNome}`}`;
+  const tiposPorPessoaVenda = new Map<string, Set<ProducaoPonta["tipo"]>>();
+  for (const p of pontas) {
+    const k = chavePessoa(p);
+    if (!tiposPorPessoaVenda.has(k)) tiposPorPessoaVenda.set(k, new Set());
+    tiposPorPessoaVenda.get(k)!.add(p.tipo);
+  }
+  const participacao = (p: ProducaoPonta) => {
+    if (p.modalidade === "lancamento") return "Venda de Lançamento";
+    const tipos = tiposPorPessoaVenda.get(chavePessoa(p));
+    if (tipos?.has("captacao") && tipos.has("venda")) return "Duas pontas";
+    return p.tipo === "captacao" ? "Só captação" : "Só venda";
+  };
 
   return (
     <Card>
@@ -62,9 +76,9 @@ export function DetailTable({
                 <TableHead>Ponta</TableHead>
                 <TableHead>Pessoa</TableHead>
                 <TableHead>Equipe</TableHead>
-                <TableHead className="text-right">Qtd.</TableHead>
+                <TableHead>Participação</TableHead>
+                <TableHead className="text-right">Conta como</TableHead>
                 <TableHead className="text-right">VGV</TableHead>
-                <TableHead className="text-right">Comissão gerada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -104,11 +118,11 @@ export function DetailTable({
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.teamNome ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {participacao(p)}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatQtd(p.qtd)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(p.vgv)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(p.comissao)}
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

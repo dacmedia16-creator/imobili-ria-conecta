@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { InfoDot } from "@/components/dashboard/shared";
 import type { TotaisProducao } from "@/lib/producao-por-pessoa-types";
-import { formatMoney, formatQtd } from "./format";
+import { formatQtd } from "./format";
 
 function Card1({
   label,
@@ -33,39 +33,25 @@ function Card1({
 }
 
 export function TotalsCards({ totais }: { totais: TotaisProducao }) {
+  // VGV e comissão ficam no Desempenho (Resumo da Operação). Aqui só a contagem de pontas.
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card1
-          destaque
-          label="VGV atribuído à REMAX"
-          valor={formatMoney(totais.vgv)}
-          info="VGV proporcional gerado pelas pessoas filtradas, sem a participação de parceiros externos."
-        />
-        <Card1
-          destaque
-          label="Comissão gerada pela REMAX"
-          valor={formatMoney(totais.comissao)}
-          info="Comissão própria atribuída às pessoas filtradas, depois de descontar parceria externa."
-        />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card1
-          label="Vendas equivalentes"
-          valor={formatQtd(totais.qtdVendas)}
-          info="Participações somadas proporcionalmente. Uma captação e uma venda podem representar partes da mesma operação."
-        />
-        <Card1
-          label="Participações em captação"
-          valor={formatQtd(totais.qtdCaptacao)}
-          info="Quantidade proporcional de participações na ponta de captação."
-        />
-        <Card1
-          label="Participações em venda"
-          valor={formatQtd(totais.qtdVenda)}
-          info="Quantidade proporcional de participações na ponta de venda."
-        />
-      </div>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Card1
+        destaque
+        label="Vendas equivalentes"
+        valor={formatQtd(totais.qtdVendas)}
+        info="Duas pontas (captou e vendeu) = 1 venda. Só captação ou só venda = 0,5. Lançamento: 1 venda inteira para quem vendeu, dividida se houver mais de um vendedor."
+      />
+      <Card1
+        label="Pontas de captação"
+        valor={formatQtd(totais.qtdCaptacao)}
+        info="Cada captação conta 0,5 venda equivalente."
+      />
+      <Card1
+        label="Pontas de venda"
+        valor={formatQtd(totais.qtdVenda)}
+        info="Cada venda padrão conta 0,5; Lançamento conta a venda inteira para quem vendeu."
+      />
     </div>
   );
 }
