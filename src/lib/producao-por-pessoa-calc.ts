@@ -178,7 +178,9 @@ export function gerarPontas(
           pessoaNome: vendedor.nome ?? "Não vinculado",
           teamId,
           teamNome,
-          qtd: fracao,
+          // Cada vendedor que participou conta a venda inteira (nunca número quebrado). A divisão
+          // só reparte VGV/comissão; o total da empresa é deduplicado em totaisProducao.
+          qtd: fracao > 0 ? 1 : 0,
           vgv: valoresRateados[index].vgv,
           comissao: valoresRateados[index].comissao,
         });
@@ -225,7 +227,8 @@ export function gerarPontas(
           teamId: venda.teamId,
           teamNome: venda.teamNome,
           // Se a outra imobiliária captou, a venda inteira (1) conta pra quem vendeu aqui.
-          qtd: fracao * (r.parceria_externa_captacao ? 1 : 0.5),
+          // Cada vendedor que participou da ponta conta a ponta inteira (decisão de Denis, 04/10/2026).
+          qtd: fracao > 0 ? (r.parceria_externa_captacao ? 1 : 0.5) : 0,
           vgv: valoresRateados[index].vgv,
           comissao: valoresRateados[index].comissao,
         });
@@ -284,21 +287,25 @@ export function formatarTotalOperacoes(total: number): string {
   return `${total} ${total === 1 ? "operação" : "operações"}`;
 }
 
-/** Totais gerais sem duplicidade — soma direta das pontas já filtradas. Como cada operação sempre
- * contribui exatamente 1 venda / 100% do VGV / 100% da comissão entre as suas pontas, o total aqui
- * nunca passa do que as operações do período realmente somam. */
+/** Totais gerais sem duplicidade. Por pessoa, cada corretor que dividiu uma ponta conta a ponta
+ * inteira; no total, a mesma ponta (venda + tipo) conta uma vez só — por isso a quantidade usa o
+ * maior valor por ponta, e o VGV/comissão continuam a soma das partes rateadas. */
 export function totaisProducao(pontas: ProducaoPonta[]): TotaisProducao {
-  return pontas.reduce(
-    (acc, p) => {
-      acc.qtdVendas += p.qtd;
-      acc.vgv = round2(acc.vgv + p.vgv);
-      acc.comissao = round2(acc.comissao + p.comissao);
-      if (p.tipo === "captacao") acc.qtdCaptacao += p.qtd;
-      else acc.qtdVenda += p.qtd;
-      return acc;
-    },
-    { qtdVendas: 0, vgv: 0, comissao: 0, qtdCaptacao: 0, qtdVenda: 0 } as TotaisProducao,
-  );
+  const porPonta = new Map<string, ProducaoPonta>();
+  const acc = { qtdVendas: 0, vgv: 0, comissao: 0, qtdCaptacao: 0, qtdVenda: 0 } as TotaisProducao;
+  for (const p of pontas) {
+    acc.vgv = round2(acc.vgv + p.vgv);
+    acc.comissao = round2(acc.comissao + p.comissao);
+    const k = `${p.saleId}|${p.tipo}`;
+    const atual = porPonta.get(k);
+    if (!atual || p.qtd > atual.qtd) porPonta.set(k, p);
+  }
+  for (const p of porPonta.values()) {
+    acc.qtdVendas += p.qtd;
+    if (p.tipo === "captacao") acc.qtdCaptacao += p.qtd;
+    else acc.qtdVenda += p.qtd;
+  }
+  return acc;
 }
 
 export function aplicarFiltrosProducao(

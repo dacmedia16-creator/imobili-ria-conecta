@@ -282,7 +282,8 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
     ];
     const resultado = gerarPontas(duasVendedoras, new Map(), new Map());
     expect(resultado).toHaveLength(2);
-    expect(resultado.map((p) => p.qtd)).toEqual([0.5, 0.5]);
+    // Cada vendedora conta a venda inteira; o total da empresa continua 1.
+    expect(resultado.map((p) => p.qtd)).toEqual([1, 1]);
     expect(resultado.map((p) => p.vgv)).toEqual([320000, 320000]);
     expect(resultado.map((p) => p.comissao)).toEqual([3198.89, 3198.89]);
     expect(totaisProducao(resultado)).toEqual({
@@ -330,6 +331,13 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
     expect(resultado).toHaveLength(3);
     expect(resultado.filter((p) => p.tipo === "captacao")).toHaveLength(1);
     expect(resultado.filter((p) => p.tipo === "venda")).toHaveLength(2);
+    // Por pessoa: cada vendedor conta a ponta inteira (0,5), mesmo dividindo a comissão.
+    expect(resultado.filter((p) => p.tipo === "venda").map((p) => p.qtd)).toEqual([0.5, 0.5]);
+    expect(
+      agruparPorPessoa(resultado)
+        .map((r) => r.qtdVendas)
+        .sort(),
+    ).toEqual([0.5, 0.5, 0.5]);
     expect(totaisProducao(resultado)).toEqual({
       qtdVendas: 1,
       vgv: 680000,
@@ -367,7 +375,8 @@ describe("gerarPontas — dados reais de agosto/2026 (fixture congelada)", () =>
     );
 
     expect(pontas.filter((p) => p.tipo === "venda")).toHaveLength(3);
-    expect(pontas.reduce((sum, p) => sum + p.qtd, 0)).toBeCloseTo(1, 6);
+    // Cada vendedor conta a ponta inteira (0,5), sem número quebrado.
+    expect(pontas.filter((p) => p.tipo === "venda").map((p) => p.qtd)).toEqual([0.5, 0.5, 0.5]);
     expect(pontas.reduce((sum, p) => sum + p.vgv, 0)).toBeCloseTo(2725000, 2);
     expect(pontas.reduce((sum, p) => sum + p.comissao, 0)).toBeCloseTo(163500, 2);
     const totais = totaisProducao(pontas);
