@@ -25,6 +25,7 @@ const command = process.argv[2];
 if (command === "--probe") {
   const cols = psql(["-t", "-A", "-c", "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='sales' AND column_name='imovel_observacoes_origem'"]);
   console.log(`Trava da matrícula presente: ${cols === "1"}`);
+  console.log(`Colunas histórico migrations: ${psql(["-t", "-A", "-c", "SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='supabase_migrations' AND table_name='schema_migrations'"])}`);
 } else if (command === "--apply") {
   const migrations = [
     "20261005120000_vendas_creci_conta_qualificacao.sql",
