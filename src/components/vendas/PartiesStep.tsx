@@ -539,7 +539,7 @@ export function PartiesStep({
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field label="Nome">
+                    <Field label={(forms[p].tipo_pessoa ?? "fisica") === "juridica" ? "Nome do representante" : "Nome"}>
                       <Input
                         value={forms[p].nome ?? ""}
                         onChange={(e) => update(p, "nome", e.target.value)}

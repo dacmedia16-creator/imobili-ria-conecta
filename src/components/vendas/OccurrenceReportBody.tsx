@@ -149,6 +149,13 @@ export function OccurrenceReportBody({
         />
       </FormTable>
 
+      {(sale.imovel_observacoes || sale.observacoes_gerais) && (
+        <FormTable>
+          <FormHeadRow cols={["Descrição do imóvel (matrícula)", "Observações gerais"]} />
+          <FormValueRow cols={[sale.imovel_observacoes, sale.observacoes_gerais]} />
+        </FormTable>
+      )}
+
       {vendedores.map((v, i) => (
         <FormTable key={v.id ?? i}>
           <FormValueRow
@@ -277,7 +284,7 @@ export function OccurrenceReportBody({
               key={c.id ?? `${p.key}-${i}`}
               cols={[
                 i === 0 ? p.label : "",
-                c.nome ?? "Não possui",
+                <>{c.nome ?? "Não possui"}{c.creci && <span className="block text-xs">CRECI {c.creci_tipo ?? ""} {c.creci}</span>}</>,
                 c.percentual != null ? `${c.percentual}%` : "0%",
                 money(c.valor) ?? "R$ 0,00",
               ]}
@@ -369,7 +376,7 @@ export function OccurrenceReportBody({
             key={p.id}
             cols={[
               PARCERIA_TIPOS.find((t) => t.key === p.tipo)?.label ?? "—",
-              p.nome,
+              <>{p.nome}{p.creci && <span className="block text-xs">CRECI {p.creci_tipo ?? ""} {p.creci}</span>}</>,
               p.cpf_cnpj,
               p.percentual != null ? `${p.percentual}%` : "0%",
               money(p.valor) ?? "R$ 0,00",

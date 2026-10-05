@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DescricaoMatricula } from "@/components/vendas/DescricaoMatricula";
+import { bankMode, sharedBank } from "@/lib/sale-bank-mode";
+import { commissionOverview } from "@/lib/sale-commission-overview";
+import { qualificacaoCompleta, listaDocumentos } from "@/lib/sale-qualification";
 import { Wizard, type WizardStep } from "@/components/Wizard";
 import {
   Select,
@@ -207,6 +210,11 @@ type ActivityPayload = {
 type StandardDistribution = {
   calculo_valido: boolean;
   inconsistencias: string[];
+  comissao_bruta?: number | null;
+  parte_remax?: number | null;
+  parceria_externa?: number | null;
+  total_distribuido?: number | null;
+  diferenca_restante?: number | null;
   liquido_captador?: number | null;
   liquido_vendedor?: number | null;
   saldo_inicial_imobiliaria?: number | null;
@@ -251,6 +259,15 @@ const tipoDocLabel = (tipo?: string | null) =>
   tipo
     ? (DOC_TYPES.find((t) => t.key === tipo)?.label ?? TIPO_DOC_EXTRA_LABEL[tipo] ?? tipo)
     : null;
+
+async function copiarTexto(text: string, rotulo: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(`${rotulo} copiado(a)`);
+  } catch {
+    toast.error("Não foi possível copiar; verifique a permissão da área de transferência.");
+  }
+}
 
 /** Traduz activity_logs.acao + payload num texto de uma linha pro painel de Atividade. Ícone/tom
  * junto porque cada ação tem uma "cor" diferente (upload é neutro, recusa é alerta, etc.). */
@@ -1189,6 +1206,7 @@ function SaleDetail() {
   }
 
   const status = sale.status as SaleStatus;
+  const resumoComissao = commissionOverview(sale, distribuicao, commissionExtras);
   const {
     isOwner,
     isFinanceiro,
@@ -2121,7 +2139,7 @@ function SaleDetail() {
                           </Select>
                         </Field>
                         <Field label="Descrição do imóvel (matrícula)" colSpan={2}>
-                          <DescricaoMatricula saleId={sale.id} value={formSale.imovel_observacoes}
+                          <DescricaoMatricula saleId={sale.id} value={formSale.imovel_observacoes ?? null}
                             origem={sale.imovel_observacoes_origem} editable={editable}
                             canCorrect={isJuridico || roles.includes("admin")}
                             onChange={(value) => updResumo({ imovel_observacoes: value })}
@@ -4212,7 +4230,7 @@ function SaleDetail() {
                 value={sale.tempo_venda_dias != null ? `${sale.tempo_venda_dias} dias` : null}
               />
               <ReviewItem label="Mídia" value={sale.midia} />
-              <ReviewItem label="Observações do imóvel" value={sale.imovel_observacoes} />
+              <ReviewItem label="Descrição do imóvel (matrícula)" value={sale.imovel_observacoes} />
               <ReviewItem label="Observações gerais" value={sale.observacoes_gerais} />
             </ReviewGroup>
 
@@ -4249,43 +4267,19 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Divisão de comissão">
-              {sale.percentual_remax != null && (
-                <ReviewItem
-                  label={`REMAX (${sale.percentual_remax}% do valor negociado)`}
-                  value={money(sale.valor_remax)}
-                />
-              )}
-              <ReviewItem
-                label={`Captador${sale.corretor_captador ? ` — ${sale.corretor_captador}` : ""}`}
-                value={money(sale.valor_comissao_captador)}
-              />
-              <ReviewItem
-                label={`Vendedor${sale.corretor_vendedor ? ` — ${sale.corretor_vendedor}` : ""}`}
-                value={money(sale.valor_comissao_vendedor)}
-              />
-              <ReviewItem
-                label="Imobiliária"
-                value={distribuicao ? money(distribuicao.saldo_liquido_imobiliaria) : null}
-              />
-              {sale.indicador_captador && (
-                <ReviewItem
-                  label={`Indicador — ${sale.indicador_captador} (sai do captador)`}
-                  value={money(sale.valor_comissao_indicador_captador)}
-                />
-              )}
-              {sale.indicador_vendedor && (
-                <ReviewItem
-                  label={`Indicador — ${sale.indicador_vendedor} (sai do vendedor)`}
-                  value={money(sale.valor_comissao_indicador_vendedor)}
-                />
-              )}
-              {commissionExtras.map((e) => (
-                <ReviewItem
-                  key={e.id}
-                  label={`${COMISSAO_PAPEIS.find((p) => p.key === e.papel)?.label ?? "Outro"}${e.nome ? ` — ${e.nome}` : ""}`}
-                  value={money(e.valor)}
-                />
+              {resumoComissao.lines.map((line, i) => (
+                <ReviewItem key={`${line.label}-${i}`} label={line.label}
+                  value={`${line.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% — ${money(line.value)}`} />
               ))}
+              <ReviewItem label="Total distribuído" value={money(resumoComissao.total - resumoComissao.difference)} />
+              <ReviewItem label="Comissão bruta (100%)" value={money(resumoComissao.total)} />
+              {Math.abs(resumoComissao.difference) > 0.01 && (
+                <p className="font-semibold text-destructive">Diferença não distribuída: {money(resumoComissao.difference)}. Confira a divisão antes de finalizar.</p>
+              )}
+              {(sale.percentual_remax != null || sale.valor_remax != null) && (
+                <ReviewItem label="Base REMAX (informativa; já distribuída nas linhas acima)"
+                  value={`${sale.percentual_remax ?? "—"}% do valor negociado — ${money(distribuicao?.parte_remax ?? sale.valor_remax)}`} />
+              )}
               {([1, 2, 3] as const).map((n) => {
                 const suf = n === 1 ? "" : n;
                 const valor = sale[`previsao_recebimento${suf}_valor`];
@@ -4322,6 +4316,7 @@ function SaleDetail() {
                     value={sale.parceria_nome}
                   />
                   <ReviewItem label="CPF/CNPJ" value={sale.parceria_cpf_cnpj} />
+                  <ReviewItem label="CRECI da parceria" value={sale.parceria_creci ? `CRECI ${sale.parceria_creci_tipo ?? ""} ${sale.parceria_creci}` : null} />
                   <ReviewItem
                     label="% Comissão"
                     value={sale.parceria_percentual != null ? `${sale.parceria_percentual}%` : null}
@@ -4343,6 +4338,13 @@ function SaleDetail() {
             </ReviewGroup>
 
             <ReviewGroup title="Partes (qualificação para o contrato)">
+              <div className="mb-2 print:hidden">
+                <Button type="button" variant="outline" size="sm" disabled={!qualificacaoCompleta(parties)}
+                  onClick={() => copiarTexto(qualificacaoCompleta(parties), "Qualificação completa")}>
+                  <Copy className="mr-2 h-4 w-4" />Copiar qualificação completa
+                </Button>
+              </div>
+              {qualificacaoCompleta(parties) && <p className="whitespace-pre-wrap text-xs">{qualificacaoCompleta(parties)}</p>}
               {partiesComNome(parties).map((papel, i, arr) => {
                 const p = parties[papel];
                 return (
@@ -4457,29 +4459,40 @@ function SaleDetail() {
               <ReviewItem label="Observações" value={payment?.observacoes} />
             </ReviewGroup>
 
-            <ReviewGroup title="Dados bancários do vendedor/proprietário">
-              {Object.keys(parties)
-                .filter((p) => p.startsWith("vendedor_"))
-                .sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1])
-                .map((papel, i, arr) => {
-                  const b = banks[papel];
-                  return (
-                    <div key={papel} className={i < arr.length - 1 ? "border-b pb-2 mb-2" : ""}>
+            <ReviewGroup title="Dados bancários de recebimento">
+              {bankMode(sale.contas_vendedores_individuais, banks) === "unica" ? (
+                <div>
+                  <div className="mb-1 font-medium">Conta única da venda</div>
+                  <ReviewItem label="Titular" value={sharedBank(banks)?.titular} />
+                  <ReviewItem label="Banco" value={sharedBank(banks)?.banco} />
+                  <ReviewItem label="Agência" value={sharedBank(banks)?.agencia} />
+                  <ReviewItem label="Conta" value={sharedBank(banks)?.conta} />
+                  <ReviewItem label="PIX" value={sharedBank(banks)?.pix} />
+                </div>
+              ) : (
+                Object.keys(parties).filter((p) => p.startsWith("vendedor_"))
+                  .sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1])
+                  .map((papel) => {
+                    const b = banks[papel];
+                    return <div key={papel} className="mb-2 border-b pb-2">
                       <div className="mb-1 font-medium">{parteLabel(papel)}</div>
                       <ReviewItem label="Titular" value={b?.titular} />
                       <ReviewItem label="Banco" value={b?.banco} />
                       <ReviewItem label="Agência" value={b?.agencia} />
                       <ReviewItem label="Conta" value={b?.conta} />
                       <ReviewItem label="PIX" value={b?.pix} />
-                    </div>
-                  );
-                })}
-              {Object.keys(parties).filter((p) => p.startsWith("vendedor_")).length === 0 && (
-                <ReviewItem label="Nenhum vendedor/proprietário preenchido" value={null} />
+                    </div>;
+                  })
               )}
             </ReviewGroup>
 
             <ReviewGroup title="Documentos">
+              <div className="mb-2 print:hidden">
+                <Button type="button" variant="outline" size="sm" disabled={!docs.length}
+                  onClick={() => copiarTexto(listaDocumentos(docs, (tipo) => tipoDocLabel(tipo) ?? tipo, parteLabel), "Lista de documentos")}>
+                  <Copy className="mr-2 h-4 w-4" />Copiar lista de documentos
+                </Button>
+              </div>
               {docs.length === 0 && <ReviewItem label="Nenhum documento enviado" value={null} />}
               {docs.map((d) => (
                 <ReviewItem
