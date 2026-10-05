@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,7 @@ import { toast } from "sonner";
 import { ChevronRight, ChevronLeft, UserCheck } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./shared";
 import type { BankAccountRow, PartyRow } from "@/lib/database.types";
+import { bankMode, sharedBank } from "@/lib/sale-bank-mode";
 
 type PartyForm = Partial<PartyRow>;
 type BankForm = Partial<BankAccountRow>;
@@ -44,6 +46,7 @@ export function PartiesStep({
   saleId,
   parties,
   banks,
+  bankModeFlag,
   editable,
   onSaved,
   registerSaver,
@@ -52,6 +55,7 @@ export function PartiesStep({
   saleId: string;
   parties: Record<string, PartyRow>;
   banks: Record<string, BankAccountRow>;
+  bankModeFlag: boolean | null;
   editable: boolean;
   onSaved: () => void;
   registerSaver: (fn: Saver | null) => void;
@@ -74,10 +78,11 @@ export function PartiesStep({
   const anyDirty = useMemo(() => Object.values(dirty).some(Boolean), [dirty]);
   const [saving, setSaving] = useState(false);
 
-  // Conta bancária de cada vendedor/proprietário — mesmo esquema buffered/dirty/autosave das
-  // partes, só que guardado à parte (tabela sale_bank_accounts, uma linha por parte "vendedor_N").
+  // Conta única por padrão. Flag NULL em vendas legadas: infere sem modificar vendedor_N.
+  const [individual, setIndividual] = useState(() => bankMode(bankModeFlag, banks) === "por_vendedor");
+  const [modeDirty, setModeDirty] = useState(false);
   const [bankForms, setBankForms] = useState<Record<string, BankForm>>(() => {
-    const m: Record<string, BankForm> = {};
+    const m: Record<string, BankForm> = { recebimento: sharedBank(banks) ?? {} };
     papeis.forEach((p) => {
       if (p.startsWith("vendedor_")) m[p] = banks[p] ?? {};
     });
@@ -87,8 +92,13 @@ export function PartiesStep({
   const anyBankDirty = useMemo(() => Object.values(bankDirty).some(Boolean), [bankDirty]);
 
   useEffect(() => {
+    if (!modeDirty) setIndividual(bankMode(bankModeFlag, banks) === "por_vendedor");
+  }, [banks, bankModeFlag, modeDirty]);
+
+  useEffect(() => {
     setBankForms((prev) => {
       const m: Record<string, BankForm> = { ...prev };
+      if (!bankDirty.recebimento) m.recebimento = sharedBank(banks) ?? prev.recebimento ?? {};
       for (const p of papeis) {
         if (!p.startsWith("vendedor_")) continue;
         m[p] = bankDirty[p] ? prev[p] : (banks[p] ?? prev[p] ?? {});
@@ -97,6 +107,14 @@ export function PartiesStep({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [banks]);
+
+  const changeBankMode = (checked: boolean) => {
+    setIndividual(checked);
+    setModeDirty(true);
+    // Converter para compartilhada materializa uma linha nova, nunca sobrescreve a legada.
+    if (!checked && !banks.recebimento && sharedBank(banks))
+      setBankDirty((d) => ({ ...d, recebimento: true }));
+  };
 
   const updBank = (papel: string, k: string, v: string) => {
     setBankForms((f) => ({ ...f, [papel]: { ...f[papel], [k]: v } }));
@@ -140,7 +158,7 @@ export function PartiesStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parties]);
 
-  const anyDirtyTotal = anyDirty || anyBankDirty;
+  const anyDirtyTotal = anyDirty || anyBankDirty || modeDirty;
   useEffect(() => {
     onDirtyChange(anyDirtyTotal);
   }, [anyDirtyTotal, onDirtyChange]);
@@ -371,6 +389,14 @@ export function PartiesStep({
           telefone: forms[papel].telefone ?? null,
           endereco: forms[papel].endereco ?? null,
           regime_casamento: forms[papel].regime_casamento ?? null,
+          nacionalidade: forms[papel].nacionalidade ?? null,
+          estado_civil: forms[papel].estado_civil ?? null,
+          conjuge_nome: forms[papel].conjuge_nome ?? null,
+          conjuge_nacionalidade: forms[papel].conjuge_nacionalidade ?? null,
+          conjuge_profissao: forms[papel].conjuge_profissao ?? null,
+          conjuge_rg: forms[papel].conjuge_rg ?? null,
+          conjuge_cpf: forms[papel].conjuge_cpf ?? null,
+          conjuge_endereco: forms[papel].conjuge_endereco ?? null,
           tipo_pessoa: forms[papel].tipo_pessoa ?? "fisica",
           razao_social: forms[papel].razao_social ?? null,
           cnpj: forms[papel].cnpj ?? null,
@@ -384,12 +410,11 @@ export function PartiesStep({
           return false;
         }
       }
-      for (const papel of papeis) {
-        if (!papel.startsWith("vendedor_") || !bankDirty[papel]) continue;
+      for (const papel of individual ? papeis.filter((p) => p.startsWith("vendedor_")) : ["recebimento"]) {
+        if (!bankDirty[papel]) continue;
         const existingBank = banks[papel];
-        // Titular vem do próprio nome já cadastrado acima — não é campo redigitado à parte.
         const bankData = {
-          titular: forms[papel]?.nome ?? null,
+          titular: bankForms[papel]?.titular ?? (individual ? forms[papel]?.nome : forms.vendedor_1?.nome) ?? null,
           banco: bankForms[papel]?.banco ?? null,
           agencia: bankForms[papel]?.agencia ?? null,
           conta: bankForms[papel]?.conta ?? null,
@@ -405,6 +430,15 @@ export function PartiesStep({
           return false;
         }
       }
+      if (modeDirty) {
+        const { error } = await supabase.from("sales")
+          .update({ contas_vendedores_individuais: individual }).eq("id", saleId);
+        if (error) {
+          toast.error(error.message);
+          return false;
+        }
+      }
+      setModeDirty(false);
       setDirty({});
       setBankDirty({});
       onSaved();
@@ -412,17 +446,55 @@ export function PartiesStep({
     } finally {
       setSaving(false);
     }
-  }, [dirty, forms, papeis, parties, saleId, onSaved, bankDirty, bankForms, banks, user?.id]);
+  }, [dirty, forms, papeis, parties, saleId, onSaved, bankDirty, bankForms, banks, individual, modeDirty, user?.id]);
 
   useEffect(() => {
     registerSaver(saveAll);
     return () => registerSaver(null);
   }, [saveAll, registerSaver]);
-  useAutosave(editable && anyDirtyTotal, [forms, dirty, bankForms, bankDirty], saveAll);
+  useAutosave(editable && anyDirtyTotal, [forms, dirty, bankForms, bankDirty, individual, modeDirty], saveAll);
 
   return (
     <div className="space-y-4">
       {editable && <AutosaveStatus saving={saving} dirty={anyDirtyTotal} />}
+      <div className="rounded-md border p-4 space-y-3">
+        <label className="flex items-center gap-3 text-sm font-medium">
+          <Switch checked={individual} disabled={!editable} onCheckedChange={changeBankMode} />
+          Cada vendedor recebe numa conta própria
+        </label>
+        {!individual && (
+          <>
+            <p className="text-sm text-muted-foreground">Uma única conta de recebimento para a venda.</p>
+            <FieldGrid>
+              <Field label="Titular da conta">
+                <Select
+                  value={papeis.find((p) => p.startsWith("vendedor_") && forms[p]?.nome && forms[p].nome === (bankForms.recebimento?.titular ?? forms.vendedor_1?.nome)) ?? "outro"}
+                  onValueChange={(p) => updBank("recebimento", "titular", p === "outro" ? "" : (forms[p]?.nome ?? ""))}
+                  disabled={!editable}
+                >
+                  <SelectTrigger aria-label="Titular da conta de recebimento"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {papeis.filter((p) => p.startsWith("vendedor_") && forms[p]?.nome).map((p) => (
+                      <SelectItem key={p} value={p}>{forms[p].nome}</SelectItem>
+                    ))}
+                    <SelectItem value="outro">Outro nome</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {!papeis.some((p) => p.startsWith("vendedor_") && forms[p]?.nome === (bankForms.recebimento?.titular ?? forms.vendedor_1?.nome)) && (
+                <Field label="Nome do titular">
+                  <Input value={bankForms.recebimento?.titular ?? ""} onChange={(e) => updBank("recebimento", "titular", e.target.value)} disabled={!editable} />
+                </Field>
+              )}
+              {(["banco", "agencia", "conta", "pix"] as const).map((k) => (
+                <Field key={k} label={{ banco: "Banco", agencia: "Agência", conta: "Conta", pix: "PIX" }[k]}>
+                  <Input value={bankForms.recebimento?.[k] ?? ""} onChange={(e) => updBank("recebimento", k, e.target.value)} disabled={!editable} />
+                </Field>
+              ))}
+            </FieldGrid>
+          </>
+        )}
+      </div>
       <Wizard
         steps={papeis.map((p, i) => {
           const numero = Number(p.split("_")[1]);
@@ -579,6 +651,12 @@ export function PartiesStep({
                         disabled={!editable}
                       />
                     </Field>
+                    <Field label="Nacionalidade">
+                      <Input value={forms[p].nacionalidade ?? ""} onChange={(e) => update(p, "nacionalidade", e.target.value)} disabled={!editable} />
+                    </Field>
+                    <Field label="Estado civil">
+                      <Input value={forms[p].estado_civil ?? ""} onChange={(e) => update(p, "estado_civil", e.target.value)} disabled={!editable} />
+                    </Field>
                     <Field label="Regime de casamento">
                       <Input
                         value={forms[p].regime_casamento ?? ""}
@@ -587,9 +665,21 @@ export function PartiesStep({
                         disabled={!editable}
                       />
                     </Field>
+                    <Field label="Nome do cônjuge">
+                      <Input value={forms[p].conjuge_nome ?? ""} onChange={(e) => update(p, "conjuge_nome", e.target.value)} disabled={!editable} />
+                    </Field>
+                    {forms[p].conjuge_nome?.trim() && (
+                      <>
+                        {(["conjuge_nacionalidade", "conjuge_profissao", "conjuge_rg", "conjuge_cpf", "conjuge_endereco"] as const).map((k) => (
+                          <Field key={k} label={{ conjuge_nacionalidade: "Nacionalidade do cônjuge", conjuge_profissao: "Profissão do cônjuge", conjuge_rg: "RG do cônjuge", conjuge_cpf: "CPF do cônjuge", conjuge_endereco: "Endereço do cônjuge" }[k]}>
+                            <Input value={forms[p][k] ?? ""} onChange={(e) => update(p, k, e.target.value)} disabled={!editable} />
+                          </Field>
+                        ))}
+                      </>
+                    )}
                   </FieldGrid>
                 </CardContent>
-                {p.startsWith("vendedor_") && (
+                {individual && p.startsWith("vendedor_") && (
                   <CardContent className="border-t pt-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div className="text-sm font-medium">Dados bancários</div>

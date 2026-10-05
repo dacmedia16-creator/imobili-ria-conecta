@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DescricaoMatricula } from "@/components/vendas/DescricaoMatricula";
 import { Wizard, type WizardStep } from "@/components/Wizard";
 import {
   Select,
@@ -985,6 +986,8 @@ function SaleDetail() {
         "parceria_agencia",
         "parceria_conta",
         "parceria_pix",
+        "parceria_creci_tipo",
+        "parceria_creci",
         "forma_pagamento",
         "negociacao_observacoes",
         "posse_data",
@@ -1054,6 +1057,8 @@ function SaleDetail() {
             valor: r.valor ?? null,
             user_id: r.user_id ?? null,
             lado: r.lado ?? null,
+            creci_tipo: !r.user_id ? (r.creci_tipo ?? null) : null,
+            creci: !r.user_id ? (r.creci ?? null) : null,
           };
           if (r._new) {
             const { data: inserted, error } = await supabase
@@ -1434,6 +1439,8 @@ function SaleDetail() {
         parceria_agencia: null,
         parceria_conta: null,
         parceria_pix: null,
+        parceria_creci_tipo: null,
+        parceria_creci: null,
       };
       patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
       updResumo(patch);
@@ -2113,12 +2120,12 @@ function SaleDetail() {
                             </SelectContent>
                           </Select>
                         </Field>
-                        <Field label="Observações do imóvel" colSpan={2}>
-                          <Textarea
-                            value={formSale.imovel_observacoes ?? ""}
-                            disabled={!editable}
-                            onChange={(e) => updResumo({ imovel_observacoes: e.target.value })}
-                          />
+                        <Field label="Descrição do imóvel (matrícula)" colSpan={2}>
+                          <DescricaoMatricula saleId={sale.id} value={formSale.imovel_observacoes}
+                            origem={sale.imovel_observacoes_origem} editable={editable}
+                            canCorrect={isJuridico || roles.includes("admin")}
+                            onChange={(value) => updResumo({ imovel_observacoes: value })}
+                            onSaved={load} />
                         </Field>
                         <Field label="Observações gerais" colSpan={2}>
                           <Textarea
@@ -3375,6 +3382,20 @@ function SaleDetail() {
                                       onChange={(v) => updExtra(r.id, { valor: v })}
                                     />
                                   </Field>
+                                  {!r.user_id && (
+                                    <>
+                                      <Field label="Tipo de CRECI (parceiro sem cadastro)">
+                                        <Select value={r.creci_tipo ?? "none"} disabled={!editableComissao}
+                                          onValueChange={(v) => updExtra(r.id, { creci_tipo: v === "none" ? null : v })}>
+                                          <SelectTrigger><SelectValue /></SelectTrigger>
+                                          <SelectContent><SelectItem value="none">Não informado</SelectItem><SelectItem value="F">CRECI F</SelectItem><SelectItem value="J">CRECI J</SelectItem></SelectContent>
+                                        </Select>
+                                      </Field>
+                                      <Field label="Número do CRECI">
+                                        <Input value={r.creci ?? ""} disabled={!editableComissao} onChange={(e) => updExtra(r.id, { creci: e.target.value })} />
+                                      </Field>
+                                    </>
+                                  )}
                                   {editableComissao && (
                                     <div className="flex items-end">
                                       <Button
@@ -3459,6 +3480,21 @@ function SaleDetail() {
                                 disabled={!editable}
                                 onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })}
                               />
+                            </Field>
+                            <Field label="Tipo de CRECI">
+                              <Select value={formSale.parceria_creci_tipo ?? "none"} disabled={!editable}
+                                onValueChange={(v) => updResumo({ parceria_creci_tipo: v === "none" ? null : v })}>
+                                <SelectTrigger aria-label="Tipo de CRECI da parceria"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Não informado</SelectItem>
+                                  <SelectItem value="F">CRECI F (pessoa física)</SelectItem>
+                                  <SelectItem value="J">CRECI J (pessoa jurídica)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field label="Número do CRECI">
+                              <Input value={formSale.parceria_creci ?? ""} disabled={!editable}
+                                onChange={(e) => updResumo({ parceria_creci: e.target.value })} />
                             </Field>
                             <Field label="% Comissão">
                               <Input
@@ -3579,6 +3615,7 @@ function SaleDetail() {
           saleId={id}
           parties={parties}
           banks={banks}
+          bankModeFlag={sale.contas_vendedores_individuais}
           editable={editable}
           onSaved={load}
           registerSaver={(fn) => registerSaver("partes", fn)}
@@ -6017,6 +6054,8 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleR
     tipo: sale.parceria_tipo,
     nome: sale.parceria_nome ?? null,
     cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
+    creci_tipo: sale.parceria_creci_tipo ?? null,
+    creci: sale.parceria_creci ?? null,
     percentual: sale.parceria_percentual ?? null,
     valor: sale.parceria_valor ?? null,
   };
@@ -6028,6 +6067,8 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleR
       row.tipo !== data.tipo ||
       row.nome !== data.nome ||
       row.cpf_cnpj !== data.cpf_cnpj ||
+      row.creci_tipo !== data.creci_tipo ||
+      row.creci !== data.creci ||
       Number(row.percentual ?? 0) !== Number(data.percentual ?? 0) ||
       Number(row.valor ?? 0) !== Number(data.valor ?? 0)
     ) {
@@ -6359,6 +6400,8 @@ function OccurrencePanel({
       tipo: sale.parceria_tipo,
       nome: sale.parceria_nome ?? null,
       cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
+      creci_tipo: sale.parceria_creci_tipo ?? null,
+      creci: sale.parceria_creci ?? null,
       percentual: sale.parceria_percentual ?? null,
       valor: sale.parceria_valor ?? null,
       from_sale: true,
@@ -6393,6 +6436,8 @@ function OccurrencePanel({
       row.tipo !== sale.parceria_tipo ||
       (row.nome ?? "") !== (sale.parceria_nome ?? "") ||
       (row.cpf_cnpj ?? "") !== (sale.parceria_cpf_cnpj ?? "") ||
+      (row.creci_tipo ?? "") !== (sale.parceria_creci_tipo ?? "") ||
+      (row.creci ?? "") !== (sale.parceria_creci ?? "") ||
       Math.abs(Number(row.percentual ?? 0) - Number(sale.parceria_percentual ?? 0)) > 0.001 ||
       Math.abs(Number(row.valor ?? 0) - Number(sale.parceria_valor ?? 0)) > 0.01
     );
@@ -6476,6 +6521,8 @@ function OccurrencePanel({
             valor: r.valor ?? null,
             user_id: r.user_id ?? null,
             sem_cadastro_confirmado: !!r.sem_cadastro_confirmado,
+            creci_tipo: r.sem_cadastro_confirmado ? (r.creci_tipo ?? null) : null,
+            creci: r.sem_cadastro_confirmado ? (r.creci ?? null) : null,
           };
           // managed_by_sale só é gravado na criação — nunca muda o "dono" de uma linha já existente
           // por uma edição feita aqui (evita que uma linha manual vire "gerenciada" só por ter sido
@@ -6507,6 +6554,8 @@ function OccurrencePanel({
           const data = {
             nome: r.nome ?? null,
             cpf_cnpj: r.cpf_cnpj ?? null,
+            creci_tipo: r.creci_tipo ?? null,
+            creci: r.creci ?? null,
             percentual: r.percentual ?? null,
             valor: r.valor ?? null,
             banco: r.banco ?? null,
@@ -7261,6 +7310,20 @@ function OccurrencePanel({
                   >
                     ×
                   </Button>
+                </div>
+              )}
+              {(c.sem_cadastro_confirmado || (!c.user_id && (c.creci || c.creci_tipo))) && (
+                <div className="md:col-span-12 grid gap-2 md:grid-cols-2">
+                  <Field label="Tipo de CRECI do corretor parceiro">
+                    <Select value={c.creci_tipo ?? "none"} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                      onValueChange={(v) => updComm(c.id, { creci_tipo: v === "none" ? null : v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="none">Não informado</SelectItem><SelectItem value="F">CRECI F</SelectItem><SelectItem value="J">CRECI J</SelectItem></SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Número do CRECI do corretor parceiro">
+                    <Input value={c.creci ?? ""} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} onChange={(e) => updComm(c.id, { creci: e.target.value })} />
+                  </Field>
                 </div>
               )}
               {c.managed_by_sale && (

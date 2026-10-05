@@ -929,6 +929,8 @@ export type Database = {
           percentual: number | null;
           sale_commission_extra_id: string | null;
           sem_cadastro_confirmado: boolean;
+          creci_tipo: string | null;
+          creci: string | null;
           user_id: string | null;
           valor: number | null;
         };
@@ -944,6 +946,8 @@ export type Database = {
           percentual?: number | null;
           sale_commission_extra_id?: string | null;
           sem_cadastro_confirmado?: boolean;
+          creci_tipo?: string | null;
+          creci?: string | null;
           user_id?: string | null;
           valor?: number | null;
         };
@@ -959,6 +963,8 @@ export type Database = {
           percentual?: number | null;
           sale_commission_extra_id?: string | null;
           sem_cadastro_confirmado?: boolean;
+          creci_tipo?: string | null;
+          creci?: string | null;
           user_id?: string | null;
           valor?: number | null;
         };
@@ -1013,6 +1019,8 @@ export type Database = {
           banco: string | null;
           conta: string | null;
           cpf_cnpj: string | null;
+          creci_tipo: string | null;
+          creci: string | null;
           created_at: string;
           from_sale: boolean;
           id: string;
@@ -1029,6 +1037,8 @@ export type Database = {
           banco?: string | null;
           conta?: string | null;
           cpf_cnpj?: string | null;
+          creci_tipo?: string | null;
+          creci?: string | null;
           created_at?: string;
           from_sale?: boolean;
           id?: string;
@@ -1045,6 +1055,8 @@ export type Database = {
           banco?: string | null;
           conta?: string | null;
           cpf_cnpj?: string | null;
+          creci_tipo?: string | null;
+          creci?: string | null;
           created_at?: string;
           from_sale?: boolean;
           id?: string;
@@ -2053,6 +2065,8 @@ export type Database = {
           percentual: number | null;
           sale_id: string;
           sem_cadastro_confirmado: boolean;
+          creci_tipo: string | null;
+          creci: string | null;
           user_id: string | null;
           valor: number | null;
         };
@@ -2067,6 +2081,8 @@ export type Database = {
           percentual?: number | null;
           sale_id: string;
           sem_cadastro_confirmado?: boolean;
+          creci_tipo?: string | null;
+          creci?: string | null;
           user_id?: string | null;
           valor?: number | null;
         };
@@ -2081,6 +2097,8 @@ export type Database = {
           percentual?: number | null;
           sale_id?: string;
           sem_cadastro_confirmado?: boolean;
+          creci_tipo?: string | null;
+          creci?: string | null;
           user_id?: string | null;
           valor?: number | null;
         };
@@ -2252,6 +2270,14 @@ export type Database = {
           profissao: string | null;
           razao_social: string | null;
           regime_casamento: string | null;
+          nacionalidade: string | null;
+          estado_civil: string | null;
+          conjuge_nome: string | null;
+          conjuge_nacionalidade: string | null;
+          conjuge_profissao: string | null;
+          conjuge_rg: string | null;
+          conjuge_cpf: string | null;
+          conjuge_endereco: string | null;
           rg: string | null;
           sale_id: string;
           telefone: string | null;
@@ -2271,6 +2297,14 @@ export type Database = {
           profissao?: string | null;
           razao_social?: string | null;
           regime_casamento?: string | null;
+          nacionalidade?: string | null;
+          estado_civil?: string | null;
+          conjuge_nome?: string | null;
+          conjuge_nacionalidade?: string | null;
+          conjuge_profissao?: string | null;
+          conjuge_rg?: string | null;
+          conjuge_cpf?: string | null;
+          conjuge_endereco?: string | null;
           rg?: string | null;
           sale_id: string;
           telefone?: string | null;
@@ -2290,6 +2324,14 @@ export type Database = {
           profissao?: string | null;
           razao_social?: string | null;
           regime_casamento?: string | null;
+          nacionalidade?: string | null;
+          estado_civil?: string | null;
+          conjuge_nome?: string | null;
+          conjuge_nacionalidade?: string | null;
+          conjuge_profissao?: string | null;
+          conjuge_rg?: string | null;
+          conjuge_cpf?: string | null;
+          conjuge_endereco?: string | null;
           rg?: string | null;
           sale_id?: string;
           telefone?: string | null;
@@ -2545,6 +2587,10 @@ export type Database = {
           negociacao_observacoes: string | null;
           nota_fiscal_obrigatoria: boolean;
           observacoes_gerais: string | null;
+          imovel_observacoes_origem: string;
+          imovel_descricao_corrigida_por: string | null;
+          imovel_descricao_corrigida_em: string | null;
+          contas_vendedores_individuais: boolean | null;
           organization_id: string;
           parceria_agencia: string | null;
           parceria_banco: string | null;
@@ -2555,6 +2601,8 @@ export type Database = {
           parceria_nome: string | null;
           parceria_percentual: number | null;
           parceria_pix: string | null;
+          parceria_creci_tipo: string | null;
+          parceria_creci: string | null;
           parceria_tipo: string | null;
           parceria_valor: number | null;
           percentual_comissao: number | null;
@@ -2639,6 +2687,10 @@ export type Database = {
           negociacao_observacoes?: string | null;
           nota_fiscal_obrigatoria?: boolean;
           observacoes_gerais?: string | null;
+          imovel_observacoes_origem?: string;
+          imovel_descricao_corrigida_por?: string | null;
+          imovel_descricao_corrigida_em?: string | null;
+          contas_vendedores_individuais?: boolean | null;
           organization_id?: string;
           parceria_agencia?: string | null;
           parceria_banco?: string | null;
@@ -2649,6 +2701,8 @@ export type Database = {
           parceria_nome?: string | null;
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
+          parceria_creci_tipo?: string | null;
+          parceria_creci?: string | null;
           parceria_tipo?: string | null;
           parceria_valor?: number | null;
           percentual_comissao?: number | null;
@@ -2733,6 +2787,10 @@ export type Database = {
           negociacao_observacoes?: string | null;
           nota_fiscal_obrigatoria?: boolean;
           observacoes_gerais?: string | null;
+          imovel_observacoes_origem?: string;
+          imovel_descricao_corrigida_por?: string | null;
+          imovel_descricao_corrigida_em?: string | null;
+          contas_vendedores_individuais?: boolean | null;
           organization_id?: string;
           parceria_agencia?: string | null;
           parceria_banco?: string | null;
@@ -2743,6 +2801,8 @@ export type Database = {
           parceria_nome?: string | null;
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
+          parceria_creci_tipo?: string | null;
+          parceria_creci?: string | null;
           parceria_tipo?: string | null;
           parceria_valor?: number | null;
           percentual_comissao?: number | null;
@@ -3185,6 +3245,8 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      aplicar_descricao_matricula: { Args: { _sale_id: string }; Returns: boolean };
+      corrigir_descricao_matricula: { Args: { _sale_id: string; _descricao: string }; Returns: boolean };
       archive_sale_document: {
         Args: { _document_id: string };
         Returns: undefined;

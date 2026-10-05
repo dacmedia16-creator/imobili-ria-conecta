@@ -203,8 +203,8 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         // texto próprio deles (ex.: "certifico que não há débitos..."), e como o merge só respeita
         // ordem de chegada (não qual documento é o certo), esse texto errado podia "ganhar" da
         // descrição real da matrícula.
-        if (tipo === "matricula" && r.observacoes_imovel)
-          assign(salePatch, "imovel_observacoes", r.observacoes_imovel);
+        // A descrição da matrícula é aplicada por RPC, que confere a extração real e trava o
+        // campo no banco; não entra no patch genérico do corretor.
 
         // Pagamento (só de docs do imóvel/contrato/outros)
         if (r.entrada_valor) assign(paymentPatch, "entrada_valor", num(r.entrada_valor));
@@ -312,6 +312,20 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           .from("sales")
           .update(patch as TablesUpdate<"sales">)
           .eq("id", data.saleId);
+    }
+
+    // RPC verifica documento da mesma imobiliária, conteúdo da extração e campo vazio;
+    // grava a origem de IA e ativa a trava sem permitir texto arbitrário vindo do cliente.
+    if (extractions.some((ext) => {
+      const raw = (ext.raw_json ?? {}) as ExtractionData;
+      return ext.sale_documents?.tipo === "matricula" && !!raw.observacoes_imovel;
+    })) {
+      const { data: aplicada, error: descricaoError } = await supabase.rpc(
+        "aplicar_descricao_matricula",
+        { _sale_id: data.saleId },
+      );
+      if (descricaoError) throw descricaoError;
+      if (aplicada) filled.push("sale.imovel_observacoes");
     }
 
     // Pagamento (upsert)
