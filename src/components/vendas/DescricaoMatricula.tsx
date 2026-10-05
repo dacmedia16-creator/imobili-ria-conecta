@@ -25,8 +25,9 @@ export function DescricaoMatricula({ saleId, value, origem, editable, canCorrect
     if (!text.trim()) { toast.error("Informe a descrição corrigida"); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.rpc("corrigir_descricao_matricula", { _sale_id: saleId, _descricao: text.trim() });
+      const { data: saved, error } = await supabase.rpc("corrigir_descricao_matricula", { _sale_id: saleId, _descricao: text.trim() });
       if (error) throw error;
+      if (!saved) { toast.error("Correção não autorizada ou descrição inalterada"); return; }
       await onSaved();
       setCorrecting(false);
       toast.success("Correção registrada com usuário e data");

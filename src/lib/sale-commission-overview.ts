@@ -38,7 +38,7 @@ export function commissionOverview(
   add(`Indicador do vendedor${sale.indicador_vendedor ? ` — ${sale.indicador_vendedor}` : ""}`, distribution?.indicador_vendedor ?? sale.valor_comissao_indicador_vendedor);
   add(`Líder do captador${sale.lider_captador_nome ? ` — ${sale.lider_captador_nome}` : ""}`, sale.valor_comissao_lider_captador);
   add(`Líder do vendedor${sale.lider_vendedor_nome ? ` — ${sale.lider_vendedor_nome}` : ""}`, sale.valor_comissao_lider_vendedor);
-  extras.forEach((e) => add(`${COMISSAO_PAPEIS.find((p) => p.key === e.papel)?.label ?? e.papel}${e.nome ? ` — ${e.nome}` : ""}`, e.valor));
+  extras.forEach((e) => add(`${COMISSAO_PAPEIS.find((p) => p.key === e.papel)?.label ?? e.papel}${e.nome ? ` — ${e.nome}` : ""}${e.creci ? ` (CRECI ${e.creci_tipo ?? ""} ${e.creci})` : ""}`, e.valor));
   add(`Parceria externa${sale.parceria_nome ? ` — ${sale.parceria_nome}` : ""}`, distribution?.parceria_externa ?? sale.parceria_valor);
   add("Imobiliária (saldo líquido)", distribution?.saldo_liquido_imobiliaria ?? sale.valor_comissao_imobiliaria);
   const sum = lines.reduce((value, line) => value + line.value, 0);

@@ -53,7 +53,7 @@ CREATE FUNCTION public.aplicar_descricao_matricula(_sale_id uuid)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_sale public.sales%ROWTYPE; v_texto text; actor uuid := auth.uid();
 BEGIN
-  IF actor IS NULL THEN RETURN false; END IF;
+  IF actor IS NULL OR NOT public.is_active_user(actor) THEN RETURN false; END IF;
   SELECT * INTO v_sale FROM public.sales WHERE id = _sale_id FOR UPDATE;
   IF NOT FOUND OR NOT EXISTS (
     SELECT 1 FROM public.profiles WHERE id = actor AND organization_id = v_sale.organization_id
@@ -84,11 +84,12 @@ CREATE FUNCTION public.corrigir_descricao_matricula(_sale_id uuid, _descricao te
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_org uuid; actor uuid := auth.uid();
 BEGIN
-  IF actor IS NULL OR nullif(trim(_descricao), '') IS NULL OR length(_descricao) > 10000 THEN
+  IF actor IS NULL OR NOT public.is_active_user(actor)
+     OR nullif(trim(_descricao), '') IS NULL OR length(_descricao) > 10000 THEN
     RETURN false;
   END IF;
   SELECT organization_id INTO v_org FROM public.sales WHERE id = _sale_id;
-  IF v_org IS NULL OR NOT EXISTS (
+  IF v_org IS NULL OR NOT public.can_view_sale(actor, _sale_id) OR NOT EXISTS (
     SELECT 1 FROM public.profiles p
     JOIN public.user_roles r ON r.user_id = p.id AND r.organization_id = p.organization_id
     WHERE p.id = actor AND p.organization_id = v_org
