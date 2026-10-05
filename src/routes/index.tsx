@@ -10,7 +10,7 @@ const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
-    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "Hub Única Escolha — RE/MAX Imóveis" }],
+    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "MAX Hub — Todos os sistemas MAX" }],
   }),
   component: IS_HOMOLOG ? HomologHome : FrontPage,
 });
@@ -369,8 +369,9 @@ function FrontPage() {
         .hubpage .logo { position: absolute; left: 39%; top: 1.6%; width: 21%; display: block; }
         .hubpage .logo img { width: 100%; height: auto; display: block; transition: transform 0.15s ease, opacity 0.15s ease; }
         .hubpage .logo:hover img { transform: translateY(-1px); opacity: 0.85; }
-        .hubpage .titleblock { position: absolute; left: 3.4%; top: 14.5%; width: 42%; }
-        .hubpage .titleblock h1 { margin: 0; font-size: clamp(1.6rem, 3.6vw, 3.6rem); line-height: 0.95; letter-spacing: 0.01em; }
+        .hubpage .titleblock { position: absolute; left: 3.4%; top: 6%; width: 48%; }
+        .hubpage .titleblock h1 { margin: 0; font-size: clamp(2.4rem, 6vw, 6rem); line-height: 0.9; letter-spacing: 0.01em; }
+        .hubpage .titleblock h1 a, .hubpage .mhero h1 a { text-decoration: none; }
         .hubpage .titleblock h1 .navy { color: var(--navy); }
         .hubpage .titleblock h1 .red { color: var(--red); }
         .hubpage .titleblock p { margin: 0.5rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.35rem); color: var(--gray); font-weight: 500; }
@@ -463,7 +464,7 @@ function FrontPage() {
         @media (min-width: 860px) { .hubpage .mobile-stage { display: none; } }
 
         .hubpage .mheader {
-          position: relative; display: flex; align-items: center; justify-content: center;
+          position: relative; min-height: 34px; display: flex; align-items: center; justify-content: center;
           padding-top: max(18px, env(safe-area-inset-top));
         }
         .hubpage .mlogo { height: 38px; width: auto; display: block; margin: 0 auto; transition: opacity 0.15s ease; }
@@ -478,8 +479,8 @@ function FrontPage() {
         }
         .hubpage .mobile-reservation-link svg { width: 16px; height: 16px; stroke: var(--navy-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
-        .hubpage .mhero { margin-top: 22px; text-align: center; }
-        .hubpage .mhero h1 { margin: 0; font-size: 2.15rem; line-height: 0.95; }
+        .hubpage .mhero { margin-top: 56px; text-align: center; }
+        .hubpage .mhero h1 { margin: 0; font-size: 3.2rem; line-height: 0.9; }
         .hubpage .mhero h1 .navy { color: var(--navy); }
         .hubpage .mhero h1 .red { color: var(--red); }
         .hubpage .mhero p { margin: 0.5rem 0 0; color: var(--gray); font-size: 0.9rem; }
@@ -529,20 +530,13 @@ function FrontPage() {
           <div className="corner-seam" />
           <div className="corner-red" />
 
-          <Link to="/auth" className="logo" aria-label="Entrar no portal">
-            <img
-              src="/remax-logo-transparent.png"
-              width={1600}
-              height={756}
-              alt="RE/MAX Única Escolha"
-            />
-          </Link>
-
           <div className="titleblock">
             <h1 className="display">
-              <span className="navy">Hub</span> <span className="red">MAX</span>
+              <Link to="/auth" aria-label="MAX Hub — entrar no portal">
+                <span className="red">MAX</span> <span className="navy">Hub</span>
+              </Link>
             </h1>
-            <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
+            <p>Todos os sistemas MAX em um só lugar</p>
           </div>
 
           <a
@@ -653,15 +647,6 @@ function FrontPage() {
       {/* ---------- lista mobile ---------- */}
       <div className="mobile-stage">
         <div className="mheader">
-          <Link to="/auth" aria-label="Entrar no portal">
-            <img
-              className="mlogo"
-              src="/remax-logo-transparent.png"
-              width={1600}
-              height={756}
-              alt="RE/MAX Única Escolha"
-            />
-          </Link>
           <a
             href={ADM_MAX_LOGIN_URL}
             className="mobile-reservation-link"
@@ -681,9 +666,11 @@ function FrontPage() {
 
         <div className="mhero">
           <h1 className="display">
-            <span className="navy">Hub</span> <span className="red">MAX</span>
+            <Link to="/auth" aria-label="MAX Hub — entrar no portal">
+              <span className="red">MAX</span> <span className="navy">Hub</span>
+            </Link>
           </h1>
-          <p>Todos os sistemas da RE/MAX Única Escolha em um só lugar</p>
+          <p>Todos os sistemas MAX em um só lugar</p>
         </div>
 
         <SingleLoginBanner />
@@ -740,7 +727,7 @@ function FrontPage() {
 
       <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground">
         Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
-        {new Date().getFullYear()} RE/MAX Imóveis Única Escolha
+        {new Date().getFullYear()} MAX Hub
       </p>
     </div>
   );
