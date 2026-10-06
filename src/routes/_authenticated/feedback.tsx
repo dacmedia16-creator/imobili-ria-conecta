@@ -14,6 +14,7 @@ import {
   type Snapshot,
 } from "@/lib/owner-feedback";
 import { errorMessage } from "@/lib/errors";
+import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -21,6 +22,7 @@ import { ArrowLeft, Copy, MessageCircle, TriangleAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
+  beforeLoad: guardOwnerFeedbackRoute,
   component: FeedbackPage,
 });
 

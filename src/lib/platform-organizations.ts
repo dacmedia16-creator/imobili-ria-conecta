@@ -114,11 +114,16 @@ export type OrganizationRow = {
   created_at: string;
 };
 
-export const ORGANIZATION_MODULES = ["captacao_exclusiva", "reserva_salas"] as const;
+export const ORGANIZATION_MODULES = [
+  "captacao_exclusiva",
+  "reserva_salas",
+  "feedback_proprietario",
+] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   captacao_exclusiva: "Captação exclusiva",
   reserva_salas: "Reserva de salas",
+  feedback_proprietario: "Feedback ao proprietário",
 };
 
 export type OrganizationSummary = OrganizationRow & {

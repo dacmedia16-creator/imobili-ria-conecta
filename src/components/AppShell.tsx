@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
+import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
   PLATFORM_PANEL_PATH,
@@ -194,6 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
   const [roomVisible, setRoomVisible] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -206,6 +208,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     roomReservationEnabled().then((enabled) => {
       if (alive) setRoomVisible(enabled);
+    });
+    ownerFeedbackEnabled().then((enabled) => {
+      if (alive) setFeedbackVisible(enabled);
     });
     if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -302,7 +307,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       to: "/feedback",
       label: "Feedback ao proprietário",
       icon: MessageSquareText,
-      show: hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+      show:
+        feedbackVisible && hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
     },
     {
       to: "/financeiro",
