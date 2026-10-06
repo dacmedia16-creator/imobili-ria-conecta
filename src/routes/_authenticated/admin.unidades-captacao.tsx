@@ -5,6 +5,7 @@ import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import { listUnits, saveUnit } from "@/lib/exclusive-captures-db";
 import { UNIT_FIELDS, type ExclusiveUnit, type UnitField } from "@/lib/exclusive-captures";
 import { errorMessage } from "@/lib/errors";
+import { formatCnpj, isValidCnpj } from "@/lib/platform-organizations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,9 +70,18 @@ function UnitsAdmin() {
       toast.error(`Preencha: ${missing.map((f) => f.label).join(", ")}`);
       return;
     }
+    if (!isValidCnpj(draft.cnpj)) {
+      toast.error(
+        "CNPJ inválido. Confira os 14 números do CNPJ da unidade (ex.: 13.662.631/0001-18).",
+      );
+      return;
+    }
     setSaving(true);
     try {
-      await saveUnit(editing === "nova" ? null : editing, draft);
+      await saveUnit(editing === "nova" ? null : editing, {
+        ...draft,
+        cnpj: formatCnpj(draft.cnpj),
+      });
       toast.success("Unidade salva. Os próximos contratos gerados usarão estes dados.");
       setEditing(null);
       await reload();
