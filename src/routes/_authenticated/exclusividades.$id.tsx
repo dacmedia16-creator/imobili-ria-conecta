@@ -54,7 +54,6 @@ import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import {
   appendDossieToContract,
   buildDossiePdf,
-  defaultDossieSelection,
   dossieCatalog,
   selectedDossie,
 } from "@/lib/capture-dossie";
@@ -209,8 +208,10 @@ function ExclusiveDetail() {
       alive = false;
     };
   }, []);
-  // Ainda não escolhido: começa com as vitais marcadas.
-  const dossieIds = form?.dossie ?? defaultDossieSelection(dossieActions);
+  // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo.
+  const dossieIds = form?.dossie ?? [];
+  const dossieRequired = dossieCatalog(dossieActions).length > 0;
+  const dossieMissing = dossieRequired && selectedDossie(dossieActions, dossieIds).length === 0;
   const setDossie = (ids: string[]) => {
     setForm((current) => (current ? { ...current, dossie: ids } : current));
     setDirty(true);
@@ -256,6 +257,10 @@ function ExclusiveDetail() {
   const generate = () =>
     run(async () => {
       if (!capture || !form) return;
+      if (dossieMissing) {
+        setStep("dossie");
+        throw new Error("Marque ao menos 1 ação no Dossiê antes de gerar o contrato.");
+      }
       const catalogReady = dossieCatalog(dossieActions).length > 0;
       const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
       // A versão é sempre invalidada antes de gerar.
@@ -409,6 +414,7 @@ function ExclusiveDetail() {
     cpf,
     creci,
   );
+  if (dossieMissing) missing.push("Dossiê: marque ao menos 1 ação");
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
   if (creci.trim() && !validCreci(creci))
@@ -1014,7 +1020,7 @@ function ExclusiveDetail() {
                   <p>
                     {selectedDossie(dossieActions, dossieIds).length
                       ? `O Dossiê com ${selectedDossie(dossieActions, dossieIds).length} ações sai anexado ao final do contrato.`
-                      : "Nenhuma ação marcada no Dossiê: o contrato sai sem ele."}{" "}
+                      : "O Dossiê é obrigatório: marque ao menos 1 ação antes de gerar o contrato."}{" "}
                     <button
                       type="button"
                       className="font-medium text-primary underline"

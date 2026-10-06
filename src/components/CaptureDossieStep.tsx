@@ -43,8 +43,9 @@ export function CaptureDossieStep({
       <CardHeader>
         <CardTitle>Dossiê de captação</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao final do
-          contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.
+          Obrigatório: marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao
+          final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi
+          cumprido.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -79,7 +80,12 @@ export function CaptureDossieStep({
                 </>
               )}
             </div>
-            {missing.length > 0 && (
+            {count === 0 && (
+              <p className="rounded-md border border-red-300 bg-red-50 p-3 text-red-900">
+                Nenhuma ação marcada. Marque ao menos 1 para gerar o contrato.
+              </p>
+            )}
+            {count > 0 && missing.length > 0 && (
               <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
                 {missing.length === 1
                   ? "1 ação vital está desmarcada."
