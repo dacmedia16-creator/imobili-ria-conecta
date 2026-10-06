@@ -308,7 +308,19 @@ function ExclusiveDetail() {
         type: "application/pdf",
       });
       await uploadCaptureDocument(id, "gerado", 0, file);
-      toast.success("Contrato gerado. Confira no visualizador antes de enviá-lo.");
+      // Já baixa o contrato gerado (o mesmo arquivo salvo na captação).
+      const url = URL.createObjectURL(file);
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      toast.success("Contrato gerado, salvo e baixado. Confira o PDF antes de enviar.");
     });
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
@@ -1071,7 +1083,7 @@ function ExclusiveDetail() {
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button disabled={busy} onClick={generate}>
-                    Gerar PDF do modelo e salvar
+                    Gerar PDF, salvar e baixar
                   </Button>
                   <Button variant="outline" onClick={() => setStep("documentos")}>
                     Ver documentos e conferir PDF
