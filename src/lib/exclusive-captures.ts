@@ -386,7 +386,6 @@ export function missingRequirements(
   for (const { key, label } of TERMS_FIELDS) {
     if (!form.condicoes[key]?.trim()) missing.push(label);
   }
-  if (!docs.some((d) => d.kind === "gerado")) missing.push("Contrato gerado e conferido");
   return missing;
 }
 

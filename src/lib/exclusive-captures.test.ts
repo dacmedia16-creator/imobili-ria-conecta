@@ -92,6 +92,9 @@ describe("captação exclusiva", () => {
     expect(
       missingRequirements(form, [doc("cpf", 1), doc("cnh", 2), doc("gerado")], "123", "CRECI"),
     ).toContain("Proprietário 1: RG e CPF ou CNH");
+    // Corretor envia sem contrato: quem gera é o gestor, team leader ou ADM.
+    form.proprietario_2 = null as never;
+    expect(missingRequirements(form, [doc("rg", 1), doc("cpf", 1)], "123", "CRECI")).toEqual([]);
   });
   for (const template of ["campolim", "barao-de-tatui"] as Template[]) {
     const privateTemplate = new URL(`../../assets/exclusividade/${template}.pdf`, import.meta.url);

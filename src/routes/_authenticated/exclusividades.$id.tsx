@@ -257,7 +257,7 @@ function ExclusiveDetail() {
     run(async () => {
       if (!form) return;
       await saveCapture(id, form, cpf, creci);
-      toast.success("Rascunho salvo. Gere novamente o PDF antes de enviar.");
+      toast.success("Rascunho salvo.");
     });
   const generate = () =>
     run(async () => {
@@ -268,8 +268,8 @@ function ExclusiveDetail() {
       }
       const catalogReady = dossieCatalog(dossieActions).length > 0;
       const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
-      // A versão é sempre invalidada antes de gerar.
-      await saveCapture(id, saved, cpf, creci);
+      // Contrato é gerado pelo gestor depois do envio; só salva se ainda for editável.
+      if (editable) await saveCapture(id, saved, cpf, creci);
       // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
       // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
       const source = contractSource(capture, units);
@@ -1051,15 +1051,15 @@ function ExclusiveDetail() {
       )}
       {step === "revisao" && (
         <>
-          {editable && (
+          {manager && capture.status === "enviada" && (
             <Card>
               <CardHeader>
-                <CardTitle>Contrato para conferência</CardTitle>
+                <CardTitle>Gerar contrato</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p>
-                  Salve os dados, gere o PDF do modelo e confira o arquivo em Documentos antes de
-                  enviar.
+                  Confira os dados enviados pelo corretor e gere o contrato. Só gestor, team leader
+                  ou ADM pode gerar.
                 </p>
                 {dossieCatalog(dossieActions).length > 0 && (
                   <p>
@@ -1075,9 +1075,9 @@ function ExclusiveDetail() {
                     </button>
                   </p>
                 )}
-                {dirty && (
-                  <p className="text-amber-800">
-                    Alterações não salvas. Gere novamente o PDF para incluir os dados atuais.
+                {docs.some((d) => d.kind === "gerado") && (
+                  <p className="text-emerald-700">
+                    Contrato já gerado. Gerar de novo substitui o anterior.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -1101,7 +1101,7 @@ function ExclusiveDetail() {
                   <p className="text-sm text-amber-800">Pendências: {missing.join(" · ")}</p>
                 ) : (
                   <p className="text-sm">
-                    Campos e documentos completos. Confira o contrato antes do envio.
+                    Campos e documentos completos. O gestor confere e gera o contrato.
                   </p>
                 )}
                 <Button
@@ -1139,7 +1139,11 @@ function ExclusiveDetail() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {capture.status === "enviada" && (
-                    <Button variant="outline" disabled={busy} onClick={() => action("assinatura")}>
+                    <Button
+                      variant="outline"
+                      disabled={busy || !docs.some((d) => d.kind === "gerado")}
+                      onClick={() => action("assinatura")}
+                    >
                       Registrar envio para assinatura externa
                     </Button>
                   )}
