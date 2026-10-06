@@ -163,6 +163,7 @@ export async function uploadCaptureDocument(
     _file_name: file.name,
   });
   check(registerError);
+  return path;
 }
 export async function signedDocument(doc: CaptureDocument): Promise<string> {
   const { data, error } = await bucket().createSignedUrl(doc.storage_path, 300);

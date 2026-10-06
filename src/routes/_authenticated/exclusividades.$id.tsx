@@ -47,6 +47,8 @@ import {
   type TermsField,
 } from "@/lib/exclusive-captures";
 import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
+import { isAiReadableKind } from "@/lib/exclusive-captures-ai";
+import { extractCaptureDocument } from "@/lib/exclusive-captures-ai.functions";
 import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
 import {
   baixarDocumentosComoPdf,
@@ -237,12 +239,25 @@ function ExclusiveDetail() {
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
       if (dirty && form) await saveCapture(id, form, cpf, creci);
-      await uploadCaptureDocument(id, kind, owner, file);
+      const storagePath = await uploadCaptureDocument(id, kind, owner, file);
       toast.success("Documento anexado");
       if (kind === "assinado" || kind === "gerado") return;
       const scope = owner === 1 ? "proprietario_1" : owner === 2 ? "proprietario_2" : "imovel";
       try {
-        const values = await suggestFromLocalFile(file, owner ? "owner" : "property");
+        toast.info("Lendo o documento…");
+        // Leitura por IA (mesma das Vendas); se falhar, cai para a leitura local antiga.
+        let values: Record<string, string> = {};
+        if (isAiReadableKind(kind)) {
+          const res = await extractCaptureDocument({
+            data: { captureId: id, storagePath, kind, scope: owner ? "owner" : "property" },
+          }).catch(() => null);
+          if (res?.ok) values = res.values;
+        }
+        if (!Object.keys(values).length)
+          values = (await suggestFromLocalFile(file, owner ? "owner" : "property")) as Record<
+            string,
+            string
+          >;
         if (Object.keys(values).length) {
           setSuggestions((current) => {
             const previous = current.find((item) => item.scope === scope);
@@ -251,10 +266,10 @@ function ExclusiveDetail() {
               { scope, values: { ...previous?.values, ...values } as Record<string, string> },
             ];
           });
-          toast.info("Leitura local concluída. Confira as sugestões antes de aplicá-las.");
+          toast.info("Leitura concluída. Confira as sugestões antes de aplicá-las.");
         } else toast.info("Sem campos legíveis identificados; preencha manualmente.");
       } catch {
-        toast.info("Leitura local indisponível; o documento foi anexado. Preencha manualmente.");
+        toast.info("Leitura indisponível; o documento foi anexado. Preencha manualmente.");
       }
     });
   const action = (name: "enviar" | "assinatura" | "aprovar" | "devolver") =>

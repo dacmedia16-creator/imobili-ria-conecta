@@ -76,3 +76,64 @@ describe("leitura assistida local — dados sintéticos", () => {
     await expect(sendToClicksign("test", { mode: "manual" })).rejects.toThrow(/desativada/);
   });
 });
+
+import { buildCapturePrompt, sanitizeCaptureAi, isAiReadableKind } from "./exclusive-captures-ai";
+
+describe("leitura por IA da captação — dados sintéticos", () => {
+  it("só documentos de dados vão para a IA", () => {
+    expect(isAiReadableKind("matricula")).toBe(true);
+    expect(isAiReadableKind("cnh")).toBe(true);
+    expect(isAiReadableKind("gerado")).toBe(false);
+    expect(isAiReadableKind("assinado")).toBe(false);
+  });
+  it("prompt pede todos os campos do contrato", () => {
+    const owner = buildCapturePrompt("cnh", "owner");
+    for (const k of [
+      "nome_completo",
+      "rg",
+      "cpf",
+      "nacionalidade",
+      "estado_civil",
+      "endereco_completo",
+    ])
+      expect(owner).toContain(`"${k}"`);
+    const prop = buildCapturePrompt("matricula", "property");
+    for (const k of [
+      "tipo_imovel",
+      "bairro",
+      "municipio",
+      "estado",
+      "numero_matricula",
+      "cartorio_registro",
+    ])
+      expect(prop).toContain(`"${k}"`);
+  });
+  it("filtra resposta da IA: chaves estranhas, CPF inválido, nulos e UF", () => {
+    expect(
+      sanitizeCaptureAi(
+        {
+          nome_completo: "  Maria   Silva ",
+          cpf: "52998224725",
+          rg: null,
+          nacionalidade: "brasileira",
+          estado_civil: "casada",
+          telefone_1: "123",
+          hack: "x",
+        },
+        "owner",
+      ),
+    ).toEqual({
+      nome_completo: "Maria Silva",
+      cpf: "529.982.247-25",
+      nacionalidade: "brasileira",
+      estado_civil: "casada",
+    });
+    expect(sanitizeCaptureAi({ cpf: "111.111.111-11" }, "owner")).toEqual({});
+    expect(
+      sanitizeCaptureAi(
+        { estado: "SP", municipio: "Sorocaba", numero_matricula: 12345 },
+        "property",
+      ),
+    ).toEqual({ estado: "São Paulo", municipio: "Sorocaba", numero_matricula: "12345" });
+  });
+});
