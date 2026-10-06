@@ -150,6 +150,9 @@ function ExclusiveDetail() {
     }[]
   >([]);
   const loadedId = useRef<string | null>(null);
+  // Sempre o formulário mais recente (a leitura termina depois do clique).
+  const formRef = useRef<CaptureForm | null>(null);
+  formRef.current = form;
   const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
   const navigate = useNavigate();
   const archived = !!capture?.archived_at;
@@ -327,16 +330,26 @@ function ExclusiveDetail() {
             string,
             string
           >;
-        if (Object.keys(values).length) {
-          setSuggestions((current) => {
-            const previous = current.find((item) => item.scope === scope);
-            return [
-              ...current.filter((item) => item.scope !== scope),
-              { scope, values: { ...previous?.values, ...values } as Record<string, string> },
-            ];
-          });
-          toast.info("Leitura concluída. Confira as sugestões antes de aplicá-las.");
-        } else toast.info("Sem campos legíveis identificados; preencha manualmente.");
+        // Igual às Vendas: preenche sozinho só os campos vazios (nunca sobrescreve) e salva.
+        const current = formRef.current;
+        if (!Object.keys(values).length || !current) {
+          toast.info("Sem campos legíveis identificados; preencha manualmente.");
+          return;
+        }
+        const before = ((current[scope] ?? {}) as Record<string, string>) || {};
+        const next = applySuggestedFields(current, scope, values);
+        const after = (next[scope] ?? {}) as Record<string, string>;
+        const filled = Object.keys(after).filter((k) => !before[k]?.trim() && after[k]?.trim());
+        if (!filled.length) {
+          toast.info("Documento lido. Os campos encontrados já estavam preenchidos.");
+          return;
+        }
+        setForm(next);
+        await saveCapture(id, next, cpf, creci);
+        setDirty(false);
+        toast.success(
+          `Documento lido • ${filled.length} ${filled.length === 1 ? "campo preenchido" : "campos preenchidos"}. Confira em "Dados do contrato".`,
+        );
       } catch {
         toast.info("Leitura indisponível; o documento foi anexado. Preencha manualmente.");
       }
