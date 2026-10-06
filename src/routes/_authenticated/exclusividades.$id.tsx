@@ -36,6 +36,8 @@ import {
   captureUnitLabel,
   contractSource,
   normalizeForm,
+  normalizeReais,
+  typeReais,
   type Capture,
   type CaptureDocument,
   type ExclusiveUnit,
@@ -948,11 +950,28 @@ function ExclusiveDetail() {
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 {PROPERTY_FIELDS.map(({ key, label, required }) =>
-                  field(
-                    label,
-                    form.imovel[key],
-                    (v) => edit("imovel", key as PropertyField, v),
-                    required,
+                  key === "valor_imovel" ? (
+                    <div key={label} className="space-y-1">
+                      <Label>
+                        {label}
+                        {required ? " *" : ""}
+                      </Label>
+                      <Input
+                        aria-label={label}
+                        inputMode="numeric"
+                        placeholder="R$ 0,00"
+                        value={normalizeReais(form.imovel.valor_imovel)}
+                        disabled={!editable || busy}
+                        onChange={(e) => edit("imovel", "valor_imovel", typeReais(e.target.value))}
+                      />
+                    </div>
+                  ) : (
+                    field(
+                      label,
+                      form.imovel[key],
+                      (v) => edit("imovel", key as PropertyField, v),
+                      required,
+                    )
                   ),
                 )}
               </div>

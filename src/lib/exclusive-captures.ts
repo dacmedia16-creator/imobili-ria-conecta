@@ -38,6 +38,28 @@ export const UNIT_FIELDS: { key: UnitField; label: string; placeholder: string }
     placeholder: "Ex.: RE/MAX ÚNICA ESCOLHA",
   },
 ];
+/** Valor em reais no padrão do contrato: "R$ 1.200.000,00". */
+export function formatReais(n: number): string {
+  return n.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+}
+/** Converte texto salvo ("1200000", "730.000", "R$ 870.000,00") para "R$ ..."; vazio se ilegível. */
+export function normalizeReais(raw: string | null | undefined): string {
+  const s = (raw ?? "").replace(/[^\d.,]/g, "");
+  if (!s) return "";
+  const n = s.includes(",")
+    ? Number(s.replace(/\./g, "").replace(",", "."))
+    : Number(s.replace(/\./g, ""));
+  return Number.isFinite(n) && n > 0 ? formatReais(n) : (raw ?? "");
+}
+/** Máscara enquanto digita: os números entram como centavos (igual às Vendas). */
+export function typeReais(typed: string): string {
+  const digits = typed.replace(/\D/g, "").replace(/^0+/, "");
+  return digits ? formatReais(Number(digits) / 100) : "";
+}
 /** Regras do banco (exclusive_units) em linguagem simples, campo por campo. */
 const UNIT_LIMITS: Record<Exclude<UnitField, "cnpj">, [number, number]> = {
   nome: [2, 80],
@@ -537,7 +559,7 @@ export async function fillExclusiveTemplate(
     set(names[1], data.proprietario_2?.[key] ?? "");
   }
   for (const [key, name] of Object.entries(propertyFields) as [PropertyField, string][])
-    set(name, data.imovel[key]);
+    set(name, key === "valor_imovel" ? normalizeReais(data.imovel[key]) : data.imovel[key]);
   for (const [key, name] of Object.entries(termsFields) as [TermsField, string][])
     set(name, data.condicoes[key]);
   for (const [key, names] of Object.entries(witnessFields) as [WitnessField, [string, string]][]) {
