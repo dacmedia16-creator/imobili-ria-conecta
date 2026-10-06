@@ -16,10 +16,11 @@ import {
 import { errorMessage } from "@/lib/errors";
 import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
 import { suggestOwnerRecommendation } from "@/lib/owner-feedback.functions";
+import { buildOwnerFeedbackPdf, pdfFileName } from "@/lib/owner-feedback-pdf";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, MessageCircle, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Copy, FileDown, MessageCircle, Sparkles, TriangleAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
@@ -199,6 +200,33 @@ function Review({
   const [phone, setPhone] = useState("");
   const [rec, setRec] = useState(() => diagnosis(listing));
   const [aiLoading, setAiLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const logo = await fetch("/remax-logo-transparent.png")
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .catch(() => null);
+      const bytes = await buildOwnerFeedbackPdf({
+        listing,
+        brokerName: brokerName ?? "",
+        ownerName,
+        recommendation: rec,
+        logoPng: logo ? new Uint8Array(logo) : null,
+      });
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pdfFileName(listing.code);
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success("PDF baixado. Anexe no WhatsApp junto com a mensagem.");
+    } catch {
+      toast.error("Não foi possível gerar o PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
   const suggest = async () => {
     setAiLoading(true);
     try {
@@ -322,6 +350,9 @@ function Review({
               }
             >
               <Copy className="mr-1 h-4 w-4" /> Copiar texto
+            </Button>
+            <Button variant="outline" disabled={pdfLoading} onClick={downloadPdf}>
+              <FileDown className="mr-1 h-4 w-4" /> {pdfLoading ? "Gerando..." : "Baixar PDF"}
             </Button>
           </div>
         </CardContent>
