@@ -15,10 +15,11 @@ import {
 } from "@/lib/owner-feedback";
 import { errorMessage } from "@/lib/errors";
 import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
+import { suggestOwnerRecommendation } from "@/lib/owner-feedback.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, MessageCircle, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Copy, MessageCircle, Sparkles, TriangleAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
@@ -197,6 +198,21 @@ function Review({
   const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
   const [rec, setRec] = useState(() => diagnosis(listing));
+  const [aiLoading, setAiLoading] = useState(false);
+  const suggest = async () => {
+    setAiLoading(true);
+    try {
+      const r = await suggestOwnerRecommendation({ data: { code: listing.code } });
+      if (r.ok) {
+        setRec(r.text);
+        toast.success("Sugestão da IA pronta. Revise antes de enviar.");
+      } else toast.error(r.error);
+    } catch {
+      toast.error("A IA não respondeu agora. Tente de novo em instantes.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
   const text = ownerMessage({ ownerName, brokerName, listing, recommendation: rec });
   const anyConfirmed = listing.lines.some((l) => l.confirmed);
 
@@ -262,7 +278,20 @@ function Review({
             />
           </div>
           <label className="block">
-            <span className="text-xs text-muted-foreground">Recomendação (pode editar)</span>
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">Recomendação (pode editar)</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={aiLoading || !anyConfirmed}
+                title={anyConfirmed ? undefined : "Sem números confirmados para a IA analisar"}
+                onClick={suggest}
+              >
+                <Sparkles className="mr-1 h-4 w-4" />
+                {aiLoading ? "Escrevendo..." : "Sugerir com IA"}
+              </Button>
+            </span>
             <textarea
               className="mt-1 min-h-20 w-full rounded-md border p-2"
               value={rec}

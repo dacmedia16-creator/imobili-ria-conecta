@@ -171,3 +171,38 @@ export function whatsappLink(text: string, phone?: string): string {
   const to = digits ? (digits.length <= 11 ? `55${digits}` : digits) : "";
   return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
 }
+
+/** Resumo só com números confirmados, para a IA escrever a recomendação. Sem dados pessoais. */
+export function aiFacts(l: ListingFeedback): string {
+  const ok = l.lines.filter((x) => x.confirmed);
+  const linhas = ok.map((x) => {
+    const parts = [
+      `${x.label} (${x.periodText}): ${x.views ?? 0} visualizações, ${x.contacts ?? 0} contatos`,
+    ];
+    if (x.impressions != null) parts.push(`${x.impressions} aparições em buscas`);
+    if (x.viewsDelta != null)
+      parts.push(
+        `variação na semana: ${x.viewsDelta >= 0 ? "+" : ""}${x.viewsDelta} visualizações`,
+      );
+    if (x.contactsDelta != null)
+      parts.push(`${x.contactsDelta >= 0 ? "+" : ""}${x.contactsDelta} contatos`);
+    return `- ${parts.join("; ")}`;
+  });
+  const outros = l.lines.filter((x) => !x.confirmed && !x.error).map((x) => x.label);
+  return [
+    linhas.length ? linhas.join("\n") : "- Nenhum número com período confirmado.",
+    outros.length ? `Também anunciado em: ${outros.join(", ")} (sem números confirmados).` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Limpa a resposta da IA: texto simples, curto, sem markdown. */
+export function cleanAiText(t: string): string {
+  return t
+    .replace(/[*_#`>]/g, "")
+    .replace(/\s*\n\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 600);
+}

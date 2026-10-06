@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupByListing, ownerMessage, whatsappLink, type Snapshot } from "./owner-feedback";
+import {
+  aiFacts,
+  cleanAiText,
+  groupByListing,
+  ownerMessage,
+  whatsappLink,
+  type Snapshot,
+} from "./owner-feedback";
 
 const base = {
   broker_id: "b1",
@@ -82,5 +89,41 @@ describe("owner feedback", () => {
   it("link do WhatsApp com e sem telefone", () => {
     expect(whatsappLink("oi", "(15) 99999-0000")).toBe("https://wa.me/5515999990000?text=oi");
     expect(whatsappLink("oi")).toBe("https://wa.me/?text=oi");
+  });
+});
+
+describe("IA do feedback", () => {
+  it("envia à IA só números confirmados", () => {
+    const l = groupByListing([
+      {
+        ...base,
+        portal: "imovelweb",
+        collected_on: "2026-10-06",
+        listing_code: "630601001-1",
+        window_kind: "last30",
+        impressions: 900,
+        views: 120,
+        contacts: 3,
+        error: null,
+      } as Snapshot,
+      {
+        ...base,
+        portal: "zap",
+        collected_on: "2026-10-06",
+        listing_code: "630601001-1",
+        window_kind: "unknown",
+        impressions: null,
+        views: 999,
+        contacts: 99,
+        error: null,
+      } as Snapshot,
+    ])[0];
+    const f = aiFacts(l);
+    expect(f).toContain("120 visualizações");
+    expect(f).not.toContain("999");
+    expect(f).toContain("Também anunciado em: ZAP, OLX e VivaReal");
+  });
+  it("limpa markdown e quebra de linha", () => {
+    expect(cleanAiText("**Ótimo** resultado.\n\nSeguimos")).toBe("Ótimo resultado. Seguimos");
   });
 });
