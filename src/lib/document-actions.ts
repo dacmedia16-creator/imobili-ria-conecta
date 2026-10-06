@@ -26,6 +26,50 @@ async function imageToPngBytes(blob: Blob): Promise<Uint8Array> {
   return new Uint8Array(await pngBlob.arrayBuffer());
 }
 
+/**
+ * PDF protegido por senha de proprietário (ex.: matrícula de cartório) abre normal, mas o
+ * pdf-lib não descriptografa: copiar as páginas gerava folhas em branco. Aqui o pdf.js
+ * (que descriptografa) desenha cada página como imagem.
+ */
+async function encryptedPdfPagesAsJpeg(bytes: Uint8Array): Promise<Uint8Array[]> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = `${window.location.origin}/exclusive-ocr/pdf.worker.min.mjs`;
+  const loading = pdfjs.getDocument({ data: bytes.slice() });
+  const pdf = await loading.promise;
+  const out: Uint8Array[] = [];
+  try {
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const page = await pdf.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      // ~200 dpi, limitado para não estourar memória no celular.
+      const scale = Math.min(200 / 72, 3000 / Math.max(base.width, base.height));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas indisponível");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("Falha ao converter página"))),
+          "image/jpeg",
+          0.85,
+        ),
+      );
+      out.push(new Uint8Array(await blob.arrayBuffer()));
+      canvas.width = 0;
+      canvas.height = 0;
+      page.cleanup();
+    }
+  } finally {
+    await loading.destroy();
+  }
+  return out;
+}
+
 /** Reutilizado pelas vendas e captações; somente URLs assinadas recebidas do storage privado. */
 export async function baixarDocumentosComoPdf(list: PrintableDocument[], nomeArquivo: string) {
   const { PDFDocument } = await import("pdf-lib");
@@ -42,6 +86,16 @@ export async function baixarDocumentosComoPdf(list: PrintableDocument[], nomeArq
     } else {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      if (src.isEncrypted) {
+        for (const jpg of await encryptedPdfPagesAsJpeg(bytes)) {
+          const img = await merged.embedJpg(jpg);
+          // Mantém tamanho de folha A4/carta (pontos), não o tamanho em pixels.
+          const w = 595;
+          const h = (img.height / img.width) * w;
+          merged.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
+        }
+        continue;
+      }
       const pages = await merged.copyPages(src, src.getPageIndices());
       pages.forEach((p) => merged.addPage(p));
     }
