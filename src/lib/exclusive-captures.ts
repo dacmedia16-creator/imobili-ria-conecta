@@ -38,6 +38,74 @@ export const UNIT_FIELDS: { key: UnitField; label: string; placeholder: string }
     placeholder: "Ex.: RE/MAX ÚNICA ESCOLHA",
   },
 ];
+/** Regras do banco (exclusive_units) em linguagem simples, campo por campo. */
+const UNIT_LIMITS: Record<Exclude<UnitField, "cnpj">, [number, number]> = {
+  nome: [2, 80],
+  creci: [3, 30],
+  razao_social: [2, 120],
+  endereco: [3, 160],
+  cidade: [2, 80],
+  estado: [2, 40],
+  nome_comercial: [2, 80],
+};
+function unitCnpjProblem(value: string): string | null {
+  const d = value.replace(/\D/g, "");
+  if (/[^0-9./\-\s]/.test(value))
+    return "CNPJ: use só números (pontos, barra e traço são opcionais).";
+  if (d.length !== 14)
+    return `CNPJ: tem ${d.length} ${d.length === 1 ? "número" : "números"}, mas precisa ter 14 (ex.: 13.662.631/0001-18).`;
+  if (/^(\d)\1{13}$/.test(d)) return "CNPJ: números repetidos não são um CNPJ válido.";
+  const calc = (len: number) => {
+    let sum = 0;
+    let w = len - 7;
+    for (let i = 0; i < len; i++) {
+      sum += Number(d[i]) * w--;
+      if (w < 2) w = 9;
+    }
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  if (calc(12) !== Number(d[12]) || calc(13) !== Number(d[13]))
+    return "CNPJ: os 2 últimos números (dígitos verificadores) não conferem. Confira se foi digitado certo.";
+  return null;
+}
+/** Lista os problemas do cadastro da unidade; vazio = pode salvar. */
+export function unitProblems(draft: Record<UnitField, string>): string[] {
+  const out: string[] = [];
+  for (const f of UNIT_FIELDS) {
+    const v = (draft[f.key] ?? "").trim();
+    if (!v) {
+      out.push(`${f.label}: campo obrigatório.`);
+      continue;
+    }
+    if (f.key === "cnpj") {
+      const p = unitCnpjProblem(v);
+      if (p) out.push(p);
+      continue;
+    }
+    const [min, max] = UNIT_LIMITS[f.key];
+    if (v.length < min) out.push(`${f.label}: muito curto (mínimo ${min} caracteres).`);
+    if (v.length > max)
+      out.push(`${f.label}: muito longo (máximo ${max} caracteres, hoje tem ${v.length}).`);
+  }
+  return out;
+}
+/** Traduz erro do banco ao salvar unidade (caso escape da validação da tela). */
+export function unitSaveErrorMessage(raw: string): string {
+  const m = raw.match(/exclusive_units_(\w+?)_check/);
+  if (m) {
+    const f = UNIT_FIELDS.find((x) => x.key === m[1]);
+    if (f?.key === "cnpj")
+      return "CNPJ inválido: precisa ter 14 números (ex.: 13.662.631/0001-18).";
+    if (f) return `${f.label}: valor fora do formato permitido. Confira o campo.`;
+  }
+  if (/duplicate key|unique/i.test(raw) && /nome/i.test(raw))
+    return "Já existe uma unidade com esse nome nesta imobiliária. Use outro nome.";
+  if (/duplicate key|unique/i.test(raw)) return "Já existe uma unidade com esses dados.";
+  if (/permission|row-level security|42501/i.test(raw))
+    return "Você não tem permissão para cadastrar unidades nesta imobiliária.";
+  return raw;
+}
 export type CaptureStatus = "rascunho" | "devolvida" | "enviada" | "em_assinatura" | "aprovada";
 export type DocumentKind =
   "rg" | "cpf" | "cnh" | "residencia" | "iptu" | "matricula" | "gerado" | "assinado";

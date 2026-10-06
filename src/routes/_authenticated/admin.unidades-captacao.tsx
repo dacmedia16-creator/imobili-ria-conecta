@@ -3,9 +3,15 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import { listUnits, saveUnit } from "@/lib/exclusive-captures-db";
-import { UNIT_FIELDS, type ExclusiveUnit, type UnitField } from "@/lib/exclusive-captures";
+import {
+  UNIT_FIELDS,
+  unitProblems,
+  unitSaveErrorMessage,
+  type ExclusiveUnit,
+  type UnitField,
+} from "@/lib/exclusive-captures";
 import { errorMessage } from "@/lib/errors";
-import { formatCnpj, isValidCnpj } from "@/lib/platform-organizations";
+import { formatCnpj } from "@/lib/platform-organizations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -66,13 +72,13 @@ function UnitsAdmin() {
   };
   const missing = UNIT_FIELDS.filter((f) => !draft[f.key].trim());
   const save = async () => {
-    if (missing.length) {
-      toast.error(`Preencha: ${missing.map((f) => f.label).join(", ")}`);
-      return;
-    }
-    if (!isValidCnpj(draft.cnpj)) {
+    const problems = unitProblems(draft);
+    if (problems.length) {
       toast.error(
-        "CNPJ inválido. Confira os 14 números do CNPJ da unidade (ex.: 13.662.631/0001-18).",
+        problems.length === 1
+          ? "Não foi possível salvar"
+          : `Corrija ${problems.length} pontos para salvar`,
+        { description: problems.join("\n"), duration: 10000 },
       );
       return;
     }
@@ -86,7 +92,10 @@ function UnitsAdmin() {
       setEditing(null);
       await reload();
     } catch (e: unknown) {
-      toast.error(errorMessage(e, "Não foi possível salvar a unidade"));
+      toast.error("Não foi possível salvar a unidade", {
+        description: unitSaveErrorMessage(errorMessage(e, "Erro desconhecido")),
+        duration: 10000,
+      });
     } finally {
       setSaving(false);
     }
