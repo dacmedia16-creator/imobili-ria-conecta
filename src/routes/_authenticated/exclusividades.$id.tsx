@@ -332,6 +332,8 @@ function ExclusiveDetail() {
           >;
         // Igual às Vendas: preenche sozinho só os campos vazios (nunca sobrescreve) e salva.
         const current = formRef.current;
+        // Valor do imóvel é sempre digitado pelo corretor; a leitura nunca preenche.
+        delete (values as Record<string, unknown>).valor_imovel;
         if (!Object.keys(values).length || !current) {
           toast.info("Sem campos legíveis identificados; preencha manualmente.");
           return;
