@@ -67,7 +67,7 @@ import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/p
 
 type AdminUser = Pick<
   ProfileRow,
-  "id" | "nome" | "email" | "telefone" | "cpf" | "creci" | "ativo" | "avatar_url"
+  "id" | "nome" | "email" | "telefone" | "cpf" | "creci" | "remax_id" | "ativo" | "avatar_url"
 >;
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
@@ -162,6 +162,7 @@ function AdminUsers() {
     telefone: string | null;
     cpf: string | null;
     creci: string | null;
+    remax_id: string | null;
   } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
@@ -236,7 +237,7 @@ function AdminUsers() {
   const load = useCallback(async () => {
     const { data: profs } = await supabase
       .from("profiles")
-      .select("id, nome, email, telefone, ativo, avatar_url");
+      .select("id, nome, email, telefone, ativo, avatar_url, remax_id");
     const { data: r } = await supabase.from("user_roles").select("user_id, role");
     const { data: teams } = await supabase
       .from("teams")
@@ -523,6 +524,7 @@ function AdminUsers() {
                     telefone: u.telefone ?? null,
                     cpf: u.cpf ?? null,
                     creci: u.creci ?? null,
+                    remax_id: u.remax_id ?? null,
                   })
                 }
               >
@@ -978,6 +980,7 @@ function EditUserDialog({
     telefone: string | null;
     cpf: string | null;
     creci: string | null;
+    remax_id: string | null;
   };
   onDone: () => void;
   updateFn: (args: {
@@ -988,6 +991,7 @@ function EditUserDialog({
       telefone: string;
       cpf: string | null;
       creci: string | null;
+      remax_id: string | null;
       motivo?: string | null;
     };
   }) => Promise<unknown>;
@@ -998,6 +1002,7 @@ function EditUserDialog({
   const [telefone, setTelefone] = useState(target.telefone ?? "");
   const [cpf, setCpf] = useState(target.cpf ?? "");
   const [creci, setCreci] = useState(target.creci ?? "");
+  const [remaxId, setRemaxId] = useState(target.remax_id ?? "");
   const [loading, setLoading] = useState(false);
 
   const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
@@ -1019,6 +1024,7 @@ function EditUserDialog({
           telefone,
           cpf: cpf || null,
           creci: creci || null,
+          remax_id: remaxId || null,
           motivo: requireReason ? motivo.trim() : null,
         },
       });
@@ -1093,6 +1099,17 @@ function EditUserDialog({
             value={creci}
             maxLength={50}
             onChange={(e) => setCreci(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="eu-remax-id">ID RE/MAX</Label>
+          <Input
+            id="eu-remax-id"
+            inputMode="numeric"
+            placeholder="Ex.: 630601272"
+            value={remaxId}
+            maxLength={9}
+            onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
           />
         </div>
         {requireReason && <ReasonField id="eu-motivo" value={motivo} onChange={setMotivo} />}

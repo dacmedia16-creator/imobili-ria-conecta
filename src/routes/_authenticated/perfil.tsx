@@ -73,6 +73,8 @@ function MeuAcesso() {
   const [savingTelefone, setSavingTelefone] = useState(false);
   const [cpf, setCpf] = useState("");
   const [creci, setCreci] = useState("");
+  const [remaxId, setRemaxId] = useState("");
+  const [savingRemaxId, setSavingRemaxId] = useState(false);
   const [registrationLoaded, setRegistrationLoaded] = useState(false);
   const [savingRegistration, setSavingRegistration] = useState(false);
   const [paginaPessoal, setPaginaPessoal] = useState("");
@@ -113,11 +115,12 @@ function MeuAcesso() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url")
+        .select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url, remax_id")
         .eq("id", user.id)
         .maybeSingle();
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
+      setRemaxId(data?.remax_id ?? "");
       profileRegistrations()
         .then((rows) => {
           const mine = rows.find((row) => row.user_id === user.id);
@@ -232,6 +235,34 @@ function MeuAcesso() {
       else toast.success("Telefone salvo");
     } finally {
       setSavingTelefone(false);
+    }
+  };
+
+  const salvarRemaxId = async () => {
+    if (!user) return;
+    const valor = remaxId.replace(/\D/g, "");
+    if (valor && valor.length !== 9) {
+      toast.error("O ID RE/MAX tem 9 números (ex.: 630601272).");
+      return;
+    }
+    setSavingRemaxId(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ remax_id: valor || null })
+        .eq("id", user.id);
+      if (error) {
+        toast.error(
+          /profiles_remax_id_org_uniq|duplicate/i.test(error.message)
+            ? "Esse ID RE/MAX já está em outro cadastro. Fale com o administrador."
+            : error.message,
+        );
+      } else {
+        setRemaxId(valor);
+        toast.success("ID RE/MAX salvo");
+      }
+    } finally {
+      setSavingRemaxId(false);
     }
   };
 
@@ -610,6 +641,31 @@ function MeuAcesso() {
               >
                 {savingRegistration ? "Salvando…" : "Salvar CPF e CRECI"}
               </Button>
+            </div>
+          )}
+          {canUsePositioning && (
+            <div className="grid max-w-2xl gap-2 border-t pt-4">
+              <Label htmlFor="perfil-remax-id" className="block">
+                ID RE/MAX
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  id="perfil-remax-id"
+                  inputMode="numeric"
+                  placeholder="Ex.: 630601272"
+                  className="max-w-[220px]"
+                  value={remaxId}
+                  maxLength={9}
+                  onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
+                />
+                <Button size="sm" disabled={savingRemaxId} onClick={salvarRemaxId}>
+                  {savingRemaxId ? "Salvando…" : "Salvar ID RE/MAX"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                São os 9 números do início do código dos seus imóveis nos portais. Ex.: no imóvel
+                630601272-190, o seu ID é 630601272. Usado no Feedback ao Proprietário.
+              </p>
             </div>
           )}
           {canUsePositioning && (

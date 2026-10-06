@@ -1610,6 +1610,7 @@ export type Database = {
           organization_id: string;
           pagina_pessoal_url: string | null;
           public_profile_enabled: boolean;
+          remax_id: string | null;
           telefone: string | null;
           updated_at: string;
         };
@@ -1626,6 +1627,7 @@ export type Database = {
           organization_id?: string;
           pagina_pessoal_url?: string | null;
           public_profile_enabled?: boolean;
+          remax_id?: string | null;
           telefone?: string | null;
           updated_at?: string;
         };
@@ -1642,6 +1644,7 @@ export type Database = {
           organization_id?: string;
           pagina_pessoal_url?: string | null;
           public_profile_enabled?: boolean;
+          remax_id?: string | null;
           telefone?: string | null;
           updated_at?: string;
         };

@@ -99,6 +99,12 @@ const updateUserSchema = z.object({
   userId: z.string().uuid(),
   cpf: z.string().trim().max(30).nullable(),
   creci: z.string().trim().max(50).nullable(),
+  remax_id: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{9}$/, "O ID RE/MAX tem 9 números (ex.: 630601272).")
+    .nullable()
+    .optional(),
   nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
@@ -232,10 +238,15 @@ export const updateUser = createServerFn({ method: "POST" })
         telefone: data.telefone,
         cpf: data.cpf || null,
         creci: data.creci || null,
+        ...(data.remax_id !== undefined ? { remax_id: data.remax_id || null } : {}),
       })
       .eq("organization_id", orgId)
       .eq("id", data.userId);
-    if (profErr) throw new Error(profErr.message);
+    if (profErr) {
+      if (/profiles_remax_id_org_uniq|duplicate/i.test(profErr.message))
+        throw new Error("Esse ID RE/MAX já está em outro cadastro desta imobiliária.");
+      throw new Error(profErr.message);
+    }
 
     if (inPlatformContext) {
       await logUserAction(
