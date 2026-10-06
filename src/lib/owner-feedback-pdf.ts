@@ -1,14 +1,19 @@
 /**
- * PDF opcional do Feedback ao Proprietário (1 página A4).
- * Mesma regra da mensagem: número só com período confirmado; erro de coleta = "sem atualização".
+ * PDF do Feedback ao Proprietário (A4, quantas páginas precisar).
+ * Seções: imóvel, desempenho nos portais, plano de marketing executado, checklist do corretor,
+ * próximas ações e recomendação. Mesma regra da mensagem: número só com período confirmado.
  */
 import type { ListingFeedback } from "@/lib/owner-feedback";
+import { nextActions, type ActionSummary } from "@/lib/owner-feedback-actions";
 
 export interface OwnerPdfInput {
   listing: ListingFeedback;
   brokerName: string;
   ownerName: string;
   recommendation: string;
+  /** Plano de marketing e checklist (opcionais; sem eles a seção não aparece). */
+  marketing?: ActionSummary | null;
+  checklist?: ActionSummary | null;
   /** PNG do logo (opcional; sem logo o PDF sai só com o título). */
   logoPng?: Uint8Array | null;
   /** Data de emissão (padrão: hoje). */
@@ -35,22 +40,34 @@ export function pdfFileName(code: string): string {
 
 export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  type Page = ReturnType<typeof pdf.addPage>;
   const pdf = await PDFDocument.create();
   pdf.setTitle(pdfSafe(`Relatório do imóvel ${input.listing.code}`));
   pdf.setProducer("ADM MAX");
-  const page = pdf.addPage([595.28, 841.89]);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const blue = rgb(0, 0.27, 0.55);
   const red = rgb(0.86, 0.08, 0.16);
+  const green = rgb(0.1, 0.5, 0.25);
   const gray = rgb(0.4, 0.4, 0.4);
+  const light = rgb(0.9, 0.92, 0.95);
+  const PW = 595.28;
+  const PH = 841.89;
   const M = 50;
-  const W = 595.28 - 2 * M;
-  let y = 841.89 - M;
+  const W = PW - 2 * M;
+  const BOTTOM = 70;
+  let page: Page = pdf.addPage([PW, PH]);
+  let y = PH - M;
 
+  const newPage = () => {
+    page = pdf.addPage([PW, PH]);
+    y = PH - M;
+  };
+  const ensure = (h: number) => {
+    if (y - h < BOTTOM) newPage();
+  };
   const text = (t: string, x: number, size = 11, f = font, color = rgb(0.1, 0.1, 0.1)) =>
     page.drawText(pdfSafe(t), { x, y, size, font: f, color });
-
   const wrap = (t: string, size: number, f = font, width = W): string[] => {
     const out: string[] = [];
     for (const para of pdfSafe(t).split("\n")) {
@@ -66,14 +83,27 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     }
     return out;
   };
+  const section = (title: string) => {
+    ensure(50);
+    y -= 6;
+    text(title, M, 14, bold, blue);
+    y -= 8;
+    page.drawRectangle({ x: M, y: y - 2, width: W, height: 1.2, color: red });
+    y -= 20;
+  };
+  const bar = (percent: number) => {
+    page.drawRectangle({ x: M, y: y - 2, width: W, height: 8, color: light });
+    if (percent > 0)
+      page.drawRectangle({ x: M, y: y - 2, width: (W * percent) / 100, height: 8, color: green });
+    y -= 22;
+  };
 
   // Cabeçalho
   if (input.logoPng?.length) {
     try {
       const img = await pdf.embedPng(input.logoPng);
       const h = 42;
-      const w = (img.width / img.height) * h;
-      page.drawImage(img, { x: M, y: y - h, width: w, height: h });
+      page.drawImage(img, { x: M, y: y - h, width: (img.width / img.height) * h, height: h });
     } catch {
       // logo inválido: segue sem logo
     }
@@ -81,19 +111,19 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   const issued = (input.issuedAt ?? new Date()).toLocaleDateString("pt-BR", {
     timeZone: "America/Sao_Paulo",
   });
-  page.drawText(pdfSafe(`Emitido em ${issued}`), {
-    x: M + W - font.widthOfTextAtSize(pdfSafe(`Emitido em ${issued}`), 9),
+  const issuedTxt = pdfSafe(`Emitido em ${issued}`);
+  page.drawText(issuedTxt, {
+    x: M + W - font.widthOfTextAtSize(issuedTxt, 9),
     y: y - 12,
     size: 9,
     font,
     color: gray,
   });
   y -= 70;
-  text("Relatório do seu imóvel", M, 20, bold, blue);
+  text("Feedback do seu imóvel", M, 20, bold, blue);
   y -= 8;
   page.drawRectangle({ x: M, y: y - 4, width: W, height: 2, color: red });
   y -= 26;
-
   const info: Array<[string, string]> = [
     ["Código do anúncio", input.listing.code],
     ["Proprietário(a)", input.ownerName.trim() || "-"],
@@ -104,20 +134,39 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     text(v, M + 130, 11);
     y -= 18;
   }
-  y -= 12;
+  y -= 6;
+
+  // Resumo em números (plano executado / vitais / checklist)
+  const mk = input.marketing && input.marketing.total ? input.marketing : null;
+  const ck = input.checklist && input.checklist.total ? input.checklist : null;
+  if (mk || ck) {
+    ensure(60);
+    const boxes: Array<[string, string]> = [];
+    if (mk) {
+      boxes.push(["Plano executado", `${mk.percent}%`]);
+      boxes.push(["Ações concluídas", `${mk.done} / ${mk.total}`]);
+      if (mk.vitalTotal) boxes.push(["Ações vitais", `${mk.vitalDone} / ${mk.vitalTotal}`]);
+    }
+    if (ck) boxes.push(["Checklist do corretor", `${ck.done} / ${ck.total}`]);
+    const bw = (W - (boxes.length - 1) * 8) / boxes.length;
+    boxes.forEach(([k, v], i) => {
+      const x = M + i * (bw + 8);
+      page.drawRectangle({ x, y: y - 40, width: bw, height: 48, color: light });
+      page.drawText(pdfSafe(v), { x: x + 8, y: y - 14, size: 16, font: bold, color: blue });
+      page.drawText(pdfSafe(k), { x: x + 8, y: y - 32, size: 8, font, color: gray });
+    });
+    y -= 62;
+  }
 
   // Números por portal
-  text("Desempenho nos portais", M, 14, bold, blue);
-  y -= 22;
+  section("Desempenho nos portais");
   const cols = [M, M + 190, M + 300, M + 400];
-  const head = ["Portal", "Visualizações", "Contatos", "Aparições em buscas"];
-  head.forEach((h, i) =>
+  ["Portal", "Visualizações", "Contatos", "Aparições em buscas"].forEach((h, i) =>
     page.drawText(pdfSafe(h), { x: cols[i], y, size: 10, font: bold, color: gray }),
   );
   y -= 6;
   page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: gray });
   y -= 16;
-
   const confirmed = input.listing.lines.filter((l) => l.confirmed && !l.error);
   const failed = input.listing.lines.filter((l) => l.error);
   const others = input.listing.lines.filter((l) => !l.confirmed && !l.error);
@@ -126,6 +175,7 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     y -= 18;
   }
   for (const l of confirmed) {
+    ensure(32);
     text(l.label, cols[0], 10, bold);
     text(`${fmt(l.views)}${fmtDelta(l.viewsDelta)}`, cols[1], 10);
     text(`${fmt(l.contacts)}${fmtDelta(l.contactsDelta)}`, cols[2], 10);
@@ -134,13 +184,14 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     text(`Período: ${l.periodText}`, cols[0], 8, font, gray);
     y -= 17;
   }
-  if (others.length) {
+  if (others.length)
     for (const ln of wrap(`Também anunciado em: ${others.map((l) => l.label).join(", ")}.`, 10)) {
+      ensure(14);
       text(ln, M, 10, font, gray);
       y -= 14;
     }
-  }
   if (failed.length) {
+    ensure(14);
     text(
       `Sem atualização nesta semana: ${failed.map((l) => l.label).join(", ")}.`,
       M,
@@ -150,27 +201,88 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     );
     y -= 14;
   }
-  y -= 14;
+  y -= 6;
+
+  // Listas de ações: mostra só o que foi feito (como o modelo atual).
+  const doneList = (title: string, s: ActionSummary, withWeight: boolean) => {
+    section(title);
+    ensure(30);
+    text(`${s.done} de ${s.total} ações concluídas (${s.percent}%)`, M, 10, font, gray);
+    y -= 14;
+    bar(s.percent);
+    if (!s.done) {
+      text("Nenhuma ação marcada ainda.", M, 10, font, gray);
+      y -= 16;
+      return;
+    }
+    for (const g of s.groups) {
+      const done = g.items.filter((i) => i.done);
+      if (!done.length) continue;
+      ensure(36);
+      text(g.category.toUpperCase(), M, 9, bold, blue);
+      y -= 15;
+      for (const it of done) {
+        const lines = wrap(it.label, 10, font, W - 110);
+        ensure(lines.length * 13 + 4);
+        page.drawText("+", { x: M + 4, y, size: 10, font: bold, color: green });
+        lines.forEach((ln, i) => {
+          page.drawText(ln, { x: M + 18, y: y - i * 13, size: 10, font });
+        });
+        if (withWeight && it.weight) {
+          const w = pdfSafe(it.weight);
+          page.drawText(w, {
+            x: M + W - font.widthOfTextAtSize(w, 8),
+            y,
+            size: 8,
+            font,
+            color: it.weight === "vital" ? red : gray,
+          });
+        }
+        y -= lines.length * 13 + 3;
+      }
+      y -= 6;
+    }
+  };
+  if (mk) doneList("Plano de marketing", mk, true);
+  if (ck) doneList("Checklist do corretor", ck, false);
+
+  // Próximas ações
+  const next = mk ? nextActions(mk, 5) : [];
+  if (next.length) {
+    section("Próximas ações");
+    for (const a of next) {
+      const lines = wrap(a, 10, font, W - 18);
+      ensure(lines.length * 13 + 4);
+      page.drawText("-", { x: M + 4, y, size: 10, font: bold, color: blue });
+      lines.forEach((ln, i) => page.drawText(ln, { x: M + 18, y: y - i * 13, size: 10, font }));
+      y -= lines.length * 13 + 3;
+    }
+    y -= 6;
+  }
 
   // Recomendação
   if (input.recommendation.trim()) {
-    text("Recomendação do seu corretor", M, 14, bold, blue);
-    y -= 20;
+    section("Recomendação do seu corretor");
     for (const ln of wrap(input.recommendation, 11)) {
-      if (y < 90) break;
+      ensure(16);
       text(ln, M, 11);
       y -= 16;
     }
   }
 
-  // Rodapé
-  y = 50;
-  page.drawLine({
-    start: { x: M, y: y + 14 },
-    end: { x: M + W, y: y + 14 },
-    thickness: 0.5,
-    color: gray,
+  // Rodapé em todas as páginas
+  const pages = pdf.getPages();
+  pages.forEach((p, i) => {
+    p.drawLine({ start: { x: M, y: 64 }, end: { x: M + W, y: 64 }, thickness: 0.5, color: gray });
+    p.drawText(pdfSafe("Números informados pelos próprios portais de anúncio."), {
+      x: M,
+      y: 50,
+      size: 8,
+      font,
+      color: gray,
+    });
+    const pg = `${i + 1}/${pages.length}`;
+    p.drawText(pg, { x: M + W - font.widthOfTextAtSize(pg, 8), y: 50, size: 8, font, color: gray });
   });
-  text("Números informados pelos próprios portais de anúncio.", M, 8, font, gray);
   return pdf.save();
 }

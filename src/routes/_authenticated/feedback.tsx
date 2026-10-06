@@ -17,6 +17,14 @@ import { errorMessage } from "@/lib/errors";
 import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
 import { suggestOwnerRecommendation } from "@/lib/owner-feedback.functions";
 import { buildOwnerFeedbackPdf, pdfFileName } from "@/lib/owner-feedback-pdf";
+import {
+  summarizeActions,
+  WEIGHT_LABEL,
+  type ActionList,
+  type ActionSummary,
+  type FeedbackAction,
+} from "@/lib/owner-feedback-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -201,6 +209,77 @@ function Review({
   const [rec, setRec] = useState(() => diagnosis(listing));
   const [aiLoading, setAiLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [actions, setActions] = useState<FeedbackAction[]>([]);
+  const [doneAt, setDoneAt] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [a, d] = await Promise.all([
+          db
+            .from("owner_feedback_actions")
+            .select("id,list,category,label,weight,sort")
+            .eq("active", true)
+            .order("sort"),
+          db
+            .from("owner_feedback_action_done")
+            .select("action_id,done_at")
+            .eq("listing_code", listing.code),
+        ]);
+        if (a.error) throw a.error;
+        if (d.error) throw d.error;
+        if (!alive) return;
+        setActions((a.data ?? []) as FeedbackAction[]);
+        const m: Record<string, string> = {};
+        for (const r of d.data ?? []) m[r.action_id as string] = r.done_at as string;
+        setDoneAt(m);
+      } catch (e) {
+        toast.error(errorMessage(e, "Não foi possível carregar o plano de marketing."));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [listing.code]);
+  const marketing = useMemo(
+    () => summarizeActions(actions, doneAt, "marketing"),
+    [actions, doneAt],
+  );
+  const checklist = useMemo(
+    () => summarizeActions(actions, doneAt, "checklist"),
+    [actions, doneAt],
+  );
+  const toggle = async (id: string, on: boolean) => {
+    setSaving(id);
+    try {
+      if (on) {
+        const { data, error } = await db
+          .from("owner_feedback_action_done")
+          .insert({ listing_code: listing.code, action_id: id })
+          .select("done_at")
+          .single();
+        if (error) throw error;
+        setDoneAt((m) => ({ ...m, [id]: (data?.done_at as string) ?? new Date().toISOString() }));
+      } else {
+        const { error } = await db
+          .from("owner_feedback_action_done")
+          .delete()
+          .eq("listing_code", listing.code)
+          .eq("action_id", id);
+        if (error) throw error;
+        setDoneAt((m) => {
+          const c = { ...m };
+          delete c[id];
+          return c;
+        });
+      }
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível salvar. Só o corretor do imóvel pode marcar."));
+    } finally {
+      setSaving(null);
+    }
+  };
   const downloadPdf = async () => {
     setPdfLoading(true);
     try {
@@ -212,6 +291,8 @@ function Review({
         brokerName: brokerName ?? "",
         ownerName,
         recommendation: rec,
+        marketing,
+        checklist,
         logoPng: logo ? new Uint8Array(logo) : null,
       });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
@@ -278,6 +359,21 @@ function Review({
           ))}
         </CardContent>
       </Card>
+
+      <ActionsCard
+        title="Plano de marketing"
+        list="marketing"
+        summary={marketing}
+        saving={saving}
+        onToggle={toggle}
+      />
+      <ActionsCard
+        title="Checklist do corretor"
+        list="checklist"
+        summary={checklist}
+        saving={saving}
+        onToggle={toggle}
+      />
 
       <Card>
         <CardHeader>
@@ -358,5 +454,91 @@ function Review({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ActionsCard({
+  title,
+  list,
+  summary,
+  saving,
+  onToggle,
+}: {
+  title: string;
+  list: ActionList;
+  summary: ActionSummary;
+  saving: string | null;
+  onToggle: (id: string, on: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!summary.total) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-2 text-left"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+        >
+          <CardTitle className="text-base">{title}</CardTitle>
+          <span className="text-sm text-muted-foreground">
+            {summary.done} de {summary.total} feitas ({summary.percent}%)
+            {list === "marketing" &&
+              summary.vitalTotal > 0 &&
+              ` · vitais ${summary.vitalDone}/${summary.vitalTotal}`}
+            {open ? " ▲" : " ▼"}
+          </span>
+        </button>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded bg-muted">
+          <div className="h-2 bg-green-600" style={{ width: `${summary.percent}%` }} />
+        </div>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-xs text-muted-foreground">
+            Marque o que você já fez neste imóvel. O que estiver marcado aparece no PDF do
+            proprietário.
+          </p>
+          {summary.groups.map((g) => (
+            <div key={g.category}>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                {g.category}
+              </div>
+              <div className="space-y-1">
+                {g.items.map((it) => (
+                  <label
+                    key={it.id}
+                    className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-muted"
+                  >
+                    <Checkbox
+                      checked={it.done}
+                      disabled={saving === it.id}
+                      onCheckedChange={(v) => onToggle(it.id, v === true)}
+                      className="mt-0.5"
+                    />
+                    <span className={it.done ? "text-foreground" : "text-muted-foreground"}>
+                      {it.label}
+                      {it.weight && (
+                        <span
+                          className={`ml-2 rounded px-1 text-[10px] ${it.weight === "vital" ? "bg-red-100 text-red-700" : "bg-muted text-muted-foreground"}`}
+                        >
+                          {WEIGHT_LABEL[it.weight]}
+                        </span>
+                      )}
+                      {it.doneAt && (
+                        <span className="ml-2 text-[10px] text-muted-foreground">
+                          feito em {new Date(it.doneAt).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      )}
+    </Card>
   );
 }
