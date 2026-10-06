@@ -70,10 +70,20 @@ async function encryptedPdfPagesAsJpeg(bytes: Uint8Array): Promise<Uint8Array[]>
   return out;
 }
 
-/** Reutilizado pelas vendas e captações; somente URLs assinadas recebidas do storage privado. */
-export async function baixarDocumentosComoPdf(list: PrintableDocument[], nomeArquivo: string) {
+/**
+ * Junta tudo num PDF só: `head` (ex.: contrato + Dossiê recém-gerados) primeiro e depois os
+ * documentos na ordem recebida. Somente URLs assinadas do storage privado.
+ */
+export async function juntarDocumentosEmPdf(
+  list: PrintableDocument[],
+  head?: Uint8Array,
+): Promise<Uint8Array> {
   const { PDFDocument } = await import("pdf-lib");
   const merged = await PDFDocument.create();
+  if (head) {
+    const src = await PDFDocument.load(head);
+    (await merged.copyPages(src, src.getPageIndices())).forEach((p) => merged.addPage(p));
+  }
   for (const doc of list) {
     const resp = await fetch(doc.url);
     if (!resp.ok) throw new Error(`Falha ao baixar ${doc.file_name}`);
@@ -100,7 +110,16 @@ export async function baixarDocumentosComoPdf(list: PrintableDocument[], nomeArq
       pages.forEach((p) => merged.addPage(p));
     }
   }
-  const mergedBytes = await merged.save();
+  return merged.save();
+}
+
+/** Reutilizado pelas vendas e captações. */
+export async function baixarDocumentosComoPdf(
+  list: PrintableDocument[],
+  nomeArquivo: string,
+  head?: Uint8Array,
+) {
+  const mergedBytes = await juntarDocumentosEmPdf(list, head);
   const blobUrl = URL.createObjectURL(
     new Blob([mergedBytes as BlobPart], { type: "application/pdf" }),
   );

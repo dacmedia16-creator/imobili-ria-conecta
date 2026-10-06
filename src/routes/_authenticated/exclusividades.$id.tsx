@@ -307,20 +307,16 @@ function ExclusiveDetail() {
       const file = new File([bytes as BlobPart], `contrato-exclusividade-${id.slice(0, 8)}.pdf`, {
         type: "application/pdf",
       });
+      // Salvo na captação: contrato + Dossiê (é o que vai para assinatura).
       await uploadCaptureDocument(id, "gerado", 0, file);
-      // Já baixa o contrato gerado (o mesmo arquivo salvo na captação).
-      const url = URL.createObjectURL(file);
-      try {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      } finally {
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
-      toast.success("Contrato gerado, salvo e baixado. Confira o PDF antes de enviar.");
+      // Baixado: contrato, Dossiê e depois os documentos anexados (RG, CNH, IPTU, matrícula...).
+      const anexos = docs.filter((d) => d.kind !== "gerado" && d.kind !== "assinado");
+      await baixarDocumentosComoPdf(
+        await signedDocuments(anexos),
+        `contrato-exclusividade-${id.slice(0, 8)}-completo.pdf`,
+        bytes,
+      );
+      toast.success("Contrato gerado e salvo. PDF baixado: contrato, Dossiê e documentos.");
     });
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
@@ -420,7 +416,10 @@ function ExclusiveDetail() {
     const printWindow = print ? openDocumentPrintWindow() : null;
     if (print && !printWindow) return;
     try {
-      const list = await signedDocuments(docs);
+      // Ordem: contrato (gerado/assinado), depois os documentos anexados.
+      const rank = (d: CaptureDocument) =>
+        d.kind === "assinado" ? 0 : d.kind === "gerado" ? 1 : 2;
+      const list = await signedDocuments([...docs].sort((a, b) => rank(a) - rank(b)));
       if (print && printWindow) printDocumentUrls(list, printWindow);
       else await baixarDocumentosComoPdf(list, `captacao-${id.slice(0, 8)}-documentos.pdf`);
     } catch (e: unknown) {
