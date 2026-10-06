@@ -18,6 +18,7 @@ import {
   CalendarDays,
   Gauge,
   Percent,
+  MessageSquareText,
   Landmark,
   Receipt,
   TrendingUp,
@@ -296,6 +297,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: FileText,
       show:
         exclusiveVisible && hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+    },
+    {
+      to: "/feedback",
+      label: "Feedback ao proprietário",
+      icon: MessageSquareText,
+      show: hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
     },
     {
       to: "/financeiro",
