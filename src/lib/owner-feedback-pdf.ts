@@ -58,7 +58,6 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   const LINE = rgb(0.87, 0.89, 0.93);
   const SOFT = rgb(0.96, 0.97, 0.99);
   const BLUE_SOFT = rgb(0.92, 0.95, 1);
-  const RED_SOFT = rgb(0.99, 0.91, 0.92);
   const WHITE = rgb(1, 1, 1);
 
   const PW = 595.28;
@@ -120,16 +119,6 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
       borderWidth: 1.4,
     });
   };
-  const pill = (xr: number, mid: number, kind: string | null) => {
-    if (!kind) return;
-    const size = 7;
-    const t = kind.toUpperCase();
-    const w = tw(t, size, bold) + 12;
-    const vital = kind === "vital";
-    box(xr - w, mid + 6, w, 12, 6, vital ? RED_SOFT : SOFT, vital ? undefined : LINE);
-    txt(t, xr - w + 6, mid - 2.5, size, bold, vital ? RED : MUTED);
-  };
-
   // ---------- cabeçalhos e paginação ----------
   const header = (first: boolean) => {
     if (first) {
@@ -219,8 +208,6 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     }
     if (mk) {
       kpis.push({ v: `${mk.percent}%`, k: "Plano executado", accent: GREEN, pct: mk.percent });
-      if (mk.vitalTotal)
-        kpis.push({ v: `${mk.vitalDone}/${mk.vitalTotal}`, k: "Ações vitais", accent: RED });
     }
     if (ck && kpis.length < 4)
       kpis.push({ v: `${ck.done}/${ck.total}`, k: "Checklist", accent: GREEN });
@@ -299,7 +286,7 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   }
 
   // ---------- listas de ações (só o que foi feito) ----------
-  const doneList = (title: string, sm: ActionSummary, withWeight: boolean) => {
+  const doneList = (title: string, sm: ActionSummary) => {
     section(title, `${sm.done} de ${sm.total} ações concluídas · ${sm.percent}%`);
     box(M, y, W, 8, 4, LINE);
     if (sm.percent > 0) box(M, y, Math.max(8, (W * sm.percent) / 100), 8, 4, GREEN);
@@ -323,15 +310,14 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
         ensure(h);
         check(M + 16, y - 7);
         lines.forEach((ln, i) => txt(ln, M + 30, y - 10.5 - i * 13, 10, font, INK));
-        if (withWeight) pill(M + W - 6, y - 7, it.weight);
         y -= h;
       }
       y -= 10;
     }
     y -= 8;
   };
-  if (mk) doneList("Plano de marketing", mk, true);
-  if (ck) doneList("Checklist do corretor", ck, false);
+  if (mk) doneList("Plano de marketing", mk);
+  if (ck) doneList("Checklist do corretor", ck);
 
   // ---------- próximas ações ----------
   const next = mk ? nextActions(mk, 5) : [];

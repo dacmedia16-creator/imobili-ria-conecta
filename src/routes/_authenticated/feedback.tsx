@@ -19,7 +19,6 @@ import { suggestOwnerRecommendation } from "@/lib/owner-feedback.functions";
 import { buildOwnerFeedbackPdf, pdfFileName } from "@/lib/owner-feedback-pdf";
 import {
   summarizeActions,
-  WEIGHT_LABEL,
   type ActionList,
   type ActionSummary,
   type FeedbackAction,
@@ -484,9 +483,6 @@ function ActionsCard({
           <CardTitle className="text-base">{title}</CardTitle>
           <span className="text-sm text-muted-foreground">
             {summary.done} de {summary.total} feitas ({summary.percent}%)
-            {list === "marketing" &&
-              summary.vitalTotal > 0 &&
-              ` · vitais ${summary.vitalDone}/${summary.vitalTotal}`}
             {open ? " ▲" : " ▼"}
           </span>
         </button>
@@ -519,13 +515,6 @@ function ActionsCard({
                     />
                     <span className={it.done ? "text-foreground" : "text-muted-foreground"}>
                       {it.label}
-                      {it.weight && (
-                        <span
-                          className={`ml-2 rounded px-1 text-[10px] ${it.weight === "vital" ? "bg-red-100 text-red-700" : "bg-muted text-muted-foreground"}`}
-                        >
-                          {WEIGHT_LABEL[it.weight]}
-                        </span>
-                      )}
                       {it.doneAt && (
                         <span className="ml-2 text-[10px] text-muted-foreground">
                           feito em {new Date(it.doneAt).toLocaleDateString("pt-BR")}
