@@ -31,42 +31,83 @@ export function parseCaptureSuggestions(text: string, scope: "owner" | "property
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
-  const labelled = (pattern: RegExp) => {
-    const line = lines.find((item) => pattern.test(item));
-    return (
-      line
-        ?.replace(pattern, "")
-        .replace(/^[:\s-]+/, "")
-        .trim()
-        .slice(0, 120) || undefined
-    );
+  // Documentos reais (CNH, RG, IPTU, matrícula) costumam trazer o rótulo numa linha e o
+  // valor na linha seguinte. Tenta o resto da mesma linha e, se não servir, a próxima.
+  const labelled = (pattern: RegExp, pick: (value: string) => string | undefined) => {
+    for (let i = 0; i < lines.length; i++) {
+      if (!pattern.test(lines[i])) continue;
+      const same = lines[i].replace(pattern, "").replace(/^[:\s-]+/, "").trim().slice(0, 120);
+      const fromSame = same ? pick(same) : undefined;
+      if (fromSame) return fromSame;
+      const next = lines[i + 1]?.slice(0, 120);
+      const fromNext = next ? pick(next) : undefined;
+      if (fromNext) return fromNext;
+    }
+    return undefined;
   };
+  const LABEL_WORDS =
+    /\b(?:nome|cpf|rg|data|nascimento|filia[çc][ãa]o|identidade|emissor|registro|validade|categoria|habilita[çc][ãa]o|rep[úu]blica|naturalidade|expedi[çc][ãa]o|documento|assinatura)\b/i;
+  const asName = (value: string) => {
+    const clean = value.replace(/[^\p{L} .'-]/gu, " ").replace(/\s+/g, " ").trim();
+    return /^[\p{L} .'-]{5,120}$/u.test(clean) && clean.includes(" ") && !LABEL_WORDS.test(clean)
+      ? clean
+      : undefined;
+  };
+  const asRg = (value: string) => {
+    const match = value.match(/\b\d{1,2}\.?\d{3}\.?\d{3}(?:-?[\dxX])?\b/)?.[0];
+    return match && !validCpf(match) ? match : undefined;
+  };
+  const asCode = (min: number) => (value: string) => {
+    const match = value.match(/[\dA-Za-z][\w./-]*(?: [\w./-]+)*/)?.[0]?.trim();
+    return match && /\d/.test(match) && match.length >= min && match.length <= 50
+      ? match
+      : undefined;
+  };
+  const asAddress = (value: string) =>
+    value.length >= 8 && /\p{L}/u.test(value) && !LABEL_WORDS.test(value.split(/[,\d]/)[0])
+      ? value
+      : undefined;
   const result: Suggestions = {};
   if (scope === "owner") {
-    const name = labelled(/^(?:nome(?: completo)?|propriet[áa]rio|titular)\s*[:-]?\s*/i);
-    if (name && /^[\p{L} .'-]{5,120}$/u.test(name)) result.nome_completo = name;
+    const name = labelled(
+      /^(?:\d+\s*(?:e\s*\d+\s*)?)?(?:nome(?: e sobrenome| completo)?|propriet[áa]rio|titular)\b\s*[:-]?\s*/i,
+      asName,
+    );
+    if (name) result.nome_completo = name;
     const cpf = [...text.matchAll(cpfPattern)].map(([match]) => match).find(validCpf);
     if (cpf) result.cpf = cpf;
-    const rg = labelled(/^(?:rg|registro geral|identidade)\s*[:-]?\s*/i);
-    if (rg && /^[\d.xX-]{5,20}$/.test(rg)) result.rg = rg;
+    const rg =
+      labelled(/^(?:rg|registro geral|c[ée]dula de identidade|identidade)\b\s*[:-]?\s*/i, asRg) ??
+      labelled(/^(?:\d+[a-z]?\s*)?doc\.? identidade\b.*$/i, asRg);
+    if (rg) result.rg = rg;
     const email = text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0];
     if (email) result.email = email;
-    const phone = labelled(/^(?:telefone|celular|fone)\s*[:-]?\s*/i);
-    if (phone && /^[\d() +-]{10,22}$/.test(phone)) result.telefone_1 = phone;
-    const address = labelled(/^(?:endere[çc]o|logradouro)\s*[:-]?\s*/i);
-    if (address && address.length >= 8) result.endereco_completo = address;
+    const phone = labelled(/^(?:telefone|celular|fone)\s*[:-]?\s*/i, (value) =>
+      /^[\d() +-]{10,22}$/.test(value) ? value : undefined,
+    );
+    if (phone) result.telefone_1 = phone;
+    const address = labelled(/^(?:endere[çc]o|logradouro)\s*[:-]?\s*/i, asAddress);
+    if (address) result.endereco_completo = address;
   } else {
     const inscription = labelled(
-      /^(?:inscri[çc][ãa]o(?: imobili[áa]ria| municipal)?|classifica[çc][ãa]o(?: fiscal)?|cadastro imobili[áa]rio)\s*[:-]?\s*/i,
+      /^(?:inscri[çc][ãa]o(?: imobili[áa]ria| municipal| cadastral)?|classifica[çc][ãa]o(?: fiscal)?|cadastro imobili[áa]rio)\s*[:-]?\s*/i,
+      asCode(4),
     );
-    if (inscription && /^[\w./ -]{4,50}$/.test(inscription))
-      result.classificacao_fiscal_iptu = inscription;
-    const register = labelled(/^(?:matr[íi]cula|n[úu]mero da matr[íi]cula)\s*[:-]?\s*/i);
-    if (register && /^[\w./ -]{3,50}$/.test(register)) result.numero_matricula = register;
-    const registry = labelled(/^(?:cart[óo]rio|registro de im[óo]veis)\s*[:-]?\s*/i);
-    if (registry && registry.length >= 4) result.cartorio_registro = registry;
-    const address = labelled(/^(?:endere[çc]o(?: do im[óo]vel)?|logradouro)\s*[:-]?\s*/i);
-    if (address && address.length >= 8) result.endereco = address;
+    if (inscription) result.classificacao_fiscal_iptu = inscription;
+    const register = labelled(
+      /^(?:n[úu]mero da matr[íi]cula|matr[íi]cula(?: n[º°o.]*)?)\s*[:-]?\s*/i,
+      asCode(3),
+    );
+    if (register) result.numero_matricula = register;
+    const registry = labelled(/^(?:cart[óo]rio|registro de im[óo]veis)\s*[:-]?\s*/i, (value) =>
+      value.length >= 4 ? value : undefined,
+    );
+    if (registry) result.cartorio_registro = registry;
+    const address = labelled(
+      /^(?:endere[çc]o(?: do im[óo]vel)?|local(?:iza[çc][ãa]o)? do im[óo]vel|logradouro)\s*[:-]?\s*/i,
+      asAddress,
+    );
+    if (address) result.endereco = address;
   }
   return result;
 }

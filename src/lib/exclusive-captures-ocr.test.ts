@@ -44,6 +44,32 @@ describe("leitura assistida local — dados sintéticos", () => {
       endereco: "Rua Teste 123",
     });
   });
+  it("lê documentos reais com rótulo numa linha e valor na linha seguinte", () => {
+    const cnh =
+      "REPUBLICA FEDERATIVA DO BRASIL\nCARTEIRA NACIONAL DE HABILITAÇÃO\n2 e 1 NOME E SOBRENOME\nJOAO DA SILVA SANTOS\n4c DOC. IDENTIDADE / ORG. EMISSOR / UF\n12345678 SSP SP\nCPF DATA NASCIMENTO\n529.982.247-25 10/02/1980";
+    expect(parseCaptureSuggestions(cnh, "owner")).toEqual({
+      nome_completo: "JOAO DA SILVA SANTOS",
+      cpf: "529.982.247-25",
+      rg: "12345678",
+    });
+    const rg =
+      "REGISTRO GERAL 12.345.678-9 DATA DE EXPEDIÇÃO 01/01/2010\nNOME\nMARIA APARECIDA SOUZA\nFILIAÇÃO\nJOSE SOUZA";
+    expect(parseCaptureSuggestions(rg, "owner")).toEqual({
+      nome_completo: "MARIA APARECIDA SOUZA",
+      rg: "12.345.678-9",
+    });
+    const iptu =
+      "PREFEITURA DE SOROCABA\nInscrição Imobiliária\n44.21.33.0123.00.000\nEndereço do Imóvel\nRUA DAS FLORES, 123 - JARDIM EUROPA";
+    expect(parseCaptureSuggestions(iptu, "property")).toEqual({
+      classificacao_fiscal_iptu: "44.21.33.0123.00.000",
+      endereco: "RUA DAS FLORES, 123 - JARDIM EUROPA",
+    });
+    const matricula = "MATRÍCULA Nº\n98.765\nCartório\n2º Oficial de Registro de Imóveis de Sorocaba";
+    expect(parseCaptureSuggestions(matricula, "property")).toEqual({
+      numero_matricula: "98.765",
+      cartorio_registro: "2º Oficial de Registro de Imóveis de Sorocaba",
+    });
+  });
   it("bloqueia qualquer envio automático à Clicksign independentemente da configuração", async () => {
     expect(clicksignConfig.mode).toBe("disabled");
     await expect(sendToClicksign("test", { mode: "disabled" })).rejects.toThrow(/desativada/);
