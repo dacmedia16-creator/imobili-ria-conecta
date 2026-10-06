@@ -1389,6 +1389,17 @@ function SaleDetail() {
         rows.filter((r) => r.lado !== lado && r.papel !== `corretor_${sufixo}`),
       );
       setDirtyExtras(true);
+      // Os dados da parceria agora ficam dentro do lado externo (bloco Equipe). Ligar a chave já
+      // abre os campos com o tipo padrão; o usuário troca para "Outra unidade RE/MAX" se for o caso.
+      if (!formSale.parceria_tipo) updResumo({ parceria_tipo: "imobiliaria_externa" });
+    } else {
+      const outroLadoExterno =
+        lado === "captador"
+          ? !!formSale.parceria_externa_venda
+          : !!formSale.parceria_externa_captacao;
+      // Parceria é de um lado só: desligar a chave limpa os dados do parceiro (salvo venda antiga
+      // com os dois lados marcados, onde a parceria continua valendo para o outro lado).
+      if (!outroLadoExterno) applyParceriaTipo(null);
     }
   };
   const COMISSAO_ROLES = ["captador", "vendedor"] as const;
@@ -2139,11 +2150,15 @@ function SaleDetail() {
                           </Select>
                         </Field>
                         <Field label="Descrição do imóvel (matrícula)" colSpan={2}>
-                          <DescricaoMatricula saleId={sale.id} value={formSale.imovel_observacoes ?? null}
-                            origem={sale.imovel_observacoes_origem} editable={editable}
+                          <DescricaoMatricula
+                            saleId={sale.id}
+                            value={formSale.imovel_observacoes ?? null}
+                            origem={sale.imovel_observacoes_origem}
+                            editable={editable}
                             canCorrect={isJuridico || roles.includes("admin")}
                             onChange={(value) => updResumo({ imovel_observacoes: value })}
-                            onSaved={load} />
+                            onSaved={load}
+                          />
                         </Field>
                         <Field label="Observações gerais" colSpan={2}>
                           <Textarea
@@ -2211,6 +2226,132 @@ function SaleDetail() {
                         );
                         const captacaoExterna = !!formSale.parceria_externa_captacao;
                         const vendaExterna = !!formSale.parceria_externa_venda;
+                        const parceriaCampos = (
+                          <div className="mt-3 rounded-md border border-amber-300 bg-amber-50/60 p-3 dark:bg-amber-950/20">
+                            <p className="mb-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                              Dados da parceria
+                            </p>
+                            <FieldGrid>
+                              <Field label="Tipo de parceria">
+                                <Select
+                                  value={formSale.parceria_tipo ?? "imobiliaria_externa"}
+                                  onValueChange={(v) => updResumo({ parceria_tipo: v })}
+                                  disabled={!editable}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {PARCERIA_TIPOS.map((t) => (
+                                      <SelectItem key={t.key} value={t.key}>
+                                        {t.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                              {formSale.parceria_tipo && (
+                                <>
+                                  <Field label="Corretor(a) / Imobiliária parceira">
+                                    <Input
+                                      value={formSale.parceria_nome ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) => updResumo({ parceria_nome: e.target.value })}
+                                    />
+                                  </Field>
+                                  <Field label="CPF/CNPJ">
+                                    <Input
+                                      value={formSale.parceria_cpf_cnpj ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_cpf_cnpj: e.target.value })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Tipo de CRECI">
+                                    <Select
+                                      value={formSale.parceria_creci_tipo ?? "none"}
+                                      disabled={!editable}
+                                      onValueChange={(v) =>
+                                        updResumo({ parceria_creci_tipo: v === "none" ? null : v })
+                                      }
+                                    >
+                                      <SelectTrigger aria-label="Tipo de CRECI da parceria">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">Não informado</SelectItem>
+                                        <SelectItem value="F">CRECI F (pessoa física)</SelectItem>
+                                        <SelectItem value="J">CRECI J (pessoa jurídica)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </Field>
+                                  <Field label="Número do CRECI">
+                                    <Input
+                                      value={formSale.parceria_creci ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_creci: e.target.value })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="% Comissão">
+                                    <Input
+                                      type="number"
+                                      step="0.001"
+                                      value={formSale.parceria_percentual ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) => applyParceriaPercentual(e.target.value)}
+                                    />
+                                  </Field>
+                                  <Field label="Valor da comissão (R$)">
+                                    <CurrencyInput
+                                      value={formSale.parceria_valor}
+                                      disabled={!editable}
+                                      onChange={applyParceriaValor}
+                                    />
+                                  </Field>
+                                  <Field label="Banco">
+                                    <Input
+                                      value={formSale.parceria_banco ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_banco: e.target.value })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Agência">
+                                    <Input
+                                      value={formSale.parceria_agencia ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_agencia: e.target.value })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Conta">
+                                    <Input
+                                      value={formSale.parceria_conta ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_conta: e.target.value })
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="PIX">
+                                    <Input
+                                      value={formSale.parceria_pix ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) => updResumo({ parceria_pix: e.target.value })}
+                                    />
+                                  </Field>
+                                </>
+                              )}
+                            </FieldGrid>
+                          </div>
+                        );
+                        const parceriaSemLado =
+                          !!formSale.parceria_tipo && !captacaoExterna && !vendaExterna;
                         return (
                           <div className="mb-4 grid gap-4 sm:grid-cols-2">
                             <div
@@ -2480,16 +2621,23 @@ function SaleDetail() {
                                     Parceria externa na captação
                                   </Label>
                                   <p className="text-xs text-muted-foreground">
-                                    Não selecionar corretor, gestor ou indicador interno deste lado.
+                                    Outra imobiliária ou outra unidade RE/MAX fez este lado. Os
+                                    dados do parceiro aparecem aqui.
                                   </p>
                                 </div>
                                 <Switch
                                   id="parceria-externa-captacao"
                                   checked={captacaoExterna}
-                                  disabled={!editable}
+                                  disabled={!editable || (!captacaoExterna && vendaExterna)}
                                   onCheckedChange={(v) => setParceriaExternaLado("captador", v)}
                                 />
                               </div>
+                              {!captacaoExterna && vendaExterna && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Indisponível: a parceria externa já está no lado da venda.
+                                </p>
+                              )}
+                              {captacaoExterna && parceriaCampos}
                             </div>
                             <div
                               className="rounded-lg border border-t-4 p-4"
@@ -2754,17 +2902,33 @@ function SaleDetail() {
                                     Parceria externa na venda
                                   </Label>
                                   <p className="text-xs text-muted-foreground">
-                                    Não selecionar corretor, gestor ou indicador interno deste lado.
+                                    Outra imobiliária ou outra unidade RE/MAX fez este lado. Os
+                                    dados do parceiro aparecem aqui.
                                   </p>
                                 </div>
                                 <Switch
                                   id="parceria-externa-venda"
                                   checked={vendaExterna}
-                                  disabled={!editable}
+                                  disabled={!editable || (!vendaExterna && captacaoExterna)}
                                   onCheckedChange={(v) => setParceriaExternaLado("vendedor", v)}
                                 />
                               </div>
+                              {!vendaExterna && captacaoExterna && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Indisponível: a parceria externa já está no lado da captação.
+                                </p>
+                              )}
+                              {vendaExterna && parceriaCampos}
                             </div>
+                            {parceriaSemLado && (
+                              <div className="sm:col-span-2">
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                  Esta venda tem parceria externa registrada sem lado definido.
+                                  Ligue a parceria no lado correto (captação ou venda).
+                                </p>
+                                {parceriaCampos}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -3403,14 +3567,31 @@ function SaleDetail() {
                                   {!r.user_id && (
                                     <>
                                       <Field label="Tipo de CRECI (parceiro sem cadastro)">
-                                        <Select value={r.creci_tipo ?? "none"} disabled={!editableComissao}
-                                          onValueChange={(v) => updExtra(r.id, { creci_tipo: v === "none" ? null : v })}>
-                                          <SelectTrigger><SelectValue /></SelectTrigger>
-                                          <SelectContent><SelectItem value="none">Não informado</SelectItem><SelectItem value="F">CRECI F</SelectItem><SelectItem value="J">CRECI J</SelectItem></SelectContent>
+                                        <Select
+                                          value={r.creci_tipo ?? "none"}
+                                          disabled={!editableComissao}
+                                          onValueChange={(v) =>
+                                            updExtra(r.id, { creci_tipo: v === "none" ? null : v })
+                                          }
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="none">Não informado</SelectItem>
+                                            <SelectItem value="F">CRECI F</SelectItem>
+                                            <SelectItem value="J">CRECI J</SelectItem>
+                                          </SelectContent>
                                         </Select>
                                       </Field>
                                       <Field label="Número do CRECI">
-                                        <Input value={r.creci ?? ""} disabled={!editableComissao} onChange={(e) => updExtra(r.id, { creci: e.target.value })} />
+                                        <Input
+                                          value={r.creci ?? ""}
+                                          disabled={!editableComissao}
+                                          onChange={(e) =>
+                                            updExtra(r.id, { creci: e.target.value })
+                                          }
+                                        />
                                       </Field>
                                     </>
                                   )}
@@ -3443,130 +3624,6 @@ function SaleDetail() {
                         size="sm"
                         variant="ghost"
                         onClick={() => setActiveResumoBlock("valores")}
-                      >
-                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveResumoBlock("parceria")}
-                      >
-                        Próximo bloco <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </>
-                ),
-              },
-              {
-                key: "parceria",
-                label: "Parceria",
-                content: (
-                  <>
-                    <SaleSection title="Parceria externa">
-                      <FieldGrid>
-                        <Field label="Tipo de parceria">
-                          <Select
-                            value={formSale.parceria_tipo ?? "none"}
-                            onValueChange={(v) => applyParceriaTipo(v === "none" ? null : v)}
-                            disabled={!editable}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Sem parceria externa</SelectItem>
-                              {PARCERIA_TIPOS.map((t) => (
-                                <SelectItem key={t.key} value={t.key}>
-                                  {t.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        {formSale.parceria_tipo && (
-                          <>
-                            <Field label="Corretor(a) / Imobiliária parceira">
-                              <Input
-                                value={formSale.parceria_nome ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_nome: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="CPF/CNPJ">
-                              <Input
-                                value={formSale.parceria_cpf_cnpj ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_cpf_cnpj: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="Tipo de CRECI">
-                              <Select value={formSale.parceria_creci_tipo ?? "none"} disabled={!editable}
-                                onValueChange={(v) => updResumo({ parceria_creci_tipo: v === "none" ? null : v })}>
-                                <SelectTrigger aria-label="Tipo de CRECI da parceria"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Não informado</SelectItem>
-                                  <SelectItem value="F">CRECI F (pessoa física)</SelectItem>
-                                  <SelectItem value="J">CRECI J (pessoa jurídica)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </Field>
-                            <Field label="Número do CRECI">
-                              <Input value={formSale.parceria_creci ?? ""} disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_creci: e.target.value })} />
-                            </Field>
-                            <Field label="% Comissão">
-                              <Input
-                                type="number"
-                                step="0.001"
-                                value={formSale.parceria_percentual ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => applyParceriaPercentual(e.target.value)}
-                              />
-                            </Field>
-                            <Field label="Valor da comissão (R$)">
-                              <CurrencyInput
-                                value={formSale.parceria_valor}
-                                disabled={!editable}
-                                onChange={applyParceriaValor}
-                              />
-                            </Field>
-                            <Field label="Banco">
-                              <Input
-                                value={formSale.parceria_banco ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_banco: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="Agência">
-                              <Input
-                                value={formSale.parceria_agencia ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_agencia: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="Conta">
-                              <Input
-                                value={formSale.parceria_conta ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_conta: e.target.value })}
-                              />
-                            </Field>
-                            <Field label="PIX">
-                              <Input
-                                value={formSale.parceria_pix ?? ""}
-                                disabled={!editable}
-                                onChange={(e) => updResumo({ parceria_pix: e.target.value })}
-                              />
-                            </Field>
-                          </>
-                        )}
-                      </FieldGrid>
-                    </SaleSection>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveResumoBlock("comissao")}
                       >
                         <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
                       </Button>
@@ -3609,7 +3666,7 @@ function SaleDetail() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setActiveResumoBlock("parceria")}
+                        onClick={() => setActiveResumoBlock("comissao")}
                       >
                         <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Voltar
                       </Button>
@@ -4268,17 +4325,28 @@ function SaleDetail() {
 
             <ReviewGroup title="Divisão de comissão">
               {resumoComissao.lines.map((line, i) => (
-                <ReviewItem key={`${line.label}-${i}`} label={line.label}
-                  value={`${line.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% — ${money(line.value)}`} />
+                <ReviewItem
+                  key={`${line.label}-${i}`}
+                  label={line.label}
+                  value={`${line.percent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% — ${money(line.value)}`}
+                />
               ))}
-              <ReviewItem label="Total distribuído" value={money(resumoComissao.total - resumoComissao.difference)} />
+              <ReviewItem
+                label="Total distribuído"
+                value={money(resumoComissao.total - resumoComissao.difference)}
+              />
               <ReviewItem label="Comissão bruta (100%)" value={money(resumoComissao.total)} />
               {Math.abs(resumoComissao.difference) > 0.01 && (
-                <p className="font-semibold text-destructive">Diferença não distribuída: {money(resumoComissao.difference)}. Confira a divisão antes de finalizar.</p>
+                <p className="font-semibold text-destructive">
+                  Diferença não distribuída: {money(resumoComissao.difference)}. Confira a divisão
+                  antes de finalizar.
+                </p>
               )}
               {(sale.percentual_remax != null || sale.valor_remax != null) && (
-                <ReviewItem label="Base REMAX (informativa; já distribuída nas linhas acima)"
-                  value={`${sale.percentual_remax ?? "—"}% do valor negociado — ${money(distribuicao?.parte_remax ?? sale.valor_remax)}`} />
+                <ReviewItem
+                  label="Base REMAX (informativa; já distribuída nas linhas acima)"
+                  value={`${sale.percentual_remax ?? "—"}% do valor negociado — ${money(distribuicao?.parte_remax ?? sale.valor_remax)}`}
+                />
               )}
               {([1, 2, 3] as const).map((n) => {
                 const suf = n === 1 ? "" : n;
@@ -4316,7 +4384,14 @@ function SaleDetail() {
                     value={sale.parceria_nome}
                   />
                   <ReviewItem label="CPF/CNPJ" value={sale.parceria_cpf_cnpj} />
-                  <ReviewItem label="CRECI da parceria" value={sale.parceria_creci ? `CRECI ${sale.parceria_creci_tipo ?? ""} ${sale.parceria_creci}` : null} />
+                  <ReviewItem
+                    label="CRECI da parceria"
+                    value={
+                      sale.parceria_creci
+                        ? `CRECI ${sale.parceria_creci_tipo ?? ""} ${sale.parceria_creci}`
+                        : null
+                    }
+                  />
                   <ReviewItem
                     label="% Comissão"
                     value={sale.parceria_percentual != null ? `${sale.parceria_percentual}%` : null}
@@ -4339,12 +4414,22 @@ function SaleDetail() {
 
             <ReviewGroup title="Partes (qualificação para o contrato)">
               <div className="mb-2 print:hidden">
-                <Button type="button" variant="outline" size="sm" disabled={!qualificacaoCompleta(parties)}
-                  onClick={() => copiarTexto(qualificacaoCompleta(parties), "Qualificação completa")}>
-                  <Copy className="mr-2 h-4 w-4" />Copiar qualificação completa
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!qualificacaoCompleta(parties)}
+                  onClick={() =>
+                    copiarTexto(qualificacaoCompleta(parties), "Qualificação completa")
+                  }
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar qualificação completa
                 </Button>
               </div>
-              {qualificacaoCompleta(parties) && <p className="whitespace-pre-wrap text-xs">{qualificacaoCompleta(parties)}</p>}
+              {qualificacaoCompleta(parties) && (
+                <p className="whitespace-pre-wrap text-xs">{qualificacaoCompleta(parties)}</p>
+              )}
               {partiesComNome(parties).map((papel, i, arr) => {
                 const p = parties[papel];
                 return (
@@ -4470,27 +4555,41 @@ function SaleDetail() {
                   <ReviewItem label="PIX" value={sharedBank(banks)?.pix} />
                 </div>
               ) : (
-                Object.keys(parties).filter((p) => p.startsWith("vendedor_"))
+                Object.keys(parties)
+                  .filter((p) => p.startsWith("vendedor_"))
                   .sort((a, b) => parteSortKey(a)[1] - parteSortKey(b)[1])
                   .map((papel) => {
                     const b = banks[papel];
-                    return <div key={papel} className="mb-2 border-b pb-2">
-                      <div className="mb-1 font-medium">{parteLabel(papel)}</div>
-                      <ReviewItem label="Titular" value={b?.titular} />
-                      <ReviewItem label="Banco" value={b?.banco} />
-                      <ReviewItem label="Agência" value={b?.agencia} />
-                      <ReviewItem label="Conta" value={b?.conta} />
-                      <ReviewItem label="PIX" value={b?.pix} />
-                    </div>;
+                    return (
+                      <div key={papel} className="mb-2 border-b pb-2">
+                        <div className="mb-1 font-medium">{parteLabel(papel)}</div>
+                        <ReviewItem label="Titular" value={b?.titular} />
+                        <ReviewItem label="Banco" value={b?.banco} />
+                        <ReviewItem label="Agência" value={b?.agencia} />
+                        <ReviewItem label="Conta" value={b?.conta} />
+                        <ReviewItem label="PIX" value={b?.pix} />
+                      </div>
+                    );
                   })
               )}
             </ReviewGroup>
 
             <ReviewGroup title="Documentos">
               <div className="mb-2 print:hidden">
-                <Button type="button" variant="outline" size="sm" disabled={!docs.length}
-                  onClick={() => copiarTexto(listaDocumentos(docs, (tipo) => tipoDocLabel(tipo) ?? tipo, parteLabel), "Lista de documentos")}>
-                  <Copy className="mr-2 h-4 w-4" />Copiar lista de documentos
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!docs.length}
+                  onClick={() =>
+                    copiarTexto(
+                      listaDocumentos(docs, (tipo) => tipoDocLabel(tipo) ?? tipo, parteLabel),
+                      "Lista de documentos",
+                    )
+                  }
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar lista de documentos
                 </Button>
               </div>
               {docs.length === 0 && <ReviewItem label="Nenhum documento enviado" value={null} />}
@@ -7328,14 +7427,27 @@ function OccurrencePanel({
               {(c.sem_cadastro_confirmado || (!c.user_id && (c.creci || c.creci_tipo))) && (
                 <div className="md:col-span-12 grid gap-2 md:grid-cols-2">
                   <Field label="Tipo de CRECI do corretor parceiro">
-                    <Select value={c.creci_tipo ?? "none"} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
-                      onValueChange={(v) => updComm(c.id, { creci_tipo: v === "none" ? null : v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="none">Não informado</SelectItem><SelectItem value="F">CRECI F</SelectItem><SelectItem value="J">CRECI J</SelectItem></SelectContent>
+                    <Select
+                      value={c.creci_tipo ?? "none"}
+                      disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                      onValueChange={(v) => updComm(c.id, { creci_tipo: v === "none" ? null : v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Não informado</SelectItem>
+                        <SelectItem value="F">CRECI F</SelectItem>
+                        <SelectItem value="J">CRECI J</SelectItem>
+                      </SelectContent>
                     </Select>
                   </Field>
                   <Field label="Número do CRECI do corretor parceiro">
-                    <Input value={c.creci ?? ""} disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)} onChange={(e) => updComm(c.id, { creci: e.target.value })} />
+                    <Input
+                      value={c.creci ?? ""}
+                      disabled={!canWrite || !podeEditarComissaoNaOcorrencia(c)}
+                      onChange={(e) => updComm(c.id, { creci: e.target.value })}
+                    />
                   </Field>
                 </div>
               )}
