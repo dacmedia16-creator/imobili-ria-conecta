@@ -50,6 +50,17 @@ import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-capt
 import { isAiReadableKind } from "@/lib/exclusive-captures-ai";
 import { extractCaptureDocument } from "@/lib/exclusive-captures-ai.functions";
 import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
+import { CaptureDossieStep } from "@/components/CaptureDossieStep";
+import {
+  appendDossieToContract,
+  buildDossiePdf,
+  defaultDossieSelection,
+  dossieCatalog,
+  selectedDossie,
+} from "@/lib/capture-dossie";
+import type { FeedbackAction } from "@/lib/owner-feedback-actions";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import {
   baixarDocumentosComoPdf,
   isImageFile,
@@ -108,6 +119,7 @@ const statusLabels: Record<Capture["status"], string> = {
 const captureSteps = [
   { key: "documentos", label: "Documentos" },
   { key: "dados", label: "Dados do contrato" },
+  { key: "dossie", label: "Dossiê" },
   { key: "revisao", label: "Revisão e envio" },
 ] as const;
 type CaptureStep = (typeof captureSteps)[number]["key"];
@@ -126,6 +138,8 @@ function ExclusiveDetail() {
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [step, setStep] = useState<CaptureStep>("documentos");
+  const [dossieActions, setDossieActions] = useState<FeedbackAction[]>([]);
+  const [dossieLoading, setDossieLoading] = useState(true);
   const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
@@ -177,6 +191,30 @@ function ExclusiveDetail() {
       .catch(() => setCapture(null))
       .finally(() => setLoading(false));
   }, [id, reload]);
+  useEffect(() => {
+    // Catálogo do Feedback (plano de marketing). Falha/módulo desligado = sem Dossiê, sem travar.
+    let alive = true;
+    (supabase as unknown as SupabaseClient)
+      .from("owner_feedback_actions")
+      .select("id,list,category,label,weight,sort")
+      .eq("active", true)
+      .eq("list", "marketing")
+      .order("sort")
+      .then(({ data, error }) => {
+        if (!alive) return;
+        setDossieActions(error ? [] : ((data ?? []) as FeedbackAction[]));
+        setDossieLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // Ainda não escolhido: começa com as vitais marcadas.
+  const dossieIds = form?.dossie ?? defaultDossieSelection(dossieActions);
+  const setDossie = (ids: string[]) => {
+    setForm((current) => (current ? { ...current, dossie: ids } : current));
+    setDirty(true);
+  };
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -218,18 +256,44 @@ function ExclusiveDetail() {
   const generate = () =>
     run(async () => {
       if (!capture || !form) return;
+      const catalogReady = dossieCatalog(dossieActions).length > 0;
+      const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
       // A versão é sempre invalidada antes de gerar.
-      await saveCapture(id, form, cpf, creci);
+      await saveCapture(id, saved, cpf, creci);
       // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
       // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
       const source = contractSource(capture, units);
-      const bytes = await fillExclusiveTemplate(
+      let bytes = await fillExclusiveTemplate(
         await downloadCaptureTemplate(source.file),
-        { ...capture, form_data: form, broker_cpf: cpf, broker_creci: creci },
+        { ...capture, form_data: saved, broker_cpf: cpf, broker_creci: creci },
         true,
         hojeSaoPaulo(),
         source.unit,
       );
+      // Dossiê vai anexado ao final do contrato (mesma assinatura).
+      if (catalogReady && selectedDossie(dossieActions, dossieIds).length) {
+        const [ano, mes, dia] = hojeSaoPaulo().split("-");
+        const dossie = await buildDossiePdf({
+          actions: dossieActions,
+          selected: dossieIds,
+          ownerNames: [
+            saved.proprietario_1.nome_completo,
+            saved.proprietario_2?.nome_completo ?? "",
+          ],
+          brokerName: capture.broker_name,
+          brokerCreci: creci,
+          property: {
+            tipo: saved.imovel.tipo_imovel,
+            endereco: [saved.imovel.endereco, saved.imovel.complemento].filter(Boolean).join(" - "),
+            bairro: saved.imovel.bairro,
+            municipio: saved.imovel.municipio,
+            valor: saved.imovel.valor_imovel,
+          },
+          company: source.unit?.nome_comercial || undefined,
+          issuedOn: `${dia}/${mes}/${ano}`,
+        });
+        bytes = await appendDossieToContract(bytes, dossie);
+      }
       const file = new File([bytes as BlobPart], `contrato-exclusividade-${id.slice(0, 8)}.pdf`, {
         type: "application/pdf",
       });
@@ -631,7 +695,7 @@ function ExclusiveDetail() {
           )}
         </div>
       </div>
-      <nav aria-label="Etapas da captação" className="grid gap-2 sm:grid-cols-3">
+      <nav aria-label="Etapas da captação" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {captureSteps.map((item, index) => (
           <Button
             key={item.key}
@@ -916,6 +980,24 @@ function ExclusiveDetail() {
           )}
         </>
       )}
+      {step === "dossie" && form && (
+        <>
+          <CaptureDossieStep
+            actions={dossieActions}
+            selected={dossieIds}
+            editable={editable}
+            loading={dossieLoading}
+            onChange={setDossie}
+          />
+          {editable && (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy || !dirty} onClick={save}>
+                Salvar alterações
+              </Button>
+            </div>
+          )}
+        </>
+      )}
       {step === "revisao" && (
         <>
           {editable && (
@@ -928,6 +1010,20 @@ function ExclusiveDetail() {
                   Salve os dados, gere o PDF do modelo e confira o arquivo em Documentos antes de
                   enviar.
                 </p>
+                {dossieCatalog(dossieActions).length > 0 && (
+                  <p>
+                    {selectedDossie(dossieActions, dossieIds).length
+                      ? `O Dossiê com ${selectedDossie(dossieActions, dossieIds).length} ações sai anexado ao final do contrato.`
+                      : "Nenhuma ação marcada no Dossiê: o contrato sai sem ele."}{" "}
+                    <button
+                      type="button"
+                      className="font-medium text-primary underline"
+                      onClick={() => setStep("dossie")}
+                    >
+                      Revisar Dossiê
+                    </button>
+                  </p>
+                )}
                 {dirty && (
                   <p className="text-amber-800">
                     Alterações não salvas. Gere novamente o PDF para incluir os dados atuais.
@@ -1057,7 +1153,9 @@ function ExclusiveDetail() {
           disabled={step === "revisao"}
           onClick={() =>
             setStep(
-              captureSteps[Math.min(2, captureSteps.findIndex((s) => s.key === step) + 1)].key,
+              captureSteps[
+                Math.min(captureSteps.length - 1, captureSteps.findIndex((s) => s.key === step) + 1)
+              ].key,
             )
           }
         >

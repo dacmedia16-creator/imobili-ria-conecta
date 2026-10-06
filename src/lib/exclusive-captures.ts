@@ -84,6 +84,8 @@ export type CaptureForm = {
   condicoes: Terms;
   testemunha_1: Witness;
   testemunha_2: Witness;
+  /** Dossiê: ids das ações do plano de marketing escolhidas (ausente = ainda não definido). */
+  dossie?: string[];
 };
 export type Capture = {
   id: string;
@@ -266,6 +268,9 @@ export function normalizeForm(
     condicoes: { ...defaultTerms(), ...(unit ? unitForoDefaults(unit) : {}), ...value?.condicoes },
     testemunha_1: { ...emptyWitness(), ...value?.testemunha_1 },
     testemunha_2: { ...emptyWitness(), ...value?.testemunha_2 },
+    ...(Array.isArray(value?.dossie)
+      ? { dossie: value.dossie.filter((v): v is string => typeof v === "string") }
+      : {}),
   };
 }
 export function missingRequirements(
