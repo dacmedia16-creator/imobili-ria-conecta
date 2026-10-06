@@ -41,7 +41,7 @@ export function CaptureDossieStep({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Dossiê de captação</CardTitle>
+        <CardTitle>Planejamento de Marketing</CardTitle>
         <p className="text-sm text-muted-foreground">
           Obrigatório: marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao
           final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi
