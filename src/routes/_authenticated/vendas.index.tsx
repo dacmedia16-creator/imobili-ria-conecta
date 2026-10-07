@@ -957,14 +957,6 @@ function SalesList() {
           )}
           {!loading && !esteira && totalCount !== null && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">Lançadas no período</p>
-                <p className="text-lg font-semibold leading-tight">{brl0(totalValor)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, incluindo
-                  vendas com parceria (com a parte dos parceiros) · sem canceladas
-                </p>
-              </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
                 <p className="text-xs text-muted-foreground">Efetivadas · VGV REMAX</p>
                 <p className="text-lg font-semibold leading-tight">
@@ -973,6 +965,14 @@ function SalesList() {
                 <p className="text-xs text-muted-foreground">
                   {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda" : "vendas"} com
                   contrato assinado · sem a parte de parceiros
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Lançadas no período</p>
+                <p className="text-lg font-semibold leading-tight">{brl0(totalValor)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, incluindo
+                  vendas com parceria (com a parte dos parceiros) · sem canceladas
                 </p>
               </div>
               <p className="text-[11px] text-muted-foreground sm:col-span-2">
