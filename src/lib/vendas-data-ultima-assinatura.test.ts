@@ -68,8 +68,8 @@ describe("migration 20260929180000 — data da venda pela última assinatura", (
 
 describe("tela Vendas — rótulo da 2ª linha", () => {
   it("deixa claro que não segue o filtro de status e que o VGV exclui parceiros", () => {
-    expect(tela).toContain("(todos os status; não segue o filtro de status)");
-    expect(tela).toContain("de VGV atribuído à REMAX (sem a parte de parceiros)");
-    expect(tela).toContain("no total (sem canceladas)");
+    expect(tela).toContain("Os cartões de efetivadas não seguem o filtro de status.");
+    expect(tela).toContain("sem a parte de parceiros");
+    expect(tela).toContain("valor cheio, sem canceladas");
   });
 });

@@ -117,6 +117,9 @@ function nomesLideres(
   return ids.map((id) => profileName[id] ?? "—").join(", ");
 }
 
+const brl0 = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
 export const Route = createFileRoute("/_authenticated/vendas/")({
   head: () => ({ meta: [{ title: "Vendas" }] }),
   component: SalesList,
@@ -944,26 +947,37 @@ function SalesList() {
             </div>
           )}
           {!loading && !esteira && totalCount !== null && (
-            <p className="text-sm text-muted-foreground">
-              {totalCount} {totalCount === 1 ? "venda no período" : "vendas no período"}
-              {totalValor > 0 &&
-                ` · R$ ${totalValor.toLocaleString("pt-BR")} no total (sem canceladas)`}
-              <br />
-              {contratosAssinadosCount}{" "}
-              {contratosAssinadosCount === 1
-                ? "venda efetivada no período"
-                : "vendas efetivadas no período"}
-              {" (todos os status; não segue o filtro de status)"}
-              {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX (sem a parte de parceiros)`}
-              {efetivadasValorCheio > 0 && (
-                <>
-                  <br />
-                  {`Com parceiros: ${efetivadasValorCheio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} no total`}
-                  {` · ${Math.max(0, efetivadasValorCheio - contratosAssinadosValor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} é parte de parceiros`}
-                  {` (${efetivadasComParceria} ${efetivadasComParceria === 1 ? "venda com parceria" : "vendas com parceria"})`}
-                </>
-              )}
-            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Lançadas no período</p>
+                <p className="text-lg font-semibold leading-tight">{brl0(totalValor)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, sem canceladas
+                </p>
+              </div>
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <p className="text-xs text-muted-foreground">Efetivadas · VGV REMAX</p>
+                <p className="text-lg font-semibold leading-tight">
+                  {brl0(contratosAssinadosValor)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda" : "vendas"} com
+                  contrato assinado · sem a parte de parceiros
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Efetivadas · com parceiros</p>
+                <p className="text-lg font-semibold leading-tight">{brl0(efetivadasValorCheio)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {brl0(Math.max(0, efetivadasValorCheio - contratosAssinadosValor))} de parceiros ·{" "}
+                  {efetivadasComParceria}{" "}
+                  {efetivadasComParceria === 1 ? "venda com parceria" : "vendas com parceria"}
+                </p>
+              </div>
+              <p className="text-[11px] text-muted-foreground sm:col-span-3">
+                Os cartões de efetivadas não seguem o filtro de status.
+              </p>
+            </div>
           )}
         </CardHeader>
         <CardContent>
