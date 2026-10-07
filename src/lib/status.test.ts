@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  ESTEIRA_AGING_LIMITES,
+  ESTEIRA_STATUSES,
+  agingInfo,
   agruparContagemPorGrupoVenda,
   classificarGrupoVenda,
   GRUPO_VENDA_LABEL,
@@ -293,5 +296,27 @@ describe("agruparContagemPorGrupoVenda — Etapa 2A: funil geral do dashboard us
     expect(() => agruparContagemPorGrupoVenda({ status_inexistente: 1 })).toThrow(
       /status_inexistente/,
     );
+  });
+});
+
+describe("esteira (sem contrato assinado)", () => {
+  it("inclui só etapas antes da assinatura", () => {
+    expect(ESTEIRA_STATUSES).toContain("rascunho");
+    expect(ESTEIRA_STATUSES).toContain("aguardando_assinatura");
+    for (const s of ["contrato_assinado", "ocorrencia_concluida", "arquivada", "cancelada"])
+      expect(ESTEIRA_STATUSES).not.toContain(s);
+  });
+  it("cores da esteira: até 7 em dia, 8 a 20 atenção, 21+ cobrar", () => {
+    const dias = (n: number) => new Date(Date.now() - n * 86_400_000 - 3_600_000).toISOString();
+    expect(agingInfo(dias(7), ESTEIRA_AGING_LIMITES).tone).toBe("muted");
+    expect(agingInfo(dias(8), ESTEIRA_AGING_LIMITES).tone).toBe("amber");
+    expect(agingInfo(dias(20), ESTEIRA_AGING_LIMITES).tone).toBe("amber");
+    expect(agingInfo(dias(21), ESTEIRA_AGING_LIMITES).tone).toBe("destructive");
+  });
+  it("padrão antigo continua: 3 atenção, 6 vermelho", () => {
+    const dias = (n: number) => new Date(Date.now() - n * 86_400_000 - 3_600_000).toISOString();
+    expect(agingInfo(dias(2)).tone).toBe("muted");
+    expect(agingInfo(dias(5)).tone).toBe("amber");
+    expect(agingInfo(dias(6)).tone).toBe("destructive");
   });
 });

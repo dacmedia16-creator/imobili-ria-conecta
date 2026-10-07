@@ -196,7 +196,12 @@ export function flowStageIndex(status: SaleStatus): number {
 }
 
 /** Quantos dias faz desde `sinceIso`, e um rótulo/tom prontos para exibir como indicador de "tempo parado". */
-export function agingInfo(sinceIso: string): {
+export type AgingLimites = { atencao: number; cobrar: number };
+
+export function agingInfo(
+  sinceIso: string,
+  limites: AgingLimites = { atencao: 3, cobrar: 6 },
+): {
   dias: number;
   label: string;
   tone: "muted" | "amber" | "destructive";
@@ -206,9 +211,26 @@ export function agingInfo(sinceIso: string): {
     Math.floor((Date.now() - new Date(sinceIso).getTime()) / (1000 * 60 * 60 * 24)),
   );
   const label = dias === 0 ? "hoje" : dias === 1 ? "há 1 dia" : `há ${dias} dias`;
-  const tone = dias > 5 ? "destructive" : dias >= 3 ? "amber" : "muted";
+  const tone = dias >= limites.cobrar ? "destructive" : dias >= limites.atencao ? "amber" : "muted";
   return { dias, label, tone };
 }
+
+/** Filtro "Na esteira": vendas abertas que ainda não chegaram ao contrato assinado. */
+export const ESTEIRA_FILTER = "esteira";
+export const ESTEIRA_STATUSES: SaleStatus[] = [
+  "rascunho",
+  "enviada_revisao",
+  "devolvida_ajuste",
+  "aprovada_gestor",
+  "enviada_juridico",
+  "em_elaboracao_contrato",
+  "contrato_conferencia_gestor",
+  "contrato_conferencia_corretor",
+  "contrato_ok_corretor",
+  "aguardando_assinatura",
+];
+/** Na esteira, as cores contam dias parados na etapa: até 7 em dia, 8 a 20 atenção, 21+ cobrar. */
+export const ESTEIRA_AGING_LIMITES: AgingLimites = { atencao: 8, cobrar: 21 };
 
 export type DocGrupo = "pessoal" | "imovel" | "outros";
 export const DOC_GRUPO_LABEL: Record<DocGrupo, string> = {

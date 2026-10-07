@@ -1,9 +1,17 @@
-import { agingInfo } from "@/lib/status";
+import { agingInfo, type AgingLimites } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 /** Indicador de "há quanto tempo" a venda está parada numa etapa/status, colorido por faixa (verde/âmbar/vermelho). */
-export function AgingBadge({ since, className }: { since: string; className?: string }) {
-  const { label, tone } = agingInfo(since);
+export function AgingBadge({
+  since,
+  className,
+  limites,
+}: {
+  since: string;
+  className?: string;
+  limites?: AgingLimites;
+}) {
+  const { label, tone } = agingInfo(since, limites);
   return (
     <span
       className={cn(

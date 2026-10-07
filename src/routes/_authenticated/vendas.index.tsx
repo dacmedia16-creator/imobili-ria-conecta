@@ -39,6 +39,9 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { AgingBadge } from "@/components/AgingBadge";
 import {
+  ESTEIRA_AGING_LIMITES,
+  ESTEIRA_FILTER,
+  ESTEIRA_STATUSES,
   STATUS_LABEL,
   VEZ_DE_AGIR_LABEL,
   proximoResponsavelRoles,
@@ -158,7 +161,8 @@ function readSalesFiltersFromUrl(): Partial<SalesListState> | null {
   if (!params.has("filtros")) return null;
   const result: Partial<SalesListState> = {};
   const status = params.get("status");
-  if (status && (status === "todas" || status in STATUS_LABEL)) result.statusFilter = status;
+  if (status && (status === "todas" || status === ESTEIRA_FILTER || status in STATUS_LABEL))
+    result.statusFilter = status;
   const vez = params.get("vez");
   if (vez && (vez === "todas" || vez in VEZ_DE_AGIR_LABEL)) result.vezFilter = vez;
   const validDate = (value: string | null) =>
@@ -210,6 +214,13 @@ function SalesList() {
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
   const [tipoVendaOpen, setTipoVendaOpen] = useState(false);
   const [teamOptionsLoaded, setTeamOptionsLoaded] = useState(false);
+  // Esteira: todas as vendas abertas antes da assinatura, carregadas inteiras para ordenar por
+  // dias parados e somar por etapa (são poucas dezenas; a paginação passa a ser local).
+  const [esteiraRows, setEsteiraRows] = useState<SalesListRow[]>([]);
+  const [esteiraEtapa, setEsteiraEtapa] = useState<string>("todas");
+  const esteira = statusFilter === ESTEIRA_FILTER;
+  const esteiraTotalRef = useRef(0);
+  const esteiraPendingKeyRef = useRef("");
 
   const canFilterByTeam = hasAny(["juridico", "admin", "super_admin", "financeiro"]);
   const waitingForSavedTeamFilter =
@@ -359,7 +370,13 @@ function SalesList() {
       q?: string;
       corretorIds?: string[];
     } = {};
-    if (statusFilter !== "todas") filters.status = statusFilter;
+    if (statusFilter === ESTEIRA_FILTER) {
+      const daVez =
+        vezFilter !== "todas" ? new Set<string>(statusDaVezDeAgir(vezFilter as VezDeAgir)) : null;
+      const lista = ESTEIRA_STATUSES.filter((s) => !daVez || daVez.has(s));
+      // Nenhuma etapa da esteira é da vez escolhida: status impossível em vez de "sem filtro".
+      filters.statuses = lista.length ? lista : ["__nenhum__"];
+    } else if (statusFilter !== "todas") filters.status = statusFilter;
     if (statusFilter === "todas" && vezFilter !== "todas")
       filters.statuses = statusDaVezDeAgir(vezFilter as VezDeAgir);
     // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
@@ -368,7 +385,9 @@ function SalesList() {
       filters.corretorIds = memberIdsByTeam[equipeFilter]?.length
         ? memberIdsByTeam[equipeFilter]
         : ["00000000-0000-0000-0000-000000000000"];
-    if (diasFilter) {
+    if (statusFilter === ESTEIRA_FILTER) {
+      // A esteira é o que está aberto hoje: não depende do período.
+    } else if (diasFilter) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - diasFilter);
       filters.desde = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
@@ -396,7 +415,7 @@ function SalesList() {
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
   // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
   const fetchSummary = useCallback(async () => {
-    return dataDe && dataAte
+    return !esteira && dataDe && dataAte
       ? resolverResumoOpcional(
           fetchFinanceiroBundle().then((bundle) => {
             const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
@@ -415,7 +434,7 @@ function SalesList() {
           }),
         )
       : Promise.resolve(null);
-  }, [dataDe, dataAte]);
+  }, [dataDe, dataAte, esteira]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[], requestId: number) => {
@@ -446,6 +465,36 @@ function SalesList() {
       setLoading(true);
       setLoadError(false);
       try {
+        if (esteira) {
+          // Carrega a esteira inteira (lotes de 50, limite da RPC) para ordenar e somar por etapa.
+          const filters = buildFilters();
+          const todas: SalesListRow[] = [];
+          for (let p = 0; p < 40; p++) {
+            const lote = await fetchVendasComerciaisPaginadas({
+              page: p,
+              pageSize: 50,
+              soMinhaVez,
+              ...filters,
+            });
+            if (requestIdRef.current !== myRequestId) return;
+            todas.push(...(lote.rows as unknown as SalesListRow[]));
+            if (lote.rows.length < 50 || todas.length >= lote.total_count) break;
+          }
+          setEsteiraRows(todas);
+          setSales([]);
+          setTotalCount(todas.length);
+          setTotalValor(todas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0));
+          setContratosAssinadosCount(0);
+          setContratosAssinadosValor(0);
+          setStageSince({});
+          await mergeStageSince(
+            todas.map((s) => s.id),
+            myRequestId,
+          );
+          if (requestIdRef.current === myRequestId)
+            esteiraLoadedKeyRef.current = esteiraPendingKeyRef.current;
+          return;
+        }
         const [pageResult, resumoFinanceiro] = await Promise.all([
           fetchSales(pageToLoad),
           fetchSummary(),
@@ -472,7 +521,7 @@ function SalesList() {
         if (requestIdRef.current === myRequestId) setLoading(false);
       }
     },
-    [fetchSales, fetchSummary],
+    [fetchSales, fetchSummary, esteira, buildFilters, soMinhaVez],
   );
 
   const filterKey = [
@@ -486,6 +535,9 @@ function SalesList() {
     equipeFilter,
   ].join("|");
   const previousFilterKeyRef = useRef(filterKey);
+  // Na esteira a paginação é local: trocar de página não recarrega do banco.
+  const esteiraLoadedKeyRef = useRef("");
+  const previousLoadRef = useRef(load);
 
   useEffect(() => {
     if (waitingForSavedTeamFilter) return;
@@ -496,15 +548,22 @@ function SalesList() {
         return;
       }
     }
+    const loadMudou = previousLoadRef.current !== load;
+    previousLoadRef.current = load;
+    const chaveEsteira = `${filterKey}|${refreshKey}`;
+    // Só pula quando a esteira já terminou de carregar com os mesmos filtros (troca de página).
+    if (esteira && !loadMudou && esteiraLoadedKeyRef.current === chaveEsteira) return;
+    esteiraLoadedKeyRef.current = "";
+    esteiraPendingKeyRef.current = chaveEsteira;
     load(page);
     return () => {
       requestIdRef.current += 1;
     };
-  }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey]);
+  }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey, esteira]);
 
   const goToPage = (nextPage: number) => {
-    if (loading || nextPage < 0 || (totalCount !== null && nextPage * PAGE_SIZE >= totalCount))
-      return;
+    const total = statusFilter === ESTEIRA_FILTER ? esteiraTotalRef.current : totalCount;
+    if (loading || nextPage < 0 || (total !== null && nextPage * PAGE_SIZE >= total)) return;
     setPage(nextPage);
   };
 
@@ -555,10 +614,33 @@ function SalesList() {
   );
   // Quando "Só minha vez" está ativo, a RPC já filtra antes da paginação. Não filtre a página
   // novamente no navegador: isso faria a fila voltar a depender apenas das 10 linhas carregadas.
-  const displayedSales = sales;
-  const totalPages = totalCount ? Math.ceil(totalCount / PAGE_SIZE) : 0;
+  const diasNaEtapa = (s: SalesListRow) =>
+    Date.now() - new Date(stageSince[s.id] ?? s.created_at).getTime();
+  const esteiraPorEtapa = ESTEIRA_STATUSES.map((st) => {
+    const linhas = esteiraRows.filter((s) => s.status === st);
+    return {
+      status: st,
+      quantidade: linhas.length,
+      valor: linhas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0),
+    };
+  }).filter((e) => e.quantidade > 0);
+  const esteiraFiltrada = esteira
+    ? esteiraRows
+        .filter((s) => esteiraEtapa === "todas" || s.status === esteiraEtapa)
+        .sort((a, b) => diasNaEtapa(b) - diasNaEtapa(a))
+    : [];
+  const esteiraParadas = esteiraRows.filter(
+    (s) => diasNaEtapa(s) >= ESTEIRA_AGING_LIMITES.cobrar * 86_400_000,
+  ).length;
+  esteiraTotalRef.current = esteiraFiltrada.length;
+  const listTotal = esteira ? esteiraFiltrada.length : totalCount;
+  const displayedSales = esteira
+    ? esteiraFiltrada.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    : sales;
+  const totalPages = listTotal ? Math.ceil(listTotal / PAGE_SIZE) : 0;
   const hasPreviousPage = page > 0;
-  const hasNextPage = totalCount !== null && (page + 1) * PAGE_SIZE < totalCount;
+  const hasNextPage = listTotal !== null && (page + 1) * PAGE_SIZE < listTotal;
+  const agingLimites = esteira ? ESTEIRA_AGING_LIMITES : undefined;
   const registrarAction = registrarVendaAction(roles);
 
   const registrarVendaButton =
@@ -663,11 +745,18 @@ function SalesList() {
           <div
             className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}
           >
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v);
+                setEsteiraEtapa("todas");
+              }}
+            >
               <SelectTrigger aria-label="Status" className="md:w-64">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ESTEIRA_FILTER}>Na esteira (sem contrato assinado)</SelectItem>
                 <SelectItem value="todas">Todos os status</SelectItem>
                 {Object.entries(STATUS_LABEL).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
@@ -714,6 +803,7 @@ function SalesList() {
                   setDiasFilter(null);
                 }}
                 className="w-[9.5rem]"
+                disabled={esteira}
                 aria-label="Data da venda de"
               />
               <span className="text-sm text-muted-foreground">até</span>
@@ -725,9 +815,10 @@ function SalesList() {
                   setDiasFilter(null);
                 }}
                 className="w-[9.5rem]"
+                disabled={esteira}
                 aria-label="Data da venda até"
               />
-              {(dataDe || dataAte) && (
+              {!esteira && (dataDe || dataAte) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -744,8 +835,9 @@ function SalesList() {
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant={mesAtualSelecionado ? "default" : "outline"}
+                variant={mesAtualSelecionado && !esteira ? "default" : "outline"}
                 size="sm"
+                disabled={esteira}
                 onClick={() => aplicarPeriodo(periodoAtual)}
               >
                 Mês atual
@@ -754,6 +846,7 @@ function SalesList() {
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={esteira}
                 onClick={() => aplicarPeriodo(periodoMesAnterior())}
               >
                 Mês anterior
@@ -771,7 +864,60 @@ function SalesList() {
               </Button>
             )}
           </div>
-          {!loading && totalCount !== null && (
+          {esteira && (
+            <p className="text-xs text-muted-foreground">
+              O filtro de mês não vale para a esteira: ela mostra tudo o que está aberto hoje.
+            </p>
+          )}
+          {!loading && esteira && totalCount !== null && (
+            <div className="space-y-2">
+              <p className="text-sm">
+                <b>
+                  {totalCount} {totalCount === 1 ? "venda na esteira" : "vendas na esteira"}
+                </b>
+                {` · ${totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })} sem contrato assinado`}
+                {esteiraParadas > 0 && (
+                  <span className="font-semibold text-destructive">
+                    {` · ${esteiraParadas} parada${esteiraParadas === 1 ? "" : "s"} há mais de 20 dias`}
+                  </span>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { status: "todas", quantidade: totalCount, valor: totalValor },
+                  ...esteiraPorEtapa,
+                ].map((e) => (
+                  <Button
+                    key={e.status}
+                    type="button"
+                    size="sm"
+                    variant={esteiraEtapa === e.status ? "default" : "outline"}
+                    className="h-auto rounded-full px-3 py-1 text-xs"
+                    onClick={() => {
+                      setEsteiraEtapa(e.status);
+                      setPage(0);
+                    }}
+                  >
+                    {e.status === "todas"
+                      ? "Todas as etapas"
+                      : `${STATUS_LABEL[e.status as SaleStatus]} · ${e.quantidade}`}
+                    <span className="ml-1 opacity-70">
+                      {e.valor.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Parada na etapa: até 7 dias em dia · 8 a 20 dias atenção · mais de 20 dias cobrar.
+                Lista começa pelas paradas há mais tempo.
+              </p>
+            </div>
+          )}
+          {!loading && !esteira && totalCount !== null && (
             <p className="text-sm text-muted-foreground">
               {totalCount} {totalCount === 1 ? "venda no período" : "vendas no período"}
               {totalValor > 0 &&
@@ -903,7 +1049,10 @@ function SalesList() {
                             Sua vez
                           </span>
                         )}
-                        <AgingBadge since={stageSince[s.id] ?? s.created_at} />
+                        <AgingBadge
+                          since={stageSince[s.id] ?? s.created_at}
+                          limites={agingLimites}
+                        />
                       </div>
                       <div className="mt-2 flex items-center justify-between text-sm">
                         <span className="font-medium">
@@ -979,7 +1128,10 @@ function SalesList() {
                             <VezDeAgirBadge status={s.status as SaleStatus} />
                           </TableCell>
                           <TableCell>
-                            <AgingBadge since={stageSince[s.id] ?? s.created_at} />
+                            <AgingBadge
+                              since={stageSince[s.id] ?? s.created_at}
+                              limites={agingLimites}
+                            />
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {new Date(`${s.data_venda}T12:00:00`).toLocaleDateString("pt-BR")}
