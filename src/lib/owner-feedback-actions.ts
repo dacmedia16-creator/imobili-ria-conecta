@@ -29,7 +29,7 @@ export interface ActionSummary {
 }
 
 export const WEIGHT_LABEL: Record<string, string> = {
-  vital: "vital",
+  vital: "essencial",
   importante: "importante",
   complementar: "complementar",
 };

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { FeedbackAction } from "@/lib/owner-feedback-actions";
+import { WEIGHT_LABEL, type FeedbackAction } from "@/lib/owner-feedback-actions";
 import { groupDossie, missingVitals } from "@/lib/capture-dossie";
 
 const WEIGHT_STYLE: Record<string, string> = {
@@ -72,7 +72,7 @@ export function CaptureDossieStep({
                     variant="outline"
                     onClick={() => onChange([...new Set([...selected, ...vitals])])}
                   >
-                    Marcar todas as vitais
+                    Marcar todas as essenciais
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => onChange([])}>
                     Limpar
@@ -88,8 +88,8 @@ export function CaptureDossieStep({
             {count > 0 && missing.length > 0 && (
               <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
                 {missing.length === 1
-                  ? "1 ação vital está desmarcada."
-                  : `${missing.length} ações vitais estão desmarcadas.`}{" "}
+                  ? "1 ação essencial está desmarcada."
+                  : `${missing.length} ações essenciais estão desmarcadas.`}{" "}
                 Dá para gerar mesmo assim, mas o proprietário verá menos compromisso.
               </p>
             )}
@@ -116,7 +116,7 @@ export function CaptureDossieStep({
                         <span
                           className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${WEIGHT_STYLE[a.weight] ?? ""}`}
                         >
-                          {a.weight}
+                          {WEIGHT_LABEL[a.weight] ?? a.weight}
                         </span>
                       )}
                     </label>
