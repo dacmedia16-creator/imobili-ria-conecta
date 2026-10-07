@@ -956,12 +956,13 @@ function SalesList() {
             </div>
           )}
           {!loading && !esteira && totalCount !== null && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground">Lançadas no período</p>
                 <p className="text-lg font-semibold leading-tight">{brl0(totalValor)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, sem canceladas
+                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, incluindo
+                  vendas com parceria (com a parte dos parceiros) · sem canceladas
                 </p>
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -974,18 +975,8 @@ function SalesList() {
                   contrato assinado · sem a parte de parceiros
                 </p>
               </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">Efetivadas · vendas com parceria</p>
-                <p className="text-lg font-semibold leading-tight">{brl0(parceriaValorCheio)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {efetivadasComParceria} {efetivadasComParceria === 1 ? "venda" : "vendas"} · valor
-                  cheio, sem canceladas ·{" "}
-                  {brl0(Math.max(0, efetivadasValorCheio - contratosAssinadosValor))} é parte de
-                  parceiros
-                </p>
-              </div>
-              <p className="text-[11px] text-muted-foreground sm:col-span-3">
-                Os cartões de efetivadas não seguem o filtro de status.
+              <p className="text-[11px] text-muted-foreground sm:col-span-2">
+                O cartão de efetivadas não segue o filtro de status.
               </p>
             </div>
           )}
