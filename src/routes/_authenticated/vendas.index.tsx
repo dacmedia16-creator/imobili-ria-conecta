@@ -214,6 +214,8 @@ function SalesList() {
   const [totalValor, setTotalValor] = useState(0);
   const [contratosAssinadosCount, setContratosAssinadosCount] = useState(0);
   const [contratosAssinadosValor, setContratosAssinadosValor] = useState(0);
+  const [efetivadasValorCheio, setEfetivadasValorCheio] = useState(0);
+  const [efetivadasComParceria, setEfetivadasComParceria] = useState(0);
   const [soMinhaVez, setSoMinhaVez] = useState(savedListState?.soMinhaVez ?? false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
@@ -443,7 +445,13 @@ function SalesList() {
               divergenciasAbertas: bundle.divergencias.length,
               hoje: dataAte,
             });
-            return { quantidade: efetivadas.length, vgv: resumo.vgvEfetivado };
+            const vgvCheio = efetivadas.reduce((s, e) => s + Number(e.valorNegociado || 0), 0);
+            return {
+              quantidade: efetivadas.length,
+              vgv: resumo.vgvEfetivado,
+              vgvCheio: Number(vgvCheio.toFixed(2)),
+              comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
+            };
           }),
         )
       : Promise.resolve(null);
@@ -499,6 +507,8 @@ function SalesList() {
           setTotalValor(todas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0));
           setContratosAssinadosCount(0);
           setContratosAssinadosValor(0);
+          setEfetivadasValorCheio(0);
+          setEfetivadasComParceria(0);
           setStageSince({});
           await mergeStageSince(
             todas.map((s) => s.id),
@@ -519,6 +529,8 @@ function SalesList() {
         setTotalValor(Number(pageResult.total_valor) || 0);
         setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
         setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
+        setEfetivadasValorCheio(resumoFinanceiro?.vgvCheio ?? 0);
+        setEfetivadasComParceria(resumoFinanceiro?.comParceria ?? 0);
         setStageSince({});
         await mergeStageSince(
           rows.map((s) => s.id),
@@ -943,6 +955,14 @@ function SalesList() {
                 : "vendas efetivadas no período"}
               {" (todos os status; não segue o filtro de status)"}
               {` · ${contratosAssinadosValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de VGV atribuído à REMAX (sem a parte de parceiros)`}
+              {efetivadasValorCheio > 0 && (
+                <>
+                  <br />
+                  {`Com parceiros: ${efetivadasValorCheio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} no total`}
+                  {` · ${Math.max(0, efetivadasValorCheio - contratosAssinadosValor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} é parte de parceiros`}
+                  {` (${efetivadasComParceria} ${efetivadasComParceria === 1 ? "venda com parceria" : "vendas com parceria"})`}
+                </>
+              )}
             </p>
           )}
         </CardHeader>
