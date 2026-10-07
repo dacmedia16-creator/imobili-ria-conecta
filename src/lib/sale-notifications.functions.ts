@@ -51,6 +51,12 @@ async function avisosSuprimidosNoContexto(user: object): Promise<boolean> {
 }
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
+// Teto por envio: sem isso um ZionTalk lento segura a requisição inteira (o laço é em série).
+const ZIONTALK_TIMEOUT_MS = 10_000;
+/** Erro de envio sem dados pessoais: mascara sequências longas de dígitos (telefone). */
+export function erroSemDadosPessoais(texto: string): string {
+  return texto.replace(/\+?\d[\d\s().-]{6,}\d/g, "[numero]").slice(0, 200);
+}
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
 const APP_URL = process.env.APP_URL || "http://localhost:8080";
 
@@ -331,21 +337,25 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
               "Content-Type": "application/x-www-form-urlencoded",
             },
             body: new URLSearchParams({ msg: paraWhatsapp(texto), mobile_phone: phone }).toString(),
+            signal: AbortSignal.timeout(ZIONTALK_TIMEOUT_MS),
           });
           if (res.status === 201) sent++;
           else {
             falhas++;
             if (erros.length < 10) {
               const corpo = await res.text().catch(() => "");
-              erros.push({ status: res.status, corpo: corpo.slice(0, 200) });
+              erros.push({ status: res.status, corpo: erroSemDadosPessoais(corpo) });
             }
           }
         } catch (e) {
-          falhas++; // falha no envio (número inválido, API fora do ar) não deve travar a troca de status
+          falhas++; // falha no envio (número inválido, API fora do ar, timeout) não deve travar a troca de status
           if (erros.length < 10) {
+            const timeout = e instanceof Error && e.name === "TimeoutError";
             erros.push({
               status: null,
-              corpo: (e instanceof Error ? e.message : String(e)).slice(0, 200),
+              corpo: timeout
+                ? `timeout ${ZIONTALK_TIMEOUT_MS / 1000}s`
+                : erroSemDadosPessoais(e instanceof Error ? e.message : String(e)),
             });
           }
         }

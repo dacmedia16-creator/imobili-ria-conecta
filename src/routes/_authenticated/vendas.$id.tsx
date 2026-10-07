@@ -6042,9 +6042,11 @@ function CommentsPanel({
     else {
       setText("");
       if (comment) {
-        await notifySaleComment({
+        // Sem await: o comentário já está salvo; o aviso segue em segundo plano e uma falha
+        // nele não pode travar nem quebrar a tela.
+        notifySaleComment({
           data: { saleId, commentId: comment.id, texto },
-        });
+        }).catch(() => {});
       }
       onAdd();
     }
