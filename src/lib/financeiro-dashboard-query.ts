@@ -74,6 +74,7 @@ type DistribuicaoRawRow = {
 type OccRow = {
   id: string;
   sale_id: string;
+  data_assinatura: string | null;
   valor_comissao: number | null;
   // Só existe (e só é diferente de zero) em vendas de Lançamento — "Prêmio/bônus da venda de
   // lançamento, somado à comissão na previsão de recebimento — fora da conta percentual normal"
@@ -133,10 +134,26 @@ const ETAPAS_FINANCEIRAS = [
 ];
 
 const OCC_COLUMNS =
-  "id, sale_id, valor_comissao, premio_valor, " +
+  "id, sale_id, data_assinatura, valor_comissao, premio_valor, " +
   "prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma, prev_recebimento_recebido_em, prev_recebimento_recebido_valor, " +
   "prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma, prev_recebimento2_recebido_em, prev_recebimento2_recebido_valor, " +
   "prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor";
+
+/**
+ * Mês da venda = data de assinatura do contrato (regra de Denis), a mesma usada pela lista de
+ * Vendas: Lançamento usa a data da venda; demais usam a da ocorrência, depois a da venda. Só sem
+ * nenhuma data digitada cai no dia em que o status virou "contrato assinado".
+ */
+export function dataDaVenda(
+  modalidade: string,
+  occDataAssinatura: string | null | undefined,
+  saleDataAssinatura: string | null | undefined,
+  dataFechamento: string,
+): string {
+  const d =
+    modalidade === "lancamento" ? saleDataAssinatura : (occDataAssinatura ?? saleDataAssinatura);
+  return d ? d.slice(0, 10) : dataFechamento;
+}
 
 export type FinanceiroBundle = {
   efetivadas: EfetivacaoVenda[];
@@ -186,7 +203,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       supabase
         .from("sales")
         .select(
-          "id, status, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade",
+          "id, status, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade, data_assinatura",
           {
             count: "exact",
           },
@@ -619,7 +636,12 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       occId: occ.id,
       imovelLabel: saleLabel(sale),
       codigoInterno: sale.codigo_interno,
-      dataEfetivacao: efet.data_fechamento,
+      dataEfetivacao: dataDaVenda(
+        sale.modalidade,
+        occ.data_assinatura,
+        (sale as { data_assinatura?: string | null }).data_assinatura,
+        efet.data_fechamento,
+      ),
       modalidade: sale.modalidade,
       saleCorretorId: corretorPrincipal(sale.id, sale.corretor_id),
       teamId,
@@ -729,7 +751,13 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
       saleId: r.sale_id,
       imovelLabel: r.imovel_id || r.codigo_interno || `Venda #${r.sale_id.slice(0, 8)}`,
       codigoInterno: r.codigo_interno,
-      dataEfetivacao: r.data_fechamento,
+      dataEfetivacao: dataDaVenda(
+        r.modalidade,
+        occ?.data_assinatura,
+        (saleById.get(r.sale_id) as { data_assinatura?: string | null } | undefined)
+          ?.data_assinatura,
+        r.data_fechamento,
+      ),
       modalidade: r.modalidade,
       corretorId: corretorDaVenda,
       teamId,

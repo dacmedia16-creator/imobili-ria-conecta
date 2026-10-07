@@ -42,6 +42,8 @@ import {
   ESTEIRA_AGING_LIMITES,
   ESTEIRA_FILTER,
   ESTEIRA_STATUSES,
+  VENDIDOS_FILTER,
+  VENDIDOS_STATUSES,
   STATUS_LABEL,
   VEZ_DE_AGIR_LABEL,
   proximoResponsavelRoles,
@@ -161,7 +163,13 @@ function readSalesFiltersFromUrl(): Partial<SalesListState> | null {
   if (!params.has("filtros")) return null;
   const result: Partial<SalesListState> = {};
   const status = params.get("status");
-  if (status && (status === "todas" || status === ESTEIRA_FILTER || status in STATUS_LABEL))
+  if (
+    status &&
+    (status === "todas" ||
+      status === ESTEIRA_FILTER ||
+      status === VENDIDOS_FILTER ||
+      status in STATUS_LABEL)
+  )
     result.statusFilter = status;
   const vez = params.get("vez");
   if (vez && (vez === "todas" || vez in VEZ_DE_AGIR_LABEL)) result.vezFilter = vez;
@@ -375,6 +383,11 @@ function SalesList() {
         vezFilter !== "todas" ? new Set<string>(statusDaVezDeAgir(vezFilter as VezDeAgir)) : null;
       const lista = ESTEIRA_STATUSES.filter((s) => !daVez || daVez.has(s));
       // Nenhuma etapa da esteira é da vez escolhida: status impossível em vez de "sem filtro".
+      filters.statuses = lista.length ? lista : ["__nenhum__"];
+    } else if (statusFilter === VENDIDOS_FILTER) {
+      const daVez =
+        vezFilter !== "todas" ? new Set<string>(statusDaVezDeAgir(vezFilter as VezDeAgir)) : null;
+      const lista = VENDIDOS_STATUSES.filter((s) => !daVez || daVez.has(s));
       filters.statuses = lista.length ? lista : ["__nenhum__"];
     } else if (statusFilter !== "todas") filters.status = statusFilter;
     if (statusFilter === "todas" && vezFilter !== "todas")
@@ -757,6 +770,7 @@ function SalesList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ESTEIRA_FILTER}>Na esteira (sem contrato assinado)</SelectItem>
+                <SelectItem value={VENDIDOS_FILTER}>Vendidos (contrato assinado)</SelectItem>
                 <SelectItem value="todas">Todos os status</SelectItem>
                 {Object.entries(STATUS_LABEL).map(([k, v]) => (
                   <SelectItem key={k} value={k}>

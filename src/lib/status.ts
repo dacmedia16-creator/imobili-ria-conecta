@@ -229,6 +229,15 @@ export const ESTEIRA_STATUSES: SaleStatus[] = [
   "contrato_ok_corretor",
   "aguardando_assinatura",
 ];
+/** Filtro "Vendidos": contrato assinado, em qualquer etapa depois da assinatura. */
+export const VENDIDOS_FILTER = "vendidos";
+export const VENDIDOS_STATUSES: SaleStatus[] = [
+  "contrato_assinado",
+  "ocorrencia_pendente",
+  "ocorrencia_analise_financeiro",
+  "ocorrencia_devolvida_gestor",
+  "ocorrencia_concluida",
+];
 /** Na esteira, as cores contam dias parados na etapa: até 7 em dia, 8 a 20 atenção, 21+ cobrar. */
 export const ESTEIRA_AGING_LIMITES: AgingLimites = { atencao: 8, cobrar: 21 };
 
