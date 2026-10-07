@@ -219,6 +219,7 @@ function SalesList() {
   const [contratosAssinadosValor, setContratosAssinadosValor] = useState(0);
   const [efetivadasValorCheio, setEfetivadasValorCheio] = useState(0);
   const [efetivadasComParceria, setEfetivadasComParceria] = useState(0);
+  const [parceriaValorCheio, setParceriaValorCheio] = useState(0);
   const [soMinhaVez, setSoMinhaVez] = useState(savedListState?.soMinhaVez ?? false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
@@ -454,6 +455,12 @@ function SalesList() {
               vgv: resumo.vgvEfetivado,
               vgvCheio: Number(vgvCheio.toFixed(2)),
               comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
+              comParceriaValorCheio: Number(
+                efetivadas
+                  .filter((e) => Number(e.parceriaExterna ?? 0) > 0)
+                  .reduce((s, e) => s + Number(e.valorNegociado || 0), 0)
+                  .toFixed(2),
+              ),
             };
           }),
         )
@@ -512,6 +519,7 @@ function SalesList() {
           setContratosAssinadosValor(0);
           setEfetivadasValorCheio(0);
           setEfetivadasComParceria(0);
+          setParceriaValorCheio(0);
           setStageSince({});
           await mergeStageSince(
             todas.map((s) => s.id),
@@ -534,6 +542,7 @@ function SalesList() {
         setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
         setEfetivadasValorCheio(resumoFinanceiro?.vgvCheio ?? 0);
         setEfetivadasComParceria(resumoFinanceiro?.comParceria ?? 0);
+        setParceriaValorCheio(resumoFinanceiro?.comParceriaValorCheio ?? 0);
         setStageSince({});
         await mergeStageSince(
           rows.map((s) => s.id),
@@ -966,12 +975,13 @@ function SalesList() {
                 </p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">Efetivadas · com parceiros</p>
-                <p className="text-lg font-semibold leading-tight">{brl0(efetivadasValorCheio)}</p>
+                <p className="text-xs text-muted-foreground">Efetivadas · vendas com parceria</p>
+                <p className="text-lg font-semibold leading-tight">{brl0(parceriaValorCheio)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {brl0(Math.max(0, efetivadasValorCheio - contratosAssinadosValor))} de parceiros ·{" "}
-                  {efetivadasComParceria}{" "}
-                  {efetivadasComParceria === 1 ? "venda com parceria" : "vendas com parceria"}
+                  {efetivadasComParceria} {efetivadasComParceria === 1 ? "venda" : "vendas"} · valor
+                  cheio, sem canceladas ·{" "}
+                  {brl0(Math.max(0, efetivadasValorCheio - contratosAssinadosValor))} é parte de
+                  parceiros
                 </p>
               </div>
               <p className="text-[11px] text-muted-foreground sm:col-span-3">
