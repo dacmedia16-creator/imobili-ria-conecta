@@ -27,6 +27,10 @@ import {
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
+import { PorCorretorTab } from "@/components/exclusividades/PorCorretorTab";
+import { useAuth } from "@/lib/auth";
+import { PAPEIS_PAINEL_EQUIPE } from "@/lib/painel-equipe-calc";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
@@ -34,8 +38,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 
+type PainelSearch = { aba?: "por-corretor"; equipe?: string };
+
 export const Route = createFileRoute("/_authenticated/exclusividades/painel")({
   head: () => ({ meta: [{ title: "Painel e mapa das captações" }] }),
+  validateSearch: (raw: Record<string, unknown>): PainelSearch => ({
+    ...(raw.aba === "por-corretor" ? { aba: "por-corretor" as const } : {}),
+    ...(typeof raw.equipe === "string" && /^[0-9a-f-]{36}$/i.test(raw.equipe)
+      ? { equipe: raw.equipe }
+      : {}),
+  }),
   beforeLoad: guardExclusiveRoute,
   component: CapturesDashboard,
 });
@@ -94,6 +106,18 @@ function Ranking({ title, rows }: { title: string; rows: Group[] }) {
 
 function CapturesDashboard() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const { hasAny } = useAuth();
+  // Aba "Por corretor": só quem lidera equipe ou é admin (o banco repete a regra).
+  const podePorCorretor = hasAny([...PAPEIS_PAINEL_EQUIPE]);
+  const isAdmin = hasAny(["admin", "super_admin"]);
+  const aba = podePorCorretor && search.aba === "por-corretor" ? "por-corretor" : "geral";
+  const setAba = (v: string) =>
+    navigate({
+      to: "/exclusividades/painel",
+      search: v === "por-corretor" ? { aba: "por-corretor", equipe: search.equipe } : {},
+      replace: true,
+    });
   const today = hojeSaoPaulo();
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [units, setUnits] = useState<ExclusiveUnit[]>([]);
@@ -179,124 +203,171 @@ function CapturesDashboard() {
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <CapturesFilters captures={active} value={filters} onChange={setFilters} units={units} />
-        </CardContent>
-      </Card>
+      {podePorCorretor && (
+        <Tabs value={aba} onValueChange={setAba}>
+          <TabsList>
+            <TabsTrigger value="geral">Visão geral e mapa</TabsTrigger>
+            <TabsTrigger value="por-corretor">Por corretor</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
-      {loading ? (
-        <p>Carregando…</p>
+      {aba === "por-corretor" ? (
+        loading ? (
+          <p>Carregando…</p>
+        ) : (
+          <PorCorretorTab
+            captures={captures}
+            today={today}
+            isAdmin={isAdmin}
+            equipeInicial={search.equipe}
+            onEquipeChange={(id) =>
+              navigate({
+                to: "/exclusividades/painel",
+                search: { aba: "por-corretor", equipe: id },
+                replace: true,
+              })
+            }
+          />
+        )
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {kpi("Captações", d.total)}
-            {kpi(SITUATION_LABEL.em_vigor, d.porSituacao.em_vigor, SITUATION_COLOR.em_vigor)}
-            {kpi(SITUATION_LABEL.vencendo, d.porSituacao.vencendo, SITUATION_COLOR.vencendo)}
-            {kpi(SITUATION_LABEL.vencida, d.porSituacao.vencida, SITUATION_COLOR.vencida)}
-            {kpi("Em andamento", d.porSituacao.em_andamento, SITUATION_COLOR.em_andamento)}
-            {kpi(SITUATION_LABEL.rascunho, d.porSituacao.rascunho, SITUATION_COLOR.rascunho)}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {kpi("Valor dos imóveis em exclusividade", brl(d.valorEmVigor))}
-            {kpi("Comissão potencial (pelo % do contrato)", brl(d.comissaoPotencial))}
-            {kpi(
-              "Média de dias da criação à assinatura",
-              d.mediaDiasAteAssinatura === null ? "—" : `${d.mediaDiasAteAssinatura} dias`,
-            )}
-          </div>
-          {d.semValor > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {d.semValor} exclusividade(s) em vigor sem valor do imóvel preenchido não entram na
-              soma.
-            </p>
-          )}
-
-          <Card>
-            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-base">Mapa</CardTitle>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {(Object.keys(SITUATION_LABEL) as Situation[]).map((s) => {
-                  const off = hidden.includes(s);
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setHidden((h) => (off ? h.filter((x) => x !== s) : [...h, s]))}
-                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${off ? "opacity-40 line-through" : ""}`}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ background: SITUATION_COLOR[s] }}
-                      />
-                      {SITUATION_LABEL[s]}
-                    </button>
-                  );
-                })}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <CapturesMap
-                captures={onMap}
-                today={today}
-                city={agency?.cidade ?? null}
-                uf={agency?.uf ?? null}
-                onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
-              />
-              <p className="text-xs text-muted-foreground">
-                {locating
-                  ? `Localizando endereços no mapa… ${locating.done}/${locating.total}`
-                  : semLocal > 0
-                    ? `${semLocal} captação(ões) sem endereço localizável ficam fora do mapa (rascunhos sem endereço ou endereço não encontrado).`
-                    : "Todas as captações filtradas estão no mapa."}{" "}
-                Localização aproximada pelo OpenStreetMap.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Vencimentos (vencidas e próximos 60 dias)</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              {d.proximosVencimentos.length === 0 ? (
-                <p className="text-muted-foreground">
-                  Nenhuma exclusividade vencendo nos próximos 60 dias.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {d.proximosVencimentos.map(({ c, v }) => (
-                    <li
-                      key={c.id}
-                      className="flex flex-wrap items-center justify-between gap-2 py-2"
-                    >
-                      <Link
-                        to="/exclusividades/$id"
-                        params={{ id: c.id }}
-                        className="hover:underline"
-                      >
-                        {c.form_data.imovel?.endereco || "Imóvel"} · {bairroLabel(c)} ·{" "}
-                        {c.broker_name}
-                      </Link>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${VALIDITY_STYLE[v.level]}`}
-                      >
-                        {validityText(v)} · assinada em {formatDateBR(v.start)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-3 lg:grid-cols-3">
-            <Ranking title="Por corretor" rows={d.porCorretor} />
-            <Ranking title="Por bairro" rows={d.porBairro} />
-            <Ranking title="Por unidade" rows={d.porUnidade} />
-          </div>
-        </>
+        visaoGeral()
       )}
     </div>
   );
+
+  // Função que devolve JSX (não componente): não remonta o mapa a cada renderização.
+  function visaoGeral() {
+    return (
+      <>
+        <Card>
+          <CardContent className="pt-6">
+            <CapturesFilters
+              captures={active}
+              value={filters}
+              onChange={setFilters}
+              units={units}
+            />
+          </CardContent>
+        </Card>
+
+        {loading ? (
+          <p>Carregando…</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              {kpi("Captações", d.total)}
+              {kpi(SITUATION_LABEL.em_vigor, d.porSituacao.em_vigor, SITUATION_COLOR.em_vigor)}
+              {kpi(SITUATION_LABEL.vencendo, d.porSituacao.vencendo, SITUATION_COLOR.vencendo)}
+              {kpi(SITUATION_LABEL.vencida, d.porSituacao.vencida, SITUATION_COLOR.vencida)}
+              {kpi("Em andamento", d.porSituacao.em_andamento, SITUATION_COLOR.em_andamento)}
+              {kpi(SITUATION_LABEL.rascunho, d.porSituacao.rascunho, SITUATION_COLOR.rascunho)}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {kpi("Valor dos imóveis em exclusividade", brl(d.valorEmVigor))}
+              {kpi("Comissão potencial (pelo % do contrato)", brl(d.comissaoPotencial))}
+              {kpi(
+                "Média de dias da criação à assinatura",
+                d.mediaDiasAteAssinatura === null ? "—" : `${d.mediaDiasAteAssinatura} dias`,
+              )}
+            </div>
+            {d.semValor > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {d.semValor} exclusividade(s) em vigor sem valor do imóvel preenchido não entram na
+                soma.
+              </p>
+            )}
+
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+                <CardTitle className="text-base">Mapa</CardTitle>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {(Object.keys(SITUATION_LABEL) as Situation[]).map((s) => {
+                    const off = hidden.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() =>
+                          setHidden((h) => (off ? h.filter((x) => x !== s) : [...h, s]))
+                        }
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${off ? "opacity-40 line-through" : ""}`}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: SITUATION_COLOR[s] }}
+                        />
+                        {SITUATION_LABEL[s]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <CapturesMap
+                  captures={onMap}
+                  today={today}
+                  city={agency?.cidade ?? null}
+                  uf={agency?.uf ?? null}
+                  onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {locating
+                    ? `Localizando endereços no mapa… ${locating.done}/${locating.total}`
+                    : semLocal > 0
+                      ? `${semLocal} captação(ões) sem endereço localizável ficam fora do mapa (rascunhos sem endereço ou endereço não encontrado).`
+                      : "Todas as captações filtradas estão no mapa."}{" "}
+                  Localização aproximada pelo OpenStreetMap.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Vencimentos (vencidas e próximos 60 dias)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm">
+                {d.proximosVencimentos.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    Nenhuma exclusividade vencendo nos próximos 60 dias.
+                  </p>
+                ) : (
+                  <ul className="divide-y">
+                    {d.proximosVencimentos.map(({ c, v }) => (
+                      <li
+                        key={c.id}
+                        className="flex flex-wrap items-center justify-between gap-2 py-2"
+                      >
+                        <Link
+                          to="/exclusividades/$id"
+                          params={{ id: c.id }}
+                          className="hover:underline"
+                        >
+                          {c.form_data.imovel?.endereco || "Imóvel"} · {bairroLabel(c)} ·{" "}
+                          {c.broker_name}
+                        </Link>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${VALIDITY_STYLE[v.level]}`}
+                        >
+                          {validityText(v)} · assinada em {formatDateBR(v.start)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-3 lg:grid-cols-3">
+              <Ranking title="Por corretor" rows={d.porCorretor} />
+              <Ranking title="Por bairro" rows={d.porBairro} />
+              <Ranking title="Por unidade" rows={d.porUnidade} />
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
 }
