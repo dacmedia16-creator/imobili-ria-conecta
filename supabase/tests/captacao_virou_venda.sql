@@ -154,6 +154,15 @@ SELECT pg_temp.ok((SELECT neg AND desde = (now() AT TIME ZONE 'America/Sao_Paulo
 SELECT pg_temp.as_user(pg_temp.id('captador')::text);
 SELECT pg_temp.ok((SELECT x->'venda'->>'situacao' = 'em_negociacao' AND (x->>'pode_virar')::boolean
   FROM public.exclusive_venda_da_captacao(pg_temp.id('c')) x), 'tela da captação: Em negociação com link da venda');
+SELECT pg_temp.ok((SELECT count(*) = 1 FROM public.exclusive_situacao_venda_lista()
+  WHERE capture_id = pg_temp.id('c') AND situacao = 'em_negociacao' AND negociacao_desde IS NOT NULL),
+  'lista: captador vê o selo Em negociação');
+SELECT pg_temp.as_user(pg_temp.id('outra')::text);
+SELECT pg_temp.ok((SELECT count(*) = 0 FROM public.exclusive_situacao_venda_lista() WHERE capture_id = pg_temp.id('c')),
+  'lista: outra equipe (não vê a captação) não recebe a situação');
+SELECT pg_temp.as_user(pg_temp.id('b_admin')::text);
+SELECT pg_temp.ok((SELECT count(*) = 0 FROM public.exclusive_situacao_venda_lista() WHERE capture_id = pg_temp.id('c')),
+  'lista: imobiliária B não recebe a situação');
 
 -- 6) Contrato assinado -> Vendida (sai do mapa); arquivada -> volta a Ativa
 RESET ROLE;
@@ -168,6 +177,8 @@ SELECT pg_temp.ok((SELECT count(*) = 0 FROM pg_temp.mapa()), 'Vendida: sai do ma
 SELECT pg_temp.as_user(pg_temp.id('captador')::text);
 SELECT pg_temp.ok((SELECT x->'venda'->>'situacao' = 'vendida' AND (x->'venda'->>'pode_abrir')::boolean
   FROM public.exclusive_venda_da_captacao(pg_temp.id('c')) x), 'tela da captação: Vendida com link (captador abre a venda)');
+SELECT pg_temp.ok((SELECT count(*) = 1 FROM public.exclusive_situacao_venda_lista()
+  WHERE capture_id = pg_temp.id('c') AND situacao = 'vendida'), 'lista: selo Vendida');
 RESET ROLE;
 UPDATE public.sales SET status = 'arquivada' WHERE id = pg_temp.id('v1');
 ALTER TABLE public.sales ENABLE TRIGGER USER;

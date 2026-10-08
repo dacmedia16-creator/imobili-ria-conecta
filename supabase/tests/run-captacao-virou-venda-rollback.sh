@@ -25,6 +25,6 @@ V2="$ROOT/supabase/migrations/20261008170000_mapa_captacoes_preco_contato.sql"
   echo "SELECT CASE WHEN a.h = md5(pg_get_functiondef('public.mapa_captacoes_v2()'::regprocedure)) THEN 'ok ' ELSE 'FALHA ' END || 'mapa_captacoes_v2 idêntica à anterior' FROM antes a;"
   echo "SELECT CASE WHEN a.ncol = (SELECT count(*) FROM information_schema.columns WHERE table_name = 'sales') THEN 'ok ' ELSE 'FALHA ' END || 'sales sem a coluna nova' FROM antes a;"
   echo "SELECT CASE WHEN a.npol = (SELECT count(*) FROM pg_policies WHERE schemaname = 'storage') THEN 'ok ' ELSE 'FALHA ' END || 'policies do storage como antes' FROM antes a;"
-  echo "SELECT CASE WHEN to_regprocedure('public.exclusive_virar_venda(uuid)') IS NULL THEN 'ok ' ELSE 'FALHA ' END || 'RPCs novas removidas';"
+  echo "SELECT CASE WHEN to_regprocedure('public.exclusive_virar_venda(uuid)') IS NULL AND to_regprocedure('public.exclusive_situacao_venda_lista()') IS NULL THEN 'ok ' ELSE 'FALHA ' END || 'RPCs novas removidas';"
   echo "ROLLBACK;"
 } | psql "$PGCONN" -X -q -At -v ON_ERROR_STOP=1 2>&1 | grep -E "^\[|^(ok|FALHA)|ERROR|LINE|DETAIL|psql:" || true

@@ -140,6 +140,22 @@ AS $function$
   LIMIT 1
 $function$;
 
+-- Lista de captações: situação de venda (selo) só das captações que a pessoa já vê. Uma chamada.
+CREATE FUNCTION public.exclusive_situacao_venda_lista()
+ RETURNS TABLE (capture_id uuid, situacao text, negociacao_desde date, venda_id uuid)
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+  SELECT s.exclusive_capture_id, public.venda_situacao_captacao(s.status),
+    (SELECT (min(h.created_at) AT TIME ZONE 'America/Sao_Paulo')::date
+     FROM public.exclusive_history h
+     WHERE h.capture_id = s.exclusive_capture_id AND h.action = 'em_negociacao' AND h.detail = s.id::text),
+    s.id
+  FROM public.sales s
+  WHERE s.organization_id = public.current_org_id() AND s.exclusive_capture_id IS NOT NULL
+    AND s.status NOT IN ('arquivada', 'cancelada')
+    AND coalesce(public.exclusive_can_view(s.exclusive_capture_id, auth.uid()), false)
+$function$;
+
 -- Tela da captação: pode virar venda? há venda ativa? (só para quem vê a captação ou pode virar)
 CREATE FUNCTION public.exclusive_venda_da_captacao(_id uuid)
  RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
@@ -372,6 +388,7 @@ GRANT CREATE ON SCHEMA public TO mt_1b_definer;
 ALTER FUNCTION public.sales_captacao_historico() OWNER TO mt_1b_definer;
 ALTER FUNCTION public.exclusive_pode_virar_venda(uuid, uuid) OWNER TO mt_1b_definer;
 ALTER FUNCTION public.exclusive_venda_ativa(uuid) OWNER TO mt_1b_definer;
+ALTER FUNCTION public.exclusive_situacao_venda_lista() OWNER TO mt_1b_definer;
 ALTER FUNCTION public.exclusive_venda_da_captacao(uuid) OWNER TO mt_1b_definer;
 ALTER FUNCTION public.exclusive_virar_venda(uuid) OWNER TO mt_1b_definer;
 ALTER FUNCTION public.venda_documentos_captacao(uuid) OWNER TO mt_1b_definer;
@@ -385,6 +402,8 @@ REVOKE ALL ON FUNCTION public.venda_situacao_captacao(public.sale_status) FROM P
 REVOKE ALL ON FUNCTION public.exclusive_pode_virar_venda(uuid, uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.exclusive_venda_ativa(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.exclusive_venda_da_captacao(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.exclusive_situacao_venda_lista() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.exclusive_situacao_venda_lista() TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.exclusive_virar_venda(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.venda_documentos_captacao(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.exclusive_doc_lido_pela_venda(text) FROM PUBLIC, anon;

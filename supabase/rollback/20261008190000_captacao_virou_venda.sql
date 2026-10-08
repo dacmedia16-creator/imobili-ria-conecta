@@ -10,6 +10,7 @@ DROP FUNCTION IF EXISTS public.exclusive_doc_lido_pela_venda(text);
 DROP FUNCTION IF EXISTS public.venda_documentos_captacao(uuid);
 DROP FUNCTION IF EXISTS public.exclusive_virar_venda(uuid);
 DROP FUNCTION IF EXISTS public.exclusive_venda_da_captacao(uuid);
+DROP FUNCTION IF EXISTS public.exclusive_situacao_venda_lista();
 DROP FUNCTION IF EXISTS public.exclusive_venda_ativa(uuid);
 DROP FUNCTION IF EXISTS public.exclusive_pode_virar_venda(uuid, uuid);
 DROP TRIGGER IF EXISTS trg_sales_captacao_historico ON public.sales;
