@@ -565,7 +565,7 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   "area_construida": string|null,
   "valor_venal": string|null,
   "nome_proprietario": string|null,
-  "cpf_proprietario": string|null${incluirObservacoes ? ',\n  "observacoes_imovel": string|null' : ""}
+  "cpf_proprietario": string|null${incluirObservacoes ? ',\n  "area_privativa": string|null,\n  "observacoes_imovel": string|null' : ""}
 }`;
   // Matrícula traz a descrição completa do imóvel (cômodos, medidas, confrontações, unidade,
   // bloco/torre, vaga de garagem, fração ideal etc.) — sem essa instrução explícita a IA tende a
@@ -573,7 +573,7 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
   // Endereço: o texto completo continua em "endereco_imovel" (como sempre foi); as partes
   // separadas alimentam o relatório por bairro/cidade.
   const enderecoHint = `\n\nEm "endereco_imovel" mantenha o endereço completo como consta no documento. Preencha também as partes separadas: "endereco_logradouro" (tipo e nome da via, sem número), "endereco_numero", "endereco_complemento" (apto, bloco, torre, casa, unidade, lote/quadra), "endereco_bairro" (o bairro ou loteamento; não use zona fiscal como "Região Sul"), "endereco_cidade", "endereco_uf" (sigla) e "endereco_cep" (só se aparecer no documento; nunca invente).`;
-  const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma. NÃO copie texto de certidões de débito, IPTU ou outros documentos — só o que está literalmente na matrícula.`;
+  const matriculaDescricaoHint = `\n\nATENÇÃO: em "observacoes_imovel", copie a descrição COMPLETA e literal do imóvel exatamente como consta na matrícula (o parágrafo que descreve o imóvel: cômodos, área privativa/comum, medidas, confrontações, unidade, bloco/torre, vaga de garagem, fração ideal etc.) — transcreva o texto integral, não resuma. NÃO copie texto de certidões de débito, IPTU ou outros documentos — só o que está literalmente na matrícula. Em "area_privativa", informe a área privativa (ou área real privativa) da unidade autônoma, como escrita na matrícula (ex.: "54,80 m²"); deixe null em casa ou terreno sem área privativa. Nunca use a fração ideal do terreno como área privativa.`;
   const commonPessoaJuridica = `\n\nCampos de pessoa jurídica possíveis:
 {
   "razao_social": string|null,

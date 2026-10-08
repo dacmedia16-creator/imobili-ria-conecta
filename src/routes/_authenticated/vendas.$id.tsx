@@ -177,6 +177,13 @@ import {
 } from "@/components/vendas/shared";
 import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
+import { FichaImovelFields } from "@/components/vendas/FichaImovelFields";
+import {
+  sugerirAreas,
+  type ExtracaoImovel,
+  type FichaVenda,
+  type SugestaoAreas,
+} from "@/lib/ficha-imovel";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
@@ -386,6 +393,9 @@ function SaleDetail() {
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [mostrarErrosEndereco, setMostrarErrosEndereco] = useState(false);
+  const [mostrarErrosFicha, setMostrarErrosFicha] = useState(false);
+  const [sugestaoFicha, setSugestaoFicha] = useState<SugestaoAreas | null>(null);
+  const [fichaConfirmadaPor, setFichaConfirmadaPor] = useState<string | null>(null);
   const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -769,6 +779,33 @@ function SaleDetail() {
     setAceitaFin((oc.data ?? []).some((o) => o.aceita_financeiro));
     setOccSemMidia(oc.data?.length ? oc.data.some((o) => !midiaPreenchida(o.midia)) : null);
     setLoading(false);
+    // Ficha do imóvel: sugestão de área a partir das leituras JÁ gravadas (sem reler nem chamar a
+    // IA) e nome de quem confirmou. Falha aqui não impede a tela (só some a sugestão).
+    void (async () => {
+      const { data: ext } = await supabase
+        .from("document_extractions")
+        .select("raw_json, sale_documents!document_extractions_document_id_fkey(tipo)")
+        .eq("sale_id", id)
+        .eq("status", "done");
+      const extracoes: ExtracaoImovel[] = (ext ?? [])
+        .map((e) => ({
+          tipo: e.sale_documents?.tipo ?? "",
+          raw: (e.raw_json ?? null) as Record<string, unknown> | null,
+        }))
+        .filter((e) => e.tipo === "matricula" || e.tipo === "iptu");
+      setSugestaoFicha(
+        extracoes.length ? sugerirAreas(extracoes, s.data?.tipo_imovel ?? null) : null,
+      );
+      const quem = s.data?.area_confirmada_por;
+      if (quem) {
+        const { data: perfil } = await supabase
+          .from("profiles")
+          .select("nome")
+          .eq("id", quem)
+          .maybeSingle();
+        setFichaConfirmadaPor(perfil?.nome?.trim() || null);
+      } else setFichaConfirmadaPor(null);
+    })();
     hasLoadedOnceRef.current = true;
     if (s.data && user && s.data.corretor_id !== user.id) {
       supabase
@@ -1039,6 +1076,18 @@ function SaleDetail() {
         "lider_captador_nome",
         "lider_vendedor_id",
         "lider_vendedor_nome",
+        // Ficha do imóvel (Estudo de Mercado). area_confirmada_por é gravado pelo banco (auth.uid()).
+        "tipo_imovel",
+        "area_util_m2",
+        "area_construida_m2",
+        "area_terreno_m2",
+        "ano_construcao",
+        "quartos",
+        "suites",
+        "banheiros",
+        "vagas",
+        "area_origem",
+        "area_confirmada_em",
       ];
       const patch: SalePatch = {};
       for (const k of fields) {
@@ -1981,6 +2030,7 @@ function SaleDetail() {
     setApproveJuridicoOpen(false);
     if (campo === "midia") setMostrarErroMidia(true);
     if (campo === "endereco") setMostrarErrosEndereco(true);
+    if (campo === "ficha") setMostrarErrosFicha(true);
     // Sair da etapa atual pelo mesmo caminho do wizard: salva o que estiver pendente nela antes
     // (senão o conteúdo da etapa desmonta e uma edição ainda não salva se perderia).
     if (step !== destino.etapa && !(await onBeforeLeave(step))) return false;
@@ -2203,6 +2253,14 @@ function SaleDetail() {
                               ? enderecoFaltando(formSale as unknown as Record<string, unknown>)
                               : []
                           }
+                        />
+                        <FichaImovelFields
+                          value={formSale as FichaVenda}
+                          disabled={!editable}
+                          onChange={(patch) => updResumo(patch as Partial<SaleRow>)}
+                          sugestao={sugestaoFicha}
+                          mostrarErros={mostrarErrosFicha}
+                          confirmadaPorNome={fichaConfirmadaPor}
                         />
                         <Field
                           label="Código interno"
