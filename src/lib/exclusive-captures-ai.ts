@@ -134,6 +134,91 @@ const UF: Record<string, string> = {
   TO: "Tocantins",
 };
 
+/** Prompt do contrato de exclusividade JÁ ASSINADO (cadastro manual): tudo de uma vez. */
+export function buildSignedContractPrompt(): string {
+  return `Documento: contrato de autorização de venda com EXCLUSIVIDADE de imóvel, já assinado (PDF ou foto).
+Extraia os campos abaixo. Se o dado não estiver escrito no contrato, use null — nunca invente, nunca deduza.
+Responda somente JSON puro.
+
+Orientações:
+- "proprietario_1"/"proprietario_2": os CONTRATANTES/proprietários (não a imobiliária nem o corretor). "proprietario_2" null se houver só um.
+- "estado_civil": em minúsculas (ex.: "casado(a)"), com o regime de bens se constar.
+- "cpf": no formato 000.000.000-00.
+- "imovel.endereco": logradouro e número, sem bairro/cidade. "imovel.estado": por extenso (ex.: "São Paulo").
+- "imovel.valor_imovel": valor de venda autorizado, como escrito (ex.: "R$ 480.000,00").
+- "prazo_dias": prazo da exclusividade em dias corridos, só o número (ex.: 180). Se o prazo estiver em meses, converta (6 meses = 180).
+- "comissao_percentual": só o número (ex.: 6 ou 5,5).
+- "data_assinatura": data em que o contrato foi assinado (normalmente no fim, "cidade, dia de mês de ano"), formato AAAA-MM-DD.
+- "data_vencimento": só se o contrato escrever a data final da exclusividade, formato AAAA-MM-DD.
+- "foro_comarca"/"foro_estado": cláusula de foro.
+
+Campos:
+{
+  "proprietario_1": ${OWNER_SCHEMA.replaceAll("\n", "\n  ")},
+  "proprietario_2": ${OWNER_SCHEMA.replaceAll("\n", "\n  ")} | null,
+  "imovel": ${PROPERTY_SCHEMA.replaceAll("\n", "\n  ")},
+  "prazo_dias": number|null,
+  "comissao_percentual": string|null,
+  "data_assinatura": string|null,
+  "data_vencimento": string|null,
+  "foro_comarca": string|null,
+  "foro_estado": string|null
+}`;
+}
+
+export type SignedContractValues = {
+  proprietario_1: Record<string, string>;
+  proprietario_2?: Record<string, string>;
+  imovel: Record<string, string>;
+  condicoes: Record<string, string>;
+  data_assinatura?: string;
+};
+
+const isoDate = (v: unknown): string | undefined => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return undefined;
+  const d = v.trim();
+  const ms = Date.parse(`${d}T00:00:00Z`);
+  if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== d) return undefined;
+  return d >= "2000-01-01" ? d : undefined;
+};
+const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/**
+ * Resposta da IA para o contrato assinado: mesmas regras de limpeza dos documentos, mais prazo,
+ * comissão e datas validadas. Assinatura no futuro é descartada (o banco também recusa).
+ */
+export function sanitizeSignedContractAi(
+  raw: Record<string, unknown>,
+  today: string,
+): SignedContractValues {
+  const out: SignedContractValues = {
+    proprietario_1: sanitizeCaptureAi(obj(raw.proprietario_1), "owner"),
+    imovel: sanitizeCaptureAi(obj(raw.imovel), "property"),
+    condicoes: {},
+  };
+  const p2 = sanitizeCaptureAi(obj(raw.proprietario_2), "owner");
+  if (Object.keys(p2).length) out.proprietario_2 = p2;
+  const signed = isoDate(raw.data_assinatura);
+  if (signed && signed <= today) out.data_assinatura = signed;
+  let prazo = Number.parseInt(String(raw.prazo_dias ?? "").replace(/\D/g, ""), 10);
+  const end = isoDate(raw.data_vencimento);
+  if (!(prazo > 0) && signed && end && end > signed)
+    prazo = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${signed}T00:00:00Z`)) / 86_400_000);
+  if (prazo > 0 && prazo <= 3650) out.condicoes.prazo_dias_numero = String(prazo);
+  const pct = String(raw.comissao_percentual ?? "")
+    .replace("%", "")
+    .trim();
+  if (/^\d{1,2}([.,]\d{1,2})?$/.test(pct) && Number(pct.replace(",", ".")) > 0)
+    out.condicoes.comissao_percentual_numero = pct.replace(".", ",");
+  for (const key of ["foro_comarca", "foro_estado"] as const) {
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() && !/^null$/i.test(v.trim()))
+      out.condicoes[key] = (key === "foro_estado" && UF[v.trim().toUpperCase()]) || v.trim().slice(0, 120);
+  }
+  return out;
+}
+
 /**
  * Resposta da IA não é confiável: mantém só chaves conhecidas, strings curtas e CPF válido.
  * O resultado vira sugestão que o corretor confere antes de aplicar.
