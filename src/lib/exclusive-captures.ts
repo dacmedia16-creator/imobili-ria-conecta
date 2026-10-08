@@ -174,7 +174,7 @@ export type CaptureForm = {
   condicoes: Terms;
   testemunha_1: Witness;
   testemunha_2: Witness;
-  /** Dossiê: ids das ações do plano de marketing escolhidas (ausente = ainda não definido). */
+  /** Plano de Marketing (campo técnico "dossie"): ids das ações do plano de marketing escolhidas (ausente = ainda não definido). */
   dossie?: string[];
   /** Cadastro manual: data de assinatura escrita no contrato (AAAA-MM-DD). Na aprovação vira signed_on. */
   data_assinatura?: string;

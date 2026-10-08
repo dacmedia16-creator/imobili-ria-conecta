@@ -9,15 +9,15 @@ const WEIGHT_STYLE: Record<string, string> = {
   complementar: "bg-slate-100 text-slate-700",
 };
 
-/** Etapa "Dossiê" da captação: o corretor marca as ações do plano de marketing. */
+/** Etapa "Plano de Marketing" da captação: o corretor marca as ações de marketing. */
 export function CaptureDossieStep({
   actions,
   selected,
   editable,
   loading,
   onChange,
-  title = "Planejamento de Marketing",
-  intro = "Obrigatório: marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.",
+  title = "Plano de Marketing",
+  intro = "Obrigatório: marque as ações que você vai fazer por este imóvel. O Plano de Marketing sai anexado ao final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.",
   manual = false,
 }: {
   actions: FeedbackAction[];
@@ -57,7 +57,8 @@ export function CaptureDossieStep({
         ) : !total ? (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
             A lista de ações não está disponível para esta imobiliária (módulo Feedback desligado ou
-            lista vazia). {manual ? "Siga sem esta etapa." : "O contrato será gerado sem o Dossiê."}
+            lista vazia).{" "}
+            {manual ? "Siga sem esta etapa." : "O contrato será gerado sem o Plano de Marketing."}
           </p>
         ) : (
           <>

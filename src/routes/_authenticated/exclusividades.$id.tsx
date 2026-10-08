@@ -67,6 +67,12 @@ import {
   initialDossieSelection,
   selectedDossie,
 } from "@/lib/capture-dossie";
+import {
+  canBuildCompletePdf,
+  completePdfDocs,
+  completePdfName,
+  signaturePdfName,
+} from "@/lib/capture-pdfs";
 import type { FeedbackAction } from "@/lib/owner-feedback-actions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,7 +134,7 @@ const statusLabels: Record<Capture["status"], string> = {
 const normalSteps = [
   { key: "documentos", label: "Documentos" },
   { key: "dados", label: "Dados do contrato" },
-  { key: "dossie", label: "Dossiê" },
+  { key: "dossie", label: "Plano de Marketing" },
   { key: "revisao", label: "Revisão e envio" },
 ] as const;
 // Cadastro manual (contrato já assinado no papel): contrato → conferência → Plano de Marketing.
@@ -220,7 +226,7 @@ function ExclusiveDetail() {
       .finally(() => setLoading(false));
   }, [id, reload]);
   useEffect(() => {
-    // Catálogo do Feedback (plano de marketing). Falha/módulo desligado = sem Dossiê, sem travar.
+    // Catálogo do Feedback (plano de marketing). Falha/módulo desligado = sem Plano de Marketing, sem travar.
     let alive = true;
     (supabase as unknown as SupabaseClient)
       .from("owner_feedback_actions")
@@ -299,7 +305,7 @@ function ExclusiveDetail() {
       if (!capture || !form) return;
       if (dossieMissing) {
         setStep("dossie");
-        throw new Error("Marque ao menos 1 ação no Dossiê antes de gerar o contrato.");
+        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.");
       }
       const catalogReady = dossieCatalog(dossieActions).length > 0;
       const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
@@ -315,7 +321,7 @@ function ExclusiveDetail() {
         hojeSaoPaulo(),
         source.unit,
       );
-      // Dossiê vai anexado ao final do contrato (mesma assinatura).
+      // Plano de Marketing vai anexado ao final do contrato (mesma assinatura).
       if (catalogReady && selectedDossie(dossieActions, dossieIds).length) {
         const [ano, mes, dia] = hojeSaoPaulo().split("-");
         const dossie = await buildDossiePdf({
@@ -339,19 +345,24 @@ function ExclusiveDetail() {
         });
         bytes = await appendDossieToContract(bytes, dossie);
       }
-      const file = new File([bytes as BlobPart], `contrato-exclusividade-${id.slice(0, 8)}.pdf`, {
+      const file = new File([bytes as BlobPart], signaturePdfName(id), {
         type: "application/pdf",
       });
-      // Salvo na captação: contrato + Dossiê (é o que vai para assinatura).
+      // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
+      // arquivo salvo na captação e o que o gestor envia ao Clicksign.
       await uploadCaptureDocument(id, "gerado", 0, file);
-      // Baixado: contrato, Dossiê e depois os documentos anexados (RG, CNH, IPTU, matrícula...).
-      const anexos = docs.filter((d) => d.kind !== "gerado" && d.kind !== "assinado");
+      await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
+      toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
+    });
+  // PDF completo (depois da aprovação): contrato ASSINADO + todos os documentos anexados.
+  // O Plano de Marketing já está dentro do contrato assinado, então não é repetido.
+  const downloadComplete = () =>
+    run(async () => {
       await baixarDocumentosComoPdf(
-        await signedDocuments(anexos),
-        `contrato-exclusividade-${id.slice(0, 8)}-completo.pdf`,
-        bytes,
+        await signedDocuments(completePdfDocs(docs)),
+        completePdfName(id),
       );
-      toast.success("Contrato gerado e salvo. PDF baixado: contrato, Dossiê e documentos.");
+      toast.success("PDF completo baixado: contrato assinado + documentos.");
     });
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
@@ -516,7 +527,7 @@ function ExclusiveDetail() {
   const missing = manualCheck
     ? [...manualCheck.required]
     : missingRequirements(form, dirty ? docs.filter((d) => d.kind !== "gerado") : docs, cpf, creci);
-  if (dossieMissing && !manual) missing.push("Dossiê: marque ao menos 1 ação");
+  if (dossieMissing && !manual) missing.push("Plano de Marketing: marque ao menos 1 ação");
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
   if (creci.trim() && !validCreci(creci))
@@ -791,6 +802,12 @@ function ExclusiveDetail() {
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
+          {canBuildCompletePdf(capture, docs) && (
+            <Button size="sm" disabled={busy} onClick={downloadComplete}>
+              <Download className="mr-1 h-4 w-4" /> Baixar PDF completo (contrato assinado +
+              documentos)
+            </Button>
+          )}
           {!hasContract ? (
             <Button
               variant="outline"
@@ -1324,35 +1341,36 @@ function ExclusiveDetail() {
           {!manual && manager && capture.status === "enviada" && (
             <Card>
               <CardHeader>
-                <CardTitle>Gerar contrato</CardTitle>
+                <CardTitle>Gerar PDF para assinatura</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p>
-                  Confira os dados enviados pelo corretor e gere o contrato. Só gestor, team leader
-                  ou ADM pode gerar.
+                  Confira os dados enviados pelo corretor e gere o PDF para assinatura: só o
+                  contrato e o Plano de Marketing, sem os documentos anexados. Só gestor, team
+                  leader ou ADM pode gerar.
                 </p>
                 {dossieCatalog(dossieActions).length > 0 && (
                   <p>
                     {selectedDossie(dossieActions, dossieIds).length
-                      ? `O Dossiê com ${selectedDossie(dossieActions, dossieIds).length} ações sai anexado ao final do contrato.`
-                      : "O Dossiê é obrigatório: marque ao menos 1 ação antes de gerar o contrato."}{" "}
+                      ? `O Plano de Marketing com ${selectedDossie(dossieActions, dossieIds).length} ações sai anexado ao final do contrato.`
+                      : "O Plano de Marketing é obrigatório: marque ao menos 1 ação antes de gerar o contrato."}{" "}
                     <button
                       type="button"
                       className="font-medium text-primary underline"
                       onClick={() => setStep("dossie")}
                     >
-                      Revisar Dossiê
+                      Revisar Plano de Marketing
                     </button>
                   </p>
                 )}
                 {docs.some((d) => d.kind === "gerado") && (
                   <p className="text-emerald-700">
-                    Contrato já gerado. Gerar de novo substitui o anterior.
+                    PDF para assinatura já gerado. Gerar de novo substitui o anterior.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button disabled={busy} onClick={generate}>
-                    Gerar PDF, salvar e baixar
+                    Gerar PDF para assinatura
                   </Button>
                   <Button variant="outline" onClick={() => setStep("documentos")}>
                     Ver documentos e conferir PDF

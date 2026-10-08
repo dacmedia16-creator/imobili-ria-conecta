@@ -1,5 +1,5 @@
 /**
- * Dossiê da captação: ações do plano de marketing que o corretor se compromete a fazer.
+ * Plano de Marketing (antigo "Dossiê") da captação: ações de marketing que o corretor se compromete a fazer.
  * Sai anexado ao final do PDF do contrato de exclusividade (mesma assinatura).
  * A lista vem do catálogo do Feedback (owner_feedback_actions, list = "marketing").
  */
@@ -11,7 +11,7 @@ export interface DossieGroup {
   items: FeedbackAction[];
 }
 
-/** Só o plano de marketing entra no Dossiê (o checklist do corretor é roteiro interno). */
+/** Só a lista "marketing" entra no Plano de Marketing (o checklist do corretor é roteiro interno). */
 export function dossieCatalog(actions: FeedbackAction[]): FeedbackAction[] {
   return actions.filter((a) => a.list === "marketing").sort((a, b) => a.sort - b.sort);
 }
@@ -87,11 +87,11 @@ export interface DossiePdfInput {
   issuedOn?: string; // dd/mm/aaaa
 }
 
-/** Gera as páginas do Dossiê (PDF A4 independente). */
+/** Gera as páginas do Plano de Marketing (PDF A4 independente). */
 export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const pdf = await PDFDocument.create();
-  pdf.setTitle("Planejamento de Marketing");
+  pdf.setTitle("Plano de Marketing");
   pdf.setProducer("ADM MAX");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -132,7 +132,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
       page.drawRectangle({ x: 0, y: PH - H, width: PW, height: H, color: BLUE });
       page.drawRectangle({ x: 0, y: PH - H - 4, width: PW, height: 4, color: RED });
       txt("ANEXO AO CONTRATO DE EXCLUSIVIDADE", M, PH - 36, 8.5, bold, rgb(0.75, 0.83, 1));
-      txt("Planejamento de Marketing", M, PH - 64, 24, bold, WHITE);
+      txt("Plano de Marketing", M, PH - 64, 24, bold, WHITE);
       txt(
         `Plano de ações para o seu imóvel${input.issuedOn ? ` · emitido em ${input.issuedOn}` : ""}`,
         M,
@@ -145,7 +145,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
     } else {
       page.drawRectangle({ x: 0, y: PH - 30, width: PW, height: 30, color: BLUE });
       page.drawRectangle({ x: 0, y: PH - 32, width: PW, height: 2, color: RED });
-      txt("Planejamento de Marketing (continuação)", M, PH - 20, 10, bold, WHITE);
+      txt("Plano de Marketing (continuação)", M, PH - 20, 10, bold, WHITE);
       y = PH - 32 - 26;
     }
   };
@@ -249,7 +249,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
 
   const pages = pdf.getPages();
   pages.forEach((pg, i) =>
-    pg.drawText(pdfSafe(`Planejamento de Marketing · página ${i + 1} de ${pages.length}`), {
+    pg.drawText(pdfSafe(`Plano de Marketing · página ${i + 1} de ${pages.length}`), {
       x: M,
       y: 30,
       size: 8,
@@ -260,7 +260,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
   return pdf.save();
 }
 
-/** Anexa as páginas do Dossiê ao final do contrato. */
+/** Anexa as páginas do Plano de Marketing ao final do contrato. */
 export async function appendDossieToContract(
   contract: Uint8Array,
   dossie: Uint8Array,

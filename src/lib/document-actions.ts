@@ -71,7 +71,7 @@ async function encryptedPdfPagesAsJpeg(bytes: Uint8Array): Promise<Uint8Array[]>
 }
 
 /**
- * Junta tudo num PDF só: `head` (ex.: contrato + Dossiê recém-gerados) primeiro e depois os
+ * Junta tudo num PDF só: `head` (ex.: contrato + Plano de Marketing recém-gerados) primeiro e depois os
  * documentos na ordem recebida. Somente URLs assinadas do storage privado.
  */
 export async function juntarDocumentosEmPdf(
