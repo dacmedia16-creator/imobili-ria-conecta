@@ -17,6 +17,7 @@ import {
   filtrarVendas,
   geoKeyVenda,
   geoQueriesVenda,
+  linhaFichaPino,
   montarVendasTodos,
   nomeExibicao,
   PAPEIS_VENDAS_REGIAO,
@@ -38,6 +39,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const db = supabase as unknown as SupabaseClient;
 const COR_PADRAO = "#2563eb";
 const COR_LANCAMENTO = "#f59e0b";
+
+/** Ficha no pino: tipo, área útil e preço/m² (estes dois só quando a área útil existe). */
+const linhasFicha = (
+  tipo: string | null | undefined,
+  area: number | null | undefined,
+  valor: number | null | undefined,
+) => {
+  const t = linhaFichaPino(tipo, area, valor);
+  return t ? [{ text: t }] : [];
+};
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** OpenStreetMap/Nominatim (gratuito): só o endereço do imóvel, 1 consulta por segundo. */
@@ -203,6 +214,7 @@ function VendasPorRegiaoPage() {
           },
           { text: v.endereco || "Sem endereço cadastrado" },
           { text: local(v.bairro, v.cidade) },
+          ...linhasFicha(v.tipoImovel, v.areaUtil, v.vgv),
           { text: `VGV ${brl(v.vgv)} · assinada em ${fmtData(v.data)}` },
         ],
         actionLabel: "Abrir venda →",
@@ -218,6 +230,7 @@ function VendasPorRegiaoPage() {
             bold: true,
           },
           { text: local(p.bairro, p.cidade) || "Sem bairro informado" },
+          ...linhasFicha(p.tipoImovel, p.areaUtil, p.valor),
           ...(p.valor != null && Number.isFinite(p.valor)
             ? [{ text: `Valor ${brl(p.valor)}` }]
             : []),

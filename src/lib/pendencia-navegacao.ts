@@ -72,6 +72,13 @@ export function destinoDaPendencia(campo: string): DestinoCampo | null {
         campoLabel: "Endereço do imóvel",
         alvoId: "endereco-imovel-partes",
       };
+    case "ficha":
+      return {
+        etapa: "resumo",
+        bloco: "imovel",
+        campoLabel: "Ficha do imóvel",
+        alvoId: "ficha-imovel",
+      };
     case "midia":
       return { etapa: "resumo", bloco: "imovel", campoLabel: "Mídia", alvoId: "campo-venda-midia" };
     case "valor_negociado":
@@ -188,6 +195,7 @@ export function campoDoErroBanco(
   if (/Informe a Mídia na Ocorrência/i.test(msg)) return "occ_midia";
   if (/Informe a Mídia da venda/i.test(msg)) return "midia";
   if (/Complete o endereço do imóvel/i.test(msg)) return "endereco";
+  if (/Complete a ficha do imóvel/i.test(msg)) return "ficha";
   if (/Informe o valor negociado/i.test(msg)) return "valor_negociado";
   if (/Informe o (percentual de comissão|valor total da comissão)/i.test(msg)) return "comissao";
   if (/Adicione ao menos uma linha na divisão da comissão/i.test(msg)) return "divisao_comissao";

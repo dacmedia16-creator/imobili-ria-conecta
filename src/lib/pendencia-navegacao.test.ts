@@ -73,6 +73,7 @@ describe("campo → etapa/bloco/parte", () => {
     const telas =
       ler("../routes/_authenticated/vendas.$id.tsx") +
       ler("../components/vendas/EnderecoPartesFields.tsx") +
+      ler("../components/vendas/FichaImovelFields.tsx") +
       ler("../components/vendas/PaymentStep.tsx");
     // comprador/vendedor: id montado por parte no PartiesStep (conferido logo abaixo).
     for (const c of [...CHECKS_NAO_DOCUMENTAIS, "occ_midia"].filter(

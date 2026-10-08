@@ -74,7 +74,36 @@ export type VendaRegiao = {
   qtd: number;
   /** true = venda que a pessoa pode abrir (com código, endereço, data e link); false = só agregado. */
   detalhe: boolean;
+  tipoImovel?: string | null;
+  areaUtil?: number | null;
 };
+
+const numPositivo = (v: number | string | null | undefined): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/**
+ * Linha da ficha no pino: "Apartamento · 54,8 m² · R$ 7.300/m²".
+ * Área e preço por m² só aparecem quando a área útil existe; sem tipo e sem área, nada.
+ */
+export function linhaFichaPino(
+  tipo: string | null | undefined,
+  area: number | null | undefined,
+  valor: number | null | undefined,
+): string | null {
+  const partes: string[] = [];
+  if (tipo) partes.push(tipo);
+  if (area != null && area > 0) {
+    partes.push(`${area.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²`);
+    if (valor != null && Number.isFinite(valor) && valor > 0)
+      partes.push(
+        `${Math.round(valor / area).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}/m²`,
+      );
+  }
+  return partes.length ? partes.join(" · ") : null;
+}
 
 export type GrupoBairro = {
   chave: string;
@@ -127,6 +156,9 @@ export type VendaRegiaoTodosRow = {
   geo_key: string | null;
   geo_lat: number | null;
   geo_lon: number | null;
+  /** Ficha do imóvel (20261009000000): tipo e área útil (terreno: área do terreno). */
+  tipo_imovel?: string | null;
+  area_util_m2?: number | string | null;
 };
 
 /** Pino de venda que a pessoa não abre: só modalidade, valor, bairro/cidade e localização aproximada. */
@@ -139,6 +171,8 @@ export type PinoAnonimo = {
   cidade: string;
   lat: number;
   lon: number;
+  tipoImovel?: string | null;
+  areaUtil?: number | null;
 };
 
 const cidadeUf = (c: string | null, u: string | null) =>
@@ -165,6 +199,8 @@ export function montarVendasTodos(rows: VendaRegiaoTodosRow[]): {
           cidade,
           lat: r.geo_lat,
           lon: r.geo_lon,
+          tipoImovel: r.tipo_imovel ?? null,
+          areaUtil: numPositivo(r.area_util_m2),
         });
       return;
     }
@@ -195,6 +231,8 @@ export function montarVendasTodos(rows: VendaRegiaoTodosRow[]): {
       modalidade: r.modalidade,
       qtd: 1,
       detalhe: true,
+      tipoImovel: r.tipo_imovel ?? null,
+      areaUtil: numPositivo(r.area_util_m2),
     });
     if (r.geo_key != null)
       geo.set(r.sale_id, {

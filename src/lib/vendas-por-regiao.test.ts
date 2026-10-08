@@ -224,7 +224,8 @@ describe("vendas por região — todos os perfis", () => {
     expect(pinos[0].valor).toBe(450000.5);
     expect(pinos[1].valor).toBeNull();
     expect(Object.keys(pinos[0]).sort()).toEqual(
-      ["bairro", "cidade", "id", "lat", "lon", "modalidade", "valor"].sort(),
+      // Ficha (20261009000000): tipo e área útil entram; código, endereço e data continuam fora.
+      ["areaUtil", "bairro", "cidade", "id", "lat", "lon", "modalidade", "tipoImovel", "valor"].sort(),
     );
     // Valor do pino não entra no VGV (já está somado no agregado 'grupo')
     const { vendas } = montarVendasTodos(rows);
