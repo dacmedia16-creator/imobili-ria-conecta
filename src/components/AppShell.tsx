@@ -28,9 +28,12 @@ import {
   Settings2,
   Building2,
   LayoutDashboard,
+  LifeBuoy,
+  Inbox,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AjudaSugestoesBotao } from "@/components/AjudaSugestoes";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
@@ -393,6 +396,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const accountNav: NavItem[] = [
     { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
     { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
+    { to: "/ajuda", label: "Ajuda e sugestões", icon: LifeBuoy, show: true },
     {
       to: "/admin/usuarios",
       label: "Usuários",
@@ -436,6 +440,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       to: "/plataforma/usuarios",
       label: "Usuários da plataforma",
       icon: Building2,
+      show: platformAdmin,
+    },
+    {
+      to: "/plataforma/chamados",
+      label: "Central de chamados",
+      icon: Inbox,
       show: platformAdmin,
     },
   ];
@@ -583,6 +593,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+      <AjudaSugestoesBotao />
     </div>
   );
 }

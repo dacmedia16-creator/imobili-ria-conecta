@@ -860,6 +860,7 @@ export type Database = {
           mensagem: string | null;
           organization_id: string;
           sale_id: string | null;
+          support_ticket_id: string | null;
           tipo: string;
           titulo: string;
           user_id: string;
@@ -872,6 +873,7 @@ export type Database = {
           mensagem?: string | null;
           organization_id?: string;
           sale_id?: string | null;
+          support_ticket_id?: string | null;
           tipo: string;
           titulo: string;
           user_id: string;
@@ -884,6 +886,7 @@ export type Database = {
           mensagem?: string | null;
           organization_id?: string;
           sale_id?: string | null;
+          support_ticket_id?: string | null;
           tipo?: string;
           titulo?: string;
           user_id?: string;
@@ -3838,6 +3841,59 @@ export type Database = {
       submit_positioning_region_suggestion: {
         Args: { _cidade: string; _nome: string; _tipo: string; _zona: string };
         Returns: string;
+      };
+      support_ticket_create: {
+        Args: {
+          _print_path?: string;
+          _tela_nome?: string;
+          _tela_rota?: string;
+          _texto: string;
+          _tipo: string;
+          _user_agent?: string;
+        };
+        Returns: string;
+      };
+      support_ticket_list: {
+        Args: { _escopo: string };
+        Returns: {
+          assunto: string;
+          author_id: string;
+          autor_nome: string | null;
+          autor_papeis: string | null;
+          created_at: string;
+          id: string;
+          last_message_at: string;
+          numero: number;
+          organization_id: string;
+          organizacao: string;
+          print_path: string | null;
+          resolved_at: string | null;
+          status: string;
+          tela_nome: string | null;
+          tela_rota: string | null;
+          tem_print: boolean;
+          tipo: string;
+        }[];
+      };
+      support_ticket_print_path: { Args: { _ticket: string }; Returns: string | null };
+      support_ticket_reply: {
+        Args: { _interna?: boolean; _texto: string; _ticket: string };
+        Returns: string;
+      };
+      support_ticket_set_status: {
+        Args: { _status: string; _ticket: string };
+        Returns: undefined;
+      };
+      support_ticket_thread: {
+        Args: { _ticket: string };
+        Returns: {
+          autor_equipe: boolean;
+          autor_nome: string;
+          created_at: string;
+          id: string;
+          interna: boolean;
+          texto: string;
+        }[];
       };
       sync_occurrence_commissions: {
         Args: { _sale_id: string };
