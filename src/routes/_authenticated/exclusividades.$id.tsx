@@ -56,6 +56,7 @@ import {
 } from "@/lib/exclusive-captures";
 import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
 import { isAiReadableKind } from "@/lib/exclusive-captures-ai";
+import { AI_TIMEOUT_MESSAGE } from "@/lib/ai-timeout";
 import {
   extractCaptureDocument,
   extractSignedContract,
@@ -393,6 +394,11 @@ function ExclusiveDetail() {
             data: { captureId: id, storagePath, kind, scope: owner ? "owner" : "property" },
           }).catch(() => null);
           if (res?.ok) values = res.values;
+          else if (res?.timedOut) {
+            // A IA passou do tempo-limite: o documento já está anexado; libera a tela.
+            toast.info(AI_TIMEOUT_MESSAGE);
+            return;
+          }
         }
         if (!Object.keys(values).length)
           values = (await suggestFromLocalFile(file, owner ? "owner" : "property")) as Record<
@@ -439,7 +445,11 @@ function ExclusiveDetail() {
       const current = formRef.current;
       if (!res?.ok || !current) {
         setReading({ ok: false, filled: [] });
-        toast.info("Não foi possível ler o contrato. Preencha os dados na conferência.");
+        toast.info(
+          res && !res.ok && res.timedOut
+            ? AI_TIMEOUT_MESSAGE
+            : "Não foi possível ler o contrato. Preencha os dados na conferência.",
+        );
         return;
       }
       const { form: next, filled } = applySignedContract(current, res.values);
