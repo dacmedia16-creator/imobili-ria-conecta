@@ -20,8 +20,11 @@ import {
   uploadCaptureDocument,
 } from "@/lib/exclusive-captures-db";
 import {
+  applySignedContract,
   applySuggestedFields,
   captureValidity,
+  MANUAL_COLOR,
+  manualPendencies,
   emptyOwner,
   formatDateBR,
   VALIDITY_STYLE,
@@ -50,7 +53,10 @@ import {
 } from "@/lib/exclusive-captures";
 import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
 import { isAiReadableKind } from "@/lib/exclusive-captures-ai";
-import { extractCaptureDocument } from "@/lib/exclusive-captures-ai.functions";
+import {
+  extractCaptureDocument,
+  extractSignedContract,
+} from "@/lib/exclusive-captures-ai.functions";
 import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import {
@@ -117,13 +123,20 @@ const statusLabels: Record<Capture["status"], string> = {
   em_assinatura: "Em assinatura (Clicksign externa)",
   aprovada: "Aprovada",
 };
-const captureSteps = [
+const normalSteps = [
   { key: "documentos", label: "Documentos" },
   { key: "dados", label: "Dados do contrato" },
   { key: "dossie", label: "Dossiê" },
   { key: "revisao", label: "Revisão e envio" },
 ] as const;
-type CaptureStep = (typeof captureSteps)[number]["key"];
+// Cadastro manual (contrato já assinado no papel): contrato → conferência → Plano de Marketing.
+const manualSteps = [
+  { key: "contrato", label: "Contrato assinado" },
+  { key: "dados", label: "Conferência dos dados" },
+  { key: "dossie", label: "Plano de Marketing" },
+  { key: "revisao", label: "Envio ao gestor" },
+] as const;
+type CaptureStep = (typeof normalSteps)[number]["key"] | (typeof manualSteps)[number]["key"];
 
 function ExclusiveDetail() {
   const { id } = Route.useParams();
@@ -156,6 +169,10 @@ function ExclusiveDetail() {
   const formRef = useRef<CaptureForm | null>(null);
   formRef.current = form;
   const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
+  // Cadastro manual: contrato de exclusividade já assinado no papel (sem PDF gerado pelo sistema).
+  const manual = !!capture?.manual;
+  const captureSteps = manual ? manualSteps : normalSteps;
+  const [reading, setReading] = useState<{ ok: boolean; filled: string[] } | null>(null);
   const navigate = useNavigate();
   const archived = !!capture?.archived_at;
   const editable = !archived && (capture?.status === "rascunho" || capture?.status === "devolvida");
@@ -165,7 +182,8 @@ function ExclusiveDetail() {
     if (loadedId.current !== id) {
       setSuggestions([]);
       setPreview(null);
-      setStep("documentos");
+      setReading(null);
+      setStep(result.capture.manual ? "contrato" : "documentos");
       loadedId.current = id;
     }
     setCapture(result.capture);
@@ -175,7 +193,11 @@ function ExclusiveDetail() {
     setCreci(result.capture.broker_creci);
     setDocs(result.docs);
     setHistory(result.history);
-    setSignedOn(result.capture.signed_on ?? hojeSaoPaulo());
+    // Manual: o gestor parte da data escrita no contrato (lida e conferida no cadastro).
+    const contractDate = result.capture.manual
+      ? normalizeForm(result.savedForm).data_assinatura
+      : undefined;
+    setSignedOn(result.capture.signed_on ?? contractDate ?? hojeSaoPaulo());
     // Aviso de endereço repetido: falha aqui nunca bloqueia a tela.
     addressConflicts(id)
       .then(setConflicts)
@@ -215,7 +237,8 @@ function ExclusiveDetail() {
   }, []);
   // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo.
   const dossieIds = form?.dossie ?? [];
-  const dossieRequired = dossieCatalog(dossieActions).length > 0;
+  // Manual: o Plano de Marketing é opcional (o que faltar aparece como pendência).
+  const dossieRequired = !manual && dossieCatalog(dossieActions).length > 0;
   const dossieMissing = dossieRequired && selectedDossie(dossieActions, dossieIds).length === 0;
   const setDossie = (ids: string[]) => {
     setForm((current) => (current ? { ...current, dossie: ids } : current));
@@ -366,10 +389,42 @@ function ExclusiveDetail() {
         toast.info("Leitura indisponível; o documento foi anexado. Preencha manualmente.");
       }
     });
+  // Cadastro manual: anexa o contrato já assinado (PDF ou foto) e lê tudo de uma vez com a mesma IA
+  // das Vendas. Preenche só os campos vazios; se a leitura falhar, o preenchimento manual continua.
+  const uploadSignedContract = (file: File) =>
+    run(async () => {
+      if (dirty && form) await saveCapture(id, form, cpf, creci);
+      const storagePath = await uploadCaptureDocument(id, "assinado", 0, file, { manual: true });
+      toast.success("Contrato assinado anexado");
+      toast.info("Lendo o contrato…");
+      const res = await extractSignedContract({ data: { captureId: id, storagePath } }).catch(
+        () => null,
+      );
+      const current = formRef.current;
+      if (!res?.ok || !current) {
+        setReading({ ok: false, filled: [] });
+        toast.info("Não foi possível ler o contrato. Preencha os dados na conferência.");
+        return;
+      }
+      const { form: next, filled } = applySignedContract(current, res.values);
+      setReading({ ok: true, filled });
+      if (filled.length) {
+        setForm(next);
+        await saveCapture(id, next, cpf, creci);
+        setDirty(false);
+      }
+      toast.success(
+        filled.length
+          ? `Contrato lido • ${filled.length} ${filled.length === 1 ? "campo preenchido" : "campos preenchidos"}. Confira os dados.`
+          : "Contrato lido. Os campos encontrados já estavam preenchidos.",
+      );
+    });
   const action = (name: "enviar" | "assinatura" | "aprovar" | "devolver") =>
     run(async () => {
-      if (name === "enviar" && !window.confirm("Você conferiu o PDF gerado e todos os documentos?"))
-        return;
+      const ask = manual
+        ? "Você conferiu os dados lidos do contrato assinado?"
+        : "Você conferiu o PDF gerado e todos os documentos?";
+      if (name === "enviar" && !window.confirm(ask)) return;
       await transitionCapture(id, name, name === "devolver" ? reason : undefined);
       // Vigência conta da assinatura: grava a data informada pelo gestor (padrão hoje).
       if (name === "aprovar" && signedOn && signedOn !== hojeSaoPaulo())
@@ -436,12 +491,13 @@ function ExclusiveDetail() {
         backLabel="Voltar para exclusividades"
       />
     );
-  const missing = missingRequirements(
-    form,
-    dirty ? docs.filter((d) => d.kind !== "gerado") : docs,
-    cpf,
-    creci,
-  );
+  // Manual: só o contrato assinado é obrigatório; o resto é pendência opcional (o gestor vê).
+  const manualCheck = manual ? manualPendencies(form, docs) : null;
+  if (manualCheck && selectedDossie(dossieActions, dossieIds).length === 0)
+    manualCheck.optional.push("Plano de Marketing: nenhuma ação marcada");
+  const missing = manualCheck
+    ? [...manualCheck.required]
+    : missingRequirements(form, dirty ? docs.filter((d) => d.kind !== "gerado") : docs, cpf, creci);
   if (dossieMissing) missing.push("Dossiê: marque ao menos 1 ação");
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
@@ -464,7 +520,7 @@ function ExclusiveDetail() {
     <div key={label} className="space-y-1">
       <Label>
         {label}
-        {required ? " *" : ""}
+        {required && !manual ? " *" : ""}
       </Label>
       <Input
         aria-label={label}
@@ -546,8 +602,11 @@ function ExclusiveDetail() {
     const canUpload =
       !busy &&
       (kind === "assinado"
-        ? manager && ["enviada", "em_assinatura"].includes(capture.status)
+        ? manual
+          ? editable || (manager && capture.status === "enviada")
+          : manager && ["enviada", "em_assinatura"].includes(capture.status)
         : editable);
+    const acceptPdfOnly = kind === "gerado" || (kind === "assinado" && !manual);
     return (
       <Card key={`${kind}-${owner}`} className={opts.accent ?? ""}>
         <CardContent className="space-y-3 p-4">
@@ -574,13 +633,15 @@ function ExclusiveDetail() {
                   <Upload className="h-4 w-4" /> {attached ? "Substituir" : "Enviar"}
                   <input
                     type="file"
-                    accept={kind === "assinado" ? ".pdf" : ".pdf,.jpg,.jpeg,.png,.webp"}
+                    accept={acceptPdfOnly ? ".pdf" : ".pdf,.jpg,.jpeg,.png,.webp"}
                     aria-label={`Enviar ${label}`}
                     className="sr-only"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       e.target.value = "";
-                      if (file) upload(kind, owner, file);
+                      if (!file) return;
+                      if (manual && kind === "assinado") uploadSignedContract(file);
+                      else upload(kind, owner, file);
                     }}
                   />
                 </label>
@@ -603,7 +664,8 @@ function ExclusiveDetail() {
           : undefined;
     return fileInput(label, kind, owner, {
       accent: "border-l-4 border-l-amber-500",
-      required: !dispensa && !hasDoc(kind, owner),
+      // Manual: documentos do proprietário são opcionais (aparecem como pendência).
+      required: !manual && !dispensa && !hasDoc(kind, owner),
       dispensa,
     });
   };
@@ -621,8 +683,11 @@ function ExclusiveDetail() {
       await setCaptureSignedOn(id, signedOn);
       toast.success("Data de assinatura atualizada");
     });
+  // Rascunho manual pode ser excluído mesmo com o contrato de papel anexado (mesma regra do banco).
   const hasContract =
-    capture.status !== "rascunho" || docs.some((d) => d.kind === "gerado" || d.kind === "assinado");
+    capture.status !== "rascunho" ||
+    (!manual && docs.some((d) => d.kind === "gerado" || d.kind === "assinado"));
+  const signedDoc = docs.find((d) => d.kind === "assinado");
   return (
     <div className="space-y-5 pb-10">
       <Link to="/exclusividades" className="text-sm text-primary underline">
@@ -633,8 +698,18 @@ function ExclusiveDetail() {
           Captação exclusiva · {captureUnitLabel(capture, units)}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {statusLabels[capture.status]} · Criada em {capture.created_on_sp} (São Paulo). Captador:{" "}
-          {capture.broker_name}
+          {manual && (
+            <span
+              className="mr-2 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+              style={{ background: MANUAL_COLOR }}
+            >
+              Cadastro manual
+            </span>
+          )}
+          {manual && capture.status === "enviada"
+            ? "Aguardando aprovação do gestor"
+            : statusLabels[capture.status]}{" "}
+          · Criada em {capture.created_on_sp} (São Paulo). Captador: {capture.broker_name}
         </p>
         {conflicts.length > 0 && (
           <div
@@ -743,6 +818,49 @@ function ExclusiveDetail() {
           </Button>
         ))}
       </nav>
+      {step === "contrato" && manual && (
+        <>
+          <Card className="border-violet-300 bg-violet-50/60">
+            <CardContent className="space-y-1 p-4 text-sm">
+              <p className="font-medium">Envie o contrato de exclusividade já assinado</p>
+              <p>
+                PDF ou foto legível (JPG, PNG ou WEBP, até 16 MB). É o único item obrigatório. O
+                sistema lê o contrato e preenche proprietário, imóvel, prazo, comissão e data de
+                assinatura; você só confere e completa.
+              </p>
+            </CardContent>
+          </Card>
+          {fileInput("Contrato assinado (PDF ou foto)", "assinado", 0, {
+            accent: "border-l-4 border-l-violet-600",
+            required: !signedDoc,
+          })}
+          {reading && (
+            <Card className={reading.ok ? "border-emerald-300" : "border-amber-300"}>
+              <CardContent className="space-y-2 p-4 text-sm">
+                {!reading.ok ? (
+                  <p className="text-amber-900">
+                    Não foi possível ler o contrato automaticamente. O contrato ficou anexado;
+                    preencha os dados na próxima etapa.
+                  </p>
+                ) : reading.filled.length ? (
+                  <>
+                    <p className="font-medium text-emerald-800">
+                      O sistema leu {reading.filled.length}{" "}
+                      {reading.filled.length === 1 ? "campo" : "campos"} do contrato:
+                    </p>
+                    <p className="text-muted-foreground">{reading.filled.join(" · ")}</p>
+                  </>
+                ) : (
+                  <p>Contrato lido. Os campos encontrados já estavam preenchidos.</p>
+                )}
+                <Button size="sm" onClick={() => setStep("dados")}>
+                  Conferir os dados <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
       {step === "documentos" && (
         <>
           <Card className="border-primary/40 bg-primary/5">
@@ -919,6 +1037,49 @@ function ExclusiveDetail() {
       )}
       {step === "dados" && (
         <>
+          {manual && (
+            <Card className="border-violet-300">
+              <CardHeader>
+                <CardTitle>Contrato já assinado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  Confira o que foi lido do contrato e complete o que faltar. Nada aqui é
+                  obrigatório; o que ficar vazio aparece como pendência para o gestor.
+                </p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="manual-signed">Data de assinatura do contrato</Label>
+                    <Input
+                      id="manual-signed"
+                      type="date"
+                      className="w-44"
+                      max={hojeSaoPaulo()}
+                      value={form.data_assinatura ?? ""}
+                      disabled={!editable || busy}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm((f) => (f ? { ...f, data_assinatura: v || undefined } : f));
+                        setDirty(true);
+                      }}
+                    />
+                  </div>
+                  <p className="pb-2 text-xs text-muted-foreground">
+                    O prazo da exclusividade e o alerta de vencimento contam a partir desta data.
+                  </p>
+                </div>
+                {signedDoc && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => withDoc(signedDoc, (url) => setPreview({ doc: signedDoc, url }))}
+                  >
+                    <Eye className="mr-1 h-4 w-4" /> Ver contrato assinado
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Captador</CardTitle>
@@ -1033,13 +1194,81 @@ function ExclusiveDetail() {
       )}
       {step === "dossie" && form && (
         <>
-          <CaptureDossieStep
-            actions={dossieActions}
-            selected={dossieIds}
-            editable={editable}
-            loading={dossieLoading}
-            onChange={setDossie}
-          />
+          {manual ? (
+            <CaptureDossieStep
+              actions={dossieActions}
+              selected={dossieIds}
+              editable={editable}
+              loading={dossieLoading}
+              onChange={setDossie}
+              title="Plano de Marketing"
+              intro="Marque as ações de marketing combinadas com o proprietário. Opcional: o que não for marcado aparece como pendência para o gestor."
+              optional
+            />
+          ) : (
+            <CaptureDossieStep
+              actions={dossieActions}
+              selected={dossieIds}
+              editable={editable}
+              loading={dossieLoading}
+              onChange={setDossie}
+            />
+          )}
+          {manual && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Documentos (opcionais)</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Anexe o que tiver. O que faltar aparece como pendente, sem impedir o envio.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {([1, 2] as const).map((n) =>
+                  n === 2 && !form.proprietario_2 ? null : (
+                    <div key={n} className="space-y-3">
+                      <p className="text-sm font-medium">
+                        Proprietário {n}
+                        {form[`proprietario_${n}`]?.nome_completo
+                          ? ` · ${form[`proprietario_${n}`]?.nome_completo}`
+                          : ""}
+                      </p>
+                      {ownerDocInput("RG", "rg", n)}
+                      {ownerDocInput("CPF", "cpf", n)}
+                      {ownerDocInput("CNH (substitui RG + CPF)", "cnh", n)}
+                    </div>
+                  ),
+                )}
+                {editable && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setForm((f) =>
+                        f
+                          ? f.proprietario_2
+                            ? (({ proprietario_2: _, ...rest }) => rest)(f)
+                            : { ...f, proprietario_2: emptyOwner() }
+                          : f,
+                      );
+                      setDirty(true);
+                    }}
+                  >
+                    {form.proprietario_2
+                      ? "Remover segundo proprietário"
+                      : "Adicionar segundo proprietário"}
+                  </Button>
+                )}
+                {fileInput("Comprovante de residência", "residencia", 0, {
+                  accent: "border-l-4 border-l-emerald-500",
+                })}
+                {fileInput("IPTU", "iptu", 0, { accent: "border-l-4 border-l-emerald-500" })}
+                {fileInput("Matrícula", "matricula", 0, {
+                  accent: "border-l-4 border-l-emerald-500",
+                })}
+              </CardContent>
+            </Card>
+          )}
           {editable && (
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy || !dirty} onClick={save}>
@@ -1051,7 +1280,30 @@ function ExclusiveDetail() {
       )}
       {step === "revisao" && (
         <>
-          {manager && capture.status === "enviada" && (
+          {manual && manualCheck && (capture.status !== "aprovada" || manager) && (
+            <Card className="border-violet-300">
+              <CardHeader>
+                <CardTitle>Pendências do cadastro manual</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {manualCheck.required.length > 0 && (
+                  <p className="rounded-md border border-red-300 bg-red-50 p-2 text-red-900">
+                    Obrigatório: {manualCheck.required.join(" · ")}
+                  </p>
+                )}
+                {manualCheck.optional.length ? (
+                  <ul className="list-inside list-disc text-amber-900">
+                    {manualCheck.optional.map((p) => (
+                      <li key={p}>Pendente: {p}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-emerald-700">Nenhuma pendência.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {!manual && manager && capture.status === "enviada" && (
             <Card>
               <CardHeader>
                 <CardTitle>Gerar contrato</CardTitle>
@@ -1099,6 +1351,11 @@ function ExclusiveDetail() {
               <CardContent className="space-y-3">
                 {missing.length ? (
                   <p className="text-sm text-amber-800">Pendências: {missing.join(" · ")}</p>
+                ) : manual ? (
+                  <p className="text-sm">
+                    Contrato assinado anexado. O gestor confere e aprova; só depois a captação conta
+                    como assinada, entra no mapa e no alerta de vencimento.
+                  </p>
                 ) : (
                   <p className="text-sm">
                     Campos e documentos completos. O gestor confere e gera o contrato.
@@ -1116,11 +1373,20 @@ function ExclusiveDetail() {
           {manager && ["enviada", "em_assinatura"].includes(capture.status) && (
             <Card>
               <CardHeader>
-                <CardTitle>Gestão e assinatura</CardTitle>
+                <CardTitle>
+                  {manual ? "Aprovação do cadastro manual" : "Gestão e assinatura"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm">{clicksignManualInstructions}</p>
-                {fileInput("Contrato assinado (PDF)", "assinado")}
+                <p className="text-sm">
+                  {manual
+                    ? "Contrato assinado no papel, anexado pelo captador. Confira o contrato e os dados; ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
+                    : clicksignManualInstructions}
+                </p>
+                {fileInput(
+                  manual ? "Contrato assinado (PDF ou foto)" : "Contrato assinado (PDF)",
+                  "assinado",
+                )}
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="signed-on">Data de assinatura do contrato</Label>
@@ -1138,7 +1404,7 @@ function ExclusiveDetail() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {capture.status === "enviada" && (
+                  {!manual && capture.status === "enviada" && (
                     <Button
                       variant="outline"
                       disabled={busy || !docs.some((d) => d.kind === "gerado")}
