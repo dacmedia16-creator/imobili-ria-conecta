@@ -436,8 +436,9 @@ export function applySignedContract(
 }
 
 /**
- * Cadastro manual: o único item obrigatório para enviar ao gestor é o contrato assinado.
- * O resto aparece como pendência opcional (o gestor vê antes de aprovar).
+ * Cadastro manual: o único DOCUMENTO obrigatório para enviar ao gestor é o contrato assinado
+ * (o Plano de Marketing também é obrigatório; a tela soma essa regra, igual à captação normal).
+ * O resto aparece como pendência (o gestor vê antes de aprovar).
  */
 export function manualPendencies(
   form: CaptureForm,
