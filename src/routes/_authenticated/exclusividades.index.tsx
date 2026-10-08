@@ -7,7 +7,10 @@ import {
   createManualCapture,
   listCaptures,
   listUnits,
+  situacaoVendaLista,
+  type SituacaoVendaLista,
 } from "@/lib/exclusive-captures-db";
+import { diasEntre, haQuantosDias, seloSituacaoCaptacao } from "@/lib/captacao-venda";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
   captureNextAction,
@@ -85,6 +88,8 @@ function ExclusiveList() {
     );
   const [removing, setRemoving] = useState<string | null>(null);
   const [summary, setSummary] = useState<Capture | null>(null);
+  // "Virou venda": selo Em negociação / Vendida por captação (o banco só devolve as que a pessoa vê).
+  const [vendas, setVendas] = useState<Map<string, SituacaoVendaLista>>(new Map());
   // Só rascunho; se ele já gerou contrato o banco recusa e orienta a arquivar.
   const removeDraft = async (c: Capture) => {
     if (!window.confirm("Excluir este rascunho? Ele deixará de aparecer na lista.")) return;
@@ -100,10 +105,11 @@ function ExclusiveList() {
     }
   };
   useEffect(() => {
-    Promise.all([listCaptures(), listUnits()])
-      .then(([list, unitList]) => {
+    Promise.all([listCaptures(), listUnits(), situacaoVendaLista()])
+      .then(([list, unitList, vendaMap]) => {
         setCaptures(list);
         setUnits(unitList);
+        setVendas(vendaMap);
       })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
@@ -312,6 +318,21 @@ function ExclusiveList() {
                         {validityText(validity)}
                       </span>
                     )}
+                    {(() => {
+                      const v = vendas.get(c.id);
+                      const selo = seloSituacaoCaptacao(v?.situacao);
+                      if (!v || !selo) return null;
+                      const dias =
+                        v.situacao === "em_negociacao"
+                          ? haQuantosDias(diasEntre(v.negociacao_desde, today))
+                          : "";
+                      return (
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${selo.classe}`}>
+                          {selo.texto}
+                          {dias ? ` · ${dias}` : ""}
+                        </span>
+                      );
+                    })()}
                     <span className="text-muted-foreground">
                       Criada por {c.broker_name || "—"}
                       {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}

@@ -157,6 +157,18 @@ export async function vendaDaCaptacao(
   const out = (data ?? {}) as { pode_virar?: boolean; venda?: VendaDaCaptacao | null };
   return { pode_virar: out.pode_virar === true, venda: out.venda ?? null };
 }
+export type SituacaoVendaLista = {
+  capture_id: string;
+  situacao: VendaDaCaptacao["situacao"];
+  negociacao_desde: string | null;
+  venda_id: string;
+};
+/** Selos da lista: situação de venda das captações que a pessoa vê (sem migration → vazio). */
+export async function situacaoVendaLista(): Promise<Map<string, SituacaoVendaLista>> {
+  const { data, error } = await db.rpc("exclusive_situacao_venda_lista");
+  if (error) return new Map();
+  return new Map(((data ?? []) as SituacaoVendaLista[]).map((r) => [r.capture_id, r]));
+}
 /** Cria (ou devolve, se já existir) a venda em rascunho preenchida com a captação. */
 export async function virarVenda(id: string): Promise<{ criada: boolean; venda: VendaDaCaptacao }> {
   const { data, error } = await db.rpc("exclusive_virar_venda", { _id: id });
