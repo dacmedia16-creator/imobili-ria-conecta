@@ -16,7 +16,7 @@
 --  5. Vendas por região: vendas_por_regiao_todos devolve tipo_imovel e area_util_m2 em todas as linhas
 --     'venda' e 'pino' (privacidade do pino mantida: sem código, endereço, data, corretor e cliente;
 --     coordenada arredondada). O preço por m² é calculado na tela (valor / área útil).
--- Rollback: supabase/rollback/20261008220000_ficha_imovel.sql
+-- Rollback: supabase/rollback/20261008230000_ficha_imovel.sql
 BEGIN;
 
 -- 1) Colunas ------------------------------------------------------------------------------------

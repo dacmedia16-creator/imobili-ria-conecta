@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ficha do imóvel (migration 20261008220000) numa ÚNICA transação revertida (homologação ou clone, nunca
+# Ficha do imóvel (migration 20261008230000) numa ÚNICA transação revertida (homologação ou clone, nunca
 # produção): pré-requisitos que faltarem no alvo (Virou venda e valor no pino, só na transação) ->
 # fingerprint A -> up -> suíte -> rollback -> fingerprint == A -> ROLLBACK.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-ficha-imovel.sh
@@ -37,12 +37,12 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   strip "$M/20261008200000_vendas_regiao_valor_no_pino.sql"
   echo "\\echo [pre ok]"
   echo "$FP"
-  strip "$M/20261008220000_ficha_imovel.sql"
+  strip "$M/20261008230000_ficha_imovel.sql"
   echo "\\echo [migration ok]"
   echo "SAVEPOINT suite;"
   strip "$HERE/ficha_imovel.sql"
   echo "ROLLBACK TO SAVEPOINT suite;"
-  strip "$ROOT/supabase/rollback/20261008220000_ficha_imovel.sql"
+  strip "$ROOT/supabase/rollback/20261008230000_ficha_imovel.sql"
   echo "\\echo [rollback ok]"
   echo "$FP"
   echo "ROLLBACK;"

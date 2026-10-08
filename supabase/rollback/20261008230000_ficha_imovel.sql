@@ -1,4 +1,4 @@
--- Rollback de 20261008220000_ficha_imovel.sql
+-- Rollback de 20261008230000_ficha_imovel.sql
 -- Volta exclusive_virar_venda ao corpo de 20261008190000 e vendas_por_regiao_todos ao de 20261008200000
 -- (copiados literalmente), remove as travas/funções da ficha e APAGA as colunas da ficha em sales
 -- (os dados digitados nelas se perdem: exporte antes se já houver uso real).
