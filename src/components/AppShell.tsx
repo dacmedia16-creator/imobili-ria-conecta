@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   Settings2,
   Building2,
+  LayoutDashboard,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -39,6 +40,7 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
+import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
@@ -329,6 +331,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       label: "Desempenho",
       icon: Gauge,
       show: hasAny(["gestor", "team_leader", "admin", "super_admin", "financeiro"]),
+    },
+    {
+      to: "/painel-equipe",
+      label: "Painel da Equipe",
+      icon: LayoutDashboard,
+      // Gestor, Team Leader, líder auxiliar e admin (Denis, 08/10/2026). A RPC restringe à própria equipe.
+      show: podeAcessarPainelEquipe(roles),
     },
     {
       to: "/equipe",

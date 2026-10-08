@@ -27,6 +27,7 @@ import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authen
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes/_authenticated/ocorrencias-concluidas'
 import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_authenticated/ocorrencias-imprimir'
+import { Route as AuthenticatedPainelEquipeRouteImport } from './routes/_authenticated/painel-equipe'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -142,6 +143,12 @@ const AuthenticatedOcorrenciasImprimirRoute =
   AuthenticatedOcorrenciasImprimirRouteImport.update({
     id: '/ocorrencias-imprimir',
     path: '/ocorrencias-imprimir',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPainelEquipeRoute =
+  AuthenticatedPainelEquipeRouteImport.update({
+    id: '/painel-equipe',
+    path: '/painel-equipe',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
@@ -279,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
+  '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -318,6 +326,7 @@ export interface FileRoutesByTo {
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
+  '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -359,6 +368,7 @@ export interface FileRoutesById {
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/_authenticated/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
+  '/_authenticated/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -400,6 +410,7 @@ export interface FileRouteTypes {
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
+    | '/painel-equipe'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -439,6 +450,7 @@ export interface FileRouteTypes {
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
+    | '/painel-equipe'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -479,6 +491,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notificacoes'
     | '/_authenticated/ocorrencias-concluidas'
     | '/_authenticated/ocorrencias-imprimir'
+    | '/_authenticated/painel-equipe'
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
@@ -639,6 +652,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOcorrenciasImprimirRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/painel-equipe': {
+      id: '/_authenticated/painel-equipe'
+      path: '/painel-equipe'
+      fullPath: '/painel-equipe'
+      preLoaderRoute: typeof AuthenticatedPainelEquipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/perfil': {
       id: '/_authenticated/perfil'
       path: '/perfil'
@@ -794,6 +814,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOcorrenciasConcluidasRoute: typeof AuthenticatedOcorrenciasConcluidasRoute
   AuthenticatedOcorrenciasImprimirRoute: typeof AuthenticatedOcorrenciasImprimirRoute
+  AuthenticatedPainelEquipeRoute: typeof AuthenticatedPainelEquipeRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -829,6 +850,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOcorrenciasConcluidasRoute:
     AuthenticatedOcorrenciasConcluidasRoute,
   AuthenticatedOcorrenciasImprimirRoute: AuthenticatedOcorrenciasImprimirRoute,
+  AuthenticatedPainelEquipeRoute: AuthenticatedPainelEquipeRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
