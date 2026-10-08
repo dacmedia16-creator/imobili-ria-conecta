@@ -38,6 +38,7 @@ import { endOperationalImpersonation } from "@/lib/user-impersonation.functions"
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
+import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
@@ -350,7 +351,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       to: "/vendas-por-regiao",
       label: "Vendas por região",
       icon: MapPinned,
-      show: hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]),
+      // Todos os perfis (Denis, 08/10/2026); o banco limita o detalhe ao que cada um já vê.
+      show: podeAcessarVendasPorRegiao(roles),
     },
     {
       to: "/relatorios",

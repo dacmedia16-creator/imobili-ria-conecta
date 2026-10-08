@@ -19,6 +19,23 @@ export type VendaRegiaoRow = {
   imovel_cep: string | null;
 };
 
+/** Quem abre "Vendas por região": todos os perfis da imobiliária (Denis, 08/10/2026).
+ * O banco (vendas_por_regiao_todos/mapa_captacoes) corta o detalhe ao que cada um já pode ver. */
+export const PAPEIS_VENDAS_REGIAO = [
+  "corretor",
+  "team_leader",
+  "gestor",
+  "financeiro",
+  "juridico",
+  "lancamento",
+  "staff",
+  "admin",
+  "super_admin",
+] as const;
+export function podeAcessarVendasPorRegiao(roles: readonly string[]): boolean {
+  return roles.some((r) => (PAPEIS_VENDAS_REGIAO as readonly string[]).includes(r));
+}
+
 export const SEM_CIDADE = "Sem cidade informada";
 export const SEM_BAIRRO = "Sem bairro informado";
 
@@ -53,12 +70,18 @@ export type VendaRegiao = {
   cidade: string;
   vgv: number;
   modalidade: string | null;
+  /** Quantas vendas a linha representa: 1 numa venda; N num agregado de vendas que a pessoa não abre. */
+  qtd: number;
+  /** true = venda que a pessoa pode abrir (com código, endereço, data e link); false = só agregado. */
+  detalhe: boolean;
 };
 
 export type GrupoBairro = {
   chave: string;
   bairro: string;
+  /** Só as vendas que a pessoa pode abrir (as demais entram apenas em qtd/vgv e em `outras`). */
   vendas: VendaRegiao[];
+  outras: number;
   qtd: number;
   vgv: number;
 };
@@ -83,14 +106,117 @@ export function montarVendas(rows: VendaRegiaoRow[]): VendaRegiao[] {
     cidade: [(r.imovel_cidade ?? "").trim(), (r.imovel_uf ?? "").trim()].filter(Boolean).join("|"),
     vgv: Number(r.valor_negociado) || 0,
     modalidade: r.modalidade,
+    qtd: 1,
+    detalhe: true,
   }));
+}
+
+/** Linha de vendas_por_regiao_todos(): 'venda' (pode abrir), 'grupo' (agregado) ou 'pino' (anônimo). */
+export type VendaRegiaoTodosRow = {
+  tipo: "venda" | "grupo" | "pino";
+  sale_id: string | null;
+  data_fechamento: string | null;
+  modalidade: string | null;
+  codigo: string | null;
+  qtd: number | null;
+  valor: number | string | null;
+  imovel_endereco: string | null;
+  imovel_bairro: string | null;
+  imovel_cidade: string | null;
+  imovel_uf: string | null;
+  geo_key: string | null;
+  geo_lat: number | null;
+  geo_lon: number | null;
+};
+
+/** Pino de venda que a pessoa não abre: só modalidade, bairro/cidade e localização aproximada. */
+export type PinoAnonimo = {
+  id: string;
+  modalidade: string | null;
+  bairro: string;
+  cidade: string;
+  lat: number;
+  lon: number;
+};
+
+const cidadeUf = (c: string | null, u: string | null) =>
+  [(c ?? "").trim(), (u ?? "").trim()].filter(Boolean).join("|");
+
+export function montarVendasTodos(rows: VendaRegiaoTodosRow[]): {
+  vendas: VendaRegiao[];
+  geo: Map<string, SaleGeo>;
+  pinos: PinoAnonimo[];
+} {
+  const vendas: VendaRegiao[] = [];
+  const geo = new Map<string, SaleGeo>();
+  const pinos: PinoAnonimo[] = [];
+  rows.forEach((r, i) => {
+    const bairro = (r.imovel_bairro ?? "").trim();
+    const cidade = cidadeUf(r.imovel_cidade, r.imovel_uf);
+    if (r.tipo === "pino") {
+      if (r.geo_lat != null && r.geo_lon != null)
+        pinos.push({
+          id: `pino-${i}`,
+          modalidade: r.modalidade,
+          bairro,
+          cidade,
+          lat: r.geo_lat,
+          lon: r.geo_lon,
+        });
+      return;
+    }
+    if (r.tipo === "grupo") {
+      vendas.push({
+        saleId: `grupo-${i}`,
+        data: null,
+        codigo: "",
+        endereco: "",
+        bairro,
+        cidade,
+        vgv: Number(r.valor) || 0,
+        modalidade: null,
+        qtd: Number(r.qtd) || 0,
+        detalhe: false,
+      });
+      return;
+    }
+    if (!r.sale_id) return;
+    vendas.push({
+      saleId: r.sale_id,
+      data: r.data_fechamento,
+      codigo: r.codigo || "—",
+      endereco: (r.imovel_endereco ?? "").trim(),
+      bairro,
+      cidade,
+      vgv: Number(r.valor) || 0,
+      modalidade: r.modalidade,
+      qtd: 1,
+      detalhe: true,
+    });
+    if (r.geo_key != null)
+      geo.set(r.sale_id, {
+        sale_id: r.sale_id,
+        geo_key: r.geo_key,
+        geo_lat: r.geo_lat,
+        geo_lon: r.geo_lon,
+      });
+  });
+  return { vendas, geo, pinos };
+}
+
+/** Os pinos anônimos seguem a busca por bairro/cidade (o período já vem filtrado do banco). */
+export function filtrarPinos(pinos: PinoAnonimo[], busca: string): PinoAnonimo[] {
+  const q = chaveNome(busca);
+  if (!q) return pinos;
+  return pinos.filter((p) => chaveNome(`${p.bairro} ${p.cidade.replace("|", " ")}`).includes(q));
 }
 
 export function filtrarVendas(vendas: VendaRegiao[], f: FiltrosRegiao): VendaRegiao[] {
   const q = chaveNome(f.busca);
   return vendas.filter((v) => {
-    if (f.dataDe && (!v.data || v.data < f.dataDe)) return false;
-    if (f.dataAte && (!v.data || v.data > f.dataAte)) return false;
+    // Agregados não têm data: o período deles já é aplicado no banco.
+    if (v.detalhe && f.dataDe && (!v.data || v.data < f.dataDe)) return false;
+    if (v.detalhe && f.dataAte && (!v.data || v.data > f.dataAte)) return false;
     if (q) {
       const alvo = chaveNome(
         [v.endereco, v.bairro, v.cidade.replace("|", " "), v.codigo].join(" "),
@@ -150,6 +276,7 @@ export function vendasNoMapa(
   const noMapa: VendaNoMapa[] = [];
   let semLocal = 0;
   for (const v of vendas) {
+    if (!v.detalhe) continue; // agregados não são pinos (os pinos anônimos vêm à parte)
     const g = geo.get(v.saleId);
     const key = geoKeyVenda(v);
     if (g && key && g.geo_key === key && g.geo_lat != null && g.geo_lon != null)
@@ -165,6 +292,7 @@ export function vendasPendentesGeo(
   geo: Map<string, SaleGeo>,
 ): VendaRegiao[] {
   return vendas.filter((v) => {
+    if (!v.detalhe) return false;
     const key = geoKeyVenda(v);
     return key !== "" && geo.get(v.saleId)?.geo_key !== key;
   });
@@ -201,8 +329,11 @@ export function agruparPorRegiao(vendas: VendaRegiao[]): GrupoCidade[] {
     const listaBairros: GrupoBairro[] = [...bairros].map(([kb, b]) => ({
       chave: kb,
       bairro: b.nomes.length ? maisFrequente(b.nomes) : SEM_BAIRRO,
-      vendas: [...b.vendas].sort((a, c) => (c.data ?? "").localeCompare(a.data ?? "")),
-      qtd: b.vendas.length,
+      vendas: b.vendas
+        .filter((v) => v.detalhe)
+        .sort((a, c) => (c.data ?? "").localeCompare(a.data ?? "")),
+      outras: somaQtd(b.vendas.filter((v) => !v.detalhe)),
+      qtd: somaQtd(b.vendas),
       vgv: b.vendas.reduce((s, v) => s + v.vgv, 0),
     }));
     listaBairros.sort((a, b) => ordenar(a.chave, b.chave, a.qtd, b.qtd, a.vgv, b.vgv));
@@ -210,13 +341,16 @@ export function agruparPorRegiao(vendas: VendaRegiao[]): GrupoCidade[] {
       chave: k,
       cidade: g.nomes.length ? maisFrequente(g.nomes) : SEM_CIDADE,
       uf: g.ufs.length ? maisFrequente(g.ufs) : null,
-      qtd: g.vendas.length,
+      qtd: somaQtd(g.vendas),
       vgv: g.vendas.reduce((s, v) => s + v.vgv, 0),
       bairros: listaBairros,
     });
   }
   return out.sort((a, b) => ordenar(a.chave, b.chave, a.qtd, b.qtd, a.vgv, b.vgv));
 }
+
+/** Total de vendas (um agregado conta pelas vendas que representa). */
+export const somaQtd = (vendas: VendaRegiao[]) => vendas.reduce((s, v) => s + v.qtd, 0);
 
 /** Mais vendas primeiro; empate pelo VGV; "sem cidade/bairro" sempre no fim. */
 function ordenar(ka: string, kb: string, qa: number, qb: number, va: number, vb: number): number {

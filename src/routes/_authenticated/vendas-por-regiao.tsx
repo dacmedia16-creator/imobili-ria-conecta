@@ -9,39 +9,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { podeAcessarProducaoPorPessoa } from "@/lib/producao-por-pessoa-calc";
 import { mesAtualRange } from "@/lib/producao-por-pessoa-filters";
-import { brl } from "@/lib/exclusive-captures-dashboard";
+import { brl, geoKey, geoQueries } from "@/lib/exclusive-captures-dashboard";
+import { setCaptureGeo } from "@/lib/exclusive-captures-db";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import {
   agruparPorRegiao,
+  filtrarPinos,
   filtrarVendas,
   geoKeyVenda,
   geoQueriesVenda,
-  montarVendas,
+  montarVendasTodos,
   nomeExibicao,
+  PAPEIS_VENDAS_REGIAO,
+  podeAcessarVendasPorRegiao,
+  somaQtd,
   vendasNoMapa,
   vendasPendentesGeo,
   type FiltrosRegiao,
+  type PinoAnonimo,
   type SaleGeo,
   type VendaRegiao,
-  type VendaRegiaoRow,
+  type VendaRegiaoTodosRow,
 } from "@/lib/vendas-por-regiao";
+import {
+  captacoesPendentesGeo,
+  comoCapture,
+  COR_CAPTACAO,
+  pinosCaptacoes,
+  type CaptacaoMapaRow,
+} from "@/lib/mapa-captacoes";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// sale_geo/sale_set_geo (migration 20261005090000) ainda não constam do types.ts gerado.
+// vendas_por_regiao_todos/mapa_captacoes/sale_set_geo ainda não constam do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
 const COR_PADRAO = "#2563eb";
 const COR_LANCAMENTO = "#f59e0b";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** OpenStreetMap/Nominatim: só o endereço do imóvel, 1 consulta por segundo (política de uso). */
-async function geocode(
-  v: VendaRegiao,
-  agency: AgencyProfile | null,
-): Promise<[number, number] | null> {
-  for (const q of geoQueriesVenda(v, agency ?? undefined)) {
+/** OpenStreetMap/Nominatim (gratuito): só o endereço do imóvel, 1 consulta por segundo. */
+async function geocodeConsultas(consultas: string[]): Promise<[number, number] | null> {
+  for (const q of consultas) {
     const url =
       "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=" +
       encodeURIComponent(q);
@@ -54,7 +64,7 @@ async function geocode(
   return null;
 }
 
-const PAPEIS: AppRole[] = ["admin", "super_admin", "financeiro", "gestor", "team_leader"];
+const PAPEIS: AppRole[] = [...PAPEIS_VENDAS_REGIAO];
 
 export const Route = createFileRoute("/_authenticated/vendas-por-regiao")({
   head: () => ({ meta: [{ title: "Vendas por região" }] }),
@@ -64,7 +74,7 @@ export const Route = createFileRoute("/_authenticated/vendas-por-regiao")({
     } = await supabase.auth.getSession();
     if (!session) throw redirect({ to: "/auth" });
     const { roles } = await loadMyAccess(session.user.id);
-    if (!podeAcessarProducaoPorPessoa(roles)) {
+    if (!podeAcessarVendasPorRegiao(roles)) {
       toast.error("Acesso não autorizado.");
       throw redirect({ to: "/dashboard" });
     }
@@ -73,54 +83,86 @@ export const Route = createFileRoute("/_authenticated/vendas-por-regiao")({
 });
 
 const fmtData = (d: string | null) => (d ? d.split("-").reverse().join("/") : "—");
+const local = (bairro: string, cidade: string) =>
+  [bairro ? nomeExibicao(bairro) : "", nomeExibicao(cidade.split("|")[0] ?? "")]
+    .filter(Boolean)
+    .join(" · ");
 
 function VendasPorRegiaoPage() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(PAPEIS);
+  const hoje = hojeSaoPaulo();
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [vendas, setVendas] = useState<VendaRegiao[]>([]);
+  const [anonimos, setAnonimos] = useState<PinoAnonimo[]>([]);
+  const [captacoes, setCaptacoes] = useState<CaptacaoMapaRow[]>([]);
   const [filtros, setFiltros] = useState<FiltrosRegiao>({ dataDe: "", dataAte: "", busca: "" });
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const [agency, setAgency] = useState<AgencyProfile | null>(null);
   const [geo, setGeo] = useState<Map<string, SaleGeo>>(new Map());
   const [localizando, setLocalizando] = useState<{ feitos: number; total: number } | null>(null);
+  const [localizandoCap, setLocalizandoCap] = useState<{ feitos: number; total: number } | null>(
+    null,
+  );
   const iniciouGeo = useRef(false);
+  const iniciouGeoCap = useRef(false);
+  const carregouUmaVez = useRef(false);
   const navigate = useNavigate();
 
+  // Perfil da imobiliária e captações: uma vez por visita (não dependem do período).
   useEffect(() => {
-    if (!allowed) {
-      setLoading(false);
-      return;
-    }
+    if (!allowed) return;
     let cancelado = false;
-    setLoading(true);
-    setErro(null);
-    // Coordenadas e perfil são opcionais: se falharem, o relatório continua (mapa sem pinos/centro padrão).
-    // Tudo carrega junto para a fila de localização não refazer coordenadas que já existem.
-    void Promise.allSettled([
-      supabase.rpc("vendas_por_regiao" as never),
-      db.from("sale_geo").select("sale_id,geo_key,geo_lat,geo_lon"),
-      loadAgencyProfile(),
-    ]).then(([rv, rg, ra]) => {
+    void loadAgencyProfile()
+      .then((a) => !cancelado && setAgency(a))
+      .catch(() => undefined);
+    void db.rpc("mapa_captacoes").then(({ data, error }) => {
       if (cancelado) return;
-      if (rv.status === "rejected") setErro(String(rv.reason));
-      else if (rv.value.error) setErro(rv.value.error.message);
-      else setVendas(montarVendas((rv.value.data ?? []) as unknown as VendaRegiaoRow[]));
-      if (rg.status === "fulfilled" && !rg.value.error && rg.value.data) {
-        setGeo(new Map((rg.value.data as SaleGeo[]).map((g) => [g.sale_id, g])));
-      } else {
-        iniciouGeo.current = true; // sem leitura das coordenadas, não geocodifica nem grava nada
-      }
-      if (ra.status === "fulfilled") setAgency(ra.value);
-      setLoading(false);
+      if (error) toast.error("Não foi possível carregar o mapa de captações.");
+      else setCaptacoes((data ?? []) as CaptacaoMapaRow[]);
     });
     return () => {
       cancelado = true;
     };
   }, [allowed]);
 
-  // Localiza no mapa as vendas cujo endereço ainda não tem coordenada (ou mudou). Uma vez por visita.
+  // Vendas: o período vai para o banco, porque os totais das vendas de outras pessoas chegam somados.
+  useEffect(() => {
+    if (!allowed) {
+      setLoading(false);
+      return;
+    }
+    let cancelado = false;
+    if (!carregouUmaVez.current) setLoading(true);
+    setErro(null);
+    void db
+      .rpc("vendas_por_regiao_todos", {
+        _de: filtros.dataDe || null,
+        _ate: filtros.dataAte || null,
+      })
+      .then(({ data, error }) => {
+        if (cancelado) return;
+        if (error) setErro(error.message);
+        else {
+          const m = montarVendasTodos((data ?? []) as VendaRegiaoTodosRow[]);
+          setVendas(m.vendas);
+          setAnonimos(m.pinos);
+          setGeo((atual) => {
+            const n = new Map(m.geo);
+            for (const [k, g] of atual) if (!n.has(k)) n.set(k, g);
+            return n;
+          });
+        }
+        carregouUmaVez.current = true;
+        setLoading(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [allowed, filtros.dataDe, filtros.dataAte]);
+
+  // Localiza no mapa as vendas DA PESSOA cujo endereço ainda não tem coordenada. Uma vez por visita.
   useEffect(() => {
     if (loading || iniciouGeo.current || !vendas.length) return;
     const pendentes = vendasPendentesGeo(vendas, geo);
@@ -130,7 +172,7 @@ function VendasPorRegiaoPage() {
       setLocalizando({ feitos: 0, total: pendentes.length });
       for (const [i, v] of pendentes.entries()) {
         try {
-          const hit = await geocode(v, agency);
+          const hit = await geocodeConsultas(geoQueriesVenda(v, agency ?? undefined));
           const key = geoKeyVenda(v);
           const { error } = await db.rpc("sale_set_geo", {
             _sale_id: v.saleId,
@@ -160,11 +202,46 @@ function VendasPorRegiaoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, vendas]);
 
+  // Mesma coisa para as captações que a pessoa pode abrir (captador, líder, admin).
+  useEffect(() => {
+    if (iniciouGeoCap.current || !captacoes.length) return;
+    const pendentes = captacoesPendentesGeo(captacoes);
+    if (!pendentes.length) return;
+    iniciouGeoCap.current = true;
+    void (async () => {
+      setLocalizandoCap({ feitos: 0, total: pendentes.length });
+      for (const [i, r] of pendentes.entries()) {
+        try {
+          const c = comoCapture(r);
+          const hit = await geocodeConsultas(geoQueries(c, agency ?? undefined));
+          const key = geoKey(c);
+          await setCaptureGeo(r.id, key, hit?.[0] ?? null, hit?.[1] ?? null);
+          setCaptacoes((list) =>
+            list.map((x) =>
+              x.id === r.id
+                ? { ...x, geo_key: key, geo_lat: hit?.[0] ?? null, geo_lon: hit?.[1] ?? null }
+                : x,
+            ),
+          );
+        } catch {
+          break;
+        }
+        setLocalizandoCap({ feitos: i + 1, total: pendentes.length });
+      }
+      setLocalizandoCap(null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captacoes]);
+
   const filtradas = useMemo(() => filtrarVendas(vendas, filtros), [vendas, filtros]);
-  const { noMapa, semLocal } = useMemo(() => vendasNoMapa(filtradas, geo), [filtradas, geo]);
+  const anonimosFiltrados = useMemo(
+    () => filtrarPinos(anonimos, filtros.busca),
+    [anonimos, filtros.busca],
+  );
+  const { noMapa } = useMemo(() => vendasNoMapa(filtradas, geo), [filtradas, geo]);
   const pinos = useMemo<Pino[]>(
-    () =>
-      noMapa.map((v) => ({
+    () => [
+      ...noMapa.map((v) => ({
         id: v.saleId,
         lat: v.lat,
         lon: v.lon,
@@ -175,23 +252,36 @@ function VendasPorRegiaoPage() {
             bold: true,
           },
           { text: v.endereco || "Sem endereço cadastrado" },
-          {
-            text: [
-              v.bairro ? nomeExibicao(v.bairro) : "",
-              nomeExibicao(v.cidade.split("|")[0] ?? ""),
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          },
+          { text: local(v.bairro, v.cidade) },
           { text: `VGV ${brl(v.vgv)} · assinada em ${fmtData(v.data)}` },
         ],
         actionLabel: "Abrir venda →",
       })),
-    [noMapa],
+      ...anonimosFiltrados.map((p) => ({
+        id: p.id,
+        lat: p.lat,
+        lon: p.lon,
+        color: p.modalidade === "lancamento" ? COR_LANCAMENTO : COR_PADRAO,
+        lines: [
+          {
+            text: `Venda · ${p.modalidade === "lancamento" ? "Lançamento" : "Padrão"}`,
+            bold: true,
+          },
+          { text: local(p.bairro, p.cidade) || "Sem bairro informado" },
+          { text: "Localização aproximada" },
+        ],
+      })),
+    ],
+    [noMapa, anonimosFiltrados],
   );
+  const pinosCap = useMemo(() => pinosCaptacoes(captacoes, hoje), [captacoes, hoje]);
+  const capSemLocal = captacoes.length - pinosCap.length;
   const cidades = useMemo(() => agruparPorRegiao(filtradas), [filtradas]);
+  const totalQtd = somaQtd(filtradas);
   const totalVgv = filtradas.reduce((s, v) => s + v.vgv, 0);
-  const semEndereco = filtradas.filter((v) => !v.bairro || !v.cidade).length;
+  const semEndereco = somaQtd(filtradas.filter((v) => !v.bairro || !v.cidade));
+  const totalNoMapa = pinos.length;
+  const semLocal = Math.max(totalQtd - totalNoMapa, 0);
 
   const alternar = (k: string) =>
     setAbertos((s) => {
@@ -212,7 +302,7 @@ function VendasPorRegiaoPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a administradores, financeiro, gestores e Team Leaders.
+          Esta área é restrita a usuários da imobiliária.
         </CardContent>
       </Card>
     );
@@ -223,8 +313,8 @@ function VendasPorRegiaoPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Vendas por região</h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Onde os imóveis vendidos estão: quantidade e VGV por cidade e bairro. Clique num bairro
-            para ver as vendas.
+            Onde estão as captações e os imóveis vendidos da imobiliária: quantidade e VGV por
+            cidade e bairro.
           </p>
         </div>
         <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
@@ -232,6 +322,34 @@ function VendasPorRegiaoPage() {
           Imprimir / baixar
         </Button>
       </div>
+
+      <Card className="print:hidden">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+          <CardTitle className="text-base">Mapa das captações</CardTitle>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_CAPTACAO }} />
+            {captacoes.length} {captacoes.length === 1 ? "captação" : "captações"}
+          </span>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <PinsMap
+            pins={pinosCap}
+            city={agency?.cidade ?? null}
+            uf={agency?.uf ?? null}
+            onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
+          />
+          <p className="text-xs text-muted-foreground">
+            {localizandoCap
+              ? `Localizando captações no mapa… ${localizandoCap.feitos}/${localizandoCap.total}. `
+              : ""}
+            {capSemLocal > 0
+              ? `${capSemLocal} ${capSemLocal === 1 ? "captação ainda sem localização" : "captações ainda sem localização"} (sem endereço ou ainda não localizada). `
+              : ""}
+            Captações em andamento e em vigor; descartadas e arquivadas ficam de fora. Os dados do
+            proprietário nunca aparecem no mapa.
+          </p>
+        </CardContent>
+      </Card>
 
       {erro && (
         <Card className="border-destructive/40">
@@ -258,9 +376,9 @@ function VendasPorRegiaoPage() {
             />
           </div>
           <div className="space-y-1 md:col-span-2">
-            <Label>Buscar endereço, bairro ou cidade</Label>
+            <Label>Buscar bairro ou cidade</Label>
             <Input
-              placeholder="Ex.: Campolim, Rua Antônio Perez, Votorantim"
+              placeholder="Ex.: Campolim, Votorantim"
               value={filtros.busca}
               onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
             />
@@ -297,7 +415,7 @@ function VendasPorRegiaoPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Vendas</div>
-            <div className="text-2xl font-semibold">{filtradas.length}</div>
+            <div className="text-2xl font-semibold">{totalQtd}</div>
           </CardContent>
         </Card>
         <Card>
@@ -314,10 +432,10 @@ function VendasPorRegiaoPage() {
         </Card>
       </div>
 
-      {filtradas.length > 0 && (
+      {totalQtd > 0 && (
         <Card className="print:hidden">
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base">Mapa</CardTitle>
+            <CardTitle className="text-base">Mapa das vendas</CardTitle>
             <div className="flex flex-wrap gap-3 text-xs">
               <span className="flex items-center gap-1">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_PADRAO }} />
@@ -343,7 +461,7 @@ function VendasPorRegiaoPage() {
               {semLocal > 0
                 ? `${semLocal} ${semLocal === 1 ? "venda sem localização" : "vendas sem localização"} no mapa (sem endereço ou endereço não encontrado). `
                 : "Todas as vendas filtradas estão no mapa. "}
-              Localização aproximada pelo OpenStreetMap.
+              Localização pelo OpenStreetMap; nas vendas de outras pessoas o ponto é aproximado.
             </p>
           </CardContent>
         </Card>
@@ -416,6 +534,15 @@ function VendasPorRegiaoPage() {
                           <span className="whitespace-nowrap">{brl(v.vgv)}</span>
                         </li>
                       ))}
+                      {b.outras > 0 && (
+                        <li className="px-3 py-2 text-xs text-muted-foreground">
+                          {b.outras}{" "}
+                          {b.outras === 1
+                            ? "venda de outra pessoa da imobiliária"
+                            : "vendas de outras pessoas da imobiliária"}{" "}
+                          (só entram nos totais).
+                        </li>
+                      )}
                     </ul>
                   )}
                 </div>
@@ -427,9 +554,9 @@ function VendasPorRegiaoPage() {
 
       <p className="text-xs text-muted-foreground">
         Mesmas vendas dos demais relatórios: data da assinatura do contrato (Lançamentos: entrada no
-        Financeiro); canceladas e arquivadas ficam de fora. Grafias diferentes do mesmo bairro ou
-        cidade são somadas juntas. Vendas sem bairro ou cidade aparecem separadas até alguém
-        completar o endereço.
+        Financeiro); canceladas e arquivadas ficam de fora. Os totais são da imobiliária inteira e
+        iguais para todos; o detalhe de cada venda aparece só para quem já tem acesso a ela. Grafias
+        diferentes do mesmo bairro ou cidade são somadas juntas.
       </p>
     </div>
   );
