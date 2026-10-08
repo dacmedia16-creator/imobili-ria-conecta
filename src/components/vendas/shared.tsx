@@ -198,7 +198,10 @@ export function Field({
   invalid = false,
   errorText,
   required = false,
+  id,
 }: {
+  /** id do bloco do campo — alvo de "levar ao campo que falta" (pendencia-navegacao.ts). */
+  id?: string;
   label: string;
   children: React.ReactNode;
   colSpan?: number;
@@ -214,7 +217,7 @@ export function Field({
   const labelId = useId();
 
   return (
-    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
+    <div id={id} className={colSpan === 2 ? "md:col-span-2" : ""}>
       <div className="mb-1.5 flex items-center gap-1.5">
         <Label
           id={labelId}

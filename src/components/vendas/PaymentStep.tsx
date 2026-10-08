@@ -85,7 +85,7 @@ export function PaymentStep({
   return (
     <div className="space-y-4">
       {editable && <AutosaveStatus saving={saving} dirty={dirty} />}
-      <Card>
+      <Card id="campo-pagamento">
         <CardHeader>
           <CardTitle className="text-base">Forma de pagamento</CardTitle>
         </CardHeader>

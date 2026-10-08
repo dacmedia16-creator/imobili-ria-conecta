@@ -868,7 +868,11 @@ export function DocumentsPanel({
                     parte.startsWith("comprador_") || parte.startsWith("vendedor_");
                   const mostraObrigatorio = partePessoal || parte === "imovel";
                   return (
-                    <Card key={`${parte}-${t.key}`} className={parteAccent}>
+                    <Card
+                      key={`${parte}-${t.key}`}
+                      id={`doc-${t.key}-${parte}`}
+                      className={parteAccent}
+                    >
                       <CardContent className="space-y-3 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>

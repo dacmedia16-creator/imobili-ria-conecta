@@ -55,6 +55,12 @@ import {
   money,
 } from "@/components/vendas/shared";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import {
+  campoDoErroBanco,
+  destinoLancamento,
+  irParaCampo,
+  mensagemLancamento,
+} from "@/lib/pendencia-navegacao";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
 import {
   mesclarPessoasAtivas,
@@ -936,21 +942,32 @@ export function LancamentoDetail({
   const [sending, setSending] = useState(false);
   const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const anyDirty = dirty || partiesDirty || paymentDirty || commDirty;
+  /** Rola até o campo, dá foco, contorna de vermelho e diz o nome dele e a seção. */
+  const levarAoCampoLancamento = (campo: string, mensagem: string) => {
+    const destino = destinoLancamento(campo);
+    if (!destino) return;
+    if (campo === "midia") setMostrarErroMidia(true);
+    irParaCampo(destino.alvoId);
+    toast.error(mensagem, { description: mensagemLancamento(destino), duration: 10000 });
+  };
   const enviarFinanceiro = async () => {
     if (anyDirty) {
       toast.error("Aguarde salvar as últimas alterações antes de enviar (alguns segundos).");
       return;
     }
     if (!midiaPreenchida(form.midia)) {
-      setMostrarErroMidia(true);
-      toast.error(MIDIA_OBRIGATORIA_MSG, { duration: 8000 });
+      levarAoCampoLancamento("midia", MIDIA_OBRIGATORIA_MSG);
       return;
     }
     setSending(true);
     try {
       const { error } = await supabase.rpc("criar_ocorrencia_lancamento", { p_sale_id: saleId });
       if (error) {
-        toast.error(error.message);
+        // Travas do banco com campo conhecido (Mídia, valor negociado, comissão, divisão): leva ao
+        // campo em vez de só mostrar o texto.
+        const campo = campoDoErroBanco(error);
+        if (campo && destinoLancamento(campo)) levarAoCampoLancamento(campo, error.message);
+        else toast.error(error.message);
         return;
       }
       notifySaleStatusChange({ data: { saleId, status: "ocorrencia_analise_financeiro" } }).catch(
@@ -994,6 +1011,26 @@ export function LancamentoDetail({
         </p>
       </div>
 
+      {canEdit && !midiaPreenchida(form.midia) && (
+        <div
+          role="alert"
+          data-testid="faixa-midia"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200"
+        >
+          <span>
+            <AlertTriangle className="mr-2 inline h-4 w-4" />
+            <b>Falta preencher a Mídia.</b> Sem ela, a venda não poderá avançar.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => levarAoCampoLancamento("midia", MIDIA_OBRIGATORIA_MSG)}
+          >
+            Preencher agora
+          </Button>
+        </div>
+      )}
+
       {sale.status === "devolvida_ajuste" && (
         <div className="flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200 print:hidden">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1031,6 +1068,7 @@ export function LancamentoDetail({
                 />
               </Field>
               <Field
+                id="campo-lancamento-midia"
                 label="Mídia"
                 required
                 invalid={mostrarErroMidia && !midiaPreenchida(form.midia)}
@@ -1166,7 +1204,7 @@ export function LancamentoDetail({
                   onChange={(v) => upd({ valor_anunciado: v })}
                 />
               </Field>
-              <Field label="Valor negociado">
+              <Field id="campo-lancamento-valor_negociado" label="Valor negociado">
                 <CurrencyInput
                   value={form.valor_negociado}
                   disabled={!canEdit}
@@ -1184,7 +1222,7 @@ export function LancamentoDetail({
               <Field label="Percentual de comissão (referência)">
                 <Input type="number" step="0.01" value={form.percentual_comissao ?? ""} disabled />
               </Field>
-              <Field label="Valor total da comissão">
+              <Field id="campo-lancamento-comissao" label="Valor total da comissão">
                 <CurrencyInput
                   value={form.valor_total_comissao}
                   disabled={!canEdit}
@@ -1220,7 +1258,7 @@ export function LancamentoDetail({
           />
 
           <SaleSection title="Divisão da comissão">
-            <div className="space-y-3">
+            <div id="secao-lancamento-divisao" className="space-y-3">
               {commError && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
                   {commError}
