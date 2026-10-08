@@ -1,8 +1,9 @@
 -- Cadastro manual de exclusividade JÁ ASSINADA no papel (maquete aprovada por Denis em 08/10).
 --
 -- Fluxo: o captador (usuário logado) cria a captação marcada como manual, anexa o contrato assinado
--- (PDF ou foto: ÚNICO item obrigatório), confere o que a leitura por IA preencheu, marca o Plano de
--- Marketing (opcional) e envia ao gestor. O gestor confere e aprova; só então ela conta como
+-- (PDF ou foto: único DOCUMENTO obrigatório), confere o que a leitura por IA preencheu, confere o
+-- Plano de Marketing (obrigatório, mesma regra da captação normal, validada na tela como lá) e envia
+-- ao gestor. O gestor confere e aprova; só então ela conta como
 -- assinada. Não há PDF gerado pelo sistema nem passo de assinatura externa.
 --
 -- Critério do mapa (PR #41, migration 20261008150000, mapa_captacoes() NÃO é alterada): depois da

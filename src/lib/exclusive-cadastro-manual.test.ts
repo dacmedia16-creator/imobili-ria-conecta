@@ -133,6 +133,30 @@ describe("cadastro manual — único obrigatório é o contrato", () => {
     );
   });
 
+  it("Plano de Marketing é obrigatório no manual: vitais pré-marcadas, bloqueia envio e aprovação", () => {
+    const route = read("../routes/_authenticated/exclusividades.$id.tsx");
+    const step = read("../components/CaptureDossieStep.tsx");
+    // Mesma regra da normal (sem exceção para o manual) e vitais já marcadas.
+    expect(route).toContain("const dossieMissing = dossieMissingFor(dossieActions, dossieIds);");
+    expect(route).not.toMatch(/dossieRequired = !manual/);
+    expect(route).toContain("initialDossieSelection(dossieActions, undefined, true)");
+    // Pendência obrigatória (desabilita "Enviar ao gestor") e mesma navegação até a etapa.
+    expect(route).toContain(
+      'manualCheck.required.push("Plano de Marketing: marque ao menos 1 ação")',
+    );
+    expect(route).toMatch(
+      /manual && dossieMissing && \(name === "enviar" \|\| name === "aprovar"\)\) \{\s+setStep\("dossie"\)/,
+    );
+    expect(route).toMatch(
+      /\(manual && dossieMissing\)\s+\}\s+onClick=\{\(\) => action\("aprovar"\)\}/,
+    );
+    // Nada de "opcional" para o Plano de Marketing.
+    expect(route).not.toMatch(/Plano de Marketing[^\n]*[Oo]pcional/);
+    expect(route).not.toContain("optional\n");
+    expect(step).not.toContain("Não impede o envio ao gestor");
+    expect(up.slice(0, 600)).not.toMatch(/Marketing \(opcional\)/);
+  });
+
   it("próxima ação e cor do selo/pino seguem a maquete (roxo)", () => {
     expect(captureNextAction("enviada", true, true)).toBe("Conferir e aprovar o cadastro manual");
     expect(captureNextAction("enviada", false, true)).toBe("Aguardar aprovação do gestor");
