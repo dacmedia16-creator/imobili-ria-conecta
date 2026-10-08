@@ -51,9 +51,10 @@ import {
   COMISSAO_PAPEIS,
   PARCERIA_TIPOS,
   MIDIA_OPTIONS,
+  MIDIA_OCORRENCIA_OBRIGATORIA_MSG,
+  midiaPreenchida,
   validarProntaParaRevisao,
   enderecoFaltando,
-  mensagemEnderecoFaltando,
   validarComposicaoPagamento,
   validarDocsAprovadosParaJuridico,
   proximoResponsavel,
@@ -67,7 +68,16 @@ import {
   CHECKS_NAO_DOCUMENTAIS,
   type SaleStatus,
   type DocParte,
+  type Pendencia,
 } from "@/lib/status";
+import {
+  campoDoErroBanco,
+  destinoDaPendencia,
+  irParaCampo,
+  mensagemPendencias,
+  ordenarPorPosicao,
+  primeiraPendencia,
+} from "@/lib/pendencia-navegacao";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -358,6 +368,11 @@ function SaleDetail() {
   const [activity, setActivity] = useState<ActivityLogRow[]>([]);
   const [activityAuthorNames, setActivityAuthorNames] = useState<Record<string, string>>({});
   const [aceitaFin, setAceitaFin] = useState(false);
+  // Ocorrência sem Mídia (trava o envio ao financeiro) — alimenta a faixa amarela.
+  // null = a venda ainda não tem ocorrência (vale a Mídia da venda).
+  const [occSemMidia, setOccSemMidia] = useState<boolean | null>(null);
+  // Pedido para a etapa Partes abrir a aba de uma parte (comprador/vendedor) faltante.
+  const [partesFoco, setPartesFoco] = useState<{ papel: string; n: number } | null>(null);
   // Distribuição financeira da venda (captador/vendedor líquidos, saldo da imobiliária, etc.) —
   // calculada uma única vez no banco por calcular_distribuicao_venda(), fonte de verdade usada
   // tanto no Resumo quanto na Ocorrência (ver migration 20260809030000). Reflete o que está
@@ -370,6 +385,7 @@ function SaleDetail() {
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [mostrarErrosEndereco, setMostrarErrosEndereco] = useState(false);
+  const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -674,7 +690,7 @@ function SaleDetail() {
           .select("*")
           .eq("sale_id", id)
           .order("created_at", { ascending: false }),
-        supabase.from("occurrences").select("aceita_financeiro").eq("sale_id", id),
+        supabase.from("occurrences").select("aceita_financeiro,midia").eq("sale_id", id),
         supabase.from("sale_commission_extras").select("*").eq("sale_id", id).order("created_at"),
         supabase
           .from("activity_logs")
@@ -750,6 +766,7 @@ function SaleDetail() {
     setCanUploadCertidoes(!certidoesCapability.error && certidoesCapability.data === true);
     setActivity(ac.data ?? []);
     setAceitaFin((oc.data ?? []).some((o) => o.aceita_financeiro));
+    setOccSemMidia(oc.data?.length ? oc.data.some((o) => !midiaPreenchida(o.midia)) : null);
     setLoading(false);
     hasLoadedOnceRef.current = true;
     if (s.data && user && s.data.corretor_id !== user.id) {
@@ -1676,7 +1693,8 @@ function SaleDetail() {
             _motivo: motivo,
           });
     if (error) {
-      toast.error(error.message);
+      // Trava de campo do banco (ex.: Mídia, errcode 23514): leva até o campo em vez de só avisar.
+      if (!tratarErroDeCampo(error)) toast.error(error.message);
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
@@ -1691,6 +1709,26 @@ function SaleDetail() {
     const finalStatus = next === "contrato_assinado" ? "ocorrencia_pendente" : next;
     toast.success(`Status alterado para "${STATUS_LABEL[finalStatus]}"`);
     load();
+  };
+
+  // Ocorrência só vai ao financeiro com Mídia preenchida (o banco também trava). Lê o valor já salvo,
+  // depois de gravar o que estiver pendente, e leva o gestor de volta à aba Ocorrência se faltar.
+  const enviarOcorrenciaFinanceiro = async () => {
+    if (!(await flushAllDirty())) return;
+    const { data: occMidia } = await supabase
+      .from("occurrences")
+      .select("midia")
+      .eq("sale_id", id)
+      .maybeSingle();
+    if (occMidia && !midiaPreenchida(occMidia.midia)) {
+      void levarAoCampo("occ_midia");
+      toast.error(MIDIA_OCORRENCIA_OBRIGATORIA_MSG, {
+        description: "Falta preencher Mídia, na etapa Ocorrência. Já abrimos ela para você.",
+        duration: 10000,
+      });
+      return;
+    }
+    await changeStatus("ocorrencia_analise_financeiro");
   };
 
   const contratoDocs = docs.filter((d) => d.tipo === "contrato");
@@ -1932,42 +1970,80 @@ function SaleDetail() {
     await changeStatus(archiveTarget, archiveMotivo);
     setArchiveOpen(false);
   };
-  const attemptSendForReview = () => setReviewOpen(true);
-  // Endereço incompleto: explica o motivo, volta para o Resumo e marca os campos em vermelho.
-  const barrarPorEndereco = (): boolean => {
-    const falta = enderecoFaltando(formSale as unknown as Record<string, unknown>);
-    if (!falta.length) return false;
-    setMostrarErrosEndereco(true);
+  // ---- Levar ao campo que falta (pedido de Denis 08/10) ----
+  // Abre a etapa/bloco/parte onde o campo fica, rola até ele, dá foco e contorna de vermelho.
+  // As regras de pendência continuam em status.ts; aqui é só "onde fica" (pendencia-navegacao.ts).
+  const levarAoCampo = async (campo: string): Promise<boolean> => {
+    const destino = destinoDaPendencia(campo);
+    if (!destino) return false;
     setReviewOpen(false);
     setApproveJuridicoOpen(false);
-    setStep("resumo");
-    toast.error(mensagemEnderecoFaltando(falta), { duration: 8000 });
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        document
-          .getElementById("endereco-imovel-partes")
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 150);
+    if (campo === "midia") setMostrarErroMidia(true);
+    if (campo === "endereco") setMostrarErrosEndereco(true);
+    // Sair da etapa atual pelo mesmo caminho do wizard: salva o que estiver pendente nela antes
+    // (senão o conteúdo da etapa desmonta e uma edição ainda não salva se perderia).
+    if (step !== destino.etapa && !(await onBeforeLeave(step))) return false;
+    setStep(destino.etapa);
+    if (destino.bloco) setActiveResumoBlock(destino.bloco);
+    if (destino.etapa === "documentos" && destino.parte) setDocParte(destino.parte as DocParte);
+    if (destino.etapa === "partes" && destino.parte)
+      setPartesFoco({ papel: destino.parte, n: Date.now() });
+    irParaCampo(destino.alvoId);
+    return true;
+  };
+  /** Pendências → abre o primeiro campo e avisa o nome dele, onde fica e o que mais falta. */
+  const barrarPorPendencias = (
+    lista: Pendencia[],
+    verbo: "preencher" | "aprovar" = "preencher",
+  ): boolean => {
+    const primeira = primeiraPendencia(lista);
+    if (!primeira) return false;
+    const msg = mensagemPendencias(lista, verbo);
+    void levarAoCampo(primeira.pendencia.campo);
+    if (msg) toast.error(msg.titulo, { description: msg.descricao, duration: 10000 });
+    return true;
+  };
+  // Erro devolvido pelo banco (gatilhos/RPCs com errcode 23514): se for de um campo conhecido,
+  // leva até ele em vez de só mostrar o texto.
+  const tratarErroDeCampo = (error: { code?: string; message?: string }): boolean => {
+    const campo = campoDoErroBanco(error);
+    const destino = campo ? destinoDaPendencia(campo) : null;
+    if (!campo || !destino) return false;
+    void levarAoCampo(campo);
+    toast.error(error.message, {
+      description: `Falta preencher ${destino.campoLabel}. Já abrimos o campo para você.`,
+      duration: 10000,
     });
     return true;
   };
+  // O que trava o envio, com o que está digitado agora (o Resumo salva com alguns segundos de atraso).
+  const pendenciasAtuais = (): Pendencia[] =>
+    validarProntaParaRevisao({ ...sale, ...formSale } as SaleRow, parties, payment, docs);
+  /** Item de lista de pendências: clicável quando sabemos onde o campo fica. */
+  const pendenciaClicavel = (p: Pendencia) =>
+    destinoDaPendencia(p.campo) ? (
+      <button
+        type="button"
+        data-pendencia={p.campo}
+        className="text-left underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        onClick={() => void levarAoCampo(p.campo)}
+      >
+        {p.mensagem}
+      </button>
+    ) : (
+      <span>{p.mensagem}</span>
+    );
+  const attemptSendForReview = () => {
+    if (barrarPorPendencias(pendenciasAtuais())) return;
+    setReviewOpen(true);
+  };
   const confirmSendForReview = async () => {
-    if (barrarPorEndereco()) return;
-    if (pendencias.length > 0) {
-      toast.error("Corrija as pendências antes de enviar");
-      return;
-    }
+    if (barrarPorPendencias(pendenciasAtuais())) return;
     // Dono também é gestor/team leader: em vez de ir para "enviada_revisao" (que ele mesmo teria que
     // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
     if (envioDiretoJuridico) {
-      if (pendenciasPagamento.length > 0) {
-        toast.error(pendenciasPagamento[0].mensagem);
-        return;
-      }
-      if (docsPendentesAprovacao.length > 0) {
-        toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico");
-        return;
-      }
+      if (barrarPorPendencias(pendenciasPagamento)) return;
+      if (barrarPorPendencias(docsPendentesAprovacao, "aprovar")) return;
       if (distribuicao && !distribuicao.calculo_valido) {
         toast.error(
           `Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
@@ -1984,14 +2060,8 @@ function SaleDetail() {
 
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
-    if (pendenciasPagamento.length > 0) {
-      toast.error(pendenciasPagamento[0].mensagem);
-      return;
-    }
-    if (docsPendentesAprovacao.length > 0) {
-      toast.error("Aprove todos os documentos obrigatórios antes de enviar ao jurídico");
-      return;
-    }
+    if (barrarPorPendencias(pendenciasPagamento)) return;
+    if (barrarPorPendencias(docsPendentesAprovacao, "aprovar")) return;
     // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
     // bloqueia isso de qualquer forma (trigger em change_sale_status), mas checar aqui primeiro evita
     // a viagem ao servidor e mostra a mensagem específica na hora, sem travar a digitação da Resumo.
@@ -2088,14 +2158,14 @@ function SaleDetail() {
                   <>
                     <SaleSection title="Imóvel">
                       <FieldGrid>
-                        <Field label="ID do imóvel">
+                        <Field id="campo-venda-imovel" label="ID do imóvel">
                           <Input
                             value={formSale.imovel_id ?? ""}
                             disabled={!editable}
                             onChange={(e) => updResumo({ imovel_id: e.target.value })}
                           />
                         </Field>
-                        <Field label="Matrícula">
+                        <Field id="campo-venda-matricula" label="Matrícula">
                           <Input
                             value={formSale.matricula ?? ""}
                             disabled={!editable}
@@ -2161,13 +2231,26 @@ function SaleDetail() {
                             placeholder="Ex: 45"
                           />
                         </Field>
-                        <Field label="Mídia">
+                        <Field
+                          id="campo-venda-midia"
+                          label="Mídia"
+                          required
+                          invalid={mostrarErroMidia && !midiaPreenchida(formSale.midia)}
+                          errorText="Obrigatório para enviar a venda."
+                        >
                           <Select
                             value={formSale.midia ?? "none"}
                             onValueChange={(v) => updResumo({ midia: v === "none" ? null : v })}
                             disabled={!editable}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              id="campo-midia-venda"
+                              className={
+                                mostrarErroMidia && !midiaPreenchida(formSale.midia)
+                                  ? "border-destructive ring-1 ring-destructive/30"
+                                  : undefined
+                              }
+                            >
                               <SelectValue placeholder="Selecione o canal" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3013,7 +3096,7 @@ function SaleDetail() {
                             onChange={(v) => updResumo({ valor_anunciado: v })}
                           />
                         </Field>
-                        <Field label="Valor negociado (R$)">
+                        <Field id="campo-venda-valor_negociado" label="Valor negociado (R$)">
                           <CurrencyInput
                             value={formSale.valor_negociado}
                             disabled={!editable}
@@ -3028,7 +3111,7 @@ function SaleDetail() {
                             disabled
                           />
                         </Field>
-                        <Field label="Valor total da comissão (R$)">
+                        <Field id="campo-venda-comissao" label="Valor total da comissão (R$)">
                           <CurrencyInput
                             value={formSale.valor_total_comissao}
                             disabled={!editable}
@@ -3742,6 +3825,7 @@ function SaleDetail() {
           onSaved={load}
           registerSaver={(fn) => registerSaver("partes", fn)}
           onDirtyChange={(d) => setStepDirty("partes", d)}
+          foco={partesFoco}
         />
       ),
     },
@@ -3861,9 +3945,22 @@ function SaleDetail() {
                         ? {
                             label: "Enviar ocorrência ao financeiro",
                             icon: DollarSign,
-                            onClick: () => changeStatus("ocorrencia_analise_financeiro"),
+                            onClick: enviarOcorrenciaFinanceiro,
                           }
                         : null;
+
+  // Faixa amarela: venda aberta sem Mídia. Com ocorrência criada, a trava passa a ser a Mídia da
+  // ocorrência (é ela que o banco confere ao enviar ao financeiro); antes disso, a Mídia da venda.
+  const vendaAberta = !["ocorrencia_concluida", "arquivada", "cancelada"].includes(status);
+  const faixaMidia: "midia" | "occ_midia" | null = !vendaAberta
+    ? null
+    : occSemMidia === null
+      ? midiaPreenchida(formSale.midia)
+        ? null
+        : "midia"
+      : occSemMidia && canOccurrence
+        ? "occ_midia"
+        : null;
 
   return (
     <div className="space-y-6">
@@ -3880,6 +3977,23 @@ function SaleDetail() {
           Voltar
         </Button>
       </div>
+
+      {faixaMidia && (
+        <div
+          role="alert"
+          data-testid="faixa-midia"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200"
+        >
+          <span>
+            <AlertTriangle className="mr-2 inline h-4 w-4" />
+            <b>Falta preencher a Mídia{faixaMidia === "occ_midia" ? " na Ocorrência" : ""}.</b> Sem
+            ela, a venda não poderá avançar.
+          </span>
+          <Button size="sm" variant="outline" onClick={() => void levarAoCampo(faixaMidia)}>
+            Preencher agora
+          </Button>
+        </div>
+      )}
 
       {isJuridico &&
         contratoDocs.length > 0 &&
@@ -4105,7 +4219,7 @@ function SaleDetail() {
 
           {isGestor &&
             (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
-              <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
+              <Button onClick={enviarOcorrenciaFinanceiro}>
                 <DollarSign className="mr-2 h-4 w-4" />
                 Enviar ocorrência ao financeiro
               </Button>
@@ -4793,11 +4907,14 @@ function SaleDetail() {
           {pendencias.length > 0 && isOwner && (
             <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
               <div className="mb-1 font-medium">Pendências para envio:</div>
-              <ul className="list-inside list-disc space-y-0.5">
-                {pendencias.slice(0, 4).map((p) => (
-                  <li key={p.campo}>{p.mensagem}</li>
+              <ul className="list-inside list-disc space-y-0.5" data-testid="pendencias-envio">
+                {/* Todas, na ordem em que aparecem na tela; clicar leva ao campo. */}
+                {[
+                  ...ordenarPorPosicao(pendencias).map((x) => x.pendencia),
+                  ...pendencias.filter((p) => !destinoDaPendencia(p.campo)),
+                ].map((p) => (
+                  <li key={p.campo}>{pendenciaClicavel(p)}</li>
                 ))}
-                {pendencias.length > 4 && <li>e mais {pendencias.length - 4}…</li>}
               </ul>
             </div>
           )}
@@ -4871,7 +4988,7 @@ function SaleDetail() {
                   {pendencias.map((p) => (
                     <li key={p.campo} className="flex items-start gap-2">
                       <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                      <span>{p.mensagem}</span>
+                      {pendenciaClicavel(p)}
                     </li>
                   ))}
                 </ul>
@@ -4887,7 +5004,7 @@ function SaleDetail() {
                   {docsPendentesAprovacao.map((p) => (
                     <li key={p.campo} className="flex items-start gap-2">
                       <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                      <span>{p.mensagem}</span>
+                      {pendenciaClicavel(p)}
                     </li>
                   ))}
                 </ul>
@@ -5031,7 +5148,7 @@ function SaleDetail() {
                   {docsPendentesAprovacao.map((p) => (
                     <li key={p.campo} className="flex items-start gap-2">
                       <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                      <span>{p.mensagem}</span>
+                      {pendenciaClicavel(p)}
                     </li>
                   ))}
                 </ul>
@@ -7013,7 +7130,13 @@ function OccurrencePanel({
                 onChange={(e) => updOcc({ data_assinatura: e.target.value || null })}
               />
             </Field>
-            <Field label="Mídia">
+            <Field
+              id="campo-ocorrencia-midia"
+              label="Mídia"
+              required
+              invalid={!concluida && !midiaPreenchida(formOcc.midia)}
+              errorText="Obrigatório para enviar a ocorrência ao financeiro."
+            >
               <Select
                 value={formOcc.midia ?? "none"}
                 onValueChange={(v) => updOcc({ midia: v === "none" ? null : v })}

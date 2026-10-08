@@ -77,7 +77,7 @@ const FIELD_HINTS: Record<string, string> = {
   "Código interno": "Use o código interno da negociação para facilitar a localização da venda.",
   "Tempo de venda (dias)": "Informe quantos dias se passaram desde a captação até o fechamento.",
   Mídia:
-    "Selecione de onde veio o cliente ou a oportunidade: portal, indicação, rede social ou outro canal.",
+    "Obrigatório para enviar a venda. Selecione de onde veio o cliente ou a oportunidade: portal, indicação, rede social ou outro canal.",
   "Observações do imóvel":
     "Registre detalhes importantes do imóvel que não cabem nos outros campos.",
   "Corretor captador": "Selecione o corretor que captou o cliente ou iniciou o atendimento.",
@@ -197,13 +197,19 @@ export function Field({
   hint,
   invalid = false,
   errorText,
+  required = false,
+  id,
 }: {
+  /** id do bloco do campo — alvo de "levar ao campo que falta" (pendencia-navegacao.ts). */
+  id?: string;
   label: string;
   children: React.ReactNode;
   colSpan?: number;
   hint?: string;
   invalid?: boolean;
   errorText?: string;
+  /** Mostra um asterisco vermelho ao lado do rótulo (campo exigido para avançar a venda). */
+  required?: boolean;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -211,7 +217,7 @@ export function Field({
   const labelId = useId();
 
   return (
-    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
+    <div id={id} className={colSpan === 2 ? "md:col-span-2" : ""}>
       <div className="mb-1.5 flex items-center gap-1.5">
         <Label
           id={labelId}
@@ -225,6 +231,11 @@ export function Field({
           }
         >
           {label}
+          {required && (
+            <span className="ml-0.5 text-destructive" aria-hidden="true">
+              *
+            </span>
+          )}
         </Label>
         {guidance && (
           <button

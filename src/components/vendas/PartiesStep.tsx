@@ -51,6 +51,7 @@ export function PartiesStep({
   onSaved,
   registerSaver,
   onDirtyChange,
+  foco,
 }: {
   saleId: string;
   parties: Record<string, PartyRow>;
@@ -60,6 +61,8 @@ export function PartiesStep({
   onSaved: () => void;
   registerSaver: (fn: Saver | null) => void;
   onDirtyChange: (d: boolean) => void;
+  /** Abre a aba desta parte (ex.: pendência "falta o comprador"). `n` muda a cada pedido. */
+  foco?: { papel: string; n: number } | null;
 }) {
   const { user } = useAuth();
   const [papeis, setPapeis] = useState<string[]>(() => {
@@ -242,7 +245,11 @@ export function PartiesStep({
     setClienteMatch((m) => ({ ...m, [papel]: { historico: historico ?? [] } }));
   };
 
-  const [activePapel, setActivePapel] = useState(papeis[0]);
+  const [activePapel, setActivePapel] = useState(foco?.papel ?? papeis[0]);
+  useEffect(() => {
+    if (foco?.papel && papeis.includes(foco.papel)) setActivePapel(foco.papel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foco?.n]);
 
   const addPapel = (tipo: "vendedor" | "comprador") => {
     const nums = papeis.filter((p) => p.startsWith(`${tipo}_`)).map((p) => Number(p.split("_")[1]));
@@ -539,7 +546,14 @@ export function PartiesStep({
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field label={(forms[p].tipo_pessoa ?? "fisica") === "juridica" ? "Nome do representante" : "Nome"}>
+                    <Field
+                      id={`campo-parte-${p}`}
+                      label={
+                        (forms[p].tipo_pessoa ?? "fisica") === "juridica"
+                          ? "Nome do representante"
+                          : "Nome"
+                      }
+                    >
                       <Input
                         value={forms[p].nome ?? ""}
                         onChange={(e) => update(p, "nome", e.target.value)}

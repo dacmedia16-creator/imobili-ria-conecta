@@ -3681,6 +3681,7 @@ export type Database = {
           _ate?: string;
           _corretor_ids?: string[];
           _desde?: string;
+          _midia?: string;
           _page?: number;
           _page_size?: number;
           _q?: string;
@@ -3694,6 +3695,7 @@ export type Database = {
           _ate?: string;
           _corretor_ids?: string[];
           _desde?: string;
+          _midia?: string;
           _page?: number;
           _page_size?: number;
           _q?: string;
