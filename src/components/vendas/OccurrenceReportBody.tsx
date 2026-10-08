@@ -390,6 +390,15 @@ export function OccurrenceReportBody({
         ))}
       </FormTable>
 
+      {sale.parceria_observacoes?.trim() && (
+        <FormTable>
+          <FormHeadRow cols={["Observações da parceria"]} />
+          <FormValueRow
+            cols={[<span className="whitespace-pre-wrap">{sale.parceria_observacoes}</span>]}
+          />
+        </FormTable>
+      )}
+
       {occ?.observacoes && (
         <FormTable>
           <FormHeadRow cols={["Observações"]} />

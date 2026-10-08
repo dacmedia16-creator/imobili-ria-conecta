@@ -119,6 +119,30 @@ export function gestorPodeEncerrar(isGestor: boolean, status: SaleStatus): boole
   return gestorPodeEditar(isGestor, status, false);
 }
 
+/** Etapas anteriores à assinatura do contrato (reunião de gestores 08/10/2026). */
+export const STATUS_ANTES_ASSINATURA: readonly SaleStatus[] = [
+  "rascunho",
+  "enviada_revisao",
+  "devolvida_ajuste",
+  "aprovada_gestor",
+  "enviada_juridico",
+  "em_elaboracao_contrato",
+  "contrato_conferencia_gestor",
+  "contrato_conferencia_corretor",
+  "contrato_ok_corretor",
+  "aguardando_assinatura",
+];
+
+/** Arquivar venda (reunião de gestores 08/10/2026): qualquer pessoa que já vê/opera a venda —
+ * inclusive o corretor — pode arquivar ANTES da assinatura do contrato; do contrato assinado em
+ * diante, só admin/super_admin (comportamento anterior deles, inalterado). Quem chega à tela já
+ * passou pela leitura da venda; o bloco 'arquivada' do trigger validate_sale_status_transition
+ * (can_view_sale + etapa) continua sendo a autoridade. Motivo obrigatório no banco. */
+export function podeArquivarVenda(isAdminLike: boolean, status: SaleStatus): boolean {
+  if (status === "arquivada" || status === "cancelada") return false;
+  return isAdminLike || STATUS_ANTES_ASSINATURA.includes(status);
+}
+
 /** Cancelar venda (regra de Denis, 28/09/2026): só o dono da plataforma (platform_admins), e só
  * depois do rascunho — rascunho se exclui, não se cancela. Espelha o bloco "cancelada" do trigger
  * validate_sale_status_transition, que é a autoridade. */
