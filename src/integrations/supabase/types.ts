@@ -2605,6 +2605,7 @@ export type Database = {
           parceria_percentual: number | null;
           parceria_pix: string | null;
           parceria_creci_tipo: string | null;
+          parceria_observacoes: string | null;
           parceria_creci: string | null;
           parceria_tipo: string | null;
           parceria_valor: number | null;
@@ -2705,6 +2706,7 @@ export type Database = {
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_creci_tipo?: string | null;
+          parceria_observacoes?: string | null;
           parceria_creci?: string | null;
           parceria_tipo?: string | null;
           parceria_valor?: number | null;
@@ -2805,6 +2807,7 @@ export type Database = {
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_creci_tipo?: string | null;
+          parceria_observacoes?: string | null;
           parceria_creci?: string | null;
           parceria_tipo?: string | null;
           parceria_valor?: number | null;

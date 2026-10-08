@@ -121,7 +121,7 @@ import {
   corretorPodeEditar,
   gestorPodeEditar,
   juridicoPodeEditar,
-  gestorPodeEncerrar,
+  podeArquivarVenda,
   podeEditarVenda,
   comissaoValorExcedido,
   podeVerOcorrencia,
@@ -131,6 +131,11 @@ import {
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
 import { saleManagementCapabilities } from "@/lib/sale-management-capabilities";
+import {
+  CODIGO_INTERNO_ERRO,
+  codigoInternoValido,
+  mascararCodigoInterno,
+} from "@/lib/codigo-interno";
 import {
   podeSincronizarResumo,
   temEdicaoFinanceiraResumo,
@@ -1005,6 +1010,7 @@ function SaleDetail() {
         "parceria_pix",
         "parceria_creci_tipo",
         "parceria_creci",
+        "parceria_observacoes",
         "forma_pagamento",
         "negociacao_observacoes",
         "posse_data",
@@ -1021,6 +1027,17 @@ function SaleDetail() {
         const v = normalizedSale[k];
         const orig = sale?.[k];
         if ((v ?? null) !== (orig ?? null)) patch[k] = v === "" ? null : v;
+      }
+      // Código interno incompleto não vai ao banco (a CHECK recusaria com 23514 e a mensagem
+      // genérica de comissão confundiria). O campo já mostra o erro; o toast tem id fixo para não
+      // repetir a cada autosave enquanto a pessoa termina de digitar.
+      if (
+        "codigo_interno" in patch &&
+        !codigoInternoValido(patch.codigo_interno as string | null)
+      ) {
+        setResumoSaveFailed(true);
+        toast.error(CODIGO_INTERNO_ERRO, { id: "codigo-interno-invalido" });
+        return false;
       }
       const syncAllowed = await resumoSyncAllowed(patch);
       if (normalized) setFormSale(normalizedSale);
@@ -1225,9 +1242,9 @@ function SaleDetail() {
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
-  // Arquivar: regra antiga, inalterada. Cancelar: só o dono da plataforma (canCancelSale).
-  const canCloseSale =
-    isAdminLike || (gestorPodeEncerrar(isGestor, status) && managesOwner && !locked);
+  // Arquivar (reunião 08/10/2026): quem vê a venda, antes da assinatura do contrato; admin em
+  // qualquer etapa. Cancelar: só o dono da plataforma (canCancelSale).
+  const canCloseSale = podeArquivarVenda(isAdminLike, status);
   const canCancel = canCancelSale(isPlatformAdmin, status);
 
   const onConfirmDelete = async () => {
@@ -1470,6 +1487,7 @@ function SaleDetail() {
         parceria_pix: null,
         parceria_creci_tipo: null,
         parceria_creci: null,
+        parceria_observacoes: null,
       };
       patch.valor_comissao_imobiliaria = recalcImobiliaria(patch);
       updResumo(patch);
@@ -2108,11 +2126,24 @@ function SaleDetail() {
                               : []
                           }
                         />
-                        <Field label="Código interno">
+                        <Field
+                          label="Código interno"
+                          invalid={!codigoInternoValido(formSale.codigo_interno)}
+                          errorText={
+                            codigoInternoValido(formSale.codigo_interno)
+                              ? undefined
+                              : CODIGO_INTERNO_ERRO
+                          }
+                        >
                           <Input
                             value={formSale.codigo_interno ?? ""}
                             disabled={!editable}
-                            onChange={(e) => updResumo({ codigo_interno: e.target.value })}
+                            inputMode="numeric"
+                            maxLength={13}
+                            placeholder="Ex: 630591023-665"
+                            onChange={(e) =>
+                              updResumo({ codigo_interno: mascararCodigoInterno(e.target.value) })
+                            }
                           />
                         </Field>
                         <Field label="Tempo de venda (dias)">
@@ -2348,6 +2379,22 @@ function SaleDetail() {
                                 </>
                               )}
                             </FieldGrid>
+                            {formSale.parceria_tipo && (
+                              <div className="mt-3">
+                                <Field label="Observações da parceria">
+                                  <Textarea
+                                    aria-label="Observações da parceria"
+                                    rows={3}
+                                    maxLength={2000}
+                                    value={formSale.parceria_observacoes ?? ""}
+                                    disabled={!editable}
+                                    onChange={(e) =>
+                                      updResumo({ parceria_observacoes: e.target.value || null })
+                                    }
+                                  />
+                                </Field>
+                              </div>
+                            )}
                           </div>
                         );
                         const parceriaSemLado =

@@ -9,6 +9,7 @@ import {
   gestorPodeEditar,
   isSaleLocked,
   juridicoPodeEditar,
+  podeArquivarVenda,
   podeEditarOcorrencia,
   podeEditarVenda,
   podeFinalizarOcorrencia,
@@ -120,6 +121,45 @@ describe("gestorPodeEncerrar", () => {
     expect(gestorPodeEncerrar(true, "rascunho")).toBe(false);
     expect(gestorPodeEncerrar(true, "aprovada_gestor")).toBe(false);
     expect(gestorPodeEncerrar(false, "enviada_revisao")).toBe(false);
+  });
+});
+
+describe("podeArquivarVenda (reunião 08/10/2026)", () => {
+  const antes: SaleStatus[] = [
+    "rascunho",
+    "enviada_revisao",
+    "devolvida_ajuste",
+    "aprovada_gestor",
+    "enviada_juridico",
+    "em_elaboracao_contrato",
+    "contrato_conferencia_gestor",
+    "contrato_conferencia_corretor",
+    "contrato_ok_corretor",
+    "aguardando_assinatura",
+  ];
+  const depois: SaleStatus[] = [
+    "contrato_assinado",
+    "ocorrencia_pendente",
+    "ocorrencia_analise_financeiro",
+    "ocorrencia_devolvida_gestor",
+    "ocorrencia_concluida",
+  ];
+
+  it("libera para quem vê a venda em qualquer etapa antes da assinatura", () => {
+    for (const st of antes) expect(podeArquivarVenda(false, st)).toBe(true);
+  });
+
+  it("bloqueia do contrato assinado em diante para quem não é admin", () => {
+    for (const st of depois) expect(podeArquivarVenda(false, st)).toBe(false);
+  });
+
+  it("admin/super_admin seguem arquivando em qualquer etapa", () => {
+    for (const st of [...antes, ...depois]) expect(podeArquivarVenda(true, st)).toBe(true);
+  });
+
+  it("nunca mostra arquivar em venda já arquivada ou cancelada", () => {
+    expect(podeArquivarVenda(true, "arquivada")).toBe(false);
+    expect(podeArquivarVenda(true, "cancelada")).toBe(false);
   });
 });
 
