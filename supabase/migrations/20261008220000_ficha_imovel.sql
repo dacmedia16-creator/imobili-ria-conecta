@@ -167,7 +167,7 @@ BEGIN
   IF btrim(t) = '' THEN RETURN NULL; END IF;
   IF t IN ('apartamento', 'casa', 'terreno', 'comercial', 'cobertura', 'studio') THEN RETURN initcap(t); END IF;
   IF t ~ '\mcobertura\M' THEN RETURN 'Cobertura'; END IF;
-  IF t ~ '\m(studio|estudio|kitnet|kitinete|kit)\M' THEN RETURN 'Studio'; END IF;
+  IF t ~ '\m(studio|estudio|kitnet|kitinete|kitchenette|quitinete|kit)\M' THEN RETURN 'Studio'; END IF;
   IF t ~ '\m(apartamento|apto|ap)\M' THEN RETURN 'Apartamento'; END IF;
   IF t ~ '\m(sala|loja|escritorio|comercial|galpao|barracao|consultorio)\M' THEN RETURN 'Comercial'; END IF;
   IF t ~ '\m(casa|sobrado|residencia|chacara|edicula)\M' THEN RETURN 'Casa'; END IF;

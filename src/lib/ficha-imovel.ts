@@ -44,7 +44,7 @@ export function tipoImovelDoTexto(texto: string | null | undefined): TipoImovel 
   const t = semAcento(String(texto ?? "")).trim();
   if (!t) return null;
   if (/\bcobertura\b/.test(t)) return "Cobertura";
-  if (/\b(studio|estudio|kitnet|kitinete|kit)\b/.test(t)) return "Studio";
+  if (/\b(studio|estudio|kitnet|kitinete|kitchenette|quitinete|kit)\b/.test(t)) return "Studio";
   if (/\b(apartamento|apto|ap)\b/.test(t)) return "Apartamento";
   if (/\b(sala|loja|escritorio|comercial|galpao|barracao|ponto comercial|consultorio)\b/.test(t))
     return "Comercial";
@@ -116,14 +116,25 @@ export function areaPrivativaDaDescricao(texto: unknown): number | null {
 /** Tipo citado na descrição da matrícula (o primeiro da ordem de prioridade). */
 export function tipoImovelDaDescricao(texto: unknown): TipoImovel | null {
   if (typeof texto !== "string" || !texto) return null;
-  const t = semAcento(texto);
+  const t = semAcento(texto).replace(/\s+/g, " ");
+  const inicio = t.slice(0, 160);
+  // Vaga/box de garagem não é tipo do Estudo: o corretor decide.
+  if (/designad[ao] por (vaga|box|garagem)|^\W*(uma )?(vaga|box) de garagem|^\W*(uma )?garagem\b/.test(inicio))
+    return null;
   // Unidade autônoma primeiro: "apartamento nº 12 ... do condomínio construído no lote 5".
   if (/\bcobertura\b/.test(t) && /\bapartamento\b/.test(t)) return "Cobertura";
   if (/\bapartamento\b/.test(t)) return "Apartamento";
-  if (/\b(studio|kitnet)\b/.test(t)) return "Studio";
-  // "sala" sozinha aparece na descrição de casa ("sala, cozinha..."): só vale o comercial explícito.
-  if (/\b(sala comercial|salao comercial|conjunto comercial|loja|galpao|barracao|predio comercial)\b/.test(t))
+  if (/\b(studio|kitnet|kitinete|kitchenette|quitinete)\b/.test(t)) return "Studio";
+  // "sala" sozinha aparece na descrição de casa ("sala, cozinha..."): só vale o comercial explícito
+  // ou a unidade autônoma que É uma sala/loja ("unidade autônoma designada por SALA nº 605").
+  if (
+    /\b(sala comercial|salao comercial|conjunto comercial|galpao|barracao|predio comercial)\b/.test(t) ||
+    /designad[ao] por (sala|loja|conjunto)\b/.test(inicio) ||
+    /^\W*(uma |a )?(sala|loja)\b/.test(inicio)
+  )
     return "Comercial";
+  // Condomínio horizontal: "A unidade residencial autônoma nº 29, integrante do Condomínio..." = casa.
+  if (/\bunidade residencial autonoma\b|\bunidade autonoma residencial\b/.test(inicio)) return "Casa";
   // Em Sorocaba a matrícula de casa costuma dizer "um prédio residencial" ou só "um prédio".
   if (/\b(casa|sobrado|residencia|predio)\b/.test(t)) return "Casa";
   if (/\b(terreno|lote)\b/.test(t)) return "Terreno";
@@ -150,6 +161,8 @@ export type SugestaoAreas = {
 };
 
 const primeiro = (...v: (number | null)[]) => v.find((x) => x != null) ?? null;
+/** Limite de área construída plausível para sugerir (acima disso a leitura pegou a gleba). */
+export const AREA_CONSTRUIDA_MAX = 5000;
 
 /**
  * Sugestão de áreas a partir das leituras já gravadas (sem reler nada).
@@ -174,18 +187,25 @@ export function sugerirAreas(
     mats,
     (r) => areaM2DoTexto(r.area_privativa) ?? areaPrivativaDaDescricao(r.observacoes_imovel),
   );
-  const matConstruida = pegar(mats, (r) => areaM2DoTexto(r.area_construida));
+  // Construída acima de 5.000 m² é leitura errada (gleba/condomínio inteiro): não sugere.
+  const plausivel = (n: number | null) => (n != null && n <= AREA_CONSTRUIDA_MAX ? n : null);
+  const matConstruida = pegar(mats, (r) => plausivel(areaM2DoTexto(r.area_construida)));
   const matTotal = pegar(mats, (r) => areaM2DoTexto(r.area_total));
-  const iptuConstruida = pegar(iptus, (r) => areaM2DoTexto(r.area_construida));
+  const iptuConstruida = pegar(iptus, (r) => plausivel(areaM2DoTexto(r.area_construida)));
   const iptuTotal = pegar(iptus, (r) => areaM2DoTexto(r.area_total));
   const tipoDescricao =
     mats.map((e) => tipoImovelDaDescricao((e.raw as Record<string, unknown>).observacoes_imovel)).find(
       Boolean,
     ) ?? null;
 
+  // Matrícula de "terreno/lote" com área construída (matrícula ou IPTU) = casa construída no lote.
+  const tipoDoc: TipoImovel | null =
+    tipoDescricao === "Terreno" && (matConstruida != null || iptuConstruida != null)
+      ? "Casa"
+      : tipoDescricao;
   const tipo: TipoImovel | null = isTipoImovel(tipoInformado)
     ? tipoInformado
-    : (tipoDescricao ?? (privativa != null ? "Apartamento" : null));
+    : (tipoDoc ?? (privativa != null ? "Apartamento" : null));
   const condominio = isUnidadeCondominio(tipo);
   const divergente =
     matConstruida != null &&

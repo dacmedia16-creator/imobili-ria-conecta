@@ -97,6 +97,21 @@ describe("tipo do imóvel", () => {
     expect(tipoImovelDaDescricao("A sala comercial nº 3 do Edifício Y")).toBe("Comercial");
     expect(tipoImovelDaDescricao(null)).toBeNull();
   });
+  it("casos reais das matrículas (texto do imóvel, sem dados pessoais)", () => {
+    expect(
+      tipoImovelDaDescricao("UMA UNIDADE AUTÔNOMA designada por SALA nº 605, localizada no 6º andar"),
+    ).toBe("Comercial");
+    expect(
+      tipoImovelDaDescricao("UMA UNIDADE AUTÔNOMA designada por VAGA DE GARAGEM SIMPLES nº 192"),
+    ).toBeNull();
+    expect(tipoImovelDaDescricao("UMA UNIDADE AUTÔNOMA designada por GARAGEM nº 15")).toBeNull();
+    expect(
+      tipoImovelDaDescricao("UMA UNIDADE AUTÔNOMA designada por Kitchenette nº 05, no térreo"),
+    ).toBe("Studio");
+    expect(
+      tipoImovelDaDescricao("A unidade residencial autônoma nº 29, integrante do Condomínio Portal, lote 3"),
+    ).toBe("Casa");
+  });
   it("área privativa na descrição", () => {
     expect(
       areaPrivativaDaDescricao("com a área privativa de 54,80 metros quadrados, área comum de 7,0"),
@@ -164,6 +179,39 @@ describe("sugerirAreas (regras do pedido)", () => {
     expect(s.tipo_sugerido).toBe("Terreno");
     expect(s.area_util_m2).toBeNull();
     expect(s.area_terreno_m2).toBe(595);
+  });
+  it("matrícula de lote com construção averbada vira Casa (área útil = construída)", () => {
+    const s = sugerirAreas([
+      {
+        tipo: "matricula",
+        raw: {
+          area_total: "250,00 m²",
+          area_construida: "175,50 m²",
+          observacoes_imovel: "O lote de terreno sob o nº 11, da quadra B-1",
+        },
+      },
+    ]);
+    expect(s.tipo_sugerido).toBe("Casa");
+    expect(s.area_util_m2).toBe(175.5);
+    expect(s.area_terreno_m2).toBe(250);
+  });
+  it("lote sem construção continua Terreno, mesmo com IPTU sem área construída", () => {
+    const s = sugerirAreas([
+      { tipo: "matricula", raw: { area_total: "300,00", observacoes_imovel: "O lote de terreno nº 16" } },
+      { tipo: "iptu", raw: { area_total: "300,00", area_construida: null } },
+    ]);
+    expect(s.tipo_sugerido).toBe("Terreno");
+  });
+  it("área construída implausível (> 5.000 m²) não é sugerida nem gera divergência", () => {
+    const s = sugerirAreas(
+      [
+        { tipo: "matricula", raw: { area_construida: "96,34" } },
+        { tipo: "iptu", raw: { area_construida: "22.056,21" } },
+      ],
+      "Casa",
+    );
+    expect(s.area_util_m2).toBe(96.34);
+    expect(s.divergente).toBe(false);
   });
   it("tipo desconhecido e sem privativa: não chuta área útil", () => {
     const s = sugerirAreas([{ tipo: "iptu", raw: { area_total: "200,00", area_construida: "82,68" } }]);
