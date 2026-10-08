@@ -1,4 +1,5 @@
 import type { DocumentRow, PartyRow, PaymentRow, SaleRow } from "@/lib/database.types";
+import { fichaFaltando, mensagemFichaFaltando, type FichaVenda } from "@/lib/ficha-imovel";
 
 export type SaleStatus =
   | "rascunho"
@@ -569,6 +570,7 @@ export const CHECKS_NAO_DOCUMENTAIS = [
   "imovel",
   "matricula",
   "endereco",
+  "ficha",
   "midia",
   "vendedor",
   "comprador",
@@ -619,6 +621,11 @@ export function validarProntaParaRevisao(
   const faltaEndereco = enderecoFaltando(sale as unknown as Record<string, unknown>);
   if (faltaEndereco.length)
     pend.push({ campo: "endereco", mensagem: mensagemEnderecoFaltando(faltaEndereco) });
+  // Ficha do imóvel (mesma regra da trava bloquear_avanco_sem_ficha_imovel; Lançamento não passa).
+  if ((sale as { modalidade?: string | null })?.modalidade !== "lancamento") {
+    const faltaFicha = fichaFaltando(sale as unknown as FichaVenda);
+    if (faltaFicha.length) pend.push({ campo: "ficha", mensagem: mensagemFichaFaltando(faltaFicha) });
+  }
   if (!midiaPreenchida(sale?.midia))
     pend.push({ campo: "midia", mensagem: "Falta informar a Mídia (de onde veio o cliente)" });
 

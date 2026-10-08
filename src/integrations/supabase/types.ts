@@ -2547,6 +2547,18 @@ export type Database = {
       };
       sales: {
         Row: {
+          tipo_imovel: string | null;
+          area_util_m2: number | null;
+          area_construida_m2: number | null;
+          area_terreno_m2: number | null;
+          ano_construcao: number | null;
+          quartos: number | null;
+          suites: number | null;
+          banheiros: number | null;
+          vagas: number | null;
+          area_origem: string | null;
+          area_confirmada_por: string | null;
+          area_confirmada_em: string | null;
           codigo_interno: string | null;
           comissao_observacoes: string | null;
           comissao_quando: string | null;
@@ -2648,6 +2660,18 @@ export type Database = {
           valor_total_comissao: number | null;
         };
         Insert: {
+          tipo_imovel?: string | null;
+          area_util_m2?: number | null;
+          area_construida_m2?: number | null;
+          area_terreno_m2?: number | null;
+          ano_construcao?: number | null;
+          quartos?: number | null;
+          suites?: number | null;
+          banheiros?: number | null;
+          vagas?: number | null;
+          area_origem?: string | null;
+          area_confirmada_por?: string | null;
+          area_confirmada_em?: string | null;
           codigo_interno?: string | null;
           comissao_observacoes?: string | null;
           comissao_quando?: string | null;
@@ -2749,6 +2773,18 @@ export type Database = {
           valor_total_comissao?: number | null;
         };
         Update: {
+          tipo_imovel?: string | null;
+          area_util_m2?: number | null;
+          area_construida_m2?: number | null;
+          area_terreno_m2?: number | null;
+          ano_construcao?: number | null;
+          quartos?: number | null;
+          suites?: number | null;
+          banheiros?: number | null;
+          vagas?: number | null;
+          area_origem?: string | null;
+          area_confirmada_por?: string | null;
+          area_confirmada_em?: string | null;
           codigo_interno?: string | null;
           comissao_observacoes?: string | null;
           comissao_quando?: string | null;
