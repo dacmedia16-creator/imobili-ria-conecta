@@ -16,12 +16,19 @@ export function CaptureDossieStep({
   editable,
   loading,
   onChange,
+  title = "Planejamento de Marketing",
+  intro = "Obrigatório: marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.",
+  manual = false,
 }: {
   actions: FeedbackAction[];
   selected: string[];
   editable: boolean;
   loading: boolean;
   onChange: (ids: string[]) => void;
+  /** Cadastro manual (contrato já assinado): título/texto próprios; seleção continua obrigatória. */
+  title?: string;
+  intro?: string;
+  manual?: boolean;
 }) {
   const groups = groupDossie(actions);
   const set = new Set(selected);
@@ -41,12 +48,8 @@ export function CaptureDossieStep({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Planejamento de Marketing</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Obrigatório: marque as ações que você vai fazer por este imóvel. O Dossiê sai anexado ao
-          final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi
-          cumprido.
-        </p>
+        <CardTitle>{title}</CardTitle>
+        <p className="text-sm text-muted-foreground">{intro}</p>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {loading ? (
@@ -54,7 +57,7 @@ export function CaptureDossieStep({
         ) : !total ? (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
             A lista de ações não está disponível para esta imobiliária (módulo Feedback desligado ou
-            lista vazia). O contrato será gerado sem o Dossiê.
+            lista vazia). {manual ? "Siga sem esta etapa." : "O contrato será gerado sem o Dossiê."}
           </p>
         ) : (
           <>
@@ -82,7 +85,9 @@ export function CaptureDossieStep({
             </div>
             {count === 0 && (
               <p className="rounded-md border border-red-300 bg-red-50 p-3 text-red-900">
-                Nenhuma ação marcada. Marque ao menos 1 para gerar o contrato.
+                {manual
+                  ? "Nenhuma ação marcada. Marque ao menos 1 para enviar ao gestor."
+                  : "Nenhuma ação marcada. Marque ao menos 1 para gerar o contrato."}
               </p>
             )}
             {count > 0 && missing.length > 0 && (
@@ -90,7 +95,9 @@ export function CaptureDossieStep({
                 {missing.length === 1
                   ? "1 ação essencial está desmarcada."
                   : `${missing.length} ações essenciais estão desmarcadas.`}{" "}
-                Dá para gerar mesmo assim, mas o proprietário verá menos compromisso.
+                {manual
+                  ? "Dá para enviar mesmo assim."
+                  : "Dá para gerar mesmo assim, mas o proprietário verá menos compromisso."}
               </p>
             )}
             {groups.map((g) => (

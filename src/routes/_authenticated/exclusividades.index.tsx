@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import {
   archiveCapture,
   createCapture,
+  createManualCapture,
   listCaptures,
   listUnits,
 } from "@/lib/exclusive-captures-db";
@@ -12,6 +13,7 @@ import {
   captureNextAction,
   captureUnitLabel,
   captureValidity,
+  MANUAL_COLOR,
   VALIDITY_STYLE,
   validityText,
   type Capture,
@@ -30,7 +32,15 @@ import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Archive, ArrowRight, CalendarClock, House, MapPinned, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  CalendarClock,
+  FileSignature,
+  House,
+  MapPinned,
+  Trash2,
+} from "lucide-react";
 
 /** "Rua X, 268 — Apto 12 · Bairro · Sorocaba/SP" (só o que estiver preenchido). */
 function fullAddress(i: Capture["form_data"]["imovel"] | undefined): string {
@@ -99,10 +109,12 @@ function ExclusiveList() {
       .finally(() => setLoading(false));
   }, []);
   const activeUnits = units.filter((u) => u.ativo);
-  const create = async (unitId: string) => {
-    setCreating(unitId);
+  const [manualUnit, setManualUnit] = useState("");
+  // Cadastro manual: contrato de exclusividade já assinado no papel (captador = usuário logado).
+  const create = async (unitId: string, manual = false) => {
+    setCreating(manual ? `manual:${unitId}` : unitId);
     try {
-      const id = await createCapture(unitId);
+      const id = manual ? await createManualCapture(unitId) : await createCapture(unitId);
       navigate({ to: "/exclusividades/$id", params: { id } });
     } catch (e: unknown) {
       toast.error(errorMessage(e, "Falha ao criar captação"));
@@ -128,6 +140,41 @@ function ExclusiveList() {
               {creating === u.id ? "Criando…" : u.nome}
             </Button>
           ))}
+          {activeUnits.length > 0 && (
+            <div className="flex w-full flex-wrap items-center gap-2 border-t pt-3">
+              {activeUnits.length > 1 && (
+                <select
+                  aria-label="Unidade do contrato já assinado"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={manualUnit}
+                  onChange={(e) => setManualUnit(e.target.value)}
+                >
+                  <option value="">Unidade…</option>
+                  {activeUnits.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button
+                variant="outline"
+                className="border-violet-300 text-violet-800 hover:bg-violet-50"
+                disabled={!!creating || (activeUnits.length > 1 && !manualUnit)}
+                onClick={() =>
+                  create(activeUnits.length > 1 ? manualUnit : activeUnits[0].id, true)
+                }
+              >
+                <FileSignature className="mr-1 h-4 w-4" />
+                {creating?.startsWith("manual:")
+                  ? "Criando…"
+                  : "Cadastrar exclusividade já assinada"}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Contrato assinado no papel: envie o PDF ou a foto, confira e o gestor aprova.
+              </span>
+            </div>
+          )}
           {!loading && activeUnits.length === 0 && (
             <p className="text-sm text-muted-foreground">
               Nenhuma unidade cadastrada.{" "}
@@ -239,6 +286,14 @@ function ExclusiveList() {
                     <span className="rounded-full border px-2 py-0.5">
                       {captureUnitLabel(c, units)}
                     </span>
+                    {c.manual && (
+                      <span
+                        className="rounded-full px-2 py-0.5 font-medium text-white"
+                        style={{ background: MANUAL_COLOR }}
+                      >
+                        Cadastro manual
+                      </span>
+                    )}
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
                       {
                         {
@@ -265,7 +320,7 @@ function ExclusiveList() {
                   <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
                     <p className="text-sm">
                       <span className="text-muted-foreground">Próxima ação: </span>
-                      {captureNextAction(c.status, manager)}
+                      {captureNextAction(c.status, manager, c.manual)}
                     </p>
                     {c.status === "rascunho" && !c.archived_at && (
                       <Button

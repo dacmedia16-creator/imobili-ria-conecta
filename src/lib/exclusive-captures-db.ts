@@ -88,6 +88,13 @@ export async function createCapture(unitId: string): Promise<string> {
   if (typeof data !== "string") throw new Error("Captação não foi criada");
   return data;
 }
+/** Cadastro manual de exclusividade já assinada no papel (captador = usuário logado). */
+export async function createManualCapture(unitId: string): Promise<string> {
+  const { data, error } = await db.rpc("exclusive_create_manual", { _unit_id: unitId });
+  check(error);
+  if (typeof data !== "string") throw new Error("Captação não foi criada");
+  return data;
+}
 export async function saveCapture(id: string, form: CaptureForm, cpf: string, creci: string) {
   const { error } = await db.rpc("exclusive_save", {
     _id: id,
@@ -140,6 +147,8 @@ export async function uploadCaptureDocument(
   kind: DocumentKind,
   owner: number,
   file: File,
+  /** Cadastro manual: o contrato assinado pode ser foto (o banco confere a marca da captação). */
+  opts: { manual?: boolean } = {},
 ) {
   const extByMime: Record<string, string> = {
     "application/pdf": "pdf",
@@ -150,7 +159,7 @@ export async function uploadCaptureDocument(
   const ext = extByMime[file.type];
   if (!ext || file.size > 16 * 1024 * 1024 || file.size === 0)
     throw new Error("Envie PDF/JPG/PNG/WEBP de até 16 MB");
-  if ((kind === "gerado" || kind === "assinado") && ext !== "pdf")
+  if ((kind === "gerado" || (kind === "assinado" && !opts.manual)) && ext !== "pdf")
     throw new Error("Contrato deve ser PDF");
   const path = await storageOrganizationPath(`${id}/${crypto.randomUUID()}.${ext}`);
   const { error } = await bucket().upload(path, file, { upsert: false, contentType: file.type });
