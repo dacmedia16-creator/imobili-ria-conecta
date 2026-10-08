@@ -1,3 +1,5 @@
+import { fichaCaptacaoVazia, type FichaCaptacao } from "@/lib/ficha-imovel";
+
 /** PDF usado na geração: os 2 modelos antigos da Única Escolha ou o contrato-base RE/MAX. */
 export type Template = "campolim" | "barao-de-tatui" | "remax-padrao";
 export type LegacyTemplate = Exclude<Template, "remax-padrao">;
@@ -178,6 +180,9 @@ export type CaptureForm = {
   dossie?: string[];
   /** Cadastro manual: data de assinatura escrita no contrato (AAAA-MM-DD). Na aprovação vira signed_on. */
   data_assinatura?: string;
+  /** Ficha do imóvel (mesmos campos do Estudo de Mercado); o tipo fica em imovel.tipo_imovel.
+   * "Virou venda" leva tudo para a venda como sugestão (exclusive_virar_venda). */
+  ficha?: FichaCaptacao;
 };
 export type Capture = {
   id: string;
@@ -374,7 +379,20 @@ export function normalizeForm(
     ...(typeof value?.data_assinatura === "string" && value.data_assinatura
       ? { data_assinatura: value.data_assinatura }
       : {}),
+    ...(value?.ficha && typeof value.ficha === "object"
+      ? { ficha: normalizeFichaCaptacao(value.ficha) }
+      : {}),
   };
+}
+
+/** Só as chaves conhecidas da ficha, sempre como texto (o banco converte na hora do "Virou venda"). */
+export function normalizeFichaCaptacao(v: Partial<Record<string, unknown>>): FichaCaptacao {
+  const out = fichaCaptacaoVazia();
+  for (const k of Object.keys(out) as Extract<keyof FichaCaptacao, string>[]) {
+    const x = v[k];
+    out[k] = typeof x === "string" ? x : typeof x === "number" && Number.isFinite(x) ? String(x) : "";
+  }
+  return out;
 }
 
 /** Cor do pino e do selo "Cadastro manual" (maquete aprovada em 08/10). */

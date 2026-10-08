@@ -102,6 +102,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  FICHA_CAPTACAO_CAMPOS,
+  TIPOS_IMOVEL,
+  campoVisivel,
+  fichaCaptacaoVazia,
+  isTipoImovel,
+  tipoImovelDoTexto,
+  type FichaCaptacao,
+} from "@/lib/ficha-imovel";
 import {
   Dialog,
   DialogContent,
@@ -311,6 +321,12 @@ function ExclusiveDetail() {
     value: string,
   ) => {
     setForm((f) => (f ? { ...f, [scope]: { ...f[scope], [key]: value } } : f));
+    setDirty(true);
+  };
+  const editFicha = (key: keyof FichaCaptacao, value: string) => {
+    setForm((f) =>
+      f ? { ...f, ficha: { ...(f.ficha ?? fichaCaptacaoVazia()), [key]: value } } : f,
+    );
     setDirty(true);
   };
   const updateBroker = (key: "cpf" | "creci", value: string) => {
@@ -1267,6 +1283,33 @@ function ExclusiveDetail() {
                         onChange={(e) => edit("imovel", "valor_imovel", typeReais(e.target.value))}
                       />
                     </div>
+                  ) : key === "tipo_imovel" ? (
+                    <div key={label} className="space-y-1">
+                      <Label>
+                        {label}
+                        {required && !manual ? " *" : ""}
+                      </Label>
+                      <Select
+                        value={
+                          (isTipoImovel(form.imovel.tipo_imovel)
+                            ? form.imovel.tipo_imovel
+                            : tipoImovelDoTexto(form.imovel.tipo_imovel)) ?? ""
+                        }
+                        disabled={!editable || busy}
+                        onValueChange={(v) => edit("imovel", "tipo_imovel", v)}
+                      >
+                        <SelectTrigger aria-label={label}>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_IMOVEL.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   ) : (
                     field(
                       label,
@@ -1280,6 +1323,34 @@ function ExclusiveDetail() {
               <p className="text-xs text-muted-foreground">
                 Documentos opcionais não dispensam o preenchimento manual dos dados necessários ao
                 contrato.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Ficha do imóvel</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {FICHA_CAPTACAO_CAMPOS.filter(({ key }) =>
+                  campoVisivel(key, tipoImovelDoTexto(form.imovel.tipo_imovel)),
+                ).map(({ key, label, area }) => (
+                  <div key={key} className="space-y-1">
+                    <Label>{label}</Label>
+                    <Input
+                      aria-label={label}
+                      inputMode={area ? "decimal" : "numeric"}
+                      maxLength={20}
+                      value={form.ficha?.[key] ?? ""}
+                      disabled={!editable || busy}
+                      onChange={(e) => editFicha(key, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Mesmos campos do Estudo de Mercado. Quando a captação virar venda, estes dados vão
+                para a venda como sugestão; o corretor confirma a área útil lá.
               </p>
             </CardContent>
           </Card>
