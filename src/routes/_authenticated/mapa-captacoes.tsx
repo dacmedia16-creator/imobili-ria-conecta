@@ -20,6 +20,7 @@ import {
   captacoesPendentesGeo,
   comoCapture,
   COR_CAPTACAO,
+  COR_NEGOCIACAO,
   pinosCaptacoes,
   type CaptacaoMapaRow,
 } from "@/lib/mapa-captacoes";
@@ -260,6 +261,15 @@ function MapaCaptacoesPage() {
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_CAPTACAO }} />
               {filtradas.length}{" "}
               {filtradas.length === 1 ? "captação assinada" : "captações assinadas"}
+              {filtradas.some((r) => r.negociacao) && (
+                <>
+                  <span
+                    className="ml-2 h-2.5 w-2.5 rounded-full"
+                    style={{ background: COR_NEGOCIACAO }}
+                  />
+                  {filtradas.filter((r) => r.negociacao).length} em negociação
+                </>
+              )}
             </span>
           </CardHeader>
           <CardContent className="space-y-2">

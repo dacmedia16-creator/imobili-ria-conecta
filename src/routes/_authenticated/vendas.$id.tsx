@@ -123,6 +123,7 @@ import {
   deleteSaleCascade,
 } from "@/lib/permissions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
+import { VendaOrigemCaptacao } from "@/components/VendaOrigemCaptacao";
 import { buscarResponsaveisDaVenda } from "@/lib/sale-participantes";
 import {
   getSaleRoleFlags,
@@ -2111,24 +2112,31 @@ function SaleDetail() {
       key: "documentos",
       label: "1. Documentos",
       content: (
-        <DocumentsPanel
-          saleId={id}
-          saleStatus={status}
-          docs={docs}
-          parties={parties}
-          editable={editable}
-          canModerate={
-            isGestor || (isJuridico && !["enviada_revisao", "devolvida_ajuste"].includes(status))
-          }
-          canUseAi={isOwner}
-          canManageContratos={isGestor || isJuridico || isFinanceiro}
-          canUploadCertidoes={isJuridico && canUploadCertidoes}
-          canManageCertidaoDrafts={isJuridico ? canUploadCertidoes : isGestor || isFinanceiro}
-          canDownloadAll={podeBaixarDocumentosVenda({ podeVisualizar: true, status })}
-          onChange={load}
-          activeParte={docParte}
-          onActiveParteChange={setDocParte}
-        />
+        <>
+          {/* "Virou venda": origem e documentos da captação (apontados, sem cópia). */}
+          <VendaOrigemCaptacao
+            saleId={id}
+            captureId={(sale as { exclusive_capture_id?: string | null }).exclusive_capture_id}
+          />
+          <DocumentsPanel
+            saleId={id}
+            saleStatus={status}
+            docs={docs}
+            parties={parties}
+            editable={editable}
+            canModerate={
+              isGestor || (isJuridico && !["enviada_revisao", "devolvida_ajuste"].includes(status))
+            }
+            canUseAi={isOwner}
+            canManageContratos={isGestor || isJuridico || isFinanceiro}
+            canUploadCertidoes={isJuridico && canUploadCertidoes}
+            canManageCertidaoDrafts={isJuridico ? canUploadCertidoes : isGestor || isFinanceiro}
+            canDownloadAll={podeBaixarDocumentosVenda({ podeVisualizar: true, status })}
+            onChange={load}
+            activeParte={docParte}
+            onActiveParteChange={setDocParte}
+          />
+        </>
       ),
     },
     {

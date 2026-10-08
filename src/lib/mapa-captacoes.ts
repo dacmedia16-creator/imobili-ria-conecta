@@ -20,6 +20,7 @@ import {
 import { nomeExibicao } from "@/lib/vendas-por-regiao";
 import type { MapPin } from "@/components/mapa/PinsMap";
 import { precoTexto, whatsappLink } from "@/lib/mapa-captacoes-filtros";
+import { diasEntre, haQuantosDias } from "@/lib/captacao-venda";
 
 export type CaptacaoMapaRow = {
   id: string;
@@ -48,7 +49,19 @@ export type CaptacaoMapaRow = {
   captador_telefone?: string | null;
   captador_email?: string | null;
   equipe?: string | null;
+  /** "Virou venda" (20261008190000): venda enviada ao gestor → Em negociação (pino laranja). */
+  negociacao?: boolean | null;
+  negociacao_desde?: string | null;
+  pode_virar_venda?: boolean | null;
 };
+
+/** Pino laranja da captação em negociação (maquete t_44bf526e). Vendida já sai do mapa no banco. */
+export const COR_NEGOCIACAO = "#ea580c";
+
+function textoNegociacao(r: CaptacaoMapaRow, hoje: string): string {
+  const dias = diasEntre(r.negociacao_desde, hoje);
+  return dias === null ? "Em negociação" : `Em negociação ${haQuantosDias(dias)}`;
+}
 
 /** Captação mínima no formato do painel, para reaproveitar geoKey/geoQueries de lá (mesma chave). */
 export function comoCapture(r: CaptacaoMapaRow): Capture {
@@ -107,6 +120,7 @@ export function linhasCaptacao(r: CaptacaoMapaRow, hoje: string): MapPin["lines"
   const linhas: MapPin["lines"] = [
     { text: `Captação ${r.codigo} · ${r.tipo_imovel || "Imóvel"}`, bold: true },
   ];
+  if (r.negociacao) linhas.push({ text: textoNegociacao(r, hoje), bold: true });
   if (r.valor_imovel !== undefined) linhas.push({ text: precoTexto(r.valor_imovel), bold: true });
   if (r.detalhe && r.endereco) linhas.push({ text: r.endereco });
   linhas.push({ text: local });
@@ -138,7 +152,11 @@ export function pinosCaptacoes(rows: CaptacaoMapaRow[], hoje: string): MapPin[] 
       id: r.id,
       lat: r.geo_lat,
       lon: r.geo_lon,
-      color: r.detalhe ? SITUATION_COLOR[situacao(r, hoje).s] : COR_CAPTACAO,
+      color: r.negociacao
+        ? COR_NEGOCIACAO
+        : r.detalhe
+          ? SITUATION_COLOR[situacao(r, hoje).s]
+          : COR_CAPTACAO,
       lines: linhasCaptacao(r, hoje),
       links: linksCaptador(r),
       actionLabel: r.pode_abrir ? "Abrir captação →" : undefined,

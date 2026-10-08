@@ -18,6 +18,9 @@ import {
   addressConflicts,
   type AddressConflict,
   uploadCaptureDocument,
+  vendaDaCaptacao,
+  virarVenda,
+  type VendaDaCaptacao,
 } from "@/lib/exclusive-captures-db";
 import {
   applySignedContract,
@@ -84,6 +87,7 @@ import {
 } from "@/lib/document-actions";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { diasEntre, haQuantosDias } from "@/lib/captacao-venda";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -103,6 +107,7 @@ import {
   Download,
   Eye,
   FileCheck2,
+  Handshake,
   Printer,
   Trash2,
   Upload,
@@ -166,6 +171,11 @@ function ExclusiveDetail() {
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [conflicts, setConflicts] = useState<AddressConflict[]>([]);
+  // "Virou venda": permissão e venda ativa ligada à captação (o banco decide quem pode).
+  const [vendaInfo, setVendaInfo] = useState<{
+    pode_virar: boolean;
+    venda: VendaDaCaptacao | null;
+  }>({ pode_virar: false, venda: null });
   const [suggestions, setSuggestions] = useState<
     {
       scope: "proprietario_1" | "proprietario_2" | "imovel";
@@ -210,6 +220,9 @@ function ExclusiveDetail() {
     addressConflicts(id)
       .then(setConflicts)
       .catch(() => setConflicts([]));
+    vendaDaCaptacao(id)
+      .then(setVendaInfo)
+      .catch(() => setVendaInfo({ pode_virar: false, venda: null }));
     setDirty(false);
   }, [id]);
   useEffect(() => {
@@ -712,6 +725,29 @@ function ExclusiveDetail() {
       await setCaptureSignedOn(id, signedOn);
       toast.success("Data de assinatura atualizada");
     });
+  // "Virou venda": o banco cria (ou devolve, se já existir) a venda em rascunho; dois cliques ou
+  // duas abas caem na mesma venda.
+  const virouVenda = async () => {
+    if (
+      !window.confirm(
+        "Abrir uma nova venda com os dados desta captação? O captador entra automaticamente na venda.",
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const { criada, venda } = await virarVenda(id);
+      toast[criada ? "success" : "info"](
+        criada
+          ? `Venda #${venda.codigo} criada como rascunho. Complete comprador, valor, data, Mídia e parceria.`
+          : `Esta captação já tem a venda #${venda.codigo}. Abrindo a venda existente.`,
+      );
+      navigate({ to: "/vendas/$id", params: { id: venda.id } });
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Não foi possível abrir a venda"));
+      setBusy(false);
+    }
+  };
   // Rascunho manual pode ser excluído mesmo com o contrato de papel anexado (mesma regra do banco).
   const hasContract =
     capture.status !== "rascunho" ||
@@ -796,12 +832,26 @@ function ExclusiveDetail() {
             )}
           </div>
         )}
+        {vendaInfo.venda && <VendaDaCaptacaoAviso venda={vendaInfo.venda} />}
         {archived && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
+          {vendaInfo.pode_virar &&
+            !vendaInfo.venda &&
+            !archived &&
+            capture.status === "aprovada" && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                disabled={busy}
+                onClick={virouVenda}
+              >
+                <Handshake className="mr-1 h-4 w-4" /> Virou venda
+              </Button>
+            )}
           {canBuildCompletePdf(capture, docs) && (
             <Button size="sm" disabled={busy} onClick={downloadComplete}>
               <Download className="mr-1 h-4 w-4" /> Baixar PDF completo (contrato assinado +
@@ -1578,5 +1628,44 @@ function ExclusiveDetail() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Situação da captação pela venda ligada a ela ("Virou venda"). Rascunho não muda a captação. */
+function VendaDaCaptacaoAviso({ venda }: { venda: VendaDaCaptacao }) {
+  const dias = diasEntre(venda.negociacao_desde, hojeSaoPaulo());
+  const link = venda.pode_abrir ? (
+    <Link to="/vendas/$id" params={{ id: venda.id }} className="font-semibold underline">
+      venda #{venda.codigo}
+    </Link>
+  ) : (
+    <strong>venda #{venda.codigo}</strong>
+  );
+  if (venda.situacao === "vendida")
+    return (
+      <p className="mt-2 rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+        <strong>Vendida</strong> pela {link}. A captação saiu do mapa.
+      </p>
+    );
+  if (venda.situacao === "em_negociacao")
+    return (
+      <p className="mt-2 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+        <strong>Em negociação</strong> pela {link}
+        {venda.negociacao_desde && (
+          <>
+            {" "}
+            (enviada ao gestor em {formatDateBR(venda.negociacao_desde)}, {haQuantosDias(dias)})
+          </>
+        )}
+        . Continua no mapa com pino laranja até a venda ter contrato assinado.
+      </p>
+    );
+  return (
+    <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+      Esta captação já virou a {link} (rascunho
+      {venda.aberta_por ? ` aberto por ${venda.aberta_por}` : ""}). Ela continua{" "}
+      <strong>Ativa</strong> até a venda ser enviada ao gestor. Se a venda for arquivada ou
+      cancelada, o botão "Virou venda" volta a funcionar.
+    </p>
   );
 }
