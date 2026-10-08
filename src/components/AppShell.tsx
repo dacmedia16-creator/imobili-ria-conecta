@@ -305,6 +305,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         exclusiveVisible && hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
     },
     {
+      to: "/mapa-captacoes",
+      label: "Mapa de captações",
+      icon: MapPinned,
+      // Mesmos 9 perfis que viam o mapa em Vendas por região (Denis, 08/10/2026).
+      show: podeAcessarVendasPorRegiao(roles),
+    },
+    {
       to: "/feedback",
       label: "Feedback ao proprietário",
       icon: MessageSquareText,

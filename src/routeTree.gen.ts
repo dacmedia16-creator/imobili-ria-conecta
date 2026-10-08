@@ -23,6 +23,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
+import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes/_authenticated/ocorrencias-concluidas'
 import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_authenticated/ocorrencias-imprimir'
@@ -119,6 +120,12 @@ const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   path: '/financeiro',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMapaCaptacoesRoute =
+  AuthenticatedMapaCaptacoesRouteImport.update({
+    id: '/mapa-captacoes',
+    path: '/mapa-captacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedNotificacoesRoute =
   AuthenticatedNotificacoesRouteImport.update({
     id: '/notificacoes',
@@ -268,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -306,6 +314,7 @@ export interface FileRoutesByTo {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -346,6 +355,7 @@ export interface FileRoutesById {
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/_authenticated/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -386,6 +396,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/feedback'
     | '/financeiro'
+    | '/mapa-captacoes'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
@@ -424,6 +435,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/feedback'
     | '/financeiro'
+    | '/mapa-captacoes'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
@@ -463,6 +475,7 @@ export interface FileRouteTypes {
     | '/_authenticated/equipe'
     | '/_authenticated/feedback'
     | '/_authenticated/financeiro'
+    | '/_authenticated/mapa-captacoes'
     | '/_authenticated/notificacoes'
     | '/_authenticated/ocorrencias-concluidas'
     | '/_authenticated/ocorrencias-imprimir'
@@ -596,6 +609,13 @@ declare module '@tanstack/react-router' {
       path: '/financeiro'
       fullPath: '/financeiro'
       preLoaderRoute: typeof AuthenticatedFinanceiroRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mapa-captacoes': {
+      id: '/_authenticated/mapa-captacoes'
+      path: '/mapa-captacoes'
+      fullPath: '/mapa-captacoes'
+      preLoaderRoute: typeof AuthenticatedMapaCaptacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/notificacoes': {
@@ -770,6 +790,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
+  AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOcorrenciasConcluidasRoute: typeof AuthenticatedOcorrenciasConcluidasRoute
   AuthenticatedOcorrenciasImprimirRoute: typeof AuthenticatedOcorrenciasImprimirRoute
@@ -803,6 +824,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
+  AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOcorrenciasConcluidasRoute:
     AuthenticatedOcorrenciasConcluidasRoute,
