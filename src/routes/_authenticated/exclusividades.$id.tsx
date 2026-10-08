@@ -63,6 +63,8 @@ import {
   appendDossieToContract,
   buildDossiePdf,
   dossieCatalog,
+  dossieMissingFor,
+  initialDossieSelection,
   selectedDossie,
 } from "@/lib/capture-dossie";
 import type { FeedbackAction } from "@/lib/owner-feedback-actions";
@@ -235,11 +237,21 @@ function ExclusiveDetail() {
       alive = false;
     };
   }, []);
-  // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo.
+  // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo
+  // (mesma regra na captação normal e no cadastro manual).
   const dossieIds = form?.dossie ?? [];
-  // Manual: o Plano de Marketing é opcional (o que faltar aparece como pendência).
-  const dossieRequired = !manual && dossieCatalog(dossieActions).length > 0;
-  const dossieMissing = dossieRequired && selectedDossie(dossieActions, dossieIds).length === 0;
+  const dossieMissing = dossieMissingFor(dossieActions, dossieIds);
+  // Cadastro manual: vitais já marcadas (defaultDossieSelection) para o corretor conferir; entra no
+  // rascunho como alteração a salvar, para o gestor receber o que o corretor viu.
+  const prefillDossie = manual && editable && !dossieLoading && form?.dossie === undefined;
+  useEffect(() => {
+    if (!prefillDossie || !dossieCatalog(dossieActions).length) return;
+    const ids = initialDossieSelection(dossieActions, undefined, true);
+    setForm((current) =>
+      current && current.dossie === undefined ? { ...current, dossie: ids } : current,
+    );
+    setDirty(true);
+  }, [prefillDossie, dossieActions]);
   const setDossie = (ids: string[]) => {
     setForm((current) => (current ? { ...current, dossie: ids } : current));
     setDirty(true);
@@ -424,6 +436,11 @@ function ExclusiveDetail() {
       const ask = manual
         ? "Você conferiu os dados lidos do contrato assinado?"
         : "Você conferiu o PDF gerado e todos os documentos?";
+      // Plano de Marketing obrigatório (mesma regra e navegação da captação normal).
+      if (manual && dossieMissing && (name === "enviar" || name === "aprovar")) {
+        setStep("dossie");
+        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de continuar.");
+      }
       if (name === "enviar" && !window.confirm(ask)) return;
       await transitionCapture(id, name, name === "devolver" ? reason : undefined);
       // Vigência conta da assinatura: grava a data informada pelo gestor (padrão hoje).
@@ -491,14 +508,15 @@ function ExclusiveDetail() {
         backLabel="Voltar para exclusividades"
       />
     );
-  // Manual: só o contrato assinado é obrigatório; o resto é pendência opcional (o gestor vê).
+  // Manual: contrato assinado e Plano de Marketing são obrigatórios; o resto é pendência (o gestor vê).
   const manualCheck = manual ? manualPendencies(form, docs) : null;
-  if (manualCheck && selectedDossie(dossieActions, dossieIds).length === 0)
-    manualCheck.optional.push("Plano de Marketing: nenhuma ação marcada");
+  // Plano de Marketing é obrigatório também no manual (mesma regra da captação normal).
+  if (manualCheck && dossieMissing)
+    manualCheck.required.push("Plano de Marketing: marque ao menos 1 ação");
   const missing = manualCheck
     ? [...manualCheck.required]
     : missingRequirements(form, dirty ? docs.filter((d) => d.kind !== "gerado") : docs, cpf, creci);
-  if (dossieMissing) missing.push("Dossiê: marque ao menos 1 ação");
+  if (dossieMissing && !manual) missing.push("Dossiê: marque ao menos 1 ação");
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
   if (creci.trim() && !validCreci(creci))
@@ -1202,8 +1220,8 @@ function ExclusiveDetail() {
               loading={dossieLoading}
               onChange={setDossie}
               title="Plano de Marketing"
-              intro="Marque as ações de marketing combinadas com o proprietário. Opcional: o que não for marcado aparece como pendência para o gestor."
-              optional
+              intro="Obrigatório: confira as ações de marketing combinadas com o proprietário. As essenciais já vêm marcadas; ajuste o que for preciso."
+              manual
             />
           ) : (
             <CaptureDossieStep
@@ -1383,6 +1401,19 @@ function ExclusiveDetail() {
                     ? "Contrato assinado no papel, anexado pelo captador. Confira o contrato e os dados; ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
                     : clicksignManualInstructions}
                 </p>
+                {manual && dossieMissing && (
+                  <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+                    O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
+                    corretor para marcar antes de aprovar.{" "}
+                    <button
+                      type="button"
+                      className="font-medium text-primary underline"
+                      onClick={() => setStep("dossie")}
+                    >
+                      Ver Plano de Marketing
+                    </button>
+                  </p>
+                )}
                 {fileInput(
                   manual ? "Contrato assinado (PDF ou foto)" : "Contrato assinado (PDF)",
                   "assinado",
@@ -1414,7 +1445,9 @@ function ExclusiveDetail() {
                     </Button>
                   )}
                   <Button
-                    disabled={busy || !docs.some((d) => d.kind === "assinado")}
+                    disabled={
+                      busy || !docs.some((d) => d.kind === "assinado") || (manual && dossieMissing)
+                    }
                     onClick={() => action("aprovar")}
                   >
                     Aprovar captação
