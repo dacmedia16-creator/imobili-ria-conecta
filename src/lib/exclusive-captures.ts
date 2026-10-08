@@ -260,7 +260,11 @@ export function contractSource(
   return { file: c.template, unit: null };
 }
 /** Próxima ação da captação, independente do fluxo de vendas. */
-export function captureNextAction(status: CaptureStatus, manager: boolean): string {
+export function captureNextAction(status: CaptureStatus, manager: boolean, manual = false): string {
+  // Cadastro manual: contrato já assinado no papel; o gestor só confere e aprova.
+  if (manual && status === "rascunho") return "Anexar contrato assinado e conferir dados";
+  if (manual && status === "enviada")
+    return manager ? "Conferir e aprovar o cadastro manual" : "Aguardar aprovação do gestor";
   switch (status) {
     case "rascunho":
       return "Conferir documentos e completar dados";
@@ -402,10 +406,15 @@ export function applySignedContract(
   for (const scope of ["proprietario_1", "proprietario_2", "imovel"] as const) {
     const v = values[scope];
     if (!v || !Object.keys(v).length) continue;
-    const base = scope === "proprietario_2" && !next.proprietario_2 ? { ...next, proprietario_2: emptyOwner() } : next;
+    const base =
+      scope === "proprietario_2" && !next.proprietario_2
+        ? { ...next, proprietario_2: emptyOwner() }
+        : next;
     const before = (base[scope] ?? {}) as Record<string, string>;
     const after = applySuggestedFields(base, scope, v);
-    const got = Object.keys(v).filter((k) => !before[k]?.trim() && (after[scope] as Record<string, string>)[k]?.trim());
+    const got = Object.keys(v).filter(
+      (k) => !before[k]?.trim() && (after[scope] as Record<string, string>)[k]?.trim(),
+    );
     if (!got.length) continue;
     next = after;
     filled.push(...got.map((k) => label(scope, k)));

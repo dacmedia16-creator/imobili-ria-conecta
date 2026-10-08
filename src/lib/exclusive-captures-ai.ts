@@ -204,7 +204,9 @@ export function sanitizeSignedContractAi(
   let prazo = Number.parseInt(String(raw.prazo_dias ?? "").replace(/\D/g, ""), 10);
   const end = isoDate(raw.data_vencimento);
   if (!(prazo > 0) && signed && end && end > signed)
-    prazo = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${signed}T00:00:00Z`)) / 86_400_000);
+    prazo = Math.round(
+      (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${signed}T00:00:00Z`)) / 86_400_000,
+    );
   if (prazo > 0 && prazo <= 3650) out.condicoes.prazo_dias_numero = String(prazo);
   const pct = String(raw.comissao_percentual ?? "")
     .replace("%", "")
@@ -214,7 +216,8 @@ export function sanitizeSignedContractAi(
   for (const key of ["foro_comarca", "foro_estado"] as const) {
     const v = raw[key];
     if (typeof v === "string" && v.trim() && !/^null$/i.test(v.trim()))
-      out.condicoes[key] = (key === "foro_estado" && UF[v.trim().toUpperCase()]) || v.trim().slice(0, 120);
+      out.condicoes[key] =
+        (key === "foro_estado" && UF[v.trim().toUpperCase()]) || v.trim().slice(0, 120);
   }
   return out;
 }

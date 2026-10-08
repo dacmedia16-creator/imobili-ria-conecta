@@ -5,7 +5,7 @@ import {
   SITUATION_COLOR,
   SITUATION_LABEL,
 } from "@/lib/exclusive-captures-dashboard";
-import { formatDateBR, validityText, type Capture } from "@/lib/exclusive-captures";
+import { formatDateBR, MANUAL_COLOR, validityText, type Capture } from "@/lib/exclusive-captures";
 import { PinsMap, type MapPin } from "@/components/mapa/PinsMap";
 
 /** Mapa das captações (OpenStreetMap). Popup só com dados do imóvel — nunca do proprietário. */
@@ -31,12 +31,14 @@ export function CapturesMap({
         id: c.id,
         lat: c.geo_lat,
         lon: c.geo_lon,
-        color: SITUATION_COLOR[s],
+        // Cadastro manual (contrato de papel): pino roxo, como na maquete aprovada.
+        color: c.manual ? MANUAL_COLOR : SITUATION_COLOR[s],
         lines: [
           {
             text: c.form_data.imovel?.endereco || c.form_data.imovel?.tipo_imovel || "Imóvel",
             bold: true,
           },
+          ...(c.manual ? [{ text: "Cadastro manual (contrato de papel)" }] : []),
           { text: `${bairroLabel(c)} · ${c.form_data.imovel?.tipo_imovel || "—"}` },
           { text: `${SITUATION_LABEL[s]}${v ? " · " + validityText(v) : ""}` },
           {
