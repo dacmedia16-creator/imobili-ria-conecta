@@ -171,7 +171,14 @@ describe("vendas por região — todos os perfis", () => {
     },
     { ...base, tipo: "grupo", qtd: 3, valor: "900000" },
     { ...base, tipo: "grupo", imovel_bairro: "Centro", qtd: 2, valor: 100 },
-    { ...base, tipo: "pino", modalidade: "lancamento", geo_lat: -23.51, geo_lon: -47.41 },
+    {
+      ...base,
+      tipo: "pino",
+      modalidade: "lancamento",
+      valor: "450000.50",
+      geo_lat: -23.51,
+      geo_lon: -47.41,
+    },
     { ...base, tipo: "pino", imovel_bairro: "Centro", geo_lat: -23.4, geo_lon: -47.3 },
   ];
 
@@ -210,5 +217,17 @@ describe("vendas por região — todos os perfis", () => {
     expect(somaQtd(filtrarVendas(vendas, { dataDe: "", dataAte: "", busca: "centro" }))).toBe(2);
     expect(filtrarPinos(pinos, "centro")).toHaveLength(1);
     expect(filtrarPinos(pinos, "")).toHaveLength(2);
+  });
+
+  it("pino anônimo traz o valor da venda (null quando o banco não manda) e nada de identificação", () => {
+    const { pinos } = montarVendasTodos(rows);
+    expect(pinos[0].valor).toBe(450000.5);
+    expect(pinos[1].valor).toBeNull();
+    expect(Object.keys(pinos[0]).sort()).toEqual(
+      ["bairro", "cidade", "id", "lat", "lon", "modalidade", "valor"].sort(),
+    );
+    // Valor do pino não entra no VGV (já está somado no agregado 'grupo')
+    const { vendas } = montarVendasTodos(rows);
+    expect(vendas.reduce((s, v) => s + v.vgv, 0)).toBe(1400100);
   });
 });

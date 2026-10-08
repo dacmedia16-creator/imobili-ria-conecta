@@ -129,10 +129,12 @@ export type VendaRegiaoTodosRow = {
   geo_lon: number | null;
 };
 
-/** Pino de venda que a pessoa não abre: só modalidade, bairro/cidade e localização aproximada. */
+/** Pino de venda que a pessoa não abre: só modalidade, valor, bairro/cidade e localização aproximada. */
 export type PinoAnonimo = {
   id: string;
   modalidade: string | null;
+  /** Valor da venda (null se o banco ainda não devolver o valor no pino). */
+  valor: number | null;
   bairro: string;
   cidade: string;
   lat: number;
@@ -158,6 +160,7 @@ export function montarVendasTodos(rows: VendaRegiaoTodosRow[]): {
         pinos.push({
           id: `pino-${i}`,
           modalidade: r.modalidade,
+          valor: r.valor == null || r.valor === "" ? null : Number(r.valor),
           bairro,
           cidade,
           lat: r.geo_lat,
