@@ -19,11 +19,17 @@ const users = {
   "tok-teste": { id: U.teste, org: ORG_TESTE, role: "corretor", nome: "Corretor REMAX-TESTE" },
 };
 
-// Captações da imobiliária fictícia "Única"; só a 1ª e a 2ª estão aprovadas (assinadas).
+// Captações da imobiliária fictícia "Única"; c1, c2 e c4 aprovadas (assinadas), c3 rascunho.
+// Contato do CORRETOR captador (fictício); o proprietário nunca entra no mock de resposta.
+const contato = {
+  [U.corretor]: { tel: "(15) 90000-0001", email: "corretor@example.test", equipe: "Equipe Azul" },
+  x: { tel: "(15) 90000-0002", email: null, equipe: "Equipe Verde" },
+};
 const capturas = [
-  { id: "c1", org: ORG, codigo: "CAP-001", status: "aprovada", tipo_imovel: "Casa", bairro: "Campolim", cidade: "Sorocaba", captador: "Corretor Fictício", lat: -23.5245, lon: -47.4733, endereco: "Rua Fictícia, 100", signed_on: "2026-10-01", prazo_dias: "180", captador_id: U.corretor },
-  { id: "c2", org: ORG, codigo: "CAP-002", status: "aprovada", tipo_imovel: "Apartamento", bairro: "Centro", cidade: "Sorocaba", captador: "Outro Corretor", lat: -23.5015, lon: -47.4526, endereco: "Av. Exemplo, 200", signed_on: "2026-09-20", prazo_dias: "90", captador_id: "x" },
-  { id: "c3", org: ORG, codigo: "CAP-003", status: "rascunho", tipo_imovel: "Casa", bairro: "Éden", cidade: "Sorocaba", captador: "Outro", lat: -23.42, lon: -47.4, endereco: "Rua Rascunho, 1", signed_on: null, prazo_dias: null, captador_id: "x" },
+  { id: "c1", org: ORG, codigo: "CAP-001", status: "aprovada", tipo_imovel: "Casa", bairro: "Campolim", cidade: "Sorocaba", captador: "Corretor Fictício", lat: -23.5245, lon: -47.4733, endereco: "Rua Fictícia, 100", signed_on: "2026-10-01", prazo_dias: "180", captador_id: U.corretor, valor: "R$ 850.000,00", proprietario: "PROPRIETARIO SECRETO" },
+  { id: "c2", org: ORG, codigo: "CAP-002", status: "aprovada", tipo_imovel: "APARTAMENTO", bairro: "Centro", cidade: "Sorocaba", captador: "Outro Corretor", lat: -23.5015, lon: -47.4526, endereco: "Av. Exemplo, 200", signed_on: "2026-09-20", prazo_dias: "90", captador_id: "x", valor: "420.000", proprietario: "PROPRIETARIO SECRETO" },
+  { id: "c4", org: ORG, codigo: "CAP-004", status: "aprovada", tipo_imovel: "apartamento", bairro: "Jardim Vergueiro", cidade: "Sorocaba", captador: "Outro Corretor", lat: -23.4905, lon: -47.4655, endereco: "Rua Modelo, 40", signed_on: "2026-09-25", prazo_dias: "180", captador_id: "x", valor: "R$ 610.000,00", proprietario: "PROPRIETARIO SECRETO" },
+  { id: "c3", org: ORG, codigo: "CAP-003", status: "rascunho", tipo_imovel: "Casa", bairro: "Éden", cidade: "Sorocaba", captador: "Outro", lat: -23.42, lon: -47.4, endereco: "Rua Rascunho, 1", signed_on: null, prazo_dias: null, captador_id: "x", valor: "R$ 1,00" },
 ];
 
 function mapaCaptacoes(u) {
@@ -50,6 +56,12 @@ function mapaCaptacoes(u) {
         prazo_dias: detalhe ? c.prazo_dias : null,
         estado: podeAbrir ? "SP" : null,
         geo_key: podeAbrir ? "k" : null,
+        // mapa_captacoes_v2 (migration 20261008170000): preço e contato do captador para todos
+        valor_imovel: c.valor,
+        captador_id: c.captador_id,
+        captador_telefone: contato[c.captador_id]?.tel ?? null,
+        captador_email: contato[c.captador_id]?.email ?? null,
+        equipe: contato[c.captador_id]?.equipe ?? null,
       };
     });
 }
@@ -116,7 +128,7 @@ http
       if (fn === "current_org_id") return send(res, 200, u?.org ?? null);
       if (fn === "is_platform_super_admin") return send(res, 200, false);
       if (fn === "exclusive_capture_enabled") return send(res, 200, true);
-      if (fn === "mapa_captacoes") return u ? send(res, 200, mapaCaptacoes(u)) : send(res, 401, { code: "42501" });
+      if (fn === "mapa_captacoes" || fn === "mapa_captacoes_v2") return u ? send(res, 200, mapaCaptacoes(u)) : send(res, 401, { code: "42501" });
       if (fn === "vendas_por_regiao_todos") return send(res, 200, []);
       if (fn.endsWith("_enabled")) return send(res, 200, false);
       return send(res, 200, null);

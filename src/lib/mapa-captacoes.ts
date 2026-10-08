@@ -1,9 +1,9 @@
 /**
- * Mapa das captações no topo de "Vendas por região". Os dados vêm de mapa_captacoes(), que já corta
- * no banco o que cada perfil pode ver: só captações com contrato assinado (status 'aprovada') e
- * nunca dado do proprietário, valor do imóvel ou comissão. O pino fica no ponto exato do imóvel para
- * todos; quem não é gestor/admin (nem captador/líder da captação) recebe só código, tipo, bairro,
- * cidade e captador — sem endereço por escrito, situação nem botão de abrir.
+ * Tela "Mapa de captações". Os dados vêm de mapa_captacoes_v2(), que já corta no banco o que cada
+ * perfil pode ver: só captações com contrato assinado (status 'aprovada') e nunca dado do
+ * proprietário ou comissão. Preço do imóvel e contato do corretor captador aparecem para todos
+ * (Denis, 08/10/2026). Quem não é gestor/admin (nem captador/líder da captação) não recebe endereço
+ * por escrito, situação nem botão de abrir.
  */
 import {
   geoKey,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/exclusive-captures";
 import { nomeExibicao } from "@/lib/vendas-por-regiao";
 import type { MapPin } from "@/components/mapa/PinsMap";
+import { precoTexto, whatsappLink } from "@/lib/mapa-captacoes-filtros";
 
 export type CaptacaoMapaRow = {
   id: string;
@@ -40,6 +41,13 @@ export type CaptacaoMapaRow = {
   /** Só quando pode_abrir: usados para localizar no mapa as captações ainda sem coordenada. */
   estado: string | null;
   geo_key: string | null;
+  /** Valor do imóvel informado na captação — para todos (Denis, 08/10/2026). */
+  valor_imovel?: string | null;
+  /** Contato do CORRETOR captador (nunca do proprietário). */
+  captador_id?: string | null;
+  captador_telefone?: string | null;
+  captador_email?: string | null;
+  equipe?: string | null;
 };
 
 /** Captação mínima no formato do painel, para reaproveitar geoKey/geoQueries de lá (mesma chave). */
@@ -88,7 +96,7 @@ function situacao(r: CaptacaoMapaRow, hoje: string): { s: Situation; v: Validity
   return { s: "rascunho", v };
 }
 
-/** Linhas do balão do pino. Sem detalhe: código, tipo, bairro/cidade e captador — nada além. */
+/** Linhas do balão do pino. Sem detalhe: código, tipo, preço, bairro/cidade e contato do captador. */
 export function linhasCaptacao(r: CaptacaoMapaRow, hoje: string): MapPin["lines"] {
   const local = [
     r.bairro ? nomeExibicao(r.bairro) : "Sem bairro",
@@ -99,14 +107,27 @@ export function linhasCaptacao(r: CaptacaoMapaRow, hoje: string): MapPin["lines"
   const linhas: MapPin["lines"] = [
     { text: `Captação ${r.codigo} · ${r.tipo_imovel || "Imóvel"}`, bold: true },
   ];
+  if (r.valor_imovel !== undefined) linhas.push({ text: precoTexto(r.valor_imovel), bold: true });
   if (r.detalhe && r.endereco) linhas.push({ text: r.endereco });
   linhas.push({ text: local });
-  linhas.push({ text: `Captador: ${r.captador || "—"}` });
+  linhas.push({ text: `Captador: ${r.captador || "—"}${r.equipe ? ` (${r.equipe})` : ""}` });
+  if (r.captador_telefone) linhas.push({ text: `Tel.: ${r.captador_telefone}` });
+  if (r.captador_email) linhas.push({ text: `E-mail: ${r.captador_email}` });
   if (r.detalhe) {
     const { s, v } = situacao(r, hoje);
     linhas.push({ text: `${SITUATION_LABEL[s]}${v ? " · " + validityText(v) : ""}` });
   }
   return linhas;
+}
+
+/** Botões de contato do corretor captador (WhatsApp e e-mail), quando houver no cadastro. */
+export function linksCaptador(r: CaptacaoMapaRow): { text: string; href: string }[] {
+  const out: { text: string; href: string }[] = [];
+  const wa = whatsappLink(r.captador_telefone, r.codigo);
+  if (wa) out.push({ text: "WhatsApp do captador", href: wa });
+  if (r.captador_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.captador_email))
+    out.push({ text: "E-mail", href: `mailto:${r.captador_email}` });
+  return out;
 }
 
 export function pinosCaptacoes(rows: CaptacaoMapaRow[], hoje: string): MapPin[] {
@@ -119,6 +140,7 @@ export function pinosCaptacoes(rows: CaptacaoMapaRow[], hoje: string): MapPin[] 
       lon: r.geo_lon,
       color: r.detalhe ? SITUATION_COLOR[situacao(r, hoje).s] : COR_CAPTACAO,
       lines: linhasCaptacao(r, hoje),
+      links: linksCaptador(r),
       actionLabel: r.pode_abrir ? "Abrir captação →" : undefined,
     });
   }

@@ -11,6 +11,8 @@ export type MapPin = {
   /** Linhas do popup; a primeira costuma ir em negrito. */
   lines: { text: string; bold?: boolean }[];
   actionLabel?: string;
+  /** Links externos no popup (ex.: WhatsApp/e-mail do captador). Só http(s), mailto e tel. */
+  links?: { text: string; href: string }[];
 };
 
 /** Mapa OpenStreetMap genérico (Captação e Vendas por região). Centro inicial na cidade da
@@ -20,15 +22,19 @@ export function PinsMap({
   city,
   uf,
   onOpen,
+  focusId,
 }: {
   pins: MapPin[];
   city: string | null;
   uf: string | null;
   onOpen?: (id: string) => void;
+  /** Pino a centralizar e abrir (ex.: clique na lista ao lado). */
+  focusId?: { id: string; n: number } | null;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const layer = useRef<LayerGroup | null>(null);
+  const markers = useRef(new Map<string, import("leaflet").CircleMarker>());
   const L = useRef<typeof import("leaflet") | null>(null);
   const openRef = useRef(onOpen);
   openRef.current = onOpen;
@@ -39,6 +45,7 @@ export function PinsMap({
     const lf = L.current;
     if (!lf || !map.current || !layer.current) return;
     layer.current.clearLayers();
+    markers.current.clear();
     const pts: [number, number][] = [];
     for (const p of pins) {
       const box = document.createElement("div");
@@ -49,6 +56,19 @@ export function PinsMap({
         if (l.bold) d.style.fontWeight = "600";
         box.appendChild(d);
       }
+      for (const lk of p.links ?? []) {
+        if (!/^(https?:|mailto:|tel:)/i.test(lk.href)) continue;
+        const a = document.createElement("a");
+        a.href = lk.href;
+        a.textContent = lk.text;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.display = "inline-block";
+        a.style.marginTop = "4px";
+        a.style.marginRight = "10px";
+        a.style.color = "#16a34a";
+        box.appendChild(a);
+      }
       if (p.actionLabel && openRef.current) {
         const a = document.createElement("button");
         a.type = "button";
@@ -58,18 +78,28 @@ export function PinsMap({
         a.onclick = () => openRef.current?.(p.id);
         box.appendChild(a);
       }
-      lf.circleMarker([p.lat, p.lon], {
-        radius: 9,
-        color: "#ffffff",
-        weight: 2,
-        fillColor: p.color,
-        fillOpacity: 0.95,
-      })
+      const m = lf
+        .circleMarker([p.lat, p.lon], {
+          radius: 9,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: p.color,
+          fillOpacity: 0.95,
+        })
         .bindPopup(box)
         .addTo(layer.current);
+      markers.current.set(p.id, m);
       pts.push([p.lat, p.lon]);
     }
-    if (pts.length) map.current.fitBounds(lf.latLngBounds(pts), { padding: [30, 30], maxZoom: 15 });
+    // Sem animação: com filtros, os pinos mudam a cada tecla e um zoom animado ainda em curso
+    // quebrava o Leaflet ("_leaflet_pos" em _onZoomTransitionEnd).
+    map.current.stop();
+    if (pts.length)
+      map.current.fitBounds(lf.latLngBounds(pts), {
+        padding: [30, 30],
+        maxZoom: 15,
+        animate: false,
+      });
   };
 
   useEffect(() => {
@@ -113,6 +143,14 @@ export function PinsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, uf]);
   useEffect(draw, [pins]);
+  useEffect(() => {
+    const m = focusId ? markers.current.get(focusId.id) : undefined;
+    if (!m || !map.current) return;
+    // Sem animação: abrir o popup durante a animação de zoom gera "_leaflet_pos" no Leaflet.
+    map.current.stop();
+    map.current.setView(m.getLatLng(), Math.max(map.current.getZoom(), 16), { animate: false });
+    m.openPopup();
+  }, [focusId]);
 
   return <div ref={el} className="h-[420px] w-full rounded-md border" style={{ zIndex: 0 }} />;
 }
