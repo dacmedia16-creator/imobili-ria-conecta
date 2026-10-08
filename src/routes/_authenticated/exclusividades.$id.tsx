@@ -63,6 +63,8 @@ import {
 } from "@/lib/exclusive-captures-ai.functions";
 import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
+import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
+import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
 import {
   appendDossieToContract,
   buildDossiePdf,
@@ -934,6 +936,12 @@ function ExclusiveDetail() {
           )}
         </div>
       </div>
+      {capture.status === "aprovada" && (
+        <>
+          <AnuncioPortais captureId={capture.id} />
+          <PlanoChecklist captureId={capture.id} editable={!archived} />
+        </>
+      )}
       <nav aria-label="Etapas da captação" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {captureSteps.map((item, index) => (
           <Button
