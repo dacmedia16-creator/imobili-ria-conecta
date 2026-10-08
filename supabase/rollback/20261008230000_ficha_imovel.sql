@@ -4,7 +4,7 @@
 -- (os dados digitados nelas se perdem: exporte antes se já houver uso real).
 -- O front publicado antes desta versão funciona com este banco. O front novo também abre, mas a
 -- gravação da ficha falha (colunas inexistentes): reverter o front junto.
--- Depois de rodar, remover a linha 20261008220000 de supabase_migrations.schema_migrations.
+-- Depois de rodar, remover a linha 20261008230000 de supabase_migrations.schema_migrations.
 BEGIN;
 
 DROP TRIGGER IF EXISTS trg_bloquear_avanco_sem_ficha_imovel ON public.sales;
