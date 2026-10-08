@@ -176,6 +176,8 @@ export type CaptureForm = {
   testemunha_2: Witness;
   /** Dossiê: ids das ações do plano de marketing escolhidas (ausente = ainda não definido). */
   dossie?: string[];
+  /** Cadastro manual: data de assinatura escrita no contrato (AAAA-MM-DD). Na aprovação vira signed_on. */
+  data_assinatura?: string;
 };
 export type Capture = {
   id: string;
@@ -192,6 +194,8 @@ export type Capture = {
   created_at: string;
   archived_at?: string | null;
   signed_on?: string | null;
+  /** Cadastro manual de contrato já assinado no papel (sem PDF gerado pelo sistema). */
+  manual?: boolean;
   geo_lat?: number | null;
   geo_lon?: number | null;
   geo_key?: string | null;
@@ -361,7 +365,97 @@ export function normalizeForm(
     ...(Array.isArray(value?.dossie)
       ? { dossie: value.dossie.filter((v): v is string => typeof v === "string") }
       : {}),
+    ...(typeof value?.data_assinatura === "string" && value.data_assinatura
+      ? { data_assinatura: value.data_assinatura }
+      : {}),
   };
+}
+
+/** Cor do pino e do selo "Cadastro manual" (maquete aprovada em 08/10). */
+export const MANUAL_COLOR = "#7c3aed";
+
+const TERMS_LABEL = Object.fromEntries(TERMS_FIELDS.map((f) => [f.key, f.label])) as Record<
+  TermsField,
+  string
+>;
+/**
+ * Cadastro manual: aplica a leitura do contrato assinado só nos campos VAZIOS (nunca sobrescreve o
+ * que o corretor já digitou). Devolve o formulário novo e os rótulos dos campos preenchidos.
+ */
+export function applySignedContract(
+  form: CaptureForm,
+  values: {
+    proprietario_1?: Record<string, string>;
+    proprietario_2?: Record<string, string>;
+    imovel?: Record<string, string>;
+    condicoes?: Record<string, string>;
+    data_assinatura?: string;
+  },
+): { form: CaptureForm; filled: string[] } {
+  const filled: string[] = [];
+  let next = form;
+  const label = (scope: string, key: string) => {
+    if (scope === "imovel") return PROPERTY_FIELDS.find((f) => f.key === key)?.label ?? key;
+    const n = scope === "proprietario_2" ? " (proprietário 2)" : "";
+    return (OWNER_FIELDS.find((f) => f.key === key)?.label ?? key) + n;
+  };
+  for (const scope of ["proprietario_1", "proprietario_2", "imovel"] as const) {
+    const v = values[scope];
+    if (!v || !Object.keys(v).length) continue;
+    const base = scope === "proprietario_2" && !next.proprietario_2 ? { ...next, proprietario_2: emptyOwner() } : next;
+    const before = (base[scope] ?? {}) as Record<string, string>;
+    const after = applySuggestedFields(base, scope, v);
+    const got = Object.keys(v).filter((k) => !before[k]?.trim() && (after[scope] as Record<string, string>)[k]?.trim());
+    if (!got.length) continue;
+    next = after;
+    filled.push(...got.map((k) => label(scope, k)));
+  }
+  const terms = { ...next.condicoes };
+  for (const [k, val] of Object.entries(values.condicoes ?? {})) {
+    const key = k as TermsField;
+    if (key in terms && !terms[key]?.trim() && val.trim()) {
+      terms[key] = val.trim();
+      filled.push(TERMS_LABEL[key]);
+    }
+  }
+  next = { ...next, condicoes: terms };
+  if (values.data_assinatura && !next.data_assinatura) {
+    next = { ...next, data_assinatura: values.data_assinatura };
+    filled.push("Data de assinatura");
+  }
+  return { form: next, filled };
+}
+
+/**
+ * Cadastro manual: o único item obrigatório para enviar ao gestor é o contrato assinado.
+ * O resto aparece como pendência opcional (o gestor vê antes de aprovar).
+ */
+export function manualPendencies(
+  form: CaptureForm,
+  docs: CaptureDocument[],
+): { required: string[]; optional: string[] } {
+  const required = docs.some((d) => d.kind === "assinado") ? [] : ["Contrato assinado"];
+  const optional: string[] = [];
+  const t = (v?: string) => !!v?.trim();
+  if (!t(form.proprietario_1.nome_completo)) optional.push("Nome do proprietário");
+  if (!t(form.imovel.endereco) || !t(form.imovel.municipio))
+    optional.push("Endereço do imóvel (sem ele a captação não aparece no mapa)");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.data_assinatura ?? ""))
+    optional.push("Data de assinatura (sem ela vale o dia da aprovação)");
+  if (!(Number.parseInt(form.condicoes.prazo_dias_numero ?? "", 10) > 0))
+    optional.push("Prazo da exclusividade em dias");
+  for (const owner of [1, 2] as const) {
+    if (owner === 2 && !form.proprietario_2) continue;
+    if (!ownerDocumentsComplete(docs, owner))
+      optional.push(`RG + CPF ou CNH do proprietário ${owner}`);
+  }
+  for (const [kind, label] of [
+    ["residencia", "Comprovante de residência"],
+    ["iptu", "IPTU"],
+    ["matricula", "Matrícula"],
+  ] as const)
+    if (!docs.some((d) => d.kind === kind)) optional.push(label);
+  return { required, optional };
 }
 export function missingRequirements(
   form: CaptureForm,
