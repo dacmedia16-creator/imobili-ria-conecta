@@ -30,6 +30,7 @@ import {
 } from "@/lib/exclusive-captures-dashboard";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { CaptureSummaryDialog } from "@/components/exclusividades/CaptureSummaryDialog";
+import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
@@ -338,6 +339,7 @@ function ExclusiveList() {
                       {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}
                     </span>
                   </div>
+                  {validity && <VigenciaBar v={validity} compact />}
                   <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
                     <p className="text-sm">
                       <span className="text-muted-foreground">Próxima ação: </span>
