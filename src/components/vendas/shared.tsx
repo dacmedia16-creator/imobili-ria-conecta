@@ -77,7 +77,7 @@ const FIELD_HINTS: Record<string, string> = {
   "Código interno": "Use o código interno da negociação para facilitar a localização da venda.",
   "Tempo de venda (dias)": "Informe quantos dias se passaram desde a captação até o fechamento.",
   Mídia:
-    "Selecione de onde veio o cliente ou a oportunidade: portal, indicação, rede social ou outro canal.",
+    "Obrigatório para enviar a venda. Selecione de onde veio o cliente ou a oportunidade: portal, indicação, rede social ou outro canal.",
   "Observações do imóvel":
     "Registre detalhes importantes do imóvel que não cabem nos outros campos.",
   "Corretor captador": "Selecione o corretor que captou o cliente ou iniciou o atendimento.",
@@ -197,6 +197,7 @@ export function Field({
   hint,
   invalid = false,
   errorText,
+  required = false,
 }: {
   label: string;
   children: React.ReactNode;
@@ -204,6 +205,8 @@ export function Field({
   hint?: string;
   invalid?: boolean;
   errorText?: string;
+  /** Mostra um asterisco vermelho ao lado do rótulo (campo exigido para avançar a venda). */
+  required?: boolean;
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -225,6 +228,11 @@ export function Field({
           }
         >
           {label}
+          {required && (
+            <span className="ml-0.5 text-destructive" aria-hidden="true">
+              *
+            </span>
+          )}
         </Label>
         {guidance && (
           <button

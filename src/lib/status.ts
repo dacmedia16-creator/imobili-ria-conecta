@@ -483,6 +483,16 @@ export const MIDIA_OPTIONS: { key: string; label: string }[] = [
   { key: "Outro", label: "Outro" },
 ];
 
+/** Mídia é obrigatória para a venda sair do rascunho e para a ocorrência ir ao financeiro (o banco
+ * também trava: gatilho trg_bloquear_avanco_a_midia). O rascunho continua salvando sem ela. */
+export const MIDIA_OBRIGATORIA_MSG =
+  "Informe a Mídia da venda (de onde veio o cliente) antes de enviar. Sem ela a venda não sai do rascunho.";
+export const MIDIA_OCORRENCIA_OBRIGATORIA_MSG =
+  "Informe a Mídia na Ocorrência (de onde veio o cliente) antes de enviar ao financeiro.";
+export function midiaPreenchida(midia: string | null | undefined): boolean {
+  return typeof midia === "string" && midia.trim() !== "";
+}
+
 export type Pendencia = { campo: string; mensagem: string };
 
 const numeroFinanceiro = (valor: unknown): number => {
@@ -559,6 +569,7 @@ export const CHECKS_NAO_DOCUMENTAIS = [
   "imovel",
   "matricula",
   "endereco",
+  "midia",
   "vendedor",
   "comprador",
   "valor_negociado",
@@ -608,6 +619,8 @@ export function validarProntaParaRevisao(
   const faltaEndereco = enderecoFaltando(sale as unknown as Record<string, unknown>);
   if (faltaEndereco.length)
     pend.push({ campo: "endereco", mensagem: mensagemEnderecoFaltando(faltaEndereco) });
+  if (!midiaPreenchida(sale?.midia))
+    pend.push({ campo: "midia", mensagem: "Falta informar a Mídia (de onde veio o cliente)" });
 
   // Partes
   const vendedor = parties?.vendedor_1;

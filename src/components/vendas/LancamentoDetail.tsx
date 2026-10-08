@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 import {
   MIDIA_OPTIONS,
+  MIDIA_OBRIGATORIA_MSG,
+  midiaPreenchida,
   LANCAMENTO_COMISSAO_PAPEIS,
   STATUS_LABEL,
   type SaleStatus,
@@ -932,10 +934,16 @@ export function LancamentoDetail({
 
   // ----- Enviar ao financeiro -----
   const [sending, setSending] = useState(false);
+  const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const anyDirty = dirty || partiesDirty || paymentDirty || commDirty;
   const enviarFinanceiro = async () => {
     if (anyDirty) {
       toast.error("Aguarde salvar as últimas alterações antes de enviar (alguns segundos).");
+      return;
+    }
+    if (!midiaPreenchida(form.midia)) {
+      setMostrarErroMidia(true);
+      toast.error(MIDIA_OBRIGATORIA_MSG, { duration: 8000 });
       return;
     }
     setSending(true);
@@ -1022,7 +1030,12 @@ export function LancamentoDetail({
                   onChange={(e) => upd({ data_assinatura: e.target.value || null })}
                 />
               </Field>
-              <Field label="Mídia">
+              <Field
+                label="Mídia"
+                required
+                invalid={mostrarErroMidia && !midiaPreenchida(form.midia)}
+                errorText="Obrigatório para enviar ao financeiro."
+              >
                 <Select
                   value={form.midia || undefined}
                   disabled={!canEdit}

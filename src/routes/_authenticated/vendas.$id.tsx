@@ -51,6 +51,9 @@ import {
   COMISSAO_PAPEIS,
   PARCERIA_TIPOS,
   MIDIA_OPTIONS,
+  MIDIA_OBRIGATORIA_MSG,
+  MIDIA_OCORRENCIA_OBRIGATORIA_MSG,
+  midiaPreenchida,
   validarProntaParaRevisao,
   enderecoFaltando,
   mensagemEnderecoFaltando,
@@ -370,6 +373,7 @@ function SaleDetail() {
   const [saving, setSaving] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [mostrarErrosEndereco, setMostrarErrosEndereco] = useState(false);
+  const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -1693,6 +1697,23 @@ function SaleDetail() {
     load();
   };
 
+  // Ocorrência só vai ao financeiro com Mídia preenchida (o banco também trava). Lê o valor já salvo,
+  // depois de gravar o que estiver pendente, e leva o gestor de volta à aba Ocorrência se faltar.
+  const enviarOcorrenciaFinanceiro = async () => {
+    if (!(await flushAllDirty())) return;
+    const { data: occMidia } = await supabase
+      .from("occurrences")
+      .select("midia")
+      .eq("sale_id", id)
+      .maybeSingle();
+    if (occMidia && !midiaPreenchida(occMidia.midia)) {
+      setStep("ocorrencia");
+      toast.error(MIDIA_OCORRENCIA_OBRIGATORIA_MSG, { duration: 8000 });
+      return;
+    }
+    await changeStatus("ocorrencia_analise_financeiro");
+  };
+
   const contratoDocs = docs.filter((d) => d.tipo === "contrato");
   const contratoAssinadoDocs = docs.filter((d) => d.tipo === "contrato_assinado");
   const certidoesJuridicoDocs = docs.filter((d) => d.tipo === "certidao_juridico");
@@ -1951,8 +1972,26 @@ function SaleDetail() {
     });
     return true;
   };
+  // Sem Mídia: mesma conduta do endereço — explica, volta ao Resumo e marca o campo em vermelho.
+  const barrarPorMidia = (): boolean => {
+    if (midiaPreenchida(formSale.midia)) return false;
+    setMostrarErroMidia(true);
+    setReviewOpen(false);
+    setApproveJuridicoOpen(false);
+    setStep("resumo");
+    toast.error(MIDIA_OBRIGATORIA_MSG, { duration: 8000 });
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document
+          .getElementById("campo-midia-venda")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    });
+    return true;
+  };
   const confirmSendForReview = async () => {
     if (barrarPorEndereco()) return;
+    if (barrarPorMidia()) return;
     if (pendencias.length > 0) {
       toast.error("Corrija as pendências antes de enviar");
       return;
@@ -2161,13 +2200,25 @@ function SaleDetail() {
                             placeholder="Ex: 45"
                           />
                         </Field>
-                        <Field label="Mídia">
+                        <Field
+                          label="Mídia"
+                          required
+                          invalid={mostrarErroMidia && !midiaPreenchida(formSale.midia)}
+                          errorText="Obrigatório para enviar a venda."
+                        >
                           <Select
                             value={formSale.midia ?? "none"}
                             onValueChange={(v) => updResumo({ midia: v === "none" ? null : v })}
                             disabled={!editable}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger
+                              id="campo-midia-venda"
+                              className={
+                                mostrarErroMidia && !midiaPreenchida(formSale.midia)
+                                  ? "border-destructive ring-1 ring-destructive/30"
+                                  : undefined
+                              }
+                            >
                               <SelectValue placeholder="Selecione o canal" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3861,7 +3912,7 @@ function SaleDetail() {
                         ? {
                             label: "Enviar ocorrência ao financeiro",
                             icon: DollarSign,
-                            onClick: () => changeStatus("ocorrencia_analise_financeiro"),
+                            onClick: enviarOcorrenciaFinanceiro,
                           }
                         : null;
 
@@ -4105,7 +4156,7 @@ function SaleDetail() {
 
           {isGestor &&
             (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
-              <Button onClick={() => changeStatus("ocorrencia_analise_financeiro")}>
+              <Button onClick={enviarOcorrenciaFinanceiro}>
                 <DollarSign className="mr-2 h-4 w-4" />
                 Enviar ocorrência ao financeiro
               </Button>
@@ -7013,7 +7064,12 @@ function OccurrencePanel({
                 onChange={(e) => updOcc({ data_assinatura: e.target.value || null })}
               />
             </Field>
-            <Field label="Mídia">
+            <Field
+              label="Mídia"
+              required
+              invalid={!concluida && !midiaPreenchida(formOcc.midia)}
+              errorText="Obrigatório para enviar a ocorrência ao financeiro."
+            >
               <Select
                 value={formOcc.midia ?? "none"}
                 onValueChange={(v) => updOcc({ midia: v === "none" ? null : v })}
