@@ -87,7 +87,7 @@ BEGIN
        (e->>'tipo' = 'venda' AND NOT public.can_view_sale(auth.uid(), (e->>'sale_id')::uuid))
        OR (e->>'tipo' <> 'venda' AND (e->>'sale_id' IS NOT NULL OR e->>'codigo' IS NOT NULL
            OR e->>'imovel_endereco' IS NOT NULL OR e->>'data_fechamento' IS NOT NULL OR e->>'geo_key' IS NOT NULL))
-       OR (e->>'tipo' = 'pino' AND (e->>'valor' IS NOT NULL
+       OR (e->>'tipo' = 'pino' AND ((e->>'valor' IS NOT NULL) <> coalesce(current_setting('t.pino_valor', true), 'off')::boolean
            OR (e->>'geo_lat')::numeric <> round((e->>'geo_lat')::numeric, 3)))),
     jsonb_array_length(_c),
     (SELECT count(*) FROM jsonb_array_elements(_c) e WHERE (e->>'detalhe')::boolean),
