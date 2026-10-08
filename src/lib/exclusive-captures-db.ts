@@ -138,6 +138,52 @@ export async function setCaptureGeo(
   const { error } = await db.rpc("exclusive_set_geo", { _id: id, _key: key, _lat: lat, _lon: lon });
   check(error);
 }
+/** Venda aberta a partir da captação ("Virou venda"). Sem dados de comprador/valor. */
+export type VendaDaCaptacao = {
+  id: string;
+  codigo: string;
+  status: string;
+  situacao: "rascunho" | "em_negociacao" | "vendida";
+  aberta_por: string | null;
+  aberta_em: string | null;
+  negociacao_desde: string | null;
+  pode_abrir: boolean;
+};
+export async function vendaDaCaptacao(
+  id: string,
+): Promise<{ pode_virar: boolean; venda: VendaDaCaptacao | null }> {
+  const { data, error } = await db.rpc("exclusive_venda_da_captacao", { _id: id });
+  if (error) return { pode_virar: false, venda: null }; // sem acesso ou migration ausente: sem botão
+  const out = (data ?? {}) as { pode_virar?: boolean; venda?: VendaDaCaptacao | null };
+  return { pode_virar: out.pode_virar === true, venda: out.venda ?? null };
+}
+/** Cria (ou devolve, se já existir) a venda em rascunho preenchida com a captação. */
+export async function virarVenda(id: string): Promise<{ criada: boolean; venda: VendaDaCaptacao }> {
+  const { data, error } = await db.rpc("exclusive_virar_venda", { _id: id });
+  check(error);
+  const out = data as { criada: boolean; venda: VendaDaCaptacao } | null;
+  if (!out?.venda?.id) throw new Error("Venda não foi criada");
+  return out;
+}
+export type DocumentoHerdado = {
+  id: string;
+  kind: string;
+  owner_index: number;
+  file_name: string;
+  storage_path: string;
+};
+/** Documentos da captação vistos pela venda (sem cópia; nunca o contrato "gerado"). */
+export async function documentosDaCaptacaoNaVenda(saleId: string): Promise<DocumentoHerdado[]> {
+  const { data, error } = await db.rpc("venda_documentos_captacao", { _sale_id: saleId });
+  if (error) return [];
+  return (data ?? []) as DocumentoHerdado[];
+}
+export async function abrirDocumentoHerdado(doc: DocumentoHerdado): Promise<string> {
+  const { data, error } = await bucket().createSignedUrl(doc.storage_path, 300);
+  check(error);
+  if (!data?.signedUrl) throw new Error("Documento indisponível");
+  return data.signedUrl;
+}
 export async function setCaptureSignedOn(id: string, date: string) {
   const { error } = await db.rpc("exclusive_set_signed_on", { _id: id, _date: date });
   check(error);
