@@ -734,6 +734,10 @@ export function captureValidity(
   return { start: c.signed_on, end, days, daysLeft, level };
 }
 export const formatDateBR = (iso: string) => iso.split("-").reverse().join("/");
+/** % do prazo já decorrido (0–100), usado na barra de Vigência. */
+export function validityElapsedPct(v: Validity): number {
+  return Math.min(100, Math.max(0, Math.round(((v.days - v.daysLeft) / v.days) * 100)));
+}
 export function validityText(v: Validity): string {
   if (v.daysLeft < 0) return `Vencida em ${formatDateBR(v.end)}`;
   if (v.daysLeft === 0) return "Vence hoje";

@@ -9,15 +9,13 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   captureValidity,
-  formatDateBR,
   captureUnitLabel,
-  validityText,
-  VALIDITY_STYLE,
   type Capture,
   type ExclusiveUnit,
 } from "@/lib/exclusive-captures";
 import { brl, parseBRL } from "@/lib/exclusive-captures-dashboard";
 import { ArrowRight } from "lucide-react";
+import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 
 /** Resumo rápido da gestão de uma exclusividade aprovada (aberto ao clicar no card). */
 export function CaptureSummaryDialog({
@@ -48,9 +46,6 @@ export function CaptureSummaryDialog({
   ]
     .filter((x) => x?.trim())
     .join(" e ");
-  const decorrido = v
-    ? Math.min(100, Math.max(0, Math.round(((v.days - v.daysLeft) / v.days) * 100)))
-    : 0;
 
   const row = (label: string, value: string) => (
     <div className="flex justify-between gap-4 border-b py-1.5 text-sm last:border-0">
@@ -70,42 +65,7 @@ export function CaptureSummaryDialog({
             </DialogHeader>
 
             {v ? (
-              <div className="space-y-2 rounded-md border p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium">Vigência</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${VALIDITY_STYLE[v.level]}`}
-                  >
-                    {validityText(v)}
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary" style={{ width: `${decorrido}%` }} />
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Assinada em {formatDateBR(v.start)}</span>
-                  <span>Vence em {formatDateBR(v.end)}</span>
-                </div>
-                <p className="text-sm">
-                  {v.daysLeft >= 0 ? (
-                    <>
-                      Faltam{" "}
-                      <strong>
-                        {v.daysLeft} dia{v.daysLeft === 1 ? "" : "s"}
-                      </strong>{" "}
-                      de {v.days} ({decorrido}% do prazo já passou).
-                    </>
-                  ) : (
-                    <>
-                      Venceu há{" "}
-                      <strong>
-                        {-v.daysLeft} dia{v.daysLeft === -1 ? "" : "s"}
-                      </strong>
-                      . Converse com o proprietário sobre a renovação.
-                    </>
-                  )}
-                </p>
-              </div>
+              <VigenciaBar v={v} />
             ) : (
               <p className="rounded-md border p-3 text-sm text-muted-foreground">
                 Data de assinatura ainda não informada — abra a captação para preencher.
