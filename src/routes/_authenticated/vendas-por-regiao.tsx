@@ -218,6 +218,9 @@ function VendasPorRegiaoPage() {
             bold: true,
           },
           { text: local(p.bairro, p.cidade) || "Sem bairro informado" },
+          ...(p.valor != null && Number.isFinite(p.valor)
+            ? [{ text: `Valor ${brl(p.valor)}` }]
+            : []),
           { text: "Localização aproximada" },
         ],
       })),
