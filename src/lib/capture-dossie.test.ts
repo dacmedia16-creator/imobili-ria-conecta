@@ -5,7 +5,9 @@ import {
   buildDossiePdf,
   defaultDossieSelection,
   dossieCatalog,
+  dossieMissingFor,
   groupDossie,
+  initialDossieSelection,
   missingVitals,
   selectedDossie,
 } from "./capture-dossie";
@@ -37,6 +39,19 @@ describe("Dossiê da captação", () => {
     expect(defaultDossieSelection(catalog)).toEqual(["m1", "m3"]);
     expect(missingVitals(catalog, ["m1"]).map((x) => x.id)).toEqual(["m3"]);
     expect(missingVitals(catalog, ["m1", "m3"])).toEqual([]);
+  });
+  it("cadastro manual começa com as vitais; normal começa vazio; seleção salva prevalece", () => {
+    expect(initialDossieSelection(catalog, undefined, true)).toEqual(["m1", "m3"]);
+    expect(initialDossieSelection(catalog, undefined, false)).toEqual([]);
+    expect(initialDossieSelection(catalog, ["m2"], true)).toEqual(["m2"]);
+    expect(initialDossieSelection(catalog, [], true)).toEqual([]);
+  });
+  it("Plano de Marketing obrigatório: falta sem ação marcada; sem catálogo não trava", () => {
+    expect(dossieMissingFor(catalog, [])).toBe(true);
+    expect(dossieMissingFor(catalog, undefined)).toBe(true);
+    expect(dossieMissingFor(catalog, ["c1"])).toBe(true); // checklist não conta
+    expect(dossieMissingFor(catalog, ["m2"])).toBe(false);
+    expect(dossieMissingFor([], [])).toBe(false);
   });
   it("ignora ids que saíram do catálogo ou são do checklist", () => {
     expect(selectedDossie(catalog, ["m2", "c1", "sumiu"]).map((x) => x.id)).toEqual(["m2"]);

@@ -36,6 +36,23 @@ export function defaultDossieSelection(actions: FeedbackAction[]): string[] {
     .map((a) => a.id);
 }
 
+/**
+ * Seleção exibida na etapa: a salva, se houver. Cadastro manual ainda editável e sem seleção salva
+ * começa com as vitais marcadas (o corretor confere); nos demais casos, vazia.
+ */
+export function initialDossieSelection(
+  actions: FeedbackAction[],
+  saved: string[] | undefined,
+  prefillVitals: boolean,
+): string[] {
+  return saved ?? (prefillVitals ? defaultDossieSelection(actions) : []);
+}
+
+/** Plano de Marketing obrigatório: com catálogo disponível, exige ao menos 1 ação marcada. */
+export function dossieMissingFor(actions: FeedbackAction[], ids: string[] | undefined): boolean {
+  return dossieCatalog(actions).length > 0 && selectedDossie(actions, ids).length === 0;
+}
+
 /** Mantém só ids que existem no catálogo atual, na ordem do catálogo. */
 export function selectedDossie(
   actions: FeedbackAction[],
