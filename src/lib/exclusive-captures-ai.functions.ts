@@ -9,6 +9,7 @@ import {
   sanitizeCaptureAi,
   sanitizeSignedContractAi,
 } from "./exclusive-captures-ai";
+import { AI_TIMEOUT_MESSAGE, AI_TIMEOUT_MS, isAiTimeoutError } from "./ai-timeout";
 
 const MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -59,7 +60,9 @@ async function readWithGemini(
   system: string,
   prompt: string,
   maxOutputTokens: number,
-): Promise<{ ok: true; raw: Record<string, unknown> } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; raw: Record<string, unknown> } | { ok: false; error: string; timedOut?: boolean }
+> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, error: "Leitura por IA não configurada" };
 
@@ -91,6 +94,7 @@ async function readWithGemini(
   const call = async () => {
     const res = await fetch(GEMINI_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
@@ -115,12 +119,14 @@ async function readWithGemini(
     try {
       return { ok: true, raw: await call() };
     } catch (err) {
+      // Tempo esgotado não repete: a tela libera e o corretor preenche manualmente.
       if (!(err as { retry?: boolean }).retry) throw err;
       return { ok: true, raw: await call() };
     }
   } catch (err) {
     // Sem conteúdo do documento no log: só o código do erro.
     console.error(`leitura IA da captação falhou (doc ${doc.id}):`, (err as Error).message);
+    if (isAiTimeoutError(err)) return { ok: false, error: AI_TIMEOUT_MESSAGE, timedOut: true };
     return { ok: false, error: "Não foi possível ler o documento por IA" };
   }
 }
@@ -140,7 +146,7 @@ export const extractCaptureDocument = createServerFn({ method: "POST" })
       buildCapturePrompt(data.kind, data.scope),
       4096,
     );
-    if (!res.ok) return { ok: false as const, error: res.error };
+    if (!res.ok) return { ok: false as const, error: res.error, timedOut: res.timedOut === true };
     return { ok: true as const, values: sanitizeCaptureAi(res.raw, data.scope) };
   });
 
@@ -160,7 +166,7 @@ export const extractSignedContract = createServerFn({ method: "POST" })
       buildSignedContractPrompt(),
       8192,
     );
-    if (!res.ok) return { ok: false as const, error: res.error };
+    if (!res.ok) return { ok: false as const, error: res.error, timedOut: res.timedOut === true };
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
       new Date(),
     );

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { aiFacts, cleanAiText, groupByListing, type Snapshot } from "@/lib/owner-feedback";
+import { AI_TIMEOUT_MESSAGE, AI_TIMEOUT_MS, isAiTimeoutError } from "@/lib/ai-timeout";
 
 const MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -41,15 +42,28 @@ export const suggestOwnerRecommendation = createServerFn({ method: "POST" })
     const listing = groupByListing((rows ?? []) as Snapshot[])[0];
     if (!listing) return { ok: false as const, error: "Imóvel não encontrado." };
 
-    const res = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: "user", parts: [{ text: `Números do anúncio:\n${aiFacts(listing)}` }] }],
-        generationConfig: { maxOutputTokens: 400, temperature: 0.4 },
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(GEMINI_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [
+            { role: "user", parts: [{ text: `Números do anúncio:\n${aiFacts(listing)}` }] },
+          ],
+          generationConfig: { maxOutputTokens: 400, temperature: 0.4 },
+        }),
+      });
+    } catch (err) {
+      if (isAiTimeoutError(err)) {
+        console.error("[feedback-ia] Gemini tempo-limite");
+        return { ok: false as const, error: AI_TIMEOUT_MESSAGE };
+      }
+      console.error("[feedback-ia] Gemini falha de rede");
+      return { ok: false as const, error: "A IA não respondeu agora. Tente de novo em instantes." };
+    }
     if (!res.ok) {
       console.error(`[feedback-ia] Gemini ${res.status}`);
       return { ok: false as const, error: "A IA não respondeu agora. Tente de novo em instantes." };
