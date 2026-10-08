@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mesAtualRange } from "@/lib/producao-por-pessoa-filters";
-import { brl, geoKey, geoQueries } from "@/lib/exclusive-captures-dashboard";
-import { setCaptureGeo } from "@/lib/exclusive-captures-db";
-import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { brl } from "@/lib/exclusive-captures-dashboard";
 import {
   agruparPorRegiao,
   filtrarPinos,
@@ -32,18 +30,11 @@ import {
   type VendaRegiao,
   type VendaRegiaoTodosRow,
 } from "@/lib/vendas-por-regiao";
-import {
-  captacoesPendentesGeo,
-  comoCapture,
-  COR_CAPTACAO,
-  pinosCaptacoes,
-  type CaptacaoMapaRow,
-} from "@/lib/mapa-captacoes";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// vendas_por_regiao_todos/mapa_captacoes/sale_set_geo ainda não constam do types.ts gerado.
+// vendas_por_regiao_todos/sale_set_geo ainda não constam do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
 const COR_PADRAO = "#2563eb";
 const COR_LANCAMENTO = "#f59e0b";
@@ -91,37 +82,27 @@ const local = (bairro: string, cidade: string) =>
 function VendasPorRegiaoPage() {
   const { hasAny, loading: authLoading } = useAuth();
   const allowed = hasAny(PAPEIS);
-  const hoje = hojeSaoPaulo();
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [vendas, setVendas] = useState<VendaRegiao[]>([]);
   const [anonimos, setAnonimos] = useState<PinoAnonimo[]>([]);
-  const [captacoes, setCaptacoes] = useState<CaptacaoMapaRow[]>([]);
   const [filtros, setFiltros] = useState<FiltrosRegiao>({ dataDe: "", dataAte: "", busca: "" });
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const [agency, setAgency] = useState<AgencyProfile | null>(null);
   const [geo, setGeo] = useState<Map<string, SaleGeo>>(new Map());
   const [localizando, setLocalizando] = useState<{ feitos: number; total: number } | null>(null);
-  const [localizandoCap, setLocalizandoCap] = useState<{ feitos: number; total: number } | null>(
-    null,
-  );
   const iniciouGeo = useRef(false);
-  const iniciouGeoCap = useRef(false);
   const carregouUmaVez = useRef(false);
   const navigate = useNavigate();
 
-  // Perfil da imobiliária e captações: uma vez por visita (não dependem do período).
+  // Perfil da imobiliária: uma vez por visita (não depende do período).
+  // O mapa das captações saiu desta tela e foi para /mapa-captacoes (Denis, 08/10/2026).
   useEffect(() => {
     if (!allowed) return;
     let cancelado = false;
     void loadAgencyProfile()
       .then((a) => !cancelado && setAgency(a))
       .catch(() => undefined);
-    void db.rpc("mapa_captacoes").then(({ data, error }) => {
-      if (cancelado) return;
-      if (error) toast.error("Não foi possível carregar o mapa de captações.");
-      else setCaptacoes((data ?? []) as CaptacaoMapaRow[]);
-    });
     return () => {
       cancelado = true;
     };
@@ -202,37 +183,6 @@ function VendasPorRegiaoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, vendas]);
 
-  // Mesma coisa para as captações que a pessoa pode abrir (captador, líder, admin).
-  useEffect(() => {
-    if (iniciouGeoCap.current || !captacoes.length) return;
-    const pendentes = captacoesPendentesGeo(captacoes);
-    if (!pendentes.length) return;
-    iniciouGeoCap.current = true;
-    void (async () => {
-      setLocalizandoCap({ feitos: 0, total: pendentes.length });
-      for (const [i, r] of pendentes.entries()) {
-        try {
-          const c = comoCapture(r);
-          const hit = await geocodeConsultas(geoQueries(c, agency ?? undefined));
-          const key = geoKey(c);
-          await setCaptureGeo(r.id, key, hit?.[0] ?? null, hit?.[1] ?? null);
-          setCaptacoes((list) =>
-            list.map((x) =>
-              x.id === r.id
-                ? { ...x, geo_key: key, geo_lat: hit?.[0] ?? null, geo_lon: hit?.[1] ?? null }
-                : x,
-            ),
-          );
-        } catch {
-          break;
-        }
-        setLocalizandoCap({ feitos: i + 1, total: pendentes.length });
-      }
-      setLocalizandoCap(null);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captacoes]);
-
   const filtradas = useMemo(() => filtrarVendas(vendas, filtros), [vendas, filtros]);
   const anonimosFiltrados = useMemo(
     () => filtrarPinos(anonimos, filtros.busca),
@@ -274,8 +224,6 @@ function VendasPorRegiaoPage() {
     ],
     [noMapa, anonimosFiltrados],
   );
-  const pinosCap = useMemo(() => pinosCaptacoes(captacoes, hoje), [captacoes, hoje]);
-  const capSemLocal = captacoes.length - pinosCap.length;
   const cidades = useMemo(() => agruparPorRegiao(filtradas), [filtradas]);
   const totalQtd = somaQtd(filtradas);
   const totalVgv = filtradas.reduce((s, v) => s + v.vgv, 0);
@@ -313,8 +261,7 @@ function VendasPorRegiaoPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Vendas por região</h1>
           <p className="text-sm text-muted-foreground print:hidden">
-            Onde estão as captações e os imóveis vendidos da imobiliária: quantidade e VGV por
-            cidade e bairro.
+            Onde estão os imóveis vendidos da imobiliária: quantidade e VGV por cidade e bairro.
           </p>
         </div>
         <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
@@ -322,35 +269,6 @@ function VendasPorRegiaoPage() {
           Imprimir / baixar
         </Button>
       </div>
-
-      <Card className="print:hidden">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-          <CardTitle className="text-base">Mapa das captações</CardTitle>
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_CAPTACAO }} />
-            {captacoes.length}{" "}
-            {captacoes.length === 1 ? "captação assinada" : "captações assinadas"}
-          </span>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <PinsMap
-            pins={pinosCap}
-            city={agency?.cidade ?? null}
-            uf={agency?.uf ?? null}
-            onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
-          />
-          <p className="text-xs text-muted-foreground">
-            {localizandoCap
-              ? `Localizando captações no mapa… ${localizandoCap.feitos}/${localizandoCap.total}. `
-              : ""}
-            {capSemLocal > 0
-              ? `${capSemLocal} ${capSemLocal === 1 ? "captação assinada ainda fora do mapa" : "captações assinadas ainda fora do mapa"} (sem endereço ou ainda não localizada). `
-              : ""}
-            Só captações com contrato de exclusividade assinado; rascunhos, captações em andamento,
-            descartadas e arquivadas ficam de fora. Os dados do proprietário nunca aparecem no mapa.
-          </p>
-        </CardContent>
-      </Card>
 
       {erro && (
         <Card className="border-destructive/40">
