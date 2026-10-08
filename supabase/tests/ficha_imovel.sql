@@ -1,4 +1,4 @@
--- Suíte da ficha do imóvel (migration 20261008230000). Roda DENTRO de transação revertida
+-- Suíte da ficha do imóvel (migration 20261009000000). Roda DENTRO de transação revertida
 -- (run-ficha-imovel.sh). Homologação: A = Única (00000000-…-0001), B = agencia-b-homolog.
 -- Perfis: captador/corretor (UE Corretor), corretor da mesma equipe (QA A Corretor Um, posto na equipe
 -- só aqui), gestor da equipe (UE Gestor), admin (QA A Admin) e admin da imobiliária B (papel de
