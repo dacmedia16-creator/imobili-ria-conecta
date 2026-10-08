@@ -18,13 +18,22 @@ trap 'rm -f "$TMP"' EXIT
   echo "  ADD COLUMN IF NOT EXISTS discarded_by uuid, ADD COLUMN IF NOT EXISTS signed_on date,"
   echo "  ADD COLUMN IF NOT EXISTS geo_lat double precision, ADD COLUMN IF NOT EXISTS geo_lon double precision,"
   echo "  ADD COLUMN IF NOT EXISTS geo_key text;"
+  # Mapa do PR #41 (20261008150000, já em produção): aplicado só na transação se faltar.
+  echo "SELECT to_regprocedure('public.mapa_captacoes()') IS NULL AS need_mapa \\gset"
+  echo "\\if :need_mapa"
+  grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$ROOT/supabase/migrations/20261008150000_vendas_regiao_todos_e_mapa_captacoes.sql"
+  echo "\\endif"
   grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$UP"
   echo "\\echo [up ok]"
   echo "SELECT 'ok coluna manual: ' || count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='exclusive_captures' AND column_name='manual';"
   echo "SELECT 'ok dono ' || proowner::regrole::text || ', anon executa=' || has_function_privilege('anon', p.oid, 'EXECUTE') FROM pg_proc p WHERE proname='exclusive_create_manual';"
+  # Suíte funcional (perfis, isolamento A×B, mapa, regressão da captação normal) em savepoint.
+  echo "SAVEPOINT suite;"
+  grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$HERE/cadastro_manual.sql"
+  echo "ROLLBACK TO SAVEPOINT suite;"
   grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$DOWN"
   echo "\\echo [rollback ok]"
   echo "SELECT 'ok apos rollback: coluna=' || count(*) || ' rpc=' || coalesce(to_regprocedure('public.exclusive_create_manual(uuid)')::text, 'removida') FROM information_schema.columns WHERE table_schema='public' AND table_name='exclusive_captures' AND column_name='manual';"
   echo "ROLLBACK;"
 } > "$TMP"
-psql "$PGCONN" -X -q -At -v ON_ERROR_STOP=1 -f "$TMP" 2>&1 | grep -E '^\[|^ok|ERROR|LINE' || true
+psql "$PGCONN" -X -q -At -v ON_ERROR_STOP=1 -f "$TMP" 2>&1 | sed "s#^psql:[^ ]* ##" | grep -E "^\[|^(ok|FALHA|TOTAL=)|ERROR|[Ee]rror:|LINE|DETAIL" || true
