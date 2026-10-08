@@ -147,9 +147,9 @@ describe("cadastro manual — único obrigatório é o contrato", () => {
     expect(route).toMatch(
       /manual && dossieMissing && \(name === "enviar" \|\| name === "aprovar"\)\) \{\s+setStep\("dossie"\)/,
     );
-    expect(route).toMatch(
-      /\(manual && dossieMissing\)\s+\}\s+onClick=\{\(\) => action\("aprovar"\)\}/,
-    );
+    // Botão Aprovar: mesma regra do banco nos dois fluxos (auditoria t_874, ALTO-2).
+    expect(route).toContain("aprovarBloqueio({ manual, docs, dossieMissing })");
+    expect(route).toMatch(/disabled=\{busy \|\| !!bloqueioAprovar\}[\s\S]{0,160}action\("aprovar"\)/);
     // Nada de "opcional" para o Plano de Marketing.
     expect(route).not.toMatch(/Plano de Marketing[^\n]*[Oo]pcional/);
     expect(route).not.toContain("optional\n");

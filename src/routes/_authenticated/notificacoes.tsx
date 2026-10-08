@@ -136,6 +136,18 @@ function NotificationsPage() {
                     </Link>
                   </Button>
                 )}
+                {!n.sale_id && n.exclusive_capture_id && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link
+                      to="/exclusividades/$id"
+                      params={{ id: n.exclusive_capture_id }}
+                      onClick={() => !n.lida && markRead(n.id)}
+                    >
+                      <ExternalLink className="mr-1 h-4 w-4" />
+                      Abrir
+                    </Link>
+                  </Button>
+                )}
                 {!n.lida && (
                   <Button
                     size="sm"
