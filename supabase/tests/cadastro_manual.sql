@@ -80,7 +80,8 @@ SELECT pg_temp.ok(position('dossie' IN pg_get_functiondef('public.exclusive_tran
   'Plano de Marketing: banco não valida em nenhum fluxo (paridade com a captação normal; bloqueio na tela)');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_save(%L, %L::jsonb, %L, %L)', (SELECT v FROM ids WHERE k = 'm1'),
   '{"proprietario_1":{"nome_completo":"Maria Ficticia QA"},"imovel":{"endereco":"Rua Manual QA, 77","bairro":"Campolim","municipio":"Sorocaba","estado":"São Paulo"},"condicoes":{"prazo_dias_numero":"180"},"data_assinatura":"2026-06-02","dossie":["acao-qa-1","acao-qa-2"]}',
-  '', '')) IS NULL AND (SELECT form_data->'dossie' = '["acao-qa-1","acao-qa-2"]'::jsonb FROM public.exclusive_captures
+  '', '')) IS NULL, 'corretor salva o Plano de Marketing conferido');
+SELECT pg_temp.ok((SELECT form_data->'dossie' = '["acao-qa-1","acao-qa-2"]'::jsonb FROM public.exclusive_captures
   WHERE id = (SELECT v FROM ids WHERE k = 'm1')), 'Plano de Marketing marcado no manual fica salvo para o gestor');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_transition(%L, %L)', (SELECT v FROM ids WHERE k = 'm1'), 'enviar')) IS NULL,
   'enviar ao gestor com contrato + Plano de Marketing (sem RG/CPF/IPTU/matrícula)');
