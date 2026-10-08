@@ -211,6 +211,8 @@ export type CaptureDocument = {
 export type CaptureEvent = {
   id: number;
   actor_id: string;
+  /** Nome de quem agiu (RPC exclusive_history_view); nunca exibir o UUID. */
+  actor_nome?: string | null;
   action: string;
   detail: string | null;
   created_at: string;

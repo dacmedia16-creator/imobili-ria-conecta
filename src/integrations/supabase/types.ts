@@ -854,6 +854,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string;
+          exclusive_capture_id: string | null;
           id: string;
           lida: boolean;
           mensagem: string | null;
@@ -865,6 +866,7 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          exclusive_capture_id?: string | null;
           id?: string;
           lida?: boolean;
           mensagem?: string | null;
@@ -876,6 +878,7 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          exclusive_capture_id?: string | null;
           id?: string;
           lida?: boolean;
           mensagem?: string | null;

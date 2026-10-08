@@ -50,11 +50,8 @@ export async function loadCapture(id: string): Promise<{
   check(error);
   const [{ data: docs, error: docError }, { data: history, error: histError }] = await Promise.all([
     db.from("exclusive_documents").select("*").eq("capture_id", id).order("created_at"),
-    db
-      .from("exclusive_history")
-      .select("*")
-      .eq("capture_id", id)
-      .order("created_at", { ascending: false }),
+    // Com o nome de quem agiu (profiles não é legível por todos via RLS); já vem do mais recente.
+    db.rpc("exclusive_history_view", { _id: id }),
   ]);
   check(docError);
   check(histError);

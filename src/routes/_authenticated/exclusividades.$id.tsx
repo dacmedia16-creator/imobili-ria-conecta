@@ -89,6 +89,15 @@ import {
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { diasEntre, haQuantosDias } from "@/lib/captacao-venda";
+import {
+  aprovarBloqueio,
+  autorDoHistorico,
+  AVISO_CLICKSIGN,
+  avisarTransicao,
+  podeDevolverAprovada,
+  ultimaDevolucao,
+} from "@/lib/captacao-auditoria";
+import { notifyCaptureTransition } from "@/lib/captacao-notifications.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -261,6 +270,7 @@ function ExclusiveDetail() {
   // (mesma regra na captação normal e no cadastro manual).
   const dossieIds = form?.dossie ?? [];
   const dossieMissing = dossieMissingFor(dossieActions, dossieIds);
+  const devolucao = ultimaDevolucao(history);
   // Cadastro manual: vitais já marcadas (defaultDossieSelection) para o corretor conferir; entra no
   // rascunho como alteração a salvar, para o gestor receber o que o corretor viu.
   const prefillDossie = manual && editable && !dossieLoading && form?.dossie === undefined;
@@ -476,12 +486,25 @@ function ExclusiveDetail() {
         throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de continuar.");
       }
       if (name === "enviar" && !window.confirm(ask)) return;
+      const statusAntes = capture?.status;
+      if (
+        name === "devolver" &&
+        statusAntes === "aprovada" &&
+        !window.confirm(
+          "Devolver esta captação aprovada ao corretor? Ela sai do mapa e do alerta de vencimento até ser aprovada de novo. O contrato assinado fica guardado no histórico.",
+        )
+      )
+        return;
       await transitionCapture(id, name, name === "devolver" ? reason : undefined);
       // Vigência conta da assinatura: grava a data informada pelo gestor (padrão hoje).
       if (name === "aprovar" && signedOn && signedOn !== hojeSaoPaulo())
         await setCaptureSignedOn(id, signedOn);
+      // Aviso (sino + WhatsApp) depois de gravar; falha do aviso nunca desfaz a ação.
+      void avisarTransicao(name, id, notifyCaptureTransition);
       setReason("");
       toast.success("Histórico atualizado");
+      if (name === "devolver" && statusAntes === "em_assinatura")
+        toast.warning(AVISO_CLICKSIGN, { duration: 10000 });
     });
   const lifecycle = async (name: "excluir" | "arquivar" | "desarquivar") => {
     const ask = {
@@ -544,6 +567,8 @@ function ExclusiveDetail() {
     );
   // Manual: contrato assinado e Plano de Marketing são obrigatórios; o resto é pendência (o gestor vê).
   const manualCheck = manual ? manualPendencies(form, docs) : null;
+  // Mesma regra do banco (exclusive_transition 'aprovar'): contrato gerado, assinado e Plano.
+  const bloqueioAprovar = aprovarBloqueio({ manual, docs, dossieMissing });
   // Plano de Marketing é obrigatório também no manual (mesma regra da captação normal).
   if (manualCheck && dossieMissing)
     manualCheck.required.push("Plano de Marketing: marque ao menos 1 ação");
@@ -843,6 +868,16 @@ function ExclusiveDetail() {
           </div>
         )}
         {vendaInfo.venda && <VendaDaCaptacaoAviso venda={vendaInfo.venda} />}
+        {capture.status === "devolvida" && devolucao && (
+          <div
+            role="alert"
+            className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900"
+          >
+            <strong>Devolvida para ajuste</strong> por {devolucao.quem} em {devolucao.quando}.
+            <br />
+            Motivo: {devolucao.motivo}
+          </div>
+        )}
         {archived && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
@@ -1479,7 +1514,7 @@ function ExclusiveDetail() {
                     ? "Contrato assinado no papel, anexado pelo captador. Confira o contrato e os dados; ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
                     : clicksignManualInstructions}
                 </p>
-                {manual && dossieMissing && (
+                {dossieMissing && (
                   <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
                     O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
                     corretor para marcar antes de aprovar.{" "}
@@ -1523,14 +1558,19 @@ function ExclusiveDetail() {
                     </Button>
                   )}
                   <Button
-                    disabled={
-                      busy || !docs.some((d) => d.kind === "assinado") || (manual && dossieMissing)
-                    }
+                    disabled={busy || !!bloqueioAprovar}
+                    title={bloqueioAprovar ?? undefined}
                     onClick={() => action("aprovar")}
                   >
                     Aprovar captação
                   </Button>
                 </div>
+                {bloqueioAprovar && (
+                  <p className="text-xs text-muted-foreground">{bloqueioAprovar}</p>
+                )}
+                {capture.status === "em_assinatura" && (
+                  <p className="text-xs text-amber-800">Ao devolver: {AVISO_CLICKSIGN}</p>
+                )}
                 <div className="flex gap-2">
                   <Input
                     aria-label="Motivo da devolução"
@@ -1550,6 +1590,42 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           )}
+          {podeDevolverAprovada({
+            manager,
+            status: capture.status,
+            archived,
+            temVendaAtiva: !!vendaInfo.venda,
+          }) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Devolver ao corretor</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Use quando a aprovação precisa ser refeita (dado errado, Plano de Marketing
+                  incompleto). A captação sai do mapa e do alerta de vencimento até ser aprovada de
+                  novo; o contrato assinado fica guardado no histórico. Não é possível com venda
+                  ativa ligada.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Motivo da devolução da captação aprovada"
+                    placeholder="Motivo da devolução (obrigatório)"
+                    maxLength={1000}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <Button
+                    variant="destructive"
+                    disabled={busy || !reason.trim()}
+                    onClick={() => action("devolver")}
+                  >
+                    Devolver ao corretor
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Histórico auditado</CardTitle>
@@ -1560,7 +1636,7 @@ function ExclusiveDetail() {
                   {new Date(h.created_at).toLocaleString("pt-BR", {
                     timeZone: "America/Sao_Paulo",
                   })}{" "}
-                  · {h.action} · {h.actor_id === user?.id ? "você" : h.actor_id}
+                  · {h.action} · {autorDoHistorico(h, user?.id)}
                   {h.detail ? ` · ${h.detail}` : ""}
                 </div>
               ))}
