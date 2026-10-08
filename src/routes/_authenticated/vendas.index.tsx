@@ -78,6 +78,13 @@ import { registrarVendaAction } from "@/lib/registrar-venda";
 import { corretoresDaLinha, responsaveisDaLinha } from "@/lib/sale-permissions";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import {
+  MIDIA_FILTER_OPTIONS,
+  fetchSaleIdsPorMidia,
+  filtrarPorSaleIds,
+  midiaFilterParam,
+  midiaFilterValido,
+} from "@/lib/vendas-midia-filtro";
 
 type RawSale = Pick<
   SaleRow,
@@ -137,6 +144,7 @@ type SalesListState = {
   q: string;
   soMinhaVez: boolean;
   equipeFilter: string;
+  midiaFilter: string;
 };
 
 function markSalesListForReturn() {
@@ -189,6 +197,8 @@ function readSalesFiltersFromUrl(): Partial<SalesListState> | null {
   if (params.get("minhaVez") === "1") result.soMinhaVez = true;
   const equipe = params.get("equipe");
   if (equipe && /^[0-9a-f-]{36}$/i.test(equipe)) result.equipeFilter = equipe;
+  const midia = params.get("midia");
+  if (midiaFilterValido(midia)) result.midiaFilter = midia;
   return result;
 }
 
@@ -228,6 +238,10 @@ function SalesList() {
   const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
   const [tipoVendaOpen, setTipoVendaOpen] = useState(false);
   const [teamOptionsLoaded, setTeamOptionsLoaded] = useState(false);
+  const [midiaFilter, setMidiaFilter] = useState<string>(() => {
+    const salvo = savedListState?.midiaFilter;
+    return midiaFilterValido(salvo) ? salvo : "todas";
+  });
   // Esteira: todas as vendas abertas antes da assinatura, carregadas inteiras para ordenar por
   // dias parados e somar por etapa (são poucas dezenas; a paginação passa a ser local).
   const [esteiraRows, setEsteiraRows] = useState<SalesListRow[]>([]);
@@ -253,10 +267,21 @@ function SalesList() {
     if (q) params.set("q", q);
     if (soMinhaVez) params.set("minhaVez", "1");
     if (equipeFilter !== "todas" && canFilterByTeam) params.set("equipe", equipeFilter);
+    if (midiaFilter !== "todas") params.set("midia", midiaFilter);
     url.search = params.toString();
     if (window.location.href !== url.href)
       window.history.replaceState(window.history.state, "", url);
-  }, [statusFilter, vezFilter, dataDe, dataAte, q, soMinhaVez, equipeFilter, canFilterByTeam]);
+  }, [
+    statusFilter,
+    vezFilter,
+    dataDe,
+    dataAte,
+    q,
+    soMinhaVez,
+    equipeFilter,
+    canFilterByTeam,
+    midiaFilter,
+  ]);
 
   useEffect(() => {
     try {
@@ -271,12 +296,23 @@ function SalesList() {
           q,
           soMinhaVez,
           equipeFilter,
+          midiaFilter,
         } satisfies SalesListState),
       );
     } catch {
       // A listagem continua funcionando mesmo quando o navegador bloqueia o armazenamento.
     }
-  }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, soMinhaVez, equipeFilter]);
+  }, [
+    statusFilter,
+    vezFilter,
+    diasFilter,
+    dataDe,
+    dataAte,
+    q,
+    soMinhaVez,
+    equipeFilter,
+    midiaFilter,
+  ]);
 
   const aplicarPeriodo = (periodo: { de: string; ate: string }) => {
     setDiasFilter(null);
@@ -383,6 +419,7 @@ function SalesList() {
       ate?: string;
       q?: string;
       corretorIds?: string[];
+      midia?: string;
     } = {};
     if (statusFilter === ESTEIRA_FILTER) {
       const daVez =
@@ -415,8 +452,19 @@ function SalesList() {
       if (dataAte) filters.ate = dataAte;
     }
     filters.q = q.replace(/[,()]/g, "").trim() || undefined;
+    filters.midia = midiaFilterParam(midiaFilter);
     return filters;
-  }, [statusFilter, vezFilter, diasFilter, dataDe, dataAte, q, equipeFilter, memberIdsByTeam]);
+  }, [
+    statusFilter,
+    vezFilter,
+    diasFilter,
+    dataDe,
+    dataAte,
+    q,
+    equipeFilter,
+    memberIdsByTeam,
+    midiaFilter,
+  ]);
 
   const fetchSales = useCallback(
     async (page: number) => {
@@ -436,36 +484,42 @@ function SalesList() {
   const fetchSummary = useCallback(async () => {
     return !esteira && dataDe && dataAte
       ? resolverResumoOpcional(
-          fetchFinanceiroBundle().then((bundle) => {
-            const efetivadas = aplicarFiltrosEfetivacao(bundle.efetivadas, {
-              ...filtrosPadraoFinanceiro(),
-              dataDe,
-              dataAte,
-            });
-            const resumo = calcularResumo({
-              parcelas: [],
-              comissoes: [],
-              efetivadas,
-              divergenciasAbertas: bundle.divergencias.length,
-              hoje: dataAte,
-            });
-            const vgvCheio = efetivadas.reduce((s, e) => s + Number(e.valorNegociado || 0), 0);
-            return {
-              quantidade: efetivadas.length,
-              vgv: resumo.vgvEfetivado,
-              vgvCheio: Number(vgvCheio.toFixed(2)),
-              comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
-              comParceriaValorCheio: Number(
-                efetivadas
-                  .filter((e) => Number(e.parceriaExterna ?? 0) > 0)
-                  .reduce((s, e) => s + Number(e.valorNegociado || 0), 0)
-                  .toFixed(2),
-              ),
-            };
-          }),
+          Promise.all([fetchFinanceiroBundle(), fetchSaleIdsPorMidia(midiaFilter)]).then(
+            ([bundle, idsDaMidia]) => {
+              // O cartão de efetivadas também segue o filtro de Mídia (só restringe o que já é visível).
+              const efetivadas = filtrarPorSaleIds(
+                aplicarFiltrosEfetivacao(bundle.efetivadas, {
+                  ...filtrosPadraoFinanceiro(),
+                  dataDe,
+                  dataAte,
+                }),
+                idsDaMidia,
+              );
+              const resumo = calcularResumo({
+                parcelas: [],
+                comissoes: [],
+                efetivadas,
+                divergenciasAbertas: bundle.divergencias.length,
+                hoje: dataAte,
+              });
+              const vgvCheio = efetivadas.reduce((s, e) => s + Number(e.valorNegociado || 0), 0);
+              return {
+                quantidade: efetivadas.length,
+                vgv: resumo.vgvEfetivado,
+                vgvCheio: Number(vgvCheio.toFixed(2)),
+                comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
+                comParceriaValorCheio: Number(
+                  efetivadas
+                    .filter((e) => Number(e.parceriaExterna ?? 0) > 0)
+                    .reduce((s, e) => s + Number(e.valorNegociado || 0), 0)
+                    .toFixed(2),
+                ),
+              };
+            },
+          ),
         )
       : Promise.resolve(null);
-  }, [dataDe, dataAte, esteira]);
+  }, [dataDe, dataAte, esteira, midiaFilter]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[], requestId: number) => {
@@ -570,6 +624,7 @@ function SalesList() {
     q,
     soMinhaVez,
     equipeFilter,
+    midiaFilter,
   ].join("|");
   const previousFilterKeyRef = useRef(filterKey);
   // Na esteira a paginação é local: trocar de página não recarrega do banco.
@@ -832,6 +887,19 @@ function SalesList() {
                   </SelectContent>
                 </Select>
               )}
+            <Select value={midiaFilter} onValueChange={setMidiaFilter}>
+              <SelectTrigger aria-label="Mídia" className="md:w-56">
+                <SelectValue placeholder="Mídia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as mídias</SelectItem>
+                {MIDIA_FILTER_OPTIONS.map((m) => (
+                  <SelectItem key={m.key} value={m.key}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"

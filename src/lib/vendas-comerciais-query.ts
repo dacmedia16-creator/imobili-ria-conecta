@@ -48,6 +48,8 @@ export async function fetchVendasComerciaisPaginadas(params: {
   q?: string;
   corretorIds?: string[];
   soMinhaVez?: boolean;
+  /** Mídia da venda; "__sem_midia__" = sem mídia. Só é enviado quando há filtro. */
+  midia?: string;
 }): Promise<VendasComerciaisPaginadas> {
   const { data, error } = await supabase.rpc(
     (params.soMinhaVez
@@ -62,6 +64,7 @@ export async function fetchVendasComerciaisPaginadas(params: {
       _ate: params.ate ?? null,
       _q: params.q?.trim() || null,
       _corretor_ids: params.corretorIds ?? null,
+      ...(params.midia ? { _midia: params.midia } : {}),
     } as never,
   );
   if (error) throw error;
