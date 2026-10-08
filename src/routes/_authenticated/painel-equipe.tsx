@@ -612,10 +612,18 @@ export function PainelEquipeConteudo({
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-base">
               Captações exclusivas da equipe {exclusivas ? `(${exclusivas.length})` : ""}
             </CardTitle>
+            {exclusivas != null && (
+              <a
+                href={`/exclusividades/painel?aba=por-corretor&equipe=${dados.equipe.id}`}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Ver por corretor →
+              </a>
+            )}
           </CardHeader>
           <CardContent>
             {exclusivas == null ? (
