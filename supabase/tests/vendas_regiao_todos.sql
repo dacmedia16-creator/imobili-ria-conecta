@@ -4,7 +4,7 @@
 -- Saída: linhas "ok …" / "FALHA …" e "TOTAL=<falhas>".
 CREATE TEMP TABLE r(ok bool, msg text);
 CREATE TEMP TABLE res(papel text, qtd bigint, valor numeric, regioes text, vendas_det int,
-  vazou bool, cap_total int, cap_det int, cap_vazou bool, cap_b int);
+  vazou bool, cap_total int, cap_det int, cap_vazou bool, cap_b int, cap_ids text, cap_exato bool);
 GRANT ALL ON r, res TO authenticated;
 
 -- Atores (A): um usuário por papel. Os papéis que a homologação não tem são dados a corretores
@@ -38,6 +38,13 @@ INSERT INTO public.exclusive_captures (id, captor_id, created_by, template, stat
  ('c0000000-0000-4000-8000-0000000000a3', :'a_admin', :'a_admin', 'campolim', 'rascunho',
   '{"imovel":{"tipo_imovel":"Terreno","bairro":"Descartada"}}', 'Admin QA A',
   '00000000-0000-4000-8000-000000000001', -23.4, -47.4, 'y', NULL),
+ -- assinada do admin (entra no mapa) e uma em assinatura (fica fora: contrato ainda não assinado)
+ ('c0000000-0000-4000-8000-0000000000a4', :'a_admin', :'a_admin', 'campolim', 'aprovada',
+  '{"proprietario_1":{"nome":"SEGREDO NOME 4"},"imovel":{"tipo_imovel":"Apartamento","endereco":"Rua Assinada QA, 44","bairro":"Centro","municipio":"Sorocaba","valor_imovel":"SEGREDO-VALOR"}}',
+  'Admin QA A', '00000000-0000-4000-8000-000000000001', -23.501234, -47.458765, 'w', '2026-09-15'),
+ ('c0000000-0000-4000-8000-0000000000a5', :'a_admin', :'a_admin', 'campolim', 'em_assinatura',
+  '{"imovel":{"tipo_imovel":"Casa","endereco":"Rua Pendente QA","bairro":"Centro","municipio":"Sorocaba"}}',
+  'Admin QA A', '00000000-0000-4000-8000-000000000001', -23.45, -47.45, 'v', NULL),
  ('c0000000-0000-4000-8000-0000000000b1', :'b_admin', :'b_admin', 'campolim', 'aprovada',
   '{"imovel":{"tipo_imovel":"Casa","endereco":"Rua B QA","bairro":"Cambuí","municipio":"Campinas"}}',
   'Admin QA B', '2a000000-0000-4000-8000-0000000000b0', -22.9, -47.06, 'z', NULL);
@@ -87,8 +94,13 @@ BEGIN
     _c::text ~* 'segredo'
       OR EXISTS (SELECT 1 FROM jsonb_array_elements(_c) e WHERE NOT (e->>'detalhe')::boolean AND (
            e->>'endereco' IS NOT NULL OR e->>'status' IS NOT NULL OR e->>'signed_on' IS NOT NULL
-           OR (e->>'geo_lat')::numeric <> round((e->>'geo_lat')::numeric, 3))),
-    (SELECT count(*) FROM jsonb_array_elements(_c) e WHERE e->>'id' LIKE 'c0000000-0000-4000-8000-0000000000b%');
+           OR (e->>'pode_abrir')::boolean)),
+    (SELECT count(*) FROM jsonb_array_elements(_c) e WHERE e->>'id' LIKE 'c0000000-0000-4000-8000-0000000000b%'),
+    (SELECT string_agg(right(e->>'id', 2), ',' ORDER BY e->>'id') FROM jsonb_array_elements(_c) e
+      WHERE e->>'id' LIKE 'c0000000-0000-4000-8000-0000000000%'),
+    -- ponto exato do imóvel (sem arredondar) para todos os perfis
+    EXISTS (SELECT 1 FROM jsonb_array_elements(_c) e WHERE right(e->>'id', 2) = 'a1'
+      AND (e->>'geo_lat')::numeric = -23.512345 AND (e->>'geo_lon')::numeric = -47.465432);
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.coleta(text) TO authenticated;
 
@@ -149,7 +161,10 @@ INSERT INTO r SELECT NOT vazou, papel || ': nenhuma venda de outra pessoa com c�
   FROM res;
 INSERT INTO r SELECT NOT cap_vazou, papel || ': captações sem dado do proprietário, valor, comissão; sem detalhe para quem não pode'
   FROM res;
-INSERT INTO r SELECT cap_total = 2 AND cap_b = 0, papel || ': vê as 2 captações ativas da A (descartada fora) e 0 da B'
+INSERT INTO r SELECT cap_total = 2 AND cap_b = 0 AND cap_ids = 'a1,a4',
+  papel || ': vê só as 2 captações assinadas da A (' || coalesce(cap_ids, '-') || '; rascunho, em assinatura e descartada fora) e 0 da B'
+  FROM res WHERE papel <> 'B_admin';
+INSERT INTO r SELECT cap_exato, papel || ': pino da captação no ponto exato do imóvel'
   FROM res WHERE papel <> 'B_admin';
 INSERT INTO r SELECT cap_det = CASE WHEN papel IN ('gestor', 'admin', 'super_admin') THEN 2
                                     WHEN papel = 'corretor' THEN 1 ELSE 0 END,

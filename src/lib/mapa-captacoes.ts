@@ -1,8 +1,9 @@
 /**
  * Mapa das captações no topo de "Vendas por região". Os dados vêm de mapa_captacoes(), que já corta
- * no banco o que cada perfil pode ver: nunca há dado do proprietário, valor do imóvel ou comissão.
- * Quem não é gestor/admin (nem captador/líder da captação) recebe só código, tipo, bairro, cidade,
- * captador e uma localização aproximada (~100 m).
+ * no banco o que cada perfil pode ver: só captações com contrato assinado (status 'aprovada') e
+ * nunca dado do proprietário, valor do imóvel ou comissão. O pino fica no ponto exato do imóvel para
+ * todos; quem não é gestor/admin (nem captador/líder da captação) recebe só código, tipo, bairro,
+ * cidade e captador — sem endereço por escrito, situação nem botão de abrir.
  */
 import {
   geoKey,
@@ -28,7 +29,7 @@ export type CaptacaoMapaRow = {
   captador: string | null;
   geo_lat: number | null;
   geo_lon: number | null;
-  /** true = recebe endereço, situação e localização exata. */
+  /** true = recebe endereço por escrito e situação/vigência. */
   detalhe: boolean;
   /** true = pode abrir a captação (captador, líder da equipe, admin). */
   pode_abrir: boolean;
@@ -104,8 +105,6 @@ export function linhasCaptacao(r: CaptacaoMapaRow, hoje: string): MapPin["lines"
   if (r.detalhe) {
     const { s, v } = situacao(r, hoje);
     linhas.push({ text: `${SITUATION_LABEL[s]}${v ? " · " + validityText(v) : ""}` });
-  } else {
-    linhas.push({ text: "Localização aproximada" });
   }
   return linhas;
 }

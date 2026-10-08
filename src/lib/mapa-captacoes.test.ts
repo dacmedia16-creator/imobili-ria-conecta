@@ -34,8 +34,15 @@ describe("mapa das captações", () => {
       "Captação AB12CD34 · Casa",
       "Parque Campolim · Sorocaba",
       "Captador: Fulano Corretor",
-      "Localização aproximada",
     ]);
+    expect(linhas.join(" ")).not.toMatch(/aproximad/i);
+  });
+
+  it("pino no ponto exato do imóvel para todos (sem arredondar)", () => {
+    const [p] = pinosCaptacoes([row({ geo_lat: -23.512345, geo_lon: -47.465432 })], "2026-10-08");
+    expect(p.lat).toBe(-23.512345);
+    expect(p.lon).toBe(-47.465432);
+    expect(p.actionLabel).toBeUndefined();
   });
 
   it("gestor/admin vê também endereço e situação; cor pela situação", () => {

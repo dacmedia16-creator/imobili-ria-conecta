@@ -328,7 +328,8 @@ function VendasPorRegiaoPage() {
           <CardTitle className="text-base">Mapa das captações</CardTitle>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_CAPTACAO }} />
-            {captacoes.length} {captacoes.length === 1 ? "captação" : "captações"}
+            {captacoes.length}{" "}
+            {captacoes.length === 1 ? "captação assinada" : "captações assinadas"}
           </span>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -343,10 +344,10 @@ function VendasPorRegiaoPage() {
               ? `Localizando captações no mapa… ${localizandoCap.feitos}/${localizandoCap.total}. `
               : ""}
             {capSemLocal > 0
-              ? `${capSemLocal} ${capSemLocal === 1 ? "captação ainda sem localização" : "captações ainda sem localização"} (sem endereço ou ainda não localizada). `
+              ? `${capSemLocal} ${capSemLocal === 1 ? "captação assinada ainda fora do mapa" : "captações assinadas ainda fora do mapa"} (sem endereço ou ainda não localizada). `
               : ""}
-            Captações em andamento e em vigor; descartadas e arquivadas ficam de fora. Os dados do
-            proprietário nunca aparecem no mapa.
+            Só captações com contrato de exclusividade assinado; rascunhos, captações em andamento,
+            descartadas e arquivadas ficam de fora. Os dados do proprietário nunca aparecem no mapa.
           </p>
         </CardContent>
       </Card>

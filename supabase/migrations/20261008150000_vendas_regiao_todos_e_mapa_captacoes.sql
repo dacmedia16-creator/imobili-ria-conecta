@@ -13,10 +13,13 @@
 --  * Demais vendas da imobiliária: só AGREGADO por cidade/bairro (quantidade e VGV somados) e um pino
 --    com coordenada arredondada (~100 m) sem código, endereço, data nem valor.
 --  * Nunca sai nome de corretor, cliente, comissão ou parceria.
---  * Captações: código, tipo, bairro, cidade, captador e coordenada arredondada para todos. Endereço,
---    situação/vigência e coordenada exata só para gestor/admin/super_admin ou para quem já vê a captação
---    (exclusive_can_view: o próprio captador e o líder da equipe). Nunca sai dado do proprietário,
---    valor do imóvel nem comissão.
+--  * Captações: SOMENTE as com contrato de exclusividade assinado (status 'aprovada', que só é
+--    alcançado com o PDF assinado anexado e a aprovação do gestor; a aprovação grava signed_on).
+--    Rascunho, devolvida, enviada e em_assinatura ficam fora (decisão de Denis 08/10).
+--    Código, tipo, bairro, cidade, captador e coordenada EXATA do imóvel para todos (decisão de Denis
+--    08/10). Endereço por escrito e situação/vigência só para gestor/admin/super_admin ou para quem já
+--    vê a captação (exclusive_can_view: o próprio captador e o líder da equipe). Nunca sai dado do
+--    proprietário, valor do imóvel nem comissão.
 -- Rollback: supabase/rollback/20261008150000_vendas_regiao_todos_e_mapa_captacoes.sql
 BEGIN;
 
@@ -92,7 +95,9 @@ BEGIN
     FROM v WHERE NOT v.det AND v.geo_lat IS NOT NULL AND v.geo_lon IS NOT NULL;
 END $function$;
 
--- Captações da imobiliária para o mapa (descartadas e arquivadas ficam de fora).
+-- Captações assinadas (status 'aprovada') da imobiliária para o mapa; descartadas e arquivadas fora.
+-- O futuro "cadastro manual" de contrato já assinado deve gravar status 'aprovada' + signed_on para
+-- entrar aqui sem nenhuma mudança nesta função.
 CREATE FUNCTION public.mapa_captacoes()
  RETURNS TABLE (
   id uuid,
@@ -132,7 +137,8 @@ BEGIN
            x.created_at,
            coalesce(public.exclusive_can_view(x.id, auth.uid()), false) AS abre
     FROM public.exclusive_captures x
-    WHERE x.organization_id = _org AND x.discarded_at IS NULL AND x.archived_at IS NULL
+    WHERE x.organization_id = _org AND x.status = 'aprovada'
+      AND x.discarded_at IS NULL AND x.archived_at IS NULL
   ), d AS (
     SELECT c.*, (_amplo OR c.abre) AS det FROM c
   )
@@ -142,8 +148,8 @@ BEGIN
          nullif(btrim(d.form_data->'imovel'->>'bairro'), ''),
          nullif(btrim(d.form_data->'imovel'->>'municipio'), ''),
          nullif(btrim(d.broker_name), ''),
-         CASE WHEN d.det THEN d.geo_lat ELSE round(d.geo_lat::numeric, 3)::double precision END,
-         CASE WHEN d.det THEN d.geo_lon ELSE round(d.geo_lon::numeric, 3)::double precision END,
+         d.geo_lat,
+         d.geo_lon,
          d.det,
          d.abre,
          CASE WHEN d.det THEN nullif(btrim(d.form_data->'imovel'->>'endereco'), '') END,
