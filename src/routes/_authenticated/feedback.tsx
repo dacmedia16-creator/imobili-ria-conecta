@@ -1,4 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { codeKey, ownerPlan, ownerPlanText, type PlanItem } from "@/lib/feedback-captacao";
+import { feedbackCaptacao, planView, type FeedbackCaptacao } from "@/lib/feedback-captacao-db";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +34,10 @@ import { ArrowLeft, Copy, FileDown, MessageCircle, Sparkles, TriangleAlert } fro
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
+  validateSearch: (raw: Record<string, unknown>): { codigo?: string } =>
+    typeof raw.codigo === "string" && /^[0-9A-Za-z-]{5,30}$/.test(raw.codigo)
+      ? { codigo: raw.codigo }
+      : {},
   beforeLoad: guardOwnerFeedbackRoute,
   component: FeedbackPage,
 });
@@ -48,6 +55,7 @@ function FeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [broker, setBroker] = useState<string>("");
   const [search, setSearch] = useState("");
+  const { codigo } = Route.useSearch();
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,6 +115,13 @@ function FeedbackPage() {
       (!broker || (broker === "none" ? !l.brokerId : l.brokerId === broker)) &&
       (!search || l.code.includes(search.trim())),
   );
+  // Vindo da captação (?codigo=): abre direto o imóvel ligado (mesma chave do banco: x/hífen/zeros).
+  useEffect(() => {
+    if (!codigo || selected || !listings.length) return;
+    const hit = listings.find((l) => codeKey(l.code) === codeKey(codigo));
+    if (hit) setSelected(hit.code);
+    else setSearch(codigo.slice(0, 9));
+  }, [codigo, listings, selected]);
   const current = listings.find((l) => l.code === selected);
 
   if (current)
@@ -211,6 +226,30 @@ function Review({
   const [actions, setActions] = useState<FeedbackAction[]>([]);
   const [doneAt, setDoneAt] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [cap, setCap] = useState<FeedbackCaptacao | null>(null);
+  const [plan, setPlan] = useState<PlanItem[]>([]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const c = await feedbackCaptacao(listing.code);
+      if (!alive) return;
+      setCap(c);
+      if (c?.proprietario) setOwnerName((o) => o || (c.proprietario as string));
+      if (c?.link_status === "ativo") {
+        const items = await planView(c.capture_id).catch(() => [] as PlanItem[]);
+        if (alive) setPlan(items);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [listing.code]);
+  const hoje = hojeSaoPaulo();
+  const ownerPlanData = useMemo(
+    () => (cap?.link_status === "ativo" && plan.length ? ownerPlan(plan, hoje) : null),
+    [cap, plan, hoje],
+  );
+  const imovel = cap ? [cap.tipo, cap.bairro].filter(Boolean).join(" · ") || null : null;
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -290,8 +329,10 @@ function Review({
         brokerName: brokerName ?? "",
         ownerName,
         recommendation: rec,
-        marketing,
+        marketing: ownerPlanData ? null : marketing,
         checklist,
+        ownerPlan: ownerPlanData,
+        imovel,
         logoPng: logo ? new Uint8Array(logo) : null,
       });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
@@ -321,7 +362,13 @@ function Review({
       setAiLoading(false);
     }
   };
-  const text = ownerMessage({ ownerName, brokerName, listing, recommendation: rec });
+  const text = ownerMessage({
+    ownerName,
+    brokerName,
+    listing,
+    recommendation: rec,
+    planText: ownerPlanData ? ownerPlanText(ownerPlanData) : undefined,
+  });
   const anyConfirmed = listing.lines.some((l) => l.confirmed);
 
   return (
@@ -329,7 +376,31 @@ function Review({
       <Button variant="ghost" size="sm" onClick={onBack}>
         <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
       </Button>
-      <h1 className="text-xl font-semibold">Imóvel {listing.code}</h1>
+      <h1 className="text-xl font-semibold">
+        Imóvel {listing.code}
+        {imovel ? <span className="font-normal text-muted-foreground"> · {imovel}</span> : null}
+      </h1>
+      {cap ? (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm ${cap.link_status === "ativo" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-blue-300 bg-blue-50 text-blue-900"}`}
+        >
+          <span>
+            {cap.link_status === "ativo"
+              ? `Ligado à captação exclusiva${cap.proprietario ? ` de ${cap.proprietario}` : ""}${cap.corretor ? ` · captador ${cap.corretor}` : ""}. O Plano de Marketing abaixo vem da captação.`
+              : "Captação ligada aguardando confirmação do gestor. O Plano entra no Feedback depois da confirmação."}
+          </span>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/exclusividades/$id" params={{ id: cap.capture_id }}>
+              Abrir captação
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+          Este anúncio ainda não está ligado a uma captação exclusiva. Ligue na tela da captação
+          para o Feedback trazer o Plano de Marketing.
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -359,13 +430,60 @@ function Review({
         </CardContent>
       </Card>
 
-      <ActionsCard
-        title="Plano de marketing"
-        list="marketing"
-        summary={marketing}
-        saving={saving}
-        onToggle={toggle}
-      />
+      {ownerPlanData && cap ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>Plano de Marketing da captação</span>
+              <span className="text-sm font-normal text-muted-foreground">
+                {ownerPlanData.resumo.feitas} de {ownerPlanData.resumo.total} feitas
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                O que já fizemos
+              </div>
+              {ownerPlanData.feitas.length ? (
+                <ul className="space-y-1">
+                  {ownerPlanData.feitas.map((f) => (
+                    <li key={`${f.label}-${f.data}`}>
+                      ✅ {f.label} <span className="text-muted-foreground">({f.data})</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Nenhuma ação marcada ainda.</p>
+              )}
+            </div>
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                Próximos passos
+              </div>
+              <ul className="space-y-1">
+                {ownerPlanData.proximos.map((p) => (
+                  <li key={p.label}>
+                    • {p.label} <span className="text-muted-foreground">({p.quando})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="text-xs text-muted-foreground md:col-span-2">
+              Marque as ações na tela da captação. O proprietário não vê atrasos: o que passou do
+              prazo aparece como “esta semana”.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <ActionsCard
+          title="Plano de marketing"
+          list="marketing"
+          summary={marketing}
+          saving={saving}
+          onToggle={toggle}
+        />
+      )}
       <ActionsCard
         title="Checklist do corretor"
         list="checklist"

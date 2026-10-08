@@ -28,6 +28,7 @@ import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { PorCorretorTab } from "@/components/exclusividades/PorCorretorTab";
+import { PendenciasFeedback } from "@/components/exclusividades/PendenciasFeedback";
 import { useAuth } from "@/lib/auth";
 import { PAPEIS_PAINEL_EQUIPE } from "@/lib/painel-equipe-calc";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,6 +212,8 @@ function CapturesDashboard() {
           </TabsList>
         </Tabs>
       )}
+
+      {podePorCorretor && aba === "geral" && <PendenciasFeedback />}
 
       {aba === "por-corretor" ? (
         loading ? (

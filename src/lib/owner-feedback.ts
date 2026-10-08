@@ -147,6 +147,8 @@ export function ownerMessage(opts: {
   brokerName?: string;
   listing: ListingFeedback;
   recommendation: string;
+  /** Bloco "O que já fizemos / Próximos passos" do Plano da captação ligada (opcional). */
+  planText?: string;
 }): string {
   const { listing } = opts;
   const ok = listing.lines.filter((x) => x.confirmed);
@@ -160,6 +162,7 @@ export function ownerMessage(opts: {
     `Segue o acompanhamento do seu imóvel (código ${listing.code}) nos portais:`,
     linhas.join("\n"),
     outros.length ? `Ele também está anunciado em: ${outros.join(", ")}.` : "",
+    (opts.planText ?? "").trim(),
     opts.recommendation.trim(),
     `Qualquer dúvida, estou à disposição.${opts.brokerName ? `\n${opts.brokerName.split(" ")[0]} — RE/MAX Única Escolha` : ""}`,
   ];

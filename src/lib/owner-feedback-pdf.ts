@@ -6,6 +6,7 @@
  */
 import type { ListingFeedback } from "@/lib/owner-feedback";
 import { nextActions, type ActionSummary } from "@/lib/owner-feedback-actions";
+import type { OwnerPlan } from "@/lib/feedback-captacao";
 
 export interface OwnerPdfInput {
   listing: ListingFeedback;
@@ -15,6 +16,13 @@ export interface OwnerPdfInput {
   /** Plano de marketing e checklist (opcionais; sem eles a seção não aparece). */
   marketing?: ActionSummary | null;
   checklist?: ActionSummary | null;
+  /**
+   * Plano da captação ligada ao anúncio (opcional). Quando presente, substitui as seções de
+   * marketing/próximas ações: feitas com data e próximos passos ("esta semana" no lugar de atraso).
+   */
+  ownerPlan?: OwnerPlan | null;
+  /** Imóvel descrito pela captação (ex.: "Casa · Jardim Europa"). */
+  imovel?: string | null;
   /** PNG do logo (opcional). */
   logoPng?: Uint8Array | null;
   /** Data de emissão (padrão: hoje). */
@@ -182,7 +190,12 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     };
     const x1 = M + 18;
     const x2 = M + 18 + half + 20;
-    col("Código do anúncio", input.listing.code, x1, y);
+    col(
+      "Código do anúncio",
+      input.imovel ? `${input.listing.code} · ${input.imovel}` : input.listing.code,
+      x1,
+      y,
+    );
     col("Proprietário(a)", input.ownerName.trim(), x2, y);
     page.drawLine({
       start: { x: x1, y: y - 46 },
@@ -196,7 +209,8 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   }
 
   // ---------- cartões de resumo ----------
-  const mk = input.marketing && input.marketing.total ? input.marketing : null;
+  const op = input.ownerPlan && input.ownerPlan.resumo.total ? input.ownerPlan : null;
+  const mk = !op && input.marketing && input.marketing.total ? input.marketing : null;
   const ck = input.checklist && input.checklist.total ? input.checklist : null;
   const confirmed = input.listing.lines.filter((l) => l.confirmed && !l.error);
   const sum = (k: "views" | "contacts") => confirmed.reduce((a, l) => a + (l[k] ?? 0), 0);
@@ -206,7 +220,14 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
       kpis.push({ v: fmt(sum("views")), k: "Visualizações", accent: BLUE });
       kpis.push({ v: fmt(sum("contacts")), k: "Contatos recebidos", accent: BLUE });
     }
-    if (mk) {
+    if (op) {
+      kpis.push({
+        v: `${op.resumo.percent}%`,
+        k: "Plano executado",
+        accent: GREEN,
+        pct: op.resumo.percent,
+      });
+    } else if (mk) {
       kpis.push({ v: `${mk.percent}%`, k: "Plano executado", accent: GREEN, pct: mk.percent });
     }
     if (ck && kpis.length < 4)
@@ -316,13 +337,40 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     }
     y -= 8;
   };
+  if (op) {
+    section(
+      "O que já fizemos",
+      `${op.resumo.feitas} de ${op.resumo.total} ações do plano · ${op.resumo.percent}%`,
+    );
+    box(M, y, W, 8, 4, LINE);
+    if (op.resumo.percent > 0) box(M, y, Math.max(8, (W * op.resumo.percent) / 100), 8, 4, GREEN);
+    y -= 22;
+    if (!op.feitas.length) {
+      txt("Nenhuma ação concluída ainda.", M, y - 4, 10, font, MUTED);
+      y -= 24;
+    }
+    for (const f of op.feitas) {
+      const lines = wrap(f.label, 10, W - 120);
+      const h = lines.length * 13 + 9;
+      ensure(h);
+      check(M + 16, y - 7);
+      lines.forEach((ln, i) => txt(ln, M + 30, y - 10.5 - i * 13, 10, font, INK));
+      txtRight(f.data, M + W - 6, y - 10.5, 9, bold, MUTED);
+      y -= h;
+    }
+    y -= 14;
+  }
   if (mk) doneList("Plano de marketing", mk);
   if (ck) doneList("Checklist do corretor", ck);
 
   // ---------- próximas ações ----------
-  const next = mk ? nextActions(mk, 5) : [];
+  const next = op
+    ? op.proximos.slice(0, 6).map((p) => `${p.label} (${p.quando})`)
+    : mk
+      ? nextActions(mk, 5)
+      : [];
   if (next.length) {
-    section("Próximas ações");
+    section(op ? "Próximos passos" : "Próximas ações");
     next.forEach((a, i) => {
       const lines = wrap(a, 10, W - 40);
       const h = lines.length * 13 + 12;
