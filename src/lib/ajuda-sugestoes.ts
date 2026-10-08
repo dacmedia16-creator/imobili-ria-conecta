@@ -107,7 +107,7 @@ const TELAS: [RegExp, string][] = [
 export function nomeDaTela(pathname: string): string {
   const p = pathname || "/";
   for (const [re, nome] of TELAS) if (re.test(p)) return nome;
-  return p === "/" ? "Início" : p.split("/").filter(Boolean)[0] ?? "Tela";
+  return p === "/" ? "Início" : (p.split("/").filter(Boolean)[0] ?? "Tela");
 }
 
 /** Caminho sem ids (uuid vira "…"), para não levar identificadores de cliente no chamado. */
@@ -115,6 +115,67 @@ export function rotaSemIds(pathname: string): string {
   return (pathname || "/")
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "…")
     .slice(0, 300);
+}
+
+/** Filtros da central da equipe MAX. status "abertos" = tudo menos Resolvido. */
+export type FiltroCentral = {
+  organizacao: string; // "" = todas
+  tipo: string; // "" = todos
+  status: string; // "abertos" | "" (todos) | um status
+  busca: string; // texto ou #número
+};
+
+type ChamadoFiltravel = {
+  numero: number;
+  organization_id: string;
+  tipo: string;
+  status: string;
+  assunto: string;
+  autor_nome?: string | null;
+  organizacao?: string | null;
+  resolved_at?: string | null;
+};
+
+export function filtrarChamados<T extends ChamadoFiltravel>(lista: T[], f: FiltroCentral): T[] {
+  const busca = f.busca.trim().toLowerCase();
+  const numero = /^#?\d+$/.test(busca) ? Number(busca.replace("#", "")) : null;
+  return lista.filter((c) => {
+    if (f.organizacao && c.organization_id !== f.organizacao) return false;
+    if (f.tipo && c.tipo !== f.tipo) return false;
+    if (f.status === "abertos" && c.status === "resolvido") return false;
+    if (f.status && f.status !== "abertos" && c.status !== f.status) return false;
+    if (!busca) return true;
+    if (numero !== null) return c.numero === numero;
+    return [c.assunto, c.autor_nome, c.organizacao].some((v) =>
+      (v ?? "").toLowerCase().includes(busca),
+    );
+  });
+}
+
+/** Números dos cartões da central. */
+export function resumoCentral(lista: ChamadoFiltravel[], agora = Date.now()) {
+  const trintaDias = 30 * 24 * 60 * 60 * 1000;
+  const abertos = lista.filter((c) => c.status !== "resolvido");
+  return {
+    abertos: abertos.length,
+    recebidos: lista.filter((c) => c.status === "recebido").length,
+    errosAbertos: abertos.filter((c) => c.tipo === "erro").length,
+    resolvidos30d: lista.filter(
+      (c) =>
+        c.status === "resolvido" &&
+        c.resolved_at &&
+        agora - new Date(c.resolved_at).getTime() <= trintaDias,
+    ).length,
+  };
+}
+
+/** "12 min", "2 h", "3 d". */
+export function idade(iso: string, agora = Date.now()): string {
+  const min = Math.max(0, Math.floor((agora - new Date(iso).getTime()) / 60000));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h`;
+  return `${Math.floor(h / 24)} d`;
 }
 
 export type TextoAvisoSuporte = { titulo: string; mensagem: string; whatsapp: string };

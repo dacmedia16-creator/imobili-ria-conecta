@@ -16,6 +16,7 @@ import { Route as ContaMaxRouteImport } from './routes/conta-max'
 import { Route as EspecialistasRouteImport } from './routes/especialistas'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
+import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/ajuda'
 import { Route as AuthenticatedComissaoCoordenadorRouteImport } from './routes/_authenticated/comissao-coordenador'
 import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_authenticated/comissoes-a-receber'
 import { Route as AuthenticatedComparativoComissaoRouteImport } from './routes/_authenticated/comparativo-comissao'
@@ -42,6 +43,7 @@ import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authen
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
+import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_authenticated/plataforma.chamados'
 import { Route as AuthenticatedPlataformaImobiliariasRouteImport } from './routes/_authenticated/plataforma.imobiliarias'
 import { Route as AuthenticatedPlataformaUsuariosRouteImport } from './routes/_authenticated/plataforma.usuarios'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
@@ -82,6 +84,11 @@ const TrocarSenhaRoute = TrocarSenhaRouteImport.update({
   id: '/trocar-senha',
   path: '/trocar-senha',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAjudaRoute = AuthenticatedAjudaRouteImport.update({
+  id: '/ajuda',
+  path: '/ajuda',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedComissaoCoordenadorRoute =
   AuthenticatedComissaoCoordenadorRouteImport.update({
@@ -233,6 +240,12 @@ const AuthenticatedExclusividadesPainelRoute =
     path: '/exclusividades/painel',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlataformaChamadosRoute =
+  AuthenticatedPlataformaChamadosRouteImport.update({
+    id: '/plataforma/chamados',
+    path: '/plataforma/chamados',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlataformaImobiliariasRoute =
   AuthenticatedPlataformaImobiliariasRouteImport.update({
     id: '/plataforma/imobiliarias',
@@ -275,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
@@ -300,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -315,6 +330,7 @@ export interface FileRoutesByTo {
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
@@ -340,6 +356,7 @@ export interface FileRoutesByTo {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -357,6 +374,7 @@ export interface FileRoutesById {
   '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/_authenticated/ajuda': typeof AuthenticatedAjudaRoute
   '/_authenticated/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/_authenticated/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/_authenticated/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
@@ -382,6 +400,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/_authenticated/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/_authenticated/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -399,6 +418,7 @@ export interface FileRouteTypes {
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/ajuda'
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
@@ -424,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/plataforma/chamados'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -439,6 +460,7 @@ export interface FileRouteTypes {
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/ajuda'
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
@@ -464,6 +486,7 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/plataforma/chamados'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -480,6 +503,7 @@ export interface FileRouteTypes {
     | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
+    | '/_authenticated/ajuda'
     | '/_authenticated/comissao-coordenador'
     | '/_authenticated/comissoes-a-receber'
     | '/_authenticated/comparativo-comissao'
@@ -505,6 +529,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
+    | '/_authenticated/plataforma/chamados'
     | '/_authenticated/plataforma/imobiliarias'
     | '/_authenticated/plataforma/usuarios'
     | '/_authenticated/vendas/$id'
@@ -574,6 +599,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/trocar-senha'
       preLoaderRoute: typeof TrocarSenhaRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/ajuda': {
+      id: '/_authenticated/ajuda'
+      path: '/ajuda'
+      fullPath: '/ajuda'
+      preLoaderRoute: typeof AuthenticatedAjudaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/comissao-coordenador': {
       id: '/_authenticated/comissao-coordenador'
@@ -757,6 +789,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExclusividadesPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plataforma/chamados': {
+      id: '/_authenticated/plataforma/chamados'
+      path: '/plataforma/chamados'
+      fullPath: '/plataforma/chamados'
+      preLoaderRoute: typeof AuthenticatedPlataformaChamadosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plataforma/imobiliarias': {
       id: '/_authenticated/plataforma/imobiliarias'
       path: '/plataforma/imobiliarias'
@@ -803,6 +842,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAjudaRoute: typeof AuthenticatedAjudaRoute
   AuthenticatedComissaoCoordenadorRoute: typeof AuthenticatedComissaoCoordenadorRoute
   AuthenticatedComissoesAReceberRoute: typeof AuthenticatedComissoesAReceberRoute
   AuthenticatedComparativoComissaoRoute: typeof AuthenticatedComparativoComissaoRoute
@@ -828,6 +868,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
+  AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
   AuthenticatedPlataformaImobiliariasRoute: typeof AuthenticatedPlataformaImobiliariasRoute
   AuthenticatedPlataformaUsuariosRoute: typeof AuthenticatedPlataformaUsuariosRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
@@ -838,6 +879,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAjudaRoute: AuthenticatedAjudaRoute,
   AuthenticatedComissaoCoordenadorRoute: AuthenticatedComissaoCoordenadorRoute,
   AuthenticatedComissoesAReceberRoute: AuthenticatedComissoesAReceberRoute,
   AuthenticatedComparativoComissaoRoute: AuthenticatedComparativoComissaoRoute,
@@ -867,6 +909,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,
+  AuthenticatedPlataformaChamadosRoute: AuthenticatedPlataformaChamadosRoute,
   AuthenticatedPlataformaImobiliariasRoute:
     AuthenticatedPlataformaImobiliariasRoute,
   AuthenticatedPlataformaUsuariosRoute: AuthenticatedPlataformaUsuariosRoute,
