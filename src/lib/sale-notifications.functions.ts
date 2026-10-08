@@ -42,7 +42,7 @@ async function responsaveisELideresNaAgencia(
  * o contexto estiver ativo. A alteração da venda em si segue pelo JWT e é auditada no banco.
  * Falha fechada: se não der para confirmar o contexto (rede/5xx), também não avisa.
  */
-async function avisosSuprimidosNoContexto(user: object): Promise<boolean> {
+export async function avisosSuprimidosNoContexto(user: object): Promise<boolean> {
   try {
     return (await currentContextOrg(user)) !== null;
   } catch {
@@ -50,15 +50,15 @@ async function avisosSuprimidosNoContexto(user: object): Promise<boolean> {
   }
 }
 
-const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
+export const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
 // Teto por envio: sem isso um ZionTalk lento segura a requisição inteira (o laço é em série).
-const ZIONTALK_TIMEOUT_MS = 10_000;
+export const ZIONTALK_TIMEOUT_MS = 10_000;
 /** Erro de envio sem dados pessoais: mascara sequências longas de dígitos (telefone). */
 export function erroSemDadosPessoais(texto: string): string {
   return texto.replace(/\+?\d[\d\s().-]{6,}\d/g, "[numero]").slice(0, 200);
 }
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
-const APP_URL = process.env.APP_URL || "http://localhost:8080";
+export const APP_URL = process.env.APP_URL || "http://localhost:8080";
 
 const NotifyInput = z.object({
   saleId: z.string().uuid(),
@@ -75,7 +75,7 @@ type UserRoleRow = {
 
 /** Normaliza pro formato que o ZionTalk exige: só dígitos com DDI, SEM "+" na frente (testado ao
  * vivo — com "+" a API retorna 500) — aceita o telefone digitado com ou sem DDI/máscara. */
-function normalizePhone(raw: string | null | undefined): string | null {
+export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 10) return null;
@@ -86,7 +86,7 @@ function normalizePhone(raw: string | null | undefined): string | null {
  * ao vivo: qualquer letra acentuada (á, ã, ç, ñ...) ou símbolo como €/° faz a API retornar 500, e
  * emoji são aceitos (201) mas chegam corrompidos ("??") no WhatsApp de verdade. `*negrito*` e
  * quebra de linha funcionam normalmente, então o texto continua estruturado mesmo só em ASCII. */
-function paraWhatsapp(texto: string): string {
+export function paraWhatsapp(texto: string): string {
   return (
     texto
       .normalize("NFD")
