@@ -6,11 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { errorMessage } from "@/lib/errors";
 import { formatDateBR } from "@/lib/exclusive-captures";
 import { agruparPendencias, DIAS_AVISO_SEM_ANUNCIO, type Pendencia } from "@/lib/feedback-captacao";
-import { listingDecide, pendencias } from "@/lib/feedback-captacao-db";
+import {
+  listingDecide,
+  pendencias,
+  siteProvaveis,
+  type SiteProvavel,
+} from "@/lib/feedback-captacao-db";
 
 /** Painel do gestor: não publicadas, anúncio de outro ID a confirmar e ações do Plano atrasadas. */
 export function PendenciasFeedback() {
   const [rows, setRows] = useState<Pendencia[] | null>(null);
+  const [provaveis, setProvaveis] = useState<Record<string, SiteProvavel>>({});
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try {
@@ -18,6 +24,9 @@ export function PendenciasFeedback() {
     } catch {
       setRows([]);
     }
+    // Site RE/MAX: só um aviso; se falhar, o painel segue igual.
+    const p = await siteProvaveis();
+    setProvaveis(Object.fromEntries(p.map((x) => [x.capture_id, x])));
   }, []);
   useEffect(() => {
     void load();
@@ -87,8 +96,20 @@ export function PendenciasFeedback() {
                     <td className="pr-2">{p.aprovada_em ? formatDateBR(p.aprovada_em) : "—"}</td>
                     <td>
                       {p.kind === "sem_anuncio" ? (
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
-                          Sem anúncio ligado há {p.dias} dias
+                        <span className="flex flex-wrap items-center gap-1">
+                          <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
+                            Sem anúncio ligado há {p.dias} dias
+                          </span>
+                          {provaveis[p.capture_id] && (
+                            <span
+                              className="rounded bg-violet-100 px-2 py-0.5 text-xs text-violet-900"
+                              title="Encontrado no site da RE/MAX. O corretor confirma na captação."
+                            >
+                              Provável anúncio encontrado:{" "}
+                              <span className="font-mono">{provaveis[p.capture_id].code}</span>
+                              {provaveis[p.capture_id].confianca === "alta" ? "" : " (possível)"}
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">

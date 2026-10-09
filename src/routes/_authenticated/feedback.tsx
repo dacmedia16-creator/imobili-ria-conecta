@@ -1,6 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { codeKey, ownerPlan, ownerPlanText, type PlanItem } from "@/lib/feedback-captacao";
-import { feedbackCaptacao, planView, type FeedbackCaptacao } from "@/lib/feedback-captacao-db";
+import {
+  feedbackCaptacao,
+  planView,
+  siteAgentNames,
+  type FeedbackCaptacao,
+} from "@/lib/feedback-captacao-db";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -52,6 +57,8 @@ function FeedbackPage() {
   const isManager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
   const [rows, setRows] = useState<Snapshot[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  // "Sem corretor": nome que o site RE/MAX mostra para o ID (só admin recebe; não cria usuário).
+  const [siteNames, setSiteNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [broker, setBroker] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -87,9 +94,11 @@ function FeedbackPage() {
           const { data } = await db.from("profiles").select("id,nome").in("id", ids);
           for (const p of data ?? []) map[p.id as string] = (p.nome as string) ?? "";
         }
+        const site = isManager && all.some((r) => !r.broker_id) ? await siteAgentNames() : {};
         if (alive) {
           setRows(all);
           setNames(map);
+          setSiteNames(site);
         }
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar os números dos portais."));
@@ -187,7 +196,12 @@ function FeedbackPage() {
               <div>
                 <div className="font-medium">{l.code}</div>
                 <div className="text-xs text-muted-foreground">
-                  {isManager && (l.brokerId ? names[l.brokerId] || "Sem nome" : "Sem corretor")}
+                  {isManager &&
+                    (l.brokerId
+                      ? names[l.brokerId] || "Sem nome"
+                      : siteNames[l.code.slice(0, 9)]
+                        ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
+                        : "Sem corretor")}
                   {isManager && " · "}
                   {l.lines.length} portal(is) · Sua vez: revisar e enviar
                 </div>
