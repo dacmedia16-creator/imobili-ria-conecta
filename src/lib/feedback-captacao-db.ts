@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { storageOrganizationPath } from "./storage-org";
 import type { ListingCheck, ListingContext, Pendencia, PlanItem } from "./feedback-captacao";
+import type { SiteSuggestions } from "./remax-site";
 
 // RPCs das migrations 20261009010000 e 20261009020000 (semanas), ainda fora de types.ts.
 const db = supabase as unknown as SupabaseClient;
@@ -112,6 +113,33 @@ export async function pendencias(dias: number): Promise<Pendencia[]> {
   check(error);
   return (data ?? []) as Pendencia[];
 }
+// Site RE/MAX (migration 20261009040000). Falha = vazio: a captação continua com o código digitado.
+export async function siteSuggestions(capture: string): Promise<SiteSuggestions | null> {
+  const { data, error } = await db.rpc("exclusive_site_suggestions", { _capture: capture });
+  if (error) return null;
+  return (data ?? null) as SiteSuggestions | null;
+}
+export interface SiteProvavel {
+  capture_id: string;
+  code: string;
+  score: number;
+  confianca: "alta" | "media";
+  url: string | null;
+}
+export async function siteProvaveis(): Promise<SiteProvavel[]> {
+  const { data, error } = await db.rpc("exclusive_site_provaveis");
+  if (error) return [];
+  return (data ?? []) as SiteProvavel[];
+}
+/** Nome do site para IDs RE/MAX sem usuário no ADM (só admin recebe; demais = vazio). */
+export async function siteAgentNames(): Promise<Record<string, string>> {
+  const { data, error } = await db.rpc("remax_site_agent_names");
+  if (error || !data) return {};
+  const out: Record<string, string> = {};
+  for (const r of data as { agent_id: string; nome: string }[]) out[r.agent_id] = r.nome;
+  return out;
+}
+
 export interface FeedbackCaptacao {
   capture_id: string;
   link_status: "ativo" | "aguardando_gestor";

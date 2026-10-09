@@ -24,6 +24,7 @@ import {
   listingLink,
   listingUnlink,
 } from "@/lib/feedback-captacao-db";
+import { SugestoesSite } from "./SugestoesSite";
 
 const n = (x: number | null | undefined) => (x == null ? "—" : x.toLocaleString("pt-BR"));
 
@@ -178,6 +179,15 @@ export function AnuncioPortais({ captureId }: { captureId: string }) {
         ) : (
           <div className="grid gap-4 md:grid-cols-[1fr_260px]">
             <div className="space-y-3">
+              {ctx.prefix && (
+                <SugestoesSite
+                  captureId={captureId}
+                  busy={busy}
+                  onEscolher={(c) =>
+                    void run(() => listingLink(captureId, c), "Anúncio ligado à captação.")
+                  }
+                />
+              )}
               <p className="text-muted-foreground">
                 Digite só o número final do anúncio. O começo (o ID RE/MAX) o sistema já sabe.
               </p>
