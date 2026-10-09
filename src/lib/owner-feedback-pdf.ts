@@ -6,7 +6,7 @@
  */
 import type { ListingFeedback } from "@/lib/owner-feedback";
 import { nextActions, type ActionSummary } from "@/lib/owner-feedback-actions";
-import type { OwnerPlan } from "@/lib/feedback-captacao";
+import { proximoTexto, type OwnerPlan } from "@/lib/feedback-captacao";
 
 export interface OwnerPdfInput {
   listing: ListingFeedback;
@@ -365,7 +365,7 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
 
   // ---------- próximas ações ----------
   const next = op
-    ? op.proximos.slice(0, 6).map((p) => `${p.label} (${p.quando})`)
+    ? op.proximos.slice(0, 6).map((p) => proximoTexto(p.label, p.quando))
     : mk
       ? nextActions(mk, 5)
       : [];

@@ -122,6 +122,22 @@ export interface PlanItem {
   done_by_nome: string | null;
   proof_path: string | null;
   proof_name: string | null;
+  /** Semana escolhida (1..N); 0/ausente = plano antigo, prazo automático por peso. */
+  semana?: number | null;
+  /** Primeiro dia da semana (AAAA-MM-DD); o último é `prazo`. */
+  semana_inicio?: string | null;
+}
+
+/** Chave única do item no checklist (a mesma ação pode estar em várias semanas). */
+export const planItemKey = (it: Pick<PlanItem, "action_id" | "semana">) =>
+  `${it.action_id}:${it.semana ?? 0}`;
+
+/** "Semana 2 (16/10 a 22/10)"; vazio no plano antigo. */
+export function semanaRotulo(it: Pick<PlanItem, "semana" | "semana_inicio" | "prazo">): string {
+  if (!it.semana) return "";
+  return it.semana_inicio && it.prazo
+    ? `Semana ${it.semana} (${br(it.semana_inicio)} a ${br(it.prazo)})`
+    : `Semana ${it.semana}`;
 }
 
 export type PlanItemState = "feito" | "atrasada" | "no_prazo" | "sem_prazo";
@@ -157,7 +173,9 @@ export function planSummary(items: PlanItem[], hoje: string): PlanSummary {
   };
 }
 
-const br = (iso: string) => iso.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
+function br(iso: string): string {
+  return iso.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
+}
 
 export interface OwnerPlan {
   feitas: { label: string; data: string }[];
@@ -167,7 +185,8 @@ export interface OwnerPlan {
 
 /**
  * O que vai para o proprietário: feitas com data (inclusive as que saíram do plano depois de feitas) e
- * pendentes do plano atual. Atrasada aparece como "esta semana"; o atraso só o gestor vê.
+ * pendentes do plano atual. Plano por semanas: "Semana N (dd/mm a dd/mm)"; plano antigo: data do prazo.
+ * Atrasada aparece como "esta semana"; o atraso só o gestor vê.
  */
 export function ownerPlan(items: PlanItem[], hoje: string): OwnerPlan {
   const feitas = items
@@ -181,9 +200,25 @@ export function ownerPlan(items: PlanItem[], hoje: string): OwnerPlan {
     .sort((a, b) => rank(a).localeCompare(rank(b)) || a.sort - b.sort)
     .map((i) => ({
       label: i.label,
-      quando: !i.prazo || i.prazo <= hoje ? "esta semana" : br(i.prazo),
-    }));
+      quando:
+        !i.prazo || i.prazo < hoje
+          ? "esta semana"
+          : i.semana
+            ? semanaRotulo(i)
+            : i.prazo === hoje
+              ? "esta semana"
+              : br(i.prazo),
+    }))
+    // Mesma ação em várias semanas já vencidas: um só "esta semana" (não expõe o atraso).
+    .filter(
+      (x, i, arr) => arr.findIndex((y) => y.label === x.label && y.quando === x.quando) === i,
+    );
   return { feitas, proximos, resumo: planSummary(items, hoje) };
+}
+
+/** "Post nas redes — Semana 2 (16/10 a 22/10)" ou "Placa (esta semana)" (sem parênteses duplos). */
+export function proximoTexto(label: string, quando: string): string {
+  return quando.startsWith("Semana ") ? `${label} — ${quando}` : `${label} (${quando})`;
 }
 
 /** Bloco de texto do plano para o WhatsApp (sem emoji: alguns aparelhos trocam por "?"). */
@@ -200,7 +235,7 @@ export function ownerPlanText(p: OwnerPlan, maxItens = 6): string {
     );
   if (p.proximos.length)
     partes.push(
-      `Próximos passos: ${lista(p.proximos, (x) => `${lowerFirst(x.label)} (${x.quando})`)}.`,
+      `Próximos passos: ${lista(p.proximos, (x) => proximoTexto(lowerFirst(x.label), x.quando))}.`,
     );
   return partes.join("\n\n");
 }

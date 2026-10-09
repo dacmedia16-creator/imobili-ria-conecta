@@ -447,8 +447,8 @@ function Review({
               </div>
               {ownerPlanData.feitas.length ? (
                 <ul className="space-y-1">
-                  {ownerPlanData.feitas.map((f) => (
-                    <li key={`${f.label}-${f.data}`}>
+                  {ownerPlanData.feitas.map((f, i) => (
+                    <li key={`${f.label}-${f.data}-${i}`}>
                       ✅ {f.label} <span className="text-muted-foreground">({f.data})</span>
                     </li>
                   ))}
@@ -463,8 +463,11 @@ function Review({
               </div>
               <ul className="space-y-1">
                 {ownerPlanData.proximos.map((p) => (
-                  <li key={p.label}>
-                    • {p.label} <span className="text-muted-foreground">({p.quando})</span>
+                  <li key={`${p.label}-${p.quando}`}>
+                    • {p.label}{" "}
+                    <span className="text-muted-foreground">
+                      {p.quando.startsWith("Semana ") ? `— ${p.quando}` : `(${p.quando})`}
+                    </span>
                   </li>
                 ))}
               </ul>
