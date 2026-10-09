@@ -42,11 +42,11 @@ export function statusLabel(s: string): string {
 }
 
 /**
- * WhatsApp dos avisos de chamado: pronto, mas DESLIGADO até Denis confirmar texto e custo.
- * Para ligar: trocar para true (usa a mesma chave ZIONTALK_API_KEY e o mesmo helper das captações).
- * Desligado, o sino continua funcionando normalmente.
+ * WhatsApp dos avisos de chamado: LIGADO por Denis em 09/10/2026 (só aviso + link, sem o texto
+ * da resposta). Usa a mesma chave ZIONTALK_API_KEY e o mesmo helper das captações.
+ * Para desligar: trocar para false (o sino continua funcionando).
  */
-export const SUPORTE_WHATSAPP_LIGADO = false;
+export const SUPORTE_WHATSAPP_LIGADO = true;
 
 /** Print: tipos e tamanho aceitos (iguais ao bucket support-attachments). */
 export const PRINT_TIPOS = ["image/png", "image/jpeg", "image/webp"] as const;

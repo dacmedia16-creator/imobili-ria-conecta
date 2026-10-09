@@ -145,8 +145,8 @@ describe("avisos (sino + WhatsApp desligado)", () => {
     );
   });
 
-  it("WhatsApp nasce DESLIGADO e a função de servidor só passa a chave quando ligado", () => {
-    expect(SUPORTE_WHATSAPP_LIGADO).toBe(false);
+  it("WhatsApp ligado (Denis 09/10/2026) e a função de servidor só passa a chave quando ligado", () => {
+    expect(SUPORTE_WHATSAPP_LIGADO).toBe(true);
     const fn = ler("./ajuda-sugestoes.functions.ts");
     expect(fn).toContain(
       "apiKey: SUPORTE_WHATSAPP_LIGADO ? process.env.ZIONTALK_API_KEY : undefined",
