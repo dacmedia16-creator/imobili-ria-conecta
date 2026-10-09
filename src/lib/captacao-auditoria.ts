@@ -14,7 +14,8 @@ export function aprovarBloqueio(p: {
 }): string | null {
   if (!p.manual && !p.docs.some((d) => d.kind === "gerado"))
     return "Gere o PDF para assinatura pelo sistema antes de aprovar.";
-  if (!p.docs.some((d) => d.kind === "assinado")) return "Anexe o contrato assinado antes de aprovar.";
+  if (!p.docs.some((d) => d.kind === "assinado"))
+    return "Anexe o contrato assinado antes de aprovar.";
   if (p.dossieMissing)
     return "O Plano de Marketing está sem ações marcadas. Devolva ao corretor para marcar antes de aprovar.";
   return null;
@@ -173,7 +174,11 @@ export async function enviarAvisosCaptacao(p: {
   if (!p.destinos.length) return r;
   try {
     await p.gravarSino(
-      p.destinos.map((d) => ({ user_id: d.id, titulo: p.texto.titulo, mensagem: p.texto.mensagem })),
+      p.destinos.map((d) => ({
+        user_id: d.id,
+        titulo: p.texto.titulo,
+        mensagem: p.texto.mensagem,
+      })),
     );
     r.notificados = p.destinos.length;
   } catch (e) {
@@ -191,7 +196,10 @@ export async function enviarAvisosCaptacao(p: {
       continue;
     }
     try {
-      const res = await p.fetchImpl(p.url, {
+      // Chamar solto (sem `p.`): no Cloudflare Workers, fetch chamado como método de outro objeto
+      // dá "Illegal invocation".
+      const fetchFn = p.fetchImpl;
+      const res = await fetchFn(p.url, {
         method: "POST",
         headers: {
           Authorization: `Basic ${btoa(`${p.apiKey}:`)}`,
