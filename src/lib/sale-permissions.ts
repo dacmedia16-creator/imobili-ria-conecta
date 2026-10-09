@@ -89,6 +89,12 @@ export function corretorPodeEditar(isOwner: boolean, status: SaleStatus): boolea
   );
 }
 
+/** Quem cadastrou a venda (sales.corretor_id) edita em rascunho e devolvida para ajuste, mesmo sem
+ * ser responsável pela etapa (Denis, 09/10/2026). Espelha can_edit_sale_stage no banco. */
+export function criadorPodeEditar(isCriador: boolean, status: SaleStatus): boolean {
+  return isCriador && (["rascunho", "devolvida_ajuste"] as SaleStatus[]).includes(status);
+}
+
 export function gestorPodeEditar(
   isGestor: boolean,
   status: SaleStatus,

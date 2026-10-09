@@ -1,0 +1,186 @@
+-- Quem cadastrou a venda (sales.corretor_id) pode editar dados, partes, pagamento, contas e
+-- documentos enquanto a venda está em rascunho ou devolvida para ajuste (Denis, 09/10/2026).
+-- Todas as policies de edição (sale_parties, sale_payment, sale_bank_accounts, sale_documents,
+-- sales, storage sale-documents) já passam por can_edit_sale_stage. Rollback em docs/sql/rollback.
+CREATE OR REPLACE FUNCTION public.can_edit_sale_stage(_user uuid, _sale_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN (SELECT COALESCE((
+  select public.is_active_user(_user) and exists (
+    select 1 from public.sales s
+    where s.id = _sale_id
+    and (
+      public.has_any_role(_user, array['financeiro','admin','super_admin']::public.app_role[])
+      or (public.is_sale_responsavel(_user, s.id) and s.status::text = any(array['rascunho','devolvida_ajuste','contrato_conferencia_corretor']))
+      -- Denis 09/10/2026: quem cadastrou a venda também edita em rascunho/devolvida para ajuste.
+      or (s.corretor_id = _user and s.status::text = any(array['rascunho','devolvida_ajuste']))
+      or (
+        public.has_any_role(_user, array['gestor','team_leader']::public.app_role[])
+        and public.is_lead_of_sale_responsavel(_user, s.id)
+        and s.status::text = 'rascunho'
+      )
+      or (public.has_any_role(_user, array['gestor','team_leader']::public.app_role[]) and s.status::text = any(array[
+            'enviada_revisao','contrato_conferencia_gestor','contrato_ok_corretor',
+            'aguardando_assinatura','contrato_assinado','ocorrencia_pendente','ocorrencia_devolvida_gestor']))
+      or (public.has_role(_user,'juridico') and s.status::text = any(array['aprovada_gestor','em_elaboracao_contrato']))
+    )
+  )
+
+  ),false) AND public.mt_1b_gate() AND ((public.mt_in_ctx_org(_user) AND EXISTS (SELECT 1 FROM public.sales WHERE id=_sale_id AND organization_id=public.current_org_id()))
+    OR current_setting('role',true)='service_role'
+    OR (current_setting('role',true)='none' AND session_user IN ('supabase_admin','postgres'))));
+END
+$function$;
+
+-- Quem cadastrou também envia para revisão (rascunho/devolvida -> enviada_revisao).
+CREATE OR REPLACE FUNCTION public.validate_sale_status_transition()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  actor uuid := auth.uid();
+  is_owner boolean := public.is_sale_responsavel(auth.uid(), old.id);
+  allowed boolean := false;
+  from_status text := old.status::text;
+  to_status text := new.status::text;
+begin
+  if new.status is not distinct from old.status then return new; end if;
+
+  -- Fase 2f: cancelar venda = só o dono da plataforma, via platform_cancel_sale, depois do rascunho.
+  if to_status = 'cancelada' then
+    if from_status = 'rascunho' then
+      raise exception 'Venda em rascunho não é cancelada: use Excluir venda.' using errcode = '42501';
+    end if;
+    if actor is not null
+       and public.is_platform_super_admin(actor)
+       and current_setting('mt.platform_cancel_sale', true) = old.id::text then
+      return new;
+    end if;
+    raise exception 'Somente o dono da plataforma cancela venda.' using errcode = '42501';
+  end if;
+
+  if public.has_any_role(actor, array['admin','super_admin']::app_role[]) then return new; end if;
+
+  -- 09/10/2026 (Denis, tópico 6238): desarquivar. Além de admin/super_admin (já retornaram acima),
+  -- quem criou a venda (sales.corretor_id) e o gestor/team leader que lidera o criador ou um
+  -- responsável podem tirar a venda de 'arquivada', mas SOMENTE de volta para a etapa em que ela
+  -- estava quando foi arquivada (último registro do histórico). Motivo obrigatório na tela.
+  if from_status = 'arquivada' then
+    if actor is not null
+       and to_status = (
+         select h.de::text from public.sale_status_history h
+         where h.sale_id = old.id and h.para = 'arquivada'
+         order by h.created_at desc limit 1
+       )
+       and public.can_view_sale(actor, old.id)
+       and (
+         old.corretor_id = actor
+         or (public.has_any_role(actor, array['gestor','team_leader']::app_role[])
+             and (public.is_lead_of(actor, old.corretor_id)
+                  or public.is_lead_of_sale_responsavel(actor, old.id)))
+       ) then
+      return new;
+    end if;
+    raise exception 'Desarquivar: só quem criou a venda, o gestor/team leader dela ou o admin, e apenas de volta para a etapa anterior ao arquivamento.' using errcode = '42501';
+  end if;
+
+  -- Reunião de gestores 08/10/2026: arquivar é liberado a quem já vê/opera a venda (mesmo gate de
+  -- change_sale_status), inclusive o corretor, em qualquer etapa ANTES da assinatura do contrato.
+  -- Do contrato assinado em diante ninguém arquiva (admin/super_admin já retornaram acima).
+  if to_status = 'arquivada' then
+    if from_status in (
+         'rascunho', 'enviada_revisao', 'devolvida_ajuste', 'aprovada_gestor', 'enviada_juridico',
+         'em_elaboracao_contrato', 'contrato_conferencia_gestor', 'contrato_conferencia_corretor',
+         'contrato_ok_corretor', 'aguardando_assinatura'
+       )
+       and actor is not null
+       and (public.can_view_sale(actor, old.id) or public.can_edit_sale_as_co_leader(old.id)) then
+      return new;
+    end if;
+    raise exception 'Arquivar só é permitido antes da assinatura do contrato.' using errcode = '42501';
+  end if;
+
+  -- Denis 09/10/2026: quem cadastrou a venda (corretor_id) também envia para revisão.
+  if old.corretor_id = actor and actor is not null and (from_status, to_status) in (
+    ('rascunho', 'enviada_revisao'), ('devolvida_ajuste', 'enviada_revisao')
+  ) then allowed := true; end if;
+
+  if is_owner and (from_status, to_status) in (
+    ('rascunho', 'enviada_revisao'), ('devolvida_ajuste', 'enviada_revisao'),
+    ('contrato_conferencia_corretor', 'contrato_ok_corretor'),
+    ('contrato_conferencia_corretor', 'contrato_conferencia_gestor')
+  ) then allowed := true; end if;
+
+  if not allowed and is_owner and public.has_any_role(actor, array['gestor','team_leader']::app_role[]) and (from_status, to_status) in (
+    ('rascunho', 'aprovada_gestor'), ('devolvida_ajuste', 'aprovada_gestor')
+  ) then allowed := true; end if;
+
+  if not allowed
+     and from_status = 'rascunho'
+     and to_status = 'aprovada_gestor'
+     and public.has_any_role(actor, array['gestor','team_leader']::app_role[])
+     and public.is_lead_of_sale_responsavel(actor, old.id) then
+    allowed := true;
+  end if;
+
+  if not allowed and is_owner and public.has_role(actor, 'lancamento'::app_role) and (from_status, to_status) in (
+    ('rascunho', 'ocorrencia_analise_financeiro'),
+    ('devolvida_ajuste', 'ocorrencia_analise_financeiro')
+  ) then allowed := true; end if;
+
+  if not allowed and public.has_any_role(actor, array['gestor','team_leader']::app_role[]) and (from_status, to_status) in (
+    ('enviada_revisao', 'aprovada_gestor'), ('enviada_revisao', 'devolvida_ajuste'),
+    ('contrato_conferencia_gestor', 'contrato_conferencia_corretor'),
+    ('contrato_conferencia_gestor', 'aguardando_assinatura'),
+    ('contrato_conferencia_gestor', 'em_elaboracao_contrato'),
+    ('contrato_ok_corretor', 'aguardando_assinatura'),
+    ('contrato_ok_corretor', 'contrato_conferencia_corretor'),
+    ('contrato_ok_corretor', 'em_elaboracao_contrato'),
+    ('aguardando_assinatura', 'contrato_assinado'),
+    ('aguardando_assinatura', 'em_elaboracao_contrato'),
+    ('contrato_assinado', 'ocorrencia_pendente'), ('contrato_assinado', 'ocorrencia_concluida'),
+    ('ocorrencia_pendente', 'ocorrencia_analise_financeiro'),
+    ('ocorrencia_pendente', 'ocorrencia_concluida'),
+    ('ocorrencia_pendente', 'aguardando_assinatura'),
+    ('ocorrencia_devolvida_gestor', 'ocorrencia_analise_financeiro'),
+    ('ocorrencia_devolvida_gestor', 'ocorrencia_concluida')
+  ) then allowed := true; end if;
+
+  if not allowed and public.has_role(actor, 'juridico') and (from_status, to_status) in (
+    ('aprovada_gestor', 'em_elaboracao_contrato'), ('aprovada_gestor', 'enviada_revisao'),
+    ('aprovada_gestor', 'devolvida_ajuste'),
+    ('em_elaboracao_contrato', 'contrato_conferencia_gestor'),
+    ('em_elaboracao_contrato', 'enviada_revisao'), ('em_elaboracao_contrato', 'devolvida_ajuste')
+  ) then allowed := true; end if;
+
+  if not allowed and public.has_role(actor, 'financeiro') and (from_status, to_status) in (
+    ('ocorrencia_analise_financeiro', 'ocorrencia_devolvida_gestor'),
+    ('ocorrencia_analise_financeiro', 'ocorrencia_concluida'),
+    ('contrato_assinado', 'ocorrencia_concluida'),
+    ('ocorrencia_pendente', 'ocorrencia_concluida'),
+    ('ocorrencia_devolvida_gestor', 'ocorrencia_concluida'),
+    ('ocorrencia_concluida', 'ocorrencia_pendente')
+  ) then allowed := true; end if;
+
+  if not allowed and public.has_role(actor, 'financeiro') and new.modalidade = 'lancamento' and (from_status, to_status) in (
+    ('ocorrencia_analise_financeiro', 'devolvida_ajuste'),
+    ('ocorrencia_concluida', 'ocorrencia_analise_financeiro')
+  ) then allowed := true; end if;
+
+  if not allowed then
+    raise exception 'Transição de status não permitida para este usuário: % -> %', from_status, to_status using errcode = '42501';
+  end if;
+
+  if from_status = 'aguardando_assinatura' and to_status = 'contrato_assinado'
+     and not exists (select 1 from public.sale_documents d where d.sale_id = old.id and d.tipo = 'contrato_assinado') then
+    raise exception 'Anexe o contrato assinado (aba Documentos) antes de marcar como assinado.' using errcode = '23514';
+  end if;
+  return new;
+end;
+$function$;

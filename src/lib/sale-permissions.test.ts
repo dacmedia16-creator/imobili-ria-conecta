@@ -4,6 +4,7 @@ import type { SaleStatus } from "@/lib/status";
 import {
   comissaoValorExcedido,
   corretorPodeEditar,
+  criadorPodeEditar,
   getSaleRoleFlags,
   gestorPodeEncerrar,
   gestorPodeEditar,
@@ -319,5 +320,17 @@ describe("podeDesarquivarVenda (Denis 09/10/2026)", () => {
     expect(podeDesarquivarVenda({ ...base, isCriador: true, status: "cancelada" })).toBe(false);
     expect(podeDesarquivarVenda({ ...base, isCriador: true, status: "rascunho" })).toBe(false);
     expect(podeDesarquivarVenda({ ...base, isAdminLike: true, etapaAnterior: null })).toBe(false);
+  });
+});
+
+describe("criadorPodeEditar (Denis 09/10/2026)", () => {
+  it("criador edita em rascunho e devolvida para ajuste", () => {
+    expect(criadorPodeEditar(true, "rascunho")).toBe(true);
+    expect(criadorPodeEditar(true, "devolvida_ajuste")).toBe(true);
+  });
+  it("não edita em outras etapas nem quem não criou", () => {
+    expect(criadorPodeEditar(true, "enviada_revisao")).toBe(false);
+    expect(criadorPodeEditar(true, "contrato_conferencia_corretor")).toBe(false);
+    expect(criadorPodeEditar(false, "rascunho")).toBe(false);
   });
 });

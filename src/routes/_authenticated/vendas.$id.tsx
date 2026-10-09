@@ -130,6 +130,7 @@ import {
   responsaveisDaVenda,
   isSaleLocked,
   corretorPodeEditar,
+  criadorPodeEditar,
   gestorPodeEditar,
   juridicoPodeEditar,
   podeArquivarVenda,
@@ -918,8 +919,9 @@ function SaleDetail() {
     // Dono em rascunho pode preencher sua venda antes de existir ocorrência (regra do banco).
     const ownerDraft =
       !!user?.id &&
-      responsaveisDaVenda(current.data, commissionExtras).includes(user.id) &&
-      corretorPodeEditar(true, current.data.status) &&
+      ((responsaveisDaVenda(current.data, commissionExtras).includes(user.id) &&
+        corretorPodeEditar(true, current.data.status)) ||
+        criadorPodeEditar(current.data.corretor_id === user.id, current.data.status)) &&
       !isSaleLocked(current.data.status, occurrence.data?.aceita_financeiro ?? false);
     if ((dirtyExtras || temEdicaoFinanceiraResumo(patch)) && !(ownerDraft && !occurrence.data))
       throw { code: "RESUMO_PENDING" };
@@ -1308,6 +1310,10 @@ function SaleDetail() {
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
+  // Quem cadastrou a venda (corretor_id) edita e envia em rascunho/devolvida (Denis 09/10/2026).
+  const isCriadorDaVenda = !!user?.id && sale.corretor_id === user.id;
+  const podeEnviarRevisao =
+    (isOwner || isCriadorDaVenda) && (status === "rascunho" || status === "devolvida_ajuste");
   const gestorDaEquipeRascunho = isGestor && status === "rascunho" && managesOwner;
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
@@ -1359,7 +1365,8 @@ function SaleDetail() {
   };
 
   // Quem pode editar campos (Resumo/Partes/Pagamento/Docs) segundo o estado atual
-  const corretorEdits = corretorPodeEditar(isOwner, status);
+  const corretorEdits =
+    corretorPodeEditar(isOwner, status) || criadorPodeEditar(isCriadorDaVenda, status);
   const gestorEdits =
     managementCurrent && management.canEdit && gestorPodeEditar(isGestor, status, managesOwner);
   const juridicoEdits = juridicoPodeEditar(isJuridico, status);
@@ -3979,7 +3986,7 @@ function SaleDetail() {
     onClick: () => void;
     disabled?: boolean;
   } | null =
-    (isOwner && (status === "rascunho" || status === "devolvida_ajuste")) || gestorDaEquipeRascunho
+    podeEnviarRevisao || gestorDaEquipeRascunho
       ? {
           label: envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor",
           icon: Send,
@@ -4129,8 +4136,7 @@ function SaleDetail() {
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Corretor: envio inicial ou reenvio após devolução (dono que também é gestor/team leader pula a revisão e já manda pro jurídico) */}
-          {((isOwner && (status === "rascunho" || status === "devolvida_ajuste")) ||
-            gestorDaEquipeRascunho) && (
+          {(podeEnviarRevisao || gestorDaEquipeRascunho) && (
             <Button onClick={attemptSendForReview}>
               <Send className="mr-2 h-4 w-4" />
               {envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor"}
