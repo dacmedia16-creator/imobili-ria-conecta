@@ -7,7 +7,12 @@ import {
   temEdicaoFinanceiraResumo,
   resumoTemPendencia,
 } from "./resumo-sync-guard";
-import { corretorPodeEditar, isSaleLocked, responsaveisDaVenda } from "./sale-permissions";
+import {
+  corretorPodeEditar,
+  criadorPodeEditar,
+  isSaleLocked,
+  responsaveisDaVenda,
+} from "./sale-permissions";
 import { saleManagementCapabilities } from "./sale-management-capabilities";
 
 // OFFLINE: executa os handlers extraídos do TSX real. Somente as fronteiras React/Supabase
@@ -102,6 +107,7 @@ function harness(initial = fixture()) {
     temEdicaoFinanceiraResumo,
     resumoTemPendencia,
     corretorPodeEditar,
+    criadorPodeEditar,
     responsaveisDaVenda,
     isSaleLocked,
     asDistribution: (value: unknown) => value,
