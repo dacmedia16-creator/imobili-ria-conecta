@@ -213,14 +213,13 @@ export function AjudaSugestoesBotao({ compacto = false }: { compacto?: boolean }
           limpar();
           setAberto(true);
         }}
-        variant="ghost"
         size={compacto ? "icon" : "sm"}
-        className="gap-2 print:hidden"
+        className="gap-2 rounded-full bg-amber-500 font-semibold text-white shadow-md hover:bg-amber-600 print:hidden"
         aria-label="Ajuda e sugestões"
         title="Ajuda e sugestões"
         data-testid="ajuda-botao"
       >
-        <LifeBuoy className="h-4 w-4" />
+        <LifeBuoy className="h-5 w-5" />
         {!compacto && <span>Ajuda e sugestões</span>}
       </Button>
       <Sheet open={aberto} onOpenChange={setAberto}>
