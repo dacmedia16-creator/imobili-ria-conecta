@@ -552,6 +552,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <AjudaSugestoesBotao compacto />
           <NotificationBell />
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <Button
@@ -587,13 +588,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`md:pl-60 print:pl-0 ${topBar ? "pt-12" : ""}`}
       >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
-          <div className="mb-4 hidden justify-end md:flex print:hidden">
+          <div className="mb-4 hidden items-center justify-end gap-2 md:flex print:hidden">
+            <AjudaSugestoesBotao />
             <NotificationBell />
           </div>
           {children}
         </div>
       </main>
-      <AjudaSugestoesBotao />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Botão "Ajuda e sugestões" (fixo no canto de todas as telas, inclusive no celular) e o
+ * Botão "Ajuda e sugestões" (no topo, ao lado do sino; não flutua sobre a tela) e o
  * formulário: Erro / Dúvida / Ideia, texto, print opcional com tarja e a tela automática.
  */
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -134,7 +134,7 @@ function exportarPrint(img: HTMLImageElement, tarjas: Tarja[]): string {
   return c.toDataURL("image/jpeg", 0.85).split(",")[1] ?? "";
 }
 
-export function AjudaSugestoesBotao() {
+export function AjudaSugestoesBotao({ compacto = false }: { compacto?: boolean } = {}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [aberto, setAberto] = useState(false);
   const [tipo, setTipo] = useState<TipoChamado>("erro");
@@ -213,13 +213,15 @@ export function AjudaSugestoesBotao() {
           limpar();
           setAberto(true);
         }}
-        className="fixed bottom-4 right-4 z-40 gap-2 rounded-full shadow-lg print:hidden"
+        variant="ghost"
+        size={compacto ? "icon" : "sm"}
+        className="gap-2 print:hidden"
         aria-label="Ajuda e sugestões"
+        title="Ajuda e sugestões"
         data-testid="ajuda-botao"
       >
         <LifeBuoy className="h-4 w-4" />
-        <span className="hidden sm:inline">Ajuda e sugestões</span>
-        <span className="sm:hidden">Ajuda</span>
+        {!compacto && <span>Ajuda e sugestões</span>}
       </Button>
       <Sheet open={aberto} onOpenChange={setAberto}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
