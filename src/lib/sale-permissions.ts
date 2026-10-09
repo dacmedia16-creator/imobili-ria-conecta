@@ -143,6 +143,22 @@ export function podeArquivarVenda(isAdminLike: boolean, status: SaleStatus): boo
   return isAdminLike || STATUS_ANTES_ASSINATURA.includes(status);
 }
 
+/** Desarquivar venda (Denis, 09/10/2026): admin/super_admin, quem criou a venda (sales.corretor_id)
+ * ou o gestor/team leader que lidera a venda. A venda volta para a etapa em que estava ao ser
+ * arquivada (`etapaAnterior`, último registro do histórico); sem essa etapa não há para onde voltar.
+ * Espelha o bloco "from_status = arquivada" do trigger validate_sale_status_transition. */
+export function podeDesarquivarVenda(args: {
+  status: SaleStatus;
+  etapaAnterior: SaleStatus | null | undefined;
+  isAdminLike: boolean;
+  isCriador: boolean;
+  isGestorDaVenda: boolean;
+}): boolean {
+  if (args.status !== "arquivada") return false;
+  if (!args.etapaAnterior || args.etapaAnterior === "arquivada") return false;
+  return args.isAdminLike || args.isCriador || args.isGestorDaVenda;
+}
+
 /** Cancelar venda (regra de Denis, 28/09/2026): só o dono da plataforma (platform_admins), e só
  * depois do rascunho — rascunho se exclui, não se cancela. Espelha o bloco "cancelada" do trigger
  * validate_sale_status_transition, que é a autoridade. */

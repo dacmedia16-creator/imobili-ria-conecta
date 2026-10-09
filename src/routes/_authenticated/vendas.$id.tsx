@@ -133,6 +133,7 @@ import {
   gestorPodeEditar,
   juridicoPodeEditar,
   podeArquivarVenda,
+  podeDesarquivarVenda,
   podeEditarVenda,
   comissaoValorExcedido,
   podeVerOcorrencia,
@@ -406,6 +407,8 @@ function SaleDetail() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveMotivo, setArchiveMotivo] = useState("");
   const [archiveTarget, setArchiveTarget] = useState<"arquivada" | "cancelada">("arquivada");
+  const [unarchiveOpen, setUnarchiveOpen] = useState(false);
+  const [unarchiveMotivo, setUnarchiveMotivo] = useState("");
   const [step, setStep] = useState<string>("documentos");
   const [docParte, setDocParte] = useState<DocParte>("comprador_1");
   const [activeResumoBlock, setActiveResumoBlock] = useState("imovel");
@@ -1312,6 +1315,27 @@ function SaleDetail() {
   // Arquivar (reunião 08/10/2026): quem vê a venda, antes da assinatura do contrato; admin em
   // qualquer etapa. Cancelar: só o dono da plataforma (canCancelSale).
   const canCloseSale = podeArquivarVenda(isAdminLike, status);
+  // Desarquivar (Denis 09/10/2026): admin, quem criou a venda ou o gestor/TL que a lidera. Volta
+  // para a etapa em que estava ao ser arquivada (history vem do mais recente para o mais antigo).
+  const etapaAntesDeArquivar =
+    status === "arquivada"
+      ? ((history.find((h) => h.para === "arquivada")?.de as SaleStatus | null | undefined) ?? null)
+      : null;
+  const canUnarchive = podeDesarquivarVenda({
+    status,
+    etapaAnterior: etapaAntesDeArquivar,
+    isAdminLike,
+    isCriador: !!user?.id && sale.corretor_id === user.id,
+    isGestorDaVenda: hasManagerRole && managesOwner,
+  });
+  const submitUnarchive = async () => {
+    if (!etapaAntesDeArquivar || !unarchiveMotivo.trim()) {
+      toast.error("Motivo é obrigatório");
+      return;
+    }
+    await changeStatus(etapaAntesDeArquivar, `Desarquivada: ${unarchiveMotivo.trim()}`);
+    setUnarchiveOpen(false);
+  };
   const canCancel = canCancelSale(isPlatformAdmin, status);
 
   const onConfirmDelete = async () => {
@@ -4318,6 +4342,19 @@ function SaleDetail() {
             </Button>
           )}
 
+          {canUnarchive && etapaAntesDeArquivar && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnarchiveMotivo("");
+                setUnarchiveOpen(true);
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Desarquivar
+            </Button>
+          )}
+
           {canCancel && (
             <Button
               variant="outline"
@@ -5345,6 +5382,34 @@ function SaleDetail() {
             </Button>
             <Button onClick={submitReturn} disabled={!returnMotivo.trim()}>
               Devolver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={unarchiveOpen} onOpenChange={setUnarchiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desarquivar venda</DialogTitle>
+            <DialogDescription>
+              A venda volta para a etapa em que estava antes de ser arquivada
+              {etapaAntesDeArquivar ? ` (${STATUS_LABEL[etapaAntesDeArquivar]})` : ""}. Descreva o
+              motivo; isso fica registrado no histórico da venda.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            aria-label="Motivo do desarquivamento"
+            placeholder="Motivo (obrigatório)"
+            value={unarchiveMotivo}
+            onChange={(e) => setUnarchiveMotivo(e.target.value)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setUnarchiveOpen(false)}>
+              Voltar
+            </Button>
+            <Button onClick={submitUnarchive} disabled={!unarchiveMotivo.trim()}>
+              Desarquivar
             </Button>
           </DialogFooter>
         </DialogContent>

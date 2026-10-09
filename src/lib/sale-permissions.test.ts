@@ -10,6 +10,7 @@ import {
   isSaleLocked,
   juridicoPodeEditar,
   podeArquivarVenda,
+  podeDesarquivarVenda,
   podeEditarOcorrencia,
   podeEditarVenda,
   podeFinalizarOcorrencia,
@@ -295,5 +296,28 @@ describe("podeFinalizarOcorrencia", () => {
     expect(podeFinalizarOcorrencia(true, false)).toBe(true);
     expect(podeFinalizarOcorrencia(false, true)).toBe(true);
     expect(podeFinalizarOcorrencia(false, false)).toBe(false);
+  });
+});
+
+describe("podeDesarquivarVenda (Denis 09/10/2026)", () => {
+  const base = {
+    status: "arquivada" as SaleStatus,
+    etapaAnterior: "contrato_conferencia_gestor" as SaleStatus,
+    isAdminLike: false,
+    isCriador: false,
+    isGestorDaVenda: false,
+  };
+  it("criador, gestor da venda e admin podem", () => {
+    expect(podeDesarquivarVenda({ ...base, isCriador: true })).toBe(true);
+    expect(podeDesarquivarVenda({ ...base, isGestorDaVenda: true })).toBe(true);
+    expect(podeDesarquivarVenda({ ...base, isAdminLike: true })).toBe(true);
+  });
+  it("outros não podem", () => {
+    expect(podeDesarquivarVenda(base)).toBe(false);
+  });
+  it("só vale para venda arquivada e com etapa anterior conhecida", () => {
+    expect(podeDesarquivarVenda({ ...base, isCriador: true, status: "cancelada" })).toBe(false);
+    expect(podeDesarquivarVenda({ ...base, isCriador: true, status: "rascunho" })).toBe(false);
+    expect(podeDesarquivarVenda({ ...base, isAdminLike: true, etapaAnterior: null })).toBe(false);
   });
 });
