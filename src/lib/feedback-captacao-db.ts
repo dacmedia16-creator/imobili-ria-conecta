@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { storageOrganizationPath } from "./storage-org";
 import type { ListingCheck, ListingContext, Pendencia, PlanItem } from "./feedback-captacao";
 
-// RPCs da migration 20261009010000 (ainda fora de types.ts).
+// RPCs das migrations 20261009010000 e 20261009020000 (semanas), ainda fora de types.ts.
 const db = supabase as unknown as SupabaseClient;
 const check = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
@@ -69,6 +69,7 @@ export async function planMark(
   action: string,
   doneOn: string,
   proof?: File | null,
+  semana = 0,
 ) {
   let path: string | null = null;
   if (proof) {
@@ -87,11 +88,16 @@ export async function planMark(
     _done_on: doneOn,
     _proof_path: path,
     _proof_name: proof ? proof.name.slice(0, 180) : null,
+    _semana: semana,
   });
   check(error);
 }
-export async function planUnmark(capture: string, action: string): Promise<void> {
-  const { error } = await db.rpc("exclusive_plan_unmark", { _capture: capture, _action: action });
+export async function planUnmark(capture: string, action: string, semana = 0): Promise<void> {
+  const { error } = await db.rpc("exclusive_plan_unmark", {
+    _capture: capture,
+    _action: action,
+    _semana: semana,
+  });
   check(error);
 }
 export async function proofUrl(path: string): Promise<string> {

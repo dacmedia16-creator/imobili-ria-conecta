@@ -9,7 +9,14 @@ import { errorMessage } from "@/lib/errors";
 import { formatDateBR } from "@/lib/exclusive-captures";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { WEIGHT_LABEL } from "@/lib/owner-feedback-actions";
-import { diasEntre, planItemState, planSummary, type PlanItem } from "@/lib/feedback-captacao";
+import {
+  diasEntre,
+  planItemKey,
+  planItemState,
+  planSummary,
+  semanaRotulo,
+  type PlanItem,
+} from "@/lib/feedback-captacao";
 import { PROOF_ACCEPT, planMark, planUnmark, planView, proofUrl } from "@/lib/feedback-captacao-db";
 
 /** Plano de Marketing como checklist (captação aprovada): feito + data + prova opcional; atrasadas em destaque. */
@@ -46,7 +53,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
   const salvar = async (it: PlanItem) => {
     setBusy(true);
     try {
-      await planMark(captureId, it.action_id, date, file);
+      await planMark(captureId, it.action_id, date, file, it.semana ?? 0);
       toast.success("Ação marcada como feita.");
       setOpen(null);
       setFile(null);
@@ -58,10 +65,11 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
     }
   };
   const desmarcar = async (it: PlanItem) => {
-    if (!window.confirm(`Desmarcar “${it.label}”? Fica registrado no histórico.`)) return;
+    const sem = it.semana ? ` (Semana ${it.semana})` : "";
+    if (!window.confirm(`Desmarcar “${it.label}”${sem}? Fica registrado no histórico.`)) return;
     setBusy(true);
     try {
-      await planUnmark(captureId, it.action_id);
+      await planUnmark(captureId, it.action_id, it.semana ?? 0);
       await load();
     } catch (e) {
       toast.error(errorMessage(e, "Não foi possível desmarcar."));
@@ -99,8 +107,10 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p className="text-xs text-muted-foreground">
-          Ações prometidas no contrato. Prazo contado da aprovação: essencial 7 dias, importante 14,
-          complementar 30. O gestor vê as atrasadas no painel dele.
+          {items.some((i) => i.semana)
+            ? "Ações prometidas no contrato, por semana. A Semana 1 começa na aprovação; o prazo é o último dia da semana escolhida."
+            : "Ações prometidas no contrato. Prazo contado da aprovação: essencial 7 dias, importante 14, complementar 30."}{" "}
+          O gestor vê as atrasadas no painel dele.
         </p>
         {groups.map((g) => (
           <div key={g.category}>
@@ -112,7 +122,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                 const st = planItemState(it, hoje);
                 return (
                   <div
-                    key={it.action_id}
+                    key={planItemKey(it)}
                     className={`p-2 ${st === "atrasada" ? "bg-red-50" : ""} ${!it.in_plan ? "opacity-70" : ""}`}
                   >
                     <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +134,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                           if (v === true) {
                             setDate(hoje);
                             setFile(null);
-                            setOpen(it.action_id);
+                            setOpen(planItemKey(it));
                           } else void desmarcar(it);
                         }}
                       />
@@ -142,7 +152,11 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                         )}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {it.prazo ? `prazo ${formatDateBR(it.prazo)}` : ""}
+                        {it.semana
+                          ? semanaRotulo(it)
+                          : it.prazo
+                            ? `prazo ${formatDateBR(it.prazo)}`
+                            : ""}
                       </span>
                       <span className="w-40 text-right text-xs">
                         {st === "feito" ? (
@@ -169,7 +183,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                         </Button>
                       )}
                     </div>
-                    {open === it.action_id && (
+                    {open === planItemKey(it) && (
                       <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md bg-muted/60 p-2">
                         <label className="text-xs">
                           Feito em

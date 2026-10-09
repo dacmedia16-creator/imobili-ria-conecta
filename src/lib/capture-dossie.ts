@@ -70,9 +70,101 @@ export function missingVitals(
   return dossieCatalog(actions).filter((a) => a.weight === "vital" && !set.has(a.id));
 }
 
+// ---------- Semanas do Plano (t_9a21f3e6) ----------
+// form_data.plano_semanas = { "<id da ação>": [1, 2, ...] }. Semana 1 começa na aprovação; semana N vai de
+// aprovação + 7×(N−1) até aprovação + 7×N − 1. Plano sem plano_semanas = plano antigo (prazo por peso).
+
+export type PlanoSemanas = Record<string, number[]>;
+
+/** Semanas visíveis antes do "ver mais semanas". */
+export const SEMANAS_VISIVEIS = 4;
+/** Sem fim de exclusividade registrado: 4 semanas. */
+export const SEMANAS_PADRAO = 4;
+const SEMANAS_MAX = 104;
+
+const dia = (iso: string) => Date.parse(`${iso.slice(0, 10)}T12:00:00Z`);
+const somaDias = (iso: string, n: number) =>
+  new Date(dia(iso) + n * 864e5).toISOString().slice(0, 10);
+
+/**
+ * Quantas semanas o corretor pode escolher: da Semana 1 (aprovação) até a última semana da exclusividade.
+ * Com aprovação e fim conhecidos usa as datas; antes da aprovação, o prazo em dias do contrato;
+ * sem nada registrado, 4 semanas (padrao = true).
+ */
+export function totalSemanasPlano(p: {
+  aprovadaEm?: string | null;
+  fimExclusividade?: string | null;
+  prazoDias?: string | number | null;
+}): { total: number; padrao: boolean } {
+  const cap = (n: number) => Math.min(SEMANAS_MAX, Math.max(1, n));
+  if (p.aprovadaEm && p.fimExclusividade) {
+    const dias = Math.round((dia(p.fimExclusividade) - dia(p.aprovadaEm)) / 864e5);
+    if (dias > 0) return { total: cap(Math.ceil(dias / 7)), padrao: false };
+  }
+  const prazo = Number.parseInt(String(p.prazoDias ?? ""), 10);
+  if (prazo > 0) return { total: cap(Math.ceil(prazo / 7)), padrao: false };
+  return { total: SEMANAS_PADRAO, padrao: true };
+}
+
+/** Semana sugerida pela regra antiga: essencial → S1, importante → S2, complementar → S4. */
+export function semanaSugerida(weight: FeedbackAction["weight"], total: number): number {
+  const s = weight === "vital" ? 1 : weight === "importante" ? 2 : 4;
+  return Math.min(s, Math.max(1, total));
+}
+
+/** Semanas válidas da ação (1..total, sem repetição, em ordem). */
+export function semanasDaAcao(semanas: PlanoSemanas | undefined, id: string, total = SEMANAS_MAX) {
+  return [
+    ...new Set((semanas?.[id] ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= total)),
+  ].sort((a, b) => a - b);
+}
+
+/** Plano novo: mantém só as ações marcadas; ação recém-marcada recebe a semana sugerida. */
+export function ajustarSemanas(
+  actions: FeedbackAction[],
+  ids: string[],
+  semanas: PlanoSemanas | undefined,
+  total: number,
+): PlanoSemanas {
+  const out: PlanoSemanas = {};
+  for (const a of selectedDossie(actions, ids)) {
+    out[a.id] =
+      semanas && a.id in semanas
+        ? semanasDaAcao(semanas, a.id, total)
+        : [semanaSugerida(a.weight, total)];
+  }
+  return out;
+}
+
+/** Plano novo (com plano_semanas): ações marcadas sem nenhuma semana escolhida. */
+export function acoesSemSemana(
+  actions: FeedbackAction[],
+  ids: string[] | undefined,
+  semanas: PlanoSemanas | undefined,
+): FeedbackAction[] {
+  if (!semanas) return [];
+  return selectedDossie(actions, ids).filter((a) => semanasDaAcao(semanas, a.id).length === 0);
+}
+
+/** "Semana 1", "Semanas 1, 2 e 4", "Toda semana (1 a 26)". */
+export function semanasTexto(sem: number[], total?: number): string {
+  if (!sem.length) return "";
+  if (total && total > 1 && sem.length === total) return `Toda semana (1 a ${total})`;
+  if (sem.length === 1) return `Semana ${sem[0]}`;
+  return `Semanas ${sem.slice(0, -1).join(", ")} e ${sem.at(-1)}`;
+}
+
+/** Início e fim da semana N contada da aprovação (AAAA-MM-DD). */
+export function intervaloSemana(aprovadaEm: string, n: number): { inicio: string; fim: string } {
+  return { inicio: somaDias(aprovadaEm, 7 * (n - 1)), fim: somaDias(aprovadaEm, 7 * n - 1) };
+}
+
 export interface DossiePdfInput {
   actions: FeedbackAction[];
   selected: string[];
+  /** Semanas escolhidas por ação (plano novo); ausente = plano antigo, sem semanas no PDF. */
+  semanas?: PlanoSemanas;
+  totalSemanas?: number;
   ownerNames: string[];
   brokerName: string;
   brokerCreci?: string;
@@ -181,7 +273,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
   page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.6, color: LINE });
   y -= 18;
   for (const l of wrap(
-    `${input.company?.trim() || "A imobiliária"}, por meio do(a) corretor(a) responsável, se compromete a realizar as ações abaixo para divulgar e vender o imóvel durante o período de exclusividade. O andamento será informado ao proprietário nos relatórios de feedback.`,
+    `${input.company?.trim() || "A imobiliária"}, por meio do(a) corretor(a) responsável, se compromete a realizar as ações abaixo para divulgar e vender o imóvel durante o período de exclusividade. O andamento será informado ao proprietário nos relatórios de feedback.${input.semanas ? " A Semana 1 começa na data de aprovação da captação; cada semana tem 7 dias." : ""}`,
     10,
     W,
   )) {
@@ -227,6 +319,13 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
       txt(`${n}.`, M + 20, y - 10, 10, bold, MUTED);
       lines.forEach((l, i) => txt(l, M + 40, y - 10 - i * 13, 10, font, INK));
       y -= 13 * lines.length + 6;
+      const sem = input.semanas ? semanasDaAcao(input.semanas, a.id) : [];
+      if (sem.length) {
+        const sl = wrap(`Quando: ${semanasTexto(sem, input.totalSemanas)}`, 8.5, W - 40);
+        ensure(11 * sl.length + 4);
+        sl.forEach((l, i) => txt(l, M + 40, y - 6 - i * 11, 8.5, font, BLUE));
+        y -= 11 * sl.length + 4;
+      }
     }
     y -= 6;
   }
