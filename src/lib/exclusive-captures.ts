@@ -178,6 +178,8 @@ export type CaptureForm = {
   testemunha_2: Witness;
   /** Plano de Marketing (campo técnico "dossie"): ids das ações do plano de marketing escolhidas (ausente = ainda não definido). */
   dossie?: string[];
+  /** Semanas escolhidas por ação do Plano ({ id: [1, 2] }); ausente = plano antigo (prazo por peso). */
+  plano_semanas?: Record<string, number[]>;
   /** Cadastro manual: data de assinatura escrita no contrato (AAAA-MM-DD). Na aprovação vira signed_on. */
   data_assinatura?: string;
   /** Ficha do imóvel (mesmos campos do Estudo de Mercado); o tipo fica em imovel.tipo_imovel.
@@ -376,6 +378,20 @@ export function normalizeForm(
     ...(Array.isArray(value?.dossie)
       ? { dossie: value.dossie.filter((v): v is string => typeof v === "string") }
       : {}),
+    ...(value?.plano_semanas &&
+    typeof value.plano_semanas === "object" &&
+    !Array.isArray(value.plano_semanas)
+      ? {
+          plano_semanas: Object.fromEntries(
+            Object.entries(value.plano_semanas).map(([k, v]) => [
+              k,
+              Array.isArray(v)
+                ? v.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= 104)
+                : [],
+            ]),
+          ),
+        }
+      : {}),
     ...(typeof value?.data_assinatura === "string" && value.data_assinatura
       ? { data_assinatura: value.data_assinatura }
       : {}),
@@ -390,7 +406,8 @@ export function normalizeFichaCaptacao(v: Partial<Record<string, unknown>>): Fic
   const out = fichaCaptacaoVazia();
   for (const k of Object.keys(out) as Extract<keyof FichaCaptacao, string>[]) {
     const x = v[k];
-    out[k] = typeof x === "string" ? x : typeof x === "number" && Number.isFinite(x) ? String(x) : "";
+    out[k] =
+      typeof x === "string" ? x : typeof x === "number" && Number.isFinite(x) ? String(x) : "";
   }
   return out;
 }

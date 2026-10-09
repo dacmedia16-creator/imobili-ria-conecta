@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { DETAIL_NOT_FOUND_MESSAGE, isDetailRouteId } from "@/lib/detail-route-state";
 import { DetailNotFound } from "@/components/DetailNotFound";
@@ -72,6 +72,10 @@ import {
   dossieMissingFor,
   initialDossieSelection,
   selectedDossie,
+  acoesSemSemana,
+  ajustarSemanas,
+  totalSemanasPlano,
+  type PlanoSemanas,
 } from "@/lib/capture-dossie";
 import {
   canBuildCompletePdf,
@@ -281,7 +285,26 @@ function ExclusiveDetail() {
   // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo
   // (mesma regra na captação normal e no cadastro manual).
   const dossieIds = form?.dossie ?? [];
-  const dossieMissing = dossieMissingFor(dossieActions, dossieIds);
+  // Semanas do Plano: Semana 1 = aprovação; até a última semana da exclusividade (sem prazo: 4).
+  const planoSemanas = form?.plano_semanas;
+  const aprovadaEm = useMemo(() => {
+    const ev = history
+      .filter((h) => h.action === "aprovar")
+      .map((h) => h.created_at)
+      .sort()
+      .at(-1);
+    return ev ? hojeSaoPaulo(new Date(ev)) : (capture?.signed_on ?? null);
+  }, [history, capture?.signed_on]);
+  const semanasInfo = totalSemanasPlano({
+    aprovadaEm: capture?.status === "aprovada" ? aprovadaEm : null,
+    fimExclusividade: capture ? (captureValidity(capture, hojeSaoPaulo())?.end ?? null) : null,
+    prazoDias: form?.condicoes?.prazo_dias_numero,
+  });
+  const semSemana = acoesSemSemana(dossieActions, dossieIds, planoSemanas);
+  const dossieMissing = dossieMissingFor(dossieActions, dossieIds) || semSemana.length > 0;
+  const planoFaltaTexto = semSemana.length
+    ? "Plano de Marketing: escolha ao menos 1 semana em cada ação"
+    : "Plano de Marketing: marque ao menos 1 ação";
   const devolucao = ultimaDevolucao(history);
   // Cadastro manual: vitais já marcadas (defaultDossieSelection) para o corretor conferir; entra no
   // rascunho como alteração a salvar, para o gestor receber o que o corretor viu.
@@ -289,13 +312,18 @@ function ExclusiveDetail() {
   useEffect(() => {
     if (!prefillDossie || !dossieCatalog(dossieActions).length) return;
     const ids = initialDossieSelection(dossieActions, undefined, true);
+    const sem = ajustarSemanas(dossieActions, ids, undefined, semanasInfo.total);
     setForm((current) =>
-      current && current.dossie === undefined ? { ...current, dossie: ids } : current,
+      current && current.dossie === undefined
+        ? { ...current, dossie: ids, plano_semanas: sem }
+        : current,
     );
     setDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só no pré-preenchimento inicial
   }, [prefillDossie, dossieActions]);
-  const setDossie = (ids: string[]) => {
-    setForm((current) => (current ? { ...current, dossie: ids } : current));
+  // Plano novo ou editado passa a gravar as semanas (planos antigos só mudam se forem editados).
+  const setDossie = (ids: string[], semanas: PlanoSemanas) => {
+    setForm((current) => (current ? { ...current, dossie: ids, plano_semanas: semanas } : current));
     setDirty(true);
   };
   const run = async (fn: () => Promise<void>) => {
@@ -347,7 +375,11 @@ function ExclusiveDetail() {
       if (!capture || !form) return;
       if (dossieMissing) {
         setStep("dossie");
-        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.");
+        throw new Error(
+          semSemana.length
+            ? "Escolha ao menos 1 semana em cada ação do Plano de Marketing antes de gerar o contrato."
+            : "Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.",
+        );
       }
       const catalogReady = dossieCatalog(dossieActions).length > 0;
       const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
@@ -369,6 +401,8 @@ function ExclusiveDetail() {
         const dossie = await buildDossiePdf({
           actions: dossieActions,
           selected: dossieIds,
+          semanas: saved.plano_semanas,
+          totalSemanas: semanasInfo.total,
           ownerNames: [
             saved.proprietario_1.nome_completo,
             saved.proprietario_2?.nome_completo ?? "",
@@ -501,7 +535,11 @@ function ExclusiveDetail() {
       // Plano de Marketing obrigatório (mesma regra e navegação da captação normal).
       if (manual && dossieMissing && (name === "enviar" || name === "aprovar")) {
         setStep("dossie");
-        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de continuar.");
+        throw new Error(
+          semSemana.length
+            ? "Escolha ao menos 1 semana em cada ação do Plano de Marketing antes de continuar."
+            : "Marque ao menos 1 ação no Plano de Marketing antes de continuar.",
+        );
       }
       if (name === "enviar" && !window.confirm(ask)) return;
       const statusAntes = capture?.status;
@@ -588,12 +626,11 @@ function ExclusiveDetail() {
   // Mesma regra do banco (exclusive_transition 'aprovar'): contrato gerado, assinado e Plano.
   const bloqueioAprovar = aprovarBloqueio({ manual, docs, dossieMissing });
   // Plano de Marketing é obrigatório também no manual (mesma regra da captação normal).
-  if (manualCheck && dossieMissing)
-    manualCheck.required.push("Plano de Marketing: marque ao menos 1 ação");
+  if (manualCheck && dossieMissing) manualCheck.required.push(planoFaltaTexto);
   const missing = manualCheck
     ? [...manualCheck.required]
     : missingRequirements(form, dirty ? docs.filter((d) => d.kind !== "gerado") : docs, cpf, creci);
-  if (dossieMissing && !manual) missing.push("Plano de Marketing: marque ao menos 1 ação");
+  if (dossieMissing && !manual) missing.push(planoFaltaTexto);
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
   if (creci.trim() && !validCreci(creci))
@@ -1410,8 +1447,11 @@ function ExclusiveDetail() {
               editable={editable}
               loading={dossieLoading}
               onChange={setDossie}
+              semanas={planoSemanas}
+              totalSemanas={semanasInfo.total}
+              semanasPadrao={semanasInfo.padrao}
               title="Plano de Marketing"
-              intro="Obrigatório: confira as ações de marketing combinadas com o proprietário. As essenciais já vêm marcadas; ajuste o que for preciso."
+              intro="Obrigatório: confira as ações de marketing combinadas com o proprietário e as semanas de cada uma. As essenciais já vêm marcadas; ajuste o que for preciso."
               manual
             />
           ) : (
@@ -1421,6 +1461,9 @@ function ExclusiveDetail() {
               editable={editable}
               loading={dossieLoading}
               onChange={setDossie}
+              semanas={planoSemanas}
+              totalSemanas={semanasInfo.total}
+              semanasPadrao={semanasInfo.padrao}
             />
           )}
           {manual && (

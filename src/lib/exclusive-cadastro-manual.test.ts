@@ -137,19 +137,24 @@ describe("cadastro manual — único obrigatório é o contrato", () => {
     const route = read("../routes/_authenticated/exclusividades.$id.tsx");
     const step = read("../components/CaptureDossieStep.tsx");
     // Mesma regra da normal (sem exceção para o manual) e vitais já marcadas.
-    expect(route).toContain("const dossieMissing = dossieMissingFor(dossieActions, dossieIds);");
+    expect(route).toContain(
+      "const dossieMissing = dossieMissingFor(dossieActions, dossieIds) || semSemana.length > 0;",
+    );
     expect(route).not.toMatch(/dossieRequired = !manual/);
     expect(route).toContain("initialDossieSelection(dossieActions, undefined, true)");
     // Pendência obrigatória (desabilita "Enviar ao gestor") e mesma navegação até a etapa.
     expect(route).toContain(
-      'manualCheck.required.push("Plano de Marketing: marque ao menos 1 ação")',
+      "if (manualCheck && dossieMissing) manualCheck.required.push(planoFaltaTexto);",
     );
+    expect(route).toContain('"Plano de Marketing: marque ao menos 1 ação"');
     expect(route).toMatch(
       /manual && dossieMissing && \(name === "enviar" \|\| name === "aprovar"\)\) \{\s+setStep\("dossie"\)/,
     );
     // Botão Aprovar: mesma regra do banco nos dois fluxos (auditoria t_874, ALTO-2).
     expect(route).toContain("aprovarBloqueio({ manual, docs, dossieMissing })");
-    expect(route).toMatch(/disabled=\{busy \|\| !!bloqueioAprovar\}[\s\S]{0,160}action\("aprovar"\)/);
+    expect(route).toMatch(
+      /disabled=\{busy \|\| !!bloqueioAprovar\}[\s\S]{0,160}action\("aprovar"\)/,
+    );
     // Nada de "opcional" para o Plano de Marketing.
     expect(route).not.toMatch(/Plano de Marketing[^\n]*[Oo]pcional/);
     expect(route).not.toContain("optional\n");
