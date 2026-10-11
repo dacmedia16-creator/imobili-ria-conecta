@@ -106,7 +106,8 @@ function fakeAdmin(o: {
         error: null,
       }),
       insert: async (rows: unknown) => {
-        if (nome === "sync_conflicts" && o.erroInsertConflito) return { error: o.erroInsertConflito };
+        if (nome === "sync_conflicts" && o.erroInsertConflito)
+          return { error: o.erroInsertConflito };
         gravado[nome].push(...(Array.isArray(rows) ? rows : [rows]));
         return { error: null };
       },
@@ -117,7 +118,8 @@ function fakeAdmin(o: {
           return {
             error: {
               code: "42P10",
-              message: "there is no unique or exclusion constraint matching the ON CONFLICT specification",
+              message:
+                "there is no unique or exclusion constraint matching the ON CONFLICT specification",
             },
           };
         }
