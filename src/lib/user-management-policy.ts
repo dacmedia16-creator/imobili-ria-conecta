@@ -38,12 +38,7 @@ const ADMIN_LEVEL: ManagedRole[] = ["admin", "super_admin"];
 const LEAD_LEVEL: ManagedRole[] = ["gestor", "team_leader"];
 
 export type UserAction =
-  | "create_user"
-  | "edit_user"
-  | "reset_password"
-  | "set_active"
-  | "change_roles"
-  | "move_user_org";
+  "create_user" | "edit_user" | "reset_password" | "set_active" | "change_roles" | "move_user_org";
 
 export type OrgAction = "create_org" | "edit_org" | "suspend_org";
 
@@ -71,15 +66,19 @@ export const REASONS = {
   // Não revela se o usuário existe em outra agência.
   otherOrg: "Usuário não encontrado na sua agência.",
   noOrg: "Seu usuário não está vinculado a uma agência ativa.",
-  self: "Você não pode fazer isso na própria conta; use a tela \"Meu acesso\".",
+  self: 'Você não pode fazer isso na própria conta; use a tela "Meu acesso".',
   selfRole: "Ninguém altera o próprio papel.",
   noPermission: "Seu perfil não gerencia usuários.",
-  leadOnlyCorretor: "Gestor e team leader só gerenciam corretores da própria equipe.",
+  leadOnlyCorretor:
+    "Gestor gerencia só corretores da imobiliária; team leader, só corretores da própria equipe.",
   leadCreatesOnlyCorretor: "Gestor e team leader só cadastram corretores.",
+  leadNoTeam:
+    "Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua equipe antes de cadastrar corretores.",
   leadNoRoles: "Somente administradores alteram papéis.",
   adminGrantsAdmin: "Somente o super admin da agência concede papel de administrador.",
   moveOrg: "Nenhum papel de agência move usuário entre agências.",
-  platformOnly: "Somente o super-admin da plataforma (Denis) cadastra, edita ou suspende imobiliárias.",
+  platformOnly:
+    "Somente o super-admin da plataforma (Denis) cadastra, edita ou suspende imobiliárias.",
 } as const;
 
 const hasAnyOf = (roles: ManagedRole[], set: ManagedRole[]) => roles.some((r) => set.includes(r));
@@ -92,7 +91,8 @@ const isOnlyCorretor = (roles: ManagedRole[]) =>
 /** Papéis que o ator pode atribuir ao cadastrar (ou conceder na edição de papéis). */
 export function grantableRoles(actorRoles: ManagedRole[]): ManagedRole[] {
   if (actorRoles.includes("super_admin")) return [...ALL_MANAGED_ROLES];
-  if (actorRoles.includes("admin")) return ALL_MANAGED_ROLES.filter((r) => !ADMIN_LEVEL.includes(r));
+  if (actorRoles.includes("admin"))
+    return ALL_MANAGED_ROLES.filter((r) => !ADMIN_LEVEL.includes(r));
   if (isLeadLevel(actorRoles)) return ["corretor"];
   return [];
 }
@@ -103,7 +103,8 @@ export function decideCreateUser(actor: Actor, role: ManagedRole): Decision {
   const grantable = grantableRoles(actor.roles);
   if (grantable.length === 0) return deny(REASONS.noPermission);
   if (grantable.includes(role)) return allow;
-  if (isLeadLevel(actor.roles) && !isAdminLevel(actor.roles)) return deny(REASONS.leadCreatesOnlyCorretor);
+  if (isLeadLevel(actor.roles) && !isAdminLevel(actor.roles))
+    return deny(REASONS.leadCreatesOnlyCorretor);
   return deny(REASONS.adminGrantsAdmin);
 }
 
@@ -136,11 +137,16 @@ export function decideUserAction(
     return allow;
   }
 
-  // Gestor / team leader: nunca mexe em papéis nem em administradores.
+  // Gestor / team leader (decisão de Denis, 11/10/2026 — cartão t_d8d3ada2):
+  // - nunca mexe em papéis, administradores ou contas de outros papéis: só corretor puro;
+  // - gestor edita dados de corretores de toda a própria imobiliária;
+  // - team leader edita só corretores da própria equipe (mesma hierarquia de is_lead_of);
+  // - redefinir senha e desativar/reativar ficam IGUAIS ao que já era: só corretores da própria
+  //   equipe (não ampliado para a imobiliária inteira).
   if (action === "change_roles") return deny(REASONS.leadNoRoles);
-  if (!target.ledByActor || isAdminLevel(target.roles)) return deny(REASONS.leadOnlyCorretor);
-  // Editar dados cadastrais: qualquer membro da própria equipe (legado). Senha e ativação: só corretor.
-  if (action !== "edit_user" && !isOnlyCorretor(target.roles)) return deny(REASONS.leadOnlyCorretor);
+  if (!isOnlyCorretor(target.roles)) return deny(REASONS.leadOnlyCorretor);
+  if (action === "edit_user" && actor.roles.includes("gestor")) return allow;
+  if (!target.ledByActor) return deny(REASONS.leadOnlyCorretor);
   return allow;
 }
 
