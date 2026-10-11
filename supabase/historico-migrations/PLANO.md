@@ -53,3 +53,12 @@ Isso só melhora a rastreabilidade e não é necessário para o `db push`.
 - **Renomear arquivos já citados:** 4 citações dependem dos caminhos e quebram se não forem ajustadas. Mitigação: rodar a suíte completa no PR.
 - **Ordem diferente no ambiente de homologação ou local (`supabase db reset`):** ao adotar os números do remoto, a ordem passa a ser a de produção, que é a real. Mesmo assim, é preciso fazer um `db reset` local de prova antes do merge, porque migrations antigas com 1 statement (dump inicial) podem depender de objetos fora de ordem.
 - **Nenhum risco para produção:** não há escrita remota. O rollback é reverter o commit.
+
+## Execução da opção 2 (t_412dfcf2, 11/10/2026)
+
+- Manifesto recalculado contra o remoto atual (315 versões): 115 `RENOMEAR`, 47 `CRIAR_DO_REMOTO`, 1 `CRIAR_NOOP_DOCUMENTADO`, 42 `ARQUIVAR`. É idêntico ao `manifesto-reconciliacao.csv`. O que foi aplicado está em `manifesto-aplicado-t_412dfcf2.csv`.
+- Os arquivos que nunca foram aplicados com a própria versão foram para `supabase/migrations_arquivo/` (`git mv`, sem apagar). Também foram ajustadas 4 citações: 3 testes e 1 script de rollback.
+- `supabase migration list` (CLI 2.120, sessão somente leitura) deu 315 locais = 315 remotas e 0 divergências. `db push --dry-run` respondeu "Remote database is up to date".
+- O `db diff` não roda até o fim. O banco sombra para em `20260824030000_remove_pagamento_final_duplicado_630591158_25.sql`, uma migration de dados que exige a venda real e que não foi alterada aqui. Para comparar o schema, use `db dump` ou o diff contra uma cópia restaurada de produção, nunca o banco sombra vazio.
+- Em 14 versões, o texto local difere de `statements` do remoto mesmo ignorando espaços e comentários (6 renomeadas, 8 já existentes na main): 20260726003903, 20260728001136, 20260818140456, 20260818234052, 20260819135904, 20260901212500, 20260901215000, 20260901215500, 20260902011500, 20260902022000, 20260902154000, 20260902164500, 20260902200000, 20260902203000. Isso foi só registrado e não foi corrigido. A CLI usa a versão, não o texto, para decidir o `push`.
+- Nenhuma escrita no banco do ADM.

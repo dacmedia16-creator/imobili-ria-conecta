@@ -57,7 +57,7 @@ drop function if exists public.salvar_divisao_comissao_lancamento(uuid, jsonb);
 drop function if exists public.criar_lancamento(text, text, text);
 
 -- 3) Restaura criar_ocorrencia_lancamento(uuid) pro corpo EXATO de antes de 20260819000000 --
--- cópia literal de supabase/migrations/20260811040000_criar_ocorrencia_lancamento_rpc.sql (a mesma
+-- cópia literal de supabase/migrations/20260811140018_criar_ocorrencia_lancamento_rpc.sql (a mesma
 -- versão que já estava em produção antes de todo este PR, nunca alterada por mais nada além da
 -- migration que este rollback está desfazendo). Volta a exigir valor_total_comissao > 0 direto,
 -- sem chamar calcular_distribuicao_venda -- por isso PRECISA rodar antes do passo 4 (comentário

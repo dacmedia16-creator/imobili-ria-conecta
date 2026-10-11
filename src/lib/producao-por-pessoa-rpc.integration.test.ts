@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const MIGRATION = resolve(
   process.cwd(),
-  "supabase/migrations/20260906203000_producao_por_pessoa_fallback_lider_unico.sql",
+  "supabase/migrations_arquivo/20260906203000_producao_por_pessoa_fallback_lider_unico.sql",
 );
 const ACCESS_MIGRATION = resolve(
   process.cwd(),
