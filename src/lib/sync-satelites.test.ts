@@ -89,6 +89,7 @@ function fakeAdmin(o: {
   itens?: Array<{ id: number; adm_user_id: string }>;
   estado?: LinhaEstado[];
   exclusoes?: Array<{ adm_user_id: string; satelite: Satelite }>;
+  erroInsertConflito?: { code: string; message: string };
 }) {
   const gravado: Record<string, unknown[]> = {
     sync_log: [],
@@ -105,10 +106,21 @@ function fakeAdmin(o: {
         error: null,
       }),
       insert: async (rows: unknown) => {
+        if (nome === "sync_conflicts" && o.erroInsertConflito) return { error: o.erroInsertConflito };
         gravado[nome].push(...(Array.isArray(rows) ? rows : [rows]));
         return { error: null };
       },
-      upsert: async (row: unknown) => {
+      // Como no banco real: o índice único de sync_conflicts é parcial e o PostgREST não manda o predicado
+      // no ON CONFLICT, então o upsert com onConflict falha com 42P10 (conferido no homolog em 11/10).
+      upsert: async (row: unknown, opts?: { onConflict?: string }) => {
+        if (nome === "sync_conflicts" && opts?.onConflict) {
+          return {
+            error: {
+              code: "42P10",
+              message: "there is no unique or exclusion constraint matching the ON CONFLICT specification",
+            },
+          };
+        }
         gravado[nome].push(row);
         return { error: null };
       },
@@ -250,6 +262,59 @@ describe("processarFila", () => {
     await processarFila(admin, amb);
     expect((admin.gravado.concluir[0] as any).p_resultado).toBe("aguardando_humano");
     expect(admin.gravado.sync_conflicts).toHaveLength(1);
+    expect(admin.gravado.sync_conflicts[0]).toMatchObject({
+      adm_user_id: "u1",
+      satelite: "estudo",
+      tipo: "possivel_duplicata",
+      status: "aberto",
+    });
+  });
+
+  const respConflito = (sat: Satelite, b: any) =>
+    sat === "estudo"
+      ? {
+          status: 200,
+          json: {
+            modo: b.modo,
+            resultados: [
+              {
+                adm_user_id: "u1",
+                acoes: ["conflito"],
+                resultado: "conflito",
+                conflito: { tipo: "rebaixar_owner" },
+                avisos: [],
+                erro: null,
+              },
+            ],
+          },
+        }
+      : okResp(sat, b);
+
+  it("conflito igual já aberto (23505) não é erro: segue aguardando_humano", async () => {
+    const admin = fakeAdmin({
+      itens: [{ id: 1, adm_user_id: "u1" }],
+      estado: [linha()],
+      erroInsertConflito: { code: "23505", message: "duplicate key" },
+    });
+    await processarFila(admin, ambiente(respConflito).amb);
+    expect((admin.gravado.concluir[0] as any).p_resultado).toBe("aguardando_humano");
+  });
+
+  it("falha ao gravar o conflito NÃO é engolida: item vira erro e fica no log", async () => {
+    const admin = fakeAdmin({
+      itens: [{ id: 1, adm_user_id: "u1" }],
+      estado: [linha()],
+      erroInsertConflito: { code: "42501", message: "permission denied" },
+    });
+    await processarFila(admin, ambiente(respConflito).amb);
+    const c = admin.gravado.concluir[0] as any;
+    expect(c.p_resultado).toBe("erro");
+    expect(c.p_erro).toContain("conflito_nao_gravado");
+    expect(
+      admin.gravado.sync_log.some(
+        (l: any) => l.acao === "registrar_conflito" && l.resultado === "erro",
+      ),
+    ).toBe(true);
   });
 });
 

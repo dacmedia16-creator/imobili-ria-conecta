@@ -32,6 +32,16 @@ Plano aprovado por Denis em 11/10/2026 (cartões t_5406fe1b e t_41bcad66). Banco
 - Reenviar a imobiliária inteira: `select public.sync_enfileirar_org('<adm_org_id>');`
 - Ligar o robô: `supabase/scripts/sync_cron_ligar.sql`. Desligar: `supabase/scripts/sync_cron_desligar.sql`.
 
+## Dia de ligar `allow_deactivate` (achado 1 da auditoria t_7de49c67) — SÓ COM OK DO DENIS
+Desativação adiada volta como `nada_a_fazer` e a outbox fica `ok`; ligar a flag NÃO reenfileira ninguém sozinho.
+0. Pré-requisito: correções do cartão t_6e4a9c38 publicadas (ADM `sync-satelites`; Estudo `adm-sync-apply` + `conta-max-bridge`; Visita `adm-sync-apply`).
+1. Prévia sem gravar: `select public.sync_disparar('reconciliar');` e conferir em `sync_reconcile_runs` (último registro) `por_acao.desativar` e `por_conflito` (owners viram `desativar_owner`).
+2. Nos 2 satélites, criar o secret `ADM_SYNC_ALLOW_DEACTIVATE=true` (trava local; sem ele nada é desativado).
+3. No ADM: `update public.sync_config set allow_deactivate = true, updated_at = now();`
+4. Reenfileirar a Única: `select public.sync_enfileirar_org('00000000-0000-4000-8000-000000000001', 'ligar_allow_deactivate');`
+5. Acompanhar: `select status, count(*) from public.sync_outbox group by 1;`, `sync_log` com `acao like '%desativar%'` e `sync_conflicts` abertos.
+Reversão: `allow_deactivate=false` + remover o secret dos satélites; quem foi desligado volta reativando no ADM.
+
 ## Reversão
 1. Instantânea: `update public.sync_config set mode='off';` (ou a org em `off`, ou `ADM_SYNC_MODE=off` no satélite).
 2. Parar o robô: `sync_cron_desligar.sql`.
