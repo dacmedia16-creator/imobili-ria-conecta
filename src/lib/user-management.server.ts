@@ -3,6 +3,8 @@ import { OrgScopeError, resolveActiveOrg } from "./org-scope";
 import {
   decideCreateUser,
   decideUserAction,
+  isAdminLevel,
+  REASONS,
   type Actor,
   type ManagedRole,
   type UserAction,
@@ -31,6 +33,44 @@ export async function loadActor(
   userId: string,
 ): Promise<Actor> {
   return { userId, orgId, roles: await rolesOf(admin, orgId, userId) };
+}
+
+/** Códigos devolvidos por public.cadastro_equipe_destino → mensagem para a tela. */
+const DB_CREATE_REASONS: Record<string, string> = {
+  cadastro_sem_agencia: REASONS.noOrg,
+  cadastro_sem_permissao: REASONS.noPermission,
+  cadastro_admin_nao_cria_admin: REASONS.adminGrantsAdmin,
+  cadastro_lider_so_corretor: REASONS.leadCreatesOnlyCorretor,
+  cadastro_lider_sem_equipe: REASONS.leadNoTeam,
+};
+
+/**
+ * Regra do cadastro repetida NO BANCO (migration 20261011140000): valida ator × papel × agência e
+ * devolve a equipe de destino — para gestor/team leader, a equipe que ele lidera como titular
+ * (teams.lider_id = ele; nível 1 primeiro). Líder auxiliar e líder da equipe-mãe NÃO contam: o
+ * corretor novo entra só na equipe da qual quem cadastra é o líder titular. Falha fechada: se a
+ * função não existir ou der erro, nenhum login é criado.
+ */
+export async function cadastroEquipeDestino(
+  admin: OrgAdminClient,
+  orgId: string,
+  actorId: string,
+  role: ManagedRole,
+): Promise<string | null> {
+  const { data, error } = await admin.rpc(
+    "cadastro_equipe_destino" as never,
+    {
+      _actor: actorId,
+      _org: orgId,
+      _role: role,
+    } as never,
+  );
+  if (error) {
+    const known = DB_CREATE_REASONS[(error as { message?: string }).message ?? ""];
+    if (known) throw new OrgScopeError(known);
+    throw new Error("Não foi possível validar o cadastro agora. Tente novamente em instantes.");
+  }
+  return (data as string | null) ?? null;
 }
 
 export function assertCreateAllowed(actor: Actor, role: ManagedRole) {
@@ -68,6 +108,19 @@ export async function createAgencyUser(
   assertCreateAllowed(actor, data.role);
   const orgId = actor.orgId as string;
   const callerRoles = actor.roles;
+  const isAdminCaller = isAdminLevel(callerRoles);
+  const isGestorCaller = !isAdminCaller && callerRoles.includes("gestor");
+  const isTlOnlyCaller = !isAdminCaller && !isGestorCaller && callerRoles.includes("team_leader");
+
+  // Regra repetida no banco e equipe de destino decididas ANTES de criar o login (o cliente não
+  // escolhe equipe). Team leader sem equipe própria: recusado, nenhuma conta é criada.
+  // Super-admin da plataforma no contexto (actorOverride) não é membro da agência destino; a agência
+  // dele já foi validada no banco por platform_current_org, então não passa por esta função.
+  let leadTeamId: string | null = null;
+  if (!actorOverride) {
+    leadTeamId = await cadastroEquipeDestino(admin, orgId, callerId, data.role);
+    if (!leadTeamId && isTlOnlyCaller) throw new OrgScopeError(REASONS.leadNoTeam);
+  }
 
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: data.email,
@@ -106,25 +159,11 @@ export async function createAgencyUser(
     if (insErr) throw new Error(insErr.message);
   }
 
-  // Gestor/team leader criando corretor: vincula automaticamente à equipe principal dele
-  // (a de nível 1 que ele já lidera; cria uma se ainda não existir nenhuma).
-  if (
-    (callerRoles.includes("gestor") || callerRoles.includes("team_leader")) &&
-    !callerRoles.includes("admin") &&
-    !callerRoles.includes("super_admin") &&
-    data.role === "corretor"
-  ) {
-    const { data: existingTeam } = await admin
-      .from("teams")
-      .select("id")
-      .eq("organization_id", orgId)
-      .eq("lider_id", callerId)
-      .is("parent_team_id", null)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    let teamId = (existingTeam as { id: string } | null)?.id;
+  // Gestor/team leader criando corretor: vincula automaticamente à equipe que ele lidera.
+  // Gestor sem equipe: comportamento legado (cria "Equipe de <nome>"). Team leader sem equipe já
+  // foi recusado acima, antes de criar o login.
+  if ((isGestorCaller || isTlOnlyCaller) && data.role === "corretor") {
+    let teamId = leadTeamId ?? undefined;
     if (!teamId) {
       const { data: callerProfile } = await admin
         .from("profiles")
@@ -144,9 +183,14 @@ export async function createAgencyUser(
       if (teamErr) throw new Error(teamErr.message);
       teamId = (newTeam as { id: string }).id;
     }
-    await admin
+    const { error: memberErr } = await admin
       .from("team_members")
       .insert({ organization_id: orgId, team_id: teamId, membro_id: newId });
+    if (memberErr) {
+      throw new Error(
+        `Usuário criado, mas não foi possível colocá-lo na equipe (${memberErr.message}). Peça a um administrador para ajustar em Equipes.`,
+      );
+    }
   }
 
   // Garante nome/telefone atualizados no profile (handle_new_user só preenche nome/email)

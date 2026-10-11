@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import {
   createUser,
+  listAgencyRoles,
   listLastSignIns,
   resetUserPassword,
   setUserActive,
@@ -166,6 +167,7 @@ function AdminUsers() {
   } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
+  const listAgencyRolesFn = useServerFn(listAgencyRoles);
   const resetPasswordFn = useServerFn(resetUserPassword);
   const updateUserFn = useServerFn(updateUser);
   const setUserActiveFn = useServerFn(setUserActive);
@@ -238,7 +240,14 @@ function AdminUsers() {
     const { data: profs } = await supabase
       .from("profiles")
       .select("id, nome, email, telefone, ativo, avatar_url, remax_id");
-    const { data: r } = await supabase.from("user_roles").select("user_id, role");
+    // Papéis de toda a agência pelo servidor: a RLS só deixa admin ler papéis de terceiros, e a tela
+    // de gestor/team leader precisa saber quem é corretor para oferecer as ações certas.
+    let r: { user_id: string; role: string }[] | null = null;
+    try {
+      r = await listAgencyRolesFn();
+    } catch {
+      r = (await supabase.from("user_roles").select("user_id, role")).data;
+    }
     const { data: teams } = await supabase
       .from("teams")
       .select("id, nome, lider_id, parent_team_id");
@@ -299,7 +308,7 @@ function AdminUsers() {
       (tmap[x.membro_id] ??= []).push(...lideres);
     });
     setTeamLeads(tmap);
-  }, [listLastSignInsFn]);
+  }, [listLastSignInsFn, listAgencyRolesFn]);
   useEffect(() => {
     load();
   }, [load]);
@@ -410,10 +419,26 @@ function AdminUsers() {
     }
   };
 
-  // Filtra usuários visíveis: gestor sem admin vê só a própria equipe + a si mesmo.
+  // Filtra usuários visíveis: team leader vê a própria equipe + a si mesmo; gestor vê também
+  // todos os corretores da imobiliária (pode editar os dados deles — decisão de 11/10/2026).
+  const isGestorView = !isAdminLike && hasRole("gestor");
   const visibleUsers = isAdminLike
     ? users
-    : users.filter((u) => u.id === user?.id || (teamLeads[u.id] ?? []).includes(user?.id ?? ""));
+    : users.filter(
+        (u) =>
+          u.id === user?.id ||
+          (teamLeads[u.id] ?? []).includes(user?.id ?? "") ||
+          (isGestorView &&
+            (rolesByUser[u.id] ?? []).length > 0 &&
+            (rolesByUser[u.id] ?? []).every((x) => x === "corretor")),
+      );
+
+  // Equipe em que entra o corretor cadastrado por gestor/team leader (o servidor decide o mesmo:
+  // a equipe de nível 1 que ele lidera como titular; senão a mais antiga).
+  const ownTeams = teamsRaw.filter((tm) => tm.lider_id === user?.id);
+  const ownTeam = ownTeams.find((tm) => !tm.parent_team_id) ?? ownTeams[0] ?? null;
+  const leadCreate = !isAdminLike && allowedRoles.length > 0;
+  const tlWithoutTeam = leadCreate && !hasRole("gestor") && !ownTeam;
 
   // Ativos primeiro (por nome), inativos ficam colapsados por padrão pra não tomar conta da tela.
   const sortedUsers = [...visibleUsers].sort((a, b) => {
@@ -637,19 +662,30 @@ function AdminUsers() {
             Você gerencia somente usuários da sua agência.{" "}
             {isAdminLike
               ? "Só o super admin da agência concede ou retira papel de administrador."
-              : "Gestor e team leader cadastram corretores e gerenciam só a própria equipe; papéis são alterados por administradores."}{" "}
+              : "Gestor cadastra corretores e edita os dados dos corretores da imobiliária; team leader cadastra e edita só corretores da própria equipe. Papéis são alterados por administradores."}{" "}
             Novas imobiliárias são cadastradas apenas pelo super-admin da plataforma.
           </p>
         </div>
-        {allowedRoles.length > 0 && (
+        {tlWithoutTeam && (
+          <p className="max-w-xs text-xs text-muted-foreground" data-testid="tl-sem-equipe">
+            Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua equipe
+            antes de cadastrar corretores.
+          </p>
+        )}
+        {allowedRoles.length > 0 && !tlWithoutTeam && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
-                <UserPlus className="h-4 w-4" /> Novo usuário
+                <UserPlus className="h-4 w-4" /> {leadCreate ? "Novo corretor" : "Novo usuário"}
               </Button>
             </DialogTrigger>
             <NewUserDialog
               allowedRoles={allowedRoles}
+              fixedTeamLabel={
+                leadCreate
+                  ? (ownTeam?.nome ?? "Uma equipe nova, liderada por você, será criada")
+                  : null
+              }
               onDone={() => {
                 setOpen(false);
                 load();
@@ -1154,10 +1190,13 @@ function ReasonField({
 
 function NewUserDialog({
   allowedRoles,
+  fixedTeamLabel = null,
   onDone,
   createUserFn,
 }: {
   allowedRoles: AppRole[];
+  /** Gestor/team leader: papel fixo de corretor e equipe definida pelo servidor (só exibida). */
+  fixedTeamLabel?: string | null;
   onDone: () => void;
   createUserFn: (args: {
     data: { nome: string; email: string; telefone: string; password: string; role: AppRole };
@@ -1281,21 +1320,35 @@ function NewUserDialog({
             Anote e envie ao usuário. Ele será obrigado a trocar essa senha já no primeiro acesso.
           </p>
         </div>
-        <div>
-          <Label>Papel</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
-            <SelectTrigger aria-label="Papel">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {allowedRoles.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {fixedTeamLabel !== null ? (
+          <div
+            className="space-y-1 rounded-md border bg-muted/40 p-3 text-sm"
+            data-testid="cadastro-fixo"
+          >
+            <div>
+              <span className="text-muted-foreground">Papel:</span> {ROLE_LABEL.corretor}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Equipe:</span> {fixedTeamLabel}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <Label>Papel</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
+              <SelectTrigger aria-label="Papel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedRoles.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <DialogFooter>
           <Button type="submit" disabled={loading}>
             {loading ? "Criando…" : "Criar usuário"}

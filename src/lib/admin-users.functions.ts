@@ -320,6 +320,28 @@ export const setUserRole = createServerFn({ method: "POST" })
     return res;
   });
 
+/** Papéis dos usuários da própria agência, para a tela decidir o que mostrar a gestor/team leader
+ * (a policy user_roles_self_select só deixa admin ler papéis de terceiros). Somente leitura,
+ * filtrada pela agência ativa; o servidor repete a regra em cada escrita. */
+export const listAgencyRoles = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { admin, orgId, actor } = await callerContext(context.userId, context.supabase, "read");
+    if (
+      !actor.roles.some((r) =>
+        (["admin", "super_admin", "gestor", "team_leader"] as ManagedRole[]).includes(r),
+      )
+    ) {
+      throw new Error("Você não tem permissão para ver essa informação.");
+    }
+    const { data, error } = await admin
+      .from("user_roles")
+      .select("user_id, role")
+      .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as { user_id: string; role: ManagedRole }[];
+  });
+
 /** Último login (auth.users.last_sign_in_at) dos usuários da própria agência — lido pelo
  * servidor (service role) via RPC por agência; não existe em public.profiles nem é exposto por RLS. */
 export const listLastSignIns = createServerFn({ method: "GET" })

@@ -20,6 +20,7 @@ const actors: Record<string, Actor> = {
   superAdminA: { userId: "sa-a", orgId: A, roles: ["super_admin"] },
   adminA: { userId: "adm-a", orgId: A, roles: ["admin"] },
   gestorA: { userId: "ges-a", orgId: A, roles: ["gestor", "corretor"] },
+  tlA: { userId: "tl-a", orgId: A, roles: ["team_leader"] },
   corretorA: { userId: "cor-a", orgId: A, roles: ["corretor"] },
   adminB: { userId: "adm-b", orgId: B, roles: ["admin"] },
 };
@@ -36,11 +37,22 @@ const corretorEquipeA = (actor: Actor) => ({
   ...t("cor-eq-a", A, ["corretor"]),
   ledByActor: actor.userId === "ges-a",
 });
+const corretorEquipeTlA = (actor: Actor) => ({
+  ...t("cor-eq-tl-a", A, ["corretor"]),
+  ledByActor: actor.userId === "tl-a",
+});
 const corretorForaA = t("cor-fora-a", A, ["corretor"]);
 const adminAlvoA = t("adm2-a", A, ["admin"]);
 const corretorB = t("cor-b", B, ["corretor"]);
 
-type Row = [string, string, Target | ((a: Actor) => Target), string, ManagedRole | undefined, boolean];
+type Row = [
+  string,
+  string,
+  Target | ((a: Actor) => Target),
+  string,
+  ManagedRole | undefined,
+  boolean,
+];
 const ACTIONS = ["edit_user", "reset_password", "set_active", "change_roles"] as const;
 
 describe("matriz papel × ação × agência (regra única)", () => {
@@ -54,9 +66,22 @@ describe("matriz papel × ação × agência (regra única)", () => {
     rows.push(["superAdminA", action, corretorB, "corretor B", role, false]);
     rows.push(["adminB", action, corretorB, "corretor B", role, true]);
     rows.push(["adminB", action, corretorForaA, "corretor A", role, false]);
-    // gestor A: só a própria equipe, nunca papéis, nunca administradores, nunca B.
+    // gestor A: edita dados de corretores de toda a imobiliária A; senha e ativação só da própria
+    // equipe; nunca papéis, nunca administradores, nunca B (decisão de 11/10/2026).
     rows.push(["gestorA", action, corretorEquipeA, "equipe A", role, action !== "change_roles"]);
-    rows.push(["gestorA", action, corretorForaA, "fora da equipe A", role, false]);
+    rows.push(["gestorA", action, corretorForaA, "fora da equipe A", role, action === "edit_user"]);
+    // team leader A: só corretores da própria equipe, nunca papéis.
+    rows.push([
+      "tlA",
+      action,
+      corretorEquipeTlA,
+      "equipe do TL A",
+      role,
+      action !== "change_roles",
+    ]);
+    rows.push(["tlA", action, corretorForaA, "fora da equipe A", role, false]);
+    rows.push(["tlA", action, adminAlvoA, "admin A", role, false]);
+    rows.push(["tlA", action, corretorB, "corretor B", role, false]);
     rows.push(["gestorA", action, adminAlvoA, "admin A", role, false]);
     rows.push(["gestorA", action, corretorB, "corretor B", role, false]);
     // corretor A: nada.
@@ -94,17 +119,34 @@ describe("matriz papel × ação × agência (regra única)", () => {
       allowed: false,
       reason: REASONS.adminGrantsAdmin,
     });
-    expect(decideUserAction(actors.adminA, "change_roles", adminAlvoA, "admin").allowed).toBe(false);
-    expect(decideUserAction(actors.superAdminA, "change_roles", corretorForaA, "admin").allowed).toBe(
-      true,
+    expect(decideUserAction(actors.adminA, "change_roles", adminAlvoA, "admin").allowed).toBe(
+      false,
     );
+    expect(
+      decideUserAction(actors.superAdminA, "change_roles", corretorForaA, "admin").allowed,
+    ).toBe(true);
   });
 
-  it("gestor edita dados de membro não-corretor da equipe, mas não senha/ativação", () => {
-    const lider = { ...t("tl-a", A, ["team_leader"]), ledByActor: true };
-    expect(decideUserAction(actors.gestorA, "edit_user", lider).allowed).toBe(true);
-    expect(decideUserAction(actors.gestorA, "reset_password", lider).allowed).toBe(false);
-    expect(decideUserAction(actors.gestorA, "set_active", lider).allowed).toBe(false);
+  it("gestor e team leader não mexem em contas de outros papéis, nem da própria equipe", () => {
+    const lider = { ...t("tl-x", A, ["team_leader"]), ledByActor: true };
+    const fin = { ...t("fin-a", A, ["financeiro"]), ledByActor: true };
+    const corGestor = { ...t("cg-a", A, ["corretor", "gestor"]), ledByActor: true };
+    for (const alvo of [lider, fin, corGestor]) {
+      for (const a of [actors.gestorA, actors.tlA]) {
+        for (const action of ["edit_user", "reset_password", "set_active"] as const) {
+          expect(decideUserAction(a, action, alvo)).toEqual({
+            allowed: false,
+            reason: REASONS.leadOnlyCorretor,
+          });
+        }
+      }
+    }
+  });
+
+  it("gestor edita corretor de outra equipe da imobiliária, mas não redefine senha nem desativa", () => {
+    expect(decideUserAction(actors.gestorA, "edit_user", corretorForaA).allowed).toBe(true);
+    expect(decideUserAction(actors.gestorA, "reset_password", corretorForaA).allowed).toBe(false);
+    expect(decideUserAction(actors.gestorA, "set_active", corretorForaA).allowed).toBe(false);
   });
 
   it("ninguém move usuário entre agências", () => {
