@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.estudo-vendas-reais]
 verify_jwt = false
+
+[functions.sync-satelites]
+verify_jwt = false
