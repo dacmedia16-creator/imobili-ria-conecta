@@ -2,3 +2,6 @@ project_id = "xvvymgurpchhlmbpjbgc"
 
 [functions.max-juridico-contratos]
 verify_jwt = false
+
+[functions.estudo-vendas-reais]
+verify_jwt = false
