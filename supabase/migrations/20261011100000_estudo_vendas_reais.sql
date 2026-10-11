@@ -79,6 +79,8 @@ COMMENT ON FUNCTION public.estudo_rua_sem_numero(text, text, text) IS
 -- 3) Vendas reais da imobiliária dona da chave ----------------------------------------------------
 -- Área: Terreno usa a área do terreno (como no estudo); demais, a área útil. Sem área -> preco_m2 NULL
 -- (a venda aparece, mas fica fora do cálculo de R$/m²). Sem cidade -> fora (não serve de comparável).
+-- area_fonte: 'confirmada' (área confirmada pelo corretor) ou 'documento' (lida da matrícula/IPTU, ainda não confirmada;
+-- o Estudo mostra o aviso "área do documento"). NULL quando a venda sai sem área.
 CREATE FUNCTION public.estudo_vendas_reais(_key_hash text)
  RETURNS TABLE (
   tipo_imovel text,
@@ -94,7 +96,8 @@ CREATE FUNCTION public.estudo_vendas_reais(_key_hash text)
   suites smallint,
   banheiros smallint,
   vagas smallint,
-  modalidade text
+  modalidade text,
+  area_fonte text
  )
  LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path TO ''
 AS $function$
@@ -121,11 +124,18 @@ BEGIN
          btrim(s.imovel_cidade),
          nullif(upper(btrim(s.imovel_uf)), ''),
          s.quartos, s.suites, s.banheiros, s.vagas,
-         c.modalidade
+         c.modalidade,
+         CASE WHEN a.area > 0 THEN a.fonte END
     FROM public.vendas_comerciais_canonicas() c
     JOIN public.sales s ON s.id = c.sale_id AND s.organization_id = _org
     CROSS JOIN LATERAL (SELECT CASE WHEN s.tipo_imovel = 'Terreno' THEN s.area_terreno_m2
-                                    ELSE s.area_util_m2 END AS area) a
+                                    ELSE s.area_util_m2 END AS area_bruta,
+                               CASE WHEN s.area_confirmada_em IS NOT NULL THEN 'confirmada'
+                                    WHEN s.area_origem = 'documento' THEN 'documento' END AS fonte) f
+    -- Área só entra se confirmada pelo corretor ou lida do documento (matrícula/IPTU) — Denis, 11/10/2026.
+    -- Outra origem sem confirmação (ex.: sugestão da captação) sai sem área e fica fora do R$/m².
+    CROSS JOIN LATERAL (SELECT CASE WHEN f.fonte IS NOT NULL THEN f.area_bruta END AS area,
+                               f.fonte) a
    WHERE c.data_fechamento >= (_hoje - interval '12 months')::date
      AND c.data_fechamento <= _hoje
      AND s.valor_negociado > 0

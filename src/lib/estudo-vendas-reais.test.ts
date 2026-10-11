@@ -29,6 +29,7 @@ const linha = (o: Partial<Record<string, unknown>>) => ({
   banheiros: 2,
   vagas: 2,
   modalidade: "padrao",
+  area_fonte: "confirmada",
   ...o,
 });
 
@@ -180,6 +181,19 @@ describe("estudo-vendas-reais", () => {
       preco_m2_media: 5500,
     });
     expect(s.criterio).toMatch(/fora do cálculo/);
+  });
+
+  it("área do documento: marcada na venda e contada no resumo; sem área não tem fonte", () => {
+    const vendas = [
+      sanitizar(linha({ area_fonte: "documento" })),
+      sanitizar(linha({ area_fonte: "confirmada", preco_m2: 6000, area_m2: 120 })),
+      sanitizar(linha({ area_m2: null, preco_m2: null, area_fonte: "documento" })),
+      sanitizar(linha({ area_fonte: "inventada" })),
+    ];
+    expect(vendas.map((v) => v.area_fonte)).toEqual(["documento", "confirmada", null, null]);
+    const s = resumo(vendas);
+    expect(s.area_documento).toBe(1);
+    expect(s.com_area).toBe(3);
   });
 
   it("filtros inválidos são ignorados (tipo fora da lista, UF inválida)", async () => {

@@ -12,6 +12,9 @@ chave, para comparar "Anunciado R$/m² × Vendido R$/m²". Pedido de Denis em 11
 - Rua: `estudo_rua_sem_numero` corta número, apto, bloco, lote, quadra, CEP e S/N; se o número da casa
   ainda aparecer, a rua não é enviada (fica só bairro/cidade).
 - Venda sem área: aparece sem R$/m² e fica fora do cálculo de R$/m².
+- `area_fonte` (Denis, 11/10/2026): `confirmada` (área confirmada pelo corretor) ou `documento` (lida da
+  matrícula/IPTU, ainda não confirmada; o Estudo mostra o aviso "área do documento"). Área só sugerida
+  pela captação, sem confirmação, não sai. `resumo.area_documento` conta essas vendas no R$/m².
 
 ## Multiempresa
 

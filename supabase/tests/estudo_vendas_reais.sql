@@ -63,6 +63,12 @@ BEGIN
               ((_hoje - r.dias)::timestamp + time '15:00') AT TIME ZONE 'America/Sao_Paulo');
     END IF;
   END LOOP;
+  -- Origem da área (Denis 11/10/2026): A1 documento sem confirmação; A3 confirmada; B1 captação sem confirmação.
+  UPDATE public.sales SET area_origem = 'documento' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A1');
+  UPDATE public.sales SET area_origem = 'documento' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A2');
+  UPDATE public.sales SET area_origem = 'corretor', area_confirmada_em = now(), area_confirmada_por = _ca
+   WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A3');
+  UPDATE public.sales SET area_origem = 'captacao' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-B1');
 END $fx$;
 INSERT INTO public.estudo_vendas_api_keys (organization_id, key_hash, label) VALUES
   (:'org_a', pg_temp.h('qa-chave-A-ficticia-0123456789abcdef'), 'QA A'),
@@ -90,6 +96,10 @@ SELECT pg_temp.ok((SELECT rua FROM ra WHERE bairro = 'Centro EVR QA') = 'Avenida
 SELECT pg_temp.ok((SELECT preco_m2 FROM ra WHERE bairro = 'Jardim EVR QA') = 5000, 'A1: R$/m² = valor / área útil');
 SELECT pg_temp.ok((SELECT preco_m2 IS NULL AND area_m2 IS NULL FROM ra WHERE bairro = 'Centro EVR QA'), 'A2 sem área: aparece sem R$/m²');
 SELECT pg_temp.ok((SELECT area_m2 = 300 AND preco_m2 = 800 FROM ra WHERE bairro = 'Bairro EVR QA'), 'Terreno usa área do terreno');
+SELECT pg_temp.ok((SELECT area_fonte = 'documento' AND preco_m2 = 5000 FROM ra WHERE bairro = 'Jardim EVR QA'), 'A1: área do documento entra no R$/m² marcada como documento');
+SELECT pg_temp.ok((SELECT area_fonte = 'confirmada' FROM ra WHERE bairro = 'Bairro EVR QA'), 'A3: área confirmada pelo corretor marcada como confirmada');
+SELECT pg_temp.ok((SELECT area_fonte IS NULL FROM ra WHERE bairro = 'Centro EVR QA'), 'A2 sem área: sem fonte de área');
+SELECT pg_temp.ok((SELECT area_m2 IS NULL AND preco_m2 IS NULL AND area_fonte IS NULL FROM rb WHERE bairro = 'Cambuí EVR QA'), 'B1: área só sugerida pela captação (sem confirmação) fica fora do R$/m²');
 SELECT pg_temp.ok((SELECT mes_assinatura ~ '^\d{4}-\d{2}$' FROM ra WHERE bairro = 'Jardim EVR QA'), 'só o mês da assinatura (AAAA-MM), nunca o dia');
 
 -- Nenhum número da casa, complemento, código, nome ou CPF em NENHUMA coluna de saída
@@ -102,7 +112,7 @@ SELECT pg_temp.ok(NOT EXISTS (
   'saída sem nome do corretor');
 SELECT pg_temp.ok((SELECT array_agg(attname::text ORDER BY attnum) FROM pg_attribute
    WHERE attrelid = 'pg_temp.ra'::regclass AND attnum > 0 AND NOT attisdropped)
-  = ARRAY['tipo_imovel','area_m2','valor_venda','preco_m2','mes_assinatura','rua','bairro','cidade','uf','quartos','suites','banheiros','vagas','modalidade'],
+  = ARRAY['tipo_imovel','area_m2','valor_venda','preco_m2','mes_assinatura','rua','bairro','cidade','uf','quartos','suites','banheiros','vagas','modalidade','area_fonte'],
   'contrato de colunas: só a lista permitida (sem id, código, pessoas, comissão, coordenada)');
 
 -- 3) Chave: inválida, revogada, ausente -> erro; sem acesso para anon/authenticated -----------------

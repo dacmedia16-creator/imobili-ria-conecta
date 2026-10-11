@@ -39,7 +39,11 @@ export const CAMPOS_PERMITIDOS = [
   "suites",
   "banheiros",
   "vagas",
+  "area_fonte",
 ] as const;
+
+/** De onde veio a área: confirmada pelo corretor ou lida do documento (matrícula/IPTU, sem confirmação). */
+export type AreaFonte = "confirmada" | "documento";
 
 export type VendaReal = {
   tipo_imovel: string | null;
@@ -55,6 +59,7 @@ export type VendaReal = {
   suites: number | null;
   banheiros: number | null;
   vagas: number | null;
+  area_fonte: AreaFonte | null;
 };
 
 export type Filtros = {
@@ -132,6 +137,13 @@ export function sanitizar(row: Record<string, unknown>): VendaReal {
     suites: num(row.suites),
     banheiros: num(row.banheiros),
     vagas: num(row.vagas),
+    // Sem área, sem fonte. Valor fora da lista -> null (nunca inventa "confirmada").
+    area_fonte:
+      area !== null &&
+      area > 0 &&
+      (row.area_fonte === "confirmada" || row.area_fonte === "documento")
+        ? row.area_fonte
+        : null,
   };
 }
 
@@ -166,10 +178,13 @@ export function resumo(vendas: VendaReal[]) {
     total: vendas.length,
     com_area: m2.length,
     sem_area: vendas.length - m2.length,
+    /** Vendas no cálculo de R$/m² com área do documento (matrícula/IPTU), sem confirmação do corretor. */
+    area_documento: vendas.filter((v) => v.preco_m2 !== null && v.area_fonte === "documento")
+      .length,
     preco_m2_mediana: mediana !== null ? Math.round(mediana) : null,
     preco_m2_media: media !== null ? Math.round(media) : null,
     criterio:
-      "Últimos 12 meses pela data da assinatura; só vendas assinadas. R$/m² = valor de venda ÷ área útil (Terreno: área do terreno). Vendas sem área aparecem sem R$/m² e ficam fora do cálculo.",
+      "Últimos 12 meses pela data da assinatura; só vendas assinadas. R$/m² = valor de venda ÷ área útil (Terreno: área do terreno). Vendas sem área aparecem sem R$/m² e ficam fora do cálculo. Área do documento = lida da matrícula/IPTU, ainda não confirmada na venda.",
   };
 }
 
