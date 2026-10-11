@@ -88,6 +88,7 @@ function fakeAdmin(o: {
   orgMode?: string;
   itens?: Array<{ id: number; adm_user_id: string }>;
   estado?: LinhaEstado[];
+  exclusoes?: Array<{ adm_user_id: string; satelite: Satelite }>;
 }) {
   const gravado: Record<string, unknown[]> = {
     sync_log: [],
@@ -125,7 +126,9 @@ function fakeAdmin(o: {
                     visita_enabled: true,
                   },
                 ]
-              : [],
+              : nome === "sync_exclusoes"
+                ? (o.exclusoes ?? [])
+                : [],
           error: null,
         }),
     };
@@ -282,5 +285,40 @@ describe("reconciliar (sob demanda)", () => {
       por_acao: { vincular_existente: 1 },
     });
     expect(admin.gravado.sync_reconcile_runs).toHaveLength(1);
+  });
+
+  it("lista de exclusão: não envia a pessoa ao satélite excluído e conta no relatório", async () => {
+    const admin = fakeAdmin({
+      estado: [linha(), linha({ adm_user_id: "u2", email: "b@remax.com.br" })],
+      exclusoes: [{ adm_user_id: "u2", satelite: "estudo" }],
+    });
+    const { amb, enviados } = ambiente((_s, b) => ({
+      status: 200,
+      json: { modo: b.modo, resultados: [], so_no_satelite: [] },
+    }));
+    const r = await reconciliar(admin, amb);
+    const est = enviados.find((e) => e.sat === "estudo")!;
+    const vis = enviados.find((e) => e.sat === "visita")!;
+    expect(est.body.pessoas.map((p: any) => p.adm_user_id)).toEqual(["u1"]);
+    expect(vis.body.pessoas.map((p: any) => p.adm_user_id)).toEqual(["u1", "u2"]);
+    expect((r.relatorios[0] as any).estudo.excluidos).toEqual(["u2"]);
+    expect((r.relatorios[0] as any).estudo.contagem.excluidos).toBe(1);
+  });
+});
+
+describe("processarFila com exclusão", () => {
+  it("excluído nos dois satélites: nada é enviado e o item é concluído ok", async () => {
+    const admin = fakeAdmin({
+      itens: [{ id: 9, adm_user_id: "u1" }],
+      estado: [linha()],
+      exclusoes: [
+        { adm_user_id: "u1", satelite: "estudo" },
+        { adm_user_id: "u1", satelite: "visita" },
+      ],
+    });
+    const { amb, enviados } = ambiente(() => ({ status: 500, json: {} }));
+    await processarFila(admin, amb);
+    expect(enviados).toHaveLength(0);
+    expect(admin.gravado.concluir).toEqual([{ p_id: 9, p_resultado: "ok", p_erro: null }]);
   });
 });

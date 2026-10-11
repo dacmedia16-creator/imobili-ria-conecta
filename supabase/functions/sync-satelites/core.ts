@@ -150,6 +150,25 @@ async function ok<T>(p: PromiseLike<{ data?: T; error: unknown }>, etapa: string
   return r.data as T;
 }
 
+/** Lista de exclusão persistente (sync_exclusoes): adm_user_id -> satélites onde a pessoa nunca é enviada. */
+export async function carregarExclusoes(admin: Admin): Promise<Map<string, Set<Satelite>>> {
+  const rows = await ok<Array<{ adm_user_id: string; satelite: Satelite }>>(
+    admin.from("sync_exclusoes").select("adm_user_id,satelite"),
+    "exclusoes",
+  );
+  const m = new Map<string, Set<Satelite>>();
+  for (const r of rows ?? []) {
+    const s = m.get(r.adm_user_id) ?? new Set<Satelite>();
+    s.add(r.satelite);
+    m.set(r.adm_user_id, s);
+  }
+  return m;
+}
+
+export function excluido(ex: Map<string, Set<Satelite>>, admUserId: string, sat: Satelite) {
+  return ex.get(admUserId)?.has(sat) === true;
+}
+
 async function enviarLote(
   amb: Ambiente,
   sat: Satelite,
@@ -192,6 +211,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
   );
   const porUser = new Map(estado.map((l) => [l.adm_user_id, l]));
   const mapaPorOrg = new Map(mapas.map((m) => [m.adm_org_id, m]));
+  const exclusoes = await carregarExclusoes(admin);
 
   // desfecho por item da fila: ok | erro | aguardando_humano
   const desfecho = new Map<number, { r: "ok" | "erro" | "aguardando_humano"; erro?: string }>();
@@ -216,7 +236,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     grupos.set(mapa.adm_org_id, g);
   }
 
-  for (const { mapa, itens: gi } of grupos.values()) {
+  for (const { mapa, itens: giTodos } of grupos.values()) {
     const modo = modoEfetivo(geral, mapa.mode);
     const alvos: Array<[Satelite, string | null, boolean]> = [
       ["estudo", mapa.estudo_org_id, mapa.estudo_enabled],
@@ -224,6 +244,9 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     ];
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
+      // Excluídos deste satélite nunca são enviados (decisão humana registrada em sync_exclusoes).
+      const gi = giTodos.filter(({ l }) => !excluido(exclusoes, l.adm_user_id, sat));
+      if (!gi.length) continue;
       try {
         const resp = await enviarLote(amb, sat, {
           modo,
@@ -302,6 +325,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
     "config",
   );
   const mapas = await ok<Mapa[]>(admin.from("sync_org_map").select("*"), "mapa");
+  const exclusoes = await carregarExclusoes(admin);
   const relatorios = [];
   for (const mapa of mapas) {
     if (somenteOrg && mapa.adm_org_id !== somenteOrg) continue;
@@ -324,15 +348,22 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
     ];
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
+      const excl = dentro.filter((l) => excluido(exclusoes, l.adm_user_id, sat));
+      const enviar = dentro.filter((l) => !excluido(exclusoes, l.adm_user_id, sat));
       try {
         const resp = await enviarLote(amb, sat, {
           modo: "dry_run",
           allow_deactivate: cfg?.allow_deactivate === true,
           org_id: orgSat,
-          pessoas: dentro.map((l) => pessoaParaSatelite(l, sat)),
+          pessoas: enviar.map((l) => pessoaParaSatelite(l, sat)),
           incluir_so_no_satelite: true,
         });
-        rel[sat] = resumir(resp.resultados, resp.so_no_satelite ?? [], resp.modo);
+        const r = resumir(resp.resultados, resp.so_no_satelite ?? [], resp.modo);
+        // Excluídos: e-mail deles não foi enviado, então a conta deles no satélite aparece em so_no_satelite.
+        // Fica registrado só o id do ADM; nenhuma ação é planejada para eles.
+        r.contagem.excluidos = excl.length;
+        (r as Record<string, unknown>).excluidos = excl.map((l) => l.adm_user_id);
+        rel[sat] = r;
       } catch (err) {
         rel[sat] = { erro: String((err as Error).message ?? err).slice(0, 300) };
       }
@@ -368,6 +399,7 @@ export function resumir(resultados: Resultado[], soNoSatelite: unknown[], modo: 
   return {
     modo,
     contagem: {
+      excluidos: 0,
       pessoas: resultados.length,
       por_acao: porAcao,
       por_aviso: porAviso,
