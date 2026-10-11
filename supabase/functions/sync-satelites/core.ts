@@ -169,6 +169,30 @@ export function excluido(ex: Map<string, Set<Satelite>>, admUserId: string, sat:
   return ex.get(admUserId)?.has(sat) === true;
 }
 
+/**
+ * Abre o conflito na fila humana (sync_conflicts). O índice único é PARCIAL (where status='aberto'), e o
+ * PostgREST não manda esse predicado no ON CONFLICT (o Postgres responde 42P10). Por isso: insert simples;
+ * duplicidade (23505) = já existe um conflito aberto igual, o que é ok. Qualquer outro erro é devolvido.
+ */
+export async function registrarConflito(
+  admin: Admin,
+  admUserId: string,
+  sat: Satelite,
+  conflito: { tipo: string; candidatos?: unknown },
+): Promise<string | null> {
+  const { error } = await admin.from("sync_conflicts").insert({
+    adm_user_id: admUserId,
+    satelite: sat,
+    tipo: conflito.tipo,
+    candidatos: conflito.candidatos ?? null,
+    status: "aberto",
+  });
+  if (!error) return null;
+  const e = error as { code?: string; message?: string };
+  if (e.code === "23505") return null;
+  return `conflito_nao_gravado: ${e.code ?? ""} ${String(e.message ?? "erro").slice(0, 120)}`.trim();
+}
+
 async function enviarLote(
   amb: Ambiente,
   sat: Satelite,
@@ -273,17 +297,20 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
           });
           if (r.resultado === "erro") set(id, "erro", `${sat}: ${r.erro}`);
           else if (r.conflito) {
-            set(id, r.resultado === "conflito" ? "aguardando_humano" : "ok");
-            await admin.from("sync_conflicts").upsert(
-              {
+            const falha = await registrarConflito(admin, l.adm_user_id, sat, r.conflito);
+            if (falha) {
+              // Conflito que não chegou à fila humana nunca pode ficar como ok/aguardando: vira erro e nova tentativa.
+              set(id, "erro", `${sat}: ${falha}`);
+              logs.push({
+                outbox_id: id,
                 adm_user_id: l.adm_user_id,
                 satelite: sat,
-                tipo: r.conflito.tipo,
-                candidatos: r.conflito.candidatos ?? null,
-                status: "aberto",
-              },
-              { onConflict: "adm_user_id,satelite,tipo", ignoreDuplicates: true },
-            );
+                acao: "registrar_conflito",
+                modo: resp.modo,
+                resultado: "erro",
+                erro: falha,
+              });
+            } else set(id, r.resultado === "conflito" ? "aguardando_humano" : "ok");
           } else set(id, "ok");
         }
       } catch (err) {
