@@ -1,7 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
 import { Button } from "@/components/ui/button";
@@ -54,16 +54,11 @@ const printDocumentsSchema = z.array(
 
 export const Route = createFileRoute("/_authenticated/ocorrencias-imprimir")({
   head: () => ({ meta: [{ title: "Imprimir ocorrências" }] }),
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles, error } = await loadMyAccess(session.user.id);
-    if (error || !podeImprimirOcorrenciasConcluidas(roles)) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, podeImprimirOcorrenciasConcluidas, {
+      denyOnError: true,
+      notify: false,
+    }),
   component: OcorrenciasImprimirPage,
 });
 

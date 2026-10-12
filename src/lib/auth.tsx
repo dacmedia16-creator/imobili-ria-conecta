@@ -11,6 +11,7 @@ import {
 } from "@/lib/user-impersonation";
 import { restoreOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { effectiveRoles, fetchPlatformState, type PlatformContext } from "@/lib/platform-context";
+import { clearRouteAccessCache } from "@/lib/route-access";
 
 export type AppRole =
   | "corretor"
@@ -124,7 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       await supabase.auth.signOut();
     },
-    refreshRoles: async () => loadRoles(session?.user.id),
+    refreshRoles: async () => {
+      clearRouteAccessCache(); // cargo mudou: a próxima guarda de rota relê do banco
+      return loadRoles(session?.user.id);
+    },
     impersonation: impersonationMatchesSession(impersonation, session) ? impersonation : null,
     restoreSuperAdmin,
     platformAdmin,

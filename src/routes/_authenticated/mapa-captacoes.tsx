@@ -1,9 +1,9 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mail, MessageCircle, Phone, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,17 +64,7 @@ const selectCls =
 
 export const Route = createFileRoute("/_authenticated/mapa-captacoes")({
   head: () => ({ meta: [{ title: "Mapa de captações" }] }),
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles } = await loadMyAccess(session.user.id);
-    if (!podeAcessarVendasPorRegiao(roles)) {
-      toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) => requireRoles(context.auth, podeAcessarVendasPorRegiao),
   component: MapaCaptacoesPage,
 });
 

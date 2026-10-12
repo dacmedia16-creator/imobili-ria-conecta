@@ -10,7 +10,18 @@ type Link = { id: string; workos_user_id: string; adm_user_id: string; active: b
 function fakeAdmin(links: Link[], users: Array<{ id: string; email: string }>) {
   const writes: Array<{ op: string; row: unknown }> = [];
   const admin = {
-    auth: { admin: { listUsers: async () => ({ data: { users }, error: null }) } },
+    // Simula public.conta_max_auth_user_ids_by_email: compara sem maiúsculas/espaços, máx. 2 ids.
+    rpc: async (fn: string, args: { _email: string }) => {
+      if (fn !== "conta_max_auth_user_ids_by_email") throw new Error(`rpc inesperada ${fn}`);
+      const alvo = args._email.trim().toLowerCase();
+      return {
+        data: users
+          .filter((u) => u.email.trim().toLowerCase() === alvo)
+          .slice(0, 2)
+          .map((u) => ({ id: u.id })),
+        error: null,
+      };
+    },
     from(table: string) {
       if (table !== "conta_max_identity_links") throw new Error(`tabela inesperada ${table}`);
       const filters: Array<[string, unknown]> = [];
@@ -145,5 +156,30 @@ describe("resolveBridgeLink (conta-max-bridge)", () => {
       ok: false,
       error: "account_email_ambiguous",
     });
+  });
+
+  it("encontra o usuário mesmo com mais de 1.000 contas (sem teto de página)", async () => {
+    const muitos = Array.from({ length: 1500 }, (_, i) => ({
+      id: `adm-${i}`,
+      email: `pessoa${i}@exemplo.test`,
+    }));
+    const alvo = muitos[1400];
+    const f = fakeAdmin([], muitos);
+    expect(await resolveBridgeLink(f.admin, "sub-1400", alvo.email)).toEqual({
+      ok: true,
+      admUserId: alvo.id,
+      created: true,
+    });
+  });
+
+  it("falha na busca por e-mail vira identity_lookup_failed sem gravar", async () => {
+    const f = fakeAdmin([], [VITIMA]);
+    const admin = { ...f.admin, rpc: async () => ({ data: null, error: { message: "x" } }) };
+    expect(await resolveBridgeLink(admin, "s", VITIMA.email)).toEqual({
+      ok: false,
+      status: 500,
+      error: "identity_lookup_failed",
+    });
+    expect(f.writes).toEqual([]);
   });
 });

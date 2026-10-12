@@ -1,9 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Printer } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,17 +23,7 @@ export const Route = createFileRoute("/_authenticated/producao-por-pessoa")({
   head: () => ({ meta: [{ title: "Produção por pessoa" }] }),
   // Mesma proteção em 3 camadas do Comparativo 6%: rota (aqui), componente (useAuth) e RPC
   // (producao_por_pessoa_dados, checada no banco independente da RLS).
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles } = await loadMyAccess(session.user.id);
-    if (!podeAcessarProducaoPorPessoa(roles)) {
-      toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) => requireRoles(context.auth, podeAcessarProducaoPorPessoa),
   component: ProducaoPorPessoaPage,
 });
 
