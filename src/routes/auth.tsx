@@ -1,19 +1,16 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
-import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
-import { errorMessage } from "@/lib/errors";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
-// Homologação: mesmo login Google da produção (Conta MAX), com entrada e segredo próprios.
-const HOMOLOG_GOOGLE_LOGIN_URL =
-  "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max-homolog";
+// Login só com Google (t_bcc382de, Denis 12/10/2026): a entrada por e-mail/senha saiu da tela e o servidor
+// (hook login_so_google_hook no Supabase Auth) recusa sessão aberta por senha.
+const GOOGLE_LOGIN_URL = IS_HOMOLOG
+  ? "https://conta.unicaescolha.com.br/login?app=adm-max-homolog"
+  : "https://conta.unicaescolha.com.br/login?app=adm-max";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -23,49 +20,12 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [modo, setModo] = useState<"login" | "recuperar">("login");
-  const [recuperando, setRecuperando] = useState(false);
-  const [linkEnviado, setLinkEnviado] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) router.navigate({ to: "/dashboard", replace: true });
     });
   }, [router]);
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      router.navigate({ to: "/dashboard", replace: true });
-    } catch (err: unknown) {
-      toast.error(errorMessage(err, "Falha ao autenticar"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRecuperar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRecuperando(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
-      });
-      if (error) throw error;
-      setLinkEnviado(true);
-    } catch (err: unknown) {
-      toast.error(errorMessage(err, "Falha ao enviar o link de recuperação"));
-    } finally {
-      setRecuperando(false);
-    }
-  };
 
   return (
     <div className="flex min-h-screen">
@@ -118,132 +78,29 @@ function AuthPage() {
             <CardTitle className="text-xl">
               {IS_HOMOLOG ? "Demonstração interna" : "Portal Interno"}
             </CardTitle>
-            <CardDescription>
-              {IS_HOMOLOG
-                ? "Homologação — acesso com Google"
-                : modo === "login"
-                  ? "Acesse com sua conta corporativa"
-                  : "Recuperar senha"}
-            </CardDescription>
+            <CardDescription>Acesse com sua conta Google corporativa</CardDescription>
           </CardHeader>
           <CardContent className="px-8 pb-8">
-            {IS_HOMOLOG ? (
-              <div className="space-y-4 text-center">
-                <Button asChild className="w-full">
-                  <a href={HOMOLOG_GOOGLE_LOGIN_URL}>Entrar com Google</a>
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  O acesso passa pela Conta MAX, igual à produção.
-                </p>
-              </div>
-            ) : modo === "login" ? (
-              <>
-                <form onSubmit={onSubmit} className="space-y-5">
-                  <div>
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input
-                      id="email"
-                      autoComplete="username"
-                      type="email"
-                      spellCheck={false}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        autoComplete="current-password"
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        className="pr-9"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                        aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModo("recuperar");
-                        setLinkEnviado(false);
-                      }}
-                      className="mt-1.5 text-xs text-primary hover:underline"
-                    >
-                      Esqueci minha senha
-                    </button>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Aguarde…" : "Entrar"}
-                  </Button>
-                </form>
-                <p className="mt-4 text-center text-xs text-muted-foreground">
-                  Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
-                </p>
-                <div className="mt-4 border-t pt-4 text-center">
-                  <Link
-                    to="/especialistas"
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    Encontrar um especialista por região
-                  </Link>
-                </div>
-              </>
-            ) : linkEnviado ? (
-              <div className="space-y-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Se <b>{email}</b> estiver cadastrado, enviamos um link para redefinir a senha.
-                  Confira sua caixa de entrada (e o spam).
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setModo("login")}
-                  className="text-xs text-primary hover:underline"
+            <div className="space-y-4 text-center">
+              <Button asChild className="w-full">
+                <a href={GOOGLE_LOGIN_URL}>Entrar com Google</a>
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Use o mesmo e-mail cadastrado no sistema (ex.: seu @remax.com.br).
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Cadastro apenas por convite. Peça acesso ao administrador ou ao seu gestor.
+              </p>
+            </div>
+            {!IS_HOMOLOG && (
+              <div className="mt-4 border-t pt-4 text-center">
+                <Link
+                  to="/especialistas"
+                  className="text-sm font-medium text-primary hover:underline"
                 >
-                  ← Voltar ao login
-                </button>
+                  Encontrar um especialista por região
+                </Link>
               </div>
-            ) : (
-              <form onSubmit={onRecuperar} className="space-y-5">
-                <div>
-                  <Label htmlFor="email-recuperar">E-mail</Label>
-                  <Input
-                    id="email-recuperar"
-                    autoComplete="email"
-                    type="email"
-                    spellCheck={false}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={recuperando}>
-                  {recuperando ? "Enviando…" : "Enviar link de recuperação"}
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setModo("login")}
-                  className="mx-auto block text-xs text-primary hover:underline"
-                >
-                  ← Voltar ao login
-                </button>
-              </form>
             )}
           </CardContent>
         </Card>

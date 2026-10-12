@@ -56,7 +56,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Gestão administrativa", "Subir Contratos"],
     icon: "/hub/adm.png",
     color: "navy",
-    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max",
+    href: "https://conta.unicaescolha.com.br/login?app=adm-max",
     pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" },
     delay: "0s",
   },
@@ -66,7 +66,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Análise estratégica", "de mercado"],
     icon: "/hub/estudo.png",
     color: "blue",
-    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=estudo-mercado-max",
+    href: "https://conta.unicaescolha.com.br/login?app=estudo-mercado-max",
     pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" },
     delay: "0.35s",
   },
@@ -112,7 +112,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Registro e proteção", "de visitas"],
     icon: "/hub/visita.png",
     color: "blue",
-    href: "https://conta-max-poc.dacmedia16.workers.dev/login?app=visita-max",
+    href: "https://conta.unicaescolha.com.br/login?app=visita-max",
     pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" },
     delay: "2.1s",
   },
@@ -129,7 +129,7 @@ const CARDS: ServiceCard[] = [
 ];
 
 const ADM_MAX_LOGIN_URL =
-  "https://conta-max-poc.dacmedia16.workers.dev/login?app=adm-max&return_to=%2Freservas-salas";
+  "https://conta.unicaescolha.com.br/login?app=adm-max&return_to=%2Freservas-salas";
 
 function CardIcon({ card }: { card: ServiceCard }) {
   return (
@@ -201,13 +201,13 @@ function SingleLoginBanner() {
       </span>
       <span className="single-login-actions">
         <a
-          href="https://conta-max-poc.dacmedia16.workers.dev/logout"
+          href="https://conta.unicaescolha.com.br/logout"
           className="single-login-switch"
         >
           Trocar conta
         </a>
         <a
-          href="https://conta-max-poc.dacmedia16.workers.dev/logout"
+          href="https://conta.unicaescolha.com.br/logout"
           className="single-login-status"
         >
           <span aria-hidden="true" /> Sair da Conta MAX
