@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { type ChartConfig } from "@/components/ui/chart";
@@ -61,12 +61,15 @@ export function KpiCard({
   value,
   to,
   info,
+  display,
 }: {
   icon: LucideIcon;
   label: string;
   value: number | string;
   to?: string;
   info?: string;
+  /** Como mostrar o valor (ex.: NumberTicker); `value` continua definindo o estado "zerado". */
+  display?: ReactNode;
 }) {
   const numeric =
     typeof value === "number"
@@ -91,7 +94,7 @@ export function KpiCard({
           <div
             className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}
           >
-            {value}
+            {display ?? value}
           </div>
           <div className="mt-1 text-xs text-muted-foreground pr-4">{label}</div>
         </div>
