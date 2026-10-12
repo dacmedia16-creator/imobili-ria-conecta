@@ -500,7 +500,8 @@ function ComissoesAReceberPage() {
           </Tabs>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
             <Input
-              placeholder="Buscar ocorrência, imóvel, partes, corretor ou forma…"
+              placeholder="Buscar recebimento…"
+              title="Buscar por ocorrência, imóvel, partes, corretor ou forma"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Buscar recebimentos"

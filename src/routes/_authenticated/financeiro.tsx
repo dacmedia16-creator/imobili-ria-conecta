@@ -208,12 +208,11 @@ function CentralFinanceiraPage() {
       />
 
       <Tabs defaultValue="visao-geral">
-        {/* <640px: rolagem horizontal em vez de quebrar linha — TabsList herda h-9 fixo do
-            componente base (ui/tabs.tsx); com flex-wrap a 2ª linha de abas ficava fora dessa
-            altura fixa e sobrepunha o conteúdo logo abaixo. overflow-x-auto isola a rolagem
-            dentro do próprio container, sem estourar a largura da página. */}
-        <div className="overflow-x-auto">
-          <TabsList>
+        {/* No celular as abas quebram linha. TabsList herda h-9 fixo do componente base
+            (ui/tabs.tsx); h-auto libera a altura para a 2ª linha não sobrepor o conteúdo
+            e nenhuma aba ficar escondida atrás de rolagem horizontal. */}
+        <div>
+          <TabsList className="h-auto flex-wrap justify-start gap-1">
             <TabsTrigger value="visao-geral" className="shrink-0">
               Visão Geral
             </TabsTrigger>
