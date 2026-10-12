@@ -675,7 +675,7 @@ function PlatformOrganizations() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar nome, identificador ou CNPJ"
+              placeholder="Nome, identificador ou CNPJ"
               aria-label="Buscar imobiliária"
               className="pl-9"
             />
@@ -807,7 +807,9 @@ function PlatformOrganizations() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold leading-tight">{o.nome}</h2>
+                      <h2 className="line-clamp-2 break-words text-base font-semibold leading-tight">
+                        {o.nome}
+                      </h2>
                       <p className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
                         {o.slug}
                         {[o.cor_primaria, o.cor_secundaria].filter(Boolean).map((c) => (
@@ -896,7 +898,7 @@ function PlatformOrganizations() {
                               aria-hidden
                             />
                             <span className="flex min-w-0 flex-col leading-tight">
-                              <span className="truncate">{ORGANIZATION_MODULE_LABELS[m]}</span>
+                              <span className="break-words">{ORGANIZATION_MODULE_LABELS[m]}</span>
                               <span
                                 className={cn(
                                   "text-xs",
