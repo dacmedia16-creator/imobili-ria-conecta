@@ -25,6 +25,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { InfoDot, KpiCard, comissaoChartConfig } from "@/components/dashboard/shared";
+import { EmptyState, KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 import {
   Banknote,
   Percent,
@@ -380,7 +381,13 @@ function VisaoExecutiva() {
   }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa]);
 
   if (authLoading || loading || (ehLider && temEquipe === null)) {
-    return <p className="text-sm text-muted-foreground">Carregando…</p>;
+    return (
+      <div className="space-y-6">
+        <PageHeader icon={TrendingUp} title="Desempenho" />
+        <KpiGridSkeleton />
+        <ListSkeleton rows={4} />
+      </div>
+    );
   }
 
   if (!allowed) {
@@ -419,13 +426,11 @@ function VisaoExecutiva() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Desempenho</h1>
-        <p className="text-sm text-muted-foreground">
-          Indicadores e rankings por período, usando as regras financeiras oficiais da operação e
-          excluindo parcerias externas dos totais da REMAX.
-        </p>
-      </div>
+      <PageHeader
+        icon={TrendingUp}
+        title="Desempenho"
+        description="Indicadores e rankings por período, usando as regras financeiras oficiais da operação e excluindo parcerias externas dos totais da REMAX."
+      />
 
       {podeAlternarVisao && (
         <Tabs value={visao} onValueChange={(value) => setVisaoEscolhida(value as VisaoDesempenho)}>
@@ -1147,11 +1152,9 @@ function DetalheComissao({
         {erro ? (
           <p className="py-8 text-center text-sm text-destructive">{erro}</p>
         ) : linhas == null ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
+          <ListSkeleton rows={4} label="Carregando vendas" />
         ) : linhas.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma venda no período.
-          </p>
+          <EmptyState>Nenhuma venda no período. Escolha outro período acima.</EmptyState>
         ) : (
           <Table>
             <TableHeader>

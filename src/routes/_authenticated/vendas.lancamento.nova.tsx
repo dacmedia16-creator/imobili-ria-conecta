@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { errorCode, errorMessage } from "@/lib/errors";
+import { Building2 } from "lucide-react";
+import { ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/vendas/lancamento/nova")({
   head: () => ({ meta: [{ title: "Novo Lançamento" }] }),
@@ -53,7 +55,7 @@ function NewLancamento() {
     }
   };
 
-  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading) return <ListSkeleton rows={2} />;
 
   if (!allowed) {
     return (
@@ -68,14 +70,11 @@ function NewLancamento() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Novo Lançamento</h1>
-        <p className="text-sm text-muted-foreground">
-          Fluxo específico para venda em parceria com construtora — sem documentos e sem etapa do
-          Jurídico. Pode ser criado pelos perfis Lançamento, corretor, gestor ou Team Leader. Comece
-          identificando o imóvel e a construtora; o restante é preenchido na próxima tela.
-        </p>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Novo Lançamento"
+        description="Fluxo específico para venda em parceria com construtora — sem documentos e sem etapa do Jurídico. Pode ser criado pelos perfis Lançamento, corretor, gestor ou Team Leader. Comece identificando o imóvel e a construtora; o restante é preenchido na próxima tela."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Identificação</CardTitle>

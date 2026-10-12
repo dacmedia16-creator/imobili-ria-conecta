@@ -62,7 +62,9 @@ import {
   Trash2,
   SlidersHorizontal,
   ChevronDown,
+  FileText,
 } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { periodoInicialVendas, periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
@@ -759,10 +761,12 @@ function SalesList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
-        {registrarVendaButton}
-      </div>
+      <PageHeader
+        icon={FileText}
+        title="Vendas"
+        description="Acompanhe cada venda, veja de quem é a vez de agir e abra os detalhes."
+        actions={registrarVendaButton}
+      />
 
       <Dialog open={tipoVendaOpen} onOpenChange={setTipoVendaOpen}>
         <DialogContent className="sm:max-w-xl">
@@ -1050,7 +1054,7 @@ function SalesList() {
           )}
         </CardHeader>
         <CardContent>
-          {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>}
+          {loading && <ListSkeleton rows={6} label="Carregando vendas" />}
           {!loading && loadError && (
             <div role="alert" className="py-8 text-center text-sm">
               Não foi possível carregar as vendas.
@@ -1064,7 +1068,7 @@ function SalesList() {
             </div>
           )}
           {!loading && !loadError && sales.length === 0 && (
-            <div className="py-8 text-center text-sm text-muted-foreground">
+            <EmptyState icon={FileText}>
               {hasAny(["corretor"]) &&
                 !hasAny([
                   "gestor",
@@ -1109,7 +1113,7 @@ function SalesList() {
               {hasAny(["financeiro", "admin", "super_admin"]) && (
                 <>Nenhuma venda encontrada com o filtro atual.</>
               )}
-            </div>
+            </EmptyState>
           )}
           {!loading && displayedSales.length > 0 && (
             <>

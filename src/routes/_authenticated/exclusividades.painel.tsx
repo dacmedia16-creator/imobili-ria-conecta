@@ -37,7 +37,8 @@ import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPinned } from "lucide-react";
+import { KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 type PainelSearch = { aba?: "por-corretor"; equipe?: string };
 
@@ -190,19 +191,18 @@ function CapturesDashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Painel e mapa das captações</h1>
-          <p className="text-sm text-muted-foreground">
-            Mostra só as captações que você pode ver. Valores consideram exclusividades em vigor.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/exclusividades">
-            <ArrowLeft className="mr-1 h-4 w-4" /> Voltar para a lista
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        icon={MapPinned}
+        title="Painel e mapa das captações"
+        description="Mostra só as captações que você pode ver. Valores consideram exclusividades em vigor."
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/exclusividades">
+              <ArrowLeft className="mr-1 h-4 w-4" /> Voltar para a lista
+            </Link>
+          </Button>
+        }
+      />
 
       {podePorCorretor && (
         <Tabs value={aba} onValueChange={setAba}>
@@ -217,7 +217,7 @@ function CapturesDashboard() {
 
       {aba === "por-corretor" ? (
         loading ? (
-          <p>Carregando…</p>
+          <ListSkeleton rows={5} label="Carregando corretores" />
         ) : (
           <PorCorretorTab
             captures={captures}
@@ -255,7 +255,7 @@ function CapturesDashboard() {
         </Card>
 
         {loading ? (
-          <p>Carregando…</p>
+          <KpiGridSkeleton count={6} className="sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6" />
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
