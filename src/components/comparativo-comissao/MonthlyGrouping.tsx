@@ -126,7 +126,7 @@ export function MonthlyGrouping({ rows }: { rows: ComparativoRowComCalculo[] }) 
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="corretor">
-            <TabsList className="mb-3">
+            <TabsList className="mb-3 h-auto max-w-full flex-wrap justify-start">
               <TabsTrigger value="corretor">Por corretor</TabsTrigger>
               <TabsTrigger value="equipe">Por equipe</TabsTrigger>
               <TabsTrigger value="gestor">Por gestor/team leader</TabsTrigger>
