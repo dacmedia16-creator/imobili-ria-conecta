@@ -38,7 +38,7 @@ export const listPlatformUsersFn = createServerFn({ method: "GET" })
 
 export const platformResetPasswordFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ userId, password: z.string().min(8).max(72), motivo }).parse(i),
   )
   .handler(async ({ data, context }) => {
@@ -67,7 +67,7 @@ export const platformResetPasswordFn = createServerFn({ method: "POST" })
 
 export const platformSetActiveFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ userId, ativo: z.boolean(), motivo }).parse(i))
+  .validator((i: unknown) => z.object({ userId, ativo: z.boolean(), motivo }).parse(i))
   .handler(async ({ data, context }) => {
     const { admin, callerId, server, policy } = await clients(context);
     const actor = await server.platformActorFor(admin, callerId, data.userId);
@@ -95,7 +95,7 @@ export const platformSetActiveFn = createServerFn({ method: "POST" })
 
 export const platformSetRoleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z.object({ userId, role: z.enum(ROLES), grant: z.boolean(), motivo }).parse(i),
   )
   .handler(async ({ data, context }) => {
@@ -119,7 +119,7 @@ export const platformSetRoleFn = createServerFn({ method: "POST" })
 
 export const platformUpdateUserFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) =>
+  .validator((i: unknown) =>
     z
       .object({
         userId,
