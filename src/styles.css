@@ -160,3 +160,25 @@
     overscroll-behavior-x: none;
   }
 }
+
+/* BorderBeam (Magic UI, MIT — src/components/magicui/border-beam.tsx): feixe discreto que anda
+   pela borda do cartão de destaque do Início. Desligado para quem pede menos movimento. */
+@keyframes magicui-border-beam {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+.magicui-border-beam {
+  animation-name: magicui-border-beam;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .magicui-border-beam {
+    animation: none;
+    display: none;
+  }
+}

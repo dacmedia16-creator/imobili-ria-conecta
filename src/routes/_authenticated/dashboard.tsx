@@ -55,7 +55,6 @@ import {
 } from "@/components/dashboard/shared";
 import { responsaveisDaVenda } from "@/lib/sale-permissions";
 import {
-  Plus,
   FileText,
   ClipboardCheck,
   Gavel,
@@ -75,8 +74,16 @@ import {
   CalendarDays,
   CircleDollarSign,
   PiggyBank,
+  FilePlus2,
+  House,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
+import { NumberTicker } from "@/components/magicui/number-ticker";
+import { BorderBeam } from "@/components/magicui/border-beam";
+import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
+import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
+import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 
 const mesAtualISO = () => {
   const d = new Date();
@@ -180,6 +187,19 @@ function Dashboard() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+  // Mesmo controle de módulo do menu lateral (AppShell): sem o módulo de exclusividades na
+  // imobiliária, o atalho não aparece.
+  const [exclusiveVisible, setExclusiveVisible] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    exclusiveEnabled().then((ok) => {
+      if (vivo) setExclusiveVisible(ok);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -332,19 +352,78 @@ function Dashboard() {
               : `Perfis: ${roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}`}
           </p>
         </div>
-        {hasAny(["corretor", "gestor", "team_leader"]) && (
-          <Button asChild>
-            <Link to="/vendas/nova">
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Venda
-            </Link>
-          </Button>
-        )}
+        {/* "Nova venda" saiu daqui: virou o atalho grande logo abaixo (mesma regra de papel). */}
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
 
       {isFinanceiro && <ResumoGestorMes />}
+
+      {/* Corretor — só quem opera como corretor "puro" (sem outros papéis de supervisão) vê essa
+          seção; admin/super_admin/gestor/etc que também carregam o papel corretor (ex.: pra
+          testes) não têm fila própria de vendas, então não faz sentido mostrar aqui.
+          Layout da maquete aprovada por Denis (t_3a48630f / t_39f0783f): destaque com comissão
+          prevista + meta do mês, depois os 4 contadores numa linha. Mesmos números de antes
+          (dashboard_stats + metas_progresso), só a hierarquia visual mudou. */}
+      {isCorretor && (
+        <DashSection title="Suas vendas">
+          <DestaqueComissaoMeta
+            comissaoPrevista={Number(stats?.minha_comissao_prevista ?? 0)}
+            meta={metaCorretor}
+            carregando={loading}
+          />
+          <div className="mt-4">
+            <KpiGrid>
+              <KpiCard
+                icon={FileText}
+                label="Minhas vendas"
+                value={stats?.minhas_vendas ?? 0}
+                display={<NumberTicker value={stats?.minhas_vendas ?? 0} />}
+                to="/vendas"
+                info="Todas as vendas em que você é o corretor responsável, em qualquer status."
+              />
+              <KpiCard
+                icon={AlertCircle}
+                label="Pendências (rascunho / devolvidas)"
+                value={stats?.minhas_pendencias ?? 0}
+                display={<NumberTicker value={stats?.minhas_pendencias ?? 0} />}
+                to="/vendas"
+                info="Suas vendas em rascunho (ainda não enviadas) ou devolvidas pra ajuste."
+              />
+              <KpiCard
+                icon={FileText}
+                label="Contratos para conferir"
+                value={stats?.meus_contratos_conferir ?? 0}
+                display={<NumberTicker value={stats?.meus_contratos_conferir ?? 0} />}
+                to="/vendas"
+                info="Suas vendas com contrato pronto, aguardando sua conferência antes de seguir pro gestor."
+              />
+              <KpiCard
+                icon={CheckCircle2}
+                label="Contratos assinados"
+                value={stats?.meus_assinados ?? 0}
+                display={<NumberTicker value={stats?.meus_assinados ?? 0} />}
+                to="/vendas"
+                info="Suas vendas com contrato assinado — inclui as que já foram pro financeiro (em análise, devolvida ou concluída)."
+              />
+            </KpiGrid>
+          </div>
+          {/* VGV do corretor numa linha própria de 3, pra não quebrar a linha dos 4 contadores. */}
+          {user && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <ResumoGrupoVendaCards corretorIds={[user.id]} />
+            </div>
+          )}
+        </DashSection>
+      )}
+
+      <AtalhosInicio
+        novaVenda={hasAny(["corretor", "gestor", "team_leader"])}
+        exclusividades={
+          exclusiveVisible && hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"])
+        }
+        equipe={podeAcessarPainelEquipe(roles)}
+      />
 
       {!loading && totalGeral > 0 && (
         <Card>
@@ -416,91 +495,6 @@ function Dashboard() {
           Painel financeiro logo abaixo). Não depende de `stats`/`loading` do funil: tem seu
           próprio carregamento, porque vem de uma RPC diferente (dashboard_movimentacao_periodo). */}
       {isFinanceiro && <MovimentacaoPeriodoSection />}
-
-      {/* Corretor — só quem opera como corretor "puro" (sem outros papéis de supervisão) vê essa
-          seção; admin/super_admin/gestor/etc que também carregam o papel corretor (ex.: pra
-          testes) não têm fila própria de vendas, então não faz sentido mostrar aqui. */}
-      {isCorretor && (
-        <DashSection title="Suas vendas">
-          <KpiGrid>
-            <KpiCard
-              icon={FileText}
-              label="Minhas vendas"
-              value={stats?.minhas_vendas ?? 0}
-              to="/vendas"
-              info="Todas as vendas em que você é o corretor responsável, em qualquer status."
-            />
-            <KpiCard
-              icon={AlertCircle}
-              label="Pendências (rascunho / devolvidas)"
-              value={stats?.minhas_pendencias ?? 0}
-              to="/vendas"
-              info="Suas vendas em rascunho (ainda não enviadas) ou devolvidas pra ajuste."
-            />
-            <KpiCard
-              icon={FileText}
-              label="Contratos para conferir"
-              value={stats?.meus_contratos_conferir ?? 0}
-              to="/vendas"
-              info="Suas vendas com contrato pronto, aguardando sua conferência antes de seguir pro gestor."
-            />
-            <KpiCard
-              icon={CheckCircle2}
-              label="Contratos assinados"
-              value={stats?.meus_assinados ?? 0}
-              to="/vendas"
-              info="Suas vendas com contrato assinado — inclui as que já foram pro financeiro (em análise, devolvida ou concluída)."
-            />
-            <KpiCard
-              icon={TrendingUp}
-              label="Comissão prevista (vendas em andamento)"
-              value={`R$ ${Number(stats?.minha_comissao_prevista ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
-              to="/vendas"
-              info="Soma da comissão total das suas vendas que ainda não foram concluídas nem canceladas/arquivadas."
-            />
-            {user && <ResumoGrupoVendaCards corretorIds={[user.id]} />}
-          </KpiGrid>
-          {metaCorretor && (
-            <Card className="mt-3">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="rounded-md bg-primary/10 p-2 text-primary">
-                  <Target className="h-5 w-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="font-medium">Meta de {mesAtualLabel()}</span>
-                    <span className="text-muted-foreground">
-                      R${" "}
-                      {metaCorretor.comissao_realizada.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      de R${" "}
-                      {metaCorretor.meta_comissao.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      (
-                      {metaCorretor.meta_comissao > 0
-                        ? Math.round(
-                            (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100,
-                          )
-                        : 0}
-                      %)
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={`h-full rounded-full ${metaCorretor.comissao_realizada >= metaCorretor.meta_comissao ? "bg-emerald-500" : "bg-amber-500"}`}
-                      style={{
-                        width: `${Math.min(100, Math.max(0, metaCorretor.meta_comissao > 0 ? (metaCorretor.comissao_realizada / metaCorretor.meta_comissao) * 100 : 0))}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </DashSection>
-      )}
 
       {/* Financeiro — só fila de trabalho (ação agora). Comissão prevista/concluída, líquido da
           imobiliária, VGV consolidado e os demais números fechados da operação moraram aqui até
@@ -648,6 +642,128 @@ function Dashboard() {
 
 const moeda = (valor: number) =>
   valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const moedaCentavos = (valor: number) =>
+  `R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Cartão de destaque do corretor (maquete t_3a48630f): comissão prevista grande + meta do mês.
+ * Números idênticos aos dos cartões antigos — `minha_comissao_prevista` (dashboard_stats) e a
+ * linha do próprio corretor em `metas_progresso(mês atual)`. Sem meta cadastrada, a barra some
+ * (como antes) e o cartão mostra só a comissão. */
+function DestaqueComissaoMeta({
+  comissaoPrevista,
+  meta,
+  carregando,
+}: {
+  comissaoPrevista: number;
+  meta: { meta_comissao: number; comissao_realizada: number } | null;
+  carregando: boolean;
+}) {
+  const pct =
+    meta && meta.meta_comissao > 0
+      ? Math.min(100, Math.max(0, (meta.comissao_realizada / meta.meta_comissao) * 100))
+      : 0;
+  const atingida = !!meta && meta.comissao_realizada >= meta.meta_comissao;
+  return (
+    <Link
+      to="/vendas"
+      className="group relative block overflow-hidden rounded-xl border bg-card p-5 shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none sm:p-6"
+    >
+      <BorderBeam />
+      <TrendingUp
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-4 h-16 w-16 text-primary/10 sm:right-6 sm:h-28 sm:w-28"
+      />
+      <div className="relative">
+        <p className="text-sm text-muted-foreground">Comissão prevista (vendas em andamento)</p>
+        <p className="mt-1 text-3xl font-bold tracking-tight text-primary sm:text-4xl">
+          {carregando ? (
+            "—"
+          ) : (
+            <NumberTicker value={comissaoPrevista} decimalPlaces={2} format={moedaCentavos} />
+          )}
+        </p>
+        {meta && (
+          <div className="mt-5 max-w-3xl">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 text-sm">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Target aria-hidden="true" className="h-4 w-4 text-primary" />
+                Meta de {mesAtualLabel()}
+              </span>
+              <span className="text-muted-foreground">
+                {moedaCentavos(meta.comissao_realizada)} de {moedaCentavos(meta.meta_comissao)} (
+                {Math.round(
+                  meta.meta_comissao > 0 ? (meta.comissao_realizada / meta.meta_comissao) * 100 : 0,
+                )}
+                %)
+              </span>
+            </div>
+            <div
+              className="h-2.5 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label={`Meta de ${mesAtualLabel()}`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(pct)}
+            >
+              <div
+                className={`h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none ${atingida ? "bg-emerald-500" : "bg-secondary"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/** Atalhos grandes do Início (BentoGrid adaptado). Cada atalho só aparece para quem já vê o mesmo
+ * item no menu lateral — mesmas regras de papel e de módulo por imobiliária do AppShell; a rota e
+ * o banco continuam conferindo o acesso. */
+function AtalhosInicio({
+  novaVenda,
+  exclusividades,
+  equipe,
+}: {
+  novaVenda: boolean;
+  exclusividades: boolean;
+  equipe: boolean;
+}) {
+  const total = [novaVenda, exclusividades, equipe].filter(Boolean).length;
+  if (total === 0) return null;
+  return (
+    <section aria-label="Atalhos">
+      <BentoGrid count={total}>
+        {novaVenda && (
+          <BentoCard
+            name="Nova venda"
+            description="Lançar uma venda em poucos passos"
+            Icon={FilePlus2}
+            to="/vendas/nova"
+          />
+        )}
+        {exclusividades && (
+          <BentoCard
+            name="Exclusividades"
+            description="Imóveis captados e prazos"
+            Icon={House}
+            to="/exclusividades"
+            tone="red"
+          />
+        )}
+        {equipe && (
+          <BentoCard
+            name="Equipe"
+            description="Produção e metas da equipe"
+            Icon={UsersRound}
+            to="/painel-equipe"
+          />
+        )}
+      </BentoGrid>
+    </section>
+  );
+}
 
 /** Resumo executivo: reaproveita exatamente o bundle, filtros e cálculo da Central Financeira.
  * Assim o Painel do Gestor não cria uma segunda regra para VGV ou previsão líquida. */
