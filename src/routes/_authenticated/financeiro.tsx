@@ -1,8 +1,6 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,17 +32,7 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
   // Mesma proteção em 3 camadas do Comparativo 6%: rota (aqui), componente (useAuth) e RPC no
   // banco (comparativo_comissao_6pct* já barram quem não é financeiro/admin/super_admin — as
   // consultas diretas às tabelas usam RLS, que já restringe can_view_sale por papel).
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles } = await loadMyAccess(session.user.id);
-    if (!podeAcessarCentralFinanceira(roles)) {
-      toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) => requireRoles(context.auth, podeAcessarCentralFinanceira),
   component: CentralFinanceiraPage,
 });
 

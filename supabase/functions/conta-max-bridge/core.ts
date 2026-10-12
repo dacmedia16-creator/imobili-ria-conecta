@@ -38,6 +38,21 @@ export type LinkResult =
   | { ok: true; admUserId: string; created: boolean }
   | { ok: false; status: number; error: string };
 
+// Busca direta por e-mail em auth.users (função SQL só para service_role), sem o teto de
+// 1.000 usuários da antiga listUsers paginada. Retorna null em erro (vira identity_lookup_failed).
+export async function findAuthUsersByEmail(
+  admin: AdminClient,
+  email: string,
+): Promise<Array<{ id: string }> | null> {
+  const { data, error } = await admin.rpc("conta_max_auth_user_ids_by_email", { _email: email });
+  if (error || !Array.isArray(data)) return null;
+  return data
+    .map((row: { id?: unknown } | string) => ({
+      id: String(typeof row === "string" ? row : (row?.id ?? "")),
+    }))
+    .filter((row: { id: string }) => row.id.length > 0);
+}
+
 export async function resolveBridgeLink(
   admin: AdminClient,
   sub: string,
@@ -51,17 +66,8 @@ export async function resolveBridgeLink(
   if (subError) return { ok: false, status: 500, error: "identity_lookup_failed" };
   if (bySub?.active === true) return { ok: true, admUserId: bySub.adm_user_id, created: false };
 
-  const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (usersError) return { ok: false, status: 500, error: "identity_lookup_failed" };
-  const matches = (usersPage?.users ?? []).filter(
-    (user: { email?: string | null }) =>
-      String(user.email ?? "")
-        .trim()
-        .toLowerCase() === email,
-  );
+  const matches = await findAuthUsersByEmail(admin, email);
+  if (matches === null) return { ok: false, status: 500, error: "identity_lookup_failed" };
   if (matches.length !== 1)
     return {
       ok: false,
