@@ -1,5 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { processarFila, reconciliar, segredoInternoOk, type Satelite } from "./core.ts";
+import {
+  processarFila,
+  processarProvisionamento,
+  reconciliar,
+  segredoInternoOk,
+  type Satelite,
+} from "./core.ts";
 
 // Chamada só pelo pg_cron do próprio ADM (public.sync_disparar), com cabeçalho x-sync-internal.
 // Secrets: SYNC_INTERNAL_SECRET (>=32), ESTUDO_SYNC_URL + ESTUDO_SYNC_SECRET, VISITA_SYNC_URL + VISITA_SYNC_SECRET.
@@ -44,7 +50,16 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   try {
     if (body?.acao === "reconciliar") return resp(await reconciliar(admin, amb, body.adm_org_id));
-    return resp(await processarFila(admin, amb));
+    // Imobiliárias novas primeiro (t_c0844acb): ao concluir, as pessoas da org entram na fila e já seguem
+    // nesta mesma rodada. Falha aqui não impede o sync de pessoas.
+    let provisao: unknown = null;
+    try {
+      provisao = await processarProvisionamento(admin, amb);
+    } catch (err) {
+      console.error("[sync-satelites] provisao:", (err as Error).message);
+      provisao = { error: "provision_failed" };
+    }
+    return resp({ provisao, ...(await processarFila(admin, amb)) });
   } catch (err) {
     console.error("[sync-satelites]", (err as Error).message);
     return resp({ error: "sync_failed" }, 500);

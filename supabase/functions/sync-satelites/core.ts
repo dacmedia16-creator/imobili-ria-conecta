@@ -342,6 +342,257 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
   return { processados: itens.length, logs: logs.length };
 }
 
+// ---------- Provisionamento automático de imobiliária (cartão t_c0844acb) ----------
+export type OrgParaProvisao = {
+  adm_org_id: string;
+  nome: string;
+  slug: string;
+  cnpj: string | null;
+  cidade: string | null;
+  uf: string | null;
+  email_contato: string | null;
+  status_org: string;
+  ja_mapeada: boolean;
+  tentativas: number;
+};
+
+type RespProvisao = {
+  resultado: "criado" | "ja_provisionada" | "simulado" | "conflito" | "desligado" | "erro";
+  id?: string;
+  conflito?: { tipo: string; candidatos?: unknown } | null;
+  erro?: string;
+};
+
+/** Só os dados mínimos da org vão para os satélites (nada de pessoas, cores, logo etc.). */
+export function orgParaSatelite(o: OrgParaProvisao) {
+  return {
+    adm_org_id: o.adm_org_id,
+    nome: String(o.nome ?? "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    slug: o.slug,
+    cnpj: o.cnpj ?? null,
+    cidade: o.cidade ?? null,
+    uf: o.uf ?? null,
+    email_contato: o.email_contato ?? null,
+  };
+}
+
+async function enviarProvisao(
+  amb: Ambiente,
+  sat: Satelite,
+  modo: Modo,
+  org: ReturnType<typeof orgParaSatelite>,
+): Promise<RespProvisao> {
+  const segredo = amb.segredos[sat];
+  if (!segredo || segredo.length < 32)
+    return { resultado: "erro", erro: "segredo_nao_configurado" };
+  try {
+    const { corpo, assinatura } = await assinarPedido(segredo, {
+      acao: "provisionar_org",
+      modo,
+      org,
+    });
+    const r = await amb.enviar(sat, corpo, assinatura);
+    if (r.status !== 200 || !r.json || typeof r.json.resultado !== "string") {
+      return {
+        resultado: "erro",
+        erro: `http_${r.status}_${String(r.json?.error ?? "resposta_invalida").slice(0, 60)}`,
+      };
+    }
+    return r.json as RespProvisao;
+  } catch (err) {
+    return { resultado: "erro", erro: String((err as Error).message ?? err).slice(0, 200) };
+  }
+}
+
+/** Conflito de ORG na fila humana (sync_conflicts com adm_user_id nulo). 23505 = já existe aberto igual. */
+export async function registrarConflitoOrg(
+  admin: Admin,
+  admOrgId: string,
+  sat: Satelite,
+  conflito: { tipo: string; candidatos?: unknown },
+): Promise<string | null> {
+  const { error } = await admin.from("sync_conflicts").insert({
+    adm_user_id: null,
+    adm_org_id: admOrgId,
+    satelite: sat,
+    tipo: conflito.tipo,
+    candidatos: conflito.candidatos ?? null,
+    status: "aberto",
+  });
+  if (!error) return null;
+  const e = error as { code?: string; message?: string };
+  if (e.code === "23505") return null;
+  return `conflito_nao_gravado: ${e.code ?? ""} ${String(e.message ?? "erro").slice(0, 120)}`.trim();
+}
+
+const SATS: Satelite[] = ["estudo", "visita"];
+
+/**
+ * Processa as imobiliárias novas do ADM (sync_org_provision). Para cada uma:
+ * 1. prévia (dry_run) nos 2 satélites; conflito em qualquer um = fila humana e NADA é criado;
+ * 2. se provision_mode=live, cria nos 2 (idempotente pelo id do ADM);
+ * 3. só com os 2 ids grava sync_org_map (live) e enfileira as pessoas (sync_provisao_concluir).
+ * Falha no meio (1 criado, outro não) = erro + nova tentativa; a reenvio devolve 'ja_provisionada' no que já criou,
+ * e o mapa nunca fica pela metade.
+ */
+export async function processarProvisionamento(admin: Admin, amb: Ambiente, limite = 5) {
+  const cfg = await ok<{ mode: Modo; provision_mode: Modo } | null>(
+    admin.from("sync_config").select("mode,provision_mode").eq("id", true).maybeSingle(),
+    "config_provisao",
+  );
+  const modo = modoEfetivo(cfg?.mode, cfg?.provision_mode);
+  if (modo === "off") return { orgs: 0 };
+  const orgs = await ok<OrgParaProvisao[]>(
+    admin.rpc("sync_provisao_pegar", { p_limite: limite }),
+    "provisao_pegar",
+  );
+  const logs: Array<Record<string, unknown>> = [];
+  const resumo: Array<{ adm_org_id: string; status: string }> = [];
+  const concluir = async (
+    o: OrgParaProvisao,
+    resultado: string,
+    extra: { estudo?: string; visita?: string; detalhe?: unknown; erro?: string } = {},
+  ) => {
+    const st = await ok<string>(
+      admin.rpc("sync_provisao_concluir", {
+        p_org: o.adm_org_id,
+        p_resultado: resultado,
+        p_estudo: extra.estudo ?? null,
+        p_visita: extra.visita ?? null,
+        p_detalhe: extra.detalhe ?? null,
+        p_erro: extra.erro ?? null,
+      }),
+      "provisao_concluir",
+    );
+    resumo.push({ adm_org_id: o.adm_org_id, status: st });
+  };
+  const log = (o: OrgParaProvisao, sat: Satelite, m: Modo, r: RespProvisao) =>
+    logs.push({
+      adm_user_id: null,
+      adm_org_id: o.adm_org_id,
+      satelite: sat,
+      acao: "provisionar_org",
+      modo: m,
+      resultado:
+        r.resultado === "criado"
+          ? "ok"
+          : r.resultado === "ja_provisionada"
+            ? "nada_a_fazer"
+            : r.resultado === "simulado"
+              ? "simulado"
+              : r.resultado === "conflito"
+                ? "conflito"
+                : "erro",
+      detalhe: { resultado: r.resultado, id: r.id ?? null, conflito: r.conflito ?? null },
+      erro: r.resultado === "erro" || r.resultado === "desligado" ? (r.erro ?? r.resultado) : null,
+    });
+
+  for (const o of orgs ?? []) {
+    if (o.ja_mapeada) {
+      await concluir(o, "ignorado", { erro: "ja_mapeada_manual" });
+      continue;
+    }
+    if (o.status_org !== "ativa") {
+      await concluir(o, "ignorado", { erro: `org_${o.status_org}` });
+      continue;
+    }
+    const org = orgParaSatelite(o);
+
+    // 1) Prévia nos dois.
+    const previa: Partial<Record<Satelite, RespProvisao>> = {};
+    for (const sat of SATS) {
+      previa[sat] = await enviarProvisao(amb, sat, "dry_run", org);
+      log(o, sat, "dry_run", previa[sat]!);
+    }
+    const falhaPrevia = SATS.find(
+      (s) => !["simulado", "ja_provisionada", "conflito"].includes(previa[s]!.resultado),
+    );
+    if (falhaPrevia) {
+      await concluir(o, "erro", {
+        detalhe: { previa },
+        erro: `${falhaPrevia}: ${previa[falhaPrevia]!.erro ?? previa[falhaPrevia]!.resultado}`,
+      });
+      continue;
+    }
+    const comConflito = SATS.filter((s) => previa[s]!.resultado === "conflito");
+    if (comConflito.length) {
+      const falhas: string[] = [];
+      for (const sat of comConflito) {
+        const f = await registrarConflitoOrg(
+          admin,
+          o.adm_org_id,
+          sat,
+          previa[sat]!.conflito ?? { tipo: "conflito" },
+        );
+        if (f) falhas.push(`${sat}: ${f}`);
+      }
+      // Conflito que não chegou à fila humana nunca fica parado: vira erro e nova tentativa.
+      if (falhas.length)
+        await concluir(o, "erro", { detalhe: { previa }, erro: falhas.join("; ") });
+      else
+        await concluir(o, "aguardando_humano", {
+          detalhe: { previa },
+          erro: `conflito: ${comConflito.join(",")}`,
+        });
+      continue;
+    }
+    if (modo === "dry_run") {
+      await concluir(o, "simulado", { detalhe: { previa } });
+      continue;
+    }
+
+    // 2) Criação nos dois (idempotente).
+    const feito: Partial<Record<Satelite, RespProvisao>> = {};
+    for (const sat of SATS) {
+      feito[sat] = await enviarProvisao(amb, sat, "live", org);
+      log(o, sat, "live", feito[sat]!);
+      if (!["criado", "ja_provisionada"].includes(feito[sat]!.resultado)) break;
+    }
+    const ids = {
+      estudo:
+        feito.estudo?.id && ["criado", "ja_provisionada"].includes(feito.estudo.resultado)
+          ? feito.estudo.id
+          : undefined,
+      visita:
+        feito.visita?.id && ["criado", "ja_provisionada"].includes(feito.visita.resultado)
+          ? feito.visita.id
+          : undefined,
+    };
+    if (ids.estudo && ids.visita) {
+      await concluir(o, "ok", { ...ids, detalhe: { feito } });
+      continue;
+    }
+    const satConflito = SATS.find((s) => feito[s]?.resultado === "conflito");
+    if (satConflito) {
+      const f = await registrarConflitoOrg(
+        admin,
+        o.adm_org_id,
+        satConflito,
+        feito[satConflito]!.conflito ?? { tipo: "conflito" },
+      );
+      await concluir(o, f ? "erro" : "aguardando_humano", {
+        ...ids,
+        detalhe: { feito },
+        erro: f ?? `conflito: ${satConflito}`,
+      });
+      continue;
+    }
+    const satErro = SATS.find(
+      (s) => feito[s] && !["criado", "ja_provisionada"].includes(feito[s]!.resultado),
+    )!;
+    const r = feito[satErro]!;
+    await concluir(o, "erro", {
+      ...ids,
+      detalhe: { feito },
+      erro: `${satErro}: ${r.resultado === "simulado" ? "satelite_em_dry_run" : (r.erro ?? r.resultado)}`,
+    });
+  }
+  if (logs.length) await ok(admin.from("sync_log").insert(logs), "log_provisao");
+  return { orgs: (orgs ?? []).length, resumo };
+}
+
 /**
  * Reconciliação sob demanda: manda TODAS as pessoas de cada imobiliária mapeada em dry_run (nunca grava
  * nos satélites) e devolve o relatório do que faria. Grava o resumo em sync_reconcile_runs.
