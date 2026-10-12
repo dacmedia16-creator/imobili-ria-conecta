@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/table";
 import type { ResumoPessoa } from "@/lib/producao-por-pessoa-types";
 import { formatarTotalPessoas } from "@/lib/producao-por-pessoa-calc";
+import { CardField, EmptyState } from "@/components/visual/base";
+import { cn } from "@/lib/utils";
 import { formatMoney, formatQtd } from "./format";
 
 type SummaryTableProps = {
@@ -41,7 +43,56 @@ export function SummaryTable({
         </p>
       </CardHeader>
       <CardContent>
-        <div className="max-h-[70vh] overflow-auto rounded-md border">
+        {/* Celular: cartões (sem rolagem lateral). Impressão continua usando a tabela. */}
+        <div className="space-y-2 md:hidden print:hidden">
+          {resumo.length === 0 && (
+            <EmptyState>Nenhuma produção encontrada no período/filtro selecionado.</EmptyState>
+          )}
+          {resumo.map((r) => (
+            <div
+              key={r.chave}
+              className={cn(
+                "space-y-2 rounded-xl border bg-card p-3 shadow-sm",
+                pessoaSelecionada === r.chave && "border-primary/40 bg-primary/10",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words font-medium">
+                    {r.pessoaNome}
+                    {!r.pessoaId && (
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        (sem cadastro vinculado)
+                      </span>
+                    )}
+                  </p>
+                  <p className="break-words text-xs text-muted-foreground">{r.teamNome ?? "—"}</p>
+                </div>
+                <p className="shrink-0 text-right">
+                  <span className="block text-lg font-semibold tabular-nums">
+                    {formatQtd(r.qtdVendas)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">vendas equiv.</span>
+                </p>
+              </div>
+              <dl className="grid grid-cols-3 gap-2">
+                <CardField label="Captações">{formatQtd(r.qtdCaptacao)}</CardField>
+                <CardField label="Vendas">{formatQtd(r.qtdVenda)}</CardField>
+                <CardField label="VGV">{formatMoney(r.vgv)}</CardField>
+              </dl>
+              <button
+                type="button"
+                className="min-h-9 w-full rounded-md border px-2 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => onSelecionarPessoa(r.chave)}
+                aria-pressed={pessoaSelecionada === r.chave}
+              >
+                {pessoaSelecionada === r.chave ? "Ocultar" : "Ver"} operações (
+                {operacoesPorPessoa.get(r.chave) ?? 0})
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="hidden max-h-[70vh] overflow-auto rounded-md border md:block print:block">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

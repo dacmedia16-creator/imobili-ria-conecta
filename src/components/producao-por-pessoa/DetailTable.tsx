@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import type { ProducaoPonta } from "@/lib/producao-por-pessoa-types";
 import { contarOperacoes, formatarTotalOperacoes } from "@/lib/producao-por-pessoa-calc";
+import { CardField, EmptyState, Pill } from "@/components/visual/base";
 import { formatDateTimeBR, formatMoney, formatQtd } from "./format";
 
 const TIPO_LABEL: Record<ProducaoPonta["tipo"], string> = { captacao: "Captação", venda: "Venda" };
@@ -69,7 +70,48 @@ export function DetailTable({
         )}
       </CardHeader>
       <CardContent>
-        <div className="max-h-[70vh] overflow-auto rounded-md border">
+        {/* Celular: cartões (sem rolagem lateral). Impressão continua usando a tabela. */}
+        <div className="space-y-2 md:hidden print:hidden">
+          {ordenadas.length === 0 && (
+            <EmptyState>Nenhuma operação encontrada no período/filtro selecionado.</EmptyState>
+          )}
+          {ordenadas.map((p, i) => (
+            <div
+              key={`${p.saleId}-${p.tipo}-${p.pessoaId ?? `sem-vinculo:${p.pessoaNome}`}-${i}`}
+              className="space-y-2 rounded-xl border bg-card p-3 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    to="/vendas/$id"
+                    params={{ id: p.saleId }}
+                    className="break-words font-medium hover:underline"
+                  >
+                    {p.imovelId || p.codigoInterno || `Venda #${p.saleId.slice(0, 8)}`}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">{formatDateTimeBR(p.concluidaEm)}</p>
+                </div>
+                <Pill tom={p.modalidade === "lancamento" ? "amber" : "slate"}>
+                  {p.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
+                </Pill>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <CardField label="Pessoa">
+                  {p.pessoaNome}
+                  {!p.pessoaId && (
+                    <span className="ml-1 text-xs text-muted-foreground">(sem cadastro)</span>
+                  )}
+                </CardField>
+                <CardField label="Equipe">{p.teamNome ?? "—"}</CardField>
+                <CardField label="Ponta">{TIPO_LABEL[p.tipo]}</CardField>
+                <CardField label="Participação">{participacao(p)}</CardField>
+                <CardField label="Conta como">{formatQtd(p.qtd)}</CardField>
+                <CardField label="VGV">{formatMoney(p.vgv)}</CardField>
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="hidden max-h-[70vh] overflow-auto rounded-md border md:block print:block">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

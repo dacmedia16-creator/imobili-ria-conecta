@@ -24,7 +24,16 @@ import {
 } from "@/components/ui/table";
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
-import { Printer } from "lucide-react";
+import { FileCheck2, Printer, Wallet } from "lucide-react";
+import {
+  CardField,
+  EmptyState,
+  KpiGridSkeleton,
+  KpiTile,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+} from "@/components/visual/base";
 import {
   catalogoOcorrenciasConcluidas,
   chaveMesAtual,
@@ -141,9 +150,11 @@ function OcorrenciasConcluidasPage() {
 
   if (authLoading)
     return (
-      <p role="status" className="text-sm text-muted-foreground">
-        Carregando…
-      </p>
+      <div role="status" aria-live="polite" className="space-y-6">
+        <span className="sr-only">Carregando…</span>
+        <KpiGridSkeleton count={2} className="sm:grid-cols-2 md:grid-cols-2" />
+        <ListSkeleton rows={6} label="Carregando ocorrências" />
+      </div>
     );
   if (!session || !allowed) {
     return (
@@ -164,9 +175,11 @@ function OcorrenciasConcluidasPage() {
     estado.loading
   ) {
     return (
-      <p role="status" className="text-sm text-muted-foreground">
-        Carregando…
-      </p>
+      <div role="status" aria-live="polite" className="space-y-6">
+        <span className="sr-only">Carregando…</span>
+        <KpiGridSkeleton count={2} className="sm:grid-cols-2 md:grid-cols-2" />
+        <ListSkeleton rows={6} label="Carregando ocorrências" />
+      </div>
     );
   }
   const { erro, rows, equipes, corretores } = estado;
@@ -243,13 +256,11 @@ function OcorrenciasConcluidasPage() {
     <>
       <div className="min-w-0 space-y-6 print:hidden">
         <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Ocorrências concluídas</h1>
-            <p className="text-sm text-muted-foreground">
-              Relatório global somente leitura. Combine mês da assinatura, equipe e corretor.
-              Equipes refletem os vínculos diretos atuais, incluindo líderes e auxiliares.
-            </p>
-          </div>
+          <PageHeader
+            icon={FileCheck2}
+            title="Ocorrências concluídas"
+            description="Relatório global somente leitura. Combine mês da assinatura, equipe e corretor. Equipes refletem os vínculos diretos atuais, incluindo líderes e auxiliares."
+          />
           <div className="grid min-w-0 gap-3 md:grid-cols-3">
             <div className="min-w-0 space-y-1">
               <label htmlFor="mes-assinatura" className="text-sm font-medium">
@@ -316,21 +327,20 @@ function OcorrenciasConcluidasPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-xs text-muted-foreground">Ocorrências concluídas</p>
-              <p className="text-xl font-semibold">{rowsFiltradas.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-xs text-muted-foreground">
-                Total de comissões (parte da imobiliária)
-              </p>
-              <p className="text-xl font-semibold text-primary">{money(totalComissao)}</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-3">
+          <KpiTile
+            icon={FileCheck2}
+            tom="blue"
+            label="Ocorrências concluídas"
+            value={String(rowsFiltradas.length)}
+          />
+          <KpiTile
+            icon={Wallet}
+            tom="green"
+            label="Total de comissões (parte da imobiliária)"
+            value={money(totalComissao)}
+            valueClassName="text-primary"
+          />
         </div>
 
         {canPrint && (
@@ -362,7 +372,51 @@ function OcorrenciasConcluidasPage() {
           </div>
         )}
 
-        <Card className="min-w-0">
+        {/* Celular: cartões (sem rolagem lateral). Mesmos dados e links da tabela. */}
+        <div className="space-y-2 md:hidden">
+          {rowsFiltradas.length === 0 && (
+            <EmptyState>Nenhuma ocorrência concluída para os filtros selecionados.</EmptyState>
+          )}
+          {rowsFiltradas.map((r) => (
+            <div
+              key={r.ocorrenciaId}
+              className="flex gap-3 rounded-xl border bg-card p-3 shadow-sm"
+            >
+              {canPrint && (
+                <Checkbox
+                  className="mt-1"
+                  checked={selectedOccurrenceIds.includes(r.ocorrenciaId)}
+                  onCheckedChange={() => toggleOccurrence(r.ocorrenciaId)}
+                  aria-label={`Selecionar ocorrência de ${r.imovelLabel}`}
+                />
+              )}
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    to="/vendas/$id"
+                    params={{ id: r.saleId }}
+                    className="min-w-0 break-words font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label={`Abrir ocorrência de ${r.imovelLabel}`}
+                  >
+                    {r.imovelLabel}
+                  </Link>
+                  <Pill tom="green">Concluída</Pill>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <CardField label="Corretor" className="col-span-2">
+                    {r.corretorNome ?? "Não informado"}
+                  </CardField>
+                  <CardField label="Comissão (imobiliária)">{money(r.valorComissao)}</CardField>
+                  <CardField label="Assinatura">
+                    {r.dataAssinatura ? dateBR(r.dataAssinatura) : "Não informada"}
+                  </CardField>
+                </dl>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Card className="hidden min-w-0 md:block">
           <CardContent className="min-w-0 px-3 pt-6 sm:px-6">
             <Table aria-label="Ocorrências concluídas filtradas" className="min-w-[560px]">
               <TableHeader>

@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Printer } from "lucide-react";
+import { Printer, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,9 +129,11 @@ function ProducaoPorPessoaPage() {
 
   if (authLoading || loading)
     return (
-      <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-        Carregando relatório…
-      </p>
+      <div role="status" aria-live="polite" className="space-y-6">
+        <span className="sr-only">Carregando relatório…</span>
+        <KpiGridSkeleton count={3} className="sm:grid-cols-3 md:grid-cols-3" />
+        <ListSkeleton rows={6} label="Carregando relatório" />
+      </div>
     );
 
   if (!allowed) {
@@ -145,22 +148,32 @@ function ProducaoPorPessoaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Produção por pessoa</h1>
-          <p className="text-sm font-medium text-foreground">
-            Período: <span className="capitalize">{descreverPeriodo(filtros)}</span>
-          </p>
-          <p className="text-sm text-muted-foreground print:hidden">
-            Mostra quem participou de cada venda do período e como: captação, venda ou as duas
-            pontas. Para ver quanto cada pessoa ganhou, use o Desempenho.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Imprimir / baixar
-        </Button>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Produção por pessoa"
+        description={
+          <>
+            <p className="font-medium text-foreground">
+              Período: <span className="capitalize">{descreverPeriodo(filtros)}</span>
+            </p>
+            <p className="print:hidden">
+              Mostra quem participou de cada venda do período e como: captação, venda ou as duas
+              pontas. Para ver quanto cada pessoa ganhou, use o Desempenho.
+            </p>
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="print:hidden"
+            onClick={() => window.print()}
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimir / baixar
+          </Button>
+        }
+      />
 
       {erro && (
         <Card className="border-destructive/40">

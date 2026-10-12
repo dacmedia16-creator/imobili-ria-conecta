@@ -37,7 +37,19 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
 import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
 import { exportCsv } from "@/lib/csv";
-import { Download } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Calculator,
+  CalendarClock,
+  CheckCircle2,
+  Download,
+  Landmark,
+  RotateCcw,
+  Wallet,
+  Workflow,
+} from "lucide-react";
+import { KpiGridSkeleton, KpiTile, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { toast } from "sonner";
 import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 import { periodoMensalRelatorios, type AtalhoPeriodoRelatorios } from "@/lib/relatorios-periodo";
@@ -346,7 +358,13 @@ function RelatoriosPage() {
     !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
 
   if (authLoading || loading)
-    return <p className="text-sm text-muted-foreground">Carregando relatórios…</p>;
+    return (
+      <div role="status" aria-live="polite" className="space-y-6">
+        <span className="sr-only">Carregando relatórios…</span>
+        <KpiGridSkeleton count={4} />
+        <ListSkeleton rows={6} label="Carregando relatórios" />
+      </div>
+    );
 
   if (!allowed) {
     return (
@@ -374,12 +392,11 @@ function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Relatórios — Financeiro</h1>
-        <p className="text-sm text-muted-foreground">
-          Visão consolidada de comissões, recebimentos, financiamentos e ocorrências.
-        </p>
-      </div>
+      <PageHeader
+        icon={BarChart3}
+        title="Relatórios — Financeiro"
+        description="Visão consolidada de comissões, recebimentos, financiamentos e ocorrências."
+      />
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
@@ -723,33 +740,28 @@ function FluxoCaixaTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total previsto no período (nossa parte)</p>
-            <p className="text-xl font-semibold">{money(totalPrevisto)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Recebido</p>
-            <p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">
-              {money(totalRecebido)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Vencido (não recebido)</p>
-            <p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">A vencer</p>
-            <p className="text-xl font-semibold">{money(totalAVencer)}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiTile
+          icon={Wallet}
+          tom="blue"
+          label="Total previsto no período (nossa parte)"
+          value={money(totalPrevisto)}
+        />
+        <KpiTile
+          icon={CheckCircle2}
+          tom="green"
+          label="Recebido"
+          value={money(totalRecebido)}
+          valueClassName="text-emerald-700 dark:text-emerald-400"
+        />
+        <KpiTile
+          icon={AlertTriangle}
+          tom="red"
+          label="Vencido (não recebido)"
+          value={money(totalVencido)}
+          valueClassName="text-destructive"
+        />
+        <KpiTile icon={CalendarClock} tom="amber" label="A vencer" value={money(totalAVencer)} />
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -965,12 +977,12 @@ function ComissoesTab({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total REMAX no período (sem parceria)</p>
-            <p className="text-xl font-semibold">{money(total)}</p>
-          </CardContent>
-        </Card>
+        <KpiTile
+          icon={Calculator}
+          tom="blue"
+          label="Total REMAX no período (sem parceria)"
+          value={money(total)}
+        />
         <Card>
           <CardContent className="flex items-end justify-between pt-6">
             <div>
@@ -1106,12 +1118,12 @@ function FinanciamentosTab({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Valor total financiado (filtro atual)</p>
-            <p className="text-xl font-semibold">{money(total)}</p>
-          </CardContent>
-        </Card>
+        <KpiTile
+          icon={Landmark}
+          tom="blue"
+          label="Valor total financiado (filtro atual)"
+          value={money(total)}
+        />
         <Card>
           <CardContent className="pt-6">
             <Label>Banco / correspondente</Label>
@@ -1277,21 +1289,23 @@ function FunilTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {FUNIL_STATUSES.map((st) => (
-          <Card key={st}>
-            <CardContent className="pt-6">
-              <p className="text-xs text-muted-foreground">{STATUS_LABEL[st]}</p>
-              <p className="text-xl font-semibold">{counts[st] ?? 0}</p>
-            </CardContent>
-          </Card>
+          <KpiTile
+            key={st}
+            icon={Workflow}
+            tom="slate"
+            label={STATUS_LABEL[st]}
+            value={String(counts[st] ?? 0)}
+          />
         ))}
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Reabertas no período</p>
-            <p className="text-xl font-semibold text-amber-700 dark:text-amber-400">{reabertas}</p>
-          </CardContent>
-        </Card>
+        <KpiTile
+          icon={RotateCcw}
+          tom="amber"
+          label="Reabertas no período"
+          value={String(reabertas)}
+          valueClassName="text-amber-700 dark:text-amber-400"
+        />
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
