@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { anyOf, requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useState } from "react";
-import { Printer } from "lucide-react";
+import { Printer, Users } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -171,7 +172,7 @@ function BlocoResumo({
   totalBloco: RelatorioComissaoCoordenador["blocos"][number];
 }) {
   return (
-    <div className="grid grid-cols-3 divide-x rounded-md border bg-muted/30 text-sm">
+    <div className="grid grid-cols-1 divide-y rounded-md border bg-muted/30 text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       <div className="flex flex-col gap-1 px-4 py-2.5">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Coordenação
@@ -240,7 +241,7 @@ function ComissaoCoordenador() {
     };
   }, [mes, allowed]);
 
-  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading) return <ListSkeleton rows={5} label="Carregando relatório" />;
 
   if (!allowed) {
     return (
@@ -254,46 +255,49 @@ function ComissaoCoordenador() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Comissão por Coordenador</h1>
-          <p className="text-sm text-muted-foreground print:hidden">
-            Ocorrências concluídas no mês selecionado, agrupadas pelo gestor/team leader responsável
-            por cada venda. Parcerias externas não entram nos valores.
-          </p>
-          <p className="hidden text-sm text-muted-foreground print:block">
-            {meses.find((m) => m.value === mes)?.label}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger aria-label="Mês" className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {meses.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" />
-            Imprimir / baixar
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Comissão por Coordenador"
+        description={
+          <>
+            <span className="print:hidden">
+              Ocorrências concluídas no mês selecionado, agrupadas pelo gestor/team leader
+              responsável por cada venda. Parcerias externas não entram nos valores.
+            </span>
+            <span className="hidden print:inline">{meses.find((m) => m.value === mes)?.label}</span>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <Select value={mes} onValueChange={setMes}>
+              <SelectTrigger aria-label="Mês" className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {meses.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir / baixar
+            </Button>
+          </div>
+        }
+      />
 
-      {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
-      {erro && <p className="text-sm text-destructive">{erro}</p>}
+      {loading && <ListSkeleton rows={5} label="Carregando relatório" />}
+      {erro && (
+        <Card className="border-destructive/40">
+          <CardContent className="py-3 text-sm text-destructive">{erro}</CardContent>
+        </Card>
+      )}
 
       {!loading && !erro && relatorio && relatorio.secoes.length === 0 && (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma ocorrência concluída neste mês.
-          </CardContent>
-        </Card>
+        <EmptyState>Nenhuma ocorrência concluída neste mês.</EmptyState>
       )}
 
       {!loading &&
@@ -305,7 +309,7 @@ function ComissaoCoordenador() {
           const totalBloco = relatorio.blocos.find((b) => b.bloco === bloco);
           return (
             <Card key={bloco}>
-              <CardHeader className="flex flex-row items-start justify-between">
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
                 <CardTitle>{BLOCO_LABEL[bloco]}</CardTitle>
                 {totalBloco && (
                   <FigurePair comissao={totalBloco.comissao} vgv6pct={totalBloco.vgv6pct} />

@@ -27,7 +27,16 @@ import {
 } from "@/components/ui/dialog";
 import { money, dateBR } from "@/components/vendas/shared";
 import { toast } from "sonner";
-import { Download, Wallet } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ListChecks, Wallet } from "lucide-react";
+import {
+  CardField,
+  EmptyState,
+  KpiGridSkeleton,
+  KpiTile,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+} from "@/components/visual/base";
 import { exportCsv } from "@/lib/csv";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
@@ -410,7 +419,13 @@ function ComissoesAReceberPage() {
     }
   };
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading || loading)
+    return (
+      <div className="space-y-6">
+        <KpiGridSkeleton />
+        <ListSkeleton label="Carregando parcelas" />
+      </div>
+    );
 
   if (!allowed) {
     return (
@@ -425,13 +440,11 @@ function ComissoesAReceberPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Baixa de recebimentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Área operacional para confirmar parcelas recebidas. Os valores já mostram somente a fatia
-          própria da imobiliária, sem parcerias externas.
-        </p>
-      </div>
+      <PageHeader
+        icon={Wallet}
+        title="Baixa de recebimentos"
+        description="Área operacional para confirmar parcelas recebidas. Os valores já mostram somente a fatia própria da imobiliária, sem parcerias externas."
+      />
 
       {inconsistentes.length > 0 && (
         <Card className="border-destructive/40">
@@ -442,31 +455,35 @@ function ComissoesAReceberPage() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total pendente (nossa parte)</p>
-            <p className="text-xl font-semibold">{money(totalPendente)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Pendente vencido</p>
-            <p className="text-xl font-semibold text-destructive">{money(totalVencido)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Total recebido</p>
-            <p className="text-xl font-semibold text-emerald-700">{money(totalRecebido)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground">Selecionado</p>
-            <p className="text-xl font-semibold text-primary">{money(totalSelecionado)}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiTile
+          icon={Wallet}
+          tom="blue"
+          label="Total pendente (nossa parte)"
+          value={money(totalPendente)}
+        />
+        <KpiTile
+          icon={AlertTriangle}
+          tom="red"
+          label="Pendente vencido"
+          value={money(totalVencido)}
+          valueClassName="text-destructive"
+        />
+        <KpiTile
+          icon={CheckCircle2}
+          tom="green"
+          label="Total recebido"
+          value={money(totalRecebido)}
+          valueClassName="text-emerald-700 dark:text-emerald-400"
+        />
+        <KpiTile
+          icon={ListChecks}
+          tom="violet"
+          label="Selecionado"
+          value={money(totalSelecionado)}
+          valueClassName="text-primary"
+          destaque={selecionadas.length > 0}
+        />
       </div>
 
       <Card>
@@ -572,79 +589,124 @@ function ComissoesAReceberPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={(v) => toggleAll(!!v)}
-                    disabled={rows.length === 0}
-                  />
-                </TableHead>
-                <TableHead>Imóvel</TableHead>
-                <TableHead>Corretor</TableHead>
-                <TableHead>Parcela</TableHead>
-                <TableHead>Data prevista</TableHead>
-                <TableHead>Recebida em</TableHead>
-                <TableHead>Forma</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Situação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 && (
+          <div className="hidden md:block print:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma parcela encontrada com os filtros atuais.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((r) => (
-                <TableRow key={r.key}>
-                  <TableCell>
+                  <TableHead className="w-10">
                     <Checkbox
-                      checked={selected.has(r.key)}
-                      onCheckedChange={(v) => toggleOne(r.key, !!v)}
-                      disabled={r.status === "recebida"}
+                      checked={allSelected}
+                      onCheckedChange={(v) => toggleAll(!!v)}
+                      disabled={rows.length === 0}
                     />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {r.sale ? (
-                      <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                  </TableHead>
+                  <TableHead>Imóvel</TableHead>
+                  <TableHead>Corretor</TableHead>
+                  <TableHead>Parcela</TableHead>
+                  <TableHead>Data prevista</TableHead>
+                  <TableHead>Recebida em</TableHead>
+                  <TableHead>Forma</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Situação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      Nenhuma parcela encontrada com os filtros atuais.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {rows.map((r) => (
+                  <TableRow key={r.key}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(r.key)}
+                        onCheckedChange={(v) => toggleOne(r.key, !!v)}
+                        disabled={r.status === "recebida"}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {r.sale ? (
+                        <Link
+                          to="/vendas/$id"
+                          params={{ id: r.sale.id }}
+                          className="hover:underline"
+                        >
+                          {saleLabel(r.sale)}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
+                    <TableCell>{r.parcela}ª</TableCell>
+                    <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
+                    <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
+                    <TableCell>{money(r.valor)}</TableCell>
+                    <TableCell>
+                      <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Celular: cartões com a mesma lista, seleção e situação da tabela. */}
+          <div className="space-y-3 md:hidden print:hidden">
+            {rows.length === 0 && (
+              <EmptyState>Nenhuma parcela encontrada com os filtros atuais.</EmptyState>
+            )}
+            {selectableRows.length > 0 && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox checked={allSelected} onCheckedChange={(v) => toggleAll(!!v)} />
+                Selecionar todas as pendentes
+              </label>
+            )}
+            {rows.map((r) => (
+              <div key={r.key} className="rounded-xl border bg-card p-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    className="mt-0.5"
+                    aria-label={`Selecionar ${r.parcela}ª parcela de ${saleLabel(r.sale)}`}
+                    checked={selected.has(r.key)}
+                    onCheckedChange={(v) => toggleOne(r.key, !!v)}
+                    disabled={r.status === "recebida"}
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <Link
+                        to="/vendas/$id"
+                        params={{ id: r.sale.id }}
+                        className="min-w-0 break-words font-medium hover:underline"
+                      >
                         {saleLabel(r.sale)}
                       </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
-                  <TableCell>{r.parcela}ª</TableCell>
-                  <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
-                  <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>{money(r.valor)}</TableCell>
-                  <TableCell>
-                    <span
-                      className={
-                        r.status === "recebida"
-                          ? "text-emerald-700"
-                          : r.data && r.data < hoje
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                      }
-                    >
-                      {r.status === "recebida"
-                        ? "Recebida"
-                        : r.data && r.data < hoje
-                          ? "Vencida"
-                          : "A vencer"}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <CardField label="Valor">
+                        <span className="font-semibold">{money(r.valor)}</span>
+                      </CardField>
+                      <CardField label="Parcela">{r.parcela}ª</CardField>
+                      <CardField label="Data prevista">{r.data ? dateBR(r.data) : "—"}</CardField>
+                      <CardField label="Recebida em">
+                        {r.recebidoEm ? dateBR(r.recebidoEm) : "—"}
+                      </CardField>
+                      <CardField label="Corretor">{corretorNome(r.sale)}</CardField>
+                      <CardField label="Forma">{r.forma ?? "—"}</CardField>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -686,4 +748,17 @@ function ComissoesAReceberPage() {
       </Dialog>
     </div>
   );
+}
+
+/** Situação da parcela: cor + texto dizendo a etapa e de quem é a vez. */
+function SituacaoParcela({
+  status,
+  vencida,
+}: {
+  status: "pendente" | "recebida";
+  vencida: boolean;
+}) {
+  if (status === "recebida") return <Pill tom="green">Recebida</Pill>;
+  if (vencida) return <Pill tom="red">Vencida — cobrar ou dar baixa</Pill>;
+  return <Pill tom="amber">A vencer — aguardando pagamento</Pill>;
 }

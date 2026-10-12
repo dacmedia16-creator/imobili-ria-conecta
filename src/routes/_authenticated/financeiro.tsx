@@ -5,7 +5,8 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download } from "lucide-react";
+import { Download, Landmark } from "lucide-react";
+import { KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { exportCsv } from "@/lib/csv";
 import {
   aplicarFiltrosComissoes,
@@ -152,7 +153,13 @@ function CentralFinanceiraPage() {
       })),
     );
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading || loading)
+    return (
+      <div className="space-y-6">
+        <KpiGridSkeleton count={8} />
+        <ListSkeleton label="Carregando dados financeiros" rows={4} />
+      </div>
+    );
 
   if (!allowed) {
     return (
@@ -185,12 +192,11 @@ function CentralFinanceiraPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Financeiro</h1>
-        <p className="text-sm text-muted-foreground">
-          Produção gerada, receita líquida, caixa e próximos recebimentos em uma única visão.
-        </p>
-      </div>
+      <PageHeader
+        icon={Landmark}
+        title="Financeiro"
+        description="Produção gerada, receita líquida, caixa e próximos recebimentos em uma única visão."
+      />
 
       <Filters
         filtros={filtros}
@@ -242,7 +248,7 @@ function CentralFinanceiraPage() {
             </Button>
           </div>
           <Card>
-            <CardContent className="overflow-x-auto pt-6">
+            <CardContent className="pt-6 md:overflow-x-auto">
               <RecebimentosTable parcelas={parcelasFiltradas} />
             </CardContent>
           </Card>

@@ -50,7 +50,8 @@ export function Filters({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
             aria-label="Buscar por código ou identificação do imóvel"
-            placeholder="Buscar por código ou identificação do imóvel"
+            placeholder="Buscar código ou imóvel"
+            title="Buscar por código ou identificação do imóvel"
             value={filtros.busca}
             onChange={(e) => set("busca", e.target.value)}
             className="w-full sm:flex-1 sm:max-w-sm"
