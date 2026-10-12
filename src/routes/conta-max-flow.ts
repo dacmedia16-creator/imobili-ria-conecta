@@ -117,7 +117,7 @@ export function retryContaMaxLogin(options: {
   } catch {
     /* armazenamento indisponível: o redirecionamento continua */
   }
-  const url = new URL("https://conta-max-poc.dacmedia16.workers.dev/login");
+  const url = new URL("https://conta.unicaescolha.com.br/login");
   url.searchParams.set("app", options.homolog ? "adm-max-homolog" : "adm-max");
   if (options.returnTo === "/reservas-salas") url.searchParams.set("return_to", options.returnTo);
   options.replace(url.toString());

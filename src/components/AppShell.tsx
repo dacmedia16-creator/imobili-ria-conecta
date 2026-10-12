@@ -94,7 +94,7 @@ function SidebarNav({
     }
     await signOut();
     window.location.assign(
-      IS_HOMOLOG ? "/auth" : "https://conta-max-poc.dacmedia16.workers.dev/logout",
+      IS_HOMOLOG ? "/auth" : "https://conta.unicaescolha.com.br/logout",
     );
   };
 
