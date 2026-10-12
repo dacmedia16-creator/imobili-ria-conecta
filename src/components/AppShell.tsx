@@ -486,21 +486,27 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div
           role="status"
           data-testid="impersonation-banner"
-          className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-lg print:hidden"
+          className="fixed inset-x-0 top-0 z-[100] flex h-12 items-center justify-center gap-2 bg-red-700 px-3 text-sm font-semibold text-white shadow-lg md:gap-3 md:px-4 print:hidden"
         >
-          <ShieldAlert className="h-4 w-4" aria-hidden />
-          <span>
-            Você está vendo como <span className="underline">{impersonation.targetName}</span>
-            {papelVerComo ? ` (${papelVerComo})` : ""} — as ações alteram dados reais.
+          <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
+          {/* Uma linha só, em qualquer largura: a faixa ocupa exatamente os 48px reservados (pt-12). */}
+          <span className="min-w-0 truncate">
+            <span className="hidden sm:inline">Você está vendo como </span>
+            <span className="sm:hidden">Vendo como </span>
+            <span className="underline">{impersonation.targetName}</span>
+            {papelVerComo ? ` (${papelVerComo})` : ""}
+            <span className="hidden lg:inline"> — as ações alteram dados reais.</span>
           </span>
           <Button
             size="sm"
             variant="secondary"
-            className="bg-white text-red-800 hover:bg-red-50"
+            className="shrink-0 bg-white text-red-800 hover:bg-red-50"
             onClick={leaveImpersonation}
+            aria-label="Voltar ao Super Admin"
           >
             <Undo2 className="h-4 w-4" aria-hidden />
-            Voltar ao Super Admin
+            <span className="hidden sm:inline">Voltar ao Super Admin</span>
+            <span className="sm:hidden">Voltar</span>
           </Button>
         </div>
       )}
@@ -568,7 +574,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
             <SheetContent
               side="left"
-              className="w-72 overflow-hidden border-0 p-0 text-white [&>button]:text-white"
+              className={`w-72 overflow-hidden border-0 p-0 text-white [&>button]:z-20 [&>button]:text-white ${topBar ? "pt-12 [&>button]:top-16" : ""}`}
             >
               <BrandHeroBackground />
               <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
