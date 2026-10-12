@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -98,6 +99,8 @@ type ReportOccurrence = Pick<
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
   head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, anyOf("financeiro", "admin", "super_admin")),
   component: RelatoriosPage,
 });
 

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +69,8 @@ import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, anyOf("gestor", "team_leader", "admin", "super_admin")),
   component: EquipesPage,
 });
 

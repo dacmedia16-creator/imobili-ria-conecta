@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +55,11 @@ import {
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
+  beforeLoad: ({ context }) =>
+    requireRoles(
+      context.auth,
+      anyOf("admin", "super_admin", "financeiro", "gestor", "team_leader"),
+    ),
   component: VisaoExecutiva,
 });
 

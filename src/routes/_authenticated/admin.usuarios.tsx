@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +75,8 @@ type AdminUser = Pick<
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   head: () => ({ meta: [{ title: "Usuários" }] }),
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, anyOf("admin", "super_admin", "gestor", "team_leader")),
   component: AdminUsers,
 });
 

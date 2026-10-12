@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useState } from "react";
 import { Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -28,6 +29,8 @@ import {
 
 export const Route = createFileRoute("/_authenticated/comissao-coordenador")({
   head: () => ({ meta: [{ title: "Comissão por Coordenador" }] }),
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, anyOf("admin", "super_admin", "financeiro")),
   component: ComissaoCoordenador,
 });
 
