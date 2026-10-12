@@ -1,17 +1,36 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertTriangle,
   Building2,
   CheckCircle2,
   CircleSlash,
   Copy,
   LogIn,
+  MoreHorizontal,
+  Pause,
   Pencil,
+  Play,
   Plus,
+  Puzzle,
+  Search,
+  ShieldCheck,
   UserPlus,
+  Users,
   XCircle,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { enterOrganization, takeContextExpiredFlag } from "@/lib/platform-context";
 import { toast } from "sonner";
@@ -222,6 +241,88 @@ function ColorField({
   );
 }
 
+// ---------- Peças visuais (t_ad2f0259; inspiração 21st.dev: KPI cards + lista com busca/filtro) ----------
+
+type KpiTone = "blue" | "green" | "amber" | "red";
+const KPI_TONE: Record<KpiTone, string> = {
+  blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  red: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+};
+
+function KpiCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: KpiTone;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+          <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{value}</dd>
+        </div>
+        <span className={cn("rounded-lg p-2", KPI_TONE[tone])} aria-hidden>
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: OrganizationSummary["status"] }) {
+  const ativa = status === "ativa";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        ativa
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+          : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400",
+      )}
+    >
+      <span
+        className={cn("h-1.5 w-1.5 rounded-full", ativa ? "bg-emerald-500" : "bg-rose-500")}
+        aria-hidden
+      />
+      {ativa ? "Ativa" : "Suspensa"}
+    </span>
+  );
+}
+
+function OrgCardSkeleton() {
+  return (
+    <div className="space-y-4 rounded-xl border bg-card p-5" aria-hidden>
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-12 w-12 rounded-lg" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-3 w-1/3" />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Skeleton className="h-14" />
+        <Skeleton className="h-14" />
+        <Skeleton className="h-14" />
+      </div>
+      <Skeleton className="h-24" />
+      <Skeleton className="h-9 w-2/3" />
+    </div>
+  );
+}
+
+type StatusFilter = "todas" | "ativa" | "suspensa";
+
 function PlatformOrganizations() {
   const listFn = useServerFn(listPlatformOrganizations);
   const createFn = useServerFn(createPlatformOrganization);
@@ -286,9 +387,26 @@ function PlatformOrganizations() {
       ativas: acc.ativas + (o.status === "ativa" ? 1 : 0),
       suspensas: acc.suspensas + (o.status === "ativa" ? 0 : 1),
       membros: acc.membros + o.membros,
+      semAdmin: acc.semAdmin + (o.administradores === 0 ? 1 : 0),
     }),
-    { ativas: 0, suspensas: 0, membros: 0 },
+    { ativas: 0, suspensas: 0, membros: 0, semAdmin: 0 },
   );
+
+  // Busca e filtro são só de exibição: a lista carregada do servidor não muda.
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
+  const filteredOrgs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const digits = q.replace(/\D/g, "");
+    return (visibleOrgs ?? []).filter(
+      (o) =>
+        (statusFilter === "todas" || o.status === statusFilter) &&
+        (!q ||
+          o.nome.toLowerCase().includes(q) ||
+          o.slug.toLowerCase().includes(q) ||
+          (digits.length > 0 && (o.cnpj ?? "").includes(digits))),
+    );
+  }, [visibleOrgs, query, statusFilter]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({
@@ -430,26 +548,42 @@ function PlatformOrganizations() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-semibold">Painel da Plataforma</h1>
+      <header className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm sm:p-6">
+        <div
+          className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              className="rounded-xl bg-primary p-2.5 text-primary-foreground shadow-sm"
+              aria-hidden
+            >
+              <Building2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight">Painel da Plataforma</h1>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Aqui você cuida de todas as imobiliárias: cadastra, liga módulos, convida
+                administradores e entra em cada uma. Só o super-admin da plataforma vê esta tela.
+              </p>
+            </div>
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" asChild className="flex-1 sm:flex-none">
+              <Link to="/plataforma/usuarios">
+                <Users className="mr-1 h-4 w-4" /> Usuários de todas as imobiliárias
+              </Link>
+            </Button>
+            <Button onClick={openNew} className="flex-1 sm:flex-none">
+              <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/plataforma/usuarios">Usuários de todas as imobiliárias</Link>
-          </Button>
-          <Button onClick={openNew}>
-            <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
-          </Button>
-        </div>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Área exclusiva do super-admin da plataforma. Gestores e administradores das imobiliárias não
-        veem esta tela.
-      </p>
+      </header>
+
       {import.meta.env.VITE_HOMOLOG_ONLY === "true" && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed bg-muted/30 p-3 text-sm">
           <span>
             Exibição de demonstração: somente agências fictícias A e B. Registros E2E preservados.
           </span>
@@ -467,9 +601,10 @@ function PlatformOrganizations() {
       {expiredNotice !== null && (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-200"
         >
-          <span>
+          <span className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             Seu acesso à {expiredNotice || "imobiliária"} expirou (limite de 8 horas). Você voltou
             ao Painel da Plataforma; entre de novo se precisar.
           </span>
@@ -479,30 +614,97 @@ function PlatformOrganizations() {
         </div>
       )}
       {platformContext && (
-        <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950">
-          Você está dentro da {platformContext.organizationName}. Entrar em outra imobiliária
-          encerra esse acesso; para só voltar à plataforma, use “Sair” na faixa amarela.
+        <div className="flex items-start gap-2 rounded-xl border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            Você está dentro da {platformContext.organizationName}. Entrar em outra imobiliária
+            encerra esse acesso; para só voltar à plataforma, use “Sair” na faixa amarela.
+          </span>
         </div>
       )}
-      {orgs && (
-        <dl className="grid grid-cols-3 gap-3" aria-label="Totais da plataforma">
-          {[
-            ["Imobiliárias ativas", totals.ativas],
-            ["Suspensas", totals.suspensas],
-            ["Usuários ativos", totals.membros],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-md border p-3">
-              <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="text-2xl font-semibold">{value}</dd>
-            </div>
-          ))}
+
+      {orgs ? (
+        <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Totais da plataforma">
+          <KpiCard
+            label="Imobiliárias ativas"
+            value={totals.ativas}
+            hint="Funcionando normalmente"
+            icon={CheckCircle2}
+            tone="green"
+          />
+          <KpiCard
+            label="Suspensas"
+            value={totals.suspensas}
+            hint={totals.suspensas ? "Usuários sem acesso" : "Nenhuma bloqueada"}
+            icon={Pause}
+            tone="red"
+          />
+          <KpiCard
+            label="Usuários ativos"
+            value={totals.membros}
+            hint="Somando todas as imobiliárias"
+            icon={Users}
+            tone="blue"
+          />
+          <KpiCard
+            label="Sem administrador"
+            value={totals.semAdmin}
+            hint={totals.semAdmin ? "Convide o primeiro administrador" : "Todas têm responsável"}
+            icon={ShieldCheck}
+            tone="amber"
+          />
         </dl>
+      ) : (
+        !loadError && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[108px] rounded-xl" />
+            ))}
+          </div>
+        )
+      )}
+
+      {orgs && (orgs.length > 0 || query) && (
+        <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nome, identificador ou CNPJ"
+              aria-label="Buscar imobiliária"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 sm:justify-end">
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={statusFilter}
+              onValueChange={(v) => v && setStatusFilter(v as StatusFilter)}
+              aria-label="Filtrar por situação"
+            >
+              <ToggleGroupItem value="todas">Todas</ToggleGroupItem>
+              <ToggleGroupItem value="ativa">Ativas</ToggleGroupItem>
+              <ToggleGroupItem value="suspensa">Suspensas</ToggleGroupItem>
+            </ToggleGroup>
+            <span className="whitespace-nowrap text-xs text-muted-foreground" aria-live="polite">
+              {filteredOrgs.length} de {visibleOrgs?.length ?? 0}
+            </span>
+          </div>
+        </div>
       )}
 
       {loadError && (
-        <Card>
-          <CardContent className="flex items-center justify-between gap-2 pt-6">
-            <p role="alert" className="text-sm text-destructive">
+        <Card className="rounded-xl border-destructive/40">
+          <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-6">
+            <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" aria-hidden />
               {loadError}
             </p>
             <Button variant="outline" onClick={() => void reload()}>
@@ -511,125 +713,274 @@ function PlatformOrganizations() {
           </CardContent>
         </Card>
       )}
-      {!orgs && !loadError && <p>Carregando imobiliárias…</p>}
+      {!orgs && !loadError && (
+        <div className="grid gap-4 md:grid-cols-2" role="status">
+          <span className="sr-only">Carregando imobiliárias…</span>
+          <OrgCardSkeleton />
+          <OrgCardSkeleton />
+        </div>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(visibleOrgs ?? []).map((o) => (
-          <Card key={o.id} className={o.status === "suspensa" ? "opacity-70" : ""}>
-            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md border"
-                  style={{ background: o.cor_primaria ?? undefined }}
-                >
-                  {o.logoUrl ? (
-                    <img
-                      src={o.logoUrl}
-                      alt={`Logo ${o.nome}`}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden />
-                  )}
-                </div>
-                <div>
-                  <CardTitle className="text-base">{o.nome}</CardTitle>
-                  <p className="text-xs text-muted-foreground">{o.slug}</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge variant={o.status === "ativa" ? "default" : "destructive"}>
-                  {o.status === "ativa" ? "Ativa" : "Suspensa"}
-                </Badge>
-                {o.legacy_default && <Badge variant="outline">Agência original</Badge>}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <dl className="grid grid-cols-2 gap-1 text-sm">
-                <dt className="text-muted-foreground">CNPJ</dt>
-                <dd>{o.cnpj ? formatCnpj(o.cnpj) : "—"}</dd>
-                <dt className="text-muted-foreground">Usuários ativos</dt>
-                <dd>{o.membros}</dd>
-                <dt className="text-muted-foreground">Administradores</dt>
-                <dd>
-                  {o.administradores === 0 ? "Nenhum — convide o primeiro" : o.administradores}
-                </dd>
-                <dt className="text-muted-foreground">Cores</dt>
-                <dd className="flex gap-1">
-                  {[o.cor_primaria, o.cor_secundaria].filter(Boolean).map((c) => (
-                    <span
-                      key={c}
-                      title={c ?? ""}
-                      className="h-4 w-4 rounded border"
-                      style={{ background: c ?? undefined }}
-                    />
-                  ))}
-                  {!o.cor_primaria && !o.cor_secundaria && "—"}
-                </dd>
-              </dl>
-              <div className="space-y-2 rounded-md border p-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Módulos (só você liga ou desliga)
-                </p>
-                {ORGANIZATION_MODULES.map((m) => {
-                  const id = `mod-${o.id}-${m}`;
-                  const on = o.modulos[m];
-                  return (
-                    <div key={m} className="flex items-center justify-between gap-2 text-sm">
-                      <label htmlFor={id}>
-                        {ORGANIZATION_MODULE_LABELS[m]}{" "}
-                        <span className={on ? "text-green-700" : "text-muted-foreground"}>
-                          — {on ? "Ligado" : "Desligado"}
-                        </span>
-                      </label>
-                      <Switch
-                        id={id}
-                        checked={on}
-                        disabled={savingModule !== null}
-                        onCheckedChange={(v) => void toggleModule(o, m, v)}
-                      />
+      {orgs && filteredOrgs.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-10 text-center">
+          <span className="rounded-full bg-muted p-3" aria-hidden>
+            <Building2 className="h-6 w-6 text-muted-foreground" />
+          </span>
+          {(visibleOrgs?.length ?? 0) === 0 ? (
+            <>
+              <p className="font-medium">Nenhuma imobiliária cadastrada ainda</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Cadastre a primeira imobiliária e, se quiser, já convide o administrador dela.
+              </p>
+              <Button onClick={openNew}>
+                <Plus className="mr-1 h-4 w-4" /> Nova imobiliária
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">Nenhuma imobiliária encontrada</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Nada combina com a busca ou o filtro escolhido.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("todas");
+                }}
+              >
+                Limpar busca e filtro
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        {filteredOrgs.map((o) => {
+          const ativa = o.status === "ativa";
+          const aqui = platformContext?.organizationId === o.id;
+          const modulosLigados = ORGANIZATION_MODULES.filter((m) => o.modulos[m]).length;
+          return (
+            <div
+              key={o.id}
+              className={cn(
+                "group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+                !ativa && "border-rose-500/30",
+                aqui && "ring-2 ring-amber-400",
+              )}
+            >
+              <div
+                className="h-1.5 w-full"
+                style={{
+                  background:
+                    o.cor_primaria || o.cor_secundaria
+                      ? `linear-gradient(90deg, ${o.cor_primaria ?? o.cor_secundaria}, ${o.cor_secundaria ?? o.cor_primaria})`
+                      : "var(--muted)",
+                }}
+                aria-hidden
+              />
+              <div className="flex flex-1 flex-col gap-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border shadow-sm",
+                        !ativa && "grayscale",
+                      )}
+                      style={{ background: o.cor_primaria ?? undefined }}
+                    >
+                      {o.logoUrl ? (
+                        <img
+                          src={o.logoUrl}
+                          alt={`Logo ${o.nome}`}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Building2
+                          className={cn(
+                            "h-6 w-6",
+                            o.cor_primaria ? "text-white/90" : "text-muted-foreground",
+                          )}
+                          aria-hidden
+                        />
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  disabled={o.status !== "ativa" || entering !== null}
-                  onClick={() => void enterOrg(o)}
-                  title={o.status !== "ativa" ? "Imobiliária suspensa" : undefined}
-                >
-                  <LogIn className="mr-1 h-4 w-4" />
-                  {entering === o.id
-                    ? "Entrando…"
-                    : platformContext?.organizationId === o.id
-                      ? "Você está aqui — reentrar"
-                      : "Entrar como administrador"}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => openEdit(o)}>
-                  <Pencil className="mr-1 h-4 w-4" /> Editar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={o.status !== "ativa"}
-                  onClick={() => openInvite(o)}
-                >
-                  <UserPlus className="mr-1 h-4 w-4" /> Convidar administrador
-                </Button>
-                {!o.legacy_default && (
+                    <div className="min-w-0">
+                      <h2 className="line-clamp-2 break-words text-base font-semibold leading-tight">
+                        {o.nome}
+                      </h2>
+                      <p className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
+                        {o.slug}
+                        {[o.cor_primaria, o.cor_secundaria].filter(Boolean).map((c) => (
+                          <span
+                            key={c}
+                            title={`Cor ${c ?? ""}`}
+                            className="inline-block h-3 w-3 rounded-full border"
+                            style={{ background: c ?? undefined }}
+                          />
+                        ))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusPill status={o.status} />
+                    {o.legacy_default && (
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        Agência original
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {!ativa && (
+                  <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+                    Suspensa: os usuários desta imobiliária estão sem acesso. Use “Reativar” para
+                    liberar.
+                  </p>
+                )}
+
+                <dl className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg bg-muted/50 px-2 py-2">
+                    <dt className="text-[11px] text-muted-foreground">Usuários ativos</dt>
+                    <dd className="text-lg font-semibold tabular-nums">{o.membros}</dd>
+                  </div>
+                  <div
+                    className={cn(
+                      "rounded-lg px-2 py-2",
+                      o.administradores === 0
+                        ? "bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                        : "bg-muted/50",
+                    )}
+                  >
+                    <dt className="text-[11px] text-muted-foreground">Administradores</dt>
+                    <dd className="text-lg font-semibold tabular-nums">{o.administradores}</dd>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 px-2 py-2">
+                    <dt className="text-[11px] text-muted-foreground">CNPJ</dt>
+                    <dd className="truncate pt-1 text-xs font-medium">
+                      {o.cnpj ? formatCnpj(o.cnpj) : "Não informado"}
+                    </dd>
+                  </div>
+                </dl>
+                {o.administradores === 0 && (
+                  <p className="-mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                    Nenhum administrador — convide o primeiro.
+                  </p>
+                )}
+
+                <div className="rounded-lg border">
+                  <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Puzzle className="h-3.5 w-3.5" aria-hidden />
+                      Módulos (só você liga ou desliga)
+                    </p>
+                    <span className="text-xs text-muted-foreground">
+                      {modulosLigados} de {ORGANIZATION_MODULES.length} ligados
+                    </span>
+                  </div>
+                  <ul className="divide-y">
+                    {ORGANIZATION_MODULES.map((m) => {
+                      const id = `mod-${o.id}-${m}`;
+                      const on = o.modulos[m];
+                      return (
+                        <li
+                          key={m}
+                          className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                        >
+                          <label htmlFor={id} className="flex min-w-0 items-center gap-2">
+                            <span
+                              className={cn(
+                                "h-2 w-2 shrink-0 rounded-full",
+                                on ? "bg-emerald-500" : "bg-muted-foreground/30",
+                              )}
+                              aria-hidden
+                            />
+                            <span className="flex min-w-0 flex-col leading-tight">
+                              <span className="break-words">{ORGANIZATION_MODULE_LABELS[m]}</span>
+                              <span
+                                className={cn(
+                                  "text-xs",
+                                  on
+                                    ? "text-emerald-700 dark:text-emerald-400"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {on ? "Ligado" : "Desligado"}
+                              </span>
+                            </span>
+                          </label>
+                          <Switch
+                            id={id}
+                            checked={on}
+                            disabled={savingModule !== null}
+                            onCheckedChange={(v) => void toggleModule(o, m, v)}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                <div className="mt-auto flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
-                    variant={o.status === "ativa" ? "destructive" : "default"}
-                    onClick={() => void toggleStatus(o)}
+                    className="flex-1 sm:flex-none"
+                    disabled={!ativa || entering !== null}
+                    onClick={() => void enterOrg(o)}
+                    title={!ativa ? "Imobiliária suspensa" : undefined}
                   >
-                    {o.status === "ativa" ? "Suspender" : "Reativar"}
+                    <LogIn className="mr-1 h-4 w-4" />
+                    {entering === o.id
+                      ? "Entrando…"
+                      : aqui
+                        ? "Você está aqui — reentrar"
+                        : "Entrar como administrador"}
                   </Button>
-                )}
+                  <Button size="sm" variant="outline" onClick={() => openEdit(o)}>
+                    <Pencil className="mr-1 h-4 w-4" /> Editar
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="ghost" aria-label={`Mais ações para ${o.nome}`}>
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="ml-1 sm:hidden">Mais</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel className="truncate">{o.nome}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled={!ativa} onSelect={() => openInvite(o)}>
+                        <UserPlus className="mr-2 h-4 w-4" /> Convidar administrador
+                      </DropdownMenuItem>
+                      {!o.legacy_default && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => void toggleStatus(o)}
+                            className={
+                              ativa
+                                ? "text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                : "text-emerald-700 focus:text-emerald-700 dark:text-emerald-400"
+                            }
+                          >
+                            {ativa ? (
+                              <Pause className="mr-2 h-4 w-4" />
+                            ) : (
+                              <Play className="mr-2 h-4 w-4" />
+                            )}
+                            {ativa ? "Suspender" : "Reativar"}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       <Dialog open={editing !== null} onOpenChange={(open) => !open && closeDialogs()}>
