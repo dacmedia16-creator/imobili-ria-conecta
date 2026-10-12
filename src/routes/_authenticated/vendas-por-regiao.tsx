@@ -1,7 +1,23 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, MapPin, Printer } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Handshake,
+  Map as MapIcon,
+  MapPin,
+  MapPinOff,
+  Printer,
+  Wallet,
+} from "lucide-react";
+import {
+  EmptyState,
+  KpiGridSkeleton,
+  KpiTile,
+  ListSkeleton,
+  PageHeader,
+} from "@/components/visual/base";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -250,7 +266,13 @@ function VendasPorRegiaoPage() {
   };
 
   if (authLoading || loading)
-    return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div role="status" aria-live="polite" className="space-y-6">
+        <span className="sr-only">Carregando…</span>
+        <KpiGridSkeleton count={3} className="sm:grid-cols-3 md:grid-cols-3" />
+        <ListSkeleton rows={5} label="Carregando regiões" />
+      </div>
+    );
   if (!allowed)
     return (
       <Card>
@@ -262,18 +284,26 @@ function VendasPorRegiaoPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vendas por região</h1>
-          <p className="text-sm text-muted-foreground print:hidden">
+      <PageHeader
+        icon={MapIcon}
+        title="Vendas por região"
+        description={
+          <span className="print:hidden">
             Onde estão os imóveis vendidos da imobiliária: quantidade e VGV por cidade e bairro.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Imprimir / baixar
-        </Button>
-      </div>
+          </span>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="print:hidden"
+            onClick={() => window.print()}
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimir / baixar
+          </Button>
+        }
+      />
 
       {erro && (
         <Card className="border-destructive/40">
@@ -335,25 +365,17 @@ function VendasPorRegiaoPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Vendas</div>
-            <div className="text-2xl font-semibold">{totalQtd}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">VGV</div>
-            <div className="text-2xl font-semibold">{brl(totalVgv)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">Sem bairro ou cidade</div>
-            <div className="text-2xl font-semibold">{semEndereco}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <KpiTile icon={Handshake} tom="blue" label="Vendas" value={String(totalQtd)} />
+        <KpiTile icon={Wallet} tom="green" label="VGV" value={brl(totalVgv)} />
+        <div className="col-span-2 sm:col-span-1">
+          <KpiTile
+            icon={MapPinOff}
+            tom={semEndereco > 0 ? "amber" : "slate"}
+            label="Sem bairro ou cidade"
+            value={String(semEndereco)}
+          />
+        </div>
       </div>
 
       {totalQtd > 0 && (
@@ -392,11 +414,7 @@ function VendasPorRegiaoPage() {
       )}
 
       {cidades.length === 0 && (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma venda encontrada com esses filtros.
-          </CardContent>
-        </Card>
+        <EmptyState icon={MapPin}>Nenhuma venda encontrada com esses filtros.</EmptyState>
       )}
 
       {cidades.map((c) => (

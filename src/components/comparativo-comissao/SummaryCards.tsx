@@ -1,29 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Building2, Calculator, Hash, Percent, Scale, Wallet } from "lucide-react";
 import { InfoDot } from "@/components/dashboard/shared";
+import { KpiTile } from "@/components/visual/base";
 import type { ResumoComparativo } from "@/lib/comparativo-comissao-types";
 import { formatMoney, formatPercent } from "./format";
-
-function Card1({
-  label,
-  valor,
-  tone,
-  info,
-}: {
-  label: string;
-  valor: string;
-  tone?: string;
-  info: string;
-}) {
-  return (
-    <Card className="relative">
-      <InfoDot text={info} />
-      <CardContent className="pt-6">
-        <p className="pr-4 text-xs text-muted-foreground">{label}</p>
-        <p className={`text-xl font-semibold ${tone ?? ""}`}>{valor}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export function SummaryCards({ resumo }: { resumo: ResumoComparativo }) {
   const diferencaTone =
@@ -33,37 +12,59 @@ export function SummaryCards({ resumo }: { resumo: ResumoComparativo }) {
         ? "text-blue-700 dark:text-blue-400"
         : "";
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      <Card1
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <KpiTile
+        icon={Hash}
+        tom="slate"
         label="Quantidade de vendas"
-        valor={String(resumo.quantidade)}
-        info="Vendas efetivadas que atendem aos filtros aplicados."
+        value={String(resumo.quantidade)}
+        info={<InfoDot text="Vendas efetivadas que atendem aos filtros aplicados." />}
       />
-      <Card1
+      <KpiTile
+        icon={Building2}
+        tom="blue"
         label="VGV atribuído à REMAX"
-        valor={formatMoney(resumo.vgvRealTotal)}
-        info="VGV proporcional à parte da comissão que ficou com a REMAX, sem parceria externa."
+        value={formatMoney(resumo.vgvRealTotal)}
+        info={
+          <InfoDot text="VGV proporcional à parte da comissão que ficou com a REMAX, sem parceria externa." />
+        }
       />
-      <Card1
+      <KpiTile
+        icon={Wallet}
+        tom="green"
         label="Comissão gerada pela REMAX"
-        valor={formatMoney(resumo.comissaoTotal)}
-        info="Comissão própria gerada pelas vendas do período, após descontar parceria externa."
+        value={formatMoney(resumo.comissaoTotal)}
+        info={
+          <InfoDot text="Comissão própria gerada pelas vendas do período, após descontar parceria externa." />
+        }
       />
-      <Card1
+      <KpiTile
+        icon={Percent}
+        tom="violet"
         label="Percentual médio de comissão"
-        valor={formatPercent(resumo.percentualMedioPonderado)}
-        info="Percentual médio ponderado da comissão própria da REMAX sobre o VGV atribuído à empresa."
+        value={formatPercent(resumo.percentualMedioPonderado)}
+        info={
+          <InfoDot text="Percentual médio ponderado da comissão própria da REMAX sobre o VGV atribuído à empresa." />
+        }
       />
-      <Card1
+      <KpiTile
+        icon={Calculator}
+        tom="amber"
         label="VGV equivalente a 6%"
-        valor={formatMoney(resumo.vgvEquivalente6Total)}
-        info="VGV que produziria a mesma comissão caso todas as vendas tivessem comissão de 6%."
+        value={formatMoney(resumo.vgvEquivalente6Total)}
+        info={
+          <InfoDot text="VGV que produziria a mesma comissão caso todas as vendas tivessem comissão de 6%." />
+        }
       />
-      <Card1
+      <KpiTile
+        icon={Scale}
+        tom="red"
         label="Diferença para o padrão de 6%"
-        valor={formatMoney(resumo.diferencaTotal)}
-        tone={diferencaTone}
-        info="Diferença entre o VGV atribuído à REMAX e o VGV equivalente calculado com comissão de 6%."
+        value={formatMoney(resumo.diferencaTotal)}
+        valueClassName={diferencaTone}
+        info={
+          <InfoDot text="Diferença entre o VGV atribuído à REMAX e o VGV equivalente calculado com comissão de 6%." />
+        }
       />
     </div>
   );

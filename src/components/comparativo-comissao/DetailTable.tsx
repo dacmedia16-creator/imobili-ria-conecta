@@ -16,6 +16,7 @@ import type {
   OrdenacaoDirecao,
 } from "@/lib/comparativo-comissao-types";
 import { ordenar } from "@/lib/comparativo-comissao-filters";
+import { CardField, EmptyState } from "@/components/visual/base";
 import { SituacaoBadge } from "./SituacaoBadge";
 import { formatMoney, formatPercent, formatDateBR } from "./format";
 
@@ -63,7 +64,74 @@ export function DetailTable({ rows }: { rows: ComparativoRowComCalculo[] }) {
         <CardTitle className="text-base">Vendas ({rows.length})</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="max-h-[70vh] overflow-auto rounded-md border">
+        {/* Celular: cartões (sem rolagem lateral) + ordenação por botões. Mesmos dados da tabela. */}
+        <div className="space-y-3 md:hidden">
+          <div className="flex flex-wrap gap-1.5" aria-label="Ordenar vendas por">
+            {COLUNAS.map((c) => (
+              <button
+                key={c.campo}
+                type="button"
+                onClick={() => toggleSort(c.campo)}
+                aria-pressed={campo === c.campo}
+                className={`inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs ${campo === c.campo ? "border-primary/40 bg-primary/10 font-medium text-foreground" : "text-muted-foreground"}`}
+              >
+                {c.label}
+                {campo === c.campo &&
+                  (direcao === "asc" ? (
+                    <ArrowUp className="h-3 w-3" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3" />
+                  ))}
+              </button>
+            ))}
+          </div>
+          {sorted.length === 0 && (
+            <EmptyState>Nenhuma venda encontrada no período/filtro selecionado.</EmptyState>
+          )}
+          {sorted.map((r) => (
+            <div key={r.sale_id} className="space-y-2 rounded-xl border bg-card p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    to="/vendas/$id"
+                    params={{ id: r.sale_id }}
+                    className="break-words font-medium hover:underline"
+                  >
+                    {r.codigo_interno || r.imovel_id || `Venda #${r.sale_id.slice(0, 8)}`}
+                  </Link>
+                  <p className="break-words text-xs text-muted-foreground">
+                    {formatDateBR(r.data_fechamento)} ·{" "}
+                    {MODALIDADE_LABEL[r.modalidade] ?? r.modalidade}
+                  </p>
+                </div>
+                <SituacaoBadge situacao={r.situacao} />
+              </div>
+              {r.divergenciaCadastro && (
+                <p className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-3 w-3" />
+                  Divergência no cadastro
+                </p>
+              )}
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <CardField label="Valor do imóvel">{formatMoney(r.valor_negociado)}</CardField>
+                <CardField label="Comissão REMAX">{formatMoney(r.valor_total_comissao)}</CardField>
+                <CardField label="% real">{formatPercent(r.percentualReal)}</CardField>
+                <CardField label="VGV equiv. 6%">{formatMoney(r.vgvEquivalente6)}</CardField>
+                <CardField label="Diferença" className="col-span-2">
+                  <span
+                    className={`inline-flex items-center gap-1 ${r.situacao === "abaixo" ? "text-destructive" : r.situacao === "acima" ? "text-blue-700 dark:text-blue-400" : ""}`}
+                  >
+                    <DiferencaIcon situacao={r.situacao} />
+                    {formatMoney(r.diferencaVgv)}
+                  </span>
+                </CardField>
+                <CardField label="Corretor">{r.corretorNome}</CardField>
+                <CardField label="Equipe">{r.teamNome ?? "—"}</CardField>
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="hidden max-h-[70vh] overflow-auto rounded-md border md:block">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

@@ -136,6 +136,78 @@ export function EmptyState({
   );
 }
 
+/**
+ * KPI com ícone colorido (mesmo visual do Painel da Equipe, onda 2). Só exibe o valor já
+ * calculado pela tela — não calcula nada.
+ */
+export function KpiTile({
+  label,
+  value,
+  icon: Icon,
+  tom = "blue",
+  valueClassName,
+  info,
+  destaque,
+  children,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  icon: IconType;
+  tom?: Tom;
+  valueClassName?: string;
+  /** Elemento opcional de ajuda (ex.: InfoDot), mostrado ao lado do ícone. */
+  info?: ReactNode;
+  destaque?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-xl border bg-card p-3 shadow-sm transition-shadow hover:shadow-md sm:p-4",
+        destaque && "border-primary/40 ring-1 ring-primary/20",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 text-xs font-medium leading-tight text-muted-foreground">{label}</p>
+        <div className="flex shrink-0 items-center gap-1">
+          {/* InfoDot é absoluto (canto do pai): esta caixa de 28px o alinha ao lado do ícone. */}
+          {info && <span className="relative block h-7 w-7">{info}</span>}
+          <span className={cn("rounded-lg p-1.5", TOM_ICONE[tom])} aria-hidden>
+            <Icon className="h-4 w-4" />
+          </span>
+        </div>
+      </div>
+      <p
+        className={cn(
+          "mt-1 break-words text-lg font-semibold tabular-nums tracking-tight sm:text-2xl",
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
+      {children && <div className="mt-1 text-xs text-muted-foreground">{children}</div>}
+    </div>
+  );
+}
+
+/** Linha "rótulo: valor" usada nos cartões que substituem tabelas no celular. */
+export function CardField({
+  label,
+  children,
+  className,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="break-words text-sm tabular-nums">{children}</dd>
+    </div>
+  );
+}
+
 /** Skeleton de grade de KPIs (mesmo formato do Painel da Equipe). */
 export function KpiGridSkeleton({ count = 4, className }: { count?: number; className?: string }) {
   return (

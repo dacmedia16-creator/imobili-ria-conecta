@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { podeAcessarComparativo6pct, resumoComparativo } from "@/lib/comparativo-comissao-calc";
 import { aplicarFiltros, filtrosPadrao } from "@/lib/comparativo-comissao-filters";
 import {
@@ -81,7 +83,14 @@ function ComparativoComissaoPage() {
   const filtradas = useMemo(() => aplicarFiltros(rows, filtros), [rows, filtros]);
   const resumo = useMemo(() => resumoComparativo(filtradas), [filtradas]);
 
-  if (authLoading || loading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading || loading)
+    return (
+      <div className="space-y-6" role="status" aria-live="polite">
+        <span className="sr-only">Carregando…</span>
+        <KpiGridSkeleton count={6} className="lg:grid-cols-3 xl:grid-cols-6" />
+        <ListSkeleton rows={6} label="Carregando vendas" />
+      </div>
+    );
 
   if (!allowed) {
     return (
@@ -95,15 +104,11 @@ function ComparativoComissaoPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Comparativo de Comissão — Padrão 6%
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Comparação da produção atribuída à REMAX, já sem parceria externa, considerando
-          comissão-padrão de 6%.
-        </p>
-      </div>
+      <PageHeader
+        icon={Scale}
+        title="Comparativo de Comissão — Padrão 6%"
+        description="Comparação da produção atribuída à REMAX, já sem parceria externa, considerando comissão-padrão de 6%."
+      />
 
       {erro && (
         <Card className="border-destructive/40">
