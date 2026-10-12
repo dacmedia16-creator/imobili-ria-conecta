@@ -42,6 +42,17 @@ Desativação adiada volta como `nada_a_fazer` e a outbox fica `ok`; ligar a fla
 5. Acompanhar: `select status, count(*) from public.sync_outbox group by 1;`, `sync_log` com `acao like '%desativar%'` e `sync_conflicts` abertos.
 Reversão: `allow_deactivate=false` + remover o secret dos satélites; quem foi desligado volta reativando no ADM.
 
+## Imobiliária nova: provisionamento automático (cartão t_c0844acb, ligado em 12/10/2026)
+1. Gatilho `trg_zz_sync_provisao` (AFTER INSERT em `organizations`) só anota a org em `sync_org_provision` (pendente, +2 min). Não anota se `provision_mode='off'` ou se já existe `sync_org_map` (as 4 ligadas à mão).
+2. A cada execução, `sync-satelites` chama `processarProvisionamento`: envia `{acao:'provisionar_org', modo:'dry_run'}` assinado para os 2 satélites. Se algum responder `conflito` (mesmo CNPJ, mesmo nome ou nome contido, ignorando RE/MAX/LTDA/acentos; no Estudo também o mesmo slug), registra em `sync_conflicts` (`adm_org_id`, `adm_user_id` nulo), marca `aguardando_humano` e **não cria nada**.
+3. Em `live`: cria nos 2 satélites (RPC `adm_sync_provisionar_org`, 1 transação, idempotente por `adm_org_id`). Visita = imobiliária + assinatura Plano Teste R$ 0 sem Asaas + 8 módulos + `adm_sync_orgs`; Estudo = organização + `adm_sync_orgs` (origem `provisionado_adm`, já aceita sem entrar no `ADM_SYNC_ALLOWED_ORGS`).
+4. Só com os 2 ids `sync_provisao_concluir` grava `sync_org_map` (live, Estudo/Visita ligados) e chama `sync_enfileirar_org` → pessoas seguem pelo sync normal. Falha no meio = nova tentativa (1/5/15/60/360 min; o reenvio devolve `ja_provisionada` onde já criou).
+5. Travas: `sync_config.provision_mode` (`off`/`dry_run`/`live`) + secret `ADM_SYNC_ALLOW_PROVISION=true` em cada satélite (sem ele o satélite só faz prévia) + `ADM_SYNC_MODE`.
+6. Operação: reenviar `select public.sync_provisao_enfileirar('<org>');` · excluir org (teste) `select public.sync_provisao_ignorar('<org>', 'motivo');` · fila `select status, count(*) from public.sync_org_provision group by 1;`.
+7. Atenção: desativar o **dono** (owner) no Estudo continua indo para `sync_conflicts` (`desativar_owner`), por regra.
+8. Reversão: `update public.sync_config set provision_mode='off';` (instantâneo); estrutura: `supabase/rollback/20261012150000_sync_provisionar_org.sql` (ADM) e `supabase/rollback/20261012150000_adm_sync_provisionar_org.sql` (satélites). Orgs já criadas não são apagadas.
+9. Ensaio 12/10: org "ZZ Teste Provisionamento" (dry_run → live → trava → idempotência → suspensa nos 3, sem apagar).
+
 ## Reversão
 1. Instantânea: `update public.sync_config set mode='off';` (ou a org em `off`, ou `ADM_SYNC_MODE=off` no satélite).
 2. Parar o robô: `sync_cron_desligar.sql`.
