@@ -89,7 +89,7 @@ export const listPlatformOrganizations = createServerFn({ method: "GET" })
 
 export const createPlatformOrganization = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createSchema.parse(input))
+  .validator((input: unknown) => createSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { user, admin, callerId, server } = await clients(context);
     return server.createOrganizationFlow(user, admin, callerId, {
@@ -102,7 +102,7 @@ export const createPlatformOrganization = createServerFn({ method: "POST" })
 
 export const updatePlatformOrganization = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => updateSchema.parse(input))
+  .validator((input: unknown) => updateSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { user, admin, callerId, server } = await clients(context);
     return server.updateOrganizationFlow(user, admin, callerId, {
@@ -114,7 +114,7 @@ export const updatePlatformOrganization = createServerFn({ method: "POST" })
 
 export const setPlatformOrganizationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => statusSchema.parse(input))
+  .validator((input: unknown) => statusSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { user, admin, callerId, server } = await clients(context);
     await server.setOrganizationStatus(user, admin, callerId, data.organizationId, data.status);
@@ -123,7 +123,7 @@ export const setPlatformOrganizationStatus = createServerFn({ method: "POST" })
 
 export const setPlatformOrganizationModule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => moduleSchema.parse(input))
+  .validator((input: unknown) => moduleSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { user, admin, callerId, server } = await clients(context);
     await server.setOrganizationModule(
@@ -139,7 +139,7 @@ export const setPlatformOrganizationModule = createServerFn({ method: "POST" })
 
 export const invitePlatformOrganizationAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inviteSchema.parse(input))
+  .validator((input: unknown) => inviteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { admin, callerId, server } = await clients(context);
     return server.inviteOrganizationAdmin(admin, callerId, data);

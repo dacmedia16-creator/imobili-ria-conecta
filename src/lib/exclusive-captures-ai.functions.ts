@@ -137,7 +137,7 @@ async function readWithGemini(
  */
 export const extractCaptureDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Input.parse(input))
+  .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data, context }) => {
     const res = await readWithGemini(
       context.supabase as unknown as Supa,
@@ -157,7 +157,7 @@ export const extractCaptureDocument = createServerFn({ method: "POST" })
  */
 export const extractSignedContract = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ContractInput.parse(input))
+  .validator((input: unknown) => ContractInput.parse(input))
   .handler(async ({ data, context }) => {
     const res = await readWithGemini(
       context.supabase as unknown as Supa,

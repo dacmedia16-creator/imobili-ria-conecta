@@ -26,7 +26,7 @@ const ApplyInput = z.object({ saleId: z.string().uuid() });
  */
 export const extractDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ExtractInput.parse(input))
+  .validator((input: unknown) => ExtractInput.parse(input))
   .handler(async ({ data, context }) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
@@ -152,7 +152,7 @@ export const extractDocument = createServerFn({ method: "POST" })
  */
 export const applySaleExtractions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ApplyInput.parse(input))
+  .validator((input: unknown) => ApplyInput.parse(input))
   .handler(async ({ data, context }) => {
     const supabase = context.supabase;
     const userId = context.userId;

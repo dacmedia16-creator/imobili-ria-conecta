@@ -7,6 +7,11 @@ vi.mock("@tanstack/react-start", () => ({
     let validate: (i: unknown) => unknown = (i) => i;
     const b = {
       middleware: () => b,
+      validator: (v: (i: unknown) => unknown) => {
+        validate = v;
+        return b;
+      },
+      // forma antiga (deprecated) ainda usada por owner-feedback.functions
       inputValidator: (v: (i: unknown) => unknown) => {
         validate = v;
         return b;
