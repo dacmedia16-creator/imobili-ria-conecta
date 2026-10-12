@@ -108,7 +108,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FICHA_CAPTACAO_CAMPOS,
   TIPOS_IMOVEL,
@@ -138,6 +144,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { ListSkeleton } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/$id")({
   beforeLoad: guardExclusiveRoute,
@@ -612,7 +619,7 @@ function ExclusiveDetail() {
       toast.error(errorMessage(e, "Falha ao reunir documentos"));
     }
   };
-  if (loading) return <p>Carregando captação…</p>;
+  if (loading) return <ListSkeleton rows={5} label="Carregando captação" />;
   if (!capture || !form)
     return (
       <DetailNotFound
@@ -848,8 +855,8 @@ function ExclusiveDetail() {
       <Link to="/exclusividades" className="text-sm text-primary underline">
         ← Captações
       </Link>
-      <div>
-        <h1 className="text-2xl font-semibold">
+      <div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-sm sm:p-6">
+        <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
           Captação exclusiva · {captureUnitLabel(capture, units)}
         </h1>
         <p className="text-sm text-muted-foreground">
