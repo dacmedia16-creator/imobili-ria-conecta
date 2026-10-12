@@ -48,7 +48,10 @@ describe("filtro mensal de ocorrências concluídas", () => {
     expect(pagina).toContain('.rpc("relatorio_ocorrencias_concluidas")');
     // Papéis vêm de loadMyAccess (inclui o contexto da plataforma); nenhuma tabela é lida aqui.
     expect(pagina.match(/\.from\("[^"]+"\)/g)).toBeNull();
-    expect(pagina).toContain("loadMyAccess(session.user.id)");
+    // Guarda via contexto do roteador (route-access), falhando fechado se os papéis não carregarem.
+    expect(pagina).toMatch(
+      /requireRoles\(context\.auth, podeVerOcorrenciasConcluidas, \{ denyOnError: true \}\)/,
+    );
     expect(pagina).not.toMatch(/router\.navigate|cursor-pointer/);
     expect(pagina).toContain('to="/vendas/$id"');
     expect(pagina).toContain("Abrir ocorrência de");

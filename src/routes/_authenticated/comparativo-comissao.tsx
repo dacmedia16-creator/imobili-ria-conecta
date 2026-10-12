@@ -1,8 +1,6 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { podeAcessarComparativo6pct, resumoComparativo } from "@/lib/comparativo-comissao-calc";
@@ -27,17 +25,7 @@ export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
   // Proteção no nível da rota, além da checagem no componente (useAuth) e do RAISE EXCEPTION dentro
   // da RPC comparativo_comissao_6pct: quem tenta acessar a URL direto sem um dos três papéis é
   // barrado antes de qualquer dado carregar e mandado de volta pro Dashboard.
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles } = await loadMyAccess(session.user.id);
-    if (!podeAcessarComparativo6pct(roles)) {
-      toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) => requireRoles(context.auth, podeAcessarComparativo6pct),
   component: ComparativoComissaoPage,
 });
 
