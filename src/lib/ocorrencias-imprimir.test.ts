@@ -63,7 +63,9 @@ describe("contrato de impressão de ocorrências concluídas", () => {
     }
     expect(podeImprimirOcorrenciasConcluidas([])).toBe(false);
     expect(podeImprimirOcorrenciasConcluidas(["corretor", "gestor"])).toBe(true);
-    expect(route).toContain("!podeImprimirOcorrenciasConcluidas(roles)");
+    expect(route).toMatch(
+      /requireRoles\(context\.auth, podeImprimirOcorrenciasConcluidas, \{\s*denyOnError: true,/,
+    );
     expect(list).toContain("{canPrint && (");
     expect(list).toContain("if (!canPrint)");
     expect(migration).toContain("ARRAY['gestor', 'team_leader']::public.app_role[]");

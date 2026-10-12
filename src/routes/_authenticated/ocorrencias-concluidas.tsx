@@ -1,8 +1,8 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireRoles } from "@/lib/route-access";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { loadMyAccess } from "@/lib/platform-context";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,17 +45,8 @@ export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
   head: () => ({ meta: [{ title: "Ocorrências concluídas" }] }),
   // Menu, rota e componente compartilham papéis. A RPC verifica usuário ativo e
   // autorização do relatório global; RLS dos detalhes/escrita permanece intacta.
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/auth" });
-    const { roles, error } = await loadMyAccess(session.user.id);
-    if (error || !podeVerOcorrenciasConcluidas(roles)) {
-      toast.error("Acesso não autorizado.");
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: ({ context }) =>
+    requireRoles(context.auth, podeVerOcorrenciasConcluidas, { denyOnError: true }),
   component: OcorrenciasConcluidasPage,
 });
 

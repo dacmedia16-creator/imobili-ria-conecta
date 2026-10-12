@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import type { RouterAuth } from "@/lib/route-access";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 const HOMOLOG_URL = "https://adm-max-homolog.dacmedia16.workers.dev";
@@ -72,7 +73,7 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient; auth: RouterAuth }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },

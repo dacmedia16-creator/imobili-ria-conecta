@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { anyOf, requireRoles } from "@/lib/route-access";
 import { useEffect, useState } from "react";
 import { MapPinned, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/posicionamento")({
   head: () => ({ meta: [{ title: "Sugestões de regiões" }] }),
+  beforeLoad: ({ context }) => requireRoles(context.auth, anyOf("admin", "super_admin")),
   component: AdminPositioning,
 });
 

@@ -90,8 +90,16 @@ export function fetchPlatformState(
   return promise;
 }
 
+// Quem guarda papéis derivados deste estado (ex.: cache das guardas de rota) se inscreve aqui
+// para ser descartado junto — entrar/sair de uma imobiliária muda os papéis efetivos na hora.
+const resetListeners = new Set<() => void>();
+export function onPlatformStateReset(fn: () => void) {
+  resetListeners.add(fn);
+}
+
 export function clearPlatformStateCache() {
   cache = null;
+  resetListeners.forEach((fn) => fn());
 }
 
 export type MyAccess = { roles: string[]; inPlatformContext: boolean; error: boolean };
