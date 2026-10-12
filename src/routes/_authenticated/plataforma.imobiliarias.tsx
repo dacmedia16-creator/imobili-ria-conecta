@@ -114,7 +114,11 @@ function fromOrg(o: OrganizationSummary): FormState {
   };
 }
 
-const redirectTo = () => `${window.location.origin}/redefinir-senha`;
+// Convite só com Google (t_93e80346): o link é a entrada pelo Google (Conta MAX), não "definir senha".
+const redirectTo = () =>
+  import.meta.env.VITE_HOMOLOG_ONLY === "true"
+    ? "https://conta.unicaescolha.com.br/login?app=adm-max-homolog"
+    : "https://conta.unicaescolha.com.br/login?app=adm-max";
 
 async function readLogo(file: File): Promise<Logo> {
   if (!(LOGO_TYPES as readonly string[]).includes(file.type))
@@ -164,9 +168,9 @@ function InviteBox({ link }: { link: string }) {
   return (
     <div className="space-y-2 rounded-md border bg-muted/40 p-3">
       <p className="text-sm">
-        Link de primeiro acesso (válido por tempo limitado).{" "}
-        <strong>Nenhum e-mail foi enviado</strong>: copie e entregue ao administrador; ele definirá
-        a própria senha.
+        Link de primeiro acesso. <strong>Nenhum e-mail foi enviado</strong>: copie e entregue ao
+        administrador. Ele entra pelo botão &quot;Entrar com Google&quot;, usando a conta Google do
+        e-mail cadastrado (não existe senha).
       </p>
       <div className="flex gap-2">
         <Input readOnly value={link} aria-label="Link de convite" className="font-mono text-xs" />

@@ -119,7 +119,6 @@ export type CreateAgencyUserInput = {
   nome: string;
   email: string;
   telefone: string;
-  password: string;
   role: ManagedRole;
 };
 
@@ -154,9 +153,10 @@ export async function createAgencyUser(
     if (!leadTeamId && isTlOnlyCaller) throw new OrgScopeError(REASONS.leadNoTeam);
   }
 
+  // Login só com Google (t_93e80346): a conta nasce SEM senha. O convidado entra pelo botão
+  // "Entrar com Google" com o mesmo e-mail; a ponte Conta MAX liga o Google a esta conta.
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: data.email,
-    password: data.password,
     email_confirm: true,
     user_metadata: { nome: data.nome },
     app_metadata: { organization_id: orgId },

@@ -9,6 +9,7 @@ import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { ShieldCheck } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
+import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 
 export const Route = createFileRoute("/trocar-senha")({
   ssr: false,
@@ -16,7 +17,8 @@ export const Route = createFileRoute("/trocar-senha")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
-    if (!data.session.user.user_metadata?.must_change_password)
+    // Login só com Google (t_93e80346): troca obrigatória de senha desativada.
+    if (LOGIN_SO_GOOGLE || !data.session.user.user_metadata?.must_change_password)
       throw redirect({ to: "/dashboard" });
   },
   component: TrocarSenhaPage,

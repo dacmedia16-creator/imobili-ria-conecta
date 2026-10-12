@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-policy";
+import { LOGIN_SO_GOOGLE, SENHA_DESATIVADA } from "@/lib/login-so-google";
 
 /**
  * Usuários da plataforma (visão global do super-admin). Autorização e auditoria em
@@ -41,6 +42,8 @@ export const platformResetPasswordFn = createServerFn({ method: "POST" })
     z.object({ userId, password: z.string().min(8).max(72), motivo }).parse(i),
   )
   .handler(async ({ data, context }) => {
+    // Login só com Google (t_93e80346): troca de senha pela plataforma desativada no servidor.
+    if (LOGIN_SO_GOOGLE) throw new Error(SENHA_DESATIVADA);
     const { admin, callerId, server, policy } = await clients(context);
     const actor = await server.platformActorFor(admin, callerId, data.userId);
     const pa = admin as unknown as PolicyAdmin;

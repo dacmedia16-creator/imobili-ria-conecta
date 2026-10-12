@@ -42,7 +42,8 @@ const ORG_B = "2a000000-0000-4000-8000-0000000000b0"; // Agência B fictícia
 // limpeza de um (filtrada por RUN) apagaria arquivos do outro.
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Homolog-${RUN}-x9!`;
-const REDIRECT = "https://homolog.invalid/redefinir-senha";
+// Convite só com Google (t_93e80346): o link de convite é a entrada pelo Google (Conta MAX).
+const REDIRECT = "https://conta.unicaescolha.com.br/login?app=adm-max-homolog";
 const IMOVEL = `E2EC-${RUN}`; // prefixo das vendas fictícias deste ensaio
 const DOCS = "sale-documents";
 
@@ -112,11 +113,24 @@ async function makeFixture(key: string, org: string, role: string) {
   }
 }
 
+/**
+ * Login só com Google (t_93e80346): a senha é recusada pelo hook login_so_google_hook. Entra pelo
+ * MESMO caminho da ponte Conta MAX depois do Google: magiclink gerado pelo servidor + verify.
+ */
 async function signIn(email: string) {
   const c = createClient(URL_, env.HOMOLOG_ANON_KEY, opts);
-  const { error } = await c.auth.signInWithPassword({ email, password: PASSWORD });
+  const g = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  const hash = g.data?.properties?.hashed_token;
+  if (g.error || !hash) throw new Error(`link falhou (${g.error?.message})`);
+  const { error } = await c.auth.verifyOtp({ type: "magiclink", token_hash: hash });
   if (error) throw new Error(`login falhou (${error.message})`);
   return c;
+}
+
+async function senhaRecusada(email: string) {
+  const c = createClient(URL_, env.HOMOLOG_ANON_KEY, opts);
+  const { error } = await c.auth.signInWithPassword({ email, password: PASSWORD });
+  return Boolean(error);
 }
 
 async function insertSale(key: string, org: string, corretor: string) {
@@ -220,33 +234,19 @@ describe.skipIf(!ENABLED)("multiempresa — convite E2E: nova agência + 1º adm
       });
     }));
 
-  it("2. 1º admin aceita o convite pelo link (sem e-mail), define senha e fica só na agência nova", () =>
-    scenario("2. convite consumido; vínculo e papel na agência nova; sem /plataforma", async () => {
-      expect(ids.invite).toBeTruthy();
-      // Navegador abre o link: /auth/v1/verify responde com redirect contendo a sessão no hash.
-      const res = await guardFetch(ids.invite, { redirect: "manual" });
-      expect([301, 302, 303, 307]).toContain(res.status);
-      const hash = new URLSearchParams((res.headers.get("location") ?? "").split("#")[1] ?? "");
-      expect(hash.get("error")).toBeNull();
-      expect(hash.get("type")).toBe("recovery");
-      const c = createClient(URL_, env.HOMOLOG_ANON_KEY, opts);
-      const set = await c.auth.setSession({
-        access_token: hash.get("access_token") ?? "",
-        refresh_token: hash.get("refresh_token") ?? "",
-      });
-      expect(set.error).toBeNull();
-      ids.c_admin = set.data.user?.id as string;
-      createdUsers.push(ids.c_admin);
-      expect(set.data.user?.email).toBe(ADMIN_EMAIL);
-      // Mesmo passo da tela /redefinir-senha.
-      expect((await c.auth.updateUser({ password: PASSWORD })).error).toBeNull();
-      // Link é de uso único.
-      const again = await guardFetch(ids.invite, { redirect: "manual" });
-      const loc2 = again.headers.get("location") ?? "";
-      expect(loc2.includes("access_token=")).toBe(false);
-
-      // Login normal com a senha definida.
+  it("2. 1º admin entra só pelo Google (convite sem senha) e fica só na agência nova", () =>
+    scenario("2. convite Google; vínculo e papel na agência nova; sem /plataforma", async () => {
+      // O convite é o endereço de entrada pelo Google, nunca um link de "definir senha".
+      expect(ids.invite).toBe(REDIRECT);
+      expect(ids.invite.includes("type=recovery")).toBe(false);
+      // A conta nasce sem senha: senha não abre sessão.
+      expect(await senhaRecusada(ADMIN_EMAIL)).toBe(true);
+      // Depois do Google, a ponte Conta MAX entra por magiclink com o e-mail convidado.
       const ca = await signIn(ADMIN_EMAIL);
+      const me = await ca.auth.getUser();
+      ids.c_admin = me.data.user?.id as string;
+      createdUsers.push(ids.c_admin);
+      expect(me.data.user?.email).toBe(ADMIN_EMAIL);
       expect(await resolveActiveOrg(scoped(), ids.c_admin)).toBe(ids.orgC);
       const { data: mem } = await admin
         .from("organization_members")
@@ -272,7 +272,7 @@ describe.skipIf(!ENABLED)("multiempresa — convite E2E: nova agência + 1º adm
 
   it("3a. admin da agência nova cadastra corretor, 2º corretor e gestor na própria agência", () =>
     scenario("3a. admin cadastra corretor/gestor na própria agência", async () => {
-      const base = { telefone: "15999990000", password: PASSWORD };
+      const base = { telefone: "15999990000" };
       const cor = await createAgencyUser(scoped(), ids.c_admin, {
         ...base,
         nome: "Corretor Teste",
@@ -335,7 +335,6 @@ describe.skipIf(!ENABLED)("multiempresa — convite E2E: nova agência + 1º adm
           nome: "Invasor Teste",
           email: fixtureEmail("invasor"),
           telefone: "15999990000",
-          password: PASSWORD,
           role: "corretor",
         }),
       ).rejects.toBeInstanceOf(OrgScopeError);
@@ -366,7 +365,6 @@ describe.skipIf(!ENABLED)("multiempresa — convite E2E: nova agência + 1º adm
             nome: "Admin Invasor",
             email: fixtureEmail(`g-${role}`),
             telefone: "15999990000",
-            password: PASSWORD,
             role,
           }),
         ).rejects.toBeInstanceOf(OrgScopeError);
