@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { errorCode, errorMessage } from "@/lib/errors";
+import { House } from "lucide-react";
+import { ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/vendas/nova")({
   head: () => ({ meta: [{ title: "Nova Venda" }] }),
@@ -64,7 +66,7 @@ function NewSale() {
     }
   };
 
-  if (authLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (authLoading) return <ListSkeleton rows={2} />;
 
   if (!allowed) {
     return (
@@ -79,13 +81,11 @@ function NewSale() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Nova venda</h1>
-        <p className="text-sm text-muted-foreground">
-          Venda comum para corretor, gestor ou Team Leader. Comece informando o imóvel; os demais
-          dados poderão ser preenchidos depois.
-        </p>
-      </div>
+      <PageHeader
+        icon={House}
+        title="Nova venda"
+        description="Venda comum para corretor, gestor ou Team Leader. Comece informando o imóvel; os demais dados poderão ser preenchidos depois."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Identificação do imóvel</CardTitle>

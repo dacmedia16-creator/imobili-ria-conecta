@@ -45,6 +45,7 @@ import {
   MapPinned,
   Trash2,
 } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 /** "Rua X, 268 — Apto 12 · Bairro · Sorocaba/SP" (só o que estiver preenchido). */
 function fullAddress(i: Capture["form_data"]["imovel"] | undefined): string {
@@ -131,12 +132,11 @@ function ExclusiveList() {
   };
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Captações exclusivas</h1>
-        <p className="text-sm text-muted-foreground">
-          Módulo independente de vendas, relatórios e comissões.
-        </p>
-      </div>
+      <PageHeader
+        icon={House}
+        title="Captações exclusivas"
+        description="Módulo independente de vendas, relatórios e comissões."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Nova captação</CardTitle>
@@ -238,9 +238,11 @@ function ExclusiveList() {
         </CardContent>
         <CardContent className="grid gap-3 pt-4 md:grid-cols-2">
           {loading ? (
-            <p>Carregando…</p>
+            <div className="md:col-span-2">
+              <ListSkeleton rows={4} label="Carregando captações" />
+            </div>
           ) : visible.length === 0 ? (
-            <p>
+            <EmptyState icon={House} className="md:col-span-2">
               {showArchived
                 ? "Nenhuma captação arquivada."
                 : onlyExpiring
@@ -248,7 +250,7 @@ function ExclusiveList() {
                   : filtersActive(filters)
                     ? "Nenhuma captação com esses filtros."
                     : "Nenhuma captação disponível."}
-            </p>
+            </EmptyState>
           ) : (
             visible.map((c) => {
               const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);

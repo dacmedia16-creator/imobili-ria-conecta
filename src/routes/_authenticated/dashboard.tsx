@@ -77,6 +77,7 @@ import {
   FilePlus2,
   House,
   UsersRound,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { NumberTicker } from "@/components/magicui/number-ticker";
@@ -84,6 +85,7 @@ import { BorderBeam } from "@/components/magicui/border-beam";
 import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
+import { EmptyState, KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 const mesAtualISO = () => {
   const d = new Date();
@@ -337,25 +339,24 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {isAdmin
-              ? "Painel administrativo"
-              : isPerfilFinanceiro
-                ? "Painel financeiro"
-                : `Olá, ${nomeUsuario}`}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {isFinanceiro
-              ? `Olá, ${nomeUsuario}. Aqui está o que merece sua atenção.`
-              : `Perfis: ${roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}`}
-          </p>
-        </div>
-        {/* "Nova venda" saiu daqui: virou o atalho grande logo abaixo (mesma regra de papel). */}
-      </div>
+      {/* "Nova venda" saiu daqui: virou o atalho grande logo abaixo (mesma regra de papel). */}
+      <PageHeader
+        icon={LayoutDashboard}
+        title={
+          isAdmin
+            ? "Painel administrativo"
+            : isPerfilFinanceiro
+              ? "Painel financeiro"
+              : `Olá, ${nomeUsuario}`
+        }
+        description={
+          isFinanceiro
+            ? `Olá, ${nomeUsuario}. Aqui está o que merece sua atenção.`
+            : `Perfis: ${roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}`
+        }
+      />
 
-      {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
+      {loading && <KpiGridSkeleton />}
 
       {isFinanceiro && <ResumoGestorMes />}
 
@@ -585,8 +586,11 @@ function Dashboard() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
+          {loading && recentes.length === 0 && <ListSkeleton rows={3} label="Carregando vendas" />}
           {!loading && recentes.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma venda ainda.</p>
+            <EmptyState icon={FileText}>
+              Nenhuma venda ainda. Quando uma venda for registrada, ela aparece aqui.
+            </EmptyState>
           )}
           {recentes.map((s) => {
             // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila
@@ -608,7 +612,7 @@ function Dashboard() {
                 key={s.id}
                 to="/vendas/$id"
                 params={{ id: s.id }}
-                className={`flex flex-col items-start gap-2 rounded-md border p-3 hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+                className={`flex flex-col items-start gap-2 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
               >
                 <div className="min-w-0 break-words">
                   <div className="text-sm font-medium">
@@ -841,8 +845,9 @@ function ResumoGestorMes() {
               O resumo mensal não pôde ser carregado. Consulte a Central Financeira.
             </div>
           ) : !resumo ? (
-            <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
-              Carregando resumo mensal…
+            <div className="col-span-full bg-card p-4">
+              <KpiGridSkeleton />
+              <span className="sr-only">Carregando resumo mensal…</span>
             </div>
           ) : (
             <>
@@ -1142,7 +1147,7 @@ function MovimentacaoPeriodoSection() {
         {periodoResolvido.incompleto ? (
           <p className="text-sm text-muted-foreground">{periodoResolvido.label}</p>
         ) : carregando ? (
-          <p className="text-sm text-muted-foreground">Carregando…</p>
+          <ListSkeleton rows={3} />
         ) : erro ? (
           <p className="text-sm text-destructive">{erro}</p>
         ) : (

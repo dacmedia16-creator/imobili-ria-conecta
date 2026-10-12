@@ -165,6 +165,7 @@ import {
 } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
+import { KpiGridSkeleton, ListSkeleton } from "@/components/visual/base";
 import {
   type Saver,
   useAutosave,
@@ -1276,7 +1277,12 @@ function SaleDetail() {
           }
         />
       );
-    return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="space-y-6">
+        <KpiGridSkeleton />
+        <ListSkeleton rows={5} label="Carregando venda" />
+      </div>
+    );
   }
 
   // Venda de Lançamento: sem documentos/jurídico/contrato, tela única em vez do wizard inteiro —
@@ -4122,10 +4128,10 @@ function SaleDetail() {
           </div>
         )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-sm sm:p-6 print:hidden">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
               {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}
             </h1>
             <StatusBadge status={status} />
