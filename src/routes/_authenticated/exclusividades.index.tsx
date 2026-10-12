@@ -261,7 +261,7 @@ function ExclusiveList() {
                   key={c.id}
                   to="/exclusividades/$id"
                   params={{ id: c.id }}
-                  className="group rounded-md border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
+                  className="group min-w-0 rounded-md border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
                   onClick={(e) => {
                     // Aprovada: abre o resumo da gestão; Ctrl/Cmd+clique continua abrindo a captação.
                     if (c.status !== "aprovada" || e.metaKey || e.ctrlKey || e.shiftKey) return;
