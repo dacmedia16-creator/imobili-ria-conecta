@@ -217,7 +217,12 @@ export const updateUser = createServerFn({ method: "POST" })
     );
     if (getErr || !existing?.user) throw new Error(getErr?.message ?? "Usuário não encontrado.");
 
-    if (existing.user.email !== data.email) {
+    const emailChanged =
+      (existing.user.email ?? "").trim().toLowerCase() !== data.email.trim().toLowerCase();
+    if (emailChanged) {
+      // O e-mail é o login: trocar sem confirmação equivale a tomar a conta. Gestor/TL só de
+      // corretor da própria equipe (mesma regra da senha); contas protegidas, ninguém.
+      await policy.assertUserActionAllowed(admin, actor, "change_email", data.userId);
       const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
         email: data.email,
         email_confirm: true,
