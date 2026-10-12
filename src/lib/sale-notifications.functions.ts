@@ -9,6 +9,13 @@ import {
   type SaleStatus,
 } from "@/lib/status";
 import { responsaveisDaVenda } from "@/lib/sale-permissions";
+import {
+  decidirAvisoStatus,
+  ultimaMudanca,
+  type AvisoStatusDecisao,
+  type CancelamentoPlataforma,
+  type UltimaMudancaStatus,
+} from "@/lib/sale-status-notify-guard";
 
 type Participavel = Parameters<typeof responsaveisDaVenda>[0];
 
@@ -60,10 +67,12 @@ export function erroSemDadosPessoais(texto: string): string {
 // Sem APP_URL configurado (dev local), cai no endereço padrão do `npm run dev` deste projeto.
 export const APP_URL = process.env.APP_URL || "http://localhost:8080";
 
+// `status` e `motivo` continuam aceitos por compatibilidade com a tela, mas o servidor NÃO confia
+// neles: usa o status atual da venda e o motivo gravado no histórico (sale-status-notify-guard.ts).
 const NotifyInput = z.object({
   saleId: z.string().uuid(),
-  status: z.string(),
-  motivo: z.string().nullable().optional(),
+  status: z.string().max(64).optional(),
+  motivo: z.string().max(5000).nullable().optional(),
 });
 
 type UserRoleRow = {
@@ -114,6 +123,61 @@ function papelBate(roleReal: string, papelBucket: string): boolean {
 }
 
 /**
+ * Lê (service_role, filtrado pela agência da venda) o que é preciso para decidir se o aviso de
+ * status é legítimo — regra pura em sale-status-notify-guard.ts. Erro de leitura = não avisa.
+ */
+async function conferirAvisoStatus(
+  admin: OrgAdminClient,
+  orgId: string,
+  saleId: string,
+  statusAtual: string | null,
+  callerId: string,
+): Promise<AvisoStatusDecisao> {
+  const { data: hist, error: histErr } = await admin
+    .from("sale_status_history")
+    .select("para, autor_id, motivo, created_at")
+    .eq("organization_id", orgId)
+    .eq("sale_id", saleId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (histErr) return { ok: false, motivo: "erro_leitura" };
+  const ultima = ultimaMudanca((hist ?? []) as UltimaMudancaStatus[], statusAtual);
+  if (!ultima) return { ok: false, motivo: "sem_historico" };
+
+  let cancelamentoPlataforma: CancelamentoPlataforma = null;
+  if (ultima.autor_id === null && statusAtual === "cancelada") {
+    const { data: canc } = await admin
+      .from("platform_sale_cancellations")
+      .select("actor_user_id, created_at")
+      .eq("sale_id", saleId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    cancelamentoPlataforma = (canc as CancelamentoPlataforma) ?? null;
+  }
+
+  // Um aviso por mudança: se quem chama já registrou o resultado do envio depois dela, não repete.
+  const { data: jaEnviado, error: logErr } = await admin
+    .from("activity_logs")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("sale_id", saleId)
+    .eq("autor_id", callerId)
+    .eq("acao", "whatsapp_notification_result")
+    .gte("created_at", ultima.created_at)
+    .limit(1);
+  if (logErr) return { ok: false, motivo: "erro_leitura" };
+
+  return decidirAvisoStatus({
+    statusAtual,
+    ultima,
+    callerId,
+    cancelamentoPlataforma,
+    jaAvisado: (jaEnviado ?? []).length > 0,
+  });
+}
+
+/**
  * Avisa da mudança de status de uma venda nos dois canais — sino interno (tabela `notifications`)
  * e WhatsApp (ZionTalk) — a partir do MESMO cálculo de destinatário, pra não ter um casal de regras
  * divergentes (o que causava, por exemplo, o sino do gestor nunca chegar quando o corretor envia
@@ -146,7 +210,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const { data: sale } = await supabase
       .from("sales")
       .select(
-        "id, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
+        "id, status, corretor_id, corretor_captador_id, corretor_vendedor_id, imovel_id, codigo_interno, modalidade, imovel_endereco, valor_negociado",
       )
       .eq("id", data.saleId)
       .maybeSingle();
@@ -163,6 +227,12 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const admin = supabaseAdmin as unknown as OrgAdminClient;
     const orgId = await saleOrg(admin, sale.id);
     if (!orgId) return { notified: 0, sent: 0 };
+
+    // Só avisa a mudança que ESTA pessoa acabou de gravar, com o status real da venda e o motivo
+    // gravado (evita aviso forjado ou repetido pelo WhatsApp oficial).
+    const aviso = await conferirAvisoStatus(admin, orgId, sale.id, sale.status, userId);
+    if (!aviso.ok) return { notified: 0, sent: 0 };
+    const motivoAviso = aviso.motivo;
 
     // Avisos "de corretor" e liderança seguem os PARTICIPANTES da venda, não quem a cadastrou
     // (decisão de Denis, 28/09/2026). Criador sem participação não recebe aviso de corretor.
@@ -197,7 +267,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       .filter((n): n is string => !!n)
       .join(", ");
 
-    const status = data.status as SaleStatus;
+    const status = aviso.status as SaleStatus;
 
     // "Sua vez" — proximoResponsavelRoles nunca retorna mais de um papel por status (conferido em status.ts).
     const roleNext = proximoResponsavelRoles(status)[0];
@@ -244,9 +314,9 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
     const rolesRows = await roleRowsInOrg<UserRoleRow>(admin, orgId, candidateIds);
 
     const label = sale.imovel_id || sale.codigo_interno || `venda #${sale.id.slice(0, 8)}`;
-    const statusLabel = STATUS_LABEL[status] ?? data.status;
+    const statusLabel = STATUS_LABEL[status] ?? status;
     const link = `${APP_URL}/vendas/${sale.id}`;
-    const motivoLinha = data.motivo ? `Motivo: ${data.motivo}\n` : "";
+    const motivoLinha = motivoAviso ? `Motivo: ${motivoAviso}\n` : "";
     // Bairro/condomínio não são campos próprios da venda — quando preenchidos, moram dentro do
     // texto livre de "Endereço do imóvel" (imovel_endereco), então é ele que aparece aqui.
     const enderecoLinha = sale.imovel_endereco ? `Endereco: ${sale.imovel_endereco}\n` : "";
@@ -274,7 +344,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       // "Sua vez" no sino sempre notifica — o toggle de preferência é só do WhatsApp.
       inAppPorUsuario.set(id, {
         titulo: `Sua vez de agir: ${label}`,
-        mensagem: `Status: ${statusLabel}${envolvidosInApp}${data.motivo ? ` — ${data.motivo}` : ""}`,
+        mensagem: `Status: ${statusLabel}${envolvidosInApp}${motivoAviso ? ` — ${motivoAviso}` : ""}`,
       });
       const row = (rolesRows ?? []).find(
         (r: UserRoleRow) => r.user_id === id && roleNext && papelBate(r.role, roleNext),
@@ -290,7 +360,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       if (!quer) continue;
       inAppPorUsuario.set(id, {
         titulo: `Atualização na venda: ${label}`,
-        mensagem: `Novo status: ${statusLabel}${envolvidosInApp}${data.motivo ? ` — ${data.motivo}` : ""}`,
+        mensagem: `Novo status: ${statusLabel}${envolvidosInApp}${motivoAviso ? ` — ${motivoAviso}` : ""}`,
       });
       whatsappPorUsuario.set(id, textoAtualizacaoWpp);
     }
@@ -368,7 +438,7 @@ export const notifySaleStatusChange = createServerFn({ method: "POST" })
       sale_id: sale.id,
       acao: "whatsapp_notification_result",
       payload: {
-        status: data.status,
+        status,
         enviados: sent,
         falhas,
         ignorados: whatsappPorUsuario.size - sent - falhas,
@@ -464,7 +534,8 @@ export const notifySaleComment = createServerFn({ method: "POST" })
         sale_id: sale.id,
         tipo: "sale_comment",
         titulo: `Novo comentário na venda: ${label}`,
-        mensagem: data.texto.slice(0, 240),
+        // Texto GRAVADO do comentário, não o que o navegador mandou (revisão de segurança 12/10).
+        mensagem: (comment.texto ?? "").slice(0, 240),
       })),
     );
     if (notificationError) {

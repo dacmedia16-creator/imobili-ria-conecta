@@ -72,6 +72,14 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
       .maybeSingle();
     if (profileError || !profile) throw new Error("Usuário não encontrado.");
     if (profile.ativo === false) throw new Error("Não é possível entrar como um usuário inativo.");
+    // Contas mais poderosas nunca são alvo de "entrar como" (revisão de segurança 12/10/2026):
+    // administrador da plataforma (acesso a todas as imobiliárias) e super admin da agência.
+    const { assertImpersonationTargetAllowed } = await import("@/lib/user-management.server");
+    await assertImpersonationTargetAllowed(
+      supabaseAdmin as unknown as OrgAdminClient,
+      orgId,
+      data.targetUserId,
+    );
 
     const { data: targetAuth, error: targetError } = await admin.auth.admin.getUserById(
       data.targetUserId,

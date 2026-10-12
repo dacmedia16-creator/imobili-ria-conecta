@@ -164,6 +164,7 @@ function AdminUsers() {
     cpf: string | null;
     creci: string | null;
     remax_id: string | null;
+    emailLocked?: boolean;
   } | null>(null);
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
@@ -380,7 +381,7 @@ function AdminUsers() {
   const actor: Actor = { userId: user?.id ?? "", orgId: SAME_ORG, roles: myRoles as ManagedRole[] };
   const decide = (
     u: AdminUser,
-    action: "edit_user" | "reset_password" | "set_active" | "change_roles",
+    action: "edit_user" | "change_email" | "reset_password" | "set_active" | "change_roles",
     role?: AppRole,
   ): Decision =>
     decideUserAction(
@@ -475,6 +476,9 @@ function AdminUsers() {
     const dReset = decide(u, "reset_password");
     const dActive = decide(u, "set_active");
     const dRoles = decide(u, "change_roles");
+    const dEmail = decide(u, "change_email");
+    // "Entrar como" nunca em super admin (o servidor também recusa administrador da plataforma).
+    const canEnterAs = !(rolesByUser[u.id] ?? []).includes("super_admin");
     const canEditThis = dRoles.allowed;
     const canResetPassword = dReset.allowed;
     const canEditData = dEdit.allowed && registrationLoaded;
@@ -550,6 +554,7 @@ function AdminUsers() {
                     cpf: u.cpf ?? null,
                     creci: u.creci ?? null,
                     remax_id: u.remax_id ?? null,
+                    emailLocked: !dEmail.allowed,
                   })
                 }
               >
@@ -566,7 +571,7 @@ function AdminUsers() {
                 {isEditingRoles ? "Fechar" : "Editar papéis"}
               </Button>
             )}
-            {isSuper && u.id !== user?.id && u.ativo !== false && (
+            {isSuper && canEnterAs && u.id !== user?.id && u.ativo !== false && (
               <Button
                 size="sm"
                 variant="destructive"
@@ -1017,6 +1022,7 @@ function EditUserDialog({
     cpf: string | null;
     creci: string | null;
     remax_id: string | null;
+    emailLocked?: boolean;
   };
   onDone: () => void;
   updateFn: (args: {
@@ -1108,7 +1114,13 @@ function EditUserDialog({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={target.emailLocked}
           />
+          {target.emailLocked && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              O e-mail é o login da pessoa. Você só pode trocá-lo de corretores da sua equipe.
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor="eu-telefone">Telefone (WhatsApp)</Label>
