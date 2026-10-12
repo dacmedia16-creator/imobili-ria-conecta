@@ -2,6 +2,7 @@ import type { OrgAdminClient } from "./org-scope";
 import { OrgScopeError, resolveActiveOrg } from "./org-scope";
 import {
   decideCreateUser,
+  decideImpersonationTarget,
   decideUserAction,
   isAdminLevel,
   REASONS,
@@ -24,6 +25,37 @@ async function rolesOf(admin: OrgAdminClient, orgId: string, userId: string) {
     .eq("user_id", userId);
   if (error) throw new Error(error.message);
   return ((data ?? []) as { role: ManagedRole }[]).map((r) => r.role);
+}
+
+/**
+ * O usuário é administrador da plataforma (platform_admins)? Lido com service_role. Falha fechada:
+ * erro de leitura conta como "sim", para nunca liberar ação sobre a conta mais poderosa por engano.
+ */
+export async function isPlatformAdminUser(admin: OrgAdminClient, userId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) return true;
+  return Boolean(data);
+}
+
+/**
+ * "Entrar como" usuário: recusa alvo administrador da plataforma ou super admin da agência
+ * (decisão pura em `decideImpersonationTarget`). Falha fechada se a leitura der erro.
+ */
+export async function assertImpersonationTargetAllowed(
+  admin: OrgAdminClient,
+  orgId: string,
+  targetUserId: string,
+) {
+  const [isPlatformAdmin, roles] = await Promise.all([
+    isPlatformAdminUser(admin, targetUserId),
+    rolesOf(admin, orgId, targetUserId),
+  ]);
+  const d = decideImpersonationTarget({ userId: targetUserId, orgId, roles, isPlatformAdmin });
+  if (!d.allowed) throw new OrgScopeError(d.reason);
 }
 
 /** Ator com papéis lidos só da agência ativa dele. */
@@ -253,7 +285,9 @@ export async function assertUserActionAllowed(
   const targetOrg = (prof as { organization_id: string } | null)?.organization_id ?? null;
   let targetRoles: ManagedRole[] = [];
   let ledByActor = false;
+  let targetIsPlatformAdmin = false;
   if (targetOrg) {
+    targetIsPlatformAdmin = await isPlatformAdminUser(admin, targetUserId);
     targetRoles = await rolesOf(admin, targetOrg, targetUserId);
     const { data: leads, error: leadErr } = await admin.rpc("is_lead_of", {
       _lider: actor.userId,
@@ -265,7 +299,13 @@ export async function assertUserActionAllowed(
   const d = decideUserAction(
     actor,
     action,
-    { userId: targetUserId, orgId: targetOrg, roles: targetRoles, ledByActor },
+    {
+      userId: targetUserId,
+      orgId: targetOrg,
+      roles: targetRoles,
+      ledByActor,
+      isPlatformAdmin: targetIsPlatformAdmin,
+    },
     role,
   );
   if (!d.allowed) throw new OrgScopeError(d.reason);

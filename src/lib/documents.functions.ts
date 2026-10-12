@@ -66,9 +66,10 @@ export const extractDocument = createServerFn({ method: "POST" })
     const prompt = buildPromptForType(doc.tipo, doc.file_name, doc.parte);
 
     const callGemini = async (): Promise<ExtractionData> => {
-      const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      // Chave no cabeçalho (não na URL), para não aparecer em logs de requisição.
+      const res = await fetch(GEMINI_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
           systemInstruction: {
             parts: [

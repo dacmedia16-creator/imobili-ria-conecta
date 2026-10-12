@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   decideCreateUser,
+  decideImpersonationTarget,
   decideOrgAction,
   decideUserAction,
   grantableRoles,
@@ -147,6 +148,80 @@ describe("matriz papel × ação × agência (regra única)", () => {
     expect(decideUserAction(actors.gestorA, "edit_user", corretorForaA).allowed).toBe(true);
     expect(decideUserAction(actors.gestorA, "reset_password", corretorForaA).allowed).toBe(false);
     expect(decideUserAction(actors.gestorA, "set_active", corretorForaA).allowed).toBe(false);
+  });
+
+  it("ninguém da agência age sobre o administrador da plataforma (nem o super admin)", () => {
+    const denisNaAgencia: Target = {
+      ...t("denis", A, ["super_admin"]),
+      isPlatformAdmin: true,
+    };
+    const denisComoAdmin: Target = { ...t("denis", A, ["admin"]), isPlatformAdmin: true };
+    for (const alvo of [denisNaAgencia, denisComoAdmin]) {
+      for (const key of ["superAdminA", "adminA", "gestorA", "tlA"]) {
+        for (const action of [
+          "edit_user",
+          "change_email",
+          "reset_password",
+          "set_active",
+          "change_roles",
+        ] as const) {
+          const d = decideUserAction(actors[key], action, alvo, "corretor");
+          expect(d.allowed).toBe(false);
+        }
+      }
+      expect(decideUserAction(actors.adminA, "reset_password", alvo)).toEqual({
+        allowed: false,
+        reason: REASONS.protectedPlatformAdmin,
+      });
+    }
+  });
+
+  it("admin comum não edita, troca e-mail, redefine senha, desativa nem muda papel de super admin", () => {
+    const superAlvo = t("sa2-a", A, ["super_admin"]);
+    for (const action of [
+      "edit_user",
+      "change_email",
+      "reset_password",
+      "set_active",
+      "change_roles",
+    ] as const) {
+      expect(decideUserAction(actors.adminA, action, superAlvo, "gestor")).toEqual({
+        allowed: false,
+        reason: REASONS.protectedSuperAdmin,
+      });
+      // Outro super admin da agência continua podendo.
+      expect(decideUserAction(actors.superAdminA, action, superAlvo, "gestor").allowed).toBe(true);
+    }
+  });
+
+  it("troca de e-mail: gestor só de corretor da própria equipe; admin de qualquer não protegido", () => {
+    expect(decideUserAction(actors.gestorA, "change_email", corretorForaA)).toEqual({
+      allowed: false,
+      reason: REASONS.leadEmailOnlyTeam,
+    });
+    expect(
+      decideUserAction(actors.gestorA, "change_email", corretorEquipeA(actors.gestorA)).allowed,
+    ).toBe(true);
+    expect(decideUserAction(actors.tlA, "change_email", corretorForaA).allowed).toBe(false);
+    expect(
+      decideUserAction(actors.tlA, "change_email", corretorEquipeTlA(actors.tlA)).allowed,
+    ).toBe(true);
+    // Gestor ainda edita nome/telefone de corretor de outra equipe (decisão de 11/10).
+    expect(decideUserAction(actors.gestorA, "edit_user", corretorForaA).allowed).toBe(true);
+    expect(decideUserAction(actors.adminA, "change_email", corretorForaA).allowed).toBe(true);
+    expect(decideUserAction(actors.adminA, "change_email", corretorB).allowed).toBe(false);
+  });
+
+  it("'entrar como' recusa super admin e administrador da plataforma", () => {
+    expect(decideImpersonationTarget(t("sa2-a", A, ["super_admin"]))).toEqual({
+      allowed: false,
+      reason: REASONS.impersonateProtected,
+    });
+    expect(
+      decideImpersonationTarget({ ...t("denis", A, ["corretor"]), isPlatformAdmin: true }).allowed,
+    ).toBe(false);
+    expect(decideImpersonationTarget(t("adm2-a", A, ["admin"])).allowed).toBe(true);
+    expect(decideImpersonationTarget(corretorForaA).allowed).toBe(true);
   });
 
   it("ninguém move usuário entre agências", () => {
