@@ -73,7 +73,11 @@ async function makeUser(key: string, org: string, role: ManagedRole, nome: strin
 async function signIn(key: string) {
   const c = createClient(URL_, env.HOMOLOG_ANON_KEY, opts);
   const email = `h2a-${RUN}-${key}@example.test`;
-  const { error } = await c.auth.signInWithPassword({ email, password: PASSWORD });
+  // Login só com Google (t_93e80346): senha recusada pelo hook; entra pelo caminho da ponte (magiclink).
+  const g = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  const hash = g.data?.properties?.hashed_token;
+  if (g.error || !hash) throw new Error(`link ${key}: ${g.error?.message}`);
+  const { error } = await c.auth.verifyOtp({ type: "magiclink", token_hash: hash });
   if (error) throw new Error(`login ${key}: ${error.message}`);
   return c;
 }

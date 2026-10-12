@@ -182,16 +182,25 @@ async function storeLogo(admin: SupabaseClient, orgId: string, logo: LogoUpload)
   return path;
 }
 
-async function inviteLink(admin: SupabaseClient, email: string, redirectTo: string) {
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo },
-  });
-  if (error || !data?.properties?.action_link) {
-    throw new Error(error?.message ?? "Não foi possível gerar o link de convite.");
+/** Endereço oficial do login Google (ponte Conta MAX). */
+export const CONTA_MAX_LOGIN_ORIGIN = "https://conta.unicaescolha.com.br";
+
+/**
+ * Convite só com Google (t_93e80346): não gera mais link de "definir senha" (recovery). O convite é
+ * o endereço de entrada pelo Google; o convidado entra com a conta Google do e-mail cadastrado e a
+ * ponte Conta MAX liga essa conta Google ao usuário criado aqui. Só aceita o login da Conta MAX.
+ */
+async function inviteLink(_admin: SupabaseClient, _email: string, redirectTo: string) {
+  let url: URL;
+  try {
+    url = new URL(redirectTo);
+  } catch {
+    throw new Error("Endereço de convite inválido.");
   }
-  return data.properties.action_link;
+  if (url.origin !== CONTA_MAX_LOGIN_ORIGIN || url.pathname !== "/login") {
+    throw new Error("O convite precisa apontar para o login Google (Conta MAX).");
+  }
+  return url.toString();
 }
 
 /** Cria o primeiro administrador DENTRO da agência (app_metadata) sem senha e sem e-mail. */

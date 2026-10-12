@@ -9,6 +9,7 @@ import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
+import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
@@ -16,6 +17,8 @@ export const Route = createFileRoute("/redefinir-senha")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
+    // Login só com Google (t_93e80346): "Esqueci/Redefinir senha" desativado.
+    if (LOGIN_SO_GOOGLE) throw redirect({ to: "/dashboard" });
   },
   component: RedefinirSenhaPage,
 });

@@ -39,7 +39,8 @@ const ORG_A = "00000000-0000-4000-8000-000000000001"; // organização legada (s
 const ORG_B = "2a000000-0000-4000-8000-0000000000b0"; // Agência B fictícia
 const RUN = Date.now().toString(36);
 const PASSWORD = `Homolog-${RUN}-x9!`;
-const REDIRECT = "https://homolog.invalid/redefinir-senha";
+// Convite só com Google (t_93e80346): o link de convite é a entrada pelo Google (Conta MAX).
+const REDIRECT = "https://conta.unicaescolha.com.br/login?app=adm-max-homolog";
 /** CNPJ fictício válido e único por execução (evita colisão com sobras de execuções anteriores). */
 function cnpjDoRun(): string {
   const base = (Date.now() % 1e12).toString().padStart(12, "0");
@@ -85,15 +86,21 @@ async function makeUser(key: string, org: string, role: string) {
   ids[key] = data.user.id;
   if (role !== "corretor") {
     await admin.from("user_roles").delete().eq("organization_id", org).eq("user_id", data.user.id);
-    const ins = await admin.from("user_roles").insert({ organization_id: org, user_id: data.user.id, role });
+    const ins = await admin
+      .from("user_roles")
+      .insert({ organization_id: org, user_id: data.user.id, role });
     if (ins.error) throw new Error(ins.error.message);
   }
   return data.user.id;
 }
 
+// Login só com Google (t_93e80346): senha recusada pelo hook; entra pelo caminho da ponte (magiclink).
 async function signIn(key: string) {
   const c = createClient(URL_, env.HOMOLOG_ANON_KEY, opts);
-  const { error } = await c.auth.signInWithPassword({ email: emailOf(key), password: PASSWORD });
+  const g = await admin.auth.admin.generateLink({ type: "magiclink", email: emailOf(key) });
+  const hash = g.data?.properties?.hashed_token;
+  if (g.error || !hash) throw new Error(`link ${key}: ${g.error?.message}`);
+  const { error } = await c.auth.verifyOtp({ type: "magiclink", token_hash: hash });
   if (error) throw new Error(`login ${key}: ${error.message}`);
   return c;
 }
@@ -161,7 +168,7 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
     const orgC = r.organizationId as string;
     createdOrgs.push(orgC);
     ids.orgC = orgC;
-    expect(r.inviteLink).toMatch(new RegExp(`^${URL_}/auth/v1/verify\\?token=.+type=recovery`));
+    expect(r.inviteLink).toBe(REDIRECT);
 
     const { data: org } = await admin
       .from("organizations")
@@ -189,18 +196,33 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
     expect(prof?.organization_id).toBe(orgC);
     createdUsers.push(prof?.id as string);
     ids.c_admin = prof?.id as string;
-    const { data: roles } = await admin.from("user_roles").select("role, organization_id").eq("user_id", ids.c_admin);
+    const { data: roles } = await admin
+      .from("user_roles")
+      .select("role, organization_id")
+      .eq("user_id", ids.c_admin);
     expect(roles).toEqual([{ role: "super_admin", organization_id: orgC }]);
-    const { data: isPlat } = await admin.from("platform_admins").select("user_id").eq("user_id", ids.c_admin);
+    const { data: isPlat } = await admin
+      .from("platform_admins")
+      .select("user_id")
+      .eq("user_id", ids.c_admin);
     expect(isPlat ?? []).toHaveLength(0);
   });
 
   it("superadmin edita a agência C, troca o logo e a lista mostra contagens", async () => {
     const denis = await signIn("plataforma");
-    const { data: before } = await admin.from("organizations").select("logo_path").eq("id", ids.orgC).single();
+    const { data: before } = await admin
+      .from("organizations")
+      .select("logo_path")
+      .eq("id", ids.orgC)
+      .single();
     const r = await updateOrganizationFlow(denis, admin, ids.plataforma, {
       organizationId: ids.orgC,
-      form: { nome: `Agência C Editada ${RUN}`, slug: `agencia-c-${RUN}`, cnpj: "", corPrimaria: "#000000" },
+      form: {
+        nome: `Agência C Editada ${RUN}`,
+        slug: `agencia-c-${RUN}`,
+        cnpj: "",
+        corPrimaria: "#000000",
+      },
       logo: { base64: PNG_1X1, contentType: "image/png" },
     });
     expect(r.steps.every((s) => s.status === "ok")).toBe(true);
@@ -209,7 +231,11 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
       .select("nome, cnpj, cor_primaria, logo_path")
       .eq("id", ids.orgC)
       .single();
-    expect(after).toMatchObject({ nome: `Agência C Editada ${RUN}`, cnpj: null, cor_primaria: "#000000" });
+    expect(after).toMatchObject({
+      nome: `Agência C Editada ${RUN}`,
+      cnpj: null,
+      cor_primaria: "#000000",
+    });
     expect(after?.logo_path).not.toBe(before?.logo_path);
     const { data: files } = await admin.storage.from(LOGO_BUCKET).list(ids.orgC);
     expect((files ?? []).map((f) => `${ids.orgC}/${f.name}`)).toEqual([after?.logo_path]);
@@ -292,35 +318,50 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
         _cor_secundaria: "",
       });
       expect(prof.error?.code).toBe("42501");
-      const upd = await c.rpc("platform_update_organization", { _id: ORG_A, _nome: "Hack", _slug: "" });
+      const upd = await c.rpc("platform_update_organization", {
+        _id: ORG_A,
+        _nome: "Hack",
+        _slug: "",
+      });
       expect(upd.error?.code).toBe("42501");
       const { data: visiveis } = await c.from("organizations").select("id");
       expect((visiveis ?? []).map((o) => o.id)).toEqual([ORG_A]);
-      const direct = await c.from("organizations").update({ nome: "Hack" }).eq("id", ORG_A).select("id");
+      const direct = await c
+        .from("organizations")
+        .update({ nome: "Hack" })
+        .eq("id", ORG_A)
+        .select("id");
       expect(direct.error !== null || (direct.data ?? []).length === 0).toBe(true);
       // Logo: sem policy de escrita para usuário no bucket da plataforma.
       const up = await c.storage
         .from(LOGO_BUCKET)
-        .upload(`${ORG_A}/x-${RUN}.png`, new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }));
+        .upload(
+          `${ORG_A}/x-${RUN}.png`,
+          new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }),
+        );
       expect(up.error).not.toBeNull();
     }
-    const { data: nome } = await admin.from("organizations").select("nome").eq("id", ORG_A).single();
+    const { data: nome } = await admin
+      .from("organizations")
+      .select("nome")
+      .eq("id", ORG_A)
+      .single();
     expect(nome?.nome).not.toBe("Hack");
   });
 
   it("suspender pela plataforma bloqueia o acesso da agência; reativar devolve; legada não suspende", async () => {
     const denis = await signIn("plataforma");
     await setOrganizationStatus(denis, admin, ids.plataforma, ids.orgC, "suspensa");
-    expect((await admin.from("organizations").select("status").eq("id", ids.orgC).single()).data?.status).toBe(
-      "suspensa",
-    );
+    expect(
+      (await admin.from("organizations").select("status").eq("id", ids.orgC).single()).data?.status,
+    ).toBe("suspensa");
     // Usuário da agência suspensa fica sem agência ativa (current_org_id nulo → RLS fecha tudo).
     expect((await admin.rpc("user_org", { _user: ids.c_admin })).data).toBeNull();
     await setOrganizationStatus(denis, admin, ids.plataforma, ids.orgC, "ativa");
     expect((await admin.rpc("user_org", { _user: ids.c_admin })).data).toBe(ids.orgC);
-    await expect(setOrganizationStatus(denis, admin, ids.plataforma, ORG_A, "suspensa")).rejects.toThrow(
-      /original/,
-    );
+    await expect(
+      setOrganizationStatus(denis, admin, ids.plataforma, ORG_A, "suspensa"),
+    ).rejects.toThrow(/original/);
   });
 
   it("listUsers/último acesso: agência A não traz usuários da B (e vice-versa)", async () => {
@@ -335,7 +376,10 @@ describe.skipIf(!ENABLED)("multiempresa 2b — homologação real (imobiliárias
     for (const id of [ids.a_admin, ids.a_super]) expect(mapB).not.toHaveProperty(id);
     expect(mapA[ids.a_admin]).not.toBeNull(); // último acesso preenchido pelo login acima
     // Cruzamento com o banco: todos os ids devolvidos são membros da agência pedida.
-    const { data: membrosB } = await admin.from("organization_members").select("user_id").eq("organization_id", ORG_B);
+    const { data: membrosB } = await admin
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", ORG_B);
     expect(new Set(Object.keys(mapB))).toEqual(new Set((membrosB ?? []).map((m) => m.user_id)));
   });
 

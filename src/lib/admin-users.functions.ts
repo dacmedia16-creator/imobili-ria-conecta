@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { CallerRpcClient, OrgAdminClient } from "@/lib/org-scope";
 import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-policy";
+import { LOGIN_SO_GOOGLE, SENHA_DESATIVADA } from "@/lib/login-so-google";
 
 /**
  * Gestão de usuários da agência (multiempresa, marco 1e). Toda decisão papel × ação × agência vem
@@ -83,7 +84,6 @@ const schema = z.object({
   nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
-  password: z.string().min(8).max(72),
   role: z.enum(ROLES),
 });
 
@@ -155,6 +155,8 @@ export const resetUserPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => resetPasswordSchema.parse(input))
   .handler(async ({ data, context }) => {
+    // Login só com Google (t_93e80346): redefinir senha foi desativado também no servidor.
+    if (LOGIN_SO_GOOGLE) throw new Error(SENHA_DESATIVADA);
     const { userId: callerId } = context;
     if (data.userId === callerId) {
       throw new Error('Use a tela "Meu acesso" para trocar a sua própria senha.');

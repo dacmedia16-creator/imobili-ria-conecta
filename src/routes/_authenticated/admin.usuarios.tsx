@@ -61,6 +61,7 @@ import {
 } from "lucide-react";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { filterAdminUsers, type UserStatusFilter } from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
@@ -480,14 +481,15 @@ function AdminUsers() {
     // "Entrar como" nunca em super admin (o servidor também recusa administrador da plataforma).
     const canEnterAs = !(rolesByUser[u.id] ?? []).includes("super_admin");
     const canEditThis = dRoles.allowed;
-    const canResetPassword = dReset.allowed;
+    // Login só com Google (t_93e80346): "Redefinir senha" saiu da tela (o servidor também recusa).
+    const canResetPassword = !LOGIN_SO_GOOGLE && dReset.allowed;
     const canEditData = dEdit.allowed && registrationLoaded;
     const canToggleActive = dActive.allowed;
     const unavailable = isSelf
       ? []
       : [
           ...new Set(
-            [dEdit, dReset, dActive, ...(isAdminLike ? [] : [dRoles])]
+            [dEdit, ...(LOGIN_SO_GOOGLE ? [] : [dReset]), dActive, ...(isAdminLike ? [] : [dRoles])]
               .filter((d): d is Extract<Decision, { allowed: false }> => !d.allowed)
               .map((d) => d.reason),
           ),
@@ -1211,19 +1213,21 @@ function NewUserDialog({
   fixedTeamLabel?: string | null;
   onDone: () => void;
   createUserFn: (args: {
-    data: { nome: string; email: string; telefone: string; password: string; role: AppRole };
+    data: { nome: string; email: string; telefone: string; role: AppRole };
   }) => Promise<unknown>;
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [password, setPassword] = useState(() => genPassword());
   const [role, setRole] = useState<AppRole>(allowedRoles[0]);
   const [loading, setLoading] = useState(false);
 
+  // Convite só com Google (t_93e80346): sem senha inicial. A pessoa entra pelo botão do Google.
   const copyCreds = async () => {
-    await navigator.clipboard.writeText(`E-mail: ${email}\nSenha: ${password}`);
-    toast.success("Credenciais copiadas");
+    await navigator.clipboard.writeText(
+      `Acesse ${window.location.origin}/auth e clique em "Entrar com Google" usando a conta Google do e-mail ${email}.`,
+    );
+    toast.success("Instrução de acesso copiada");
   };
 
   const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
@@ -1237,8 +1241,8 @@ function NewUserDialog({
     }
     setLoading(true);
     try {
-      await createUserFn({ data: { nome, email, telefone, password, role } });
-      toast.success("Usuário criado. Copie e envie as credenciais.", {
+      await createUserFn({ data: { nome, email, telefone, role } });
+      toast.success("Usuário criado. Copie e envie a instrução de acesso pelo Google.", {
         action: { label: "Copiar", onClick: copyCreds },
         duration: 10000,
       });
@@ -1297,40 +1301,21 @@ function NewUserDialog({
             placeholder="(11) 91234-5678"
           />
         </div>
-        <div>
-          <Label htmlFor="nu-pass">Senha inicial</Label>
-          <div className="flex gap-2">
-            <Input
-              id="nu-pass"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setPassword(genPassword())}
-              title="Gerar senha"
-              aria-label="Gerar senha"
-            >
-              <RefreshCcw className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={copyCreds}
-              title="Copiar credenciais"
-              aria-label="Copiar credenciais"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Anote e envie ao usuário. Ele será obrigado a trocar essa senha já no primeiro acesso.
+        <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+          <p className="flex-1" data-testid="acesso-google">
+            Sem senha: a pessoa entra pelo botão &quot;Entrar com Google&quot;, usando a conta
+            Google deste e-mail (ex.: @remax.com.br).
           </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={copyCreds}
+            title="Copiar instrução de acesso"
+            aria-label="Copiar instrução de acesso"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
         </div>
         {fixedTeamLabel !== null ? (
           <div

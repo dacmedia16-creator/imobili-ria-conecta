@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { KeyRound, Pencil, Power, ShieldCheck, Users } from "lucide-react";
+import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
@@ -300,14 +301,17 @@ function PlatformUsers() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Trocar senha"
-                            onClick={() => setAction({ kind: "senha", user: u })}
-                          >
-                            <KeyRound className="h-4 w-4" />
-                          </Button>
+                          {/* Login só com Google (t_93e80346): "Trocar senha" saiu da tela. */}
+                          {!LOGIN_SO_GOOGLE && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Trocar senha"
+                              onClick={() => setAction({ kind: "senha", user: u })}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
+import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
@@ -865,50 +866,53 @@ function MeuAcesso() {
         </DialogContent>
       </Dialog>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="h-4 w-4" /> Segurança
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="grid max-w-sm gap-3">
-            <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">Nova senha</Label>
-              <Input
-                aria-label="Nova senha"
-                autoComplete="new-password"
-                type="password"
-                minLength={8}
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                placeholder="Mínimo de 8 caracteres"
-              />
+      {/* Login só com Google (t_93e80346): troca de senha saiu da tela. */}
+      {!LOGIN_SO_GOOGLE && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="h-4 w-4" /> Segurança
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid max-w-sm gap-3">
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">Nova senha</Label>
+                <Input
+                  aria-label="Nova senha"
+                  autoComplete="new-password"
+                  type="password"
+                  minLength={8}
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  placeholder="Mínimo de 8 caracteres"
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-xs text-muted-foreground">
+                  Confirmar nova senha
+                </Label>
+                <Input
+                  aria-label="Confirmar nova senha"
+                  autoComplete="new-password"
+                  type="password"
+                  minLength={8}
+                  value={confirmarSenha}
+                  onChange={(e) => setConfirmarSenha(e.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                className="w-fit"
+                onClick={trocarSenha}
+                disabled={trocandoSenha || !novaSenha || !confirmarSenha}
+              >
+                {trocandoSenha ? "Salvando…" : "Alterar senha"}
+              </Button>
             </div>
-            <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">
-                Confirmar nova senha
-              </Label>
-              <Input
-                aria-label="Confirmar nova senha"
-                autoComplete="new-password"
-                type="password"
-                minLength={8}
-                value={confirmarSenha}
-                onChange={(e) => setConfirmarSenha(e.target.value)}
-              />
-            </div>
-            <Button
-              size="sm"
-              className="w-fit"
-              onClick={trocarSenha}
-              disabled={trocandoSenha || !novaSenha || !confirmarSenha}
-            >
-              {trocandoSenha ? "Salvando…" : "Alterar senha"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {roles.length > 0 && (
         <Card>
