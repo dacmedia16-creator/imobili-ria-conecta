@@ -103,14 +103,14 @@ def no_horario(agora: dt.datetime | None = None) -> bool:
 
 
 SQL_PENDENTES = ("SELECT id, numero, tipo, status, ultima_msg_usuario_em "
-                 "FROM max_suporte.pendentes(NULL, 50);")
+                 "FROM max_suporte.pendentes(NULL, 50, :'fila');")
 
 
 def verificar(env_path: str, estado_path: str, agora: dt.datetime | None = None) -> str:
     if not no_horario(agora):
         return "fora_do_horario"
     env = carregar_env(env_path)
-    linhas = psql(env, SQL_PENDENTES)
+    linhas = psql(env, SQL_PENDENTES, {"fila": "adm"})
     tratados = ler_estado(estado_path)
     abertos = {l[0] for l in linhas}
     # Esquece marcações de chamados que já saíram da fila (respondidos/resolvidos).

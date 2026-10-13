@@ -28,6 +28,7 @@ import {
   statusLabel,
   TIPO_CLASSE,
   tipoLabel,
+  nomeOrigem,
   type StatusChamado,
   type TipoChamado,
 } from "@/lib/ajuda-sugestoes";
@@ -49,6 +50,7 @@ export type ChamadoLinha = {
   created_at: string;
   last_message_at: string;
   resolved_at: string | null;
+  origem?: string | null;
 };
 
 type Mensagem = {
@@ -163,6 +165,9 @@ export function ChamadoDetalhe({
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <SeloTipo tipo={chamado.tipo} />
           {chamado.tela_nome && <span>{chamado.tela_nome}</span>}
+          {nomeOrigem(chamado.origem) && (
+            <span>· {nomeOrigem(chamado.origem)}</span>
+          )}
           {modo !== "autor" && (
             <span>
               · {chamado.organizacao} · {chamado.autor_nome ?? "Usuário"}

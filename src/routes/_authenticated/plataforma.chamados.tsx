@@ -19,6 +19,7 @@ import {
   STATUS_LABEL,
   STATUS_ORDEM,
   TIPO_LABEL,
+  nomeOrigem,
   type FiltroCentral,
 } from "@/lib/ajuda-sugestoes";
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
@@ -49,6 +50,7 @@ function CentralChamados() {
     tipo: "",
     status: "abertos",
     busca: "",
+    origem: "",
   });
 
   const carregar = useCallback(async () => {
@@ -145,6 +147,17 @@ function CentralChamados() {
             </option>
           ))}
         </select>
+        <select
+          aria-label="Origem"
+          className={selectCls}
+          value={f.origem}
+          onChange={(e) => setF({ ...f, origem: e.target.value })}
+        >
+          <option value="">Todas as origens</option>
+          <option value="adm">ADM MAX</option>
+          <option value="estudo">Estudo de Mercado</option>
+          <option value="visita">Visita MAX</option>
+        </select>
         <Input
           className="h-9 w-full sm:w-56"
           placeholder="Buscar texto ou #número"
@@ -180,6 +193,7 @@ function CentralChamados() {
                   {c.assunto}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
+                  {nomeOrigem(c.origem) && `${nomeOrigem(c.origem)} · `}
                   {c.organizacao} · {c.autor_nome ?? "Usuário"}
                   {papel(c.autor_papeis) && ` · ${papel(c.autor_papeis)}`} · {idade(c.created_at)}
                 </div>
@@ -223,6 +237,7 @@ function CentralChamados() {
                     <td className="p-2">
                       <div>{c.organizacao}</div>
                       <div className="text-xs text-muted-foreground">
+                        {nomeOrigem(c.origem) && `${nomeOrigem(c.origem)} · `}
                         {c.autor_nome ?? "Usuário"}
                         {papel(c.autor_papeis) && ` · ${papel(c.autor_papeis)}`}
                       </div>

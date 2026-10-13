@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-satelites]
 verify_jwt = false
+
+[functions.suporte-satelite]
+verify_jwt = false

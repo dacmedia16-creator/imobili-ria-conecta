@@ -123,6 +123,7 @@ export type FiltroCentral = {
   tipo: string; // "" = todos
   status: string; // "abertos" | "" (todos) | um status
   busca: string; // texto ou #número
+  origem: string; // "" = todas | adm | estudo | visita
 };
 
 type ChamadoFiltravel = {
@@ -134,6 +135,7 @@ type ChamadoFiltravel = {
   autor_nome?: string | null;
   organizacao?: string | null;
   resolved_at?: string | null;
+  origem?: string | null;
 };
 
 export function filtrarChamados<T extends ChamadoFiltravel>(lista: T[], f: FiltroCentral): T[] {
@@ -142,6 +144,7 @@ export function filtrarChamados<T extends ChamadoFiltravel>(lista: T[], f: Filtr
   return lista.filter((c) => {
     if (f.organizacao && c.organization_id !== f.organizacao) return false;
     if (f.tipo && c.tipo !== f.tipo) return false;
+    if (f.origem && (c.origem ?? "adm") !== f.origem) return false;
     if (f.status === "abertos" && c.status === "resolvido") return false;
     if (f.status && f.status !== "abertos" && c.status !== f.status) return false;
     if (!busca) return true;
@@ -167,6 +170,19 @@ export function resumoCentral(lista: ChamadoFiltravel[], agora = Date.now()) {
         agora - new Date(c.resolved_at).getTime() <= trintaDias,
     ).length,
   };
+}
+
+export function filaDe(origem: string | null | undefined): "visita" | "adm" | null {
+  if (origem === "visita") return "visita";
+  if (origem === "adm" || origem === "estudo") return "adm";
+  return null;
+}
+
+export function nomeOrigem(origem: string | null | undefined): string | null {
+  if (origem === "estudo") return "Estudo de Mercado";
+  if (origem === "visita") return "Visita MAX";
+  if (origem === "adm") return "ADM MAX";
+  return null;
 }
 
 /** "12 min", "2 h", "3 d". */

@@ -10,7 +10,7 @@ fica fora da API REST:
 
 | Função | O que faz |
 |---|---|
-| `pendentes(_desde, _limite)` | Chamados abertos cuja última mensagem pública é do usuário |
+| `pendentes(_desde, _limite, _fila)` | Chamados abertos cuja última mensagem pública é do usuário. `_fila` nula = todas; `adm` = ADM e Estudo; `visita` = só Visita. O verificador deste repositório pede a fila `adm`. |
 | `chamado(id)` | Chamado aberto, rota da tela, conversa e primeiro nome do autor. Não traz ids, e-mail, telefone nem print |
 | `responder(id, texto, status)` | Grava resposta pública assinada "— MAX", muda o status para `respondido` ou `em_analise` e avisa o autor no sino |
 | `mudar_status(id, status)` | Muda o status apenas para `em_analise` ou `respondido` |

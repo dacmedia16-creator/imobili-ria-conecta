@@ -5,8 +5,10 @@ import {
   caminhoDoPrint,
   decodificarPrint,
   filtrarChamados,
+  filaDe,
   idade,
   nomeDaTela,
+  nomeOrigem,
   resumoCentral,
   rotaSemIds,
   SUPORTE_WHATSAPP_LIGADO,
@@ -90,6 +92,28 @@ describe("central da equipe MAX", () => {
     expect(filtrarChamados(lista, { ...base, tipo: "erro" })).toHaveLength(2);
     expect(filtrarChamados(lista, { ...base, status: "", busca: "#1044" })).toHaveLength(1);
     expect(filtrarChamados(lista, { ...base, busca: "juliana" })[0].numero).toBe(1043);
+  });
+  it("filtra por origem e trata chamado antigo como ADM", () => {
+    const base = { organizacao: "", tipo: "", status: "abertos", busca: "", origem: "" };
+    const comOrigem = [
+      { ...lista[0], origem: "adm" },
+      { ...lista[1], origem: "estudo" },
+      { ...lista[2], origem: "visita" },
+    ];
+    expect(filtrarChamados(comOrigem, { ...base, origem: "visita" }).map((c) => c.numero)).toEqual([
+      1043,
+    ]);
+    expect(filtrarChamados(comOrigem, { ...base, origem: "estudo" })).toHaveLength(1);
+    expect(filtrarChamados(lista, { ...base, origem: "adm" })).toHaveLength(3);
+    expect(filtrarChamados(lista, { ...base, origem: "visita" })).toHaveLength(0);
+  });
+  it("fila: Visita fica com o MAX Visita Prova; ADM e Estudo ficam com o MAX Tecnologia", () => {
+    expect(filaDe("visita")).toBe("visita");
+    expect(filaDe("estudo")).toBe("adm");
+    expect(filaDe("adm")).toBe("adm");
+    expect(filaDe("outro")).toBeNull();
+    expect(nomeOrigem("estudo")).toBe("Estudo de Mercado");
+    expect(nomeOrigem(null)).toBeNull();
   });
   it("cartões de resumo", () => {
     expect(resumoCentral(lista)).toEqual({
@@ -187,6 +211,29 @@ describe("avisos (sino + WhatsApp desligado)", () => {
     const body = new URLSearchParams(String(init.body));
     expect(body.get("mobile_phone")).toBe("5515999990000");
     expect(body.get("msg")).toContain("Novo chamado de suporte");
+  });
+});
+
+describe("origem da caixa única", () => {
+  const up = ler("../../supabase/migrations/20261013190000_ajuda_origem.sql");
+  const down = ler("../../supabase/rollback/20261013190000_ajuda_origem.sql");
+  const ponte = ler("../../supabase/functions/suporte-satelite/index.ts");
+  it("migration separa a fila e usa o bucket privado que já existe", () => {
+    expect(up).toContain("ADD COLUMN origem text NOT NULL DEFAULT 'adm'");
+    expect(up).toContain("CHECK (origem IN ('adm', 'estudo', 'visita'))");
+    expect(up).toContain("_fila = 'visita' AND t.origem = 'visita'");
+    expect(up).toContain("_fila = 'adm' AND t.origem IN ('adm', 'estudo')");
+    expect(up).toContain("GRANT EXECUTE ON FUNCTION max_suporte.pendentes(timestamptz, integer, text) TO max_suporte_bot");
+    expect(up).toContain("bucket_id = 'support-attachments'");
+    expect(up).not.toContain("support-prints");
+    expect(ponte).toContain('storage.from("support-attachments")');
+    expect(ponte).not.toContain("support-prints");
+  });
+  it("rollback desfaz a coluna, a ponte e a fila nova", () => {
+    expect(down).toContain("DROP COLUMN IF EXISTS origem");
+    expect(down).toContain("DROP FUNCTION IF EXISTS public.support_ticket_origem_exec");
+    expect(down).toContain("DROP FUNCTION IF EXISTS max_suporte.pendentes(timestamptz, integer, text)");
+    expect(down).toContain("CREATE FUNCTION max_suporte.pendentes(_desde timestamptz DEFAULT NULL, _limite integer DEFAULT 50)");
   });
 });
 

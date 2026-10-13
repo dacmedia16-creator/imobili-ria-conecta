@@ -36,6 +36,19 @@ class Verificador(Base):
             self.assertEqual(ms.verificar(self.env, self.estado, DIA.replace(hour=20)), "fora_do_horario")
             p.assert_not_called()
 
+    def test_verificador_pede_so_a_fila_adm(self):
+        capt = {}
+
+        def fake_run(args, **kw):
+            capt["args"], capt["input"] = args, kw["input"]
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(ms.subprocess, "run", side_effect=fake_run):
+            self.assertEqual(ms.verificar(self.env, self.estado, DIA), "sem_novidade")
+        self.assertIn("fila=adm", capt["args"])
+        self.assertIn("max_suporte.pendentes", capt["input"])
+        self.assertNotIn("visita", capt["args"])
+
     def test_sem_pendentes(self):
         with mock.patch.object(ms, "psql", return_value=[]):
             self.assertEqual(ms.verificar(self.env, self.estado, DIA), "sem_novidade")
