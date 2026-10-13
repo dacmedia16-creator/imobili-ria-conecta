@@ -12,6 +12,7 @@ import {
   listAgencyRooms,
   saveAgencyProfile,
   saveAgencyRoom,
+  setMapaSiteEnabled,
   type AgencyProfile,
   type AgencyRoom,
 } from "@/lib/agency-profile";
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/admin/dados-imobiliaria")({
   head: () => ({ meta: [{ title: "Dados da imobiliária" }] }),
@@ -89,6 +91,23 @@ function AgencySettings() {
       toast.success("Dados da imobiliária salvos.");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Falha ao salvar os dados.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const toggleMapaSite = async (next: boolean) => {
+    if (!canEdit || !profile || saving) return;
+    setSaving(true);
+    try {
+      await setMapaSiteEnabled(next);
+      await reload();
+      toast.success(
+        next
+          ? "Imóveis do site RE/MAX ligados no Mapa de captações."
+          : "Imóveis do site RE/MAX desligados no Mapa de captações.",
+      );
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível alterar a opção.");
     } finally {
       setSaving(false);
     }
@@ -201,6 +220,27 @@ function AgencySettings() {
               Enviar logo
             </Button>
           </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Mapa de captações</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="agency-mapa-site" className="leading-snug">
+              Mostrar no Mapa de captações os imóveis de venda do site RE/MAX
+            </Label>
+            <Switch
+              id="agency-mapa-site"
+              checked={profile.mapa_site_enabled}
+              disabled={saving || !canEdit}
+              onCheckedChange={(next) => void toggleMapaSite(next)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Desligado, o mapa mostra só as captações. Nada é apagado; dá para religar quando quiser.
+          </p>
         </CardContent>
       </Card>
       <Card>
