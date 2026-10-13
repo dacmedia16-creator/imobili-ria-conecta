@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { requireRoles } from "@/lib/route-access";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mail, MessageCircle, Phone, X } from "lucide-react";
+import { Mail, MapPin, MessageCircle, Phone, SearchX, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type AppRole } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,8 @@ import {
 } from "@/lib/mapa-captacoes-filtros";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { PinsMap } from "@/components/mapa/PinsMap";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // mapa_captacoes_v2 ainda não consta do types.ts gerado.
@@ -143,7 +145,16 @@ function MapaCaptacoesPage() {
   const set = (k: keyof FiltrosMapa) => (v: string) => setFiltros((f) => ({ ...f, [k]: v }));
 
   if (authLoading || loading)
-    return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Carregando o mapa de captações">
+        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <Skeleton className="h-[420px] w-full rounded-xl" />
+          <ListSkeleton rows={4} label="Carregando a lista de captações" />
+        </div>
+      </div>
+    );
   if (!allowed)
     return (
       <Card>
@@ -155,13 +166,11 @@ function MapaCaptacoesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Mapa de captações</h1>
-        <p className="text-sm text-muted-foreground">
-          Onde estão as captações exclusivas assinadas da imobiliária, com preço e contato do
-          corretor captador.
-        </p>
-      </div>
+      <PageHeader
+        icon={MapPin}
+        title="Mapa de captações"
+        description="Onde estão as captações exclusivas assinadas da imobiliária, com preço e contato do corretor captador."
+      />
 
       <Card>
         <CardContent className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-6">
@@ -233,7 +242,7 @@ function MapaCaptacoesPage() {
             </select>
           </label>
           {nFiltros > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-2 lg:col-span-6">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:col-span-2 lg:col-span-6">
               {filtradas.length} de {captacoes.length} captações com os filtros.
               <Button variant="ghost" size="sm" onClick={() => setFiltros(FILTROS_VAZIOS)}>
                 <X className="mr-1 h-3 w-3" /> Limpar filtros
@@ -290,7 +299,20 @@ function MapaCaptacoesPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {filtradas.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nenhuma captação com esses filtros.</p>
+              <EmptyState
+                icon={SearchX}
+                action={
+                  nFiltros > 0 ? (
+                    <Button variant="outline" size="sm" onClick={() => setFiltros(FILTROS_VAZIOS)}>
+                      <X className="mr-1 h-3 w-3" /> Limpar filtros
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {nFiltros > 0
+                  ? "Nenhuma captação com esses filtros."
+                  : "Nenhuma captação exclusiva assinada ainda. Quando um contrato de exclusividade for assinado, ela aparece aqui e no mapa."}
+              </EmptyState>
             )}
             {filtradas.map((r) => (
               <ItemLista
@@ -324,7 +346,10 @@ function ItemLista({
     .filter(Boolean)
     .join(" · ");
   return (
-    <div className="rounded-md border p-2 text-sm" data-testid="item-captacao">
+    <div
+      className="rounded-lg border bg-card p-3 text-sm shadow-sm transition-shadow hover:shadow-md"
+      data-testid="item-captacao"
+    >
       <button
         type="button"
         className="w-full text-left disabled:cursor-default"
@@ -333,14 +358,21 @@ function ItemLista({
         title={noMapa ? "Ver no mapa" : "Ainda sem localização no mapa"}
       >
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-medium">
+          <span className="min-w-0 font-medium">
             {r.tipo_imovel ? nomeExibicao(r.tipo_imovel) : "Imóvel"}
           </span>
-          <span className="font-semibold text-emerald-700">{precoTexto(r.valor_imovel)}</span>
+          <span className="shrink-0 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+            {precoTexto(r.valor_imovel)}
+          </span>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="break-words text-xs text-muted-foreground">
           {local} · {r.codigo}
         </div>
+        {!noMapa && (
+          <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+            Ainda sem localização no mapa
+          </div>
+        )}
         {r.detalhe && r.endereco && <div className="text-xs">{r.endereco}</div>}
       </button>
       <div className="mt-1 border-t pt-1 text-xs">
@@ -354,7 +386,7 @@ function ItemLista({
               href={wa}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-emerald-700 hover:underline"
+              className="inline-flex items-center gap-1 text-emerald-700 hover:underline dark:text-emerald-400"
             >
               <MessageCircle className="h-3 w-3" /> WhatsApp
             </a>
@@ -367,7 +399,7 @@ function ItemLista({
           {r.captador_email && (
             <a
               href={`mailto:${r.captador_email}`}
-              className="inline-flex items-center gap-1 text-blue-700 hover:underline"
+              className="inline-flex min-w-0 items-center gap-1 break-all text-blue-700 hover:underline dark:text-blue-400"
             >
               <Mail className="h-3 w-3" /> {r.captador_email}
             </a>
