@@ -1,0 +1,6 @@
+-- 13/10/2026 — Denis autorizou (opção 3, parte 1): ocorrência da venda 630601113-27 passa a usar a
+-- última assinatura (contrato_assinado 04/09/2026), alinhando a tela Vendas aos relatórios.
+-- APLICADO:
+--   update public.occurrences set data_assinatura='2026-09-04' where id='7640afa2-d219-4bd0-9ea0-7fd5a3fc5fb9' and data_assinatura='2026-08-25';
+-- ROLLBACK:
+--   update public.occurrences set data_assinatura='2026-08-25' where id='7640afa2-d219-4bd0-9ea0-7fd5a3fc5fb9' and data_assinatura='2026-09-04';
