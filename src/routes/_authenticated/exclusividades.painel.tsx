@@ -148,13 +148,16 @@ function CapturesDashboard() {
         setCaptures(list);
         setUnits(unitList);
         setAgency(agencyProfile);
+        // Imobiliária desligou os imóveis do site no mapa (Dados da imobiliária): sem camada nem chip.
+        // O banco também devolve vazio nesse caso; aqui só evitamos a chamada.
+        if (agencyProfile.mapa_site_enabled === false) return;
+        // Falha aqui não derruba o painel: a camada só fica indisponível.
+        listSiteListings()
+          .then(setSite)
+          .catch(() => setSiteErro(true));
       })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
-    // Falha aqui não derruba o painel: a camada só fica indisponível.
-    listSiteListings()
-      .then(setSite)
-      .catch(() => setSiteErro(true));
   }, []);
 
   // Localiza no mapa as captações cujo endereço ainda não tem coordenada (ou mudou).

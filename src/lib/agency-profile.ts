@@ -14,6 +14,8 @@ export type AgencyProfile = {
   cor_primaria: string | null;
   cor_secundaria: string | null;
   logo_path: string | null;
+  /** Mostrar no Mapa de captações os imóveis de venda do site RE/MAX (padrão: ligado). */
+  mapa_site_enabled: boolean;
 };
 export type AgencyRoom = { id: string; nome: string; ativo: boolean; ordem: number };
 
@@ -23,7 +25,9 @@ export async function loadAgencyProfile(): Promise<AgencyProfile> {
   if (scopeError || !id) throw new Error("Imobiliária não identificada.");
   const { data, error } = await db
     .from("organizations")
-    .select("id,nome,razao_social,creci,cidade,uf,cor_primaria,cor_secundaria,logo_path")
+    .select(
+      "id,nome,razao_social,creci,cidade,uf,cor_primaria,cor_secundaria,logo_path,mapa_site_enabled",
+    )
     .eq("id", id)
     .single();
   if (error || !data) throw new Error("Não foi possível carregar os dados da imobiliária.");
@@ -55,6 +59,14 @@ export async function saveAgencyRoom(
 export async function saveAgencyProfile(data: Record<string, string | null>) {
   const { error } = await db.rpc("agency_profile_save", { _data: data });
   if (error) throw error;
+}
+
+/** Liga/desliga os imóveis do site no mapa da imobiliária atual (só admin/super_admin; o banco confere). */
+export async function setMapaSiteEnabled(enabled: boolean): Promise<boolean> {
+  const { data, error } = await db.rpc("mapa_site_set_enabled", { _enabled: enabled });
+  if (error) throw error;
+  if (data !== enabled) throw new Error("Não foi possível confirmar a alteração");
+  return data;
 }
 
 export function agencyCity(city: string | null | undefined) {
