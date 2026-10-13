@@ -26,6 +26,14 @@ import {
 } from "@/lib/exclusive-captures-dashboard";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
+import {
+  filterSiteListings,
+  listSiteListings,
+  SITE_COLOR,
+  SITE_LABEL,
+  splitSiteListings,
+  type SiteListing,
+} from "@/lib/mapa-anuncios-site";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { PorCorretorTab } from "@/components/exclusividades/PorCorretorTab";
 import { PendenciasFeedback } from "@/components/exclusividades/PendenciasFeedback";
@@ -128,6 +136,10 @@ function CapturesDashboard() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [hidden, setHidden] = useState<Situation[]>([]);
   const [locating, setLocating] = useState<{ done: number; total: number } | null>(null);
+  // Camada "anúncios do site RE/MAX" (só venda): desligada por padrão (são centenas de pinos).
+  const [site, setSite] = useState<SiteListing[]>([]);
+  const [siteErro, setSiteErro] = useState(false);
+  const [siteShown, setSiteShown] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -139,6 +151,10 @@ function CapturesDashboard() {
       })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
+    // Falha aqui não derruba o painel: a camada só fica indisponível.
+    listSiteListings()
+      .then(setSite)
+      .catch(() => setSiteErro(true));
   }, []);
 
   // Localiza no mapa as captações cujo endereço ainda não tem coordenada (ou mudou).
@@ -176,7 +192,12 @@ function CapturesDashboard() {
   );
   const d = useMemo(() => buildDashboard(filtered, today, units), [filtered, today, units]);
   const onMap = filtered.filter((c) => !hidden.includes(situation(c, today).s));
-  const semLocal = filtered.filter((c) => c.geo_lat == null).length;
+  const { soltos, porCaptacao } = useMemo(() => splitSiteListings(site), [site]);
+  const siteOnMap = useMemo(
+    () => filterSiteListings(soltos, filters, siteShown),
+    [soltos, filters, siteShown],
+  );
+  const semLocal = filtered.filter((c) => c.geo_lat == null && !porCaptacao.has(c.id)).length;
   const active = captures.filter((c) => !c.archived_at);
 
   const kpi = (label: string, value: string | number, color?: string) => (
@@ -304,6 +325,17 @@ function CapturesDashboard() {
                       </button>
                     );
                   })}
+                  {soltos.length > 0 && (
+                    <button
+                      type="button"
+                      aria-pressed={siteShown}
+                      onClick={() => setSiteShown((x) => !x)}
+                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-40"}`}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ background: SITE_COLOR }} />
+                      {SITE_LABEL} ({soltos.length})
+                    </button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -313,7 +345,21 @@ function CapturesDashboard() {
                   city={agency?.cidade ?? null}
                   uf={agency?.uf ?? null}
                   onOpen={(id) => navigate({ to: "/exclusividades/$id", params: { id } })}
+                  siteListings={siteOnMap}
+                  linkedListings={porCaptacao}
                 />
+                {siteShown && soltos.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {filters.situacao || filters.unidade
+                      ? "Anúncios do site ocultos: os filtros de situação e unidade valem só para captações."
+                      : `${siteOnMap.length} anúncio(s) do site RE/MAX no mapa (pinos vermelhos menores), da coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}. Captação com contorno vermelho já está anunciada no site.`}
+                  </p>
+                )}
+                {siteErro && (
+                  <p className="text-xs text-muted-foreground">
+                    Anúncios do site RE/MAX indisponíveis no momento.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {locating
                     ? `Localizando endereços no mapa… ${locating.done}/${locating.total}`
