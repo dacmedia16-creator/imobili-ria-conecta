@@ -30,6 +30,7 @@ import type {
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { montarCorretoresPorVenda } from "@/lib/sale-participantes";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
+import { dataAssinaturaOficial } from "@/lib/data-assinatura-oficial";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
 type TeamMemberRow = { membro_id: string; team_id: string };
@@ -140,9 +141,9 @@ const OCC_COLUMNS =
   "prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma, prev_recebimento3_recebido_em, prev_recebimento3_recebido_valor";
 
 /**
- * Mês da venda = data de assinatura do contrato (regra de Denis), a mesma usada pela lista de
- * Vendas: Lançamento usa a data da venda; demais usam a da ocorrência, depois a da venda. Só sem
- * nenhuma data digitada cai no dia em que o status virou "contrato assinado".
+ * Data oficial da venda (mesma regra de public.data_assinatura_oficial). Na venda padrão,
+ * `dataFechamento` de vendas_comerciais_canonicas JÁ É o último contrato_assinado (data SP),
+ * então ele vem antes da data digitada na ocorrência; Lançamento usa sales.data_assinatura.
  */
 export function dataDaVenda(
   modalidade: string,
@@ -150,9 +151,14 @@ export function dataDaVenda(
   saleDataAssinatura: string | null | undefined,
   dataFechamento: string,
 ): string {
-  const d =
-    modalidade === "lancamento" ? saleDataAssinatura : (occDataAssinatura ?? saleDataAssinatura);
-  return d ? d.slice(0, 10) : dataFechamento;
+  return (
+    dataAssinaturaOficial({
+      modalidade,
+      saleDataAssinatura,
+      ultimaAssinatura: modalidade === "lancamento" ? null : dataFechamento,
+      occDataAssinatura,
+    }) ?? dataFechamento
+  );
 }
 
 export type FinanceiroBundle = {
