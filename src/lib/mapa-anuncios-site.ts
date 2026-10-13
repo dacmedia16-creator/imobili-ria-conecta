@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Capture } from "./exclusive-captures";
 import { bairroLabel, brl, type Filters } from "./exclusive-captures-dashboard";
+import { precoNumero, tipoLabel, type FiltrosMapa } from "./mapa-captacoes-filtros";
+import type { MapPin } from "@/components/mapa/PinsMap";
 
 /**
  * Camada "anúncios do site RE/MAX" no mapa do painel de captações (pedido de Denis 13/10/2026).
@@ -99,6 +101,97 @@ export function splitSiteListings(list: SiteListing[]): {
     else soltos.push(l);
   }
   return { soltos, porCaptacao };
+}
+
+/**
+ * Mesmos anúncios, com os filtros da tela "Mapa de captações" (t_17cb27a7):
+ *  - bairro/cidade (busca): rua, bairro, cidade e código do anúncio;
+ *  - tipo: mesma normalização das captações;
+ *  - preço: preço do anúncio (sem preço não entra quando há faixa);
+ *  - captador: corretor do anúncio com o mesmo nome;
+ *  - equipe: o anúncio não tem equipe — com esse filtro a camada some (ver siteFiltroInaplicavel).
+ */
+export function filterSiteListingsMapa(
+  list: SiteListing[],
+  f: FiltrosMapa,
+  shown: boolean,
+): SiteListing[] {
+  if (!shown || f.equipe.trim()) return [];
+  const palavras = fold(f.busca).split(/\s+/).filter(Boolean);
+  const min = precoNumero(f.precoMin);
+  const max = precoNumero(f.precoMax);
+  return list.filter((l) => {
+    if (l.transacao !== "venda") return false;
+    if (palavras.length) {
+      const hay = fold([l.rua, l.bairro, l.cidade, l.code].filter(Boolean).join(" "));
+      if (!palavras.every((w) => hay.includes(w))) return false;
+    }
+    if (f.tipo && tipoLabel(l.tipo) !== f.tipo) return false;
+    if (f.captador && (l.corretor ?? "") !== f.captador) return false;
+    if (min != null || max != null) {
+      if (l.preco == null || !(l.preco > 0)) return false;
+      if (min != null && l.preco < min) return false;
+      if (max != null && l.preco > max) return false;
+    }
+    return true;
+  });
+}
+
+/** Explicação quando algum filtro da tela não se aplica ao anúncio do site. */
+export function siteFiltroInaplicavel(f: FiltrosMapa): string | null {
+  return f.equipe.trim()
+    ? "Imóveis do site ocultos: o filtro de equipe vale só para captações (o anúncio do site não tem equipe)."
+    : null;
+}
+
+/** Só links do próprio site RE/MAX (https). */
+export const safeSiteUrl = (u: string | null) =>
+  u && /^https:\/\/(www\.)?remax\.com\.br\//i.test(u) ? u : null;
+
+/** Marcador próprio do anúncio solto: menor e vermelho, popup só com dados públicos. */
+export function sitePin(l: SiteListing): MapPin {
+  const href = safeSiteUrl(l.url);
+  return {
+    id: `site:${l.code}`,
+    lat: l.lat,
+    lon: l.lon,
+    color: SITE_COLOR,
+    radius: 6,
+    lines: siteListingLines(l),
+    links: href ? [{ text: "Ver no site RE/MAX ↗", href }] : [],
+  };
+}
+
+/**
+ * Junta os anúncios LIGADOS (ativo/aguardando_gestor) ao pino da captação: contorno vermelho,
+ * linha com o código e link do site. Captação sem coordenada usa a do anúncio. Um marcador só.
+ */
+export function withLinkedListings(
+  pin: Omit<MapPin, "lat" | "lon"> & { lat?: number | null; lon?: number | null },
+  linked: SiteListing[] | undefined,
+): MapPin | null {
+  const ls = linked ?? [];
+  const lat = pin.lat ?? ls[0]?.lat ?? null;
+  const lon = pin.lon ?? ls[0]?.lon ?? null;
+  if (lat == null || lon == null) return null;
+  if (!ls.length) return { ...pin, lat, lon };
+  return {
+    ...pin,
+    lat,
+    lon,
+    ring: SITE_COLOR,
+    lines: [
+      ...pin.lines,
+      ...ls.map((l) => ({ text: `Anunciada no site RE/MAX · código ${l.code}` })),
+    ],
+    links: [
+      ...(pin.links ?? []),
+      ...ls
+        .map((l) => safeSiteUrl(l.url))
+        .filter((u): u is string => !!u)
+        .map((href) => ({ text: "Ver no site RE/MAX ↗", href })),
+    ],
+  };
 }
 
 const TIPO = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : "Imóvel");

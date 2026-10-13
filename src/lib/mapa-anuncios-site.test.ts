@@ -11,9 +11,15 @@ import {
   siteBairroLabel,
   siteListingLines,
   splitSiteListings,
+  filterSiteListingsMapa,
+  siteFiltroInaplicavel,
+  sitePin,
+  withLinkedListings,
+  SITE_COLOR,
   type SiteListing,
 } from "./mapa-anuncios-site";
 import { EMPTY_FILTERS } from "./exclusive-captures-dashboard";
+import { FILTROS_VAZIOS } from "./mapa-captacoes-filtros";
 
 const mk = (over: Partial<SiteListing> = {}): SiteListing => ({
   code: "630699001-11",
@@ -116,5 +122,58 @@ describe("fluidez com ~822 anúncios", () => {
     const ms = performance.now() - t0;
     expect(out.length).toBe(822 - 17);
     expect(ms).toBeLessThan(50);
+  });
+});
+
+describe("Mapa de captações: filtros da tela nos anúncios do site (t_17cb27a7)", () => {
+  const lista = [
+    mk({ code: "a", tipo: "casa", preco: 650000, corretor: "Ana Teste", bairro: "Campolim" }),
+    mk({ code: "b", tipo: "apartamento", preco: 300000, corretor: "Bruno", bairro: "Centro" }),
+    mk({ code: "c", tipo: "casa", preco: null, corretor: "Ana Teste", bairro: "Centro" }),
+    mk({ code: "d", transacao: null }),
+  ];
+  const codes = (l: SiteListing[]) => l.map((x) => x.code);
+
+  it("sem filtro: todos de venda; desligado: nenhum", () => {
+    expect(codes(filterSiteListingsMapa(lista, FILTROS_VAZIOS, true))).toEqual(["a", "b", "c"]);
+    expect(filterSiteListingsMapa(lista, FILTROS_VAZIOS, false)).toEqual([]);
+  });
+  it("busca por bairro/código, tipo, captador e faixa de preço", () => {
+    const f = (o: Partial<typeof FILTROS_VAZIOS>) =>
+      codes(filterSiteListingsMapa(lista, { ...FILTROS_VAZIOS, ...o }, true));
+    expect(f({ busca: "centro" })).toEqual(["b", "c"]);
+    expect(f({ busca: "b" })).toContain("b");
+    expect(f({ tipo: "Casa" })).toEqual(["a", "c"]);
+    expect(f({ captador: "Ana Teste" })).toEqual(["a", "c"]);
+    expect(f({ precoMin: "400.000" })).toEqual(["a"]);
+    expect(f({ precoMax: "400000" })).toEqual(["b"]);
+  });
+  it("filtro de equipe esconde a camada e explica o motivo", () => {
+    const f = { ...FILTROS_VAZIOS, equipe: "x" };
+    expect(filterSiteListingsMapa(lista, f, true)).toEqual([]);
+    expect(siteFiltroInaplicavel(f)).toMatch(/equipe/);
+    expect(siteFiltroInaplicavel(FILTROS_VAZIOS)).toBeNull();
+  });
+});
+
+describe("pinos compartilhados pelas duas telas", () => {
+  it("sitePin: vermelho, menor, link só do site RE/MAX", () => {
+    const p = sitePin(mk());
+    expect(p).toMatchObject({ id: "site:630699001-11", color: SITE_COLOR, radius: 6 });
+    expect(p.links?.[0]?.href).toMatch(/^https:\/\/www\.remax\.com\.br\//);
+    expect(sitePin(mk({ url: "javascript:alert(1)" })).links).toEqual([]);
+  });
+  it("withLinkedListings: um marcador só, com contorno, código e link", () => {
+    const base = { id: "c1", lat: -23, lon: -47, color: "#000", lines: [{ text: "Cap" }] };
+    expect(withLinkedListings(base, undefined)).toMatchObject({ id: "c1", lat: -23 });
+    const p = withLinkedListings(base, [mk({ capture_id: "c1" })])!;
+    expect(p.ring).toBe(SITE_COLOR);
+    expect(p.lines.map((l) => l.text).join(" ")).toContain("código 630699001-11");
+    expect(p.links).toHaveLength(1);
+  });
+  it("captação sem coordenada usa a do anúncio ligado; sem nenhuma, fica fora", () => {
+    const base = { id: "c1", lat: null, lon: null, color: "#000", lines: [] };
+    expect(withLinkedListings(base, [mk({ capture_id: "c1" })])).toMatchObject({ lat: -23.5 });
+    expect(withLinkedListings(base, [])).toBeNull();
   });
 });
