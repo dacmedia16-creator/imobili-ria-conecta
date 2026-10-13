@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+const rpc = vi.fn();
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: (...a: unknown[]) => rpc(...a) },
+}));
 
 import {
   filterSiteListings,
+  listSiteListings,
   siteBairroLabel,
   siteListingLines,
   splitSiteListings,
@@ -30,48 +34,49 @@ const mk = (over: Partial<SiteListing> = {}): SiteListing => ({
   coleta: "2026-10-13T06:20:00Z",
   ...over,
 });
-const both = ["venda", "locacao"] as const;
+
+describe("listSiteListings (só venda)", () => {
+  it("descarta qualquer locação que chegue (defesa extra; o banco já filtra)", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [mk(), { ...mk({ code: "2" }), transacao: "locacao" }],
+      error: null,
+    });
+    const out = await listSiteListings();
+    expect(out.map((l) => l.code)).toEqual(["630699001-11"]);
+  });
+});
 
 describe("filterSiteListings", () => {
-  const list = [
-    mk(),
-    mk({ code: "2", transacao: "locacao", corretor: "Bruno", bairro: "Centro", rua: "Av. Brasil" }),
-  ];
-  it("sem filtro: mostra venda e locação", () => {
-    expect(filterSiteListings(list, EMPTY_FILTERS, [...both])).toHaveLength(2);
+  const list = [mk(), mk({ code: "2", corretor: "Bruno", bairro: "Centro", rua: "Av. Brasil" })];
+  it("sem filtro: mostra os anúncios de venda", () => {
+    expect(filterSiteListings(list, EMPTY_FILTERS, true)).toHaveLength(2);
   });
-  it("chip de transação desligado esconde só aquela transação", () => {
-    expect(filterSiteListings(list, EMPTY_FILTERS, ["venda"]).map((l) => l.code)).toEqual([
-      "630699001-11",
-    ]);
+  it("chip do site desligado esconde a camada", () => {
+    expect(filterSiteListings(list, EMPTY_FILTERS, false)).toEqual([]);
+  });
+  it("locação nunca passa", () => {
+    const loc = { ...mk({ code: "3" }), transacao: "locacao" } as unknown as SiteListing;
+    expect(filterSiteListings([loc], EMPTY_FILTERS, true)).toEqual([]);
   });
   it("filtro de corretor e de bairro (mesma grafia das captações)", () => {
-    expect(
-      filterSiteListings(list, { ...EMPTY_FILTERS, corretor: "Bruno" }, [...both]),
-    ).toHaveLength(1);
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, corretor: "Bruno" }, true)).toHaveLength(1);
     expect(siteBairroLabel(list[0])).toBe("Jardim Teste");
     expect(
-      filterSiteListings(list, { ...EMPTY_FILTERS, bairro: "Jardim Teste" }, [...both]),
+      filterSiteListings(list, { ...EMPTY_FILTERS, bairro: "Jardim Teste" }, true),
     ).toHaveLength(1);
   });
   it("busca sem acento por rua/código", () => {
-    expect(
-      filterSiteListings(list, { ...EMPTY_FILTERS, busca: "acacias" }, [...both]),
-    ).toHaveLength(1);
-    expect(
-      filterSiteListings(list, { ...EMPTY_FILTERS, busca: "630699001" }, [...both]),
-    ).toHaveLength(1);
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, busca: "acacias" }, true)).toHaveLength(1);
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, busca: "630699001" }, true)).toHaveLength(
+      1,
+    );
   });
   it("situação ou unidade (conceitos da captação) escondem a camada", () => {
-    expect(filterSiteListings(list, { ...EMPTY_FILTERS, situacao: "em_vigor" }, [...both])).toEqual(
-      [],
-    );
-    expect(filterSiteListings(list, { ...EMPTY_FILTERS, unidade: "u1" }, [...both])).toEqual([]);
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, situacao: "em_vigor" }, true)).toEqual([]);
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, unidade: "u1" }, true)).toEqual([]);
   });
   it("período não esconde o anúncio (retrato da última coleta)", () => {
-    expect(filterSiteListings(list, { ...EMPTY_FILTERS, periodo: "30" }, [...both])).toHaveLength(
-      2,
-    );
+    expect(filterSiteListings(list, { ...EMPTY_FILTERS, periodo: "30" }, true)).toHaveLength(2);
   });
 });
 
@@ -95,13 +100,21 @@ describe("siteListingLines (privacidade)", () => {
     expect(text).toContain("Anúncio no site RE/MAX · venda");
     expect(text).toContain("Rua das Acácias");
     expect(text).toContain("R$");
+    expect(text).not.toContain("/mês");
     expect(text).toContain("código 630699001-11");
   });
-  it("locação mostra o preço por mês", () => {
-    expect(
-      siteListingLines(mk({ transacao: "locacao", preco: 2500 }))
-        .map((l) => l.text)
-        .join(" "),
-    ).toContain("/mês");
+});
+
+describe("fluidez com ~822 anúncios", () => {
+  it("split + filtro de 822 anúncios em menos de 50 ms", () => {
+    const many = Array.from({ length: 822 }, (_, i) =>
+      mk({ code: `x-${i}`, capture_id: i % 50 === 0 ? `c${i}` : null, rua: `Rua ${i}` }),
+    );
+    const t0 = performance.now();
+    const { soltos } = splitSiteListings(many);
+    const out = filterSiteListings(soltos, { ...EMPTY_FILTERS, busca: "rua" }, true);
+    const ms = performance.now() - t0;
+    expect(out.length).toBe(822 - 17);
+    expect(ms).toBeLessThan(50);
   });
 });

@@ -5,15 +5,17 @@
 -- Regras:
 --  * quem chama: usuário ativo da imobiliária atual, módulo de captação ligado, com papel que já abre
 --    o painel (corretor, team_leader, gestor, admin, super_admin) — mesma porta da rota /exclusividades;
---  * o quê: anúncios ATIVOS (status_uid 160) da ÚLTIMA coleta boa da imobiliária do usuário, com
---    coordenada. Coleta falha/suspeita não muda o mapa (vale a última 'ok');
---  * campos: só o que o site público já mostra — código, link, venda/locação, tipo, rua (sem número),
+--  * o quê: só anúncios de VENDA (decisão de Denis 13/10: locação nunca sai da função), ATIVOS
+--    (status_uid 160), da ÚLTIMA coleta boa da imobiliária do usuário, com coordenada. Coleta
+--    falha/suspeita não muda o mapa (vale a última 'ok');
+--  * campos: só o que o site público já mostra — código, link, transação (sempre venda), tipo, rua (sem número),
 --    bairro, cidade, coordenada, área, quartos, preço, exclusivo e o nome do corretor no site (ou o
 --    nome do usuário do ADM com aquele ID). Nunca telefone, e-mail, proprietário ou comissão;
---  * sem duplicar: anúncio LIGADO à captação (exclusive_listing_links status 'ativo', confirmado pelo
---    fluxo do PR #56) devolve capture_id — a tela junta os dois num marcador só. capture_id só sai para
---    quem já pode abrir a captação (exclusive_can_view); para os demais o anúncio aparece sozinho.
---    Ligação 'aguardando_gestor' e semelhança de endereço NÃO juntam nada.
+--  * sem duplicar: anúncio LIGADO à captação (exclusive_listing_links status 'ativo' ou
+--    'aguardando_gestor' — o mesmo imóvel sinalizado pelo fluxo do PR #56) devolve capture_id e a tela
+--    junta os dois num marcador só. capture_id só sai para quem já pode abrir a captação
+--    (exclusive_can_view); para os demais a captação nem está no mapa, então o anúncio aparece sozinho.
+--    Ligação recusada/encerrada e semelhança de endereço NÃO juntam nada.
 -- Rollback: supabase/rollback/20261013200000_mapa_anuncios_site.sql
 BEGIN;
 
@@ -76,11 +78,14 @@ BEGIN
     LEFT JOIN LATERAL (
       SELECT x.capture_id FROM public.exclusive_listing_links x
         JOIN public.exclusive_captures c ON c.id = x.capture_id AND c.organization_id = x.organization_id
-       WHERE x.organization_id = l.organization_id AND x.code_key = l.code_key AND x.status = 'ativo'
+       WHERE x.organization_id = l.organization_id AND x.code_key = l.code_key
+         AND x.status IN ('ativo', 'aguardando_gestor')
          AND c.discarded_at IS NULL AND c.archived_at IS NULL
+       ORDER BY (x.status = 'ativo') DESC
        LIMIT 1
     ) k ON true
    WHERE l.organization_id = _org AND l.last_run = _run.id AND l.status_uid = 160
+     AND l.transacao = 'venda'
      AND l.lat IS NOT NULL AND l.lon IS NOT NULL
    ORDER BY l.code;
 END $function$;

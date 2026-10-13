@@ -5,13 +5,14 @@ import { bairroLabel, brl, type Filters } from "./exclusive-captures-dashboard";
 
 /**
  * Camada "anúncios do site RE/MAX" no mapa do painel de captações (pedido de Denis 13/10/2026).
- * Dados: RPC mapa_anuncios_site (migration 20261013200000) — anúncios ATIVOS, com coordenada, da
- * última coleta boa da imobiliária. Só o que o site público já mostra; nunca proprietário/contato.
+ * Dados: RPC mapa_anuncios_site (migration 20261013200000) — só anúncios de VENDA, ATIVOS, com
+ * coordenada, da última coleta boa da imobiliária. Locação nunca vem do banco (decisão de Denis).
+ * Só o que o site público já mostra; nunca proprietário/contato.
  */
 export type SiteListing = {
   code: string;
   url: string | null;
-  transacao: "venda" | "locacao" | null;
+  transacao: "venda" | null;
   tipo: string | null;
   rua: string | null;
   bairro: string | null;
@@ -23,30 +24,28 @@ export type SiteListing = {
   preco: number | null;
   exclusivo: boolean;
   corretor: string | null;
-  /** Captação confirmada como o mesmo imóvel (ligação ativa) e que o usuário pode abrir. */
+  /** Captação sinalizada como o mesmo imóvel (ligação ativa ou aguardando gestor) que o usuário abre. */
   capture_id: string | null;
   coleta: string;
 };
 
-export type Transacao = "venda" | "locacao";
 /** Vermelho RE/MAX: anúncio do site. Captação ligada ganha só o contorno nessa cor. */
 export const SITE_COLOR = "#dc2626";
-export const TRANSACAO_LABEL: Record<Transacao, string> = {
-  venda: "Site RE/MAX · venda",
-  locacao: "Site RE/MAX · locação",
-};
+export const SITE_LABEL = "Site RE/MAX · venda";
 
 const db = supabase as unknown as SupabaseClient;
 export async function listSiteListings(): Promise<SiteListing[]> {
   const { data, error } = await db.rpc("mapa_anuncios_site");
   if (error) throw new Error(error.message);
-  return ((data ?? []) as SiteListing[]).map((l) => ({
-    ...l,
-    lat: Number(l.lat),
-    lon: Number(l.lon),
-    area: l.area == null ? null : Number(l.area),
-    preco: l.preco == null ? null : Number(l.preco),
-  }));
+  return ((data ?? []) as SiteListing[])
+    .filter((l) => l.transacao === "venda") // defesa extra: o banco já devolve só venda
+    .map((l) => ({
+      ...l,
+      lat: Number(l.lat),
+      lon: Number(l.lon),
+      area: l.area == null ? null : Number(l.area),
+      preco: l.preco == null ? null : Number(l.preco),
+    }));
 }
 
 const fold = (x: string) =>
@@ -64,14 +63,10 @@ export const siteBairroLabel = (l: SiteListing) =>
  * com um desses filtros ligado, a camada some (evita misturar o que não dá para comparar).
  * Período não se aplica (o anúncio é o retrato da última coleta).
  */
-export function filterSiteListings(
-  list: SiteListing[],
-  f: Filters,
-  shown: Transacao[],
-): SiteListing[] {
-  if (f.situacao || f.unidade) return [];
+export function filterSiteListings(list: SiteListing[], f: Filters, shown: boolean): SiteListing[] {
+  if (!shown || f.situacao || f.unidade) return [];
   return list.filter((l) => {
-    if (!l.transacao || !shown.includes(l.transacao)) return false;
+    if (l.transacao !== "venda") return false;
     if (f.corretor && (l.corretor || "—") !== f.corretor) return false;
     if (f.bairro && siteBairroLabel(l) !== f.bairro) return false;
     if (f.busca) {
@@ -89,9 +84,9 @@ export function filterSiteListings(
 
 /**
  * Separa o que vira marcador próprio do que se junta à captação (sem duplicar):
- *  - anúncio com capture_id (ligação confirmada) NUNCA vira marcador solto — a captação é o marcador.
- *    Se a captação não tem coordenada, usa a do anúncio;
- *  - semelhança de endereço não junta nada (o banco só devolve capture_id para ligação 'ativo').
+ *  - anúncio com capture_id (ligação ativa ou aguardando gestor) NUNCA vira marcador solto — a
+ *    captação é o marcador. Se a captação não tem coordenada, usa a do anúncio;
+ *  - semelhança de endereço não junta nada (o banco só devolve capture_id para ligação sinalizada).
  */
 export function splitSiteListings(list: SiteListing[]): {
   soltos: SiteListing[];
@@ -111,13 +106,10 @@ export function siteListingLines(l: SiteListing): { text: string; bold?: boolean
   const det = [
     l.area ? `${l.area.toLocaleString("pt-BR")} m²` : null,
     l.quartos ? `${l.quartos} quarto${l.quartos > 1 ? "s" : ""}` : null,
-    l.preco ? brl(l.preco) + (l.transacao === "locacao" ? "/mês" : "") : null,
+    l.preco ? brl(l.preco) : null,
   ].filter(Boolean);
   return [
-    {
-      text: `Anúncio no site RE/MAX · ${l.transacao === "locacao" ? "locação" : "venda"}`,
-      bold: true,
-    },
+    { text: "Anúncio no site RE/MAX · venda", bold: true },
     { text: `${TIPO(l.tipo)}${l.rua ? " · " + l.rua : ""}` },
     { text: `${siteBairroLabel(l)}${l.cidade ? " · " + l.cidade : ""}` },
     ...(det.length ? [{ text: det.join(" · ") }] : []),

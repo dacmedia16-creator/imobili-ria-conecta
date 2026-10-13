@@ -41,9 +41,12 @@ CREATE TEMP TABLE coleta AS SELECT jsonb_build_array(
   jsonb_build_object('code','630699001-11','agent_id','630699001','office_id',63059,'status_uid',160,'exclusivo',true,'transacao','venda',
     'tipo','casa','rua','Rua das Acácias Fictícias','numero','120','bairro','Jardim Teste','cidade','Sorocaba','lat',-23.50000,'lon',-47.45000,
     'area',150,'quartos',3,'preco',650000,'url','https://www.remax.com.br/pt-br/imoveis/casa/venda/sorocaba/120-rua/630699001-11'),
-  jsonb_build_object('code','630699077-12','agent_id','630699077','office_id',63059,'status_uid',160,'transacao','locacao',
+  jsonb_build_object('code','630699077-12','agent_id','630699077','office_id',63059,'status_uid',160,'transacao','venda',
     'tipo','apartamento','rua','Avenida Fictícia','numero','300','bairro','Centro Teste','cidade','Sorocaba','lat',-23.51,'lon',-47.46,
-    'area',60,'quartos',1,'preco',2500),
+    'area',60,'quartos',1,'preco',300000),
+  jsonb_build_object('code','630699077-15','agent_id','630699077','office_id',63059,'status_uid',160,'transacao','locacao',
+    'tipo','apartamento','rua','Rua Aluguel Fictícia','numero','5','bairro','Centro Teste','cidade','Sorocaba','lat',-23.515,'lon',-47.465,
+    'area',50,'quartos',1,'preco',2500),
   jsonb_build_object('code','630699001-13','agent_id','630699001','office_id',63059,'status_uid',160,'transacao','venda',
     'tipo','casa','rua','Rua Sem Mapa','numero','9','bairro','Jardim Teste'),
   jsonb_build_object('code','630699001-14','agent_id','630699001','office_id',63059,'status_uid',168,'transacao','venda',
@@ -69,7 +72,9 @@ GRANT SELECT ON fp_antes TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('captador')::text);
 SELECT pg_temp.ok(pg_temp.err('SELECT count(*) FROM public.remax_site_listings') LIKE '42501%', 'usuário segue sem ler a tabela direto (só a função)');
-SELECT pg_temp.ok((SELECT count(*) FROM public.mapa_anuncios_site()) = 2, 'só anúncios ATIVOS e COM coordenada (2 de 4)');
+SELECT pg_temp.ok((SELECT count(*) FROM public.mapa_anuncios_site()) = 2, 'só anúncios de VENDA, ATIVOS e COM coordenada (2 de 5)');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM public.mapa_anuncios_site() WHERE code = '630699077-15'), 'locação ativa com coordenada não sai (só venda)');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM public.mapa_anuncios_site() WHERE transacao IS DISTINCT FROM 'venda'), 'toda linha devolvida é venda');
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM public.mapa_anuncios_site() WHERE code IN ('630699001-13','630699001-14')), 'sem coordenada e inativo ficam fora');
 SELECT pg_temp.ok((SELECT corretor FROM public.mapa_anuncios_site() WHERE code = '630699001-11') = (SELECT nome FROM public.profiles WHERE id = pg_temp.id('captador')),
   'corretor com usuário: nome do ADM');
@@ -83,6 +88,23 @@ SELECT pg_temp.ok((SELECT capture_id FROM public.mapa_anuncios_site() WHERE code
 SELECT pg_temp.ok(public.exclusive_listing_link(pg_temp.id('c1'), '630699001-11') = 'ativo', 'liga c1 ao -11 (fluxo do PR #56)');
 SELECT pg_temp.ok((SELECT capture_id FROM public.mapa_anuncios_site() WHERE code = '630699001-11') = pg_temp.id('c1'), 'ligação ativa: devolve a captação (um marcador só na tela)');
 SELECT pg_temp.ok((SELECT capture_id FROM public.mapa_anuncios_site() WHERE code = '630699077-12') IS NULL, 'anúncio de outro corretor segue solto');
+-- Ligação 'aguardando_gestor' (anúncio de outro ID, sinalizado no Feedback) também junta o marcador
+INSERT INTO ids SELECT 'c2', public.exclusive_create_unit(pg_temp.id('unit_a'));
+RESET ROLE;
+INSERT INTO public.exclusive_listing_links (organization_id, capture_id, listing_code, status, outro_id, linked_by)
+  VALUES (:'org_a', pg_temp.id('c2'), '630699077-12', 'aguardando_gestor', true, pg_temp.id('captador'));
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('captador')::text);
+SELECT pg_temp.ok((SELECT capture_id FROM public.mapa_anuncios_site() WHERE code = '630699077-12') = pg_temp.id('c2'),
+  'ligação aguardando_gestor: devolve a captação (um marcador só)');
+RESET ROLE;
+UPDATE public.exclusive_listing_links SET status = 'recusado' WHERE capture_id = pg_temp.id('c2');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('captador')::text);
+SELECT pg_temp.ok((SELECT capture_id FROM public.mapa_anuncios_site() WHERE code = '630699077-12') IS NULL, 'ligação recusada: não junta');
+RESET ROLE;
+UPDATE public.exclusive_listing_links SET status = 'aguardando_gestor' WHERE capture_id = pg_temp.id('c2');
+SET LOCAL ROLE authenticated;
 
 -- 3) Gestor da equipe vê a ligação; corretor de outra equipe vê o anúncio, mas não a captação
 SELECT pg_temp.as_user(pg_temp.id('gestor')::text);
@@ -135,7 +157,7 @@ SELECT pg_temp.ok((SELECT count(*) FROM public.mapa_anuncios_site()) = 0, 'módu
 RESET ROLE;
 
 -- 7) Só leitura: nada gravado pela função
-SELECT pg_temp.ok((SELECT count(*) FROM public.exclusive_listing_links) = (SELECT links FROM fp_antes) + 1, 'ligações: só a criada pelo teste (função não liga nada)');
+SELECT pg_temp.ok((SELECT count(*) FROM public.exclusive_listing_links) = (SELECT links FROM fp_antes) + 2, 'ligações: só as 2 criadas pelo teste (função não liga nada)');
 SELECT pg_temp.ok((SELECT provolatile FROM pg_proc WHERE proname = 'mapa_anuncios_site') = 's', 'função declarada só-leitura (STABLE)');
 
 SELECT CASE WHEN ok THEN 'ok ' ELSE 'FALHA ' END || msg FROM r;
