@@ -29,7 +29,69 @@ export type SiteListing = {
   /** Captação sinalizada como o mesmo imóvel (ligação ativa ou aguardando gestor) que o usuário abre. */
   capture_id: string | null;
   coleta: string;
+  /**
+   * Coordenada recebida do site é inválida (0/0, fora do Brasil ou longe demais da cidade informada):
+   * o anúncio fica FORA do mapa e é contado à parte. Nunca inventamos coordenada (t_9f374e4d).
+   */
+  localInvalida?: boolean;
 };
+
+/** Caixa do Brasil (com folga pequena): fora disso a coordenada do site é tratada como inválida. */
+const BRASIL = { latMin: -34, latMax: 5.5, lonMin: -74, lonMax: -34.5 };
+/** Raio em torno da mediana dos anúncios da MESMA cidade (cidade com pelo menos MIN_CIDADE anúncios). */
+export const RAIO_CIDADE_KM = 30;
+/** Cidade com poucos anúncios: compara com a mediana de todos os anúncios da imobiliária. */
+export const RAIO_REGIAO_KM = 75;
+const MIN_CIDADE = 3;
+
+/** Coordenada utilizável: número finito, diferente de 0/0 e dentro do Brasil. */
+export function coordenadaNoBrasil(lat: unknown, lon: unknown): boolean {
+  const a = Number(lat);
+  const o = Number(lon);
+  if (lat == null || lon == null || !Number.isFinite(a) || !Number.isFinite(o)) return false;
+  if (a === 0 && o === 0) return false;
+  return a >= BRASIL.latMin && a <= BRASIL.latMax && o >= BRASIL.lonMin && o <= BRASIL.lonMax;
+}
+
+const mediana = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const kmEntre = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) =>
+  111.2 * Math.hypot(a.lat - b.lat, (a.lon - b.lon) * Math.cos((a.lat * Math.PI) / 180));
+
+/**
+ * Marca os anúncios com localização inválida. Referência da cidade = mediana dos anúncios válidos da
+ * mesma cidade (robusta a poucos pontos errados); cidade com poucos anúncios usa a mediana geral.
+ */
+export function marcarLocalInvalida(list: SiteListing[]): SiteListing[] {
+  const validos = list.filter((l) => coordenadaNoBrasil(l.lat, l.lon));
+  const centro = (ls: SiteListing[]) => ({
+    lat: mediana(ls.map((l) => l.lat)),
+    lon: mediana(ls.map((l) => l.lon)),
+  });
+  const regiao = validos.length ? centro(validos) : null;
+  const grupos = new Map<string, SiteListing[]>();
+  for (const l of validos) {
+    const k = fold(l.cidade ?? "");
+    if (k) grupos.set(k, [...(grupos.get(k) ?? []), l]);
+  }
+  const cidades = new Map<string, { lat: number; lon: number }>();
+  for (const [k, ls] of grupos) if (ls.length >= MIN_CIDADE) cidades.set(k, centro(ls));
+  return list.map((l) => {
+    let invalida = !coordenadaNoBrasil(l.lat, l.lon);
+    if (!invalida) {
+      const c = cidades.get(fold(l.cidade ?? ""));
+      const ref = c ?? regiao;
+      invalida = !!ref && kmEntre(l, ref) > (c ? RAIO_CIDADE_KM : RAIO_REGIAO_KM);
+    }
+    return { ...l, localInvalida: invalida };
+  });
+}
+
+/** Primeiro anúncio da lista com localização válida (para a captação ligada usar a coordenada dele). */
+export const anuncioComLocal = (ls: SiteListing[] | undefined) => ls?.find((l) => !l.localInvalida);
 
 /** Vermelho RE/MAX: anúncio do site. Captação ligada ganha só o contorno nessa cor. */
 export const SITE_COLOR = "#dc2626";
@@ -93,15 +155,25 @@ export function filterSiteListings(list: SiteListing[], f: Filters, shown: boole
 export function splitSiteListings(list: SiteListing[]): {
   soltos: SiteListing[];
   porCaptacao: Map<string, SiteListing[]>;
+  /** Anúncios soltos com localização inválida: não viram pino, só entram nesta contagem. */
+  foraDoMapa: number;
 } {
   const soltos: SiteListing[] = [];
   const porCaptacao = new Map<string, SiteListing[]>();
+  let foraDoMapa = 0;
   for (const l of list) {
     if (l.capture_id) porCaptacao.set(l.capture_id, [...(porCaptacao.get(l.capture_id) ?? []), l]);
+    else if (l.localInvalida) foraDoMapa++;
     else soltos.push(l);
   }
-  return { soltos, porCaptacao };
+  return { soltos, porCaptacao, foraDoMapa };
 }
+
+/** Texto curto para a legenda das duas telas. */
+export const textoForaDoMapa = (n: number) =>
+  n > 0
+    ? `${n} ${n === 1 ? "imóvel do site ficou" : "imóveis do site ficaram"} fora do mapa (localização inválida no site RE/MAX).`
+    : "";
 
 /**
  * Mesmos anúncios, com os filtros da tela "Mapa de captações" (t_17cb27a7):
@@ -171,8 +243,9 @@ export function withLinkedListings(
   linked: SiteListing[] | undefined,
 ): MapPin | null {
   const ls = linked ?? [];
-  const lat = pin.lat ?? ls[0]?.lat ?? null;
-  const lon = pin.lon ?? ls[0]?.lon ?? null;
+  const local = anuncioComLocal(ls); // nunca usa coordenada inválida do site
+  const lat = pin.lat ?? local?.lat ?? null;
+  const lon = pin.lon ?? local?.lon ?? null;
   if (lat == null || lon == null) return null;
   if (!ls.length) return { ...pin, lat, lon };
   return {

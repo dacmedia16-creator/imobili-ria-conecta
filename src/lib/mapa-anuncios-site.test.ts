@@ -15,6 +15,9 @@ import {
   siteFiltroInaplicavel,
   sitePin,
   withLinkedListings,
+  coordenadaNoBrasil,
+  marcarLocalInvalida,
+  textoForaDoMapa,
   SITE_COLOR,
   type SiteListing,
 } from "./mapa-anuncios-site";
@@ -175,5 +178,58 @@ describe("pinos compartilhados pelas duas telas", () => {
     const base = { id: "c1", lat: null, lon: null, color: "#000", lines: [] };
     expect(withLinkedListings(base, [mk({ capture_id: "c1" })])).toMatchObject({ lat: -23.5 });
     expect(withLinkedListings(base, [])).toBeNull();
+  });
+  it("captação sem coordenada NÃO usa coordenada inválida do anúncio ligado", () => {
+    const base = { id: "c1", lat: null, lon: null, color: "#000", lines: [] };
+    const ruim = mk({ capture_id: "c1", lat: 0, lon: 0, localInvalida: true });
+    expect(withLinkedListings(base, [ruim])).toBeNull();
+    const boa = mk({ code: "630699001-12", capture_id: "c1", lat: -23.4, lon: -47.4 });
+    expect(withLinkedListings(base, [ruim, boa])).toMatchObject({ lat: -23.4 });
+  });
+});
+
+describe("localização inválida vinda do site (t_9f374e4d)", () => {
+  // Sorocaba real: mediana dos anúncios ~(-23.50, -47.46)
+  const soro = Array.from({ length: 10 }, (_, i) =>
+    mk({ code: `630601001-${i}`, lat: -23.5 + i * 0.005, lon: -47.46 + i * 0.005 }),
+  );
+  const casos = [
+    mk({ code: "630601258-6", cidade: "Ibiúna", lat: 0, lon: 0 }), // 0/0 = mar (África)
+    mk({ code: "630591027-137", lat: -21.2922457, lon: -50.3428431 }), // Sorocaba a ~385 km
+    mk({ code: "630601057-566", lat: -23.5557714, lon: -46.6395571 }), // Sorocaba em SP capital
+    mk({ code: "630699000-1", cidade: "Lisboa", lat: 38.7, lon: -9.1 }), // fora do Brasil
+    mk({ code: "630699000-2", cidade: "Tatuí", lat: -23.35, lon: -47.85 }), // cidade com 1 anúncio, perto
+    mk({ code: "630699000-3", cidade: "Tietê", lat: -23.1, lon: -47.71 }), // ~50 km da região: válido
+  ];
+  const r = marcarLocalInvalida([...soro, ...casos]);
+  const inval = (c: string) => r.find((l) => l.code === c)!.localInvalida;
+
+  it("coordenadaNoBrasil: 0/0, nulo, NaN e exterior são inválidos", () => {
+    expect(coordenadaNoBrasil(0, 0)).toBe(false);
+    expect(coordenadaNoBrasil(null, -47)).toBe(false);
+    expect(coordenadaNoBrasil(Number.NaN, -47)).toBe(false);
+    expect(coordenadaNoBrasil(38.7, -9.1)).toBe(false);
+    expect(coordenadaNoBrasil(-47.46, -23.5)).toBe(false); // lat/lon trocados
+    expect(coordenadaNoBrasil(-23.5, -47.46)).toBe(true);
+  });
+  it("marca 0/0, exterior e longe demais da própria cidade", () => {
+    expect(inval("630601258-6")).toBe(true);
+    expect(inval("630591027-137")).toBe(true);
+    expect(inval("630601057-566")).toBe(true);
+    expect(inval("630699000-1")).toBe(true);
+  });
+  it("mantém os da região (cidade pequena compara com a região toda)", () => {
+    expect(inval("630699000-2")).toBe(false);
+    expect(inval("630699000-3")).toBe(false);
+    expect(soro.every((l) => !inval(l.code))).toBe(true);
+  });
+  it("split: inválido solto sai do mapa e entra na contagem; nada inventado", () => {
+    const s = splitSiteListings(r);
+    expect(s.foraDoMapa).toBe(4);
+    expect(s.soltos.every((l) => coordenadaNoBrasil(l.lat, l.lon))).toBe(true);
+    expect(s.soltos.find((l) => l.code === "630601258-6")).toBeUndefined();
+    expect(textoForaDoMapa(4)).toContain("4 imóveis do site ficaram fora do mapa");
+    expect(textoForaDoMapa(1)).toContain("1 imóvel do site ficou");
+    expect(textoForaDoMapa(0)).toBe("");
   });
 });
