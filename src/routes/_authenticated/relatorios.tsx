@@ -49,7 +49,15 @@ import {
   Wallet,
   Workflow,
 } from "lucide-react";
-import { KpiGridSkeleton, KpiTile, ListSkeleton, PageHeader } from "@/components/visual/base";
+import {
+  CardField,
+  EmptyState,
+  KpiGridSkeleton,
+  KpiTile,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+} from "@/components/visual/base";
 import { toast } from "sonner";
 import { fetchVendasComerciaisValidas } from "@/lib/vendas-comerciais-query";
 import { periodoMensalRelatorios, type AtalhoPeriodoRelatorios } from "@/lib/relatorios-periodo";
@@ -261,8 +269,8 @@ function RelatoriosPage() {
       );
 
       const occIds = o.map((r) => r.id);
-      let c: OccurrenceCommissionRow[] = [];
-      let p: OccurrencePartnerRow[] = [];
+      const c: OccurrenceCommissionRow[] = [];
+      const p: OccurrencePartnerRow[] = [];
       if (occIds.length) {
         for (let offset = 0; offset < occIds.length; offset += 100) {
           const ids = occIds.slice(offset, offset + 100);
@@ -769,74 +777,147 @@ function FluxoCaixaTab({
           <ExportButton onClick={doExport} />
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Imóvel</TableHead>
-                <TableHead>Corretor</TableHead>
-                <TableHead>Parcela</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Forma</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Situação</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 && (
-                <EmptyRow colSpan={8}>
-                  Nenhuma parcela prevista no período/filtro selecionado.
-                </EmptyRow>
-              )}
-              {rows.map((r, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">
+          <div className="hidden md:block print:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Imóvel</TableHead>
+                  <TableHead>Corretor</TableHead>
+                  <TableHead>Parcela</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Forma</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 && (
+                  <EmptyRow colSpan={8}>
+                    Nenhuma parcela prevista no período/filtro selecionado.
+                  </EmptyRow>
+                )}
+                {rows.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">
+                      {r.sale ? (
+                        <Link
+                          to="/vendas/$id"
+                          params={{ id: r.sale.id }}
+                          className="hover:underline"
+                        >
+                          {saleLabel(r.sale)}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
+                    <TableCell>{r.parcela}ª</TableCell>
+                    <TableCell>{dateBR(r.data)}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
+                    <TableCell>{money(r.valor)}</TableCell>
+                    <TableCell>
+                      {r.recebidoEm ? (
+                        <span className="text-emerald-700 dark:text-emerald-400">
+                          Recebida em {dateBR(r.recebidoEm)}
+                          {r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
+                        </span>
+                      ) : (
+                        <span
+                          className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}
+                        >
+                          {r.data < hoje ? "Vencida" : "A vencer"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {r.recebidoEm ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => desfazerRecebido(r.occId, r.parcela)}
+                        >
+                          Desfazer
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => abrirMarcar(r)}>
+                          Marcar recebido
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Celular: mesmas parcelas e as mesmas ações (marcar/desfazer) em cartões. */}
+          <div className="space-y-3 md:hidden print:hidden">
+            {rows.length === 0 && (
+              <EmptyState>Nenhuma parcela prevista no período/filtro selecionado.</EmptyState>
+            )}
+            {rows.map((r, i) => (
+              <div key={i} className="space-y-2 rounded-xl border bg-card p-3 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
                     {r.sale ? (
-                      <Link to="/vendas/$id" params={{ id: r.sale.id }} className="hover:underline">
+                      <Link
+                        to="/vendas/$id"
+                        params={{ id: r.sale.id }}
+                        className="break-words font-medium hover:underline"
+                      >
                         {saleLabel(r.sale)}
                       </Link>
                     ) : (
-                      "—"
+                      <span className="font-medium">—</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
-                  <TableCell>{r.parcela}ª</TableCell>
-                  <TableCell>{dateBR(r.data)}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                  <TableCell>{money(r.valor)}</TableCell>
-                  <TableCell>
-                    {r.recebidoEm ? (
-                      <span className="text-emerald-700 dark:text-emerald-400">
-                        Recebida em {dateBR(r.recebidoEm)}
-                        {r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
-                      </span>
-                    ) : (
-                      <span
-                        className={r.data < hoje ? "text-destructive" : "text-muted-foreground"}
-                      >
-                        {r.data < hoje ? "Vencida" : "A vencer"}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {r.recebidoEm ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => desfazerRecebido(r.occId, r.parcela)}
-                      >
-                        Desfazer
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={() => abrirMarcar(r)}>
-                        Marcar recebido
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    <p className="text-xs text-muted-foreground">{r.parcela}ª parcela</p>
+                  </div>
+                  {r.recebidoEm ? (
+                    <Pill tom="green">Recebida</Pill>
+                  ) : r.data < hoje ? (
+                    <Pill tom="red">Vencida</Pill>
+                  ) : (
+                    <Pill tom="blue">A vencer</Pill>
+                  )}
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <CardField label="Valor">
+                    <span className="font-semibold">{money(r.valor)}</span>
+                  </CardField>
+                  <CardField label="Data">{dateBR(r.data)}</CardField>
+                  <CardField label="Corretor">{corretorNome(r.sale)}</CardField>
+                  <CardField label="Forma">{r.forma ?? "—"}</CardField>
+                  {r.recebidoEm && (
+                    <CardField label="Recebimento" className="col-span-2">
+                      Recebida em {dateBR(r.recebidoEm)}
+                      {r.recebidoValor != null ? ` — ${money(r.recebidoValor)}` : ""}
+                    </CardField>
+                  )}
+                </dl>
+                {r.recebidoEm ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => desfazerRecebido(r.occId, r.parcela)}
+                  >
+                    Desfazer
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => abrirMarcar(r)}
+                  >
+                    Marcar recebido
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

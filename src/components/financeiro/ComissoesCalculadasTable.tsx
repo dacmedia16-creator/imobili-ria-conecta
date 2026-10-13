@@ -18,6 +18,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { money, dateBR } from "@/components/vendas/shared";
+import { CardField, EmptyState, Pill, type Tom } from "@/components/visual/base";
 import { COMISSAO_PAPEIS } from "@/lib/status";
 import { agruparComissoes } from "@/lib/financeiro-dashboard-calc";
 import type { AgrupamentoComissao, ComissaoCalculada } from "@/lib/financeiro-dashboard-types";
@@ -45,6 +46,11 @@ const SITUACAO_RECEBIMENTO_TONE = {
   parcial: "text-amber-700 dark:text-amber-400",
   recebido: "text-emerald-700 dark:text-emerald-400",
 } as const;
+const SITUACAO_RECEBIMENTO_TOM: Record<keyof typeof SITUACAO_RECEBIMENTO_LABEL, Tom> = {
+  nao_recebido: "slate",
+  parcial: "amber",
+  recebido: "green",
+};
 
 export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }) {
   const [agrupamento, setAgrupamento] = useState<AgrupamentoComissao>("beneficiario");
@@ -106,7 +112,49 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
         </TableBody>
       </Table>
 
-      <div className="overflow-x-auto">
+      {/* Celular: mesmas comissões em cartões, sem rolagem lateral. */}
+      <div className="space-y-3 md:hidden print:hidden">
+        {rows.length === 0 && <EmptyState>Nenhuma comissão calculada no filtro atual.</EmptyState>}
+        {rows.map((r) => (
+          <div key={r.id} className="space-y-2 rounded-xl border bg-card p-3 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <Link
+                to="/vendas/$id"
+                params={{ id: r.saleId }}
+                className="min-w-0 break-words font-medium hover:underline"
+              >
+                {r.imovelLabel}
+              </Link>
+              <Pill tom={SITUACAO_RECEBIMENTO_TOM[r.situacaoRecebimentoVenda]}>
+                {SITUACAO_RECEBIMENTO_LABEL[r.situacaoRecebimentoVenda]}
+              </Pill>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <CardField label="Valor calculado">
+                <span className="font-semibold">{money(r.valor)}</span>
+              </CardField>
+              <CardField label="%">{r.percentual != null ? `${r.percentual}%` : "—"}</CardField>
+              <CardField label="Beneficiário">
+                <span className={r.semVinculoUsuario ? "text-amber-700 dark:text-amber-400" : ""}>
+                  {r.beneficiarioNome ?? "—"}
+                  {r.semVinculoUsuario && " (sem vínculo)"}
+                </span>
+              </CardField>
+              <CardField label="Papel">{PAPEL_LABEL[r.papel] ?? r.papel}</CardField>
+              <CardField label="Efetivação">
+                {r.dataEfetivacao ? dateBR(r.dataEfetivacao) : "—"}
+              </CardField>
+              <CardField label="Origem">
+                {r.origem === "manual" ? "Ajuste manual" : "Automática"}
+              </CardField>
+              <CardField label="Equipe">{r.teamNome ?? "—"}</CardField>
+              <CardField label="Gestor">{r.gestorNome ?? "—"}</CardField>
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block print:block">
         <Table>
           <TableHeader>
             <TableRow>

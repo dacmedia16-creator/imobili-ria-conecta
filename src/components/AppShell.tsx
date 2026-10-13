@@ -214,7 +214,11 @@ function SidebarNav({
                       }}
                     >
                       <n.icon className="h-4 w-4 shrink-0" aria-hidden />
-                      {!collapsed && <span className="min-w-0 flex-1 truncate">{n.label}</span>}
+                      {!collapsed && (
+                        <span className="min-w-0 flex-1 truncate" title={n.label}>
+                          {n.label}
+                        </span>
+                      )}
                       {badge &&
                         (collapsed ? (
                           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#ff3b3b]" />

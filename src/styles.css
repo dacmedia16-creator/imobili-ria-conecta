@@ -107,6 +107,8 @@
 }
 
 .dark {
+  /* Controles nativos (ícone do calendário em input date, barras de rolagem) no tema escuro. */
+  color-scheme: dark;
   --background: oklch(0.17 0.02 260);
   --foreground: oklch(0.98 0.003 247);
   --card: oklch(0.22 0.03 260);
