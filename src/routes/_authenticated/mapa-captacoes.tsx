@@ -34,7 +34,17 @@ import {
   type FiltrosMapa,
 } from "@/lib/mapa-captacoes-filtros";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
-import { PinsMap } from "@/components/mapa/PinsMap";
+import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
+import {
+  filterSiteListingsMapa,
+  SITE_COLOR,
+  SITE_LABEL,
+  siteFiltroInaplicavel,
+  sitePin,
+  withLinkedListings,
+} from "@/lib/mapa-anuncios-site";
+import { useSiteListings } from "@/hooks/use-site-listings";
+import { formatDateBR } from "@/lib/exclusive-captures";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -84,6 +94,10 @@ function MapaCaptacoesPage() {
   );
   const iniciouGeoCap = useRef(false);
   const navigate = useNavigate();
+  // Camada "Site RE/MAX · venda" (mesmo hook do Painel). Começa LIGADA nesta tela: quem abre o
+  // mapa quer ver os imóveis; o interruptor geral é a opção da imobiliária (mapa_site_enabled).
+  const { site, erro: siteErro, soltos, porCaptacao } = useSiteListings(agency);
+  const [siteShown, setSiteShown] = useState(true);
 
   useEffect(() => {
     if (!allowed) {
@@ -139,8 +153,27 @@ function MapaCaptacoesPage() {
 
   const opcoes = useMemo(() => opcoesFiltro(captacoes), [captacoes]);
   const filtradas = useMemo(() => filtrarCaptacoes(captacoes, filtros), [captacoes, filtros]);
-  const pinosCap = useMemo(() => pinosCaptacoes(filtradas, hoje), [filtradas, hoje]);
+  const pinosCap = useMemo(
+    () =>
+      pinosCaptacoes(
+        // Captação sem coordenada, mas ligada a anúncio do site: usa a coordenada do anúncio.
+        filtradas.map((r) => {
+          const l = porCaptacao.get(r.id)?.[0];
+          return r.geo_lat == null && l ? { ...r, geo_lat: l.lat, geo_lon: l.lon } : r;
+        }),
+        hoje,
+      )
+        .map((p) => withLinkedListings(p, porCaptacao.get(p.id)))
+        .filter((p): p is Pino => p !== null),
+    [filtradas, hoje, porCaptacao],
+  );
+  const siteNoMapa = useMemo(
+    () => filterSiteListingsMapa(soltos, filtros, siteShown),
+    [soltos, filtros, siteShown],
+  );
+  const pinos = useMemo(() => [...pinosCap, ...siteNoMapa.map(sitePin)], [pinosCap, siteNoMapa]);
   const capSemLocal = filtradas.length - pinosCap.length;
+  const siteAviso = siteShown ? siteFiltroInaplicavel(filtros) : null;
   const nFiltros = filtrosAtivos(filtros);
   const set = (k: keyof FiltrosMapa) => (v: string) => setFiltros((f) => ({ ...f, [k]: v }));
 
@@ -169,7 +202,11 @@ function MapaCaptacoesPage() {
       <PageHeader
         icon={MapPin}
         title="Mapa de captações"
-        description="Onde estão as captações exclusivas assinadas da imobiliária, com preço e contato do corretor captador."
+        description={
+          soltos.length > 0
+            ? "Onde estão as captações exclusivas assinadas da imobiliária, com preço e contato do corretor captador, e também os imóveis de venda anunciados no site RE/MAX (em vermelho)."
+            : "Onde estão as captações exclusivas assinadas da imobiliária, com preço e contato do corretor captador."
+        }
       />
 
       <Card>
@@ -269,11 +306,23 @@ function MapaCaptacoesPage() {
                   {filtradas.filter((r) => r.negociacao).length} em negociação
                 </>
               )}
+              {soltos.length > 0 && (
+                <button
+                  type="button"
+                  aria-pressed={siteShown}
+                  title={siteShown ? "Esconder imóveis do site" : "Mostrar imóveis do site"}
+                  onClick={() => setSiteShown((x) => !x)}
+                  className={`ml-2 flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-40"}`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: SITE_COLOR }} />
+                  {SITE_LABEL} ({siteShown ? siteNoMapa.length : soltos.length})
+                </button>
+              )}
             </span>
           </CardHeader>
           <CardContent className="space-y-2">
             <PinsMap
-              pins={pinosCap}
+              pins={pinos}
               city={agency?.cidade ?? null}
               uf={agency?.uf ?? null}
               focusId={foco}
@@ -290,6 +339,17 @@ function MapaCaptacoesPage() {
               andamento, descartadas e arquivadas ficam de fora. Os dados do proprietário nunca
               aparecem no mapa.
             </p>
+            {siteShown && soltos.length > 0 && (
+              <p className="text-xs text-muted-foreground" data-testid="legenda-site">
+                {siteAviso ??
+                  `${filtradas.length} ${filtradas.length === 1 ? "captação assinada" : "captações assinadas"} · ${siteNoMapa.length} ${siteNoMapa.length === 1 ? "imóvel" : "imóveis"} do site. Pinos vermelhos menores são imóveis de venda anunciados no site RE/MAX (coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}); captação com contorno vermelho já está anunciada no site. Os filtros de bairro/cidade, tipo, preço e captador (corretor do anúncio) valem também para eles; o de equipe vale só para captações.`}
+              </p>
+            )}
+            {siteErro && (
+              <p className="text-xs text-muted-foreground">
+                Imóveis do site RE/MAX indisponíveis no momento.
+              </p>
+            )}
           </CardContent>
         </Card>
 

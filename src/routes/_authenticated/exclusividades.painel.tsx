@@ -26,14 +26,8 @@ import {
 } from "@/lib/exclusive-captures-dashboard";
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { CapturesMap } from "@/components/exclusividades/CapturesMap";
-import {
-  filterSiteListings,
-  listSiteListings,
-  SITE_COLOR,
-  SITE_LABEL,
-  splitSiteListings,
-  type SiteListing,
-} from "@/lib/mapa-anuncios-site";
+import { filterSiteListings, SITE_COLOR, SITE_LABEL } from "@/lib/mapa-anuncios-site";
+import { useSiteListings } from "@/hooks/use-site-listings";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { PorCorretorTab } from "@/components/exclusividades/PorCorretorTab";
 import { PendenciasFeedback } from "@/components/exclusividades/PendenciasFeedback";
@@ -137,8 +131,8 @@ function CapturesDashboard() {
   const [hidden, setHidden] = useState<Situation[]>([]);
   const [locating, setLocating] = useState<{ done: number; total: number } | null>(null);
   // Camada "anúncios do site RE/MAX" (só venda): desligada por padrão (são centenas de pinos).
-  const [site, setSite] = useState<SiteListing[]>([]);
-  const [siteErro, setSiteErro] = useState(false);
+  // Mesma carga/regras da tela "Mapa de captações" (hook compartilhado, t_17cb27a7).
+  const { site, erro: siteErro, soltos, porCaptacao } = useSiteListings(agency);
   const [siteShown, setSiteShown] = useState(false);
   const started = useRef(false);
 
@@ -147,14 +141,8 @@ function CapturesDashboard() {
       .then(([list, unitList, agencyProfile]) => {
         setCaptures(list);
         setUnits(unitList);
+        // A camada do site respeita mapa_site_enabled dentro de useSiteListings.
         setAgency(agencyProfile);
-        // Imobiliária desligou os imóveis do site no mapa (Dados da imobiliária): sem camada nem chip.
-        // O banco também devolve vazio nesse caso; aqui só evitamos a chamada.
-        if (agencyProfile.mapa_site_enabled === false) return;
-        // Falha aqui não derruba o painel: a camada só fica indisponível.
-        listSiteListings()
-          .then(setSite)
-          .catch(() => setSiteErro(true));
       })
       .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
       .finally(() => setLoading(false));
@@ -195,7 +183,6 @@ function CapturesDashboard() {
   );
   const d = useMemo(() => buildDashboard(filtered, today, units), [filtered, today, units]);
   const onMap = filtered.filter((c) => !hidden.includes(situation(c, today).s));
-  const { soltos, porCaptacao } = useMemo(() => splitSiteListings(site), [site]);
   const siteOnMap = useMemo(
     () => filterSiteListings(soltos, filters, siteShown),
     [soltos, filters, siteShown],
