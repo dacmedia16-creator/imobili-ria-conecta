@@ -36,7 +36,9 @@ import {
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
 import {
+  anuncioComLocal,
   filterSiteListingsMapa,
+  textoForaDoMapa,
   SITE_COLOR,
   SITE_LABEL,
   siteFiltroInaplicavel,
@@ -96,7 +98,7 @@ function MapaCaptacoesPage() {
   const navigate = useNavigate();
   // Camada "Site RE/MAX · venda" (mesmo hook do Painel). Começa LIGADA nesta tela: quem abre o
   // mapa quer ver os imóveis; o interruptor geral é a opção da imobiliária (mapa_site_enabled).
-  const { site, erro: siteErro, soltos, porCaptacao } = useSiteListings(agency);
+  const { site, erro: siteErro, soltos, porCaptacao, foraDoMapa } = useSiteListings(agency);
   const [siteShown, setSiteShown] = useState(true);
 
   useEffect(() => {
@@ -158,7 +160,7 @@ function MapaCaptacoesPage() {
       pinosCaptacoes(
         // Captação sem coordenada, mas ligada a anúncio do site: usa a coordenada do anúncio.
         filtradas.map((r) => {
-          const l = porCaptacao.get(r.id)?.[0];
+          const l = anuncioComLocal(porCaptacao.get(r.id));
           return r.geo_lat == null && l ? { ...r, geo_lat: l.lat, geo_lon: l.lon } : r;
         }),
         hoje,
@@ -342,7 +344,7 @@ function MapaCaptacoesPage() {
             {siteShown && soltos.length > 0 && (
               <p className="text-xs text-muted-foreground" data-testid="legenda-site">
                 {siteAviso ??
-                  `${filtradas.length} ${filtradas.length === 1 ? "captação assinada" : "captações assinadas"} · ${siteNoMapa.length} ${siteNoMapa.length === 1 ? "imóvel" : "imóveis"} do site. Pinos vermelhos menores são imóveis de venda anunciados no site RE/MAX (coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}); captação com contorno vermelho já está anunciada no site. Os filtros de bairro/cidade, tipo, preço e captador (corretor do anúncio) valem também para eles; o de equipe vale só para captações.`}
+                  `${filtradas.length} ${filtradas.length === 1 ? "captação assinada" : "captações assinadas"} · ${siteNoMapa.length} ${siteNoMapa.length === 1 ? "imóvel" : "imóveis"} do site. Pinos vermelhos menores são imóveis de venda anunciados no site RE/MAX (coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}); captação com contorno vermelho já está anunciada no site. Os filtros de bairro/cidade, tipo, preço e captador (corretor do anúncio) valem também para eles; o de equipe vale só para captações. ${textoForaDoMapa(foraDoMapa)}`}
               </p>
             )}
             {siteErro && (
