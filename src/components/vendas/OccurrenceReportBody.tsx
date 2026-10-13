@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { visibleOccurrenceCommissions } from "@/lib/occurrence-commissions";
 import { COMISSAO_PAPEIS, PARCERIA_TIPOS } from "@/lib/status";
 import { money, dateBR } from "./shared";
@@ -84,6 +86,19 @@ export function OccurrenceReportBody({
 }) {
   // Vendedor/comprador pessoa jurídica (ex: construtora do Lançamento) só preenche razão social/CNPJ,
   // sem nome/CPF de representante — cai pro nome fantasia/CNPJ pra não mostrar a linha em branco.
+  // Data da venda pela regra única do sistema (último contrato_assinado; Lançamento = data da venda),
+  // a mesma das telas e relatórios. Se a consulta falhar, mantém a data digitada na ocorrência.
+  const [dataAssinaturaOficial, setDataAssinaturaOficial] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sale?.id) return;
+    let ativo = true;
+    void supabase.rpc("data_assinatura_oficial", { _sale_id: sale.id }).then(({ data, error }) => {
+      if (ativo && !error && typeof data === "string") setDataAssinaturaOficial(data);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [sale?.id]);
   const vendedores = Object.entries(parties)
     .filter(([papel]) => papel.startsWith("vendedor"))
     .map(([, p]) => ({ ...p, nome: p.nome || p.razao_social, cpf_cnpj: p.cpf_cnpj || p.cnpj }));
@@ -139,7 +154,9 @@ export function OccurrenceReportBody({
           cols={[
             sale.imovel_id || sale.codigo_interno,
             occ?.tempo_venda_dias != null ? `${occ.tempo_venda_dias} dias` : "",
-            <span className="font-semibold">{dateBR(occ?.data_assinatura)}</span>,
+            <span className="font-semibold">
+              {dateBR(dataAssinaturaOficial ?? occ?.data_assinatura)}
+            </span>,
             <Checkbox
               checked={!!occ?.nota_fiscal_obrigatoria}
               label={occ?.nota_fiscal_obrigatoria ? "Sim" : "Não"}
@@ -284,7 +301,14 @@ export function OccurrenceReportBody({
               key={c.id ?? `${p.key}-${i}`}
               cols={[
                 i === 0 ? p.label : "",
-                <>{c.nome ?? "Não possui"}{c.creci && <span className="block text-xs">CRECI {c.creci_tipo ?? ""} {c.creci}</span>}</>,
+                <>
+                  {c.nome ?? "Não possui"}
+                  {c.creci && (
+                    <span className="block text-xs">
+                      CRECI {c.creci_tipo ?? ""} {c.creci}
+                    </span>
+                  )}
+                </>,
                 c.percentual != null ? `${c.percentual}%` : "0%",
                 money(c.valor) ?? "R$ 0,00",
               ]}
@@ -376,7 +400,14 @@ export function OccurrenceReportBody({
             key={p.id}
             cols={[
               PARCERIA_TIPOS.find((t) => t.key === p.tipo)?.label ?? "—",
-              <>{p.nome}{p.creci && <span className="block text-xs">CRECI {p.creci_tipo ?? ""} {p.creci}</span>}</>,
+              <>
+                {p.nome}
+                {p.creci && (
+                  <span className="block text-xs">
+                    CRECI {p.creci_tipo ?? ""} {p.creci}
+                  </span>
+                )}
+              </>,
               p.cpf_cnpj,
               p.percentual != null ? `${p.percentual}%` : "0%",
               money(p.valor) ?? "R$ 0,00",

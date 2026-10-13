@@ -3590,6 +3590,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      data_assinatura_oficial: {
+        Args: { _sale_id: string };
+        Returns: string;
+      };
       imprimir_ocorrencias_concluidas: {
         Args: { p_sale_ids: string[] };
         Returns: Json;
