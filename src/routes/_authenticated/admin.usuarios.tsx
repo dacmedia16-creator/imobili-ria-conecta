@@ -59,7 +59,9 @@ import {
   RefreshCcw,
   Search,
   UserPlus,
+  Users,
 } from "lucide-react";
+import { EmptyState, PageHeader } from "@/components/visual/base";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
@@ -503,7 +505,7 @@ function AdminUsers() {
     return (
       <div
         key={u.id}
-        className={`rounded-lg border p-4 transition-shadow hover:shadow-sm ${u.ativo === false ? "opacity-60" : ""}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md ${u.ativo === false ? "opacity-60" : ""}`}
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -665,52 +667,57 @@ function AdminUsers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Usuários e perfis</h1>
-          <p className="text-xs text-muted-foreground">
+      <PageHeader
+        icon={Users}
+        title="Usuários e perfis"
+        description={
+          <>
             Você gerencia somente usuários da sua agência.{" "}
             {isAdminLike
               ? "Só o super admin da agência concede ou retira papel de administrador."
               : "Gestor cadastra corretores e edita os dados dos corretores da imobiliária; team leader cadastra e edita só corretores da própria equipe. Papéis são alterados por administradores."}{" "}
             Novas imobiliárias são cadastradas apenas pelo super-admin da plataforma.
-          </p>
-        </div>
-        {tlWithoutTeam && (
-          <p className="max-w-xs text-xs text-muted-foreground" data-testid="tl-sem-equipe">
-            Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua equipe
-            antes de cadastrar corretores.
-          </p>
-        )}
-        {allowedRoles.length > 0 && !tlWithoutTeam && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <UserPlus className="h-4 w-4" /> {leadCreate ? "Novo corretor" : "Novo usuário"}
-              </Button>
-            </DialogTrigger>
-            <NewUserDialog
-              allowedRoles={allowedRoles}
-              fixedTeamLabel={
-                leadCreate
-                  ? (ownTeam?.nome ?? "Uma equipe nova, liderada por você, será criada")
-                  : null
-              }
-              onDone={() => {
-                setOpen(false);
-                load();
-              }}
-              createUserFn={createUserFn}
-            />
-          </Dialog>
-        )}
-      </div>
+          </>
+        }
+        actions={
+          <>
+            {tlWithoutTeam && (
+              <p className="max-w-xs text-xs text-muted-foreground" data-testid="tl-sem-equipe">
+                Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua
+                equipe antes de cadastrar corretores.
+              </p>
+            )}
+            {allowedRoles.length > 0 && !tlWithoutTeam && (
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <UserPlus className="h-4 w-4" /> {leadCreate ? "Novo corretor" : "Novo usuário"}
+                  </Button>
+                </DialogTrigger>
+                <NewUserDialog
+                  allowedRoles={allowedRoles}
+                  fixedTeamLabel={
+                    leadCreate
+                      ? (ownTeam?.nome ?? "Uma equipe nova, liderada por você, será criada")
+                      : null
+                  }
+                  onDone={() => {
+                    setOpen(false);
+                    load();
+                  }}
+                  createUserFn={createUserFn}
+                />
+              </Dialog>
+            )}
+          </>
+        }
+      />
 
-      <Card>
+      <Card className="rounded-xl shadow-sm">
         <CardHeader className="gap-3">
           <CardTitle className="text-base">Lista de usuários</CardTitle>
           <div className="flex flex-wrap gap-2">
-            <div className="relative max-w-xs flex-1">
+            <div className="relative w-full min-w-[12rem] flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Buscar por nome ou e-mail"
@@ -763,12 +770,10 @@ function AdminUsers() {
         </CardHeader>
         <CardContent className="space-y-4">
           {sortedUsers.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>
+            <EmptyState icon={Users}>Nenhum usuário cadastrado.</EmptyState>
           )}
           {sortedUsers.length > 0 && activeUsers.length === 0 && inactiveUsers.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Nenhum usuário encontrado com esse filtro.
-            </p>
+            <EmptyState icon={Search}>Nenhum usuário encontrado com esse filtro.</EmptyState>
           )}
           {isAdminLike ? (
             (() => {

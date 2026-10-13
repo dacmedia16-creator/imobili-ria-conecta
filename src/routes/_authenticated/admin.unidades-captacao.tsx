@@ -17,7 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Building, Plus } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/admin/unidades-captacao")({
   head: () => ({ meta: [{ title: "Unidades da captação — Administração" }] }),
@@ -102,27 +103,25 @@ function UnitsAdmin() {
   };
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Unidades da captação exclusiva</h1>
-          <p className="text-sm text-muted-foreground">
-            Dados da unidade impressos no contrato de exclusividade (razão social, CNPJ, CRECI,
-            endereço e nome comercial).
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/exclusividades">
-              <ArrowLeft className="mr-1 h-4 w-4" /> Captações
-            </Link>
-          </Button>
-          {canEdit && (
-            <Button size="sm" onClick={() => open(null)} disabled={editing !== null}>
-              <Plus className="mr-1 h-4 w-4" /> Nova unidade
+      <PageHeader
+        icon={Building}
+        title="Unidades da captação exclusiva"
+        description="Dados da unidade impressos no contrato de exclusividade (razão social, CNPJ, CRECI, endereço e nome comercial)."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/exclusividades">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Captações
+              </Link>
             </Button>
-          )}
-        </div>
-      </div>
+            {canEdit && (
+              <Button size="sm" onClick={() => open(null)} disabled={editing !== null}>
+                <Plus className="mr-1 h-4 w-4" /> Nova unidade
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {editing !== null && (
         <Card>
@@ -166,20 +165,18 @@ function UnitsAdmin() {
       <Card>
         <CardContent className="divide-y pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <ListSkeleton rows={2} label="Carregando…" />
           ) : units.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <EmptyState icon={Building}>
               Nenhuma unidade cadastrada. Sem unidade, não é possível criar captações.
-            </p>
+            </EmptyState>
           ) : (
             units.map((u) => (
               <div key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div>
-                  <p className="font-medium">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 font-medium">
                     {u.nome}
-                    {!u.ativo && (
-                      <span className="ml-2 rounded-full border px-2 py-0.5 text-xs">Inativa</span>
-                    )}
+                    {u.ativo ? <Pill tom="green">Ativa</Pill> : <Pill tom="slate">Inativa</Pill>}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {u.razao_social} · CNPJ {u.cnpj} · CRECI {u.creci}
