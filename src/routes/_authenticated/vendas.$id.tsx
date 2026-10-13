@@ -191,6 +191,14 @@ import { PaymentStep } from "@/components/vendas/PaymentStep";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import {
+  TEXTO_ORIGEM_DATA_ASSINATURA,
+  TEXTO_SEM_HISTORICO_ASSINATURA,
+  camposSalvaveisOcorrencia,
+  dataAssinaturaExibida,
+  dataAssinaturaOcorrenciaTravada,
+  dataAssinaturaParaAlinhar,
+} from "@/lib/ocorrencia-data-assinatura";
 import { notifySaleComment, notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import {
   mesclarPessoasAtivas,
@@ -6605,12 +6613,19 @@ function OccurrencePanel({
     dirtyPartnersRef.current = dirtyPartners;
   }, [dirtyPartners]);
 
+  // Data oficial da venda (último contrato_assinado em SP) — exibida no campo travado da venda padrão.
+  // Se a consulta falhar, fica null e o campo mostra a data já gravada na ocorrência.
+  const [dataAssinaturaOficial, setDataAssinaturaOficial] = useState<string | null>(null);
+  const dataAssinaturaTravada = dataAssinaturaOcorrenciaTravada(sale.modalidade);
+
   const load = useCallback(async () => {
-    const { data: o } = await supabase
-      .from("occurrences")
-      .select("*")
-      .eq("sale_id", saleId)
-      .maybeSingle();
+    const [{ data: o }, oficial] = await Promise.all([
+      supabase.from("occurrences").select("*").eq("sale_id", saleId).maybeSingle(),
+      supabase.rpc("data_assinatura_oficial", { _sale_id: saleId }),
+    ]);
+    setDataAssinaturaOficial(
+      !oficial.error && typeof oficial.data === "string" ? oficial.data : null,
+    );
     setOcc(o);
     // Não sobrescreve um buffer com edição local ainda não salva: load() roda tanto no mount quanto
     // depois de qualquer save (que já limpa o dirty antes de chamar load(), ver save() abaixo) quanto
@@ -6870,37 +6885,50 @@ function OccurrencePanel({
     setSaving(true);
     try {
       if (dirtyOcc) {
-        const fields: (keyof OccurrenceRow)[] = [
-          "codigo_imovel",
-          "tempo_venda_dias",
-          "data_assinatura",
-          "midia",
-          "nota_fiscal_obrigatoria",
-          "valor_anunciado",
-          "valor_negociado",
-          "percentual_comissao",
-          "valor_comissao",
-          "financiamento",
-          "financiamento_valor",
-          "financiamento_banco",
-          "financiamento_correspondente",
-          "financiamento_previsao",
-          "oba_credito",
-          "prev_recebimento_valor",
-          "prev_recebimento_data",
-          "prev_recebimento_forma",
-          "prev_recebimento2_valor",
-          "prev_recebimento2_data",
-          "prev_recebimento2_forma",
-          "prev_recebimento3_valor",
-          "prev_recebimento3_data",
-          "prev_recebimento3_forma",
-          "observacoes",
-        ];
+        // Na venda padrão a data de assinatura é somente leitura (vem do histórico): o valor do
+        // formulário nunca entra no update; só a data oficial pode ser gravada (alinhamento abaixo).
+        const fields = camposSalvaveisOcorrencia<keyof OccurrenceRow>(
+          [
+            "codigo_imovel",
+            "tempo_venda_dias",
+            "data_assinatura",
+            "midia",
+            "nota_fiscal_obrigatoria",
+            "valor_anunciado",
+            "valor_negociado",
+            "percentual_comissao",
+            "valor_comissao",
+            "financiamento",
+            "financiamento_valor",
+            "financiamento_banco",
+            "financiamento_correspondente",
+            "financiamento_previsao",
+            "oba_credito",
+            "prev_recebimento_valor",
+            "prev_recebimento_data",
+            "prev_recebimento_forma",
+            "prev_recebimento2_valor",
+            "prev_recebimento2_data",
+            "prev_recebimento2_forma",
+            "prev_recebimento3_valor",
+            "prev_recebimento3_data",
+            "prev_recebimento3_forma",
+            "observacoes",
+          ],
+          sale.modalidade,
+        );
         const patch: OccurrencePatch = {};
         for (const k of fields)
           if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null))
             patch[k] = formOcc[k] === "" ? null : formOcc[k];
+        // Venda padrão: grava a data oficial quando divergir (Financeiro/Relatórios leem o campo).
+        // Se a consulta da data oficial falhou (null), não mexe no campo. Lançamento: inalterado.
+        const dataAlinhada = dataAssinaturaParaAlinhar(
+          sale.modalidade,
+          dataAssinaturaOficial,
+          occ?.data_assinatura,
+        );
+        if (dataAlinhada) patch.data_assinatura = dataAlinhada;
         if (Object.keys(patch).length) {
           const { error } = await supabase
             .from("occurrences")
@@ -7019,6 +7047,8 @@ function OccurrencePanel({
     commissions,
     partners,
     load,
+    sale.modalidade,
+    dataAssinaturaOficial,
   ]);
 
   useEffect(() => {
@@ -7265,14 +7295,32 @@ function OccurrencePanel({
                 placeholder="Ex: 45"
               />
             </Field>
-            <Field label="Data de assinatura">
-              <Input
-                type="date"
-                value={formOcc.data_assinatura ?? ""}
-                disabled={!canWrite}
-                onChange={(e) => updOcc({ data_assinatura: e.target.value || null })}
-              />
-            </Field>
+            {dataAssinaturaTravada ? (
+              <Field label="Data de assinatura">
+                <Input
+                  type="date"
+                  data-testid="ocorrencia-data-assinatura-oficial"
+                  value={dataAssinaturaExibida(dataAssinaturaOficial, occ?.data_assinatura)}
+                  readOnly
+                  disabled
+                  aria-readonly="true"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dataAssinaturaOficial
+                    ? TEXTO_ORIGEM_DATA_ASSINATURA
+                    : TEXTO_SEM_HISTORICO_ASSINATURA}
+                </p>
+              </Field>
+            ) : (
+              <Field label="Data de assinatura">
+                <Input
+                  type="date"
+                  value={formOcc.data_assinatura ?? ""}
+                  disabled={!canWrite}
+                  onChange={(e) => updOcc({ data_assinatura: e.target.value || null })}
+                />
+              </Field>
+            )}
             <Field
               id="campo-ocorrencia-midia"
               label="Mídia"
