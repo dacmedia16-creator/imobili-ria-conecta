@@ -115,8 +115,9 @@ export function PinsMap({
       const isSorocaba =
         agencyCity(city).toLocaleLowerCase("pt-BR") === "sorocaba" &&
         agencyUf(uf, city).toUpperCase() === "SP";
+      // Canvas: centenas de pinos (camada do site ~800) ficam fluidos; SVG cria 1 nó por pino.
       map.current = lf
-        .map(el.current)
+        .map(el.current, { preferCanvas: true })
         .setView(isSorocaba ? [-23.5015, -47.4526] : [-15.8, -47.9], 12);
       if (city?.trim() && !isSorocaba) {
         const q = [agencyCity(city), agencyUf(uf, city), "Brasil"].filter(Boolean).join(", ");
