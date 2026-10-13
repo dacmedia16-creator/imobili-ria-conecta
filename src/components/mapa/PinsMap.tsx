@@ -13,6 +13,10 @@ export type MapPin = {
   actionLabel?: string;
   /** Links externos no popup (ex.: WhatsApp/e-mail do captador). Só http(s), mailto e tel. */
   links?: { text: string; href: string }[];
+  /** Cor do contorno (padrão branco) — ex.: captação ligada a anúncio do site. */
+  ring?: string;
+  /** Raio do círculo (padrão 9). */
+  radius?: number;
 };
 
 /** Mapa OpenStreetMap genérico (Captação e Vendas por região). Centro inicial na cidade da
@@ -80,9 +84,9 @@ export function PinsMap({
       }
       const m = lf
         .circleMarker([p.lat, p.lon], {
-          radius: 9,
-          color: "#ffffff",
-          weight: 2,
+          radius: p.radius ?? 9,
+          color: p.ring ?? "#ffffff",
+          weight: p.ring ? 3 : 2,
           fillColor: p.color,
           fillOpacity: 0.95,
         })
