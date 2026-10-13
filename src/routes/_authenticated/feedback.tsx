@@ -35,7 +35,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, FileDown, MessageCircle, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  FileDown,
+  MessageCircle,
+  MessageSquareHeart,
+  SearchX,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
@@ -144,23 +154,23 @@ function FeedbackPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Feedback ao proprietário</h1>
-        <p className="text-sm text-muted-foreground">
-          Números dos portais de cada imóvel, coletados automaticamente toda segunda. Escolha um
-          imóvel, revise o texto e envie pelo seu WhatsApp.
-        </p>
-      </div>
+      <PageHeader
+        icon={MessageSquareHeart}
+        title="Feedback ao proprietário"
+        description="Números dos portais de cada imóvel, coletados automaticamente toda segunda. Escolha um imóvel, revise o texto e envie pelo seu WhatsApp."
+      />
       <div className="flex flex-wrap gap-2">
         <input
-          className="h-9 rounded-md border px-3 text-sm"
-          placeholder="Buscar pelo código do anúncio"
+          aria-label="Buscar pelo código do anúncio"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-64"
+          placeholder="Código do anúncio"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         {isManager && (
           <select
-            className="h-9 rounded-md border px-2 text-sm"
+            aria-label="Corretor"
+            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:w-auto"
             value={broker}
             onChange={(e) => setBroker(e.target.value)}
           >
@@ -175,15 +185,13 @@ function FeedbackPage() {
         )}
       </div>
       {loading ? (
-        <p className="text-sm text-muted-foreground">Carregando…</p>
+        <ListSkeleton rows={6} label="Carregando imóveis" />
       ) : !visible.length ? (
-        <Card>
-          <CardContent className="py-6 text-sm text-muted-foreground">
-            {isManager
-              ? "Nenhum imóvel encontrado com esse filtro."
-              : "Ainda não encontramos anúncios com o seu ID RE/MAX. Confira se o ID está preenchido em Meu perfil."}
-          </CardContent>
-        </Card>
+        <EmptyState icon={SearchX}>
+          {isManager
+            ? "Nenhum imóvel encontrado com esse filtro."
+            : "Ainda não encontramos anúncios com o seu ID RE/MAX. Confira se o ID está preenchido em Meu perfil."}
+        </EmptyState>
       ) : (
         <div className="grid gap-2">
           <p className="text-xs text-muted-foreground">{visible.length} imóveis</p>
@@ -191,11 +199,11 @@ function FeedbackPage() {
             <button
               key={l.code}
               onClick={() => setSelected(l.code)}
-              className="flex items-center justify-between rounded-lg border border-l-4 border-l-blue-500 bg-card p-3 text-left hover:bg-muted"
+              className="flex flex-col gap-2 rounded-lg border border-l-4 border-l-blue-500 bg-card p-3 text-left shadow-sm transition-shadow hover:bg-muted hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
+              <div className="min-w-0">
                 <div className="font-medium">{l.code}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="break-words text-xs text-muted-foreground">
                   {isManager &&
                     (l.brokerId
                       ? names[l.brokerId] || "Sem nome"
@@ -203,10 +211,13 @@ function FeedbackPage() {
                         ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
                         : "Sem corretor")}
                   {isManager && " · "}
-                  {l.lines.length} portal(is) · Sua vez: revisar e enviar
+                  {l.lines.length} portal(is)
                 </div>
+                <Pill tom="blue" className="mt-1.5">
+                  Sua vez: revisar e enviar
+                </Pill>
               </div>
-              <div className="text-right text-xs">
+              <div className="flex shrink-0 gap-3 text-xs tabular-nums sm:block sm:text-right">
                 <div>{n(totalViews(l))} visualizações</div>
                 <div>{n(totalContacts(l))} contatos</div>
               </div>
@@ -390,13 +401,13 @@ function Review({
       <Button variant="ghost" size="sm" onClick={onBack}>
         <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
       </Button>
-      <h1 className="text-xl font-semibold">
+      <h1 className="break-words text-xl font-semibold">
         Imóvel {listing.code}
         {imovel ? <span className="font-normal text-muted-foreground"> · {imovel}</span> : null}
       </h1>
       {cap ? (
         <div
-          className={`flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm ${cap.link_status === "ativo" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-blue-300 bg-blue-50 text-blue-900"}`}
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm ${cap.link_status === "ativo" ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200" : "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200"}`}
         >
           <span>
             {cap.link_status === "ativo"
@@ -425,7 +436,9 @@ function Review({
             <div key={l.portal} className="rounded-md border p-2">
               <div className="font-medium">{l.label}</div>
               {l.error ? (
-                <div className="text-amber-700">Sem atualização nesta semana.</div>
+                <div className="text-amber-700 dark:text-amber-400">
+                  Sem atualização nesta semana.
+                </div>
               ) : (
                 <>
                   <div>
@@ -515,20 +528,22 @@ function Review({
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {!anyConfirmed && (
-            <div className="flex gap-2 rounded-md bg-amber-50 p-2 text-amber-800">
+            <div className="flex gap-2 rounded-md bg-amber-50 p-2 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               <TriangleAlert className="h-4 w-4 shrink-0" />
               Este imóvel ainda não tem números com período confirmado. A mensagem sai sem números.
             </div>
           )}
           <div className="grid gap-2 md:grid-cols-2">
             <input
-              className="h-9 rounded-md border px-3"
+              aria-label="Nome do proprietário"
+              className="h-9 min-w-0 rounded-md border border-input bg-background px-3"
               placeholder="Nome do proprietário (opcional)"
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
             />
             <input
-              className="h-9 rounded-md border px-3"
+              aria-label="WhatsApp do proprietário"
+              className="h-9 min-w-0 rounded-md border border-input bg-background px-3"
               placeholder="WhatsApp do proprietário (opcional)"
               inputMode="tel"
               value={phone}
@@ -551,7 +566,7 @@ function Review({
               </Button>
             </span>
             <textarea
-              className="mt-1 min-h-20 w-full rounded-md border p-2"
+              className="mt-1 min-h-20 w-full rounded-md border border-input bg-background p-2"
               value={rec}
               onChange={(e) => setRec(e.target.value)}
             />
@@ -622,7 +637,10 @@ function ActionsCard({
           </span>
         </button>
         <div className="mt-2 h-2 w-full overflow-hidden rounded bg-muted">
-          <div className="h-2 bg-green-600" style={{ width: `${summary.percent}%` }} />
+          <div
+            className="h-2 bg-emerald-600 dark:bg-emerald-500"
+            style={{ width: `${summary.percent}%` }}
+          />
         </div>
       </CardHeader>
       {open && (

@@ -54,7 +54,14 @@ import {
   Trash2,
   X,
   TrendingUp,
+  UsersRound,
+  UserRound,
+  Handshake,
+  Wallet,
+  Banknote,
+  SearchX,
 } from "lucide-react";
+import { CardField, EmptyState, KpiTile, ListSkeleton, PageHeader } from "@/components/visual/base";
 import {
   fetchComissaoPorBeneficiario,
   type ComissaoBeneficiarioResumo,
@@ -290,7 +297,7 @@ function EquipesPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a gestores, team leaders e administradores.
+          Esta área é restrita a gestores, líderes de equipe e administradores.
         </CardContent>
       </Card>
     );
@@ -298,30 +305,29 @@ function EquipesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Equipes</h1>
-          <p className="text-sm text-muted-foreground">
-            Organize seus corretores em equipes e sub-equipes.
-          </p>
-        </div>
-        {isAdminLike ? (
-          <Button className="gap-2" onClick={() => setFormState({ mode: "create" })}>
-            <Plus className="h-4 w-4" />
-            Nova Equipe
-          </Button>
-        ) : (
-          // Gestor não cria equipe nova por aqui -- equipe própria já é criada sozinha (ou já existe)
-          // quando ele cria o primeiro corretor em Usuários (ver admin-users.functions.ts). Deixar
-          // "Nova Equipe" solto pra gestor permitia criar equipes duplicadas/soltas sem membro nenhum.
-          <Button className="gap-2" asChild>
-            <Link to="/admin/usuarios">
-              <UserPlus className="h-4 w-4" />
-              Criar usuário
-            </Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        icon={UsersRound}
+        title="Equipes"
+        description="Organize seus corretores em equipes e sub-equipes."
+        actions={
+          isAdminLike ? (
+            <Button className="gap-2" onClick={() => setFormState({ mode: "create" })}>
+              <Plus className="h-4 w-4" />
+              Nova Equipe
+            </Button>
+          ) : (
+            // Gestor não cria equipe nova por aqui -- equipe própria já é criada sozinha (ou já existe)
+            // quando ele cria o primeiro corretor em Usuários (ver admin-users.functions.ts). Deixar
+            // "Nova Equipe" solto pra gestor permitia criar equipes duplicadas/soltas sem membro nenhum.
+            <Button className="gap-2" asChild>
+              <Link to="/admin/usuarios">
+                <UserPlus className="h-4 w-4" />
+                Criar usuário
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       {isAdminLike && !loading && (
         <VisaoGeralCard
@@ -345,9 +351,11 @@ function EquipesPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Carregando…</p>
+        <ListSkeleton rows={3} label="Carregando equipes" />
       ) : filteredTop.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma equipe encontrada.</p>
+        <EmptyState icon={SearchX}>
+          {search ? "Nenhuma equipe encontrada com essa busca." : "Nenhuma equipe encontrada."}
+        </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredTop.map((team) => (
@@ -583,39 +591,41 @@ function VisaoGeralCard({
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-5">
-          <div>
-            <p className="text-xs text-muted-foreground">Equipes</p>
-            <p className="text-xl font-semibold">{totais.equipes}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Corretores</p>
-            <p className="text-xl font-semibold">{totais.corretores}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Vendas únicas comerciais</p>
-            <p className="text-xl font-semibold">{totais.vendas}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">VGV atribuído à REMAX</p>
-            <p className="text-xl font-semibold">{money(totais.negociado)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Comissão paga às pessoas</p>
-            <p className="text-xl font-semibold">{money(totais.comissao)}</p>
-          </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <KpiTile label="Equipes" value={totais.equipes} icon={UsersRound} tom="blue" />
+          <KpiTile label="Corretores" value={totais.corretores} icon={UserRound} tom="violet" />
+          <KpiTile
+            label="Vendas únicas comerciais"
+            value={totais.vendas}
+            icon={Handshake}
+            tom="amber"
+          />
+          <KpiTile
+            label="VGV atribuído à REMAX"
+            value={money(totais.negociado)}
+            icon={TrendingUp}
+            tom="green"
+          />
+          <KpiTile
+            label="Comissão paga às pessoas"
+            value={money(totais.comissao)}
+            icon={Wallet}
+            tom="green"
+          />
         </div>
         <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground">Participações individuais</p>
-            <p className="text-xl font-semibold">{participacoesIndividuais}</p>
+            <p className="text-xl font-semibold tabular-nums">{participacoesIndividuais}</p>
             <p className="text-xs text-muted-foreground">
               Uma mesma venda pode gerar mais de uma participação.
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Comissão sem equipe resolvida</p>
-            <p className="text-xl font-semibold">{money(comissaoSemEquipe)}</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Banknote className="h-3.5 w-3.5" aria-hidden /> Comissão sem equipe resolvida
+            </p>
+            <p className="text-xl font-semibold tabular-nums">{money(comissaoSemEquipe)}</p>
             <p className="text-xs text-muted-foreground">
               Permanece no total geral, mas não é atribuída a uma equipe.
             </p>
@@ -639,53 +649,93 @@ function VisaoGeralCard({
         {totaisPorEquipe.length > 0 && (
           <div className="space-y-2 border-t pt-4">
             <p className="text-sm font-semibold">Totais por equipe</p>
-            <Table>
+            <div className="space-y-2 sm:hidden">
+              {totaisPorEquipe.map((row) => (
+                <div key={row.equipe} className="rounded-lg border bg-card p-3 shadow-sm">
+                  <div className="break-words font-medium">{row.equipe}</div>
+                  <dl className="mt-2 grid grid-cols-2 gap-2">
+                    <CardField label="Participações">{row.participacoes}</CardField>
+                    <CardField label="VGV atribuído">{money(row.negociado)}</CardField>
+                    <CardField label="Comissão">{money(row.comissao)}</CardField>
+                  </dl>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-lg border sm:block">
+              <Table className="min-w-[520px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Equipe</TableHead>
+                    <TableHead>Participações</TableHead>
+                    <TableHead>VGV atribuído</TableHead>
+                    <TableHead>Comissão</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {totaisPorEquipe.map((row) => (
+                    <TableRow key={row.equipe}>
+                      <TableCell className="font-medium">{row.equipe}</TableCell>
+                      <TableCell className="tabular-nums">{row.participacoes}</TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums">
+                        {money(row.negociado)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums">
+                        {money(row.comissao)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+        {ranking.length > 0 && (
+          <div className="space-y-2 sm:hidden">
+            {ranking.map((r) => (
+              <div key={r.id} className="rounded-lg border bg-card p-3 shadow-sm">
+                <div className="break-words font-medium">{r.nome}</div>
+                <div className="break-words text-xs text-muted-foreground">{r.equipe}</div>
+                <dl className="mt-2 grid grid-cols-2 gap-2">
+                  <CardField label="Cadastradas">{r.total}</CardField>
+                  <CardField label="Participações">{r.fechadas}</CardField>
+                  <CardField label="VGV atribuído à REMAX">{money(r.negociado)}</CardField>
+                  <CardField label="Comissão paga às pessoas">{money(r.comissao)}</CardField>
+                </dl>
+              </div>
+            ))}
+          </div>
+        )}
+        {ranking.length > 0 && (
+          <div className="hidden overflow-x-auto rounded-lg border sm:block">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead>Corretor</TableHead>
                   <TableHead>Equipe</TableHead>
+                  <TableHead>Cadastradas</TableHead>
                   <TableHead>Participações</TableHead>
-                  <TableHead>VGV atribuído</TableHead>
-                  <TableHead>Comissão</TableHead>
+                  <TableHead>VGV atribuído à REMAX</TableHead>
+                  <TableHead>Comissão paga às pessoas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {totaisPorEquipe.map((row) => (
-                  <TableRow key={row.equipe}>
-                    <TableCell className="font-medium">{row.equipe}</TableCell>
-                    <TableCell>{row.participacoes}</TableCell>
-                    <TableCell>{money(row.negociado)}</TableCell>
-                    <TableCell>{money(row.comissao)}</TableCell>
+                {ranking.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.nome}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.equipe}</TableCell>
+                    <TableCell className="tabular-nums">{r.total}</TableCell>
+                    <TableCell className="tabular-nums">{r.fechadas}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {money(r.negociado)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {money(r.comissao)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        )}
-        {ranking.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Corretor</TableHead>
-                <TableHead>Equipe</TableHead>
-                <TableHead>Cadastradas</TableHead>
-                <TableHead>Participações</TableHead>
-                <TableHead>VGV atribuído à REMAX</TableHead>
-                <TableHead>Comissão paga às pessoas</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ranking.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.nome}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.equipe}</TableCell>
-                  <TableCell>{r.total}</TableCell>
-                  <TableCell>{r.fechadas}</TableCell>
-                  <TableCell>{money(r.negociado)}</TableCell>
-                  <TableCell>{money(r.comissao)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         )}
       </CardContent>
     </Card>
@@ -721,7 +771,7 @@ function TeamCard({
 }) {
   const manageable = canManageTeam(team);
   return (
-    <Card>
+    <Card className="shadow-sm transition-shadow hover:shadow-md">
       <CardContent className="space-y-3 pt-6">
         <TeamRow
           team={team}
@@ -911,7 +961,7 @@ function TeamRow({
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Crown className="h-3.5 w-3.5" />
-        <span>Team Leader: {leader?.nome || leader?.email || "—"}</span>
+        <span>Líder da equipe: {leader?.nome || leader?.email || "—"}</span>
       </div>
       {coLideres.length > 0 && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -921,7 +971,9 @@ function TeamRow({
       )}
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Users className="h-3.5 w-3.5" />
-        <span>{memberCount} membros</span>
+        <span>
+          {memberCount} {memberCount === 1 ? "membro" : "membros"}
+        </span>
       </div>
     </div>
   );
@@ -1016,9 +1068,9 @@ function TeamFormDialog({
             </div>
           </div>
           <div>
-            <Label>Team Leader</Label>
+            <Label>Líder da equipe</Label>
             <Select value={liderId} onValueChange={setLiderId}>
-              <SelectTrigger aria-label="Team Leader">
+              <SelectTrigger aria-label="Líder da equipe">
                 <SelectValue placeholder="Selecione um gestor" />
               </SelectTrigger>
               <SelectContent>
@@ -1031,7 +1083,7 @@ function TeamFormDialog({
             </Select>
             {gestores.length === 0 && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Nenhum usuário com papel gestor ou team leader cadastrado ainda.
+                Nenhum usuário com papel gestor ou líder da equipe cadastrado ainda.
               </p>
             )}
           </div>
@@ -1316,12 +1368,12 @@ function CoLideresDialog({
               <Label>Adicionar líder auxiliar</Label>
               {candidatos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nenhum gestor/team leader disponível para adicionar.
+                  Nenhum gestor/líder da equipe disponível para adicionar.
                 </p>
               ) : (
                 <Select value={selecionado} onValueChange={setSelecionado}>
                   <SelectTrigger aria-label="Adicionar líder auxiliar">
-                    <SelectValue placeholder="Selecione um gestor/team leader" />
+                    <SelectValue placeholder="Selecione um gestor/líder da equipe" />
                   </SelectTrigger>
                   <SelectContent>
                     {candidatos.map((c) => (

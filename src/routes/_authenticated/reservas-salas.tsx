@@ -1,6 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Clock3, Info, Plus, Users, XCircle } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarX2,
+  CheckCircle2,
+  Clock3,
+  Info,
+  Plus,
+  Users,
+  XCircle,
+} from "lucide-react";
+import { EmptyState, PageHeader } from "@/components/visual/base";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -508,23 +518,20 @@ function RoomReservationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-semibold tracking-tight">Agendamento de salas</h1>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Consulte a disponibilidade e reserve uma sala sem conflito de horários.
-          </p>
-        </div>
-        <Button
-          onClick={() => openNewReservation()}
-          disabled={loadingRooms || roomError || rooms.length === 0}
-        >
-          <Plus className="mr-2 h-4 w-4" /> Reservar sala
-        </Button>
-      </div>
+      <PageHeader
+        icon={CalendarDays}
+        title="Agendamento de salas"
+        description="Consulte a disponibilidade e reserve uma sala sem conflito de horários."
+        actions={
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => openNewReservation()}
+            disabled={loadingRooms || roomError || rooms.length === 0}
+          >
+            <Plus className="mr-2 h-4 w-4" /> Reservar sala
+          </Button>
+        }
+      />
 
       <Alert>
         <Info className="h-4 w-4" />
@@ -615,9 +622,9 @@ function RoomReservationsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-md bg-muted/50 p-3 text-sm">
+            <div className="rounded-lg border bg-primary/5 p-3 text-sm">
               <div className="font-medium capitalize">{formatDate(selectedDate)}</div>
-              <div className="mt-1 text-muted-foreground">
+              <div className="mt-1 tabular-nums text-muted-foreground">
                 {selectedReservations.length} reserva{selectedReservations.length === 1 ? "" : "s"}{" "}
                 confirmada{selectedReservations.length === 1 ? "" : "s"}
               </div>
@@ -707,12 +714,14 @@ function RoomReservationsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {myReservations.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nenhuma reserva encontrada.</p>
+              <EmptyState icon={CalendarX2}>
+                Nenhuma reserva encontrada. Clique em um horário livre na agenda para reservar.
+              </EmptyState>
             )}
             {myReservations.map((reservation) => (
               <div
                 key={reservation.id}
-                className="flex items-start justify-between gap-3 rounded-md border p-3"
+                className="flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:gap-3"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -749,7 +758,7 @@ function RoomReservationsPage() {
               {manageableReservations.map((reservation) => (
                 <div
                   key={reservation.id}
-                  className="flex items-start justify-between gap-3 rounded-md border p-3"
+                  className="flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:gap-3"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -781,11 +790,11 @@ function RoomReservationsPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>Impedir duas reservas sobrepostas para a mesma sala.</span>
             </div>
             <div className="flex gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>
                 Responsável cancela a própria reserva; gestores e team leaders, as da própria
                 equipe; staff, administradores e super administradores, qualquer reserva da
@@ -793,11 +802,11 @@ function RoomReservationsPage() {
               </span>
             </div>
             <div className="flex gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>Manter histórico de reservas canceladas.</span>
             </div>
             <div className="flex gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>Enviar lembrete por WhatsApp ao responsável antes da reunião.</span>
             </div>
           </CardContent>
