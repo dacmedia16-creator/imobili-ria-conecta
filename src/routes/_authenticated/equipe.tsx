@@ -297,7 +297,7 @@ function EquipesPage() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Esta área é restrita a gestores, team leaders e administradores.
+          Esta área é restrita a gestores, líderes de equipe e administradores.
         </CardContent>
       </Card>
     );
@@ -961,7 +961,7 @@ function TeamRow({
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Crown className="h-3.5 w-3.5" />
-        <span>Team Leader: {leader?.nome || leader?.email || "—"}</span>
+        <span>Líder da equipe: {leader?.nome || leader?.email || "—"}</span>
       </div>
       {coLideres.length > 0 && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -971,7 +971,9 @@ function TeamRow({
       )}
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Users className="h-3.5 w-3.5" />
-        <span>{memberCount} membros</span>
+        <span>
+          {memberCount} {memberCount === 1 ? "membro" : "membros"}
+        </span>
       </div>
     </div>
   );
@@ -1066,9 +1068,9 @@ function TeamFormDialog({
             </div>
           </div>
           <div>
-            <Label>Team Leader</Label>
+            <Label>Líder da equipe</Label>
             <Select value={liderId} onValueChange={setLiderId}>
-              <SelectTrigger aria-label="Team Leader">
+              <SelectTrigger aria-label="Líder da equipe">
                 <SelectValue placeholder="Selecione um gestor" />
               </SelectTrigger>
               <SelectContent>
@@ -1081,7 +1083,7 @@ function TeamFormDialog({
             </Select>
             {gestores.length === 0 && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Nenhum usuário com papel gestor ou team leader cadastrado ainda.
+                Nenhum usuário com papel gestor ou líder da equipe cadastrado ainda.
               </p>
             )}
           </div>
@@ -1366,12 +1368,12 @@ function CoLideresDialog({
               <Label>Adicionar líder auxiliar</Label>
               {candidatos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nenhum gestor/team leader disponível para adicionar.
+                  Nenhum gestor/líder da equipe disponível para adicionar.
                 </p>
               ) : (
                 <Select value={selecionado} onValueChange={setSelecionado}>
                   <SelectTrigger aria-label="Adicionar líder auxiliar">
-                    <SelectValue placeholder="Selecione um gestor/team leader" />
+                    <SelectValue placeholder="Selecione um gestor/líder da equipe" />
                   </SelectTrigger>
                   <SelectContent>
                     {candidatos.map((c) => (
