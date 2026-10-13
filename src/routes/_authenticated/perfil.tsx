@@ -26,6 +26,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/visual/base";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -535,18 +536,19 @@ function MeuAcesso() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl font-semibold tracking-tight">Meu acesso</h1>
-      </div>
+      <PageHeader
+        icon={ShieldCheck}
+        title="Meu acesso"
+        description="Seus dados de conta, foto, WhatsApp, senha e o que o seu papel permite fazer."
+      />
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Conta</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
-          <div className="flex items-center gap-4 border-b pb-4">
-            <Avatar className="h-16 w-16">
+          <div className="flex flex-wrap items-center gap-4 border-b pb-4">
+            <Avatar className="h-16 w-16 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
               <AvatarImage
                 src={avatarPreview ?? avatarUrl ?? undefined}
                 alt={nome || user?.email || "Foto de perfil"}

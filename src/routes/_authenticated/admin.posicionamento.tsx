@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { EmptyState, PageHeader, Pill } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/admin/posicionamento")({
   head: () => ({ meta: [{ title: "Sugestões de regiões" }] }),
@@ -95,29 +96,27 @@ function AdminPositioning() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <MapPinned className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl font-semibold tracking-tight">Sugestões de regiões</h1>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Revise nomes para evitar duplicidades antes de disponibilizar a região para todos os
-        corretores.
-      </p>
-      {items.length === 0 && (
-        <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            Nenhuma sugestão pendente.
-          </CardContent>
-        </Card>
-      )}
+      <PageHeader
+        icon={MapPinned}
+        title="Sugestões de regiões"
+        description="Revise nomes para evitar duplicidades antes de disponibilizar a região para todos os corretores."
+        actions={
+          items.length > 0 && (
+            <Pill tom="amber">
+              {items.length} {items.length === 1 ? "pendente" : "pendentes"}
+            </Pill>
+          )
+        }
+      />
+      {items.length === 0 && <EmptyState icon={MapPinned}>Nenhuma sugestão pendente.</EmptyState>}
       <div className="grid gap-4">
         {items.map((item) => {
           const current = editing?.id === item.id ? editing : item;
           const isEditing = editing?.id === item.id;
           return (
-            <Card key={item.id}>
+            <Card key={item.id} className="rounded-xl border-l-4 border-l-amber-400 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">{item.nome}</CardTitle>
+                <CardTitle className="break-words text-base">{item.nome}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-xs text-muted-foreground">

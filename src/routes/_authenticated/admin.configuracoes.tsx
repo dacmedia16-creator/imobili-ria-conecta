@@ -18,6 +18,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { PageHeader, TOM_PILL, TOM_PONTO } from "@/components/visual/base";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/configuracoes")({
   head: () => ({ meta: [{ title: "Configurações — Administração" }] }),
@@ -51,7 +53,21 @@ export function ExclusiveSettingsPanel({
         <CardTitle>Captações exclusivas</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p role="status" aria-live="polite" className="font-medium">
+        <p
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium",
+            TOM_PILL[enabled === null ? "slate" : enabled ? "green" : "amber"],
+          )}
+        >
+          <span
+            className={cn(
+              "h-2 w-2 shrink-0 rounded-full",
+              TOM_PONTO[enabled === null ? "slate" : enabled ? "green" : "amber"],
+            )}
+            aria-hidden
+          />
           Estado atual: {enabled === null ? "indisponível" : enabled ? "Ligado" : "Desligado"}
         </p>
         <p className="text-sm text-muted-foreground">
@@ -141,10 +157,11 @@ function AdminSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Settings2 className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl font-semibold">Administração → Configurações</h1>
-      </div>
+      <PageHeader
+        icon={Settings2}
+        title="Administração → Configurações"
+        description="Liga ou desliga módulos da imobiliária. Desligar não apaga dados."
+      />
       <ExclusiveSettingsPanel
         enabled={enabled}
         saving={saving}

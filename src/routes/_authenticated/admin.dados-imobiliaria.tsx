@@ -1,7 +1,8 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Plus } from "lucide-react";
+import { Building2, DoorOpen, ImageOff, Plus } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,8 +129,9 @@ function AgencySettings() {
       setSaving(false);
     }
   };
-  if (loading) return <p>Carregando dados da imobiliária…</p>;
-  if (!profile) return <p>Dados da imobiliária indisponíveis.</p>;
+  if (loading) return <ListSkeleton rows={3} label="Carregando dados da imobiliária…" />;
+  if (!profile)
+    return <EmptyState icon={Building2}>Dados da imobiliária indisponíveis.</EmptyState>;
   const field = (key: keyof Draft, label: string, placeholder?: string) => (
     <div className="space-y-1" key={key}>
       <Label htmlFor={`agency-${key}`}>{label}</Label>
@@ -143,13 +145,11 @@ function AgencySettings() {
   );
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Building2 className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Dados da imobiliária</h1>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {profile.nome} · Dados usados na impressão, no mapa e na marca do portal.
-      </p>
+      <PageHeader
+        icon={Building2}
+        title="Dados da imobiliária"
+        description={`${profile.nome} · Dados usados na impressão, no mapa e na marca do portal.`}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Empresa</CardTitle>
@@ -175,10 +175,10 @@ function AgencySettings() {
             <img
               src={logoUrl}
               alt={`Logo ${profile.nome}`}
-              className="h-20 max-w-48 object-contain"
+              className="h-20 max-w-48 rounded-lg border bg-background object-contain p-2"
             />
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum logo cadastrado.</p>
+            <EmptyState icon={ImageOff}>Nenhum logo cadastrado.</EmptyState>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             {field("cor_primaria", "Cor primária", "#1a2b3c")}
@@ -218,17 +218,13 @@ function AgencySettings() {
               </Button>
             )}
           </div>
-          {rooms.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhuma sala cadastrada.</p>
-          )}
+          {rooms.length === 0 && <EmptyState icon={DoorOpen}>Nenhuma sala cadastrada.</EmptyState>}
           <div className="divide-y">
             {rooms.map((room) => (
-              <div key={room.id} className="flex items-center justify-between gap-3 py-2">
-                <span>
+              <div key={room.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
                   {room.nome}
-                  {!room.ativo && (
-                    <span className="ml-2 text-xs text-muted-foreground">Inativa</span>
-                  )}
+                  {room.ativo ? <Pill tom="green">Ativa</Pill> : <Pill tom="slate">Inativa</Pill>}
                 </span>
                 {canEdit && (
                   <Button size="sm" variant="outline" onClick={() => setEditingRoom(room)}>

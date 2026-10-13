@@ -1,9 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, Pencil, Power, ShieldCheck, Users } from "lucide-react";
+import { Clock, KeyRound, Pencil, Power, ShieldCheck, UserCheck, UserX, Users } from "lucide-react";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
+import {
+  CardField,
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  TOM_ICONE,
+  type Tom,
+} from "@/components/visual/base";
 import { useAuth, ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
@@ -144,40 +152,108 @@ function PlatformUsers() {
     };
   }, [rows]);
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Users className="h-6 w-6" aria-hidden /> Usuários da plataforma
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Todos os usuários de todas as imobiliárias. Toda alteração pede motivo e fica na
-            auditoria da imobiliária do usuário.
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/plataforma/imobiliarias">Voltar ao Painel da Plataforma</Link>
+  // Mesmo conteúdo na tabela (computador) e nos cartões (celular): uma única definição de cada
+  // célula, para que botões, permissões e ações sejam idênticos nas duas visões.
+  const renderPapeis = (u: PlatformUserRow) => (
+    <div className="flex flex-wrap gap-1">
+      {u.roles.length === 0 && <span className="text-xs text-muted-foreground">Sem papel</span>}
+      {u.roles.map((r) => (
+        <Badge key={r} variant="secondary">
+          {ROLE_LABEL[r as AppRole] ?? r}
+        </Badge>
+      ))}
+    </div>
+  );
+  const renderSituacao = (u: PlatformUserRow) =>
+    u.ativo ? (
+      <Badge className="bg-emerald-600 hover:bg-emerald-600">Ativo</Badge>
+    ) : (
+      <Badge variant="destructive">Desativado</Badge>
+    );
+  const renderAcoes = (u: PlatformUserRow, isMe: boolean) =>
+    isMe ? (
+      <span className="block text-right text-xs text-muted-foreground">
+        Sua conta — use Meu acesso
+      </span>
+    ) : (
+      <div className="flex justify-end gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Editar dados"
+          onClick={() => setAction({ kind: "editar", user: u })}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        {/* Login só com Google (t_93e80346): "Trocar senha" saiu da tela. */}
+        {!LOGIN_SO_GOOGLE && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Trocar senha"
+            onClick={() => setAction({ kind: "senha", user: u })}
+          >
+            <KeyRound className="h-4 w-4" />
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Papéis"
+          onClick={() => setAction({ kind: "papeis", user: u })}
+        >
+          <ShieldCheck className="h-4 w-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title={u.ativo ? "Desativar" : "Ativar"}
+          className={u.ativo ? "text-destructive" : "text-emerald-700"}
+          onClick={() => setAction({ kind: "ativo", user: u })}
+        >
+          <Power className="h-4 w-4" />
         </Button>
       </div>
+    );
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      <PageHeader
+        icon={Users}
+        title="Usuários da plataforma"
+        description="Todos os usuários de todas as imobiliárias. Toda alteração pede motivo e fica na auditoria da imobiliária do usuário."
+        actions={
+          <Button variant="outline" asChild>
+            <Link to="/plataforma/imobiliarias">Voltar ao Painel da Plataforma</Link>
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {(
           [
-            ["Usuários cadastrados", resumo.total, "todos"],
-            ["Ativos", resumo.ativos, "ativos"],
-            ["Ativos que nunca entraram", resumo.nunca, "nunca"],
-            ["Sem acesso há 30+ dias", resumo.semAcesso30, "30d"],
-          ] as [string, number, Situacao][]
-        ).map(([label, n, s]) => (
+            ["Usuários cadastrados", resumo.total, "todos", Users, "blue"],
+            ["Ativos", resumo.ativos, "ativos", UserCheck, "green"],
+            ["Ativos que nunca entraram", resumo.nunca, "nunca", UserX, "amber"],
+            ["Sem acesso há 30+ dias", resumo.semAcesso30, "30d", Clock, "red"],
+          ] as [string, number, Situacao, typeof Users, Tom][]
+        ).map(([label, n, s, Icone, tom]) => (
           <button
             key={label}
             type="button"
             onClick={() => setSituacao(s)}
-            className={`rounded-lg border p-3 text-left transition hover:bg-muted ${situacao === s ? "border-primary ring-1 ring-primary" : ""}`}
+            aria-pressed={situacao === s}
+            className={`min-w-0 rounded-xl border bg-card p-3 text-left shadow-sm transition hover:shadow-md sm:p-4 ${situacao === s ? "border-primary ring-1 ring-primary" : ""}`}
           >
-            <div className="text-2xl font-semibold">{n}</div>
-            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 text-xs font-medium leading-tight text-muted-foreground">
+                {label}
+              </div>
+              <span className={`shrink-0 rounded-lg p-1.5 ${TOM_ICONE[tom]}`} aria-hidden>
+                <Icone className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="mt-1 text-lg font-semibold tabular-nums sm:text-2xl">{n}</div>
           </button>
         ))}
       </div>
@@ -240,8 +316,44 @@ function PlatformUsers() {
             {loading ? "Carregando…" : `${filtered.length} usuário(s)`}
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+        <CardContent className="space-y-2 p-3 md:hidden">
+          {loading && <ListSkeleton rows={4} label="Carregando…" />}
+          {!loading &&
+            filtered.map((u) => {
+              const isMe = u.id === me?.id;
+              return (
+                <div
+                  key={`${u.organizationId}:${u.id}`}
+                  className={`rounded-xl border bg-card p-3 shadow-sm ${u.ativo ? "" : "opacity-70"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="break-words font-medium">{u.nome}</div>
+                      <div className="break-all text-xs text-muted-foreground">{u.email}</div>
+                    </div>
+                    {renderSituacao(u)}
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-2">
+                    <CardField label="Imobiliária">{u.organizationNome}</CardField>
+                    <CardField label="Último acesso">
+                      <span className={!u.lastSignInAt ? "font-medium text-amber-700" : ""}>
+                        {lastAccessLabel(u.lastSignInAt)}
+                      </span>
+                    </CardField>
+                    <CardField label="Papéis" className="col-span-2">
+                      {renderPapeis(u)}
+                    </CardField>
+                  </dl>
+                  <div className="mt-2 border-t pt-2">{renderAcoes(u, isMe)}</div>
+                </div>
+              );
+            })}
+          {!loading && filtered.length === 0 && (
+            <EmptyState icon={Users}>Nenhum usuário com esses filtros.</EmptyState>
+          )}
+        </CardContent>
+        <CardContent className="hidden overflow-x-auto p-0 md:block">
+          <table className="w-full min-w-[48rem] text-sm">
             <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="p-3">Usuário</th>
@@ -262,76 +374,14 @@ function PlatformUsers() {
                       <div className="text-xs text-muted-foreground">{u.email}</div>
                     </td>
                     <td className="p-3">{u.organizationNome}</td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap gap-1">
-                        {u.roles.length === 0 && (
-                          <span className="text-xs text-muted-foreground">Sem papel</span>
-                        )}
-                        {u.roles.map((r) => (
-                          <Badge key={r} variant="secondary">
-                            {ROLE_LABEL[r as AppRole] ?? r}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      {u.ativo ? (
-                        <Badge className="bg-emerald-600 hover:bg-emerald-600">Ativo</Badge>
-                      ) : (
-                        <Badge variant="destructive">Desativado</Badge>
-                      )}
-                    </td>
+                    <td className="p-3">{renderPapeis(u)}</td>
+                    <td className="p-3">{renderSituacao(u)}</td>
                     <td
                       className={`p-3 text-xs ${!u.lastSignInAt ? "font-medium text-amber-700" : ""}`}
                     >
                       {lastAccessLabel(u.lastSignInAt)}
                     </td>
-                    <td className="p-3">
-                      {isMe ? (
-                        <span className="block text-right text-xs text-muted-foreground">
-                          Sua conta — use Meu acesso
-                        </span>
-                      ) : (
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Editar dados"
-                            onClick={() => setAction({ kind: "editar", user: u })}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {/* Login só com Google (t_93e80346): "Trocar senha" saiu da tela. */}
-                          {!LOGIN_SO_GOOGLE && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Trocar senha"
-                              onClick={() => setAction({ kind: "senha", user: u })}
-                            >
-                              <KeyRound className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Papéis"
-                            onClick={() => setAction({ kind: "papeis", user: u })}
-                          >
-                            <ShieldCheck className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title={u.ativo ? "Desativar" : "Ativar"}
-                            className={u.ativo ? "text-destructive" : "text-emerald-700"}
-                            onClick={() => setAction({ kind: "ativo", user: u })}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </td>
+                    <td className="p-3">{renderAcoes(u, isMe)}</td>
                   </tr>
                 );
               })}

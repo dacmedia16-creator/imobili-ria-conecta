@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Paperclip } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Headset, Inbox, Mail, Paperclip } from "lucide-react";
+import { EmptyState, KpiTile, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,28 +81,27 @@ function CentralChamados() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Central de chamados — equipe MAX</h1>
-        <p className="text-sm text-muted-foreground">
-          Todos os chamados de todas as imobiliárias. Só a equipe MAX (super admin da plataforma) vê
-          esta tela.
-        </p>
-      </div>
+      <PageHeader
+        icon={Headset}
+        title="Central de chamados — equipe MAX"
+        description="Todos os chamados de todas as imobiliárias. Só a equipe MAX (super admin da plataforma) vê esta tela."
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          ["Abertos", resumo.abertos],
-          ["Recebidos (sem resposta)", resumo.recebidos],
-          ["Erros abertos", resumo.errosAbertos],
-          ["Resolvidos (30 dias)", resumo.resolvidos30d],
-        ].map(([rotulo, n]) => (
-          <Card key={rotulo as string}>
-            <CardContent className="p-4">
-              <div className="text-xs text-muted-foreground">{rotulo}</div>
-              <div className="text-2xl font-semibold">{n}</div>
-            </CardContent>
-          </Card>
-        ))}
+        <KpiTile label="Abertos" value={resumo.abertos} icon={Inbox} tom="blue" />
+        <KpiTile
+          label="Recebidos (sem resposta)"
+          value={resumo.recebidos}
+          icon={Mail}
+          tom="amber"
+        />
+        <KpiTile label="Erros abertos" value={resumo.errosAbertos} icon={AlertTriangle} tom="red" />
+        <KpiTile
+          label="Resolvidos (30 dias)"
+          value={resumo.resolvidos30d}
+          icon={CheckCircle2}
+          tom="green"
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -146,7 +146,7 @@ function CentralChamados() {
           ))}
         </select>
         <Input
-          className="h-9 w-56"
+          className="h-9 w-full sm:w-56"
           placeholder="Buscar texto ou #número"
           value={f.busca}
           onChange={(e) => setF({ ...f, busca: e.target.value })}
@@ -155,9 +155,40 @@ function CentralChamados() {
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
-          <CardContent className="overflow-x-auto p-0">
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-xs text-muted-foreground">
+          {/* Celular: cartões. Tocar no cartão faz o mesmo que clicar na linha (só seleciona). */}
+          <CardContent className="space-y-2 p-3 md:hidden">
+            {carregando && <ListSkeleton rows={4} label="Carregando…" />}
+            {!carregando && visiveis.length === 0 && (
+              <EmptyState icon={Inbox}>Nenhum chamado com esses filtros.</EmptyState>
+            )}
+            {visiveis.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSel(c.id)}
+                className={`w-full rounded-xl border bg-card p-3 text-left shadow-sm transition-colors ${sel === c.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted"}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium">#{c.numero}</span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    <SeloTipo tipo={c.tipo} />
+                    <SeloStatus status={c.status} />
+                  </span>
+                </div>
+                <div className="mt-1 line-clamp-2 break-words text-sm">
+                  {c.tem_print && <Paperclip className="mr-1 inline h-3 w-3" />}
+                  {c.assunto}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {c.organizacao} · {c.autor_nome ?? "Usuário"}
+                  {papel(c.autor_papeis) && ` · ${papel(c.autor_papeis)}`} · {idade(c.created_at)}
+                </div>
+              </button>
+            ))}
+          </CardContent>
+          <CardContent className="hidden overflow-x-auto p-0 md:block">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="p-2">#</th>
                   <th className="p-2">Imobiliária / quem</th>
@@ -222,9 +253,7 @@ function CentralChamados() {
             {atual ? (
               <ChamadoDetalhe key={atual.id} chamado={atual} modo="equipe" onMudou={carregar} />
             ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Escolha um chamado na lista.
-              </p>
+              <EmptyState icon={Headset}>Escolha um chamado na lista.</EmptyState>
             )}
           </CardContent>
         </Card>

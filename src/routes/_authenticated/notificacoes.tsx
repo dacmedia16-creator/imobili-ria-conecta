@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, CheckCheck, ExternalLink } from "lucide-react";
+import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { NotificationRow } from "@/lib/database.types";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/notificacoes")({
   head: () => ({ meta: [{ title: "Notificações" }] }),
@@ -80,17 +81,22 @@ function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Notificações</h1>
-        {tab === "nao_lidas" && items.length > 0 && (
-          <Button variant="outline" size="sm" onClick={markAllRead}>
-            <CheckCheck className="mr-2 h-4 w-4" />
-            Marcar todas como lidas
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        icon={Bell}
+        title="Notificações"
+        description="Avisos sobre vendas, captações e chamados. Use “Abrir” para ir direto ao item."
+        actions={
+          tab === "nao_lidas" &&
+          items.length > 0 && (
+            <Button variant="outline" size="sm" onClick={markAllRead}>
+              <CheckCheck className="mr-2 h-4 w-4" />
+              Marcar todas como lidas
+            </Button>
+          )
+        }
+      />
 
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 overflow-x-auto border-b">
         {(["nao_lidas", "lidas"] as const).map((t) => (
           <button
             key={t}
@@ -107,18 +113,20 @@ function NotificationsPage() {
           <CardTitle className="text-base">{tab === "nao_lidas" ? "Não lidas" : "Lidas"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {loading && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          {loading && <ListSkeleton rows={4} label="Carregando…" />}
           {!loading && items.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma notificação.</p>
+            <EmptyState icon={Bell}>Nenhuma notificação.</EmptyState>
           )}
           {items.map((n) => (
             <div
               key={n.id}
-              className="flex items-start justify-between gap-3 rounded-md border p-3"
+              className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm ${n.lida ? "" : "border-l-4 border-l-primary"}`}
             >
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{n.titulo}</div>
-                {n.mensagem && <p className="mt-0.5 text-sm text-muted-foreground">{n.mensagem}</p>}
+                <div className="break-words text-sm font-medium">{n.titulo}</div>
+                {n.mensagem && (
+                  <p className="mt-0.5 break-words text-sm text-muted-foreground">{n.mensagem}</p>
+                )}
                 <div className="mt-1 text-xs text-muted-foreground">
                   {new Date(n.created_at).toLocaleString("pt-BR")}
                 </div>

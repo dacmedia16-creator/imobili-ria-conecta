@@ -11,6 +11,8 @@ import {
   type ChamadoLinha,
 } from "@/components/ChamadoDetalhe";
 import { idade } from "@/lib/ajuda-sugestoes";
+import { LifeBuoy, MessageSquareText } from "lucide-react";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/ajuda")({
   head: () => ({ meta: [{ title: "Ajuda e sugestões" }] }),
@@ -42,15 +44,14 @@ function AjudaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ajuda e sugestões</h1>
-        <p className="text-sm text-muted-foreground">
-          Para abrir um chamado, use o botão “Ajuda e sugestões” no canto da tela.
-        </p>
-      </div>
+      <PageHeader
+        icon={LifeBuoy}
+        title="Ajuda e sugestões"
+        description="Para abrir um chamado, use o botão “Ajuda e sugestões” no canto da tela."
+      />
 
       {podeVerOrg && (
-        <div className="flex gap-2 border-b">
+        <div className="flex gap-2 overflow-x-auto border-b">
           {(["meus", "org"] as const).map((t) => (
             <button
               key={t}
@@ -58,7 +59,7 @@ function AjudaPage() {
                 setAba(t);
                 setSel(null);
               }}
-              className={`border-b-2 px-4 py-2 text-sm ${aba === t ? "border-primary font-medium" : "border-transparent text-muted-foreground"}`}
+              className={`shrink-0 border-b-2 px-4 py-2 text-sm ${aba === t ? "border-primary font-medium" : "border-transparent text-muted-foreground"}`}
             >
               {t === "meus" ? "Meus chamados" : "Chamados da imobiliária"}
             </button>
@@ -74,17 +75,15 @@ function AjudaPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {carregando && <p className="text-sm text-muted-foreground">Carregando…</p>}
+            {carregando && <ListSkeleton rows={3} label="Carregando…" />}
             {!carregando && lista.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum chamado ainda.
-              </p>
+              <EmptyState icon={LifeBuoy}>Nenhum chamado ainda.</EmptyState>
             )}
             {lista.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSel(c.id)}
-                className={`w-full rounded-md border p-3 text-left ${sel === c.id ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+                className={`w-full rounded-xl border bg-card p-3 text-left shadow-sm transition-colors ${sel === c.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted"}`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-medium">#{c.numero}</span>
@@ -113,9 +112,9 @@ function AjudaPage() {
                 onMudou={carregar}
               />
             ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
+              <EmptyState icon={MessageSquareText}>
                 Escolha um chamado para ver a conversa.
-              </p>
+              </EmptyState>
             )}
           </CardContent>
         </Card>
