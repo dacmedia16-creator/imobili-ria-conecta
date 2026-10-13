@@ -72,6 +72,7 @@ import { dataCivilSaoPaulo, hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { confirmarLinhaAlterada } from "@/lib/relatorios-integridade";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
+import { dataOficialVendaComercial } from "@/lib/data-assinatura-oficial";
 
 type ReportSale = Pick<
   SaleRow,
@@ -82,6 +83,8 @@ type ReportSale = Pick<
   | "corretor_id"
   | "valor_negociado"
   | "valor_total_comissao"
+  | "modalidade"
+  | "data_assinatura"
   | "updated_at"
   | "created_at"
 >;
@@ -260,7 +263,7 @@ function RelatoriosPage() {
         supabase
           .from("sales")
           .select(
-            "id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, updated_at, created_at",
+            "id, status, imovel_id, codigo_interno, corretor_id, valor_negociado, valor_total_comissao, modalidade, data_assinatura, updated_at, created_at",
             { count: "exact" },
           )
           .or(salesFilter)
@@ -304,7 +307,21 @@ function RelatoriosPage() {
       const participantes = await buscarCorretoresPorVenda(s.map((x) => x.id));
       if (versao !== loadVersion.current) return;
       setCorretoresPorVenda(participantes);
-      setVendaComercialEm(Object.fromEntries(vendasValidas.map((v) => [v.sale_id, v.venda_em])));
+      // Data oficial da venda (regra única de public.data_assinatura_oficial), YYYY-MM-DD.
+      const saleDoLoad = new Map(s.map((x) => [x.id, x]));
+      const occDoLoad = new Map(o.map((x) => [x.sale_id, x.data_assinatura]));
+      const datasOficiais: Record<string, string> = {};
+      for (const v of vendasValidas) {
+        const venda = saleDoLoad.get(v.sale_id);
+        const d = dataOficialVendaComercial({
+          vendaEm: v.venda_em,
+          modalidade: venda?.modalidade,
+          saleDataAssinatura: venda?.data_assinatura,
+          occDataAssinatura: occDoLoad.get(v.sale_id),
+        });
+        if (d) datasOficiais[v.sale_id] = d;
+      }
+      setVendaComercialEm(datasOficiais);
       setOccs(o);
       setSales(s);
       setComms(c);

@@ -161,7 +161,7 @@ type DashboardStats = {
 };
 
 const RECENTES_COLUMNS =
-  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, corretor_captador_id, corretor_vendedor_id, modalidade, updated_at, created_at";
+  "id, status, valor_negociado, imovel_id, codigo_interno, corretor_id, corretor_captador_id, corretor_vendedor_id, modalidade, data_assinatura, updated_at, created_at";
 
 type VendaRecente = {
   id: string;
