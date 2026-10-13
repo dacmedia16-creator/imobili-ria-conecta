@@ -197,6 +197,7 @@ import {
   camposSalvaveisOcorrencia,
   dataAssinaturaExibida,
   dataAssinaturaOcorrenciaTravada,
+  dataAssinaturaParaAlinhar,
 } from "@/lib/ocorrencia-data-assinatura";
 import { notifySaleComment, notifySaleStatusChange } from "@/lib/sale-notifications.functions";
 import {
@@ -6884,8 +6885,8 @@ function OccurrencePanel({
     setSaving(true);
     try {
       if (dirtyOcc) {
-        // Na venda padrão a data de assinatura é somente leitura (vem do histórico): nunca entra no
-        // update, para não sobrescrever nem apagar occurrences.data_assinatura.
+        // Na venda padrão a data de assinatura é somente leitura (vem do histórico): o valor do
+        // formulário nunca entra no update; só a data oficial pode ser gravada (alinhamento abaixo).
         const fields = camposSalvaveisOcorrencia<keyof OccurrenceRow>(
           [
             "codigo_imovel",
@@ -6920,6 +6921,14 @@ function OccurrencePanel({
         for (const k of fields)
           if ((formOcc?.[k] ?? null) !== (occ?.[k] ?? null))
             patch[k] = formOcc[k] === "" ? null : formOcc[k];
+        // Venda padrão: grava a data oficial quando divergir (Financeiro/Relatórios leem o campo).
+        // Se a consulta da data oficial falhou (null), não mexe no campo. Lançamento: inalterado.
+        const dataAlinhada = dataAssinaturaParaAlinhar(
+          sale.modalidade,
+          dataAssinaturaOficial,
+          occ?.data_assinatura,
+        );
+        if (dataAlinhada) patch.data_assinatura = dataAlinhada;
         if (Object.keys(patch).length) {
           const { error } = await supabase
             .from("occurrences")
@@ -7038,6 +7047,8 @@ function OccurrencePanel({
     commissions,
     partners,
     load,
+    sale.modalidade,
+    dataAssinaturaOficial,
   ]);
 
   useEffect(() => {

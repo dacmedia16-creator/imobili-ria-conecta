@@ -22,6 +22,21 @@ export function camposSalvaveisOcorrencia<K extends string>(
   return campos.filter((k) => k !== "data_assinatura");
 }
 
+/**
+ * Ao salvar a ocorrência da venda padrão, alinha occurrences.data_assinatura à data oficial
+ * (Painel Financeiro e Relatórios leem o campo gravado). Retorna a data a gravar, ou null quando
+ * não há nada a alinhar: Lançamento, consulta oficial falhou/sem histórico, ou já está igual.
+ */
+export function dataAssinaturaParaAlinhar(
+  modalidade: string | null | undefined,
+  oficial: string | null | undefined,
+  gravadaNaOcorrencia: string | null | undefined,
+): string | null {
+  if (!dataAssinaturaOcorrenciaTravada(modalidade)) return null;
+  if (!oficial) return null;
+  return oficial !== (gravadaNaOcorrencia ?? null) ? oficial : null;
+}
+
 /** Valor exibido no campo travado: a data oficial; sem ela, a data já gravada (mesma reserva da RPC). */
 export function dataAssinaturaExibida(
   oficial: string | null | undefined,

@@ -5,6 +5,7 @@ import {
   camposSalvaveisOcorrencia,
   dataAssinaturaExibida,
   dataAssinaturaOcorrenciaTravada,
+  dataAssinaturaParaAlinhar,
 } from "./ocorrencia-data-assinatura";
 
 const CAMPOS = ["codigo_imovel", "data_assinatura", "midia", "observacoes"] as const;
@@ -34,6 +35,30 @@ describe("data de assinatura da ocorrência (opção A, Denis 13/10)", () => {
     expect(dataAssinaturaExibida(null, "2026-08-25")).toBe("2026-08-25");
     expect(dataAssinaturaExibida(null, null)).toBe("");
     expect(TEXTO_ORIGEM_DATA_ASSINATURA).toContain("contrato assinado");
+  });
+
+  describe("salvar alinha a data gravada à data oficial (venda padrão)", () => {
+    it("oficial diferente da gravada entra no patch", () => {
+      expect(dataAssinaturaParaAlinhar("padrao", "2026-09-04", "2026-08-25")).toBe("2026-09-04");
+      expect(dataAssinaturaParaAlinhar(null, "2026-09-04", null)).toBe("2026-09-04");
+    });
+
+    it("oficial igual à gravada não entra no patch", () => {
+      expect(dataAssinaturaParaAlinhar("padrao", "2026-09-04", "2026-09-04")).toBeNull();
+    });
+
+    it("oficial null (RPC falhou) não entra no patch; Lançamento também não", () => {
+      expect(dataAssinaturaParaAlinhar("padrao", null, "2026-08-25")).toBeNull();
+      expect(dataAssinaturaParaAlinhar("padrao", undefined, null)).toBeNull();
+      expect(dataAssinaturaParaAlinhar("lancamento", "2026-09-04", "2026-08-25")).toBeNull();
+    });
+
+    it("save() da tela aplica o alinhamento no patch da ocorrência", () => {
+      expect(tela).toMatch(
+        /dataAssinaturaParaAlinhar\(\s*sale\.modalidade,\s*dataAssinaturaOficial,\s*occ\?\.data_assinatura,?\s*\)/,
+      );
+      expect(tela).toContain("if (dataAlinhada) patch.data_assinatura = dataAlinhada;");
+    });
   });
 
   it("tela usa o campo somente leitura e filtra o salvamento pela modalidade", () => {
