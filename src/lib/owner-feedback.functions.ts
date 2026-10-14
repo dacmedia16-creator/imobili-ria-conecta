@@ -137,7 +137,7 @@ async function callGemini(apiKey: string, facts: string, thinking: boolean): Pro
 /** Sugere a recomendação com IA (Gemini). O corretor revisa antes de enviar. */
 export const suggestOwnerRecommendation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Input.parse(input))
+  .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data, context }) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return { ok: false as const, error: "IA indisponível no momento." };
