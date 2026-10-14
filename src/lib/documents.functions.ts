@@ -158,15 +158,20 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
     const userId = context.userId;
     const filled: string[] = [];
 
-    const { data: extractions } = await supabase
+    const { data: todasExtracoes } = await supabase
       .from("document_extractions")
       // FK nomeada: a multiempresa (1b) adicionou uma 2ª FK composta (document_id, organization_id)
       // e o embed sem dica fica ambíguo no PostgREST (PGRST201).
-      .select("raw_json, sale_documents!document_extractions_document_id_fkey(tipo, parte)")
+      .select(
+        "raw_json, sale_documents!document_extractions_document_id_fkey(tipo, parte, deleted_at)",
+      )
       .eq("sale_id", data.saleId)
       .eq("status", "done");
 
-    if (!extractions?.length) return { filled };
+    // Documento excluído (arquivado) não pode continuar alimentando a venda: o corretor trocou o
+    // arquivo justamente porque estava errado (ex.: RG do 2º comprador enviado no 1º) — t_ca148813.
+    const extractions = (todasExtracoes ?? []).filter((e) => !e.sale_documents?.deleted_at);
+    if (!extractions.length) return { filled };
 
     // Merge: acumula sugestões por escopo
     const salePatch: Record<string, Json | undefined> = {};
@@ -261,14 +266,27 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
             ? r.cpf_proprietario
             : null;
         const prof = isIdentidade ? r.profissao : null;
+        // Nacionalidade só de documento de identidade da própria parte (certidão traz cônjuge).
+        const nacionalidade = isIdentidade ? r.nacionalidade : null;
         const email = isIdentidade ? r.email : null;
         const tel = isIdentidade ? (r.telefone ?? r.celular) : null;
-        if (nome || rg || cpf || prof || email || tel || endereco || regimeCasamento) {
+        if (
+          nome ||
+          rg ||
+          cpf ||
+          prof ||
+          nacionalidade ||
+          email ||
+          tel ||
+          endereco ||
+          regimeCasamento
+        ) {
           const p = (partiesPatch[papel] ??= {});
           assign(p, "nome", nome);
           assign(p, "rg", rg);
           assign(p, "cpf_cnpj", cpf);
           assign(p, "profissao", prof);
+          assign(p, "nacionalidade", nacionalidade);
           assign(p, "email", email);
           assign(p, "telefone", tel);
           assign(p, "endereco", endereco);
@@ -317,10 +335,12 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
 
     // RPC verifica documento da mesma imobiliária, conteúdo da extração e campo vazio;
     // grava a origem de IA e ativa a trava sem permitir texto arbitrário vindo do cliente.
-    if (extractions.some((ext) => {
-      const raw = (ext.raw_json ?? {}) as ExtractionData;
-      return ext.sale_documents?.tipo === "matricula" && !!raw.observacoes_imovel;
-    })) {
+    if (
+      extractions.some((ext) => {
+        const raw = (ext.raw_json ?? {}) as ExtractionData;
+        return ext.sale_documents?.tipo === "matricula" && !!raw.observacoes_imovel;
+      })
+    ) {
       const { data: aplicada, error: descricaoError } = await supabase.rpc(
         "aplicar_descricao_matricula",
         { _sale_id: data.saleId },
@@ -437,17 +457,19 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       }
 
       if (any) {
-        if (cur)
-          await supabase
-            .from("sale_parties")
-            .update(patch as TablesUpdate<"sale_parties">)
-            .eq("id", cur.id);
-        else
-          await supabase.from("sale_parties").insert({
-            ...(patch as Omit<TablesInsert<"sale_parties">, "sale_id" | "papel">),
-            sale_id: data.saleId,
-            papel,
-          });
+        // Antes o erro era ignorado: se o banco recusasse, a parte (ex.: comprador_2) simplesmente
+        // não existia e ninguém era avisado (t_ca148813). Agora a falha chega ao corretor.
+        const { error: parteError } = cur
+          ? await supabase
+              .from("sale_parties")
+              .update(patch as TablesUpdate<"sale_parties">)
+              .eq("id", cur.id)
+          : await supabase.from("sale_parties").insert({
+              ...(patch as Omit<TablesInsert<"sale_parties">, "sale_id" | "papel">),
+              sale_id: data.saleId,
+              papel,
+            });
+        if (parteError) throw new Error(`Não foi possível gravar ${papel}: ${parteError.message}`);
       }
     }
 
@@ -538,6 +560,7 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "data_nascimento": string|null,
   "estado_civil": string|null,
   "regime_casamento": string|null,
+  "nacionalidade": string|null,
   "profissao": string|null,
   "endereco": string|null,
   "email": string|null,
