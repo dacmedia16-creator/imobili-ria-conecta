@@ -143,7 +143,7 @@ LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
     regexp_replace(
       regexp_replace(
         regexp_replace(
-          regexp_replace(coalesce(_t, ''), '(senha|password|pass|pwd)\s*[:=]?\s*\S+', '[senha oculta]', 'gi'),
+          regexp_replace(coalesce(_t, ''), '\m(senhas?|password|passwd|pass|pwd|pin|token)\M\s*[:=]\s*\S+', '[senha oculta]', 'gi'),
         'https?://\S+|www\.\S+', '', 'gi'),
       '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '', 'g'),
     '(\+?55\s*)?\(?\d{2}\)?\s*9?\s*\d{4}[\s.-]?\d{4}', '[número oculto]', 'g'))

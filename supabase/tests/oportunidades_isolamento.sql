@@ -172,5 +172,13 @@ EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok 23 - anon não lê p
 END $$;
 RESET ROLE;
 
+-- 24: limpeza de senha não estraga palavras comuns ("passa", "ultrapassa", "compass").
+SELECT pg_temp.ok(24,
+  public.opportunity_clean_text('Imóvel passa por reforma, ultrapassa expectativas, compass, senha: abc123')
+    = 'Imóvel passa por reforma, ultrapassa expectativas, compass, [senha oculta]'
+  AND public.opportunity_clean_text('pass=xyz e PWD : 9988 e token:abc') = '[senha oculta] e [senha oculta] e [senha oculta]'
+  AND public.opportunity_clean_text('senha abc (sem separador fica)') = 'senha abc (sem separador fica)',
+  'limpeza de senha com limite de palavra e separador obrigatório');
+
 DO $$ BEGIN RAISE NOTICE 'OPORTUNIDADES: TODOS OS TESTES PASSARAM'; END $$;
 ROLLBACK;

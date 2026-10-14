@@ -54,6 +54,16 @@ export function planAlerts(
   return out;
 }
 
+/**
+ * Mesmo critério de exclusive-expiry-alerts: o captador quer WhatsApp se algum papel dele na
+ * imobiliária não tem notificar_whatsapp = false. Sem papel na imobiliária = não recebe.
+ */
+export function whatsappOptIn(roles: { user_id: string; notificar_whatsapp: boolean | null }[]): Set<string> {
+  const wants = new Map<string, boolean>();
+  for (const r of roles) wants.set(r.user_id, (wants.get(r.user_id) ?? false) || r.notificar_whatsapp !== false);
+  return new Set([...wants].filter(([, w]) => w).map(([id]) => id));
+}
+
 export type AlertSender = (phone: string, message: string) => Promise<boolean>;
 export type AlertOptions = {
   /** Só envia de verdade com OPORTUNIDADES_ALERTAS=on E destino piloto definido. */
@@ -127,13 +137,21 @@ export async function runOpportunityAlerts(
 
     const capRows = (caps.data ?? []) as CaptureRow[];
     const ids = [...new Set(capRows.map((c) => c.captor_id))];
-    const { data: profs } = ids.length
-      ? await admin.from("profiles").select("id,nome").eq("organization_id", orgId).in("id", ids)
-      : { data: [] };
-    const nomes = new Map(((profs ?? []) as { id: string; nome: string | null }[]).map((p) => [p.id, p.nome]));
-    const captures = capRows.map((c) =>
-      captureCandidate({ ...c, captor_nome: c.broker_name?.trim() || nomes.get(c.captor_id) || null }),
-    );
+    const [{ data: profs }, { data: roles, error: rolesErr }] = ids.length
+      ? await Promise.all([
+          admin.from("profiles").select("id,nome,ativo").eq("organization_id", orgId).in("id", ids),
+          admin.from("user_roles").select("user_id,notificar_whatsapp").eq("organization_id", orgId).in("user_id", ids),
+        ])
+      : [{ data: [] }, { data: [], error: null }];
+    if (rolesErr) continue; // sem saber a preferência, não alerta ninguém
+    const perfis = (profs ?? []) as { id: string; nome: string | null; ativo: boolean | null }[];
+    const nomes = new Map(perfis.map((p) => [p.id, p.nome]));
+    const ativos = new Set(perfis.filter((p) => p.ativo !== false).map((p) => p.id));
+    // Respeita notificar_whatsapp (e ignora inativos): esses captadores ficam só no mural.
+    const querem = whatsappOptIn((roles ?? []) as { user_id: string; notificar_whatsapp: boolean | null }[]);
+    const captures = capRows
+      .filter((c) => ativos.has(c.captor_id) && querem.has(c.captor_id))
+      .map((c) => captureCandidate({ ...c, captor_nome: c.broker_name?.trim() || nomes.get(c.captor_id) || null }));
     const plan = planAlerts(
       ((posts.data ?? []) as OpportunityPost[]).map((p) => ({
         ...p,
