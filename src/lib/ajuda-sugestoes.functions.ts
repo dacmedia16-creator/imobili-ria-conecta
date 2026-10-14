@@ -183,7 +183,7 @@ const CriarInput = z.object({
 /** Abre o chamado. O print (opcional) vai ao bucket privado pelo servidor. */
 export const criarChamado = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => CriarInput.parse(input))
+  .validator((input: unknown) => CriarInput.parse(input))
   .handler(async ({ data, context }) => {
     const user = context.supabase as SupabaseClient;
     const { userId } = context;
@@ -232,7 +232,7 @@ const ResponderInput = z.object({
 /** Responde (equipe MAX ou autor). Resposta da equipe avisa o autor; nota interna não avisa. */
 export const responderChamado = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ResponderInput.parse(input))
+  .validator((input: unknown) => ResponderInput.parse(input))
   .handler(async ({ data, context }) => {
     const user = context.supabase as SupabaseClient;
     const { data: status, error } = await rpc(user, "support_ticket_reply", {
@@ -255,7 +255,7 @@ export const responderChamado = createServerFn({ method: "POST" })
 /** Link temporário (5 min) do print: só autor e equipe MAX (o banco decide). */
 export const linkDoPrint = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ ticketId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ ticketId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const user = context.supabase as SupabaseClient;
     const { data: path, error } = await rpc(user, "support_ticket_print_path", {

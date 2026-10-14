@@ -7,7 +7,7 @@ import { LOGO_TYPES, LOGO_MAX_BYTES } from "@/lib/platform-organizations";
 /** Storage não tem policy de escrita pública; só o servidor, após a RPC de autorização. */
 export const uploadAgencyLogo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         base64: z.string().min(1).max(1_500_000),
