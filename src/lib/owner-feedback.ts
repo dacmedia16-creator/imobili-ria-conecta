@@ -175,8 +175,48 @@ export function whatsappLink(text: string, phone?: string): string {
   return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
 }
 
+/** Mesma regra do banco (public.portal_code_key): "630601005-0114" e "630601005X114" viram "630601005-114". */
+export function codeKey(code: string): string {
+  const t = (code ?? "").trim().toUpperCase();
+  const m = /^([0-9]{9})(?:-|X{1,2})([0-9]+)$/.exec(t);
+  if (!m) return t;
+  return `${m[1]}-${m[2].replace(/^0+/, "") || "0"}`;
+}
+
+/** Dados do imóvel (site RE/MAX) e comparação com a própria imobiliária. Sem dados pessoais. */
+export interface ListingContext {
+  tipo?: string | null;
+  preco?: number | null;
+  area?: number | null;
+  quartos?: number | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  /** Data de publicação no site da RE/MAX (ISO). */
+  publicadoEm?: string | null;
+  /** Hoje (ISO), para calcular o tempo de anúncio de forma testável. */
+  hoje?: string;
+  comparacao?: {
+    portal: PortalKey;
+    periodText: string;
+    /** Quantos imóveis parecidos entraram na média. */
+    n: number;
+    mediaViews: number;
+    mediaContatos: number;
+    criterio: string;
+  } | null;
+}
+
+const MIN_COMPARACAO = 5;
+
+export function diasDesde(iso: string, hoje: string): number | null {
+  const a = Date.parse(iso.slice(0, 10));
+  const b = Date.parse(hoje.slice(0, 10));
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return null;
+  return Math.round((b - a) / 86_400_000);
+}
+
 /** Resumo só com números confirmados, para a IA escrever a recomendação. Sem dados pessoais. */
-export function aiFacts(l: ListingFeedback): string {
+export function aiFacts(l: ListingFeedback, ctx?: ListingContext): string {
   const ok = l.lines.filter((x) => x.confirmed);
   const linhas = ok.map((x) => {
     const parts = [
@@ -192,12 +232,110 @@ export function aiFacts(l: ListingFeedback): string {
     return `- ${parts.join("; ")}`;
   });
   const outros = l.lines.filter((x) => !x.confirmed && !x.error).map((x) => x.label);
+  const imovel: string[] = [];
+  if (ctx) {
+    const desc = [
+      ctx.tipo,
+      ctx.quartos ? `${ctx.quartos} quartos` : "",
+      ctx.area ? `${Math.round(ctx.area)} m²` : "",
+      [ctx.bairro, ctx.cidade].filter(Boolean).join(", "),
+    ].filter(Boolean);
+    if (desc.length) imovel.push(`- Imóvel: ${desc.join(", ")}.`);
+    if (ctx.preco != null && ctx.preco > 0)
+      imovel.push(`- Preço anunciado: R$ ${n(Math.round(ctx.preco))} (só contexto; não citar nem sugerir valor).`);
+    const dias = ctx.publicadoEm && ctx.hoje ? diasDesde(ctx.publicadoEm, ctx.hoje) : null;
+    if (dias != null) imovel.push(`- Tempo de anúncio no site da RE/MAX: ${dias} dias.`);
+    const c = ctx.comparacao;
+    if (c && c.n >= MIN_COMPARACAO)
+      imovel.push(
+        `- Média da imobiliária em ${PORTAL_LABEL[c.portal]} (${c.periodText}), ${c.criterio} (${c.n} imóveis): ${n(c.mediaViews)} visualizações e ${n(c.mediaContatos)} contatos por imóvel.`,
+      );
+  }
   return [
     linhas.length ? linhas.join("\n") : "- Nenhum número com período confirmado.",
     outros.length ? `Também anunciado em: ${outros.join(", ")} (sem números confirmados).` : "",
+    imovel.length ? `Dados do imóvel:\n${imovel.join("\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * Média de imóveis parecidos (mesmo tipo e cidade, venda) da própria imobiliária no mesmo portal
+ * e mesma coleta. Exclui o próprio imóvel. Devolve null se houver poucos para comparar.
+ */
+export function similarAverage(
+  ownKey: string,
+  snaps: Array<{ listing_code: string; views: number | null; contacts: number | null }>,
+  similarKeys: Set<string>,
+): { n: number; mediaViews: number; mediaContatos: number } | null {
+  const seen = new Set<string>();
+  let v = 0;
+  let c = 0;
+  for (const s of snaps) {
+    const k = codeKey(s.listing_code);
+    if (k === ownKey || seen.has(k) || !similarKeys.has(k) || s.views == null) continue;
+    seen.add(k);
+    v += s.views;
+    c += s.contacts ?? 0;
+  }
+  if (seen.size < MIN_COMPARACAO) return null;
+  return {
+    n: seen.size,
+    mediaViews: Math.round(v / seen.size),
+    mediaContatos: Math.round((c / seen.size) * 10) / 10,
+  };
+}
+
+export const AI_BAD_SUGGESTION = "A IA não trouxe uma boa sugestão. Tente de novo.";
+
+const PT_WORDS = new Set(
+  "o a os as de do da dos das em no na nos nas um uma que para com por se seu sua seus suas é está estão foi ser ter tem não mais muito bem imóvel anúncio visualizações contatos interessados vale sugiro sugerimos recomendo seguimos acompanhando proprietário portais semana fotos preço continuar manter boa bom ótimo já também isso esse essa este esta como quando ao aos pelo pela".split(
+    " ",
+  ),
+);
+const EN_WORDS = new Set(
+  "the and of to is are was which that this with for we you it so have has had be on as at by from quite healthy highlight real estate listing views contacts our your".split(
+    " ",
+  ),
+);
+
+/** Confere se a sugestão parece português (mais palavras comuns do português que do inglês). */
+export function looksPortuguese(t: string): boolean {
+  const words = t.toLowerCase().match(/[a-zà-ú]+/g) ?? [];
+  let pt = 0;
+  let en = 0;
+  for (const w of words) {
+    if (PT_WORDS.has(w)) pt++;
+    if (EN_WORDS.has(w)) en++;
+  }
+  return pt >= 3 && pt > en * 2;
+}
+
+type GeminiPart = { text?: string; thought?: boolean };
+export interface GeminiReply {
+  candidates?: Array<{ finishReason?: string; content?: { parts?: GeminiPart[] } }>;
+}
+
+/**
+ * Extrai a recomendação da resposta do Gemini: ignora partes de raciocínio (thought),
+ * exige finishReason STOP, português e frase terminada. Caso contrário, devolve erro.
+ */
+export function pickAiSuggestion(
+  json: GeminiReply,
+): { ok: true; text: string } | { ok: false; reason: string } {
+  const cand = json.candidates?.[0];
+  if (!cand) return { ok: false, reason: "sem candidato" };
+  if (cand.finishReason !== "STOP") return { ok: false, reason: `finish ${cand.finishReason ?? "vazio"}` };
+  const raw = (cand.content?.parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? "")
+    .join(" ");
+  const text = cleanAiText(raw);
+  if (!text) return { ok: false, reason: "vazio" };
+  if (text.length >= 600 || !/[.!?…]["”')]?$/.test(text)) return { ok: false, reason: "cortado" };
+  if (!looksPortuguese(text)) return { ok: false, reason: "idioma" };
+  return { ok: true, text };
 }
 
 /** Limpa a resposta da IA: texto simples, curto, sem markdown. */
