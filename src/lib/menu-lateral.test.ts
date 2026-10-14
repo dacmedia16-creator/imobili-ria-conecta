@@ -139,6 +139,25 @@ describe("menu lateral agrupado", () => {
     expect(admin.items.filter((i) => i.show).map((i) => i.to)).toEqual(["/admin/usuarios"]);
   });
 
+  it("Oportunidades só aparece com o módulo ligado e para os mesmos perfis do Feedback", () => {
+    const base = {
+      platformAdmin: true,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+    };
+    const vê = (roles: string[], opportunitiesVisible?: boolean) =>
+      itensVisiveis(montarMenuLateral({ ...base, roles, opportunitiesVisible })).includes(
+        "/oportunidades",
+      );
+    for (const p of ["corretor", "gestor", "team_leader", "admin", "super_admin"]) {
+      expect(vê([p], true)).toBe(true);
+      expect(vê([p], false)).toBe(false);
+      expect(vê([p])).toBe(false);
+    }
+    for (const p of ["juridico", "financeiro", "lancamento", "staff"]) expect(vê([p], true)).toBe(false);
+  });
+
   it("iniciais do e-mail", () => {
     expect(iniciaisDoEmail("alexandre.fernandes@x.com")).toBe("AF");
     expect(iniciaisDoEmail("denis@x.com")).toBe("DE");
