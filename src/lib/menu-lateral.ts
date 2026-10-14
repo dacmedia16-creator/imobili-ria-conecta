@@ -26,6 +26,7 @@ import {
   Building,
   Users,
   Inbox,
+  Radar,
 } from "lucide-react";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
@@ -46,10 +47,13 @@ export type MenuContexto = {
   exclusiveVisible: boolean;
   roomVisible: boolean;
   feedbackVisible: boolean;
+  /** Módulo Oportunidades ligado na imobiliária (opcional: ausente = desligado). */
+  opportunitiesVisible?: boolean;
 };
 
 export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const { roles, platformAdmin, exclusiveVisible, roomVisible, feedbackVisible } = ctx;
+  const opportunitiesVisible = ctx.opportunitiesVisible === true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
   return [
@@ -79,6 +83,15 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: MessageSquareText,
           show:
             feedbackVisible &&
+            hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+        },
+        {
+          to: "/oportunidades",
+          label: "Oportunidades",
+          icon: Radar,
+          // Mesmos perfis do Feedback; o banco (RLS + policy do módulo) é a proteção real.
+          show:
+            opportunitiesVisible &&
             hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
         },
       ],

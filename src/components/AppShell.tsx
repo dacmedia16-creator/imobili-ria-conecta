@@ -29,6 +29,7 @@ import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
+import { opportunitiesEnabled } from "@/lib/oportunidades-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
   PLATFORM_PANEL_PATH,
@@ -314,6 +315,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
   const [roomVisible, setRoomVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -329,6 +331,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     ownerFeedbackEnabled().then((enabled) => {
       if (alive) setFeedbackVisible(enabled);
+    });
+    opportunitiesEnabled().then((enabled) => {
+      if (alive) setOpportunitiesVisible(enabled);
     });
     if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -417,6 +422,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     exclusiveVisible,
     roomVisible,
     feedbackVisible,
+    opportunitiesVisible,
   });
   const unread = useUnreadNotifications();
   // Na sessão "Ver como" os papéis carregados já são os da pessoa vista.

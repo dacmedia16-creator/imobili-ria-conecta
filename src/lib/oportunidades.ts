@@ -132,7 +132,7 @@ function toNumber(num: string, unit: string): number | null {
 }
 
 const VALOR =
-  /(r\$\s*|\$\s*)?(\d{1,3}(?:[.,]\d{3})+(?:,\d{2})?|\d+(?:,\d+)?)\s*(mil\b|k\b|mi\b|milh[aã]o\b|milh[oõ]es\b|reais\b)?(?![\d.,]|\s*(?:m²|m2|mt|metros|m\b|%))/gi;
+  /(r\$\s*|\$\s*)?(\d{1,3}(?:[.,]\d{3})+(?:,\d{2})?|\d+(?:,\d+)?)\s*(mil\b|k\b|mi\b|milh[aã]o\b|milh[oõ]es\b|reais\b)?(?!\d|[.,]\d|\s*(?:m²|m2|mt|metros|m\b|%))/gi;
 
 /** Valores em reais citados no texto (ignora metragem, condomínio e IPTU). */
 export function extractValues(text: string): number[] {
