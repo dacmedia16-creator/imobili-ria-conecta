@@ -6,24 +6,22 @@ import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { guardOpportunitiesRoute } from "@/lib/oportunidades-module";
 import {
-  ageDays,
-  ageLabel,
-  ageTone,
   captureCandidate,
   captureMatches,
   faixaTexto,
   groupMatches,
   isExpired,
   pairKey,
-  type AgeTone,
   type CaptureCandidate,
   type OpportunityKind,
   type OpportunityPost,
 } from "@/lib/oportunidades";
+import { contarPorAba, FAIXAS_VALOR, filtrarMural } from "@/lib/oportunidades-mural";
+import { MuralPostCard } from "@/components/oportunidades/MuralPostCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { toast } from "sonner";
 import { Radar, SearchX } from "lucide-react";
 
@@ -42,24 +40,12 @@ const ABAS: { kind: OpportunityKind; label: string }[] = [
   { kind: "outros", label: "❔ Outros" },
 ];
 
-const FAIXAS: { id: string; label: string; min: number; max: number }[] = [
-  { id: "loc-ate-3k", label: "Locação até R$ 3 mil", min: 0, max: 3_000 },
-  { id: "loc-3k", label: "Locação acima de R$ 3 mil", min: 3_000, max: 20_000 },
-  { id: "ate-400k", label: "Até R$ 400 mil", min: 20_000, max: 400_000 },
-  { id: "400-800k", label: "R$ 400 a 800 mil", min: 400_000, max: 800_000 },
-  { id: "800k", label: "Acima de R$ 800 mil", min: 800_000, max: Number.MAX_SAFE_INTEGER },
-];
-
-/** Cor da borda por idade (verde hoje → cinza perto de vencer), como na maquete. */
-const BORDA: Record<AgeTone, string> = {
-  hoje: "border-l-[#1e9e4a]",
-  recente: "border-l-[#7cc68f]",
-  meio: "border-l-[#e6b400]",
-  vencendo: "border-l-[#9aa3b5] opacity-80",
-};
-
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+const SELO = "rounded-md border px-2 py-0.5 text-[11px] font-semibold";
+const SELO_GRUPO = `${SELO} border-[#f1c86b] bg-[#fff1d6] text-[#8a5a00]`;
+const SELO_EQUIPE = `${SELO} border-[#f39aaa] bg-[#ffe3e8] text-[#b0001f]`;
 
 type PostRow = Omit<OpportunityPost, "valor_min" | "valor_max" | "valor"> & {
   valor_min: number | string | null;
@@ -68,7 +54,6 @@ type PostRow = Omit<OpportunityPost, "valor_min" | "valor_max" | "valor"> & {
 };
 
 const num = (v: number | string | null) => (v == null ? null : Number(v));
-const valorRef = (p: OpportunityPost) => p.valor ?? p.valor_max ?? p.valor_min;
 
 function OportunidadesPage() {
   const { user } = useAuth();
@@ -125,6 +110,7 @@ function OportunidadesPage() {
     };
   }, []);
 
+  // Validade de 7 dias: vencidos não entram em filtro, contagem nem encaixe.
   const vivos = useMemo(() => (posts ?? []).filter((p) => !isExpired(p.posted_at)), [posts]);
   const grupo = useMemo(() => groupMatches(vivos, hidden), [vivos, hidden]);
   const equipe = useMemo(() => {
@@ -137,25 +123,20 @@ function OportunidadesPage() {
   const opcoes = (f: (p: OpportunityPost) => string | null) =>
     [...new Set(vivos.map(f).filter((x): x is string => Boolean(x)))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  const filtrados = useMemo(() => {
-    const faixa = FAIXAS.find((f) => f.id === fValor);
-    const q = busca.trim().toLowerCase();
-    return vivos.filter((p) => {
-      if (fTipo && p.tipo !== fTipo) return false;
-      if (fFin && p.finalidade !== fFin) return false;
-      if (fBairro && p.bairro !== fBairro) return false;
-      if (fCor && p.corretor !== fCor) return false;
-      if (faixa) {
-        const v = valorRef(p);
-        if (v == null || v < faixa.min || v > faixa.max) return false;
-      }
-      if (q && !`${p.texto} ${p.bairro ?? ""} ${p.corretor} ${p.tipo ?? ""}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [vivos, fTipo, fFin, fBairro, fCor, fValor, busca]);
+  const filtrados = useMemo(
+    () =>
+      filtrarMural(vivos, {
+        tipo: fTipo,
+        finalidade: fFin,
+        bairro: fBairro,
+        faixa: fValor,
+        corretor: fCor,
+        busca,
+      }),
+    [vivos, fTipo, fFin, fBairro, fCor, fValor, busca],
+  );
 
   const daAba = filtrados.filter((p) => p.kind === aba);
-  const total = (k: OpportunityKind) => filtrados.filter((p) => p.kind === k).length;
 
   async function naoEncaixa(post: OpportunityPost, targetId: string) {
     if (!orgId || !user) return;
@@ -175,22 +156,22 @@ function OportunidadesPage() {
         description="Posts do grupo de WhatsApp organizados automaticamente. Cada cartão some depois de 7 dias."
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {ABAS.map((a) => (
           <Button
             key={a.kind}
             size="sm"
             variant={aba === a.kind ? "default" : "secondary"}
-            className="rounded-full"
+            className="rounded-full px-3.5"
             onClick={() => setAba(a.kind)}
           >
-            {a.label} <span className="ml-1 opacity-80">{posts ? total(a.kind) : ""}</span>
+            {a.label} <span className="ml-1">{posts ? `(${contarPorAba(filtrados, a.kind)})` : ""}</span>
           </Button>
         ))}
       </div>
 
       <Card>
-        <CardContent className="grid grid-cols-2 gap-3 p-3 md:grid-cols-3 xl:grid-cols-6">
+        <CardContent className="grid grid-cols-2 gap-2 p-3 md:grid-cols-3 xl:grid-cols-6">
           <Filtro label="Tipo">
             <select className={SELECT} value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
               <option value="">Todos</option>
@@ -217,7 +198,7 @@ function OportunidadesPage() {
           <Filtro label="Faixa de valor">
             <select className={SELECT} value={fValor} onChange={(e) => setFValor(e.target.value)}>
               <option value="">Qualquer</option>
-              {FAIXAS.map((f) => (
+              {FAIXAS_VALOR.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.label}
                 </option>
@@ -238,28 +219,38 @@ function OportunidadesPage() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
         <Legenda cor="#1e9e4a" texto="Hoje" />
         <Legenda cor="#7cc68f" texto="1 a 2 dias" />
         <Legenda cor="#e6b400" texto="3 a 5 dias" />
         <Legenda cor="#9aa3b5" texto="6 a 7 dias (perto de vencer)" />
-        <span>🤝 possível encaixe = procura × oferta do grupo</span>
-        <span>⭐ encaixe com captação da equipe = procura × captação do ADM</span>
+        <span>·</span>
+        <span className="inline-flex items-center gap-1">
+          <span className={SELO_GRUPO}>🤝 possível encaixe</span> procura × oferta do grupo
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className={SELO_EQUIPE}>⭐ encaixe com captação da equipe</span> procura × captação do ADM
+        </span>
       </div>
 
       {posts === null ? (
         <ListSkeleton />
       ) : daAba.length === 0 ? (
-        <EmptyState icon={SearchX}>Nenhum post nesta aba com os filtros atuais.</EmptyState>
+        <EmptyState icon={SearchX}>Nenhum cartão com esses filtros.</EmptyState>
       ) : (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
           {daAba.map((p) => (
-            <PostCard
+            <MuralPostCard
               key={p.id}
               post={p}
-              grupo={grupo.get(p.id) ?? []}
-              equipe={equipe.get(p.id) ?? []}
-              onNaoEncaixa={naoEncaixa}
+              encaixes={
+                <Encaixes
+                  post={p}
+                  grupo={grupo.get(p.id) ?? []}
+                  equipe={equipe.get(p.id) ?? []}
+                  onNaoEncaixa={naoEncaixa}
+                />
+              }
             />
           ))}
         </div>
@@ -280,13 +271,14 @@ function Filtro({ label, children }: { label: string; children: React.ReactNode 
 function Legenda({ cor, texto }: { cor: string; texto: string }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cor }} />
+      <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: cor }} />
       {texto}
     </span>
   );
 }
 
-function PostCard({
+/** Conteúdo do slot de encaixes do cartão: selos + lista com "não encaixa". */
+function Encaixes({
   post,
   grupo,
   equipe,
@@ -298,64 +290,47 @@ function PostCard({
   onNaoEncaixa: (post: OpportunityPost, targetId: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
-  const idade = ageDays(post.posted_at);
+  if (grupo.length === 0 && equipe.length === 0) return null;
   const procura = post.kind === "procura";
   return (
-    <Card className={`relative border-l-[6px] ${BORDA[ageTone(idade)]}`}>
-      <CardContent className="space-y-1.5 p-3">
-        <span className="absolute right-3 top-3 text-[11px] text-muted-foreground">{ageLabel(idade)}</span>
-        <div className="flex flex-wrap gap-1.5 pr-20">
-          {post.tipo && <Pill tom="slate">{post.tipo}</Pill>}
-          {post.finalidade && <Pill tom={post.finalidade === "Venda" ? "blue" : "violet"}>{post.finalidade}</Pill>}
-        </div>
-        <h3 className="text-[15px] font-semibold">{post.bairro ?? "Região não informada"}</h3>
+    <>
+      <div className="flex flex-wrap gap-1.5 pt-1">
+        {grupo.length > 0 && (
+          <button type="button" onClick={() => setAberto((x) => !x)} className={SELO_GRUPO}>
+            🤝 possível encaixe ({grupo.length})
+          </button>
+        )}
+        {equipe.length > 0 && (
+          <button type="button" onClick={() => setAberto((x) => !x)} className={SELO_EQUIPE}>
+            ⭐ encaixe com captação da equipe ({equipe.length})
+          </button>
+        )}
+      </div>
+      {grupo.length > 0 && !aberto && (
         <div className="text-xs text-muted-foreground">
-          {faixaTexto(post)} · {post.corretor}
+          ↳ {grupo.map((g) => `${g.corretor} (${g.bairro ?? "—"}${g.valor ? `, ${faixaTexto(g)}` : ""})`).join("; ")}
         </div>
-        <p className="rounded-md bg-muted/60 px-2 py-1.5 text-[12.5px] italic text-foreground/80">{post.texto}</p>
-        {(grupo.length > 0 || equipe.length > 0) && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {grupo.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setAberto((x) => !x)}
-                className="rounded-md border border-[#f1c86b] bg-[#fff1d6] px-2 py-0.5 text-[11px] font-semibold text-[#8a5a00]"
-              >
-                🤝 possível encaixe ({grupo.length})
-              </button>
-            )}
-            {equipe.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setAberto((x) => !x)}
-                className="rounded-md border border-[#f39aaa] bg-[#ffe3e8] px-2 py-0.5 text-[11px] font-semibold text-[#b0001f]"
-              >
-                ⭐ encaixe com captação da equipe ({equipe.length})
-              </button>
-            )}
-          </div>
-        )}
-        {aberto && (
-          <ul className="space-y-1 border-t pt-2 text-xs">
-            {grupo.map((g) => (
-              <Par
-                key={g.id}
-                texto={`🤝 ${g.kind === "oferta" ? "Oferta" : "Procura"} de ${g.corretor} · ${g.bairro ?? "—"} · ${faixaTexto(g)}`}
-                // O par é sempre gravado como procura → alvo, para valer nos dois cartões.
-                onNao={() => (procura ? onNaoEncaixa(post, g.id) : onNaoEncaixa(g, post.id))}
-              />
-            ))}
-            {equipe.map((c) => (
-              <Par
-                key={c.id}
-                texto={`⭐ Captação de ${c.captor_nome} · ${c.bairro ?? c.municipio ?? "—"}${c.valor ? ` · ${faixaTexto({ kind: "oferta", valor: c.valor, valor_min: null, valor_max: null })}` : ""}`}
-                onNao={() => onNaoEncaixa(post, c.id)}
-              />
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+      )}
+      {aberto && (
+        <ul className="space-y-1 border-t pt-2 text-xs">
+          {grupo.map((g) => (
+            <Par
+              key={g.id}
+              texto={`🤝 ${g.kind === "oferta" ? "Oferta" : "Procura"} de ${g.corretor} · ${g.bairro ?? "—"} · ${faixaTexto(g)}`}
+              // O par é sempre gravado como procura → alvo, para valer nos dois cartões.
+              onNao={() => (procura ? onNaoEncaixa(post, g.id) : onNaoEncaixa(g, post.id))}
+            />
+          ))}
+          {equipe.map((c) => (
+            <Par
+              key={c.id}
+              texto={`⭐ Captação de ${c.captor_nome} · ${c.bairro ?? c.municipio ?? "—"}${c.valor ? ` · ${faixaTexto({ kind: "oferta", valor: c.valor, valor_min: null, valor_max: null })}` : ""}`}
+              onNao={() => onNaoEncaixa(post, c.id)}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
