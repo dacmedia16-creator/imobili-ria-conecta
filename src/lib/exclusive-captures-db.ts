@@ -251,6 +251,9 @@ export async function downloadCaptureTemplate(template: Template): Promise<Uint8
   if (data) return new Uint8Array(await data.arrayBuffer());
   // Apenas a agência histórica pode ler o modelo sem prefixo (RLS decide).
   const legacy = await supabase.storage.from("exclusive-templates").download(`${template}.pdf`);
+  // Só o resultado da 2ª tentativa decide: `legacy.error ?? error` reaproveitava o "Object not
+  // found" da pasta da organização mesmo com o modelo antigo baixado com sucesso.
+  if (legacy.data) return new Uint8Array(await legacy.data.arrayBuffer());
   check(legacy.error ?? error);
   if (!legacy.data) throw new Error("Modelo indisponível");
   return new Uint8Array(await legacy.data.arrayBuffer());
