@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   archiveCapture,
@@ -33,6 +33,14 @@ import { CaptureSummaryDialog } from "@/components/exclusividades/CaptureSummary
 import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import {
+  alternarCard,
+  contarPainel,
+  noCard,
+  PAINEL_CARDS,
+  type PainelCardKey,
+} from "@/lib/captacoes-painel";
+import { useRecarregarAoFocar } from "@/lib/use-recarregar-ao-focar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -71,7 +79,10 @@ function ExclusiveList() {
   const [showArchived, setShowArchived] = useState(false);
   const [onlyExpiring, setOnlyExpiring] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  // Cartão do painel de contadores selecionado (filtra a lista; clicar de novo limpa).
+  const [card, setCard] = useState<PainelCardKey | null>(null);
   const today = hojeSaoPaulo();
+  const contagem = contarPainel(captures, today);
   const archivedCount = captures.filter((c) => c.archived_at).length;
   // "Vencendo": exclusividade assinada que vence em até 30 dias ou já venceu (renovar).
   const expiring = (c: Capture) => {
@@ -83,6 +94,7 @@ function ExclusiveList() {
     .filter((c) => !!c.archived_at === showArchived)
     .filter((c) => showArchived || !onlyExpiring || expiring(c))
     .filter((c) => matchFilters(c, filters, today, units))
+    .filter((c) => showArchived || !card || noCard(c, card, today))
     .sort((a, b) =>
       onlyExpiring
         ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
@@ -106,16 +118,26 @@ function ExclusiveList() {
       setRemoving(null);
     }
   };
+  const carregar = useCallback(
+    (silencioso = false) =>
+      Promise.all([listCaptures(), listUnits(), situacaoVendaLista()])
+        .then(([list, unitList, vendaMap]) => {
+          setCaptures(list);
+          setUnits(unitList);
+          setVendas(vendaMap);
+        })
+        .catch((e) => {
+          // Recarga ao voltar para a aba: falha silenciosa, a lista anterior continua na tela.
+          if (!silencioso) toast.error(errorMessage(e, "Falha ao carregar captações"));
+        })
+        .finally(() => setLoading(false)),
+    [],
+  );
   useEffect(() => {
-    Promise.all([listCaptures(), listUnits(), situacaoVendaLista()])
-      .then(([list, unitList, vendaMap]) => {
-        setCaptures(list);
-        setUnits(unitList);
-        setVendas(vendaMap);
-      })
-      .catch((e) => toast.error(errorMessage(e, "Falha ao carregar captações")))
-      .finally(() => setLoading(false));
-  }, []);
+    void carregar();
+  }, [carregar]);
+  // Página aberta há tempo (ex.: antes da aprovação do gestor): ao voltar para a aba, atualiza.
+  useRecarregarAoFocar(() => carregar(true));
   const activeUnits = units.filter((u) => u.ativo);
   const [manualUnit, setManualUnit] = useState("");
   // Cadastro manual: contrato de exclusividade já assinado no papel (captador = usuário logado).
@@ -196,6 +218,35 @@ function ExclusiveList() {
           )}
         </CardContent>
       </Card>
+      {!loading && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="painel-contadores">
+          {PAINEL_CARDS.map((p) => {
+            const ativo = card === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={ativo}
+                data-testid={`painel-${p.key}`}
+                onClick={() => {
+                  setShowArchived(false);
+                  setCard((atual) => alternarCard(atual, p.key));
+                }}
+                className={`rounded-lg border p-3 text-left transition hover:shadow-sm ${p.classe} ${ativo ? "ring-2 ring-current ring-offset-1" : ""}`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium">{p.titulo}</span>
+                  <span className="text-2xl font-semibold tabular-nums">{contagem[p.key]}</span>
+                </div>
+                <p className="mt-1 text-xs opacity-90">{p.frase}</p>
+                {ativo && (
+                  <p className="mt-1 text-[11px] underline">Filtro aplicado: clique para limpar</p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>{showArchived ? "Captações arquivadas" : "Captações acessíveis"}</CardTitle>
