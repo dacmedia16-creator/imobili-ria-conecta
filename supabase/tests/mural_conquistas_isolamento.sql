@@ -10,7 +10,8 @@ GRANT SELECT ON t_ids TO authenticated, service_role, anon;
 INSERT INTO t_ids VALUES
   ('orgA', gen_random_uuid()), ('orgB', gen_random_uuid()),
   ('uA', gen_random_uuid()), ('uA2', gen_random_uuid()), ('uB', gen_random_uuid()), ('uSA', gen_random_uuid()),
-  ('vOff', gen_random_uuid()), ('v1', gen_random_uuid()), ('vLanc', gen_random_uuid()), ('vB', gen_random_uuid());
+  ('vOff', gen_random_uuid()), ('v1', gen_random_uuid()), ('vLanc', gen_random_uuid()), ('vB', gen_random_uuid()),
+  ('vTz', gen_random_uuid());
 
 CREATE FUNCTION pg_temp.id(_k text) RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT v FROM t_ids WHERE k = _k $$;
 CREATE FUNCTION pg_temp.ok(_n int, _cond boolean, _msg text) RETURNS void LANGUAGE plpgsql AS $$
@@ -66,7 +67,8 @@ INSERT INTO public.sales (id, organization_id, corretor_id, corretor_captador_id
 SELECT pg_temp.id(x.k), pg_temp.id(x.org), pg_temp.id(x.cap), pg_temp.id(x.cap), pg_temp.id(x.ven), x.mod, 'aguardando_assinatura',
        'Casa', 'Campolim', 'Sorocaba', 987654.32
 FROM (VALUES ('vOff', 'orgA', 'uA', 'uA2', 'padrao'), ('v1', 'orgA', 'uA', 'uA2', 'padrao'),
-             ('vLanc', 'orgA', 'uA2', 'uA2', 'lancamento'), ('vB', 'orgB', 'uB', 'uB', 'padrao')) x(k, org, cap, ven, mod);
+             ('vLanc', 'orgA', 'uA2', 'uA2', 'lancamento'), ('vB', 'orgB', 'uB', 'uB', 'padrao'),
+             ('vTz', 'orgA', 'uA', 'uA', 'padrao')) x(k, org, cap, ven, mod);
 
 -- 1-3: começa desligado; venda assinada com módulo desligado não gera post nem evento.
 SELECT pg_temp.ok(1, (SELECT enabled = false FROM public.organization_modules WHERE organization_id = pg_temp.id('orgA') AND module = 'mural_conquistas'), 'módulo nasce desligado');
@@ -117,6 +119,30 @@ SELECT pg_temp.status('vLanc', 'ocorrencia_pendente');
 SELECT pg_temp.ok(11, (SELECT count(*) = 0 FROM public.achievement_posts WHERE sale_id = pg_temp.id('vLanc')), 'lançamento antes do Financeiro: sem post');
 SELECT pg_temp.status('vLanc', 'ocorrencia_analise_financeiro');
 SELECT pg_temp.ok(12, (SELECT count(*) = 1 FROM public.achievement_posts WHERE sale_id = pg_temp.id('vLanc') AND ativo), 'lançamento no Financeiro: entra no mural');
+
+-- 32: venda assinada às 23h30 do último dia do mês em São Paulo (31/01/2025 23:30 SP = 01/02/2025 02:30 UTC)
+-- conta em JANEIRO, não em fevereiro.
+UPDATE public.sales SET status = 'contrato_assinado' WHERE id = pg_temp.id('vTz');
+INSERT INTO public.sale_status_history (sale_id, de, para, autor_id, organization_id, created_at)
+VALUES (pg_temp.id('vTz'), 'aguardando_assinatura', 'contrato_assinado', pg_temp.id('uA'), pg_temp.id('orgA'),
+        TIMESTAMP '2025-01-31 23:30' AT TIME ZONE 'America/Sao_Paulo');
+SELECT pg_temp.as_user('uA');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok(32, (SELECT array_agg(nome || ':' || pontos) = ARRAY['Ana Teste:2'] FROM public.achievement_ranking(2025, 1))
+  AND NOT EXISTS (SELECT 1 FROM public.achievement_ranking(2025, 2)),
+  'ranking no fuso de SP: 23h30 do último dia conta no próprio mês');
+RESET ROLE;
+
+-- 33: venda que VOLTA de status (contrato_assinado -> aguardando_assinatura) é revogada e sai do ranking.
+SELECT pg_temp.status('vTz', 'aguardando_assinatura');
+SELECT pg_temp.as_user('uA');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok(33, NOT EXISTS (SELECT 1 FROM public.achievement_ranking(2025, 1))
+  AND NOT EXISTS (SELECT 1 FROM public.achievement_posts WHERE sale_id = pg_temp.id('vTz')),
+  'volta de status: conquista revogada, some do mural e do ranking');
+RESET ROLE;
+SELECT pg_temp.ok(34, (SELECT ativo = false FROM public.achievement_posts WHERE sale_id = pg_temp.id('vTz')),
+  'revogação marca ativo = false (não apaga, não reemite)');
 
 -- 13-18: corretor da A vê o feed, parabeniza uma vez, ranking por quantidade, aniversário só dia/mês.
 SELECT pg_temp.as_user('uA');
