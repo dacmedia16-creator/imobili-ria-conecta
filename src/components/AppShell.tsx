@@ -21,6 +21,7 @@ import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { montarMenuLateral, iniciaisDoEmail, type NavGroup } from "@/lib/menu-lateral";
 import { AjudaSugestoesBotao } from "@/components/AjudaSugestoes";
+import { MuralCelebrationListener } from "@/components/mural/MuralCelebrationListener";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
 import type { ReactNode } from "react";
 import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
@@ -30,6 +31,7 @@ import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { opportunitiesEnabled } from "@/lib/oportunidades-module";
+import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
   PLATFORM_PANEL_PATH,
@@ -316,6 +318,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [roomVisible, setRoomVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
+  const [achievementsVisible, setAchievementsVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -334,6 +337,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     opportunitiesEnabled().then((enabled) => {
       if (alive) setOpportunitiesVisible(enabled);
+    });
+    achievementsEnabled().then((enabled) => {
+      if (alive) setAchievementsVisible(enabled);
     });
     if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -423,6 +429,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     roomVisible,
     feedbackVisible,
     opportunitiesVisible,
+    achievementsVisible,
   });
   const unread = useUnreadNotifications();
   // Na sessão "Ver como" os papéis carregados já são os da pessoa vista.
@@ -616,6 +623,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+      <MuralCelebrationListener />
     </div>
   );
 }

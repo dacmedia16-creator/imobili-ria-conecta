@@ -27,6 +27,7 @@ import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "luci
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/visual/base";
+import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -979,6 +980,8 @@ function MeuAcesso() {
           </CardContent>
         </Card>
       )}
+
+      <MuralCelebrationPreference userId={userId} />
 
       <Card>
         <CardHeader>
