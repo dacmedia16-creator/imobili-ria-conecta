@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { buscarCep, COLUNAS_ENDERECO, enderecoDaExtracao, mesmaRua } from "@/lib/endereco-imovel";
+import { dadosDaCertidaoParaParte } from "@/lib/conferencia-documentos-venda";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
@@ -177,6 +178,7 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
     const salePatch: Record<string, Json | undefined> = {};
     const paymentPatch: Record<string, Json | undefined> = {};
     const partiesPatch: Record<string, Record<string, Json | undefined>> = {};
+    const certidoesPorPapel: Record<string, Json[]> = {};
     let enderecoComCep = false;
 
     for (const ext of extractions) {
@@ -254,6 +256,11 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
           assign(p, "telefone", tel);
         }
       } else if (papel) {
+        // Certidão: profissão/nacionalidade por pessoa; resolvido mais abaixo contra a parte real.
+        if (tipo === "certidao" && Array.isArray(r.pessoas_certidao)) {
+          (certidoesPorPapel[papel] ??= []).push(...r.pessoas_certidao);
+          partiesPatch[papel] ??= {};
+        }
         const nome = isIdentidade
           ? (r.nome ?? r.nome_completo)
           : viaMatricula
@@ -387,6 +394,15 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
         .maybeSingle();
       const patch: Record<string, Json | undefined> = {};
       const currentParty = cur as unknown as Record<string, Json | undefined> | null;
+      // Profissão/nacionalidade da certidão só da pessoa que bate com esta parte (CPF ou nome).
+      const daCertidao = dadosDaCertidaoParaParte(certidoesPorPapel[papel], {
+        nome: currentParty?.nome || fields.nome,
+        cpf_cnpj: currentParty?.cpf_cnpj || fields.cpf_cnpj,
+      });
+      if (daCertidao) {
+        assign(fields, "profissao", daCertidao.profissao);
+        assign(fields, "nacionalidade", daCertidao.nacionalidade);
+      }
       let any = false;
       for (const [k, v] of Object.entries(fields)) {
         if (v == null || v === "") continue;
@@ -567,6 +583,9 @@ function buildPromptForType(tipo: string, filename: string, parte: string): stri
   "telefone": string|null
 }
 Se o documento for uma certidão de casamento, "regime_casamento" é o regime de bens declarado nela (ex.: "Comunhão parcial de bens", "Comunhão universal de bens", "Separação total de bens", "Separação obrigatória de bens", "Participação final nos aquestos").`;
+  // Certidão traz mais de uma pessoa: cada uma com seus próprios dados, para o sistema gravar
+  // profissão/nacionalidade só na parte que bater (t_ca148813). Campos acima continuam iguais.
+  const certidaoPessoasHint = `\n\nSe for certidão (casamento, nascimento etc.), inclua também "pessoas_certidao": uma lista com CADA pessoa principal citada (ex.: os dois cônjuges), cada item no formato {"nome": string|null, "cpf": string|null, "profissao": string|null, "nacionalidade": string|null}. Copie a profissão e a nacionalidade de cada pessoa exatamente como estão na certidão e nunca misture os dados de uma pessoa com os da outra. Não inclua pais, testemunhas ou oficial do cartório.`;
   // "observacoes_imovel" só entra no schema pedido pra matrícula — é o único documento com a
   // descrição completa do imóvel. Deixar esse campo disponível também pra IPTU/CND de condomínio
   // fazia a IA "achar" algo pra preencher ali (ex.: o texto de "não há débitos" da CND), que depois
@@ -608,7 +627,7 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
 }`;
   const isPessoaJuridica = tipo === "cartao_cnpj" || tipo === "ultima_alteracao_contratual";
   if (pessoaLabel && isPessoaJuridica) return base + commonPessoaJuridica;
-  if (pessoaLabel) return base + commonPessoal;
+  if (pessoaLabel) return base + commonPessoal + (tipo === "certidao" ? certidaoPessoasHint : "");
   if (parte === "imovel")
     return (
       base +
@@ -618,7 +637,7 @@ Se o documento for uma certidão de casamento, "regime_casamento" é o regime de
     );
   if (isPessoaJuridica) return base + commonPessoaJuridica;
   if (tipo === "rg" || tipo === "cpf" || tipo === "certidao" || tipo === "comprovante_endereco")
-    return base + commonPessoal;
+    return base + commonPessoal + (tipo === "certidao" ? certidaoPessoasHint : "");
   if (tipo === "matricula" || tipo === "iptu")
     return (
       base +

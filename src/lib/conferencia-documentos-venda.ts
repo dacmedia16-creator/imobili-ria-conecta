@@ -147,8 +147,36 @@ function pessoaDoDocumento(raw: Record<string, unknown>): Pessoa {
 
 function bate(p: Pessoa, nome: unknown, cpf: unknown): boolean {
   const c = cpfValido(cpf);
-  if (p.cpf && c) return p.cpf === c;
+  // CPF lido pela IA às vezes vem com 1-2 dígitos trocados (simulação de 30 dias: 7 de 12 vendas
+  // avisadas eram a mesma pessoa). Nome completo idêntico = mesma pessoa, mesmo com CPF diferente.
+  if (p.cpf && c)
+    return p.cpf === c || (!!p.nome && normalizarNome(p.nome) === normalizarNome(nome));
   return !!p.nome && mesmoNome(p.nome, nome);
+}
+
+export type DadosCertidao = { profissao: string | null; nacionalidade: string | null };
+
+/**
+ * Profissão/nacionalidade de uma certidão (casamento traz as duas pessoas) para a parte certa:
+ * só devolve dados da pessoa cujo CPF (ou primeiro + último nome) bate com a parte. Se nenhuma ou
+ * mais de uma pessoa bater, não devolve nada — nunca atribui dado de uma pessoa à outra.
+ */
+export function dadosDaCertidaoParaParte(
+  pessoasCertidao: unknown,
+  parte: { nome?: unknown; cpf_cnpj?: unknown },
+): DadosCertidao | null {
+  if (!Array.isArray(pessoasCertidao)) return null;
+  const temParte = cpfValido(parte.cpf_cnpj) || normalizarNome(parte.nome);
+  if (!temParte) return null;
+  const achadas = pessoasCertidao.filter((p): p is Record<string, unknown> => {
+    if (!p || typeof p !== "object") return false;
+    const r = p as Record<string, unknown>;
+    return bate(pessoaDoDocumento(r), parte.nome, parte.cpf_cnpj);
+  });
+  if (achadas.length !== 1) return null;
+  const profissao = texto(achadas[0].profissao) || null;
+  const nacionalidade = texto(achadas[0].nacionalidade) || null;
+  return profissao || nacionalidade ? { profissao, nacionalidade } : null;
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   avisoDescricaoCurta,
   avisoMatriculaDivergente,
   avisosPartes,
+  dadosDaCertidaoParaParte,
   extracoesAtivas,
   mesmoNome,
   type ExtracaoDocumento,
@@ -141,6 +142,13 @@ describe("avisosPartes", () => {
       }),
     ).toEqual([]);
   });
+  it("nome completo igual com CPF lido errado não avisa (falso positivo da simulação)", () => {
+    expect(
+      avisosPartes([ident("comprador_1", { nome: "JOÃO CARLOS LIMA", cpf: "222.222.222-29" })], {
+        comprador_1: { nome: "João Carlos Lima", cpf_cnpj: "22222222222" },
+      }),
+    ).toEqual([]);
+  });
   it("ignora documento excluído e documento que não é de identidade", () => {
     const partes = { comprador_1: { nome: "Outra Pessoa", cpf_cnpj: "33333333333" } };
     expect(avisosPartes([ident("comprador_1", joao, "2026-10-13")], partes)).toEqual([]);
@@ -158,5 +166,42 @@ describe("avisosPartes", () => {
   it("mesmoNome tolera acento, partícula e nome do meio", () => {
     expect(mesmoNome("José da Silva", "JOSE ANTONIO SILVA")).toBe(true);
     expect(mesmoNome("José Silva", "Josefa Silva")).toBe(false);
+  });
+});
+
+describe("dadosDaCertidaoParaParte", () => {
+  const certidao = [
+    {
+      nome: "Maria Souza Lima",
+      cpf: "111.222.333-44",
+      profissao: "Professora",
+      nacionalidade: "brasileira",
+    },
+    { nome: "João Pedro Lima", cpf: null, profissao: "Engenheiro", nacionalidade: "português" },
+  ];
+  it("grava só os dados da pessoa que bate com a parte (CPF)", () => {
+    expect(dadosDaCertidaoParaParte(certidao, { nome: "Outro", cpf_cnpj: "11122233344" })).toEqual({
+      profissao: "Professora",
+      nacionalidade: "brasileira",
+    });
+  });
+  it("bate por primeiro e último nome quando falta CPF", () => {
+    expect(dadosDaCertidaoParaParte(certidao, { nome: "JOAO LIMA" })?.profissao).toBe("Engenheiro");
+  });
+  it("não atribui dado do cônjuge quando ninguém bate", () => {
+    expect(
+      dadosDaCertidaoParaParte(certidao, { nome: "Carlos Alves", cpf_cnpj: "99988877766" }),
+    ).toBeNull();
+  });
+  it("parte vazia ou certidão sem lista não devolve nada", () => {
+    expect(dadosDaCertidaoParaParte(certidao, {})).toBeNull();
+    expect(dadosDaCertidaoParaParte(undefined, { nome: "Maria Lima" })).toBeNull();
+  });
+  it("duas pessoas batendo (ambíguo) não devolve nada", () => {
+    const amb = [
+      { nome: "Ana Lima", profissao: "A" },
+      { nome: "Ana Maria Lima", profissao: "B" },
+    ];
+    expect(dadosDaCertidaoParaParte(amb, { nome: "Ana Lima" })).toBeNull();
   });
 });
