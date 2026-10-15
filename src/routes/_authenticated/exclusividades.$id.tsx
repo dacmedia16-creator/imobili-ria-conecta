@@ -94,6 +94,7 @@ import {
 } from "@/lib/document-actions";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { useRecarregarAoFocar } from "@/lib/use-recarregar-ao-focar";
 import { diasEntre, haQuantosDias } from "@/lib/captacao-venda";
 import {
   aprovarBloqueio,
@@ -104,6 +105,13 @@ import {
   ultimaDevolucao,
 } from "@/lib/captacao-auditoria";
 import { notifyCaptureTransition } from "@/lib/captacao-notifications.functions";
+import {
+  avisoSemAssinado,
+  BLOQUEIO_SEM_ASSINADO,
+  DATA_ASSINATURA_MIN,
+  podeCaptadorInformarData,
+  textoAprovacao,
+} from "@/lib/captacoes-painel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -271,6 +279,12 @@ function ExclusiveDetail() {
       .catch(() => setCapture(null))
       .finally(() => setLoading(false));
   }, [id, reload]);
+  // Página aberta há tempo mostra estado antigo (ex.: já aprovada). Nunca recarrega por cima de
+  // edição não salva ou de ação em andamento.
+  useRecarregarAoFocar(() => {
+    if (dirty || busy || !isDetailRouteId(id)) return;
+    return reload().catch(() => undefined);
+  });
   useEffect(() => {
     // Catálogo do Feedback (plano de marketing). Falha/módulo desligado = sem Plano de Marketing, sem travar.
     let alive = true;
@@ -850,6 +864,9 @@ function ExclusiveDetail() {
     capture.status !== "rascunho" ||
     (!manual && docs.some((d) => d.kind === "gerado" || d.kind === "assinado"));
   const signedDoc = docs.find((d) => d.kind === "assinado");
+  // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
+  // o gestor já tem o campo no cartão de aprovação.
+  const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);
   return (
     <div className="space-y-5 pb-10">
       <Link to="/exclusividades" className="text-sm text-primary underline">
@@ -889,6 +906,15 @@ function ExclusiveDetail() {
             </ul>
             <p className="mt-1 text-xs">Confira com o gestor antes de seguir com esta captação.</p>
           </div>
+        )}
+        {capture.status === "aprovada" && (
+          <p
+            role="status"
+            data-testid="captacao-aprovada-por"
+            className="mt-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900"
+          >
+            {textoAprovacao(history)}
+          </p>
         )}
         {capture.status === "aprovada" && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
@@ -1263,7 +1289,8 @@ function ExclusiveDetail() {
                     />
                   </div>
                   <p className="pb-2 text-xs text-muted-foreground">
-                    O prazo da exclusividade e o alerta de vencimento contam a partir desta data.
+                    Informe a data em que o contrato foi assinado. O prazo da exclusividade e o
+                    alerta de vencimento contam a partir desta data.
                   </p>
                 </div>
                 {signedDoc && (
@@ -1630,6 +1657,42 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           )}
+          {podeInformarData && (
+            <Card data-testid="captador-data-assinatura">
+              <CardHeader>
+                <CardTitle className="text-base">Data de assinatura do contrato</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="captor-signed-on">
+                      Informe a data em que o contrato foi assinado
+                    </Label>
+                    <Input
+                      id="captor-signed-on"
+                      type="date"
+                      className="w-44"
+                      min={DATA_ASSINATURA_MIN}
+                      max={hojeSaoPaulo()}
+                      value={signedOn}
+                      onChange={(e) => setSignedOn(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    disabled={busy || !signedOn || signedOn === capture.signed_on}
+                    onClick={saveSignedOn}
+                  >
+                    Salvar data
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  O prazo da exclusividade conta a partir desta data. Depois da aprovação, só o
+                  gestor corrige.
+                </p>
+              </CardContent>
+            </Card>
+          )}
           {manager && ["enviada", "em_assinatura"].includes(capture.status) && (
             <Card>
               <CardHeader>
@@ -1694,7 +1757,16 @@ function ExclusiveDetail() {
                     Aprovar captação
                   </Button>
                 </div>
-                {bloqueioAprovar && (
+                {avisoSemAssinado(docs) && (
+                  <p
+                    role="status"
+                    data-testid="aviso-sem-assinado"
+                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                  >
+                    {avisoSemAssinado(docs)}
+                  </p>
+                )}
+                {bloqueioAprovar && bloqueioAprovar !== BLOQUEIO_SEM_ASSINADO && (
                   <p className="text-xs text-muted-foreground">{bloqueioAprovar}</p>
                 )}
                 {capture.status === "em_assinatura" && (
