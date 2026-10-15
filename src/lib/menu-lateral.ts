@@ -27,6 +27,7 @@ import {
   Users,
   Inbox,
   Radar,
+  Trophy,
 } from "lucide-react";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
@@ -49,11 +50,14 @@ export type MenuContexto = {
   feedbackVisible: boolean;
   /** Módulo Oportunidades ligado na imobiliária (opcional: ausente = desligado). */
   opportunitiesVisible?: boolean;
+  /** Módulo Mural de Conquistas ligado na imobiliária (opcional: ausente = desligado). */
+  achievementsVisible?: boolean;
 };
 
 export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const { roles, platformAdmin, exclusiveVisible, roomVisible, feedbackVisible } = ctx;
   const opportunitiesVisible = ctx.opportunitiesVisible === true;
+  const achievementsVisible = ctx.achievementsVisible === true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
   return [
@@ -93,6 +97,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           show:
             opportunitiesVisible &&
             hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+        },
+        {
+          to: "/mural-conquistas",
+          label: "Mural de Conquistas",
+          icon: Trophy,
+          // Toda a equipe da imobiliária vê; o banco (policy do módulo + RPCs) é a proteção real.
+          show: achievementsVisible,
         },
       ],
     },
