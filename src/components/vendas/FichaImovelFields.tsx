@@ -15,6 +15,7 @@ import {
   type FichaVenda,
   type SugestaoAreas,
 } from "@/lib/ficha-imovel";
+import { areaDivergente } from "@/lib/conferencia-documentos-venda";
 
 /** Patch da ficha (colunas de public.sales). area_confirmada_por é sempre gravado pelo banco. */
 export type FichaPatch = Partial<
@@ -183,6 +184,20 @@ export function FichaImovelFields({
                 Usar sugestão
               </Button>
             </div>
+          )}
+          {sugestaoArea != null && areaDivergente(areaAtual, sugestaoArea) && (
+            <p className="flex items-start gap-1.5 text-amber-700" data-aviso="area-divergente">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              A área digitada (
+              {formatarArea(areaAtual)}) é diferente da {sugestaoFonte ?? "área dos documentos"} (
+              {formatarArea(sugestaoArea)}). Confira antes de confirmar.
+            </p>
+          )}
+          {tipo !== "Terreno" && sugestao?.matricula_total_m2 != null && (
+            <p className="text-xs text-muted-foreground">
+              Área total na matrícula (privativa + comum):{" "}
+              {formatarArea(sugestao.matricula_total_m2)}. Não é a área útil.
+            </p>
           )}
           {sugestao?.divergente && (
             <p className="flex items-start gap-1.5 text-amber-700">
