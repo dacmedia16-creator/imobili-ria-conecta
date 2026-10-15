@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { agencyCity, agencyUf } from "@/lib/agency-profile";
@@ -44,6 +45,7 @@ export function PinsMap({
   openRef.current = onOpen;
   const pinsRef = useRef(pins);
   pinsRef.current = pins;
+  const [ampliado, setAmpliado] = useState(false);
 
   const draw = () => {
     const lf = L.current;
@@ -157,5 +159,57 @@ export function PinsMap({
     m.openPopup();
   }, [focusId]);
 
-  return <div ref={el} className="h-[420px] w-full rounded-md border" style={{ zIndex: 0 }} />;
+  // Tela cheia: a MESMA div do Leaflet só troca de moldura (fixed inset-0), então pinos, filtros,
+  // popups e links continuam iguais. O Leaflet precisa recalcular o tamanho depois da troca.
+  useEffect(() => {
+    map.current?.invalidateSize({ animate: false });
+    const t = window.setTimeout(() => map.current?.invalidateSize({ animate: false }), 150);
+    if (!ampliado) return () => window.clearTimeout(t);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAmpliado(false);
+    };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [ampliado]);
+
+  return (
+    <div
+      data-testid="pins-map-frame"
+      data-ampliado={ampliado ? "true" : "false"}
+      role={ampliado ? "dialog" : undefined}
+      aria-modal={ampliado ? true : undefined}
+      aria-label={ampliado ? "Mapa em tela cheia" : undefined}
+      className={
+        ampliado
+          ? "fixed inset-0 z-[1100] flex flex-col bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]"
+          : "relative"
+      }
+    >
+      <div
+        ref={el}
+        className={
+          ampliado
+            ? "min-h-0 w-full flex-1 rounded-md border"
+            : "h-[420px] w-full rounded-md border"
+        }
+        style={{ zIndex: 0 }}
+      />
+      <button
+        type="button"
+        onClick={() => setAmpliado((x) => !x)}
+        aria-label={ampliado ? "Sair da tela cheia" : "Ampliar mapa"}
+        title={ampliado ? "Sair da tela cheia (Esc)" : "Ampliar mapa (tela cheia)"}
+        className={`absolute z-[1001] flex items-center gap-1 rounded-md border bg-background/95 px-2.5 py-1.5 text-xs font-medium shadow hover:bg-muted ${ampliado ? "right-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))]" : "right-2 top-2"}`}
+      >
+        {ampliado ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        {ampliado ? "Sair da tela cheia" : "Ampliar"}
+      </button>
+    </div>
+  );
 }
