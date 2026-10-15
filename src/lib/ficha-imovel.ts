@@ -158,6 +158,8 @@ export type SugestaoAreas = {
   divergente: boolean;
   matricula_construida_m2: number | null;
   iptu_construida_m2: number | null;
+  /** Área total da matrícula (privativa + comum). Só para mostrar; nunca é área útil. */
+  matricula_total_m2: number | null;
 };
 
 const primeiro = (...v: (number | null)[]) => v.find((x) => x != null) ?? null;
@@ -238,6 +240,7 @@ export function sugerirAreas(
     divergente,
     matricula_construida_m2: matConstruida,
     iptu_construida_m2: iptuConstruida,
+    matricula_total_m2: matTotal,
   };
 }
 

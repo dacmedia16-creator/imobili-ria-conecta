@@ -231,6 +231,13 @@ import {
   resolveDetailRouteState,
 } from "@/lib/detail-route-state";
 import { DetailNotFound } from "@/components/DetailNotFound";
+import {
+  avisoDescricaoCurta,
+  avisoMatriculaDivergente,
+  avisosPartes,
+  extracoesAtivas,
+  type ExtracaoDocumento,
+} from "@/lib/conferencia-documentos-venda";
 
 type ActivityPayload = {
   tipo?: string;
@@ -406,6 +413,8 @@ function SaleDetail() {
   const [mostrarErrosEndereco, setMostrarErrosEndereco] = useState(false);
   const [mostrarErrosFicha, setMostrarErrosFicha] = useState(false);
   const [sugestaoFicha, setSugestaoFicha] = useState<SugestaoAreas | null>(null);
+  // Leituras da IA (só documentos ativos) para os avisos de conferência — t_ca148813.
+  const [extracoesVenda, setExtracoesVenda] = useState<ExtracaoDocumento[]>([]);
   const [fichaConfirmadaPor, setFichaConfirmadaPor] = useState<string | null>(null);
   const [mostrarErroMidia, setMostrarErroMidia] = useState(false);
   const [approveJuridicoOpen, setApproveJuridicoOpen] = useState(false);
@@ -797,15 +806,24 @@ function SaleDetail() {
     void (async () => {
       const { data: ext } = await supabase
         .from("document_extractions")
-        .select("raw_json, sale_documents!document_extractions_document_id_fkey(tipo)")
+        .select(
+          "raw_json, sale_documents!document_extractions_document_id_fkey(tipo, parte, deleted_at)",
+        )
         .eq("sale_id", id)
         .eq("status", "done");
-      const extracoes: ExtracaoImovel[] = (ext ?? [])
-        .map((e) => ({
+      // Documento excluído não vale mais (t_ca148813): nem para sugestão nem para os avisos.
+      const lidas: ExtracaoDocumento[] = extracoesAtivas(
+        (ext ?? []).map((e) => ({
           tipo: e.sale_documents?.tipo ?? "",
+          parte: e.sale_documents?.parte ?? "",
+          deleted_at: e.sale_documents?.deleted_at ?? null,
           raw: (e.raw_json ?? null) as Record<string, unknown> | null,
-        }))
-        .filter((e) => e.tipo === "matricula" || e.tipo === "iptu");
+        })),
+      );
+      setExtracoesVenda(lidas);
+      const extracoes: ExtracaoImovel[] = lidas.filter(
+        (e) => e.tipo === "matricula" || e.tipo === "iptu",
+      );
       setSugestaoFicha(
         extracoes.length ? sugerirAreas(extracoes, s.data?.tipo_imovel ?? null) : null,
       );
@@ -1412,6 +1430,38 @@ function SaleDetail() {
   const stageChangedAt = history[0]?.created_at ?? sale.created_at;
 
   const pendencias = validarProntaParaRevisao(sale, parties, payment, docs);
+  // Avisos amarelos (não travam) comparando a venda com o que a IA leu dos documentos — t_ca148813.
+  const avisoMatricula = avisoMatriculaDivergente(sale.matricula, extracoesVenda);
+  const avisoDescricao = avisoDescricaoCurta(sale.imovel_observacoes, extracoesVenda);
+  const avisosDePartes = avisosPartes(extracoesVenda, parties);
+  const avisosConferencia: string[] = [
+    ...(avisoMatricula
+      ? [
+          `O nº da matrícula da venda (${avisoMatricula.venda}) é diferente do lido na matrícula enviada (${avisoMatricula.documento}).`,
+        ]
+      : []),
+    ...(avisoDescricao
+      ? [
+          `A descrição do imóvel tem ${avisoDescricao.venda} caracteres, bem menos que a da matrícula (${avisoDescricao.matricula}). Confira se está completa.`,
+        ]
+      : []),
+    ...avisosDePartes.map((a) => a.mensagem),
+  ];
+  const blocoAvisosConferencia =
+    avisosConferencia.length > 0 ? (
+      <div
+        className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        data-aviso="conferencia-documentos"
+      >
+        <AlertTriangle className="mr-2 inline h-4 w-4" />
+        Confira (não impede o envio):
+        <ul className="mt-2 list-disc space-y-1 pl-6">
+          {avisosConferencia.map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
   // Docs "pessoal" (RG/CPF/Certidão/Comprovante) contam uma vez por comprador/vendedor ativo —
   // os "imovel"/"outros" continuam contando uma vez só, mantendo em sincronia com validarProntaParaRevisao.
   const pessoalObrigatoriosCount = DOC_TYPES.filter(
@@ -2274,6 +2324,18 @@ function SaleDetail() {
                             disabled={!editable}
                             onChange={(e) => updResumo({ matricula: e.target.value })}
                           />
+                          {(() => {
+                            const a = avisoMatriculaDivergente(formSale.matricula, extracoesVenda);
+                            return a ? (
+                              <p
+                                className="mt-1 flex items-start gap-1.5 text-xs text-amber-700"
+                                data-aviso="matricula-divergente"
+                              >
+                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                Diferente do nº lido na matrícula enviada ({a.documento}). Confira.
+                              </p>
+                            ) : null;
+                          })()}
                         </Field>
                         <Field label="IPTU">
                           <Input
@@ -5118,6 +5180,8 @@ function SaleDetail() {
               </div>
             )}
 
+            {blocoAvisosConferencia}
+
             {envioDiretoJuridico && docsPendentesAprovacao.length > 0 && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />
@@ -5277,6 +5341,8 @@ function SaleDetail() {
                 </ul>
               </div>
             )}
+
+            {blocoAvisosConferencia}
 
             {comissaoExcedida && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
