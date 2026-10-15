@@ -13,7 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field, CurrencyInput } from "./shared";
-import { calcularComposicaoPagamento } from "@/lib/status";
+import { aplicarValorFgts, calcularComposicaoPagamento } from "@/lib/status";
 import type { PaymentRow } from "@/lib/database.types";
 
 export function PaymentStep({
@@ -170,7 +170,10 @@ export function PaymentStep({
             <Field label="FGTS — valor">
               <CurrencyInput
                 value={p.fgts_valor}
-                onChange={(v) => updP("fgts_valor", v)}
+                onChange={(v) => {
+                  setP((f) => aplicarValorFgts(f, v));
+                  setDp(true);
+                }}
                 disabled={!editable}
               />
             </Field>

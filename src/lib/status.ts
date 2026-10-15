@@ -501,6 +501,18 @@ const numeroFinanceiro = (valor: unknown): number => {
   return Number.isFinite(numero) ? numero : 0;
 };
 
+// Digitar um valor de FGTS (> 0) liga a chave "FGTS Sim" no mesmo update; sem isso o valor era
+// ignorado na composição e a venda ficava travada em "Ainda falta R$ ...". Valor 0/vazio não mexe
+// na chave.
+export function aplicarValorFgts(
+  payment: Partial<PaymentRow>,
+  valor: PaymentRow["fgts_valor"],
+): Partial<PaymentRow> {
+  const next: Partial<PaymentRow> = { ...payment, fgts_valor: valor };
+  if (numeroFinanceiro(valor) > 0) next.fgts = true;
+  return next;
+}
+
 /** Confere se os meios de pagamento detalhados fecham o valor negociado. */
 export function calcularComposicaoPagamento(
   sale: Pick<SaleRow, "valor_negociado">,
