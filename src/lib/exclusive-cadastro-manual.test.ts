@@ -137,9 +137,8 @@ describe("cadastro manual — único obrigatório é o contrato", () => {
     const route = read("../routes/_authenticated/exclusividades.$id.tsx");
     const step = read("../components/CaptureDossieStep.tsx");
     // Mesma regra da normal (sem exceção para o manual) e vitais já marcadas.
-    expect(route).toContain(
-      "const dossieMissing = dossieMissingFor(dossieActions, dossieIds) || semSemana.length > 0;",
-    );
+    // Semana por ação é opcional (t_a5b65e79): só falta de ação marcada trava.
+    expect(route).toContain("const dossieMissing = dossieMissingFor(dossieActions, dossieIds);");
     expect(route).not.toMatch(/dossieRequired = !manual/);
     expect(route).toContain("initialDossieSelection(dossieActions, undefined, true)");
     // Pendência obrigatória (desabilita "Enviar ao gestor") e mesma navegação até a etapa.

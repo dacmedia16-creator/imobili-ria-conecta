@@ -288,6 +288,19 @@ export function captureNextAction(status: CaptureStatus, manager: boolean, manua
   }
 }
 
+/**
+ * Documentos do imóvel obrigatórios para enviar ao gestor (captação normal; Denis, 15/10/2026).
+ * Mesma lista do banco (exclusive_transition 'enviar'). Comprovante de residência é opcional.
+ */
+export const PROPERTY_REQUIRED_DOCS: readonly (readonly [DocumentKind, string])[] = [
+  ["matricula", "Matrícula do imóvel"],
+  ["iptu", "IPTU do imóvel"],
+];
+export function propertyDocumentsMissing(docs: CaptureDocument[]): string[] {
+  return PROPERTY_REQUIRED_DOCS.filter(
+    ([kind]) => !docs.some((d) => d.kind === kind && d.owner_index === 0),
+  ).map(([, label]) => label);
+}
 export function ownerDocumentsComplete(docs: CaptureDocument[], owner: 1 | 2): boolean {
   const types = new Set(docs.filter((d) => d.owner_index === owner).map((d) => d.kind));
   return types.has("cnh") || (types.has("rg") && types.has("cpf"));
@@ -521,6 +534,7 @@ export function missingRequirements(
     if (!ownerDocumentsComplete(docs, (index + 1) as 1 | 2))
       missing.push(`Proprietário ${index + 1}: RG e CPF ou CNH`);
   }
+  missing.push(...propertyDocumentsMissing(docs));
   for (const { key, label, required } of PROPERTY_FIELDS) {
     if (required && !form.imovel[key]?.trim()) missing.push(label);
   }

@@ -65,7 +65,7 @@ describe("Plano por semanas: regras", () => {
     // Semana além do fim da exclusividade sai.
     expect(ajustarSemanas(catalog, ["m1"], { m1: [1, 9] }, 8)).toEqual({ m1: [1] });
   });
-  it("exige ao menos 1 semana por ação marcada (só no plano novo)", () => {
+  it("lista ações sem semana (só aviso: semana é opcional desde t_a5b65e79)", () => {
     expect(acoesSemSemana(catalog, ["m1", "m2"], { m1: [1], m2: [] }).map((x) => x.id)).toEqual([
       "m2",
     ]);

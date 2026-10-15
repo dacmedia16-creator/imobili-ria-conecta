@@ -11,6 +11,8 @@ import {
   fillExclusiveTemplate,
   missingRequirements,
   ownerDocumentsComplete,
+  PROPERTY_REQUIRED_DOCS,
+  propertyDocumentsMissing,
   type Capture,
   type CaptureDocument,
   type Template,
@@ -82,7 +84,8 @@ describe("captação exclusiva", () => {
       form.proprietario_1[key] = "x";
     for (const key of Object.keys(form.imovel) as (keyof typeof form.imovel)[])
       form.imovel[key] = "x";
-    const ready = [doc("rg", 1), doc("cpf", 1), doc("gerado")];
+    const imovel = [doc("matricula"), doc("iptu")];
+    const ready = [doc("rg", 1), doc("cpf", 1), doc("gerado"), ...imovel];
     expect(missingRequirements(form, ready, "123", "CRECI")).toEqual([]);
     form.proprietario_2 = { ...form.proprietario_1 };
     expect(missingRequirements(form, ready, "123", "CRECI")).toContain(
@@ -90,11 +93,43 @@ describe("captação exclusiva", () => {
     );
     expect(missingRequirements(form, [...ready, doc("cnh", 2)], "123", "CRECI")).toEqual([]);
     expect(
-      missingRequirements(form, [doc("cpf", 1), doc("cnh", 2), doc("gerado")], "123", "CRECI"),
+      missingRequirements(
+        form,
+        [doc("cpf", 1), doc("cnh", 2), doc("gerado"), ...imovel],
+        "123",
+        "CRECI",
+      ),
     ).toContain("Proprietário 1: RG e CPF ou CNH");
     // Corretor envia sem contrato: quem gera é o gestor, team leader ou ADM.
     form.proprietario_2 = null as never;
-    expect(missingRequirements(form, [doc("rg", 1), doc("cpf", 1)], "123", "CRECI")).toEqual([]);
+    expect(
+      missingRequirements(form, [doc("rg", 1), doc("cpf", 1), ...imovel], "123", "CRECI"),
+    ).toEqual([]);
+  });
+  it("matrícula e IPTU do imóvel travam o envio; comprovante de residência é opcional (Denis, 15/10)", () => {
+    const form = emptyForm();
+    for (const key of Object.keys(form.proprietario_1) as (keyof typeof form.proprietario_1)[])
+      form.proprietario_1[key] = "x";
+    for (const key of Object.keys(form.imovel) as (keyof typeof form.imovel)[])
+      form.imovel[key] = "x";
+    const dono = [doc("cnh", 1)];
+    // Sem documentos do imóvel: envio travado, com os nomes do que falta.
+    expect(missingRequirements(form, dono, "123", "CRECI")).toEqual([
+      "Matrícula do imóvel",
+      "IPTU do imóvel",
+    ]);
+    expect(propertyDocumentsMissing([...dono, doc("matricula")])).toEqual(["IPTU do imóvel"]);
+    // Documento do imóvel anexado em proprietário (owner_index ≠ 0) não conta.
+    expect(propertyDocumentsMissing([doc("iptu", 1), doc("matricula", 1)])).toHaveLength(2);
+    // Com matrícula e IPTU: liberado, mesmo sem comprovante de residência.
+    expect(
+      missingRequirements(form, [...dono, doc("matricula"), doc("iptu")], "123", "CRECI"),
+    ).toEqual([]);
+    // Sem documentos do proprietário: continua travado.
+    expect(missingRequirements(form, [doc("matricula"), doc("iptu")], "123", "CRECI")).toEqual([
+      "Proprietário 1: RG e CPF ou CNH",
+    ]);
+    expect(PROPERTY_REQUIRED_DOCS.map(([k]) => k)).toEqual(["matricula", "iptu"]);
   });
   for (const template of ["campolim", "barao-de-tatui"] as Template[]) {
     const privateTemplate = new URL(`../../assets/exclusividade/${template}.pdf`, import.meta.url);
