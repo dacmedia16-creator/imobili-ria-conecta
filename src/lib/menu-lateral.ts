@@ -28,6 +28,7 @@ import {
   Inbox,
   Radar,
   Trophy,
+  Sprout,
 } from "lucide-react";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
@@ -52,16 +53,32 @@ export type MenuContexto = {
   opportunitiesVisible?: boolean;
   /** Módulo Mural de Conquistas ligado na imobiliária (opcional: ausente = desligado). */
   achievementsVisible?: boolean;
+  /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
+  carreiraVisible?: boolean;
 };
 
 export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const { roles, platformAdmin, exclusiveVisible, roomVisible, feedbackVisible } = ctx;
   const opportunitiesVisible = ctx.opportunitiesVisible === true;
   const achievementsVisible = ctx.achievementsVisible === true;
+  const carreiraVisible = ctx.carreiraVisible === true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
   return [
-    { items: [{ to: "/dashboard", label: "Início", icon: Home, show: true }] },
+    {
+      items: [
+        { to: "/dashboard", label: "Início", icon: Home, show: true },
+        {
+          to: "/minha-carreira",
+          label: "Minha carreira",
+          icon: Sprout,
+          // Mesmos perfis de Captações exclusivas; as RPCs só devolvem dados do próprio usuário.
+          show:
+            carreiraVisible &&
+            hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+        },
+      ],
+    },
     {
       label: "Vendas e captações",
       items: [
