@@ -72,7 +72,6 @@ import {
   dossieMissingFor,
   initialDossieSelection,
   selectedDossie,
-  acoesSemSemana,
   ajustarSemanas,
   totalSemanasPlano,
   type PlanoSemanas,
@@ -321,11 +320,9 @@ function ExclusiveDetail() {
     fimExclusividade: capture ? (captureValidity(capture, hojeSaoPaulo())?.end ?? null) : null,
     prazoDias: form?.condicoes?.prazo_dias_numero,
   });
-  const semSemana = acoesSemSemana(dossieActions, dossieIds, planoSemanas);
-  const dossieMissing = dossieMissingFor(dossieActions, dossieIds) || semSemana.length > 0;
-  const planoFaltaTexto = semSemana.length
-    ? "Plano de Marketing: escolha ao menos 1 semana em cada ação"
-    : "Plano de Marketing: marque ao menos 1 ação";
+  // Semana por ação é opcional (Denis, 15/10/2026): só a falta de ação marcada trava.
+  const dossieMissing = dossieMissingFor(dossieActions, dossieIds);
+  const planoFaltaTexto = "Plano de Marketing: marque ao menos 1 ação";
   const devolucao = ultimaDevolucao(history);
   // Cadastro manual: vitais já marcadas (defaultDossieSelection) para o corretor conferir; entra no
   // rascunho como alteração a salvar, para o gestor receber o que o corretor viu.
@@ -396,11 +393,7 @@ function ExclusiveDetail() {
       if (!capture || !form) return;
       if (dossieMissing) {
         setStep("dossie");
-        throw new Error(
-          semSemana.length
-            ? "Escolha ao menos 1 semana em cada ação do Plano de Marketing antes de gerar o contrato."
-            : "Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.",
-        );
+        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.");
       }
       const catalogReady = dossieCatalog(dossieActions).length > 0;
       const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
@@ -556,11 +549,7 @@ function ExclusiveDetail() {
       // Plano de Marketing obrigatório (mesma regra e navegação da captação normal).
       if (manual && dossieMissing && (name === "enviar" || name === "aprovar")) {
         setStep("dossie");
-        throw new Error(
-          semSemana.length
-            ? "Escolha ao menos 1 semana em cada ação do Plano de Marketing antes de continuar."
-            : "Marque ao menos 1 ação no Plano de Marketing antes de continuar.",
-        );
+        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de continuar.");
       }
       if (name === "enviar" && !window.confirm(ask)) return;
       const statusAntes = capture?.status;
@@ -1091,8 +1080,10 @@ function ExclusiveDetail() {
             <CardContent className="space-y-1 p-4 text-sm">
               <p className="font-medium">Comece pelos documentos</p>
               <p>
-                Envie RG e CPF ou CNH de cada proprietário. A leitura é local e apresenta sugestões
-                para sua revisão. Também é possível preencher tudo manualmente na próxima etapa.
+                Envie RG e CPF ou CNH de cada proprietário, a matrícula e o IPTU do imóvel: sem
+                eles não dá para enviar ao gestor. O comprovante de residência é opcional. A leitura
+                é local e apresenta sugestões para sua revisão. Também é possível preencher tudo
+                manualmente na próxima etapa.
               </p>
               <p className="text-muted-foreground">
                 PDF, JPG, PNG ou WEBP de até 16 MB. Os anexos são privados.
@@ -1171,14 +1162,22 @@ function ExclusiveDetail() {
           })}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Imóvel e complementares (opcionais)</CardTitle>
+              <CardTitle className="text-base">Documentos do imóvel</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Matrícula e IPTU são obrigatórios para enviar ao gestor. O comprovante de residência
+                é opcional.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              {fileInput("Comprovante de residência", "residencia", 0, {
-                accent: "border-l-4 border-l-emerald-500",
-              })}
-              {fileInput("IPTU", "iptu", 0, { accent: "border-l-4 border-l-emerald-500" })}
               {fileInput("Matrícula", "matricula", 0, {
+                accent: "border-l-4 border-l-emerald-500",
+                required: !manual && !hasDoc("matricula", 0),
+              })}
+              {fileInput("IPTU", "iptu", 0, {
+                accent: "border-l-4 border-l-emerald-500",
+                required: !manual && !hasDoc("iptu", 0),
+              })}
+              {fileInput("Comprovante de residência (opcional)", "residencia", 0, {
                 accent: "border-l-4 border-l-emerald-500",
               })}
             </CardContent>
@@ -1485,7 +1484,7 @@ function ExclusiveDetail() {
               totalSemanas={semanasInfo.total}
               semanasPadrao={semanasInfo.padrao}
               title="Plano de Marketing"
-              intro="Obrigatório: confira as ações de marketing combinadas com o proprietário e as semanas de cada uma. As essenciais já vêm marcadas; ajuste o que for preciso."
+              intro="Obrigatório: confira as ações de marketing combinadas com o proprietário (ao menos 1). As essenciais já vêm marcadas; ajuste o que for preciso. A semana de cada ação é opcional."
               manual
             />
           ) : (

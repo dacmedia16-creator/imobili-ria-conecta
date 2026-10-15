@@ -30,7 +30,7 @@ export function CaptureDossieStep({
   totalSemanas = 4,
   semanasPadrao = false,
   title = "Plano de Marketing",
-  intro = "Obrigatório: marque as ações que você vai fazer por este imóvel e, em cada uma, as semanas. O Plano de Marketing sai anexado ao final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.",
+  intro = "Obrigatório: marque ao menos 1 ação que você vai fazer por este imóvel. A semana de cada ação é opcional: escolha se quiser. O Plano de Marketing sai anexado ao final do contrato, com assinatura do proprietário, e o Feedback mostra depois o que foi cumprido.",
   manual = false,
 }: {
   actions: FeedbackAction[];
@@ -145,10 +145,10 @@ export function CaptureDossieStep({
               </p>
             )}
             {semSemana.length > 0 && (
-              <p className="rounded-md border border-red-300 bg-red-50 p-3 text-red-900">
+              <p className="rounded-md border bg-muted/40 p-3 text-muted-foreground">
                 {semSemana.length === 1
-                  ? `Escolha ao menos 1 semana para “${semSemana[0].label}”.`
-                  : `${semSemana.length} ações estão sem semana. Escolha ao menos 1 semana em cada uma.`}
+                  ? `“${semSemana[0].label}” está sem semana. Dá para seguir assim; no PDF ela sai sem a semana.`
+                  : `${semSemana.length} ações estão sem semana. Dá para seguir assim; no PDF elas saem sem a semana.`}
               </p>
             )}
             {count > 0 && missing.length > 0 && (
@@ -231,8 +231,8 @@ export function CaptureDossieStep({
                               </button>
                             )}
                             {!sem.length && (
-                              <span className="text-xs font-medium text-red-700">
-                                escolha ao menos 1 semana (sugestão: Semana{" "}
+                              <span className="text-xs text-muted-foreground">
+                                sem semana (opcional; sugestão: Semana{" "}
                                 {semanaSugerida(a.weight, totalSemanas)})
                               </span>
                             )}
