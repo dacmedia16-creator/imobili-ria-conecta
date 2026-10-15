@@ -151,6 +151,11 @@ SELECT pg_temp.ok(13, (SELECT count(*) = 2 FROM public.achievement_feed(30)) AND
   'corretor da A vê os 2 posts da A');
 SELECT pg_temp.ok(14, public.achievement_cheer((SELECT id FROM t_post)) = 1 AND public.achievement_cheer((SELECT id FROM t_post)) = 1,
   'parabenizar conta 1 vez por pessoa');
+-- 35: quem parabenizou (migração 20261015130000) devolve só o nome, na mesma imobiliária.
+SELECT pg_temp.ok(35, (SELECT array_agg(nome) = ARRAY['Ana Teste'] FROM public.achievement_cheerers(ARRAY[(SELECT id FROM t_post)]))
+  AND (SELECT proargnames = ARRAY['_post_ids', 'post_id', 'user_id', 'nome']
+       FROM pg_proc WHERE oid = 'public.achievement_cheerers(uuid[])'::regprocedure),
+  'quem parabenizou: só nome, visível para a equipe da A');
 SELECT pg_temp.ok(15, (SELECT cheered_by_me AND cheers = 1 FROM public.achievement_feed(30) WHERE id = (SELECT id FROM t_post)), 'feed mostra o parabéns');
 SELECT pg_temp.ok(16, (SELECT array_agg(nome || ':' || pontos ORDER BY pontos DESC, nome) = ARRAY['Caio Teste:4', 'Ana Teste:2']
   FROM public.achievement_ranking(extract(year FROM now() AT TIME ZONE 'America/Sao_Paulo')::int, extract(month FROM now() AT TIME ZONE 'America/Sao_Paulo')::int)),
@@ -212,6 +217,8 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FALHOU 24 - B parabenizou post da A';
 EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok 24 - B não parabeniza post da A';
 END $$;
+SELECT pg_temp.ok(36, NOT EXISTS (SELECT 1 FROM public.achievement_cheerers(ARRAY[(SELECT id FROM t_post)])),
+  'B não vê quem parabenizou na A');
 RESET ROLE;
 
 -- 25: desligar a A esconde tudo no banco.
@@ -222,7 +229,8 @@ RESET ROLE;
 SELECT pg_temp.as_user('uA');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.ok(25, (SELECT count(*) = 0 FROM public.achievement_posts) AND (SELECT count(*) = 0 FROM public.achievement_feed(30))
-  AND (SELECT count(*) = 0 FROM public.achievement_ranking(2026, 10)), 'A desligada: mural vazio no banco');
+  AND (SELECT count(*) = 0 FROM public.achievement_ranking(2026, 10))
+  AND NOT EXISTS (SELECT 1 FROM public.achievement_cheerers(ARRAY[(SELECT id FROM t_post)])), 'A desligada: mural vazio no banco');
 RESET ROLE;
 
 -- 26: anon não lê nada.

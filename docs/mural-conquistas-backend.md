@@ -146,3 +146,10 @@ Regras para o confete: disparar só em INSERT; respeitar `achievement_mutes` do 
 - Migration aplicada → rollback → reaplicada sem erro; após reaplicar, 0 imobiliárias com o módulo ligado.
 - Suíte: 34/34 (isolamento entre 2 imobiliárias, módulo desligado, idempotência, revogação por
   cancelamento e por volta de status, lançamento, fuso de SP, aniversário sem ano, anon e RPC interna bloqueados).
+
+## Frontend (t_f40b6920)
+
+- Rota `/mural-conquistas` (`src/routes/_authenticated/mural-conquistas.tsx`): feed com parabéns (um por pessoa, otimista com desfazer em erro), ranking do mês com seletor dos últimos 12 meses e aniversariantes só com dia/mês.
+- Gating: item "Mural de Conquistas" no menu só com `achievements_enabled()`; a rota redireciona para `/dashboard` no `beforeLoad` quando o módulo está desligado (helper `src/lib/mural-module.ts`).
+- Quem parabenizou: RPC `achievement_cheerers(uuid[])` (migração `20261015130000`, rollback em `supabase/rollback/`), SECURITY DEFINER, só `post_id, user_id, nome`, só posts ativos da imobiliária atual e com módulo ligado. Testes SQL 35, 36 e 25.
+- Regras puras e testes: `src/lib/mural-conquistas.ts` e `.test.ts`; telas por props em `src/components/mural/MuralConquistasView.tsx`.

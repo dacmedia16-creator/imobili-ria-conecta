@@ -25,6 +25,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
+import { Route as AuthenticatedMuralConquistasRouteImport } from './routes/_authenticated/mural-conquistas'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes/_authenticated/ocorrencias-concluidas'
 import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_authenticated/ocorrencias-imprimir'
@@ -133,6 +134,12 @@ const AuthenticatedMapaCaptacoesRoute =
   AuthenticatedMapaCaptacoesRouteImport.update({
     id: '/mapa-captacoes',
     path: '/mapa-captacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMuralConquistasRoute =
+  AuthenticatedMuralConquistasRouteImport.update({
+    id: '/mural-conquistas',
+    path: '/mural-conquistas',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedNotificacoesRoute =
@@ -304,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -347,6 +355,7 @@ export interface FileRoutesByTo {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -392,6 +401,7 @@ export interface FileRoutesById {
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/_authenticated/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
   '/_authenticated/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/financeiro'
     | '/mapa-captacoes'
+    | '/mural-conquistas'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/financeiro'
     | '/mapa-captacoes'
+    | '/mural-conquistas'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
     | '/ocorrencias-imprimir'
@@ -524,6 +536,7 @@ export interface FileRouteTypes {
     | '/_authenticated/feedback'
     | '/_authenticated/financeiro'
     | '/_authenticated/mapa-captacoes'
+    | '/_authenticated/mural-conquistas'
     | '/_authenticated/notificacoes'
     | '/_authenticated/ocorrencias-concluidas'
     | '/_authenticated/ocorrencias-imprimir'
@@ -674,6 +687,13 @@ declare module '@tanstack/react-router' {
       path: '/mapa-captacoes'
       fullPath: '/mapa-captacoes'
       preLoaderRoute: typeof AuthenticatedMapaCaptacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mural-conquistas': {
+      id: '/_authenticated/mural-conquistas'
+      path: '/mural-conquistas'
+      fullPath: '/mural-conquistas'
+      preLoaderRoute: typeof AuthenticatedMuralConquistasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/notificacoes': {
@@ -871,6 +891,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
+  AuthenticatedMuralConquistasRoute: typeof AuthenticatedMuralConquistasRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOcorrenciasConcluidasRoute: typeof AuthenticatedOcorrenciasConcluidasRoute
   AuthenticatedOcorrenciasImprimirRoute: typeof AuthenticatedOcorrenciasImprimirRoute
@@ -909,6 +930,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
+  AuthenticatedMuralConquistasRoute: AuthenticatedMuralConquistasRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOcorrenciasConcluidasRoute:
     AuthenticatedOcorrenciasConcluidasRoute,
