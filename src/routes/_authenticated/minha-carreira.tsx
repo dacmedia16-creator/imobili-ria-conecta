@@ -30,6 +30,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton, PageHeader, Pill, type Tom } from "@/components/visual/base";
+import { MeuMes } from "@/components/minha-carreira/MeuMes";
 import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 
 // Minha carreira, PR 1 (card t_07d196a7): só leitura. Blocos 1 (O que fazer hoje), 4 (Minhas
@@ -203,6 +204,8 @@ function MinhaCarreiraPage() {
         </CardContent>
       </Card>
 
+      {userId ? <MeuMes userId={userId} /> : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -235,9 +238,22 @@ function MinhaCarreiraPage() {
           ) : !captacoes ? (
             <ListSkeleton />
           ) : captacoes.length === 0 ? (
-            <EmptyState>
-              {soParadas ? "Nenhum imóvel parado." : "Você ainda não tem captações."}
-            </EmptyState>
+            soParadas ? (
+              <EmptyState>Nenhum imóvel parado.</EmptyState>
+            ) : (
+              // A rota só abre com o módulo de captação ligado (beforeLoad), então o botão
+              // aparece apenas quando o módulo está ativo.
+              <EmptyState
+                icon={Building2}
+                action={
+                  <Button asChild size="sm">
+                    <Link to="/exclusividades">Nova captação</Link>
+                  </Button>
+                }
+              >
+                Cadastre sua primeira captação exclusiva.
+              </EmptyState>
+            )
           ) : (
             <ul className="divide-y" data-testid="minhas-captacoes">
               {captacoes.map((c) => (
@@ -299,7 +315,11 @@ function MinhaCarreiraPage() {
           ) : !opps.data ? (
             <ListSkeleton />
           ) : opps.data.length === 0 ? (
-            <EmptyState>Nenhum pedido encaixa nas suas captações agora.</EmptyState>
+            <EmptyState icon={Radar}>
+              {caps.data && caps.data.length === 0
+                ? "As oportunidades aparecem aqui quando você tiver captações: mostramos os pedidos de clientes do grupo que encaixam nos seus imóveis."
+                : "Nenhum pedido encaixa nas suas captações agora."}
+            </EmptyState>
           ) : (
             <ul className="divide-y" data-testid="minhas-oportunidades">
               {opps.data.slice(0, 10).map(({ post, capture }) => (
