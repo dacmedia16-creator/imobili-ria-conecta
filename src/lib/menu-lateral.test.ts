@@ -155,7 +155,28 @@ describe("menu lateral agrupado", () => {
       expect(vê([p], false)).toBe(false);
       expect(vê([p])).toBe(false);
     }
-    for (const p of ["juridico", "financeiro", "lancamento", "staff"]) expect(vê([p], true)).toBe(false);
+    for (const p of ["juridico", "financeiro", "lancamento", "staff"])
+      expect(vê([p], true)).toBe(false);
+  });
+
+  it("Minha carreira só aparece com o módulo de captação e para os perfis de Captações exclusivas", () => {
+    const base = {
+      platformAdmin: true,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+    };
+    const vê = (roles: string[], carreiraVisible?: boolean) =>
+      itensVisiveis(montarMenuLateral({ ...base, roles, carreiraVisible })).includes(
+        "/minha-carreira",
+      );
+    for (const p of ["corretor", "gestor", "team_leader", "admin", "super_admin"]) {
+      expect(vê([p], true)).toBe(true);
+      expect(vê([p], false)).toBe(false);
+      expect(vê([p])).toBe(false);
+    }
+    for (const p of ["juridico", "financeiro", "lancamento", "staff"])
+      expect(vê([p], true)).toBe(false);
   });
 
   it("iniciais do e-mail", () => {
