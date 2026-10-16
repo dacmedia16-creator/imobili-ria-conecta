@@ -3238,7 +3238,8 @@ function SaleDetail() {
                         );
                       })()}
                       {/* Dados para pagamento da equipe (t_a4ef3b48): lê a equipe SALVA no banco;
-                          cada pessoa só preenche o próprio bloco (garantido pela RPC). */}
+                          quem tem acesso à venda preenche o bloco de qualquer pessoa da equipe e o
+                          cadastro só o dono altera (t_19cd1fc1, garantido pela RPC). */}
                       {user?.id && (
                         <DadosPagamentoEquipe
                           saleId={sale.id}

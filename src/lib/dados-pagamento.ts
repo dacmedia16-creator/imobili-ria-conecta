@@ -46,6 +46,10 @@ export type PagamentoPessoa = DadosBancarios & {
   tem_cadastro: boolean;
   /** true = quem pergunta vê os dados inteiros (o próprio, admin ou financeiro). */
   dados_completos: boolean;
+  /** Quem gravou a cópia desta venda e quando (t_19cd1fc1). null = ainda sem cópia. */
+  preenchido_por: string | null;
+  preenchido_por_nome: string | null;
+  preenchido_em: string | null;
 };
 
 const txt = (v: unknown) => (typeof v === "string" ? v : "");
@@ -79,7 +83,25 @@ export function normalizarPessoas(data: unknown): PagamentoPessoa[] {
       completo: r.completo === true,
       tem_cadastro: r.tem_cadastro === true,
       dados_completos: r.dados_completos === true,
+      preenchido_por: txt(r.preenchido_por) || null,
+      preenchido_por_nome: txt(r.preenchido_por_nome) || null,
+      preenchido_em: txt(r.preenchido_em) || null,
     }));
+}
+
+/** "Preenchido por Fulano em 16/10" (ou "por você"). null = sem registro na venda. */
+export function textoPreenchido(
+  p: Pick<PagamentoPessoa, "preenchido_por" | "preenchido_por_nome" | "preenchido_em">,
+  meuId: string,
+): string | null {
+  if (!p.preenchido_por) return null;
+  const quem = p.preenchido_por === meuId ? "você" : p.preenchido_por_nome || "alguém da equipe";
+  const d = p.preenchido_em ? new Date(p.preenchido_em) : null;
+  const quando =
+    d && !Number.isNaN(d.getTime())
+      ? ` em ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" })}`
+      : "";
+  return `Preenchido por ${quem}${quando}`;
 }
 
 /** Conta "completa" = titular + (PIX ou banco + agência + conta). Mesmo critério do banco. */

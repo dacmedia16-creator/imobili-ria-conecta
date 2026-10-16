@@ -7,6 +7,7 @@ import {
   payloadDados,
   resumoConta,
   statusPessoa,
+  textoPreenchido,
   validarDados,
 } from "./dados-pagamento";
 
@@ -72,8 +73,30 @@ describe("dados para pagamento da equipe", () => {
       modo: "imobiliaria",
       pix_tipo: "",
       dados_completos: false,
+      preenchido_por: null,
+      preenchido_em: null,
     });
     expect(normalizarPessoas(null)).toEqual([]);
+  });
+
+  it("mostra quem preencheu e quando (t_19cd1fc1)", () => {
+    const [p] = normalizarPessoas([
+      {
+        user_id: "u1",
+        nome: "Ailton",
+        preenchido_por: "adm",
+        preenchido_por_nome: "Denis",
+        preenchido_em: "2026-10-16T18:00:00+00:00",
+      },
+    ]);
+    expect(textoPreenchido(p, "outro")).toBe("Preenchido por Denis em 16/10");
+    expect(textoPreenchido(p, "adm")).toBe("Preenchido por você em 16/10");
+    expect(
+      textoPreenchido(
+        { preenchido_por: null, preenchido_por_nome: null, preenchido_em: null },
+        "x",
+      ),
+    ).toBeNull();
   });
 
   it("papéis da equipe juntam fixos e extras sem repetir", () => {

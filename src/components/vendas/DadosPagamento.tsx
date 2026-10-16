@@ -13,6 +13,7 @@ import {
   payloadDados,
   resumoConta,
   statusPessoa,
+  textoPreenchido,
   validarDados,
   type DadosBancarios,
   type ModoPagamento,
@@ -34,7 +35,8 @@ import {
 } from "@/components/ui/select";
 
 // Dados para pagamento da equipe (card t_a4ef3b48). Tabelas/RPCs da migração 20261016220000, fora
-// de types.ts. O banco garante: só o próprio corretor grava os dados dele; completo só para ele,
+// de types.ts. O banco garante: na venda, qualquer pessoa com acesso a ela grava os dados de qualquer
+// pessoa da equipe (t_19cd1fc1); o cadastro (Meu acesso) só o dono altera; completo só para o dono,
 // admin e financeiro; os demais recebem mascarado.
 const db = supabase as unknown as SupabaseClient;
 
@@ -273,8 +275,9 @@ export function DadosPagamentoEquipe({
       <p className="mt-1 text-xs text-muted-foreground">Como cada um vai receber.</p>
       <p className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
         <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Dados bancários aparecem completos só para o próprio corretor, financeiro e administrador.
-        Os outros veem mascarado. Cada pessoa preenche só os próprios dados.
+        Quem tem acesso a esta venda pode preencher os dados de qualquer pessoa da equipe, e fica
+        registrado quem preencheu. Os dados aparecem completos só para o próprio corretor, o
+        financeiro e o administrador; os outros veem mascarado.
       </p>
       {pessoas === null ? (
         <p className="mt-3 text-xs text-muted-foreground">Carregando…</p>
@@ -310,34 +313,15 @@ export function DadosPagamentoEquipe({
                     </span>
                     <SeloPagamento status={st} />
                   </summary>
-                  {meu ? (
-                    <MeuBlocoVenda
-                      pessoa={p}
-                      saleId={saleId}
-                      podeAlterar={podeAlterar}
-                      onSalvo={carregar}
-                    />
-                  ) : (
-                    <div className="mt-2">
-                      {p.origem !== "nenhum" && p.modo === "conta_propria" && resumoConta(p) && (
-                        <p className="text-xs text-muted-foreground">
-                          {p.titular && `${p.titular} · `}
-                          {resumoConta(p)}
-                        </p>
-                      )}
-                      {st === "imobiliaria" && (
-                        <p className="text-xs text-muted-foreground">
-                          A imobiliária recebe e repassa.
-                        </p>
-                      )}
-                      {st === "pendente" && (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          Só {p.nome.split(" ")[0]} pode preencher. Peça para abrir esta venda ou o
-                          Meu acesso e completar.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <BlocoVendaPessoa
+                    key={`${p.user_id}-${p.preenchido_em ?? ""}`}
+                    pessoa={p}
+                    saleId={saleId}
+                    meu={meu}
+                    meuId={userId}
+                    podeAlterar={podeAlterar}
+                    onSalvo={carregar}
+                  />
                 </details>
               );
             })}
@@ -388,25 +372,43 @@ export function DadosPagamentoEquipe({
   );
 }
 
-function MeuBlocoVenda({
+/**
+ * Formulário do bloco de uma pessoa da equipe na venda (t_19cd1fc1): qualquer pessoa com acesso à
+ * venda preenche. "Salvar no cadastro" só aparece no próprio bloco (o banco também recusa).
+ */
+function BlocoVendaPessoa({
   pessoa,
   saleId,
+  meu,
+  meuId,
   podeAlterar,
   onSalvo,
 }: {
   pessoa: PagamentoPessoa;
   saleId: string;
+  meu: boolean;
+  meuId: string;
   podeAlterar: boolean;
   onSalvo: () => Promise<void>;
 }) {
+  const primeiro = pessoa.nome.split(" ")[0];
+  const st = statusPessoa(pessoa);
   const [modo, setModo] = useState<ModoPagamento>(pessoa.modo);
-  // Já tem conta no cadastro e a venda ainda não tem cópia própria diferente: sugere usar a salva.
+  // Já tem conta no cadastro e a venda ainda não tem cópia: sugere usar a salva.
   const [usarCadastro, setUsarCadastro] = useState(
     pessoa.tem_cadastro && pessoa.origem !== "venda",
   );
-  const [dados, setDados] = useState<DadosBancarios>(normalizarDados(pessoa));
-  const [salvarCadastro, setSalvarCadastro] = useState(!pessoa.tem_cadastro);
+  // Quem vê mascarado começa com o formulário vazio: nunca regravar a máscara por cima da conta.
+  const [dados, setDados] = useState<DadosBancarios>(
+    pessoa.dados_completos ? normalizarDados(pessoa) : { ...DADOS_VAZIOS },
+  );
+  const [salvarCadastro, setSalvarCadastro] = useState(meu && !pessoa.tem_cadastro);
   const [salvando, setSalvando] = useState(false);
+  const preenchido = textoPreenchido(pessoa, meuId);
+  const atual =
+    pessoa.origem === "venda" && pessoa.modo === "conta_propria" && resumoConta(pessoa)
+      ? `${pessoa.titular ? `${pessoa.titular} · ` : ""}${resumoConta(pessoa)}`
+      : null;
 
   const salvar = async () => {
     const usar = modo === "conta_propria" && usarCadastro && pessoa.tem_cadastro;
@@ -415,24 +417,40 @@ function MeuBlocoVenda({
       if (e) return toast.error(e);
     }
     setSalvando(true);
-    const { error } = await db.rpc("salvar_meus_dados_pagamento_venda", {
+    const { error } = await db.rpc("salvar_dados_pagamento_venda", {
       _sale_id: saleId,
+      _user_id: pessoa.user_id,
       _modo: modo,
       _usar_cadastro: usar,
       _dados: modo === "conta_propria" && !usar ? payloadDados(dados) : {},
-      _salvar_cadastro: modo === "conta_propria" && !usar && salvarCadastro,
+      _salvar_cadastro: meu && modo === "conta_propria" && !usar && salvarCadastro,
     });
     setSalvando(false);
     if (error) return toast.error(errorMessage(error, "Não foi possível salvar."));
-    toast.success("Seus dados para pagamento nesta venda foram salvos.");
+    toast.success(
+      meu
+        ? "Seus dados para pagamento nesta venda foram salvos."
+        : `Dados para pagamento de ${primeiro} nesta venda foram salvos.`,
+    );
     await onSalvo();
   };
 
   return (
     <div className="mt-2">
+      {preenchido && <p className="text-[11px] text-muted-foreground">{preenchido}</p>}
       {pessoa.origem === "cadastro" && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Usando o que está no seu cadastro. Salve para confirmar nesta venda.
+          {meu
+            ? "Usando o que está no seu cadastro. Salve para confirmar nesta venda."
+            : `Usando o que está no cadastro de ${primeiro}. Salve para confirmar nesta venda.`}
+        </p>
+      )}
+      {!pessoa.dados_completos && atual && (
+        <p className="mt-1 text-xs text-muted-foreground">Atual: {atual}</p>
+      )}
+      {!meu && st === "pendente" && podeAlterar && (
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+          Falta preencher. Você pode completar aqui ou pedir para {primeiro} preencher.
         </p>
       )}
       <div className="mt-3 flex items-center justify-between gap-3 rounded-md border p-3">
@@ -458,13 +476,17 @@ function MeuBlocoVenda({
                 onCheckedChange={(v) => setUsarCadastro(v === true)}
                 disabled={!podeAlterar}
               />
-              Usar a conta já salva no meu cadastro
+              {meu
+                ? "Usar a conta já salva no meu cadastro"
+                : `Usar a conta já salva no cadastro de ${primeiro}`}
             </label>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Ainda não tem conta salva no cadastro. O que preencher aqui pode ser salvo para as
-              próximas vendas.
-            </p>
+            meu && (
+              <p className="text-xs text-muted-foreground">
+                Ainda não tem conta salva no cadastro. O que preencher aqui pode ser salvo para as
+                próximas vendas.
+              </p>
+            )
           )}
           {usarCadastro && pessoa.tem_cadastro ? (
             pessoa.origem === "cadastro" &&
@@ -473,20 +495,27 @@ function MeuBlocoVenda({
             )
           ) : (
             <>
+              {!pessoa.dados_completos && atual && (
+                <p className="text-xs text-muted-foreground">
+                  Para trocar a conta, digite os dados completos de novo.
+                </p>
+              )}
               <CamposConta
                 value={dados}
                 onChange={setDados}
                 disabled={!podeAlterar}
                 idPrefix={`venda-${pessoa.user_id}`}
               />
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={salvarCadastro}
-                  onCheckedChange={(v) => setSalvarCadastro(v === true)}
-                  disabled={!podeAlterar}
-                />
-                Salvar no meu cadastro para as próximas vendas
-              </label>
+              {meu && (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={salvarCadastro}
+                    onCheckedChange={(v) => setSalvarCadastro(v === true)}
+                    disabled={!podeAlterar}
+                  />
+                  Salvar no meu cadastro para as próximas vendas
+                </label>
+              )}
             </>
           )}
         </div>
@@ -494,7 +523,11 @@ function MeuBlocoVenda({
       {podeAlterar ? (
         <div className="mt-3 flex justify-end">
           <Button size="sm" onClick={salvar} disabled={salvando}>
-            {salvando ? "Salvando…" : "Salvar meus dados nesta venda"}
+            {salvando
+              ? "Salvando…"
+              : meu
+                ? "Salvar meus dados nesta venda"
+                : `Salvar dados de ${primeiro} nesta venda`}
           </Button>
         </div>
       ) : (
