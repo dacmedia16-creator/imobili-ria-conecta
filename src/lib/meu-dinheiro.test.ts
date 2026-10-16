@@ -1,105 +1,72 @@
 import { describe, expect, it } from "vitest";
 import {
-  aReceber,
   dataBR,
-  normalizarParcela,
-  recebidas,
-  resumoDinheiro,
-  type MinhaParcela,
+  filtrarPeriodo,
+  normalizarComissao,
+  ordenarPorData,
+  totalComissao,
+  type MinhaComissao,
 } from "./meu-dinheiro";
 
-const p = (o: Partial<MinhaParcela>): MinhaParcela => ({
+const c = (o: Partial<MinhaComissao>): MinhaComissao => ({
   sale_id: "s",
-  occurrence_id: "o",
   venda_em: "2026-09-01",
   imovel: "Casa · Centro",
   papel: "captador",
-  minha_comissao: 9000,
-  parcela: 1,
-  parcelas: 1,
-  data_prevista: null,
-  valor_previsto: 0,
-  recebido_em: null,
-  valor_recebido: null,
+  minha_comissao: 0,
   ...o,
 });
 
 describe("meu dinheiro", () => {
+  const hoje = "2026-10-16";
   const lista = [
-    p({ sale_id: "a", parcela: 1, parcelas: 2, data_prevista: "2026-11-12", valor_previsto: 6000 }),
-    p({
-      sale_id: "a",
-      parcela: 2,
-      parcelas: 2,
-      data_prevista: "2026-10-01",
-      valor_previsto: 3000,
-      recebido_em: "2026-10-02",
-      valor_recebido: 2900,
+    c({ sale_id: "a", venda_em: "2026-10-03", minha_comissao: 9000 }),
+    c({
+      sale_id: "b",
+      venda_em: "2026-10-12",
+      minha_comissao: 4500.25,
+      papel: "captador e vendedor",
     }),
-    p({ sale_id: "b", data_prevista: null, valor_previsto: 4500 }),
-    p({ sale_id: "c", data_prevista: "2026-10-10", valor_previsto: 1000 }),
-    p({
-      sale_id: "d",
-      data_prevista: "2025-12-01",
-      valor_previsto: 7000,
-      recebido_em: "2025-12-05",
-    }),
+    c({ sale_id: "c", venda_em: "2026-02-20", minha_comissao: 1000 }),
+    c({ sale_id: "d", venda_em: "2025-12-05", minha_comissao: 7000 }),
+    c({ sale_id: "e", venda_em: null, minha_comissao: 300 }),
   ];
 
-  it("a receber: datas mais próximas primeiro e 'sem data' no fim", () => {
-    expect(aReceber(lista).map((x) => x.sale_id)).toEqual(["c", "a", "b"]);
+  it("total geral soma a comissão de todas as vendas", () => {
+    expect(totalComissao(filtrarPeriodo(lista, "todas", hoje))).toBe(21800.25);
   });
 
-  it("recebidas: mais recentes primeiro", () => {
-    expect(recebidas(lista).map((x) => x.sale_id)).toEqual(["a", "d"]);
+  it("filtro do mês: só vendas do mês corrente", () => {
+    const m = filtrarPeriodo(lista, "mes", hoje);
+    expect(m.map((x) => x.sale_id)).toEqual(["a", "b"]);
+    expect(totalComissao(m)).toBe(13500.25);
   });
 
-  it("resumo: recebido só no ano corrente, usando o valor baixado", () => {
-    const r = resumoDinheiro(lista, "2026-10-16");
-    expect(r.recebidoNoAno).toBe(2900);
-    expect(r.aReceber).toBe(11500);
-    expect(r.proximo).toBe("2026-10-10");
-    expect(r.proximoAtrasado).toBe(true);
-    expect(r.semData).toBe(1);
+  it("filtro do ano: só vendas do ano corrente", () => {
+    const a = filtrarPeriodo(lista, "ano", hoje);
+    expect(a.map((x) => x.sale_id)).toEqual(["a", "b", "c"]);
+    expect(totalComissao(a)).toBe(14500.25);
   });
 
-  it("resumo vazio", () => {
-    expect(resumoDinheiro([], "2026-10-16")).toEqual({
-      recebidoNoAno: 0,
-      aReceber: 0,
-      proximo: null,
-      proximoAtrasado: false,
-      semData: 0,
-    });
+  it("lista vazia: total zero", () => {
+    expect(totalComissao([])).toBe(0);
+    expect(filtrarPeriodo([], "mes", hoje)).toEqual([]);
   });
 
-  it("recebida sem valor baixado conta o previsto", () => {
-    const r = resumoDinheiro(
-      [p({ valor_previsto: 1234.5, recebido_em: "2026-01-03", valor_recebido: null })],
-      "2026-10-16",
-    );
-    expect(r.recebidoNoAno).toBe(1234.5);
+  it("ordena da venda mais recente para a mais antiga, sem data no fim", () => {
+    expect(ordenarPorData(lista).map((x) => x.sale_id)).toEqual(["b", "a", "c", "d", "e"]);
   });
 
   it("normaliza números vindos como texto da RPC", () => {
-    const n = normalizarParcela({
-      sale_id: "s",
-      occurrence_id: "o",
-      minha_comissao: "9000.00",
-      parcela: 2,
-      parcelas: "3",
-      valor_previsto: "3000.50",
-      valor_recebido: null,
-    });
-    expect(n.minha_comissao).toBe(9000);
-    expect(n.parcelas).toBe(3);
-    expect(n.valor_previsto).toBe(3000.5);
-    expect(n.valor_recebido).toBeNull();
-    expect(n.data_prevista).toBeNull();
+    const n = normalizarComissao({ sale_id: "s", minha_comissao: "9000.50" });
+    expect(n.minha_comissao).toBe(9000.5);
+    expect(n.venda_em).toBeNull();
+    expect(n.papel).toBeNull();
+    expect(normalizarComissao({ sale_id: "s", minha_comissao: null }).minha_comissao).toBe(0);
   });
 
   it("data em formato brasileiro", () => {
     expect(dataBR("2026-10-28")).toBe("28/10/2026");
-    expect(dataBR(null)).toBe("sem data");
+    expect(dataBR(null)).toBe("—");
   });
 });

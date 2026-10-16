@@ -42,9 +42,9 @@ INSERT INTO ids VALUES ('orgA', '00000000-0000-4000-8000-000000000001'), ('orgB'
   ('a1', '10000000-0000-4000-8000-000000000003'), ('a2', '5745cbff-22b6-4a28-a515-dd6706504b8b'),
   ('b1', '23e65aaf-2614-463e-baec-cf562bb94244');
 
--- V1: A1 capta (9 mil), A2 vende (6 mil). Comissão da venda prevista em 2 parcelas: 10 mil a receber
---     e 5 mil já recebidos. V2: A2 capta e vende, sem previsão. V3: A1, venda não assinada (não conta).
---     VB: B1 na organização B.
+-- V1: A1 capta (9 mil), A2 vende (6 mil); a ocorrência tem previsão de recebimento em 2 parcelas, que NÃO
+--     aparece no bloco (decisão de Denis, 16/10). V2: A2 capta e vende (9 mil). V3: A1, venda não
+--     assinada (não conta). VB: B1 na organização B.
 SELECT pg_temp.venda('v1', 'orgA', 'a1', 'a2', 500000, 9000, 6000);
 SELECT pg_temp.as_user('7dd997f7-2021-43ea-af9c-e758b826fcfd');  -- trava existente: só financeiro/admin dá baixa
 UPDATE public.occurrences SET prev_recebimento_data = current_date + 20, prev_recebimento_valor = 10000, prev_recebimento_forma = 'pix',
@@ -63,37 +63,41 @@ CREATE TEMP TABLE antes AS SELECT md5(string_agg(t, ',' ORDER BY t)) h FROM (
    WHERE o.sale_id IN (SELECT v FROM ids)
   UNION ALL SELECT s::text FROM public.sales s WHERE s.id IN (SELECT v FROM ids)) x;
 
--- 1) Parte do próprio corretor, parcela a parcela ---------------------------------------------
+-- 1) Comissão do próprio corretor, uma linha por venda ----------------------------------------
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('a1')::text);
 CREATE TEMP TABLE m1 AS SELECT * FROM public.minhas_comissoes();
-SELECT pg_temp.ok((SELECT count(*) FROM m1) = 2 AND (SELECT count(DISTINCT sale_id) FROM m1) = 1
-  AND (SELECT bool_and(sale_id = pg_temp.id('v1')) FROM m1), 'A1 vê só a venda V1 (assinada), em 2 parcelas');
-SELECT pg_temp.ok((SELECT valor_previsto = 6000 AND recebido_em IS NULL AND parcela = 1 AND parcelas = 2
-  AND data_prevista = current_date + 20 FROM m1 WHERE parcela = 1), 'parcela 1 a receber: 6 mil (9 mil × 10/15)');
-SELECT pg_temp.ok((SELECT valor_previsto = 3000 AND valor_recebido = 3000 AND recebido_em = current_date - 4
-  FROM m1 WHERE parcela = 2), 'parcela 2 recebida: 3 mil (9 mil × 5/15)');
-SELECT pg_temp.ok((SELECT sum(valor_previsto) FROM m1) = 9000 AND (SELECT bool_and(minha_comissao = 9000) FROM m1),
-  'soma das parcelas fecha com a comissão de A1 (9 mil)');
-SELECT pg_temp.ok((SELECT bool_and(papel = 'captador') FROM m1), 'papel de A1 na venda: captador');
-SELECT pg_temp.ok((SELECT bool_and(imovel = 'Casa · Bairro QA') FROM m1), 'imóvel descrito por tipo e bairro, sem cliente');
+SELECT pg_temp.ok((SELECT count(*) FROM m1) = 1 AND (SELECT sale_id FROM m1) = pg_temp.id('v1'),
+  'A1 vê só a venda V1 (assinada), em 1 linha');
+SELECT pg_temp.ok((SELECT minha_comissao FROM m1) = 9000, 'comissão de A1 em V1: 9 mil (só a parte dele)');
+SELECT pg_temp.ok((SELECT venda_em FROM m1) = (now() AT TIME ZONE 'America/Sao_Paulo')::date,
+  'data da venda = data da assinatura (SP)');
+SELECT pg_temp.ok((SELECT papel FROM m1) = 'captador', 'papel de A1 na venda: captador');
+SELECT pg_temp.ok((SELECT imovel FROM m1) = 'Casa · Bairro QA', 'imóvel descrito por tipo e bairro, sem cliente');
+SELECT pg_temp.ok((SELECT array_agg(attname::text ORDER BY attnum) FROM pg_attribute
+  WHERE attrelid = 'm1'::regclass AND attnum > 0 AND NOT attisdropped)
+  = ARRAY['sale_id', 'venda_em', 'imovel', 'papel', 'minha_comissao'],
+  'sem colunas de parcela, recebimento ou previsão');
 SELECT pg_temp.ok((SELECT count(*) FROM m1 WHERE sale_id = pg_temp.id('v3')) = 0, 'venda não assinada não aparece');
 
 SELECT pg_temp.as_user(pg_temp.id('a2')::text);
 CREATE TEMP TABLE m2 AS SELECT * FROM public.minhas_comissoes();
-SELECT pg_temp.ok((SELECT sum(valor_previsto) FROM m2 WHERE sale_id = pg_temp.id('v1')) = 6000,
-  'A2 vê só a parte dele em V1 (6 mil), não a de A1');
-SELECT pg_temp.ok((SELECT data_prevista IS NULL AND valor_previsto = 9000 AND parcelas = 1 AND papel = 'captador e vendedor'
-  FROM m2 WHERE sale_id = pg_temp.id('v2')), 'venda sem previsão: 1 linha "sem data" com a parte inteira (9 mil)');
+SELECT pg_temp.ok((SELECT minha_comissao = 6000 AND papel = 'vendedor' FROM m2 WHERE sale_id = pg_temp.id('v1')),
+  'A2 vê só a parte dele em V1 (6 mil, vendedor), não a de A1');
+SELECT pg_temp.ok((SELECT minha_comissao = 9000 AND papel = 'captador e vendedor' FROM m2 WHERE sale_id = pg_temp.id('v2')),
+  'A2 capta e vende V2: 1 linha com as duas partes somadas (9 mil)');
+SELECT pg_temp.ok((SELECT count(*) FROM m2) = 2 AND (SELECT sum(minha_comissao) FROM m2) = 15000,
+  'total de A2: 15 mil em 2 vendas');
 
--- 2) Isolamento organização A × B -------------------------------------------------------------
+-- 2) Isolamento organização A × B e corretor A × B ---------------------------------------------
 SELECT pg_temp.as_user(pg_temp.id('b1')::text);
 CREATE TEMP TABLE mb AS SELECT * FROM public.minhas_comissoes();
-SELECT pg_temp.ok((SELECT count(*) FROM mb) = 1 AND (SELECT valor_previsto = 40000 FROM mb WHERE sale_id = pg_temp.id('vb')),
+SELECT pg_temp.ok((SELECT count(*) FROM mb) = 1 AND (SELECT minha_comissao = 40000 FROM mb WHERE sale_id = pg_temp.id('vb')),
   'B1 vê só a própria comissão na organização B (40 mil)');
 SELECT pg_temp.ok((SELECT count(*) FROM mb WHERE sale_id IN (pg_temp.id('v1'), pg_temp.id('v2'))) = 0,
   'B1 não vê vendas da organização A');
-SELECT pg_temp.ok((SELECT count(*) FROM m1 WHERE sale_id = pg_temp.id('vb')) = 0, 'A1 não vê vendas da organização B');
+SELECT pg_temp.ok((SELECT count(*) FROM m1 WHERE sale_id = pg_temp.id('vb')) = 0
+  AND (SELECT count(*) FROM m2 WHERE sale_id = pg_temp.id('vb')) = 0, 'A1 e A2 não veem vendas da organização B');
 
 -- 3) Usuário inativo, sem login e anon --------------------------------------------------------
 RESET ROLE;
@@ -110,6 +114,10 @@ SELECT set_config('request.jwt.claims', '', true), set_config('request.jwt.claim
 SELECT pg_temp.ok(pg_temp.err('SELECT * FROM public.minhas_comissoes()') LIKE '42501%', 'sem login: recusado');
 RESET ROLE;
 SELECT pg_temp.ok(NOT has_function_privilege('anon', 'public.minhas_comissoes()', 'EXECUTE'), 'anon não executa');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) x
+  WHERE p.oid = 'public.minhas_comissoes()'::regprocedure AND x.grantee = 0), 'PUBLIC sem EXECUTE');
+SELECT pg_temp.ok((SELECT prosecdef AND proconfig = ARRAY['search_path=""'] FROM pg_proc
+  WHERE oid = 'public.minhas_comissoes()'::regprocedure), 'SECURITY DEFINER com search_path vazio');
 SELECT pg_temp.ok((SELECT provolatile = 's' FROM pg_proc WHERE oid = 'public.minhas_comissoes()'::regprocedure),
   'função é só leitura (STABLE)');
 
