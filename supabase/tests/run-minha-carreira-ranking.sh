@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Minha carreira PR 3 (migration 20261016140000) numa ÚNICA transação revertida (homologação ou clone, nunca
+# Minha carreira PR 3 (migration 20261016150000) numa ÚNICA transação revertida (homologação ou clone, nunca
 # produção): pré-requisitos que faltarem no alvo (só na transação) -> fingerprint A -> up -> suíte ->
 # rollback -> fingerprint == A -> ROLLBACK.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-minha-carreira-ranking.sh
@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 M="$ROOT/supabase/migrations"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
-V=20261016140000
+V=20261016150000
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 cond() { # cond <variavel> <sql booleano> <migration>
   echo "SELECT ($2) AS $1 \\gset"

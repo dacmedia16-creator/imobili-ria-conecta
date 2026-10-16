@@ -1,4 +1,4 @@
--- Rollback da migration 20261016140000_minha_carreira_ranking.sql (Minha carreira, PR 3).
+-- Rollback da migration 20261016150000_minha_carreira_ranking.sql (Minha carreira, PR 3).
 -- Remove a RPC do ranking e o módulo "ranking_valores" (linhas e histórico). Não toca em vendas,
 -- captações, metas nem no Mural de Conquistas.
 BEGIN;
