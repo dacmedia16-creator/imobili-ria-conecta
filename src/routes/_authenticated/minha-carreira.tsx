@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton, PageHeader, Pill, type Tom } from "@/components/visual/base";
 import { MeuMes } from "@/components/minha-carreira/MeuMes";
+import { Conquistas } from "@/components/minha-carreira/Conquistas";
 import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 
 // Minha carreira, PR 1 (card t_07d196a7): só leitura. Blocos 1 (O que fazer hoje), 4 (Minhas
@@ -205,6 +206,8 @@ function MinhaCarreiraPage() {
       </Card>
 
       {userId ? <MeuMes userId={userId} /> : null}
+
+      {userId ? <Conquistas userId={userId} /> : null}
 
       <Card>
         <CardHeader>
