@@ -8,7 +8,8 @@ import {
 } from "./core.ts";
 
 // Chamada só pelo pg_cron do próprio ADM (public.sync_disparar), com cabeçalho x-sync-internal.
-// Secrets: SYNC_INTERNAL_SECRET (>=32), ESTUDO_SYNC_URL + ESTUDO_SYNC_SECRET, VISITA_SYNC_URL + VISITA_SYNC_SECRET.
+// Secrets: SYNC_INTERNAL_SECRET (>=32), ESTUDO_SYNC_URL + ESTUDO_SYNC_SECRET, VISITA_SYNC_URL + VISITA_SYNC_SECRET,
+// SESSENTA_SYNC_URL + SESSENTA_SYNC_SECRET (60 Dias MAX; só usado em org com sync_org_map.sessenta_enabled).
 // verify_jwt = false (config.toml): a autenticação é o segredo interno; sem CORS de propósito.
 const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 const resp = (body: unknown, status = 200) =>
@@ -29,11 +30,13 @@ Deno.serve(async (req) => {
   const urls: Record<Satelite, string> = {
     estudo: Deno.env.get("ESTUDO_SYNC_URL") ?? "",
     visita: Deno.env.get("VISITA_SYNC_URL") ?? "",
+    sessenta: Deno.env.get("SESSENTA_SYNC_URL") ?? "",
   };
   const amb = {
     segredos: {
       estudo: Deno.env.get("ESTUDO_SYNC_SECRET"),
       visita: Deno.env.get("VISITA_SYNC_SECRET"),
+      sessenta: Deno.env.get("SESSENTA_SYNC_SECRET"),
     },
     enviar: async (sat: Satelite, corpo: string, assinatura: string) => {
       if (!urls[sat]) return { status: 503, json: { error: "url_nao_configurada" } };

@@ -60,7 +60,7 @@ Reversão: `allow_deactivate=false` + remover o secret dos satélites; quem foi 
 4. Remover a estrutura: `supabase/rollback/20261011120000_sync_satelites.sql` (ADM) e `supabase/rollback/20261011120000_adm_sync_receptor.sql` (satélites).
 
 ## Secrets
-- ADM `sync-satelites`: `SYNC_INTERNAL_SECRET`, `ESTUDO_SYNC_URL`, `ESTUDO_SYNC_SECRET`, `VISITA_SYNC_URL`, `VISITA_SYNC_SECRET`. Vault: `sync_satelites_url`, `sync_internal_secret`.
+- ADM `sync-satelites`: `SYNC_INTERNAL_SECRET`, `ESTUDO_SYNC_URL`, `ESTUDO_SYNC_SECRET`, `VISITA_SYNC_URL`, `VISITA_SYNC_SECRET`, `SESSENTA_SYNC_URL`, `SESSENTA_SYNC_SECRET` (60 Dias MAX). Vault: `sync_satelites_url`, `sync_internal_secret`.
 - Satélites `adm-sync-apply`: `ADM_SYNC_SECRET` (= `*_SYNC_SECRET` do ADM, ≥32 caracteres), `ADM_SYNC_SECRET_NEXT` (troca), `ADM_SYNC_MODE`, `ADM_SYNC_ALLOWED_ORGS`.
 - A chave service_role de cada banco nunca sai do próprio projeto.
 
