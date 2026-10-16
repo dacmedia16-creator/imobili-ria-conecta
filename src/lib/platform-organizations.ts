@@ -120,6 +120,7 @@ export const ORGANIZATION_MODULES = [
   "feedback_proprietario",
   "oportunidades",
   "mural_conquistas",
+  "ranking_valores",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -128,6 +129,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   feedback_proprietario: "Feedback ao proprietário",
   oportunidades: "Oportunidades (grupo de WhatsApp)",
   mural_conquistas: "Mural de Conquistas",
+  ranking_valores: "Ranking: mostrar valores dos colegas (Minha carreira)",
 };
 
 export type OrganizationSummary = OrganizationRow & {
