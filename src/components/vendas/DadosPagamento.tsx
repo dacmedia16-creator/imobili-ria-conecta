@@ -368,7 +368,13 @@ export function DadosPagamentoEquipe({
                         <td className="py-1.5 pr-3">
                           <SeloPagamento status={st} />
                         </td>
-                        <td className="py-1.5">{st === "ok" ? resumoConta(p) || "—" : "—"}</td>
+                        <td className="py-1.5">
+                          {st === "ok"
+                            ? resumoConta(p) || "—"
+                            : st === "imobiliaria"
+                              ? "Conta da imobiliária"
+                              : "—"}
+                        </td>
                       </tr>
                     );
                   })}
