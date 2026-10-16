@@ -53,6 +53,14 @@ Reversão: `allow_deactivate=false` + remover o secret dos satélites; quem foi 
 8. Reversão: `update public.sync_config set provision_mode='off';` (instantâneo); estrutura: `supabase/rollback/20261012150000_sync_provisionar_org.sql` (ADM) e `supabase/rollback/20261012150000_adm_sync_provisionar_org.sql` (satélites). Orgs já criadas não são apagadas.
 9. Ensaio 12/10: org "ZZ Teste Provisionamento" (dry_run → live → trava → idempotência → suspensa nos 3, sem apagar).
 
+## 60 Dias MAX: quem vai (cartão t_2ea96382, regra de Denis 16/10)
+1. Vão ao 60 Dias: dono (owner) e gestor (manager) **ativos**, sempre; corretor (agent) **ativo** só com "Participa do 60 Dias MAX" ligado. Ninguém entra por data.
+2. A opção fica em `organization_members.participa_sessenta` (padrão `false`) e aparece em Usuários → Editar dados. Quem pode mudar é quem pode editar os dados da pessoa (dono/admin para qualquer um da imobiliária; gestor/team leader só para a própria equipe). Cada mudança grava `activity_logs` (`sessenta_participa_on/off`) e, com a sync ligada, já enfileira a pessoa.
+3. `sync-satelites` aplica a regra em `vaiAoSatelite()` (fila e reconciliação). Estudo e Visita não mudam. Na reconciliação, o relatório do 60 Dias traz `contagem.nao_participam` e a lista de ids do ADM.
+4. No 60 Dias, todo gestor ganha a própria equipe e o corretor entra na equipe do líder do ADM (`lider_email`).
+5. Opção desmarcada (ou corretor que nunca foi marcado): **nada é desativado** (ALLOW_DEACTIVATE segue false). A pessoa só deixa de receber atualizações e aparece em `nao_participam` na reconciliação; o acesso que já existe no 60 Dias continua até uma decisão humana.
+6. Reversão: `supabase/rollback/20261016180000_sessenta_participa.sql` (depois de voltar o robô para a versão anterior).
+
 ## Reversão
 1. Instantânea: `update public.sync_config set mode='off';` (ou a org em `off`, ou `ADM_SYNC_MODE=off` no satélite).
 2. Parar o robô: `sync_cron_desligar.sql`.
