@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- respostas JSON dos satélites e cliente supabase-js (Deno) sem tipos gerados */
 
 export type Modo = "off" | "dry_run" | "live";
-export type Satelite = "estudo" | "visita";
+export type Satelite = "estudo" | "visita" | "sessenta";
 const ORDEM: Record<Modo, number> = { off: 0, dry_run: 1, live: 2 };
 
 export function modoEfetivo(...modos: unknown[]): Modo {
@@ -34,15 +34,17 @@ const VISITA: Record<string, "imobiliaria_admin" | "corretor"> = {
 const RANK_E = { agent: 1, manager: 2, owner: 3 } as const;
 const RANK_V = { corretor: 1, imobiliaria_admin: 2 } as const;
 
+/** O 60 Dias MAX (t_46bd77c2) usa a mesma tabela de papéis do Estudo (owner/manager/agent). */
+const comoEstudo = (sat: Satelite) => sat === "estudo" || sat === "sessenta";
+
 /** Papel de maior acesso entre os que dão acesso ao satélite; "none" se nenhum (juridico, financeiro...). */
 export function papelNoSatelite(roles: string[], sat: Satelite): string {
   let melhor = "none";
   let rank = 0;
   for (const r of roles) {
-    const p = sat === "estudo" ? ESTUDO[r] : VISITA[r];
+    const p = comoEstudo(sat) ? ESTUDO[r] : VISITA[r];
     if (!p) continue;
-    const k =
-      sat === "estudo" ? RANK_E[p as keyof typeof RANK_E] : RANK_V[p as keyof typeof RANK_V];
+    const k = comoEstudo(sat) ? RANK_E[p as keyof typeof RANK_E] : RANK_V[p as keyof typeof RANK_V];
     if (k > rank) {
       rank = k;
       melhor = p;
@@ -69,7 +71,19 @@ export type Mapa = {
   mode: Modo;
   estudo_enabled: boolean;
   visita_enabled: boolean;
+  /** 60 Dias MAX: opcional por imobiliária, ligado à mão (ausente = desligado). */
+  sessenta_org_id?: string | null;
+  sessenta_enabled?: boolean;
 };
+
+/** Satélites que recebem PESSOAS desta imobiliária. O 60 Dias só entra com sessenta_enabled === true. */
+export function alvosDoMapa(mapa: Mapa): Array<[Satelite, string | null, boolean]> {
+  return [
+    ["estudo", mapa.estudo_org_id, mapa.estudo_enabled],
+    ["visita", mapa.visita_imobiliaria_id, mapa.visita_enabled],
+    ["sessenta", mapa.sessenta_org_id ?? null, mapa.sessenta_enabled === true],
+  ];
+}
 
 /** Pessoa fora da sincronização: super_admin (nunca mexe) ou sem e-mail. */
 export function foraDaSync(l: LinhaEstado): string | null {
@@ -89,7 +103,7 @@ export function pessoaParaSatelite(l: LinhaEstado, sat: Satelite) {
     telefone: l.telefone ?? null,
     papel: papelNoSatelite(l.roles, sat),
     ativo: l.ativo === true,
-    lider_email: sat === "estudo" ? l.lider_email : null,
+    lider_email: comoEstudo(sat) ? l.lider_email : null,
   };
 }
 
@@ -262,10 +276,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
 
   for (const { mapa, itens: giTodos } of grupos.values()) {
     const modo = modoEfetivo(geral, mapa.mode);
-    const alvos: Array<[Satelite, string | null, boolean]> = [
-      ["estudo", mapa.estudo_org_id, mapa.estudo_enabled],
-      ["visita", mapa.visita_imobiliaria_id, mapa.visita_enabled],
-    ];
+    const alvos = alvosDoMapa(mapa);
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
       // Excluídos deste satélite nunca são enviados (decisão humana registrada em sync_exclusoes).
@@ -427,7 +438,8 @@ export async function registrarConflitoOrg(
   return `conflito_nao_gravado: ${e.code ?? ""} ${String(e.message ?? "erro").slice(0, 120)}`.trim();
 }
 
-const SATS: Satelite[] = ["estudo", "visita"];
+// Provisão automática continua só com Estudo e Visita: o 60 Dias é ligado à mão (ESPEC 60 Dias 2.1 e 2.2 item 6).
+export const SATS: Satelite[] = ["estudo", "visita"];
 
 /**
  * Processa as imobiliárias novas do ADM (sync_org_provision). Para cada uma:
@@ -620,10 +632,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
         .filter((x) => x.f)
         .map((x) => ({ adm_user_id: x.l.adm_user_id, motivo: x.f })),
     };
-    const alvos: Array<[Satelite, string | null, boolean]> = [
-      ["estudo", mapa.estudo_org_id, mapa.estudo_enabled],
-      ["visita", mapa.visita_imobiliaria_id, mapa.visita_enabled],
-    ];
+    const alvos = alvosDoMapa(mapa);
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
       const excl = dentro.filter((l) => excluido(exclusoes, l.adm_user_id, sat));
