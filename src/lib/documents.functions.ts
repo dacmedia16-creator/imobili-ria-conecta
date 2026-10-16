@@ -420,12 +420,18 @@ export const applySaleExtractions = createServerFn({ method: "POST" })
       // por documento).
       const cpfFinal = textValue(patch.cpf_cnpj) ?? cur?.cpf_cnpj;
       const normalizado = String(cpfFinal ?? "").replace(/\D/g, "");
-      if (normalizado.length >= 11 && !cur?.cliente_id) {
-        const { data: clienteExistente } = await supabase
-          .from("clientes")
-          .select("*")
-          .eq("cpf_cnpj_normalizado", normalizado)
-          .maybeSingle();
+      // Busca sempre pelo documento: se a parte estava ligada ao cadastro de outro CPF (vínculo
+      // velho após correção do documento — t_d1738ada), religa no cadastro certo em vez de manter.
+      const { data: clienteExistente } =
+        normalizado.length >= 11
+          ? await supabase
+              .from("clientes")
+              .select("*")
+              .eq("cpf_cnpj_normalizado", normalizado)
+              .maybeSingle()
+          : { data: null };
+      const vinculoCerto = !!clienteExistente && clienteExistente.id === cur?.cliente_id;
+      if (normalizado.length >= 11 && !vinculoCerto) {
         if (clienteExistente) {
           patch.cliente_id = clienteExistente.id;
           any = true;

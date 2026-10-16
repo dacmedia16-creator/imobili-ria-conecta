@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { ChevronRight, ChevronLeft, UserCheck } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./shared";
 import type { BankAccountRow, PartyRow } from "@/lib/database.types";
+import { type ClientesDb, mensagemErroCliente, resolverClienteDaParte } from "@/lib/clientes";
 import { bankMode, sharedBank } from "@/lib/sale-bank-mode";
 
 type PartyForm = Partial<PartyRow>;
@@ -325,67 +326,21 @@ export function PartiesStep({
           telefone: forms[papel].telefone ?? null,
           endereco: forms[papel].endereco ?? null,
         };
-        // Cadastro de cliente centralizado (empresa toda): acha por CPF/CNPJ normalizado — se já
-        // existe, atualiza com o que foi digitado agora; se não, cria. Ligado via sale_parties.cliente_id.
-        const normalizado = (forms[papel].cpf_cnpj ?? "").replace(/\D/g, "");
-        let clienteId: string | null = existing?.cliente_id ?? null;
-        if (normalizado.length >= 11) {
-          if (!clienteId) {
-            const { data: achou } = await supabase
-              .from("clientes")
-              .select("id")
-              .eq("cpf_cnpj_normalizado", normalizado)
-              .maybeSingle();
-            clienteId = achou?.id ?? null;
-          }
-          if (clienteId) {
-            const { error: clienteError } = await supabase
-              .from("clientes")
-              .update({ ...clientePayload, updated_by: user?.id ?? null })
-              .eq("id", clienteId);
-            if (clienteError) {
-              toast.error(clienteError.message);
-              return false;
-            }
-          } else {
-            const { data: novoCliente, error: clienteError } = await supabase
-              .from("clientes")
-              .insert({ ...clientePayload, created_by: user?.id ?? null })
-              .select("id")
-              .single();
-            if (clienteError) {
-              // Corrida: outro save concorrente (autosave x troca de aba/status, que também força
-              // salvar) pode inserir o mesmo CPF entre o SELECT acima e este INSERT — o SELECT não
-              // é atômico com o INSERT. Em vez de estourar erro pro usuário, busca de novo (a outra
-              // chamada já deve ter criado) e atualiza esse registro em vez de falhar.
-              if (clienteError.code === "23505") {
-                const { data: achouDeNovo } = await supabase
-                  .from("clientes")
-                  .select("id")
-                  .eq("cpf_cnpj_normalizado", normalizado)
-                  .maybeSingle();
-                if (achouDeNovo) {
-                  clienteId = achouDeNovo.id;
-                  const { error: updateError } = await supabase
-                    .from("clientes")
-                    .update({ ...clientePayload, updated_by: user?.id ?? null })
-                    .eq("id", clienteId);
-                  if (updateError) {
-                    toast.error(updateError.message);
-                    return false;
-                  }
-                } else {
-                  toast.error(clienteError.message);
-                  return false;
-                }
-              } else {
-                toast.error(clienteError.message);
-                return false;
-              }
-            } else {
-              clienteId = novoCliente.id;
-            }
-          }
+        // Cadastro de cliente centralizado (por org): acha por CPF/CNPJ normalizado — se é o mesmo
+        // cadastro já ligado, atualiza; se é de outra venda, liga e só completa campos vazios; se
+        // não existe, cria. Ligado via sale_parties.cliente_id.
+        // A busca é SEMPRE pelo documento digitado (não confia no cliente_id antigo da parte: se o
+        // CPF foi corrigido, aquele cadastro é de outra pessoa — reescrevê-lo dava 23505 e travava a
+        // venda, t_d1738ada). Regras em src/lib/clientes.ts.
+        const { clienteId, error: clienteError } = await resolverClienteDaParte(
+          supabase as unknown as ClientesDb,
+          clientePayload,
+          existing?.cliente_id ?? null,
+          user?.id ?? null,
+        );
+        if (clienteError) {
+          toast.error(mensagemErroCliente(clienteError));
+          return false;
         }
         const data = {
           nome: forms[papel].nome ?? null,
