@@ -49,6 +49,114 @@ export interface ListingFeedback {
   brokerId: string | null;
   lines: PortalLine[];
   lastCollectedOn: string;
+  /** Imóvel de venda no XML RE/MAX (base oficial do Feedback, t_698be0d2). */
+  noXml?: boolean;
+  /** Nome do corretor no XML quando não está ligado a ninguém do ADM (só admin recebe). */
+  corretorXml?: string | null;
+}
+
+/** Linha de feedback_xml_base(): anúncio de venda do XML com o corretor do ADM já resolvido. */
+export interface XmlBaseRow {
+  code: string;
+  code_key: string;
+  broker_id: string | null;
+  corretor_xml: string | null;
+}
+
+const somaN = (a: number | null, b: number | null) =>
+  a == null && b == null ? null : (a ?? 0) + (b ?? 0);
+
+/** Duas linhas do MESMO portal para o mesmo imóvel (ex.: 630601201-93 e 630601201x93 no Zap) viram uma. */
+function juntaLinha(a: PortalLine, b: PortalLine): PortalLine {
+  // Só uma com número válido: fica ela (a outra deu erro de coleta).
+  if (a.error && !b.error) return b;
+  if (b.error && !a.error) return a;
+  const confirmed = a.confirmed && b.confirmed;
+  return {
+    ...a,
+    views: somaN(a.views, b.views),
+    contacts: somaN(a.contacts, b.contacts),
+    impressions: somaN(a.impressions, b.impressions),
+    viewsDelta: a.viewsDelta == null || b.viewsDelta == null ? null : a.viewsDelta + b.viewsDelta,
+    contactsDelta:
+      a.contactsDelta == null || b.contactsDelta == null ? null : a.contactsDelta + b.contactsDelta,
+    // Períodos diferentes não se somam para o proprietário: fica "a confirmar".
+    periodText: a.periodText === b.periodText ? a.periodText : "período a confirmar",
+    confirmed: confirmed && a.periodText === b.periodText,
+    collectedOn: a.collectedOn > b.collectedOn ? a.collectedOn : b.collectedOn,
+  };
+}
+
+/**
+ * Junta anúncios do portal com a mesma chave (x/hífen/zeros): 1 imóvel = 1 item, 1 linha por portal.
+ * O código mostrado prefere o formato com hífen (o da RE/MAX). Não conta o imóvel em dobro.
+ */
+export function dedupeByCodeKey(portal: ListingFeedback[]): ListingFeedback[] {
+  const porChave = new Map<string, ListingFeedback>();
+  for (const p of portal) {
+    const k = codeKey(p.code);
+    const prev = porChave.get(k);
+    if (!prev) {
+      porChave.set(k, p);
+      continue;
+    }
+    const lines = [...prev.lines];
+    for (const l of p.lines) {
+      const i = lines.findIndex((x) => x.portal === l.portal);
+      if (i < 0) lines.push(l);
+      else lines[i] = juntaLinha(lines[i], l);
+    }
+    lines.sort(
+      (a, b) =>
+        Object.keys(PORTAL_LABEL).indexOf(a.portal) - Object.keys(PORTAL_LABEL).indexOf(b.portal),
+    );
+    const code = prev.code.includes("-") || !p.code.includes("-") ? prev.code : p.code;
+    porChave.set(k, {
+      ...prev,
+      code,
+      brokerId: prev.brokerId ?? p.brokerId,
+      lines,
+      lastCollectedOn:
+        prev.lastCollectedOn > p.lastCollectedOn ? prev.lastCollectedOn : p.lastCollectedOn,
+    });
+  }
+  return [...porChave.values()].sort(
+    (a, b) => totalViews(b) - totalViews(a) || a.code.localeCompare(b.code),
+  );
+}
+
+/**
+ * Base do Feedback = venda do XML. Os números dos portais entram pela mesma chave de código
+ * (x/hífen/zeros). Portal sem par no XML vai para "foraDaRemax" (anunciado no portal, fora da RE/MAX).
+ * XML vazio (sem coleta boa ainda) = comportamento antigo: tudo vem dos portais, nada é escondido.
+ * A última coleta boa do XML é escolhida no banco (feedback_xml_base); falha nunca chega vazia aqui.
+ */
+export function mergeXmlBase(
+  base: XmlBaseRow[],
+  portal: ListingFeedback[],
+): { listings: ListingFeedback[]; foraDaRemax: ListingFeedback[] } {
+  const unicos = dedupeByCodeKey(portal);
+  if (!base.length) return { listings: unicos, foraDaRemax: [] };
+  const porChave = new Map<string, ListingFeedback>();
+  for (const p of unicos) porChave.set(codeKey(p.code), p);
+  const usadas = new Set<string>();
+  const listings: ListingFeedback[] = base.map((b) => {
+    const k = b.code_key || codeKey(b.code);
+    usadas.add(k);
+    const p = porChave.get(k);
+    return {
+      code: b.code,
+      brokerId: b.broker_id ?? p?.brokerId ?? null,
+      lines: p?.lines ?? [],
+      lastCollectedOn: p?.lastCollectedOn ?? "",
+      noXml: true,
+      corretorXml: b.broker_id ? null : b.corretor_xml,
+    };
+  });
+  const foraDaRemax = [...porChave.entries()].filter(([k]) => !usadas.has(k)).map(([, p]) => p);
+  const ord = (a: ListingFeedback, b: ListingFeedback) =>
+    totalViews(b) - totalViews(a) || a.code.localeCompare(b.code);
+  return { listings: listings.sort(ord), foraDaRemax: foraDaRemax.sort(ord) };
 }
 
 function fmtDate(iso: string | null): string {
@@ -242,7 +350,9 @@ export function aiFacts(l: ListingFeedback, ctx?: ListingContext): string {
     ].filter(Boolean);
     if (desc.length) imovel.push(`- Imóvel: ${desc.join(", ")}.`);
     if (ctx.preco != null && ctx.preco > 0)
-      imovel.push(`- Preço anunciado: R$ ${n(Math.round(ctx.preco))} (só contexto; não citar nem sugerir valor).`);
+      imovel.push(
+        `- Preço anunciado: R$ ${n(Math.round(ctx.preco))} (só contexto; não citar nem sugerir valor).`,
+      );
     const dias = ctx.publicadoEm && ctx.hoje ? diasDesde(ctx.publicadoEm, ctx.hoje) : null;
     if (dias != null) imovel.push(`- Tempo de anúncio no site da RE/MAX: ${dias} dias.`);
     const c = ctx.comparacao;
@@ -326,7 +436,8 @@ export function pickAiSuggestion(
 ): { ok: true; text: string } | { ok: false; reason: string } {
   const cand = json.candidates?.[0];
   if (!cand) return { ok: false, reason: "sem candidato" };
-  if (cand.finishReason !== "STOP") return { ok: false, reason: `finish ${cand.finishReason ?? "vazio"}` };
+  if (cand.finishReason !== "STOP")
+    return { ok: false, reason: `finish ${cand.finishReason ?? "vazio"}` };
   const raw = (cand.content?.parts ?? [])
     .filter((p) => !p.thought)
     .map((p) => p.text ?? "")

@@ -191,15 +191,13 @@ export function PinsMap({
           : "relative"
       }
     >
-      <div
-        ref={el}
-        className={
-          ampliado
-            ? "min-h-0 w-full flex-1 rounded-md border"
-            : "h-[420px] w-full rounded-md border"
-        }
-        style={{ zIndex: 0 }}
-      />
+      {/* A div do Leaflet NUNCA muda de className: o React reescreveria o atributo class e
+          apagaria "leaflet-container" (que o Leaflet adiciona); sem ela, o `img { max-width:100% }`
+          global zera a largura dos tiles e o mapa de fundo some, ficando só os pinos.
+          Quem muda de tamanho é a moldura externa. */}
+      <div className={ampliado ? "min-h-0 w-full flex-1" : "h-[420px] w-full"}>
+        <div ref={el} className="h-full w-full rounded-md border" style={{ zIndex: 0 }} />
+      </div>
       <button
         type="button"
         onClick={() => setAmpliado((x) => !x)}

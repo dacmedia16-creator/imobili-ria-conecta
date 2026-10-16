@@ -14,12 +14,14 @@ import { useAuth } from "@/lib/auth";
 import {
   diagnosis,
   groupByListing,
+  mergeXmlBase,
   ownerMessage,
   totalContacts,
   totalViews,
   whatsappLink,
   type ListingFeedback,
   type Snapshot,
+  type XmlBaseRow,
 } from "@/lib/owner-feedback";
 import { errorMessage } from "@/lib/errors";
 import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
@@ -32,6 +34,7 @@ import {
   type FeedbackAction,
 } from "@/lib/owner-feedback-actions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { VinculosXmlPanel } from "@/components/feedback/VinculosXmlPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -65,10 +68,14 @@ const delta = (x: number | null) =>
 function FeedbackPage() {
   const { user, hasAny } = useAuth();
   const isManager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
+  const isAdmin = hasAny(["admin", "super_admin"]);
   const [rows, setRows] = useState<Snapshot[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   // "Sem corretor": nome que o site RE/MAX mostra para o ID (só admin recebe; não cria usuário).
   const [siteNames, setSiteNames] = useState<Record<string, string>>({});
+  // Base oficial: venda do XML RE/MAX -> OLX (t_698be0d2). Vazio = sem coleta boa: usa só os portais.
+  const [xmlBase, setXmlBase] = useState<XmlBaseRow[]>([]);
+  const [xmlAviso, setXmlAviso] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [broker, setBroker] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -98,7 +105,18 @@ function FeedbackPage() {
           all.push(...((data ?? []) as Snapshot[]));
           if (!data || data.length < 1000) break;
         }
-        const ids = [...new Set(all.map((r) => r.broker_id).filter(Boolean))] as string[];
+        // XML: RPC ausente ou com erro não derruba a tela (cai no comportamento antigo).
+        const [xb, xs] = await Promise.all([
+          db.rpc("feedback_xml_base"),
+          db.rpc("remax_xml_status"),
+        ]);
+        const base = xb.error ? [] : ((xb.data ?? []) as XmlBaseRow[]);
+        const aviso = xs.error ? null : ((xs.data?.[0]?.aviso as string | null) ?? null);
+        const ids = [
+          ...new Set(
+            [...all.map((r) => r.broker_id), ...base.map((b) => b.broker_id)].filter(Boolean),
+          ),
+        ] as string[];
         const map: Record<string, string> = {};
         if (ids.length) {
           const { data } = await db.from("profiles").select("id,nome").in("id", ids);
@@ -109,6 +127,8 @@ function FeedbackPage() {
           setRows(all);
           setNames(map);
           setSiteNames(site);
+          setXmlBase(base);
+          setXmlAviso(aviso);
         }
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar os números dos portais."));
@@ -121,7 +141,10 @@ function FeedbackPage() {
     };
   }, [user, isManager]);
 
-  const listings = useMemo(() => groupByListing(rows), [rows]);
+  const { listings, foraDaRemax } = useMemo(
+    () => mergeXmlBase(xmlBase, groupByListing(rows)),
+    [xmlBase, rows],
+  );
   const brokers = useMemo(
     () =>
       [...new Set(listings.map((l) => l.brokerId).filter(Boolean))]
@@ -141,7 +164,8 @@ function FeedbackPage() {
     if (hit) setSelected(hit.code);
     else setSearch(codigo.slice(0, 9));
   }, [codigo, listings, selected]);
-  const current = listings.find((l) => l.code === selected);
+  const current =
+    listings.find((l) => l.code === selected) ?? foraDaRemax.find((l) => l.code === selected);
 
   if (current)
     return (
@@ -184,6 +208,12 @@ function FeedbackPage() {
           </select>
         )}
       </div>
+      {xmlAviso && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <span>{xmlAviso}</span>
+        </div>
+      )}
       {loading ? (
         <ListSkeleton rows={6} label="Carregando imóveis" />
       ) : !visible.length ? (
@@ -207,11 +237,15 @@ function FeedbackPage() {
                   {isManager &&
                     (l.brokerId
                       ? names[l.brokerId] || "Sem nome"
-                      : siteNames[l.code.slice(0, 9)]
-                        ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
-                        : "Sem corretor")}
+                      : l.corretorXml
+                        ? `Sem corretor no ADM · ${l.corretorXml} (XML RE/MAX)`
+                        : siteNames[l.code.slice(0, 9)]
+                          ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
+                          : "Sem corretor")}
                   {isManager && " · "}
-                  {l.lines.length} portal(is)
+                  {l.lines.length
+                    ? `${l.lines.length} portal(is)`
+                    : "Sem números dos portais ainda"}
                 </div>
                 <Pill tom="blue" className="mt-1.5">
                   Sua vez: revisar e enviar
@@ -229,6 +263,32 @@ function FeedbackPage() {
             </p>
           )}
         </div>
+      )}
+      {!loading && isAdmin && xmlBase.length > 0 && <VinculosXmlPanel names={names} />}
+      {!loading && foraDaRemax.length > 0 && (
+        <details className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm">
+          <summary className="cursor-pointer font-medium text-amber-900">
+            Anunciado no portal, fora da RE/MAX ({foraDaRemax.length})
+          </summary>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Estes códigos têm números nos portais, mas não estão no XML de venda da RE/MAX. Confira
+            se o anúncio foi retirado ou se o código está diferente.
+          </p>
+          <div className="mt-2 grid gap-1">
+            {foraDaRemax.slice(0, 200).map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setSelected(l.code)}
+                className="flex justify-between gap-2 rounded border bg-card px-2 py-1 text-left text-xs hover:bg-muted"
+              >
+                <span className="font-medium">{l.code}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {n(totalViews(l))} visualizações · {n(totalContacts(l))} contatos
+                </span>
+              </button>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

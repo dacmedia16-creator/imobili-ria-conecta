@@ -34,7 +34,11 @@ export type SiteListing = {
    * o anúncio fica FORA do mapa e é contado à parte. Nunca inventamos coordenada (t_9f374e4d).
    */
   localInvalida?: boolean;
+  /** De onde veio o anúncio: XML RE/MAX -> OLX (principal) ou coleta do site (reserva). */
+  fonte?: Fonte;
 };
+
+export type Fonte = "xml" | "site";
 
 /** Caixa do Brasil (com folga pequena): fora disso a coordenada do site é tratada como inválida. */
 const BRASIL = { latMin: -34, latMax: 5.5, lonMin: -74, lonMax: -34.5 };
@@ -98,18 +102,34 @@ export const SITE_COLOR = "#dc2626";
 export const SITE_LABEL = "Site RE/MAX · venda";
 
 const db = supabase as unknown as SupabaseClient;
-export async function listSiteListings(): Promise<SiteListing[]> {
-  const { data, error } = await db.rpc("mapa_anuncios_site");
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as SiteListing[])
+type RawListing = Omit<SiteListing, "lat" | "lon"> & { lat: number | null; lon: number | null };
+
+/** Normaliza a resposta do banco. Sem coordenada vira NaN: marcarLocalInvalida tira do mapa e conta à parte. */
+export function normalizarAnuncios(rows: RawListing[], fonte: Fonte = "site"): SiteListing[] {
+  return rows
     .filter((l) => l.transacao === "venda") // defesa extra: o banco já devolve só venda
     .map((l) => ({
       ...l,
-      lat: Number(l.lat),
-      lon: Number(l.lon),
+      lat: l.lat == null ? Number.NaN : Number(l.lat),
+      lon: l.lon == null ? Number.NaN : Number(l.lon),
       area: l.area == null ? null : Number(l.area),
       preco: l.preco == null ? null : Number(l.preco),
+      fonte,
     }));
+}
+
+/**
+ * Fonte principal: XML RE/MAX -> OLX (mapa_anuncios_xml, t_698be0d2). Sem XML bom (RPC ausente, erro ou
+ * nenhuma coleta boa) cai na coleta do site RE/MAX, como antes. Nunca fica sem mapa por causa do XML.
+ */
+export async function listSiteListings(): Promise<SiteListing[]> {
+  const xml = await db.rpc("mapa_anuncios_xml");
+  if (!xml.error && Array.isArray(xml.data) && xml.data.length) {
+    return normalizarAnuncios(xml.data as RawListing[], "xml");
+  }
+  const { data, error } = await db.rpc("mapa_anuncios_site");
+  if (error) throw new Error(error.message);
+  return normalizarAnuncios((data ?? []) as RawListing[], "site");
 }
 
 const fold = (x: string) =>
@@ -157,22 +177,40 @@ export function splitSiteListings(list: SiteListing[]): {
   porCaptacao: Map<string, SiteListing[]>;
   /** Anúncios soltos com localização inválida: não viram pino, só entram nesta contagem. */
   foraDoMapa: number;
+  /** Códigos dos anúncios do XML que vieram SEM coordenada: listados à parte, nunca no mapa. */
+  semLocalXml: string[];
 } {
   const soltos: SiteListing[] = [];
   const porCaptacao = new Map<string, SiteListing[]>();
+  const semLocalXml: string[] = [];
   let foraDoMapa = 0;
   for (const l of list) {
     if (l.capture_id) porCaptacao.set(l.capture_id, [...(porCaptacao.get(l.capture_id) ?? []), l]);
+    else if (semCoordenadaXml(l)) semLocalXml.push(l.code);
     else if (l.localInvalida) foraDoMapa++;
     else soltos.push(l);
   }
-  return { soltos, porCaptacao, foraDoMapa };
+  return { soltos, porCaptacao, foraDoMapa, semLocalXml: semLocalXml.sort() };
 }
 
+/** Anúncio do XML que chegou sem latitude/longitude. */
+export const semCoordenadaXml = (l: SiteListing) =>
+  l.fonte === "xml" && (!Number.isFinite(l.lat) || !Number.isFinite(l.lon));
+
+/** Nome da fonte para os textos das telas. */
+export const fonteNome = (ls: SiteListing[]) =>
+  ls[0]?.fonte === "xml" ? "XML RE/MAX" : "site RE/MAX";
+
 /** Texto curto para a legenda das duas telas. */
-export const textoForaDoMapa = (n: number) =>
+export const textoForaDoMapa = (n: number, fonte: Fonte = "site") =>
   n > 0
-    ? `${n} ${n === 1 ? "imóvel do site ficou" : "imóveis do site ficaram"} fora do mapa (localização inválida no site RE/MAX).`
+    ? `${n} ${n === 1 ? "imóvel ficou" : "imóveis ficaram"} fora do mapa (localização inválida no ${fonte === "xml" ? "XML" : "site"} RE/MAX).`
+    : "";
+
+/** Lista à parte dos anúncios do XML sem localização (com os códigos). */
+export const textoSemLocalXml = (codes: string[]) =>
+  codes.length
+    ? `Sem localização no XML (${codes.length}, fora do mapa): ${codes.join(", ")}.`
     : "";
 
 /**

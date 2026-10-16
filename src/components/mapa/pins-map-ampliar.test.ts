@@ -26,7 +26,11 @@ const fake = vi.hoisted(() => {
   marker.bindPopup.mockReturnValue(marker);
   marker.addTo.mockReturnValue(marker);
   const lf = {
-    map: vi.fn(() => mapObj),
+    // Como o Leaflet real: marca a div com "leaflet-container" (o CSS dos tiles depende dela).
+    map: vi.fn((el: HTMLElement) => {
+      el.classList.add("leaflet-container");
+      return mapObj;
+    }),
     tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
     layerGroup: vi.fn(() => layerObj),
     circleMarker: vi.fn(() => marker),
@@ -104,5 +108,21 @@ describe("PinsMap — Ampliar (tela cheia)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(frame().dataset.ampliado).toBe("false");
     expect(screen.getByRole("button", { name: "Ampliar mapa" })).toBeTruthy();
+  });
+
+  // Bug 16/10: ao Ampliar, o React reescrevia o class da div do Leaflet e apagava
+  // "leaflet-container"; o CSS global img{max-width:100%} zerava os tiles (só pinos visíveis).
+  it("abrir/fechar várias vezes mantém a classe leaflet-container na div do mapa", async () => {
+    await montar();
+    const mapaEl = frame().querySelector(".leaflet-container");
+    expect(mapaEl).toBeTruthy();
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getByRole("button", { name: "Ampliar mapa" }));
+      expect(mapaEl?.classList.contains("leaflet-container")).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "Sair da tela cheia" }));
+      expect(mapaEl?.classList.contains("leaflet-container")).toBe(true);
+    }
+    expect(frame().querySelector(".leaflet-container")).toBe(mapaEl);
+    expect(fake.lf.map).toHaveBeenCalledTimes(1);
   });
 });

@@ -32,6 +32,10 @@ export function useSiteListings(agency: AgencyProfile | null) {
     };
   }, [habilitado]);
 
-  const { soltos, porCaptacao, foraDoMapa } = useMemo(() => splitSiteListings(site), [site]);
-  return { site, erro, soltos, porCaptacao, foraDoMapa };
+  const { soltos, porCaptacao, foraDoMapa, semLocalXml } = useMemo(
+    () => splitSiteListings(site),
+    [site],
+  );
+  const fonte = site[0]?.fonte ?? "site";
+  return { site, erro, soltos, porCaptacao, foraDoMapa, semLocalXml, fonte };
 }
