@@ -28,6 +28,7 @@ import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/visual/base";
 import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
+import { MeusDadosPagamento } from "@/components/vendas/DadosPagamento";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -980,6 +981,8 @@ function MeuAcesso() {
           </CardContent>
         </Card>
       )}
+
+      {userId && <MeusDadosPagamento userId={userId} />}
 
       <MuralCelebrationPreference userId={userId} />
 

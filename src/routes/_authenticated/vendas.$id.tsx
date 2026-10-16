@@ -188,6 +188,8 @@ import {
   type SugestaoAreas,
 } from "@/lib/ficha-imovel";
 import { PaymentStep } from "@/components/vendas/PaymentStep";
+import { DadosPagamentoEquipe } from "@/components/vendas/DadosPagamento";
+import { papeisDaEquipe } from "@/lib/dados-pagamento";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
@@ -3235,6 +3237,29 @@ function SaleDetail() {
                           </div>
                         );
                       })()}
+                      {/* Dados para pagamento da equipe (t_a4ef3b48): lê a equipe SALVA no banco;
+                          cada pessoa só preenche o próprio bloco (garantido pela RPC). */}
+                      {user?.id && (
+                        <DadosPagamentoEquipe
+                          saleId={sale.id}
+                          userId={user.id}
+                          podeAlterar={
+                            !["arquivada", "cancelada", "ocorrencia_concluida"].includes(
+                              sale.status,
+                            )
+                          }
+                          equipeKey={[
+                            sale.corretor_captador_id,
+                            sale.corretor_vendedor_id,
+                            sale.lider_captador_id,
+                            sale.lider_vendedor_id,
+                            sale.indicador_captador_id,
+                            sale.indicador_vendedor_id,
+                            ...commissionExtras.map((e) => e.user_id),
+                          ].join("|")}
+                          papeis={papeisDaEquipe(sale, commissionExtras)}
+                        />
+                      )}
                     </SaleSection>
                     <div className="flex items-center justify-end gap-2">
                       <Button
