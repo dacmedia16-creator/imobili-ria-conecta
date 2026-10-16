@@ -181,7 +181,9 @@ INSERT INTO res SELECT 'broker_links_admin_A',
   '111111111=id,222222222=id,444444444=email,555555555=telefone,666666666=conflito,777777777=sem_cadastro',
   string_agg(agent_id || '=' || via || '/' || candidatos, ',' ORDER BY agent_id) FROM public.remax_xml_broker_links();
 SELECT pg_temp.as_user('b_admin');
-INSERT INTO res SELECT 'broker_links_admin_B_isolado', count(*) = 1 AND min(agent_id) = '999999999' AND min(via) = 'id',
+-- com 20261016210000 (t_e8265cce): ID aponta para b_c1 e o e-mail do XML para b_mail -> conflito, não liga
+INSERT INTO res SELECT 'broker_links_admin_B_isolado', count(*) = 1 AND min(agent_id) = '999999999'
+  AND min(via) = CASE WHEN to_regclass('public.remax_xml_broker_vinculos') IS NULL THEN 'id' ELSE 'conflito' END,
   string_agg(agent_id || '=' || via, ',') FROM public.remax_xml_broker_links();
 
 -- 6) mapa_anuncios_xml por org, incluindo o sem coordenada

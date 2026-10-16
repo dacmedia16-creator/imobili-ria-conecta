@@ -16,6 +16,7 @@ const db = supabase as unknown as SupabaseClient;
 
 const TOM: Record<Via, string> = {
   id: "border-l-emerald-500",
+  admin: "border-l-emerald-500",
   email: "border-l-blue-500",
   telefone: "border-l-blue-500",
   conflito: "border-l-red-500",

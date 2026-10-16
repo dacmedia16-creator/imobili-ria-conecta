@@ -38,3 +38,23 @@ A coleta é registrada em `remax_xml_runs` e consultada pela UI via `remax_xml_s
   No arquivo de 15/10/2026: 1.449 anúncios (699 venda, 750 aluguel), 125 corretores e e-mail em 1.449.
 - SQL (fallback, permissões e isolamento por organização): `supabase/tests/remax_xml_feed.sql`, em container
   local com o schema de produção; esperado `TOTAL 38/38`.
+- SQL do cruzamento corretor → perfil (`20261016210000_remax_xml_brokers`): `supabase/tests/remax_xml_brokers.sql`,
+  mesmo container (migrations 20261016200000 + 20261016210000 juntas em `/tmp/mig_body.sql`); esperado `TOTAL 42/42`.
+
+## Corretores do XML → perfis (20261016210000, t_e8265cce)
+- A cada coleta boa, um gatilho em `remax_xml_runs` guarda o cadastro do corretor do XML (`remax_xml_brokers`:
+  ID, nome, e-mail, telefone) e cruza com `profiles` ativos da mesma imobiliária, nesta ordem:
+  1) ID RE/MAX; 2) e-mail normalizado; 3) telefone normalizado (sem DDI 55, sem 0, sem o 9º dígito; telefone que
+  aparece em mais de um corretor do XML, como o do escritório, não liga).
+- Vínculo novo vai para `remax_xml_broker_vinculos` com a origem (`id`, `email`, `telefone`, `admin`). Nada é
+  sobrescrito nem apagado: `profiles` não é alterado e vínculo existente continua valendo.
+- Dúvida não liga e vai para `remax_xml_broker_revisao` com o motivo: e-mail/telefone em vários perfis, ID e contato
+  apontando para perfis diferentes, perfil que já tem outro ID RE/MAX, mesmo perfil para dois corretores do XML,
+  e-mail e telefone divergentes, vínculo existente diferente do novo cruzamento (só aviso).
+- Leitura: admin, super_admin, gestor e financeiro da própria imobiliária (mesma regra de acesso de `profiles`).
+  Escrita só pelo servidor; o admin resolve a revisão com `remax_xml_revisao_resolver(id, 'confirmar_id'|'encerrar')`.
+- Números sem dado pessoal: `scripts/remax-xml-brokers-numeros.py` (Postgres local descartável, BEGIN/ROLLBACK).
+  Com o XML de 15/10/2026 e os 169 perfis ativos da Única Escolha: 111 corretores com anúncio de venda,
+  59 por ID, 41 por e-mail, 0 por telefone, 0 em conflito, 11 sem correspondência; 659 de 699 anúncios com corretor.
+- Rollback: `supabase/rollback/20261016210000_remax_xml_brokers.sql` (volta o cruzamento calculado na hora;
+  apaga cadastro, vínculos e revisão).
