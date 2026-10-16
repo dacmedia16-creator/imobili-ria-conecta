@@ -98,18 +98,33 @@ export const SITE_COLOR = "#dc2626";
 export const SITE_LABEL = "Site RE/MAX · venda";
 
 const db = supabase as unknown as SupabaseClient;
-export async function listSiteListings(): Promise<SiteListing[]> {
-  const { data, error } = await db.rpc("mapa_anuncios_site");
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as SiteListing[])
+type RawListing = Omit<SiteListing, "lat" | "lon"> & { lat: number | null; lon: number | null };
+
+/** Normaliza a resposta do banco. Sem coordenada vira NaN: marcarLocalInvalida tira do mapa e conta à parte. */
+export function normalizarAnuncios(rows: RawListing[]): SiteListing[] {
+  return rows
     .filter((l) => l.transacao === "venda") // defesa extra: o banco já devolve só venda
     .map((l) => ({
       ...l,
-      lat: Number(l.lat),
-      lon: Number(l.lon),
+      lat: l.lat == null ? Number.NaN : Number(l.lat),
+      lon: l.lon == null ? Number.NaN : Number(l.lon),
       area: l.area == null ? null : Number(l.area),
       preco: l.preco == null ? null : Number(l.preco),
     }));
+}
+
+/**
+ * Fonte principal: XML RE/MAX -> OLX (mapa_anuncios_xml, t_698be0d2). Sem XML bom (RPC ausente, erro ou
+ * nenhuma coleta boa) cai na coleta do site RE/MAX, como antes. Nunca fica sem mapa por causa do XML.
+ */
+export async function listSiteListings(): Promise<SiteListing[]> {
+  const xml = await db.rpc("mapa_anuncios_xml");
+  if (!xml.error && Array.isArray(xml.data) && xml.data.length) {
+    return normalizarAnuncios(xml.data as RawListing[]);
+  }
+  const { data, error } = await db.rpc("mapa_anuncios_site");
+  if (error) throw new Error(error.message);
+  return normalizarAnuncios((data ?? []) as RawListing[]);
 }
 
 const fold = (x: string) =>

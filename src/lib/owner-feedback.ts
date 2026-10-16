@@ -49,6 +49,55 @@ export interface ListingFeedback {
   brokerId: string | null;
   lines: PortalLine[];
   lastCollectedOn: string;
+  /** Imóvel de venda no XML RE/MAX (base oficial do Feedback, t_698be0d2). */
+  noXml?: boolean;
+  /** Nome do corretor no XML quando não está ligado a ninguém do ADM (só admin recebe). */
+  corretorXml?: string | null;
+}
+
+/** Linha de feedback_xml_base(): anúncio de venda do XML com o corretor do ADM já resolvido. */
+export interface XmlBaseRow {
+  code: string;
+  code_key: string;
+  broker_id: string | null;
+  corretor_xml: string | null;
+}
+
+/**
+ * Base do Feedback = venda do XML. Os números dos portais entram pela mesma chave de código
+ * (x/hífen/zeros). Portal sem par no XML vai para "foraDaRemax" (anunciado no portal, fora da RE/MAX).
+ * XML vazio (sem coleta boa ainda) = comportamento antigo: tudo vem dos portais, nada é escondido.
+ */
+export function mergeXmlBase(
+  base: XmlBaseRow[],
+  portal: ListingFeedback[],
+): { listings: ListingFeedback[]; foraDaRemax: ListingFeedback[] } {
+  if (!base.length) return { listings: portal, foraDaRemax: [] };
+  const porChave = new Map<string, ListingFeedback>();
+  for (const p of portal) {
+    const k = codeKey(p.code);
+    const prev = porChave.get(k);
+    // mesmo imóvel com grafias diferentes nos portais: junta as linhas (portais diferentes)
+    porChave.set(k, prev ? { ...prev, lines: [...prev.lines, ...p.lines] } : p);
+  }
+  const usadas = new Set<string>();
+  const listings: ListingFeedback[] = base.map((b) => {
+    const k = b.code_key || codeKey(b.code);
+    usadas.add(k);
+    const p = porChave.get(k);
+    return {
+      code: b.code,
+      brokerId: b.broker_id ?? p?.brokerId ?? null,
+      lines: p?.lines ?? [],
+      lastCollectedOn: p?.lastCollectedOn ?? "",
+      noXml: true,
+      corretorXml: b.broker_id ? null : b.corretor_xml,
+    };
+  });
+  const foraDaRemax = [...porChave.entries()].filter(([k]) => !usadas.has(k)).map(([, p]) => p);
+  const ord = (a: ListingFeedback, b: ListingFeedback) =>
+    totalViews(b) - totalViews(a) || a.code.localeCompare(b.code);
+  return { listings: listings.sort(ord), foraDaRemax: foraDaRemax.sort(ord) };
 }
 
 function fmtDate(iso: string | null): string {
