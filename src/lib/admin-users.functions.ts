@@ -108,6 +108,8 @@ const updateUserSchema = z.object({
   nome: fullName,
   email: z.string().trim().email().max(255),
   telefone: z.string().trim().min(10, "Telefone inválido.").max(20),
+  /** "Participa do 60 Dias MAX" (t_2ea96382). Ausente = não mexe. */
+  participa_sessenta: z.boolean().optional(),
   motivo,
 });
 
@@ -255,13 +257,43 @@ export const updateUser = createServerFn({ method: "POST" })
       throw new Error(profErr.message);
     }
 
+    // "Participa do 60 Dias MAX": mesma permissão de editar dados (dono/admin: qualquer um da
+    // imobiliária; gestor/team leader: só a própria equipe). Só grava se mudou; o gatilho da sync anota.
+    let participaMudou = false;
+    if (data.participa_sessenta !== undefined) {
+      const { data: om, error: omErr } = await admin
+        .from("organization_members")
+        .update({ participa_sessenta: data.participa_sessenta })
+        .eq("organization_id", orgId)
+        .eq("user_id", data.userId)
+        .neq("participa_sessenta", data.participa_sessenta)
+        .select("user_id");
+      if (omErr) throw new Error(omErr.message);
+      participaMudou = (om ?? []).length > 0;
+      if (participaMudou && !inPlatformContext) {
+        await logUserAction(
+          admin,
+          orgId,
+          callerId,
+          data.participa_sessenta ? "sessenta_participa_on" : "sessenta_participa_off",
+          { target_user: data.userId },
+          false,
+          null,
+        );
+      }
+    }
+
     if (inPlatformContext) {
       await logUserAction(
         admin,
         orgId,
         callerId,
         "user_updated",
-        { target_user: data.userId, email_changed: existing.user.email !== data.email },
+        {
+          target_user: data.userId,
+          email_changed: existing.user.email !== data.email,
+          ...(participaMudou ? { participa_sessenta: data.participa_sessenta } : {}),
+        },
         true,
         data.motivo,
       );

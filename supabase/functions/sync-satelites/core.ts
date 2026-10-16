@@ -62,7 +62,21 @@ export type LinhaEstado = {
   ativo: boolean;
   roles: string[];
   lider_email: string | null;
+  /** "Participa do 60 Dias MAX" (organization_members.participa_sessenta). Ausente = false. */
+  participa_sessenta?: boolean;
 };
+
+/**
+ * Quem vai ao 60 Dias MAX (regra de Denis, 16/10, t_2ea96382): dono (owner) e gestor (manager) sempre;
+ * corretor (agent) só com "Participa do 60 Dias MAX" ligado. Ninguém entra por data. Os demais satélites
+ * não mudam. Quem fica de fora NÃO é enviado: nada é criado e nada é desativado no 60 Dias.
+ */
+export function vaiAoSatelite(l: LinhaEstado, sat: Satelite): boolean {
+  if (sat !== "sessenta") return true;
+  const papel = papelNoSatelite(l.roles, sat);
+  if (papel === "owner" || papel === "manager") return true;
+  return papel === "agent" && l.participa_sessenta === true;
+}
 
 export type Mapa = {
   adm_org_id: string;
@@ -280,7 +294,10 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
       // Excluídos deste satélite nunca são enviados (decisão humana registrada em sync_exclusoes).
-      const gi = giTodos.filter(({ l }) => !excluido(exclusoes, l.adm_user_id, sat));
+      // 60 Dias: corretor sem "Participa do 60 Dias MAX" também não vai (vaiAoSatelite).
+      const gi = giTodos.filter(
+        ({ l }) => !excluido(exclusoes, l.adm_user_id, sat) && vaiAoSatelite(l, sat),
+      );
       if (!gi.length) continue;
       try {
         const resp = await enviarLote(amb, sat, {
@@ -636,7 +653,12 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
     for (const [sat, orgSat, ligado] of alvos) {
       if (!ligado || !orgSat) continue;
       const excl = dentro.filter((l) => excluido(exclusoes, l.adm_user_id, sat));
-      const enviar = dentro.filter((l) => !excluido(exclusoes, l.adm_user_id, sat));
+      const naoParticipa = dentro.filter(
+        (l) => !excluido(exclusoes, l.adm_user_id, sat) && !vaiAoSatelite(l, sat),
+      );
+      const enviar = dentro.filter(
+        (l) => !excluido(exclusoes, l.adm_user_id, sat) && vaiAoSatelite(l, sat),
+      );
       try {
         const resp = await enviarLote(amb, sat, {
           modo: "dry_run",
@@ -650,6 +672,11 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
         // Fica registrado só o id do ADM; nenhuma ação é planejada para eles.
         r.contagem.excluidos = excl.length;
         (r as Record<string, unknown>).excluidos = excl.map((l) => l.adm_user_id);
+        // 60 Dias: corretores sem a opção ligada (não enviados; só a contagem e o id do ADM).
+        if (sat === "sessenta") {
+          r.contagem.nao_participam = naoParticipa.length;
+          (r as Record<string, unknown>).nao_participam = naoParticipa.map((l) => l.adm_user_id);
+        }
         rel[sat] = r;
       } catch (err) {
         rel[sat] = { erro: String((err as Error).message ?? err).slice(0, 300) };
@@ -687,6 +714,7 @@ export function resumir(resultados: Resultado[], soNoSatelite: unknown[], modo: 
     modo,
     contagem: {
       excluidos: 0,
+      nao_participam: 0,
       pessoas: resultados.length,
       por_acao: porAcao,
       por_aviso: porAviso,

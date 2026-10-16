@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -171,7 +172,10 @@ function AdminUsers() {
     creci: string | null;
     remax_id: string | null;
     emailLocked?: boolean;
+    participa_sessenta?: boolean;
   } | null>(null);
+  /** "Participa do 60 Dias MAX" por usuário (organization_members.participa_sessenta). */
+  const [participaSessenta, setParticipaSessenta] = useState<Record<string, boolean>>({});
   const createUserFn = useServerFn(createUser);
   const listLastSignInsFn = useServerFn(listLastSignIns);
   const listAgencyRolesFn = useServerFn(listAgencyRoles);
@@ -260,6 +264,13 @@ function AdminUsers() {
       .select("id, nome, lider_id, parent_team_id");
     const { data: t } = await supabase.from("team_members").select("membro_id, team_id");
     const { data: cl } = await supabase.from("team_co_leaders").select("team_id, user_id");
+    // RLS de organization_members: admin/gestor/team leader leem os membros da própria imobiliária.
+    const { data: oms } = await supabase
+      .from("organization_members")
+      .select("user_id, participa_sessenta");
+    setParticipaSessenta(
+      Object.fromEntries((oms ?? []).map((m) => [m.user_id, m.participa_sessenta === true])),
+    );
     let registrations: Awaited<ReturnType<typeof profileRegistrations>> = [];
     try {
       registrations = await profileRegistrations();
@@ -562,6 +573,7 @@ function AdminUsers() {
                     creci: u.creci ?? null,
                     remax_id: u.remax_id ?? null,
                     emailLocked: !dEmail.allowed,
+                    participa_sessenta: participaSessenta[u.id] === true,
                   })
                 }
               >
@@ -1033,6 +1045,7 @@ function EditUserDialog({
     creci: string | null;
     remax_id: string | null;
     emailLocked?: boolean;
+    participa_sessenta?: boolean;
   };
   onDone: () => void;
   updateFn: (args: {
@@ -1044,11 +1057,13 @@ function EditUserDialog({
       cpf: string | null;
       creci: string | null;
       remax_id: string | null;
+      participa_sessenta?: boolean;
       motivo?: string | null;
     };
   }) => Promise<unknown>;
 }) {
   const [motivo, setMotivo] = useState("");
+  const [participa, setParticipa] = useState(target.participa_sessenta === true);
   const [nome, setNome] = useState(target.nome);
   const [email, setEmail] = useState(target.email);
   const [telefone, setTelefone] = useState(target.telefone ?? "");
@@ -1077,6 +1092,7 @@ function EditUserDialog({
           cpf: cpf || null,
           creci: creci || null,
           remax_id: remaxId || null,
+          participa_sessenta: participa,
           motivo: requireReason ? motivo.trim() : null,
         },
       });
@@ -1169,6 +1185,16 @@ function EditUserDialog({
             maxLength={9}
             onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
           />
+        </div>
+        <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+          <div>
+            <Label htmlFor="eu-sessenta">Participa do 60 Dias MAX</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Corretores só entram no 60 Dias MAX com esta opção ligada. Donos e gestores ativos
+              entram sempre.
+            </p>
+          </div>
+          <Switch id="eu-sessenta" checked={participa} onCheckedChange={setParticipa} />
         </div>
         {requireReason && <ReasonField id="eu-motivo" value={motivo} onChange={setMotivo} />}
         <DialogFooter>

@@ -1392,18 +1392,21 @@ export type Database = {
           ativo: boolean;
           created_at: string;
           organization_id: string;
+          participa_sessenta: boolean;
           user_id: string;
         };
         Insert: {
           ativo?: boolean;
           created_at?: string;
           organization_id?: string;
+          participa_sessenta?: boolean;
           user_id: string;
         };
         Update: {
           ativo?: boolean;
           created_at?: string;
           organization_id?: string;
+          participa_sessenta?: boolean;
           user_id?: string;
         };
         Relationships: [
