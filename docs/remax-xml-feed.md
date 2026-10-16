@@ -58,3 +58,21 @@ A coleta é registrada em `remax_xml_runs` e consultada pela UI via `remax_xml_s
   59 por ID, 41 por e-mail, 0 por telefone, 0 em conflito, 11 sem correspondência; 659 de 699 anúncios com corretor.
 - Rollback: `supabase/rollback/20261016210000_remax_xml_brokers.sql` (volta o cruzamento calculado na hora;
   apaga cadastro, vínculos e revisão).
+
+## LGPD (parecer supervisionado t_779a37f1; não substitui advogado/DPO)
+
+Já atendido neste PR:
+- Minimização: do corretor só ficam ID RE/MAX, nome, e-mail e telefone; demais campos pessoais do XML são ignorados.
+- Descarte: corretor que some do XML por mais de 60 dias tem o cadastro (nome/e-mail/telefone) apagado de
+  `remax_xml_brokers`; o vínculo com o perfil fica só com ID e origem, para manter o histórico.
+- Segurança: URL do XML só como secret do servidor (`REMAX_XML_FEEDS`), nunca no cliente, no repositório ou em
+  erro/log (teste "falha sem expor a URL secreta"); nada de e-mail/telefone em log; a RPC de revisão não devolve
+  e-mail nem telefone; RLS por organização testada em SQL; fixtures só com dados fictícios (`exemplo.test`).
+- Conflito nunca liga sozinho: vai para revisão manual.
+
+Pendente (depende de Denis e/ou advogado):
+- Confirmar por escrito com a RE/MAX Brasil/gestor do feed o uso do XML fora do Grupo OLX (risco ALTO a validar).
+- Registrar LIA simples (legítimo interesse) e atualizar o inventário de dados (ROPA).
+- Validar o prazo de 60 dias de descarte com o advogado.
+- Incluir os corretores no aviso de privacidade do ADM MAX e indicar canal para direitos do titular.
+- Rotacionar o código de acesso do XML se ele vazar.

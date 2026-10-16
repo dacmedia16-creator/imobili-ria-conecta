@@ -40,7 +40,7 @@ const item = (
   </Location>
   <ContactInfo>
     <Name>Corretor Exemplo</Name>
-    <Email>Exemplo@REMAX.com.br</Email>
+    <Email>Exemplo@EXEMPLO.test</Email>
     <Telephone>1500000000</Telephone>
     <OfficeName>REMAX TESTE</OfficeName>
     <Location><City>Escritorio</City><Latitude>1</Latitude><Longitude>1</Longitude></Location>
@@ -69,7 +69,7 @@ describe("mapXmlListing", () => {
       url: "https://www.remax.com.br/pt-br/imoveis/apartamento/venda/sorocaba/123456789-42",
       escritorio: "REMAX TESTE",
       corretor_nome: "Corretor Exemplo",
-      corretor_email: "exemplo@remax.com.br",
+      corretor_email: "exemplo@exemplo.test",
       corretor_telefone: "1500000000",
     });
   });
