@@ -34,6 +34,7 @@ import {
   type FeedbackAction,
 } from "@/lib/owner-feedback-actions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { VinculosXmlPanel } from "@/components/feedback/VinculosXmlPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -67,6 +68,7 @@ const delta = (x: number | null) =>
 function FeedbackPage() {
   const { user, hasAny } = useAuth();
   const isManager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
+  const isAdmin = hasAny(["admin", "super_admin"]);
   const [rows, setRows] = useState<Snapshot[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   // "Sem corretor": nome que o site RE/MAX mostra para o ID (só admin recebe; não cria usuário).
@@ -241,7 +243,9 @@ function FeedbackPage() {
                           ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
                           : "Sem corretor")}
                   {isManager && " · "}
-                  {l.lines.length ? `${l.lines.length} portal(is)` : "Sem números dos portais ainda"}
+                  {l.lines.length
+                    ? `${l.lines.length} portal(is)`
+                    : "Sem números dos portais ainda"}
                 </div>
                 <Pill tom="blue" className="mt-1.5">
                   Sua vez: revisar e enviar
@@ -260,14 +264,15 @@ function FeedbackPage() {
           )}
         </div>
       )}
+      {!loading && isAdmin && xmlBase.length > 0 && <VinculosXmlPanel names={names} />}
       {!loading && foraDaRemax.length > 0 && (
         <details className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm">
           <summary className="cursor-pointer font-medium text-amber-900">
             Anunciado no portal, fora da RE/MAX ({foraDaRemax.length})
           </summary>
           <p className="mt-2 text-xs text-muted-foreground">
-            Estes códigos têm números nos portais, mas não estão no XML de venda da RE/MAX. Confira se o
-            anúncio foi retirado ou se o código está diferente.
+            Estes códigos têm números nos portais, mas não estão no XML de venda da RE/MAX. Confira
+            se o anúncio foi retirado ou se o código está diferente.
           </p>
           <div className="mt-2 grid gap-1">
             {foraDaRemax.slice(0, 200).map((l) => (

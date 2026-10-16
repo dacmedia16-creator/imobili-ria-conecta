@@ -39,6 +39,7 @@ import {
   anuncioComLocal,
   filterSiteListingsMapa,
   textoForaDoMapa,
+  textoSemLocalXml,
   SITE_COLOR,
   SITE_LABEL,
   siteFiltroInaplicavel,
@@ -98,7 +99,16 @@ function MapaCaptacoesPage() {
   const navigate = useNavigate();
   // Camada "Site RE/MAX · venda" (mesmo hook do Painel). Começa LIGADA nesta tela: quem abre o
   // mapa quer ver os imóveis; o interruptor geral é a opção da imobiliária (mapa_site_enabled).
-  const { site, erro: siteErro, soltos, porCaptacao, foraDoMapa } = useSiteListings(agency);
+  const {
+    site,
+    erro: siteErro,
+    soltos,
+    porCaptacao,
+    foraDoMapa,
+    semLocalXml,
+    fonte: siteFonte,
+  } = useSiteListings(agency);
+  const fonteTxt = siteFonte === "xml" ? "XML RE/MAX" : "site RE/MAX";
   const [siteShown, setSiteShown] = useState(true);
 
   useEffect(() => {
@@ -344,7 +354,12 @@ function MapaCaptacoesPage() {
             {siteShown && soltos.length > 0 && (
               <p className="text-xs text-muted-foreground" data-testid="legenda-site">
                 {siteAviso ??
-                  `${filtradas.length} ${filtradas.length === 1 ? "captação assinada" : "captações assinadas"} · ${siteNoMapa.length} ${siteNoMapa.length === 1 ? "imóvel" : "imóveis"} do site. Pinos vermelhos menores são imóveis de venda anunciados no site RE/MAX (coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}); captação com contorno vermelho já está anunciada no site. Os filtros de bairro/cidade, tipo, preço e captador (corretor do anúncio) valem também para eles; o de equipe vale só para captações. ${textoForaDoMapa(foraDoMapa)}`}
+                  `${filtradas.length} ${filtradas.length === 1 ? "captação assinada" : "captações assinadas"} · ${siteNoMapa.length} ${siteNoMapa.length === 1 ? "imóvel" : "imóveis"} RE/MAX. Pinos vermelhos menores são imóveis de venda anunciados pela RE/MAX (${fonteTxt}, coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}); captação com contorno vermelho já está anunciada. Os filtros de bairro/cidade, tipo, preço e captador (corretor do anúncio) valem também para eles; o de equipe vale só para captações. ${textoForaDoMapa(foraDoMapa, siteFonte)}`}
+              </p>
+            )}
+            {siteShown && semLocalXml.length > 0 && (
+              <p className="text-xs text-muted-foreground" data-testid="sem-local-xml">
+                {textoSemLocalXml(semLocalXml)}
               </p>
             )}
             {siteErro && (

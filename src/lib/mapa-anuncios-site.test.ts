@@ -18,6 +18,8 @@ import {
   coordenadaNoBrasil,
   marcarLocalInvalida,
   textoForaDoMapa,
+  textoSemLocalXml,
+  normalizarAnuncios,
   SITE_COLOR,
   type SiteListing,
 } from "./mapa-anuncios-site";
@@ -228,8 +230,38 @@ describe("localização inválida vinda do site (t_9f374e4d)", () => {
     expect(s.foraDoMapa).toBe(4);
     expect(s.soltos.every((l) => coordenadaNoBrasil(l.lat, l.lon))).toBe(true);
     expect(s.soltos.find((l) => l.code === "630601258-6")).toBeUndefined();
-    expect(textoForaDoMapa(4)).toContain("4 imóveis do site ficaram fora do mapa");
-    expect(textoForaDoMapa(1)).toContain("1 imóvel do site ficou");
+    expect(textoForaDoMapa(4)).toContain("4 imóveis ficaram fora do mapa");
+    expect(textoForaDoMapa(4)).toContain("no site RE/MAX");
+    expect(textoForaDoMapa(1, "xml")).toContain(
+      "1 imóvel ficou fora do mapa (localização inválida no XML RE/MAX)",
+    );
     expect(textoForaDoMapa(0)).toBe("");
+  });
+  it("XML sem coordenada: lista à parte com os códigos, fora do mapa e fora da contagem genérica", () => {
+    const xml = normalizarAnuncios(
+      [
+        { ...mk({ code: "630601201-106" }), lat: null, lon: null },
+        { ...mk({ code: "630591053-564" }), lat: null, lon: null },
+        mk({ code: "630601201-1", lat: -23.5, lon: -47.46 }),
+      ],
+      "xml",
+    );
+    const s = splitSiteListings(marcarLocalInvalida(xml));
+    expect(s.semLocalXml).toEqual(["630591053-564", "630601201-106"]);
+    expect(s.foraDoMapa).toBe(0);
+    expect(s.soltos.map((l) => l.code)).toEqual(["630601201-1"]);
+    expect(textoSemLocalXml(s.semLocalXml)).toBe(
+      "Sem localização no XML (2, fora do mapa): 630591053-564, 630601201-106.",
+    );
+    expect(textoSemLocalXml([])).toBe("");
+  });
+  it("coleta do site sem coordenada continua só na contagem genérica", () => {
+    const site = normalizarAnuncios(
+      [{ ...mk({ code: "630601201-9" }), lat: null, lon: null }],
+      "site",
+    );
+    const s = splitSiteListings(marcarLocalInvalida(site));
+    expect(s.semLocalXml).toEqual([]);
+    expect(s.foraDoMapa).toBe(1);
   });
 });

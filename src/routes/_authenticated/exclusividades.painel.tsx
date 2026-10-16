@@ -32,6 +32,7 @@ import {
   SITE_COLOR,
   SITE_LABEL,
   textoForaDoMapa,
+  textoSemLocalXml,
 } from "@/lib/mapa-anuncios-site";
 import { useSiteListings } from "@/hooks/use-site-listings";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
@@ -138,7 +139,15 @@ function CapturesDashboard() {
   const [locating, setLocating] = useState<{ done: number; total: number } | null>(null);
   // Camada "anúncios do site RE/MAX" (só venda): desligada por padrão (são centenas de pinos).
   // Mesma carga/regras da tela "Mapa de captações" (hook compartilhado, t_17cb27a7).
-  const { site, erro: siteErro, soltos, porCaptacao, foraDoMapa } = useSiteListings(agency);
+  const {
+    site,
+    erro: siteErro,
+    soltos,
+    porCaptacao,
+    foraDoMapa,
+    semLocalXml,
+    fonte: siteFonte,
+  } = useSiteListings(agency);
   const [siteShown, setSiteShown] = useState(false);
   const started = useRef(false);
 
@@ -350,7 +359,12 @@ function CapturesDashboard() {
                   <p className="text-xs text-muted-foreground">
                     {filters.situacao || filters.unidade
                       ? "Anúncios do site ocultos: os filtros de situação e unidade valem só para captações."
-                      : `${siteOnMap.length} anúncio(s) do site RE/MAX no mapa (pinos vermelhos menores), da coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}. Captação com contorno vermelho já está anunciada no site. ${textoForaDoMapa(foraDoMapa)}`}
+                      : `${siteOnMap.length} anúncio(s) RE/MAX de venda no mapa (pinos vermelhos menores), do ${siteFonte === "xml" ? "XML RE/MAX" : "site RE/MAX"}, coleta de ${site[0] ? formatDateBR(site[0].coleta.slice(0, 10)) : "—"}. Captação com contorno vermelho já está anunciada. ${textoForaDoMapa(foraDoMapa, siteFonte)}`}
+                  </p>
+                )}
+                {siteShown && semLocalXml.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="sem-local-xml">
+                    {textoSemLocalXml(semLocalXml)}
                   </p>
                 )}
                 {siteErro && (
