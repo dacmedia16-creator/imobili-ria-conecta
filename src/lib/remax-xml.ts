@@ -130,11 +130,69 @@ export function mapXmlListing(item: string): XmlListing | null {
   };
 }
 
-/** Lê o arquivo inteiro. Lança erro se não for um feed VRSync (ex.: página de erro em HTML). */
-export function parseVrsync(xml: string): XmlParse {
+/**
+ * Chave única do anúncio, a MESMA de public.portal_code_key / portal_listing_snapshots:
+ * "630601005-0114", "630601005x114" e "630601005XX114" viram "630601005-114" (une os pares -93/x93).
+ */
+export { codeKey } from "./feedback-captacao";
+
+/** Resumo de QUALQUER anúncio do XML (venda ou aluguel), para conferência e cruzamento de corretores. */
+export interface XmlAnuncio {
+  /** Código como veio no XML (formato com hífen, ex.: 630601201-93). */
+  code: string;
+  transacao: "venda" | "aluguel" | "outro";
+  escritorio: string | null;
+  /** ID RE/MAX do corretor = 9 dígitos iniciais do código; null se o código fugir do padrão. */
+  remax_id: string | null;
+  corretor_nome: string | null;
+  corretor_email: string | null;
+  corretor_telefone: string | null;
+}
+
+/** Lê o resumo de um <Listing> (sem filtrar aluguel). */
+export function resumoListing(item: string): XmlAnuncio {
+  const code = (tag(item, "ListingID") ?? "").trim();
+  const tx = tag(item, "TransactionType");
+  const contact = tag(item, "ContactInfo") ?? "";
+  const m = /^([0-9]{9})(?:-|x{1,2})[0-9]+$/i.exec(code);
+  return {
+    code,
+    transacao: tx === "For Sale" ? "venda" : tx === "For Rent" ? "aluguel" : "outro",
+    escritorio: cut(tag(contact, "OfficeName"), 120),
+    remax_id: m ? m[1] : null,
+    corretor_nome: cut(tag(contact, "Name"), 160),
+    corretor_email: cut(tag(contact, "Email")?.toLowerCase() ?? null, 200),
+    corretor_telefone: cut(tag(contact, "Telephone"), 30),
+  };
+}
+
+function listingsDe(xml: string): string[] {
   const s = xml.replace(/^\uFEFF/, "");
   if (!/<ListingDataFeed[\s>]/.test(s)) throw new Error("Arquivo não é um XML VRSync");
-  const items = s.match(/<Listing>[\s\S]*?<\/Listing>/g) ?? [];
+  return s.match(/<Listing>[\s\S]*?<\/Listing>/g) ?? [];
+}
+
+/** Todos os anúncios (venda + aluguel) em formato resumido. */
+export function listarAnunciosVrsync(xml: string): XmlAnuncio[] {
+  return listingsDe(xml).map(resumoListing);
+}
+
+/** Contagens do arquivo (conferência; sem dados pessoais). */
+export function contagemVrsync(anuncios: XmlAnuncio[]) {
+  const ids = new Set(anuncios.map((a) => a.remax_id).filter(Boolean));
+  return {
+    total: anuncios.length,
+    venda: anuncios.filter((a) => a.transacao === "venda").length,
+    aluguel: anuncios.filter((a) => a.transacao === "aluguel").length,
+    corretores: ids.size,
+    com_email: anuncios.filter((a) => a.corretor_email).length,
+    com_telefone: anuncios.filter((a) => a.corretor_telefone).length,
+  };
+}
+
+/** Lê o arquivo inteiro. Lança erro se não for um feed VRSync (ex.: página de erro em HTML). */
+export function parseVrsync(xml: string): XmlParse {
+  const items = listingsDe(xml);
   const venda: XmlListing[] = [];
   for (const it of items) {
     const m = mapXmlListing(it);
@@ -191,7 +249,10 @@ export async function runRemaxXmlCollect(
       log.push(`${t.org}: ${JSON.stringify(r)}`);
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      const msg = raw.replaceAll(t.url, "[url]").replace(/https?:\/\/\S+/g, "[url]").slice(0, 200);
+      const msg = raw
+        .replaceAll(t.url, "[url]")
+        .replace(/https?:\/\/\S+/g, "[url]")
+        .slice(0, 200);
       await db.failed(t.org, msg, started).catch(() => undefined);
       log.push(`${t.org}: falhou (${msg})`);
     }
