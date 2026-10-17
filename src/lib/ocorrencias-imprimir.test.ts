@@ -64,7 +64,7 @@ describe("contrato de impressão de ocorrências concluídas", () => {
     expect(podeImprimirOcorrenciasConcluidas([])).toBe(false);
     expect(podeImprimirOcorrenciasConcluidas(["corretor", "gestor"])).toBe(true);
     expect(route).toMatch(
-      /requireRoles\(context\.auth, podeImprimirOcorrenciasConcluidas, \{\s*denyOnError: true,/,
+      /requireRoles\(context\.auth, podeImprimirOcorrenciasConcluidas, \{\s*denyOnError: true\s*\}\)/,
     );
     expect(list).toContain("{canPrint && (");
     expect(list).toContain("if (!canPrint)");
@@ -72,6 +72,25 @@ describe("contrato de impressão de ocorrências concluídas", () => {
     expect(migration).not.toMatch(
       /'corretor'|'financeiro'|'juridico'|'lancamento'|'admin'|'super_admin'/,
     );
+  });
+
+  it("por perfil: botão e guarda usam a mesma regra, e quem é negado vê aviso", () => {
+    const esperado: Record<string, boolean> = {
+      admin: false,
+      super_admin: false,
+      financeiro: false,
+      corretor: false,
+      gestor: true,
+      team_leader: true,
+    };
+    for (const [role, pode] of Object.entries(esperado)) {
+      // Botão "Imprimir selecionadas" (canPrint) e guarda da rota leem a mesma função.
+      expect(podeImprimirOcorrenciasConcluidas([role])).toBe(pode);
+      expect(podeVerOcorrenciasConcluidas([role])).toBe(true);
+    }
+    expect(list).toContain("const canPrint = podeImprimirOcorrenciasConcluidas(roles);");
+    // Nada de redirecionamento silencioso: a guarda mostra "Acesso não autorizado.".
+    expect(route).not.toContain("notify: false");
   });
 
   it("limita a RPC a perfil ativo e ocorrência concluída sem alterar RLS", () => {
