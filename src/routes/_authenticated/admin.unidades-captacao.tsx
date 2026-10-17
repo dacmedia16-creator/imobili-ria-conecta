@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
+import { guardExclusiveUnitsAdminRoute } from "@/lib/exclusive-captures-guard";
 import { listUnits, saveUnit } from "@/lib/exclusive-captures-db";
 import {
   UNIT_FIELDS,
@@ -22,7 +22,7 @@ import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/
 
 export const Route = createFileRoute("/_authenticated/admin/unidades-captacao")({
   head: () => ({ meta: [{ title: "Unidades da captação — Administração" }] }),
-  beforeLoad: guardExclusiveRoute,
+  beforeLoad: guardExclusiveUnitsAdminRoute,
   component: UnitsAdmin,
 });
 

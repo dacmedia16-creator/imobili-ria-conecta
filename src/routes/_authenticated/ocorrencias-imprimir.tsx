@@ -55,10 +55,8 @@ const printDocumentsSchema = z.array(
 export const Route = createFileRoute("/_authenticated/ocorrencias-imprimir")({
   head: () => ({ meta: [{ title: "Imprimir ocorrências" }] }),
   beforeLoad: ({ context }) =>
-    requireRoles(context.auth, podeImprimirOcorrenciasConcluidas, {
-      denyOnError: true,
-      notify: false,
-    }),
+    // Mesma regra da RPC imprimir_ocorrencias_concluidas (gestor/team_leader); nega com aviso.
+    requireRoles(context.auth, podeImprimirOcorrenciasConcluidas, { denyOnError: true }),
   component: OcorrenciasImprimirPage,
 });
 

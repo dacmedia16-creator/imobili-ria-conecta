@@ -5,8 +5,10 @@ const mocks = vi.hoisted(() => ({
   enabled: vi.fn(),
   from: vi.fn(),
   redirect: vi.fn(() => new Error("Rota bloqueada")),
+  toastError: vi.fn(),
 }));
 vi.mock("@tanstack/react-router", () => ({ redirect: mocks.redirect }));
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { getSession: mocks.getSession }, from: mocks.from },
 }));
@@ -14,7 +16,7 @@ vi.mock("./exclusive-captures-db", () => ({ exclusiveEnabled: mocks.enabled }));
 const platform = vi.hoisted(() => ({ state: vi.fn() }));
 vi.mock("./platform-context", () => ({ fetchPlatformState: platform.state }));
 
-import { guardExclusiveRoute } from "./exclusive-captures-guard";
+import { guardExclusiveRoute, guardExclusiveUnitsAdminRoute } from "./exclusive-captures-guard";
 
 describe("guarda de rota das captações", () => {
   let active: boolean;
@@ -82,5 +84,46 @@ describe("guarda de rota das captações", () => {
       context: { organizationId: "o", organizationName: "X", expiresAt: "2999-01-01T00:00:00Z" },
     });
     await expect(guardExclusiveRoute()).rejects.toThrow("Rota bloqueada");
+  });
+
+  describe("cadastro de unidades (/admin/unidades-captacao)", () => {
+    it.each(["admin", "super_admin"])("libera %s, como o menu e a RPC", async (role) => {
+      roles = [{ role }];
+      await expect(guardExclusiveUnitsAdminRoute()).resolves.toBeUndefined();
+      expect(mocks.toastError).not.toHaveBeenCalled();
+    });
+
+    it.each(["corretor", "gestor", "team_leader", "financeiro"])(
+      "nega %s pela URL direta, com aviso",
+      async (role) => {
+        roles = [{ role }];
+        await expect(guardExclusiveUnitsAdminRoute()).rejects.toThrow("Rota bloqueada");
+        expect(mocks.redirect).toHaveBeenCalledWith({ to: "/dashboard" });
+        expect(mocks.toastError).toHaveBeenCalledWith("Acesso não autorizado.");
+      },
+    );
+
+    it("nega admin inativo", async () => {
+      roles = [{ role: "admin" }];
+      active = false;
+      await expect(guardExclusiveUnitsAdminRoute()).rejects.toThrow("Rota bloqueada");
+    });
+
+    it("libera o super-admin da plataforma em contexto de imobiliária", async () => {
+      platform.state.mockResolvedValue({
+        isPlatformAdmin: true,
+        context: { organizationId: "o", organizationName: "X", expiresAt: "2999-01-01T00:00:00Z" },
+      });
+      roles = [];
+      await expect(guardExclusiveUnitsAdminRoute()).resolves.toBeUndefined();
+    });
+
+    it("a captação continua aberta a corretor, gestor e TL", async () => {
+      for (const role of ["corretor", "gestor", "team_leader"]) {
+        roles = [{ role }];
+        await expect(guardExclusiveRoute()).resolves.toBeUndefined();
+      }
+      expect(mocks.toastError).not.toHaveBeenCalled();
+    });
   });
 });
