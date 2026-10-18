@@ -244,6 +244,15 @@ export class ClicksignClient {
       data: { id: envelopeId, type: "envelopes", attributes: { status: "running" } },
     });
   }
+  /**
+   * Avisa todos os signatários por e-mail (passo separado da ativação na v3: ativar NÃO envia
+   * e-mail). Sem `message`, a Clicksign usa a mensagem padrão do envelope.
+   */
+  notify(envelopeId: string) {
+    return this.call("notify", "POST", `/envelopes/${envelopeId}/notifications`, {
+      data: { type: "notifications", attributes: {} },
+    });
+  }
   getEnvelope(envelopeId: string) {
     return this.call("get_envelope", "GET", `/envelopes/${envelopeId}`);
   }
@@ -337,6 +346,27 @@ export async function buildEnvelope(
     );
     if (activating && !deleted) throw new ClicksignActivationUnknownError(err);
     throw err;
+  }
+}
+
+/**
+ * Notifica os signatários de um envelope JÁ ativo. Nunca lança: o envelope está rodando e nada pode
+ * ser revertido. Retorna null se todos foram avisados, ou um código curto do erro (sem e-mail).
+ * Resposta 2xx com algum `notified: false` no `summary` conta como falha parcial.
+ */
+export async function notifySigners(
+  client: ClicksignClient,
+  envelopeId: string,
+): Promise<string | null> {
+  try {
+    const r = await client.notify(envelopeId);
+    const summary = r?.data?.attributes?.summary;
+    if (Array.isArray(summary) && summary.some((s: any) => s?.notified === false)) {
+      return "notify:partial";
+    }
+    return null;
+  } catch (e) {
+    return e instanceof ClicksignError ? `${e.step}:${e.status}` : "notify:internal";
   }
 }
 

@@ -8,7 +8,9 @@ import {
   ClicksignClient,
   ClicksignError,
   deadlineIso,
+  notifySigners,
   sha256Hex,
+  type EnvelopeResult,
   type FetchLike,
   type PersonInput,
   WITNESS_COUNT,
@@ -20,6 +22,8 @@ export const ACTIVATE_UNKNOWN_MSG =
 export const POST_ACTIVATE_MSG =
   "Enviado à Clicksign, mas o registro no ADM MAX não foi concluído. Não reenvie; avise o suporte " +
   "para atualizar o status da captação.";
+export const NOTIFY_FAILED_MSG =
+  "Enviado, mas a notificação falhou; peça reenvio de aviso ao suporte.";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -135,11 +139,12 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   }
 
   // Fase 1: até a ativação confirmada. document_key é gravado ANTES de ativar (webhook acha o envelope).
+  const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);
+  let built: EnvelopeResult;
   try {
     const pdf = await deps.loadPdf(captureId, ctx.gerado.id);
-    const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);
     const prefix = ctx.testMode ? "TESTE - " : "";
-    await buildEnvelope(
+    built = await buildEnvelope(
       client,
       {
         name: `${prefix}Termo de exclusividade - captação ${captureId.slice(0, 8)}`,
@@ -185,31 +190,40 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
     );
   }
 
-  // Fase 2: o envelope JÁ está rodando na Clicksign (e-mails enviados). Nenhuma falha local daqui em
-  // diante pode virar 'error' (isso liberaria um reenvio real em dobro) nem dizer "nada foi enviado".
+  // Fase 2: o envelope JÁ está rodando na Clicksign. Nenhuma falha local daqui em diante pode virar
+  // 'error' (isso liberaria um reenvio real em dobro) nem dizer "nada foi enviado".
+  // Na v3 ativar NÃO dispara e-mail: a notificação é um passo separado, feito logo após a ativação.
+  // Se falhar, só registra e avisa na tela (não reverte o envelope nem libera reenvio).
+  const notifyErr = await notifySigners(client, built.envelopeId);
+  const notifyCode = notifyErr ? `notify_failed:${notifyErr}` : null;
+  const ok = { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length };
   try {
     await deps.markSent(envelopeRow);
   } catch {
     await deps
       .updateEnvelope(envelopeRow, {
         status: "running",
-        error_code: "post_activate:mark_sent",
+        error_code: `post_activate:mark_sent${notifyCode ? `|${notifyCode}` : ""}`,
         updated_at: new Date().toISOString(),
       })
       .catch(() => undefined);
     return {
       status: 200,
       body: {
-        ok: true,
-        status: "running",
-        is_test: ctx.testMode,
-        signers: signers.length,
-        warning: POST_ACTIVATE_MSG,
+        ...ok,
+        warning: notifyCode ? `${POST_ACTIVATE_MSG} ${NOTIFY_FAILED_MSG}` : POST_ACTIVATE_MSG,
+        ...(notifyCode ? { code: notifyCode } : {}),
       },
     };
   }
-  return {
-    status: 200,
-    body: { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length },
-  };
+  if (notifyCode) {
+    await deps
+      .updateEnvelope(envelopeRow, {
+        error_code: notifyCode,
+        updated_at: new Date().toISOString(),
+      })
+      .catch(() => undefined);
+    return { status: 200, body: { ...ok, warning: NOTIFY_FAILED_MSG, code: notifyCode } };
+  }
+  return { status: 200, body: ok };
 }

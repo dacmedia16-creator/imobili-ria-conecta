@@ -201,6 +201,11 @@ describe("clicksign-send (core)", () => {
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ ok: true, signers: 5 });
     expect(cs.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+    // Ativar não envia e-mail na v3: notifica os signatários logo depois da ativação, uma vez.
+    const keys = cs.calls.map((c) => `${c.method} ${c.path.replace(/[0-9a-f-]{36}/g, ":id")}`);
+    expect(keys.slice(-2)).toEqual(["PATCH /envelopes/:id", "POST /envelopes/:id/notifications"]);
+    expect(keys.filter((k) => k.endsWith("/notifications"))).toHaveLength(1);
+    expect(r.body).not.toHaveProperty("warning");
     expect(deps.markSent).toHaveBeenCalledWith("row-1");
     const row = (deps.insertEnvelope as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(JSON.stringify(row)).not.toMatch(/@/);
@@ -345,7 +350,76 @@ describe("clicksign-send (core)", () => {
     expect(r.status).toBe(502);
     expect(r.body.code).toBe("activate:422");
     expect(cs.calls.some((c) => c.method === "DELETE")).toBe(true);
+    expect(cs.calls.some((c) => c.path.endsWith("/notifications"))).toBe(false);
     expect(updates.at(-1)).toMatchObject({ status: "error" });
+  });
+  it("notificação falha DEPOIS da ativação: não reverte, não libera reenvio, registra e avisa", async () => {
+    const { deps, cs, updates } = sendDeps({}, "POST /envelopes/:id/notifications");
+    const r = await handleSend(deps, body);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({
+      ok: true,
+      status: "running",
+      code: "notify_failed:notify:422",
+      warning: "Enviado, mas a notificação falhou; peça reenvio de aviso ao suporte.",
+    });
+    expect(JSON.stringify(r.body)).not.toMatch(/@/);
+    expect(cs.calls.some((c) => c.method === "DELETE")).toBe(false);
+    expect(cs.calls.filter((c) => c.path.endsWith("/notifications"))).toHaveLength(1);
+    expect(deps.markSent).toHaveBeenCalledWith("row-1");
+    expect(updates.some((u) => u.status === "error")).toBe(false);
+    expect(updates.at(-1)).toMatchObject({ error_code: "notify_failed:notify:422" });
+    expect(updates.at(-1)).not.toHaveProperty("status");
+    const env = {
+      status: "running" as const,
+      is_test: false,
+      created_at: "",
+      error_code: "notify_failed:notify:422",
+      signed: false,
+    };
+    expect(canStartEnvelope(env)).toBe(false);
+    expect(envelopeStatusLabel(env)).toMatch(
+      /notificação falhou; peça reenvio de aviso ao suporte/,
+    );
+  });
+  it("notificação 201 com algum signatário notified=false conta como falha parcial", async () => {
+    const { deps, cs } = sendDeps();
+    const baseFetch = cs.fetch.getMockImplementation()!;
+    deps.fetch = vi.fn(async (url: string, init: RequestInit) => {
+      if (url.endsWith("/notifications")) {
+        const summary = [
+          { signer_id: "a", notified: true },
+          { signer_id: "b", notified: false },
+        ];
+        return new Response(JSON.stringify({ data: { attributes: { summary } } }), {
+          status: 201,
+        });
+      }
+      return baseFetch(url, init);
+    });
+    const r = await handleSend(deps, body);
+    expect(r).toMatchObject({
+      status: 200,
+      body: { ok: true, code: "notify_failed:notify:partial" },
+    });
+  });
+  it("notificação e markSent falham: aviso junta as duas mensagens, segue bloqueado", async () => {
+    const { deps, updates } = sendDeps(
+      {
+        markSent: vi.fn(async () => {
+          throw new Error("db fora");
+        }),
+      },
+      "POST /envelopes/:id/notifications",
+    );
+    const r = await handleSend(deps, body);
+    expect(r.status).toBe(200);
+    expect(r.body.warning).toMatch(/Não reenvie/);
+    expect(r.body.warning).toMatch(/notificação falhou/);
+    expect(updates.at(-1)).toMatchObject({
+      status: "running",
+      error_code: "post_activate:mark_sent|notify_failed:notify:422",
+    });
   });
 });
 

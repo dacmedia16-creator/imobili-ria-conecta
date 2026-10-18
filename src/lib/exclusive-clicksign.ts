@@ -176,6 +176,9 @@ export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
       if (e.error_code?.startsWith("post_activate:")) {
         return `Enviado à Clicksign${teste}, mas o registro no ADM MAX ficou incompleto. Não reenvie; avise o suporte.`;
       }
+      if (e.error_code?.startsWith("notify_failed:")) {
+        return `Enviado${teste}, mas a notificação falhou; peça reenvio de aviso ao suporte.`;
+      }
       return `Em assinatura na Clicksign${teste}. Quando todos assinarem, o PDF assinado é anexado sozinho.`;
     case "closed":
       return e.signed
