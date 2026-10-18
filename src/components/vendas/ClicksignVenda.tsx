@@ -39,6 +39,7 @@ import {
   cancelSaleClicksign,
   canCancelSaleEnvelope,
   canStartSaleEnvelope,
+  CLICKSIGN_SEND_STATUSES,
   clicksignSaleCandidates,
   clicksignSaleSigned,
   editSaleSigner,
@@ -247,7 +248,7 @@ export function ClicksignVenda({
         </div>
       )}
 
-      {canAct && status === "contrato_ok_corretor" && canStartSaleEnvelope(env) && (
+      {canAct && CLICKSIGN_SEND_STATUSES.includes(status) && canStartSaleEnvelope(env) && (
         <EnvioDialog
           db={db}
           saleId={saleId}

@@ -306,7 +306,7 @@ RESET ROLE;
 -- e-mail do parceiro (aditivo)
 SELECT pg_temp.ok(to_regclass('public.occurrence_partners') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns
   WHERE table_name = 'occurrence_partners' AND column_name = 'email'), 'occurrence_partners.email criado');
-SELECT pg_temp.ok(public.clicksign_mask_email('Fulano.Teste@exemplo.com') = 'fu***@exemplo.com', 'e-mail mascarado');
+SELECT pg_temp.ok(public.clicksign_mask_email('Fulano.Teste@example.com') = 'fu***@example.com', 'e-mail mascarado');
 
 -- RPCs da ocorrência copiam parceria_email (venda 'feliz', já em ocorrencia_pendente com ocorrência).
 -- O sincronizar ignora lançamento de propósito: aqui a venda vira 'padrao' só dentro da transação.
@@ -347,6 +347,38 @@ SELECT coalesce(pg_temp.err(format('SELECT public.criar_ocorrencia_completa(%L)'
 SELECT pg_temp.ok(:'err_criar' = '' AND (SELECT email FROM public.occurrence_partners op JOIN public.occurrences o
   ON o.id = op.occurrence_id WHERE o.sale_id = pg_temp.id('feliz') AND op.from_sale) = 'cria@example.com',
   'criar_ocorrencia_completa grava o e-mail do parceiro' || coalesce(' (erro: ' || nullif(:'err_criar', '') || ')', ''));
+
+-- ===== atalho do gestor: "Enviar direto" em contrato_conferencia_gestor (t_2284ea8b) =====
+INSERT INTO ids VALUES ('v3', gen_random_uuid());
+INSERT INTO public.sales (id, corretor_id, imovel_id, status, organization_id)
+  VALUES (pg_temp.id('v3'), pg_temp.id('corretor'), 'CS-TESTE-3', 'contrato_conferencia_gestor', :'org');
+INSERT INTO public.sale_documents (sale_id, tipo, parte, storage_path, file_name, status)
+  VALUES (pg_temp.id('v3'), 'contrato', 'outros', :'org' || '/w/outros/contrato/g.pdf', 'g.pdf', 'enviado');
+SELECT pg_temp.as_user(pg_temp.id('admin'));
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok((public.clicksign_sale_authorize(pg_temp.id('v3'))->>'contrato') IS NOT NULL,
+  'atalho: admin/gestor envia pela Clicksign em contrato_conferencia_gestor');
+RESET ROLE;
+SELECT pg_temp.as_service();
+SET LOCAL ROLE service_role;
+INSERT INTO public.clicksign_envelopes (organization_id, origem, sale_id, source_document_id, status, is_test,
+    signers, created_by, envelope_key, document_key)
+  VALUES (:'org', 'venda', pg_temp.id('v3'), public.clicksign_sale_contrato(pg_temp.id('v3')), 'sending', true,
+    '[]', pg_temp.id('admin'), gen_random_uuid()::text, gen_random_uuid()::text);
+RESET ROLE;
+INSERT INTO ids SELECT 'env4', id FROM public.clicksign_envelopes WHERE sale_id = pg_temp.id('v3');
+SELECT pg_temp.as_service();
+SET LOCAL ROLE service_role;
+SELECT public.clicksign_sale_mark_sent(pg_temp.id('env4'));
+RESET ROLE;
+SELECT pg_temp.ok(pg_temp.st(pg_temp.id('v3')) = 'aguardando_assinatura',
+  'atalho: envio leva de contrato_conferencia_gestor a aguardando_assinatura');
+SELECT pg_temp.as_service();
+SET LOCAL ROLE service_role;
+SELECT public.clicksign_sale_canceled(pg_temp.id('env4'), 'manual', pg_temp.id('admin'));
+RESET ROLE;
+SELECT pg_temp.ok(pg_temp.st(pg_temp.id('v3')) = 'contrato_conferencia_gestor',
+  'atalho: cancelar volta para contrato_conferencia_gestor (etapa de onde saiu)');
 
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA' END || ' ' || msg FROM r;
 SELECT 'TOTAL=' || count(*) || ' FALHAS=' || count(*) FILTER (WHERE NOT ok) FROM r;

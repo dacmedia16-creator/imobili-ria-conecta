@@ -473,7 +473,7 @@ export async function notifySigners(
   }
 }
 
-/** Mostra só o começo do usuário e o domínio (ex.: "ed***@exemplo.com"). Nunca vai para log. */
+/** Mostra só o começo do usuário e o domínio (ex.: "ed***@example.com"). Nunca vai para log. */
 export function maskEmail(v: string | null | undefined): string {
   const e = normEmail(v);
   const at = e.indexOf("@");

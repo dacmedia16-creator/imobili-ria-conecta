@@ -186,6 +186,7 @@ import {
   clicksignSaleConfig,
   SALE_CLICKSIGN_DISABLED,
   showClicksignSend,
+  showClicksignShortcut,
   type ClicksignSaleConfig,
 } from "@/lib/sale-clicksign";
 import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
@@ -1378,6 +1379,8 @@ function SaleDetail() {
   // "Enviar pela Clicksign" no lugar de "Enviar para assinatura" (gestor, jurídico e ADM — can_send
   // vem do banco). Corretor só acompanha. Org sem Clicksign = fluxo manual de sempre.
   const clicksignNaVenda = showClicksignSend(csConfig, status);
+  // Atalho do gestor em contrato_conferencia_gestor abre o mesmo fluxo da Clicksign (t_2284ea8b).
+  const clicksignAtalhoGestor = isGestor && showClicksignShortcut(csConfig, status);
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
@@ -4384,16 +4387,24 @@ function SaleDetail() {
                 Enviar ao corretor conferir
               </Button>
               <Button
-                onClick={() => changeStatus("aguardando_assinatura")}
+                onClick={() =>
+                  clicksignAtalhoGestor
+                    ? setCsSendOpen(true)
+                    : changeStatus("aguardando_assinatura")
+                }
                 disabled={sale.contrato_libera_assinatura === false}
                 title={
                   sale.contrato_libera_assinatura === false
                     ? "Jurídico marcou que ainda não pode ir para assinatura"
-                    : undefined
+                    : clicksignAtalhoGestor
+                      ? "Pula a conferência do corretor e envia pela Clicksign"
+                      : undefined
                 }
               >
                 <Send className="mr-2 h-4 w-4" />
-                Enviar direto para assinatura
+                {clicksignAtalhoGestor
+                  ? "Enviar direto pela Clicksign"
+                  : "Enviar direto para assinatura"}
               </Button>
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
                 <XCircle className="mr-2 h-4 w-4" />
@@ -5190,6 +5201,7 @@ function SaleDetail() {
             )}
           {csConfig.enabled &&
             [
+              ...(clicksignAtalhoGestor ? ["contrato_conferencia_gestor"] : []),
               "contrato_ok_corretor",
               "aguardando_assinatura",
               "contrato_assinado",

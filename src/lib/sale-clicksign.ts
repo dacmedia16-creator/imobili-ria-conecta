@@ -106,6 +106,21 @@ export function showClicksignSend(
   return config.enabled && config.can_send && status === "contrato_ok_corretor";
 }
 
+/**
+ * Atalho do gestor "Enviar direto para assinatura" (contrato_conferencia_gestor): com a Clicksign
+ * ligada e can_send, abre o mesmo fluxo "Enviar pela Clicksign". Desligada = fluxo manual de sempre.
+ * O banco só aceita esse atalho de gestor/team leader/admin (clicksign_sale_authorize).
+ */
+export function showClicksignShortcut(
+  config: ClicksignSaleConfig,
+  status: string | null | undefined,
+): boolean {
+  return config.enabled && config.can_send && status === "contrato_conferencia_gestor";
+}
+
+/** Etapas em que o diálogo de envio pela Clicksign pode abrir. */
+export const CLICKSIGN_SEND_STATUSES = ["contrato_ok_corretor", "contrato_conferencia_gestor"];
+
 export function canStartSaleEnvelope(e: SaleEnvelopeInfo | null): boolean {
   return !e || !["sending", "running"].includes(e.status);
 }

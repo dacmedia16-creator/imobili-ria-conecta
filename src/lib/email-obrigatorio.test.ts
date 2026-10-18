@@ -9,7 +9,12 @@ import {
   validarProntaParaRevisao,
 } from "./status";
 import { destinoDaPendencia } from "./pendencia-navegacao";
-import { saleSendCheck, showClicksignSend, needsAutoCancel } from "./sale-clicksign";
+import {
+  saleSendCheck,
+  showClicksignSend,
+  showClicksignShortcut,
+  needsAutoCancel,
+} from "./sale-clicksign";
 import type { PartyRow, SaleRow } from "@/lib/database.types";
 
 const ler = (rel: string) => readFileSync(resolve(__dirname, rel), "utf8");
@@ -125,6 +130,15 @@ describe("Clicksign na venda: tela", () => {
     expect(showClicksignSend(cfg({ can_send: false }), "contrato_ok_corretor")).toBe(false);
     expect(showClicksignSend(cfg(), "aguardando_assinatura")).toBe(false);
     expect(showClicksignSend({ enabled: false }, "contrato_ok_corretor")).toBe(false);
+  });
+
+  it("atalho do gestor em contrato_conferencia_gestor abre a Clicksign só com ela ligada", () => {
+    expect(showClicksignShortcut(cfg(), "contrato_conferencia_gestor")).toBe(true);
+    expect(showClicksignShortcut(cfg({ can_send: false }), "contrato_conferencia_gestor")).toBe(
+      false,
+    );
+    expect(showClicksignShortcut({ enabled: false }, "contrato_conferencia_gestor")).toBe(false);
+    expect(showClicksignShortcut(cfg(), "contrato_ok_corretor")).toBe(false);
   });
 
   it("parte sem e-mail bloqueia com atalho para a parte certa", () => {

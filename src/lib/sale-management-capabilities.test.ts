@@ -31,9 +31,19 @@ const branch = nodes.find(
 ) as ts.JsxExpression;
 if (!branch) throw new Error("Signature branch not found");
 
-function render(manage: boolean, edit: boolean, legal: boolean, sameSale = true, role = true) {
+function render(
+  manage: boolean,
+  edit: boolean,
+  legal: boolean,
+  sameSale = true,
+  role = true,
+  clicksign = false,
+) {
   const context = vm.createContext({
     hasManagerRole: role,
+    // Atalho pela Clicksign (t_2284ea8b): desligado = fluxo manual de sempre.
+    clicksignAtalhoGestor: clicksign,
+    setCsSendOpen: () => undefined,
     id: "fixture-sale",
     user: { id: "fixture-auxiliary" },
     management: {
@@ -82,6 +92,12 @@ describe("effective sale capability — actual route render, offline", () => {
     [true, true, true, true, false], // broker
   ])("hides actions when manager capability is ineffective", (...args) => {
     expect(render(...args)).not.toContain("Enviar direto para assinatura");
+  });
+  it("com a Clicksign ligada, o atalho do gestor vira 'Enviar direto pela Clicksign'", () => {
+    const html = render(true, true, true, true, true, true);
+    expect(html).toContain("Enviar direto pela Clicksign");
+    expect(html).not.toContain("Enviar direto para assinatura");
+    expect(render(true, true, false, true, true, true)).toContain('disabled=""');
   });
   it("keeps the legal signature block visible and disabled", () => {
     expect(render(true, true, false)).toContain('disabled=""');

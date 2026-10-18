@@ -129,7 +129,12 @@ BEGIN
   IF NOT FOUND OR NOT coalesce(public.can_view_sale(auth.uid(), _id), false) THEN
     RAISE EXCEPTION 'Venda não disponível';
   END IF;
-  IF _sale.status::text <> 'contrato_ok_corretor' THEN
+  -- contrato_conferencia_gestor = atalho "Enviar direto para assinatura" do gestor (t_2284ea8b): mesma
+  -- regra do fluxo manual (gestor/team leader/admin; o jurídico não pula a conferência).
+  IF NOT (_sale.status::text = 'contrato_ok_corretor'
+      OR (_sale.status::text = 'contrato_conferencia_gestor'
+          AND public.has_any_role(auth.uid(),
+            ARRAY['gestor','team_leader','admin','super_admin']::public.app_role[]))) THEN
     RAISE EXCEPTION 'A venda precisa estar com o contrato conferido pelo corretor para ir à Clicksign';
   END IF;
   IF _sale.contrato_libera_assinatura IS NOT DISTINCT FROM false THEN
@@ -210,7 +215,7 @@ BEGIN
   ) t), '[]'::jsonb);
 END $$;
 
--- "ed***@exemplo.com" (nunca o e-mail inteiro para a tela).
+-- "ed***@example.com" (nunca o e-mail inteiro para a tela).
 CREATE FUNCTION public.clicksign_mask_email(_e text) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT CASE WHEN position('@' IN coalesce(trim(_e), '')) > 1
@@ -310,7 +315,7 @@ BEGIN
   END IF;
   UPDATE public.clicksign_envelopes SET status = 'running', updated_at = now() WHERE id = _envelope;
   SELECT status::text INTO _st FROM public.sales WHERE id = _e.sale_id FOR UPDATE;
-  IF _st = 'contrato_ok_corretor' THEN
+  IF _st IN ('contrato_ok_corretor', 'contrato_conferencia_gestor') THEN
     BEGIN
       PERFORM public.clicksign_sale_set_status(_e.sale_id, 'aguardando_assinatura', _e.created_by,
         'Enviado pela Clicksign' || CASE WHEN _e.is_test THEN ' (TESTE)' ELSE '' END);
@@ -353,7 +358,12 @@ BEGIN
     || CASE WHEN _e.is_test THEN ' (TESTE)' ELSE '' END;
   SELECT status::text INTO _st FROM public.sales WHERE id = _e.sale_id FOR UPDATE;
   IF _st = 'aguardando_assinatura' THEN
-    PERFORM public.clicksign_sale_set_status(_e.sale_id, 'contrato_ok_corretor',
+    -- Volta para a etapa de onde saiu (atalho do gestor = contrato_conferencia_gestor).
+    PERFORM public.clicksign_sale_set_status(_e.sale_id, coalesce((
+        SELECT CASE WHEN h.de::text = 'contrato_conferencia_gestor' THEN 'contrato_conferencia_gestor' END
+        FROM public.sale_status_history h
+        WHERE h.sale_id = _e.sale_id AND h.para::text = 'aguardando_assinatura'
+        ORDER BY h.created_at DESC LIMIT 1), 'contrato_ok_corretor'),
       coalesce(_actor, _e.created_by), _txt);
   ELSE
     INSERT INTO public.activity_logs (autor_id, sale_id, acao, payload)
@@ -542,6 +552,9 @@ begin
      and (from_status, to_status) in (
        ('contrato_ok_corretor', 'aguardando_assinatura'),
        ('aguardando_assinatura', 'contrato_ok_corretor'),
+       -- atalho do gestor (o gestor já tem conferencia_gestor → aguardando no fluxo manual)
+       ('contrato_conferencia_gestor', 'aguardando_assinatura'),
+       ('aguardando_assinatura', 'contrato_conferencia_gestor'),
        ('aguardando_assinatura', 'contrato_assinado'),
        ('contrato_assinado', 'ocorrencia_pendente')
      ) then
