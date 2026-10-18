@@ -308,5 +308,45 @@ SELECT pg_temp.ok(to_regclass('public.occurrence_partners') IS NOT NULL AND EXIS
   WHERE table_name = 'occurrence_partners' AND column_name = 'email'), 'occurrence_partners.email criado');
 SELECT pg_temp.ok(public.clicksign_mask_email('Fulano.Teste@exemplo.com') = 'fu***@exemplo.com', 'e-mail mascarado');
 
+-- RPCs da ocorrência copiam parceria_email (venda 'feliz', já em ocorrencia_pendente com ocorrência).
+-- O sincronizar ignora lançamento de propósito: aqui a venda vira 'padrao' só dentro da transação.
+SET session_replication_role = replica;
+UPDATE public.sales SET modalidade = 'padrao', status = 'ocorrencia_pendente' WHERE id = pg_temp.id('feliz');
+UPDATE public.sales SET parceria_tipo = 'imobiliaria_externa', parceria_nome = 'Parceira Teste',
+  parceria_email = ' parceira@example.com ' WHERE id = pg_temp.id('feliz');
+DELETE FROM public.occurrence_partners WHERE occurrence_id IN
+  (SELECT id FROM public.occurrences WHERE sale_id = pg_temp.id('feliz'));
+UPDATE public.occurrences SET status = 'pendente' WHERE sale_id = pg_temp.id('feliz');
+SET session_replication_role = origin;
+SELECT public.sincronizar_ocorrencia_antes_financeiro(pg_temp.id('feliz'));
+SELECT pg_temp.ok((SELECT email FROM public.occurrence_partners op JOIN public.occurrences o ON o.id = op.occurrence_id
+  WHERE o.sale_id = pg_temp.id('feliz') AND op.from_sale) = 'parceira@example.com',
+  'sincronizar_ocorrencia_antes_financeiro insere o parceiro com o e-mail da venda');
+SET session_replication_role = replica;
+UPDATE public.sales SET parceria_email = 'nova@example.com' WHERE id = pg_temp.id('feliz');
+SET session_replication_role = origin;
+SELECT public.sincronizar_ocorrencia_antes_financeiro(pg_temp.id('feliz'));
+SELECT pg_temp.ok((SELECT email FROM public.occurrence_partners op JOIN public.occurrences o ON o.id = op.occurrence_id
+  WHERE o.sale_id = pg_temp.id('feliz') AND op.from_sale) = 'nova@example.com',
+  'sincronizar atualiza o e-mail do parceiro');
+SET session_replication_role = replica;
+UPDATE public.sales SET parceria_email = NULL WHERE id = pg_temp.id('feliz');
+SET session_replication_role = origin;
+SELECT public.sincronizar_ocorrencia_antes_financeiro(pg_temp.id('feliz'));
+SELECT pg_temp.ok((SELECT email FROM public.occurrence_partners op JOIN public.occurrences o ON o.id = op.occurrence_id
+  WHERE o.sale_id = pg_temp.id('feliz') AND op.from_sale) = 'nova@example.com',
+  'venda sem e-mail (legado) não apaga o e-mail já gravado na ocorrência');
+SET session_replication_role = replica;
+-- criar não olha a modalidade; volta a original (distribuição válida desta venda de homologação).
+UPDATE public.sales SET parceria_email = 'cria@example.com', modalidade = 'lancamento' WHERE id = pg_temp.id('feliz');
+DELETE FROM public.occurrence_partners WHERE occurrence_id IN
+  (SELECT id FROM public.occurrences WHERE sale_id = pg_temp.id('feliz'));
+DELETE FROM public.occurrences WHERE sale_id = pg_temp.id('feliz');
+SET session_replication_role = origin;
+SELECT coalesce(pg_temp.err(format('SELECT public.criar_ocorrencia_completa(%L)', pg_temp.id('feliz'))), '') AS err_criar \gset
+SELECT pg_temp.ok(:'err_criar' = '' AND (SELECT email FROM public.occurrence_partners op JOIN public.occurrences o
+  ON o.id = op.occurrence_id WHERE o.sale_id = pg_temp.id('feliz') AND op.from_sale) = 'cria@example.com',
+  'criar_ocorrencia_completa grava o e-mail do parceiro' || coalesce(' (erro: ' || nullif(:'err_criar', '') || ')', ''));
+
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA' END || ' ' || msg FROM r;
 SELECT 'TOTAL=' || count(*) || ' FALHAS=' || count(*) FILTER (WHERE NOT ok) FROM r;

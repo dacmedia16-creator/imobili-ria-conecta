@@ -19,6 +19,8 @@
 --    fica marcado para cancelamento (cancel_requested_at) e quem enviou é avisado; a tela cancela na
 --    Clicksign sozinha e o botão "Cancelar assinatura" resolve se a chamada automática falhar.
 -- 6) E-mail do parceiro: occurrence_partners.email e sales.parceria_email (aditivas, sem preencher nada).
+-- 7) criar_ocorrencia_completa e sincronizar_ocorrencia_antes_financeiro copiam parceria_email (sem apagar
+--    e-mail do Financeiro quando a venda não tem).
 -- Nenhum e-mail em claro entra no banco pelo envelope: signers guarda só o sha256.
 
 -- ===== 1) Envelope da venda =====
@@ -680,6 +682,196 @@ begin
     raise exception 'Anexe o contrato assinado (aba Documentos) antes de marcar como assinado.' using errcode = '23514';
   end if;
   return new;
+end;
+$function$;
+
+-- ===== 7) E-mail do parceiro também pelas RPCs da ocorrência (t_2284ea8b) =====
+-- Cópia das versões vigentes (20260823000000 e 20260902203000) com occurrence_partners.email vindo de
+-- sales.parceria_email. Mesma assinatura e mesmo SECURITY: CREATE OR REPLACE mantém os GRANTs.
+CREATE OR REPLACE FUNCTION public.criar_ocorrencia_completa(p_sale_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_sale sales%rowtype;
+  v_payment sale_payment%rowtype;
+  v_vendedor_nome text;
+  v_comprador_nome text;
+  v_occ_id uuid;
+  v_dist jsonb;
+begin
+  -- O lock por venda serializa cliques/requisições concorrentes e, junto da UNIQUE(sale_id),
+  -- impede ocorrência duplicada até quando duas ações chegam praticamente ao mesmo tempo.
+  select * into v_sale from sales where id = p_sale_id for update;
+  if not found then
+    raise exception 'Venda não encontrada.' using errcode = 'P0002';
+  end if;
+
+  if v_sale.status::text in ('cancelada', 'arquivada') then
+    raise exception 'Não é possível criar Ocorrência para uma venda cancelada ou arquivada.' using errcode = '23514';
+  end if;
+
+  -- Valida também quando a ocorrência já existe: enviar ao Financeiro nunca pode contornar
+  -- uma inconsistência surgida depois da criação inicial.
+  v_dist := calcular_distribuicao_venda(v_sale);
+  if not coalesce((v_dist->>'calculo_valido')::boolean, false) then
+    raise exception 'Não é possível criar ou sincronizar a Ocorrência: %', (
+      select string_agg(x, '; ') from jsonb_array_elements_text(v_dist->'inconsistencias') x
+    ) using errcode = '23514';
+  end if;
+
+  select id into v_occ_id from occurrences where sale_id = p_sale_id;
+  if v_occ_id is not null then
+    -- sync_occurrence_commissions preserva linhas manuais do Financeiro
+    -- (managed_by_sale = false) e atualiza somente as gerenciadas pela venda.
+    perform sync_occurrence_commissions(p_sale_id);
+    return jsonb_build_object('occurrence_id', v_occ_id, 'created', false);
+  end if;
+
+  select * into v_payment from sale_payment where sale_id = p_sale_id;
+  select nome into v_vendedor_nome from sale_parties where sale_id = p_sale_id and papel = 'vendedor_1';
+  select nome into v_comprador_nome from sale_parties where sale_id = p_sale_id and papel = 'comprador_1';
+
+  insert into occurrences (
+    sale_id, codigo_imovel, data_assinatura, tempo_venda_dias, midia,
+    valor_anunciado, valor_negociado, percentual_comissao, valor_comissao,
+    financiamento, financiamento_valor, financiamento_banco, financiamento_correspondente, financiamento_previsao, oba_credito,
+    prev_recebimento_valor, prev_recebimento_data, prev_recebimento_forma,
+    prev_recebimento2_valor, prev_recebimento2_data, prev_recebimento2_forma,
+    prev_recebimento3_valor, prev_recebimento3_data, prev_recebimento3_forma,
+    observacoes, status
+  ) values (
+    p_sale_id, coalesce(v_sale.imovel_id, v_sale.codigo_interno), coalesce(v_sale.data_assinatura, current_date), v_sale.tempo_venda_dias, v_sale.midia,
+    v_sale.valor_anunciado, v_sale.valor_negociado, v_sale.percentual_comissao,
+    coalesce((v_dist->>'comissao_bruta')::numeric, v_sale.valor_total_comissao),
+    coalesce(v_payment.financiamento, false), v_payment.financiamento_valor, v_payment.financiamento_banco, v_payment.financiamento_correspondente, v_payment.financiamento_previsao, coalesce(v_payment.oba_credito, false),
+    v_sale.previsao_recebimento_valor, v_sale.previsao_recebimento_data, v_sale.previsao_recebimento_forma,
+    v_sale.previsao_recebimento2_valor, v_sale.previsao_recebimento2_data, v_sale.previsao_recebimento2_forma,
+    v_sale.previsao_recebimento3_valor, v_sale.previsao_recebimento3_data, v_sale.previsao_recebimento3_forma,
+    nullif(concat_ws(' | ',
+      case when v_vendedor_nome is not null then 'Vendedor/Proprietário: ' || v_vendedor_nome end,
+      case when v_comprador_nome is not null then 'Comprador: ' || v_comprador_nome end
+    ), ''),
+    'pendente'
+  )
+  returning id into v_occ_id;
+
+  perform sync_occurrence_commissions(p_sale_id);
+
+  if v_sale.parceria_tipo is not null then
+    insert into occurrence_partners (occurrence_id, from_sale, tipo, nome, email, cpf_cnpj, percentual, valor, banco, agencia, conta, pix)
+    values (v_occ_id, true, v_sale.parceria_tipo, v_sale.parceria_nome, nullif(trim(coalesce(v_sale.parceria_email, '')), ''), v_sale.parceria_cpf_cnpj, v_sale.parceria_percentual, v_sale.parceria_valor, v_sale.parceria_banco, v_sale.parceria_agencia, v_sale.parceria_conta, v_sale.parceria_pix);
+  end if;
+
+  insert into activity_logs (autor_id, sale_id, acao, payload)
+  values (auth.uid(), p_sale_id, 'occurrence_created', jsonb_build_object('occurrence_id', v_occ_id, 'automatic', true));
+
+  return jsonb_build_object('occurrence_id', v_occ_id, 'created', true);
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.sincronizar_ocorrencia_antes_financeiro(p_sale_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_sale public.sales%rowtype;
+  v_payment public.sale_payment%rowtype;
+  v_occ_id uuid;
+begin
+  select * into v_sale
+  from public.sales
+  where id = p_sale_id;
+
+  if not found
+     or v_sale.modalidade = 'lancamento'
+     or v_sale.status::text not in (
+       'aguardando_assinatura',
+       'contrato_assinado',
+       'ocorrencia_pendente',
+       'ocorrencia_devolvida_gestor'
+     ) then
+    return;
+  end if;
+
+  select id into v_occ_id
+  from public.occurrences
+  where sale_id = p_sale_id
+    and status = 'pendente';
+
+  if v_occ_id is null then
+    return;
+  end if;
+
+  select * into v_payment
+  from public.sale_payment
+  where sale_id = p_sale_id;
+
+  update public.occurrences
+  set
+    valor_anunciado = v_sale.valor_anunciado,
+    valor_negociado = v_sale.valor_negociado,
+    percentual_comissao = v_sale.percentual_comissao,
+    valor_comissao = coalesce(
+      v_sale.valor_total_comissao,
+      case
+        when v_sale.valor_negociado is not null and v_sale.percentual_comissao is not null
+          then round(v_sale.valor_negociado * v_sale.percentual_comissao / 100, 2)
+        else null
+      end
+    ),
+    prev_recebimento_valor = v_sale.previsao_recebimento_valor,
+    prev_recebimento_data = v_sale.previsao_recebimento_data,
+    prev_recebimento_forma = v_sale.previsao_recebimento_forma,
+    prev_recebimento2_valor = v_sale.previsao_recebimento2_valor,
+    prev_recebimento2_data = v_sale.previsao_recebimento2_data,
+    prev_recebimento2_forma = v_sale.previsao_recebimento2_forma,
+    prev_recebimento3_valor = v_sale.previsao_recebimento3_valor,
+    prev_recebimento3_data = v_sale.previsao_recebimento3_data,
+    prev_recebimento3_forma = v_sale.previsao_recebimento3_forma,
+    financiamento = coalesce(v_payment.financiamento, false),
+    financiamento_valor = v_payment.financiamento_valor,
+    financiamento_banco = v_payment.financiamento_banco,
+    financiamento_correspondente = v_payment.financiamento_correspondente,
+    financiamento_previsao = v_payment.financiamento_previsao,
+    oba_credito = coalesce(v_payment.oba_credito, false)
+  where id = v_occ_id;
+
+  perform public.sync_occurrence_commissions(p_sale_id);
+
+  if v_sale.parceria_tipo is null then
+    delete from public.occurrence_partners
+    where occurrence_id = v_occ_id
+      and from_sale = true;
+  else
+    update public.occurrence_partners
+    set
+      tipo = v_sale.parceria_tipo,
+      nome = v_sale.parceria_nome,
+      -- Venda sem e-mail (legado) não apaga o que o Financeiro já preencheu.
+      email = coalesce(nullif(trim(coalesce(v_sale.parceria_email, '')), ''), email),
+      cpf_cnpj = v_sale.parceria_cpf_cnpj,
+      percentual = v_sale.parceria_percentual,
+      valor = v_sale.parceria_valor
+    where occurrence_id = v_occ_id
+      and from_sale = true;
+
+    if not found then
+      insert into public.occurrence_partners (
+        occurrence_id, from_sale, tipo, nome, email, cpf_cnpj, percentual, valor,
+        banco, agencia, conta, pix
+      ) values (
+        v_occ_id, true, v_sale.parceria_tipo, v_sale.parceria_nome,
+        nullif(trim(coalesce(v_sale.parceria_email, '')), ''),
+        v_sale.parceria_cpf_cnpj, v_sale.parceria_percentual, v_sale.parceria_valor,
+        v_sale.parceria_banco, v_sale.parceria_agencia, v_sale.parceria_conta,
+        v_sale.parceria_pix
+      );
+    end if;
+  end if;
 end;
 $function$;
 

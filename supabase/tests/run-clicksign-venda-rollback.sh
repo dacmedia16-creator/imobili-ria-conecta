@@ -22,6 +22,7 @@ fi
   strip "$ROOT/supabase/migrations/20261018150000_clicksign_gerenciar_envelope.sql"
   echo "\\endif"
   echo "SELECT md5(pg_get_functiondef('public.clicksign_manage_done(uuid,uuid,text,text,jsonb,boolean)'::regprocedure)) AS md_antes \\gset"
+  echo "SELECT md5(pg_get_functiondef('public.criar_ocorrencia_completa(uuid)'::regprocedure) || pg_get_functiondef('public.sincronizar_ocorrencia_antes_financeiro(uuid)'::regprocedure)) AS md_occ_antes \\gset"
   strip "$ROOT/supabase/migrations/20261018200000_clicksign_venda.sql"
   echo "\\echo [migration ok]"
   strip "$ROOT/supabase/rollback/20261018200000_clicksign_venda.sql"
@@ -35,5 +36,6 @@ SELECT CASE WHEN to_regprocedure('public.clicksign_sale_config(uuid)') IS NULL
   THEN 'ok    rollback removeu a venda e voltou capture_id obrigatório' ELSE 'FALHA rollback incompleto' END;
 SQL
   echo "SELECT CASE WHEN md5(pg_get_functiondef('public.clicksign_manage_done(uuid,uuid,text,text,jsonb,boolean)'::regprocedure)) = :'md_antes' THEN 'ok    clicksign_manage_done idêntica à anterior' ELSE 'FALHA clicksign_manage_done diferente' END;"
+  echo "SELECT CASE WHEN md5(pg_get_functiondef('public.criar_ocorrencia_completa(uuid)'::regprocedure) || pg_get_functiondef('public.sincronizar_ocorrencia_antes_financeiro(uuid)'::regprocedure)) = :'md_occ_antes' THEN 'ok    RPCs da ocorrência idênticas às anteriores' ELSE 'FALHA RPCs da ocorrência diferentes' END;"
   echo "ROLLBACK;"
 } | "${RUN[@]}" -q -At -v ON_ERROR_STOP=1 2>&1 | grep -E "^\[|^(ok|FALHA)|ERROR|LINE|DETAIL|CONTEXT|psql:" || true
