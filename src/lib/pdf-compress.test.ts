@@ -120,4 +120,40 @@ describe.skipIf(!nodeCodec || !REAL)("ensaio com PDFs reais", () => {
     console.log("modelo", orig.length, "->", r.bytes.length, JSON.stringify(r.report));
     expect(r.bytes.length).toBeLessThan(5_000_000);
   });
+
+  // Captações reais (c1 ≈ 9,6 MiB em assinatura, c2 ≈ 20 MiB aprovada): arquivos <cap>-<kind>.pdf.
+  // Junta igual ao "Baixar PDF completo" (assinado primeiro, depois os documentos) e aplica as passadas.
+  const ORDEM = ["assinado", "rg1", "cpf1", "cnh1", "rg2", "cpf2", "cnh2", "residencia", "iptu", "matricula"];
+  async function juntar(files: string[]) {
+    const out = await PDFDocument.create();
+    for (const f of files) {
+      const src = await PDFDocument.load(readFileSync(f), { ignoreEncryption: true });
+      (await out.copyPages(src, src.getPageIndices())).forEach((p) => out.addPage(p));
+    }
+    return out.save();
+  }
+  it.each(["c1", "c2"])("%s: gerado < 10 MB e PDF completo < 9 MB", async (cap) => {
+    const ger = `${REAL}/${cap}-gerado.pdf`;
+    if (!existsSync(ger)) return;
+    const g = new Uint8Array(readFileSync(ger));
+    const rg = await compressPdfBytes(g, nodeCodec!, GERACAO_CONTRATO);
+    writeFileSync(`${REAL}/out-${cap}-gerado.pdf`, rg.bytes);
+    const files = ORDEM.map((k) => `${REAL}/${cap}-${k}.pdf`).filter((f) => existsSync(f));
+    const antes = await juntar(files);
+    const fit = await caberNoLimite(antes, nodeCodec!);
+    writeFileSync(`${REAL}/out-${cap}-completo.pdf`, fit.bytes);
+    console.log(
+      cap,
+      JSON.stringify({
+        gerado: [g.length, rg.bytes.length],
+        completo: [antes.length, fit.bytes.length],
+        passadas: fit.passadas,
+        cabe: fit.cabe,
+        arquivos: files.length,
+      }),
+    );
+    expect(rg.bytes.length).toBeLessThan(10_000_000);
+    expect(fit.cabe).toBe(true);
+    expect(fit.bytes.length).toBeLessThan(9_000_000);
+  }, 300_000);
 });

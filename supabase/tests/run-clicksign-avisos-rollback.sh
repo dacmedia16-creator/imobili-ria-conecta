@@ -22,6 +22,9 @@ POL="SELECT md5(pg_get_expr(polqual, polrelid)) FROM pg_policy WHERE polrelid = 
   echo "\\if :need_venda"; strip "$ROOT/supabase/migrations/20261018200000_clicksign_venda.sql"; echo "\\endif"
   echo "SELECT to_regprocedure('public.clicksign_reconcile_apply(uuid,text,uuid)') IS NULL AS need_aud \\gset"
   echo "\\if :need_aud"; strip "$ROOT/supabase/migrations/20261019090000_clicksign_auditoria.sql"; echo "\\endif"
+  # A homologação tem uma policy mais antiga que a de produção: põe a versão de PRODUÇÃO
+  # (20261008160000, a mesma que o rollback recria) antes de medir, só nesta transação.
+  strip "$ROOT/supabase/rollback/20261019100000_clicksign_avisos_assinado.sql"
   echo "SELECT ($POL) AS pol_antes \\gset"
   strip "$ROOT/supabase/migrations/20261019100000_clicksign_avisos_assinado.sql"
   echo "\\echo [migration ok]"
