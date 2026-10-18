@@ -4,6 +4,8 @@ import { sha256Hex } from "../../supabase/functions/_shared/clicksign.ts";
 import { handleManage, type ManageDeps } from "../../supabase/functions/clicksign-manage/core.ts";
 import {
   canManageEnvelope,
+  clicksignCaptureSigned,
+  currentSignedDoc,
   editSignerErrors,
   hasSignedStep,
   notifyWaitMinutes,
@@ -272,11 +274,64 @@ describe("tela: gestão e passo 5", () => {
     expect(editSignerErrors("Ana", "x")).toHaveLength(2);
     expect(editSignerErrors("Ana Silva", "ana@example.com")).toEqual([]);
   });
-  it("passo 5 aparece com assinado (Clicksign ou manual); antigas sem assinado e cadastro manual não", () => {
-    expect(hasSignedStep(false, [{ kind: "gerado" }, { kind: "assinado" }])).toBe(true);
-    expect(hasSignedStep(false, [{ kind: "gerado" }])).toBe(false);
-    expect(hasSignedStep(false, [])).toBe(false);
-    expect(hasSignedStep(true, [{ kind: "assinado" }])).toBe(false);
+  describe("passo 5 segue a regra do banco (assinado >= gerado; sem gerado só aprovada)", () => {
+    const T1 = "2026-10-01T10:00:00Z";
+    const T2 = "2026-10-18T10:00:00Z";
+    const gerado = (t: string) => ({ id: `g-${t}`, kind: "gerado", created_at: t });
+    const assinado = (t: string) => ({ id: `a-${t}`, kind: "assinado", created_at: t });
+    // ClicksignEnvio aparece no passo 4 quando `step === "revisao" && !signedStep`.
+    const passos = (manual: boolean, status: string, docs: Parameters<typeof hasSignedStep>[1]) =>
+      manual ? "manual" : hasSignedStep(manual, docs, status) ? 5 : 4;
+
+    it("(a) assinado mais novo que o gerado → 5 passos, com esse assinado", () => {
+      const docs = [gerado(T1), assinado(T2)];
+      expect(passos(false, "em_assinatura", docs)).toBe(5);
+      expect(currentSignedDoc(false, "em_assinatura", docs)?.id).toBe(`a-${T2}`);
+      // mesmo instante também vale (>=, igual ao banco)
+      expect(passos(false, "enviada", [gerado(T2), assinado(T2)])).toBe(5);
+    });
+    it("(b) assinado antigo + gerado novo (aprovada devolvida e reenviada) → 4 passos, Clicksign visível", () => {
+      const docs = [assinado(T1), gerado(T2)];
+      for (const status of ["devolvida", "enviada", "em_assinatura"]) {
+        expect(passos(false, status, docs)).toBe(4);
+        expect(currentSignedDoc(false, status, docs)).toBeNull();
+      }
+      // devolvida e ainda sem gerado novo: o assinado velho é só histórico
+      expect(passos(false, "devolvida", [assinado(T1)])).toBe(4);
+      expect(passos(false, "enviada", [assinado(T1)])).toBe(4);
+      // novo assinado depois do gerado novo: volta a ter passo 5, com o contrato novo
+      const novo = [assinado(T1), gerado("2026-10-10T10:00:00Z"), assinado(T2)];
+      expect(currentSignedDoc(false, "em_assinatura", novo)?.id).toBe(`a-${T2}`);
+    });
+    it("(c) aprovada antiga só com assinado (sem gerado) → 5 passos", () => {
+      expect(passos(false, "aprovada", [assinado(T1)])).toBe(5);
+      expect(passos(false, "aprovada", [{ kind: "assinado" }])).toBe(5);
+    });
+    it("(d) cadastro manual → fluxo próprio, sem passo 5", () => {
+      expect(passos(true, "enviada", [assinado(T2)])).toBe("manual");
+      expect(hasSignedStep(true, [gerado(T1), assinado(T2)], "aprovada")).toBe(false);
+      expect(currentSignedDoc(true, "aprovada", [assinado(T2)])).toBeNull();
+    });
+    it("sem assinado → 4 passos", () => {
+      expect(passos(false, "em_assinatura", [gerado(T1)])).toBe(4);
+      expect(passos(false, "rascunho", [])).toBe(4);
+    });
+  });
+  it("origem: envelope assinado de outro documento (upload manual por cima) conta como manual", async () => {
+    const info = {
+      document_id: DOC,
+      is_test: false,
+      closed_at: "2026-10-18T10:00:00Z",
+      signers: [],
+    };
+    const db = { rpc: vi.fn(async () => ({ data: info, error: null })) } as unknown as Parameters<
+      typeof clicksignCaptureSigned
+    >[0];
+    expect(await clicksignCaptureSigned(db, CAP, "outro-doc")).toBeNull();
+    expect(await clicksignCaptureSigned(db, CAP, DOC)).toMatchObject({ is_test: false });
+    expect(signedOrigin(await clicksignCaptureSigned(db, CAP, "outro-doc"))).toMatch(
+      /Upload manual/,
+    );
   });
   it("origem e quem assinou", () => {
     expect(signedOrigin(null)).toMatch(/Upload manual/);

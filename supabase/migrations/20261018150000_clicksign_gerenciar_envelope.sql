@@ -138,7 +138,7 @@ END $$;
 -- Devolve NULL se o assinado atual não veio da Clicksign.
 CREATE FUNCTION public.clicksign_capture_signed(_id uuid) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT jsonb_build_object('is_test', e.is_test, 'closed_at', e.updated_at,
+  SELECT jsonb_build_object('document_id', d.id, 'is_test', e.is_test, 'closed_at', e.updated_at,
     'signers', coalesce((SELECT jsonb_agg(jsonb_build_object('papel', x->>'papel', 'nome', x->>'nome'))
       FROM jsonb_array_elements(e.signers) x), '[]'::jsonb))
   FROM public.clicksign_envelopes e

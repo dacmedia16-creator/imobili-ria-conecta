@@ -64,6 +64,7 @@ import {
 import {
   clicksignCaptureSigned,
   clicksignManualInstructions,
+  currentSignedDoc,
   hasSignedStep,
   type ClicksignSignedInfo,
 } from "@/lib/exclusive-clicksign";
@@ -243,23 +244,27 @@ function ExclusiveDetail() {
   const manual = !!capture?.manual;
   // Passo 5 "Documento assinado": captação normal com contrato assinado anexado (Clicksign ou
   // upload). Captações antigas sem assinado e o cadastro manual seguem com 4 passos.
-  const signedStep = hasSignedStep(manual, docs);
+  // Mesma regra do banco: só conta o assinado anexado depois do gerado (ou aprovada antiga).
+  const currentSigned = currentSignedDoc(manual, capture?.status, docs);
+  const signedStep = hasSignedStep(manual, docs, capture?.status);
   const captureSteps: ReadonlyArray<{ key: CaptureStep; label: string }> = manual
     ? manualSteps
     : signedStep
       ? [...normalSteps, signedStepItem]
       : normalSteps;
   const [signedInfo, setSignedInfo] = useState<ClicksignSignedInfo | null | "unknown">(null);
-  const signedDocId = docs.find((d) => d.kind === "assinado")?.id ?? null;
+  const signedDocId = currentSigned?.id ?? null;
   useEffect(() => {
     if (!signedStep) {
       setSignedInfo(null);
       return;
     }
     let alive = true;
-    void clicksignCaptureSigned(supabase as unknown as SupabaseClient, id).then((r) => {
-      if (alive) setSignedInfo(r);
-    });
+    void clicksignCaptureSigned(supabase as unknown as SupabaseClient, id, signedDocId).then(
+      (r) => {
+        if (alive) setSignedInfo(r);
+      },
+    );
     return () => {
       alive = false;
     };
@@ -283,7 +288,7 @@ function ExclusiveDetail() {
       const aguardandoAprovacao =
         !result.capture.manual &&
         ["enviada", "em_assinatura"].includes(result.capture.status) &&
-        result.docs.some((d) => d.kind === "assinado");
+        hasSignedStep(!!result.capture.manual, result.docs, result.capture.status);
       setStep(result.capture.manual ? "contrato" : aguardandoAprovacao ? "assinado" : "documentos");
       loadedId.current = id;
     }
@@ -897,7 +902,8 @@ function ExclusiveDetail() {
   const hasContract =
     capture.status !== "rascunho" ||
     (!manual && docs.some((d) => d.kind === "gerado" || d.kind === "assinado"));
-  const signedDoc = docs.find((d) => d.kind === "assinado");
+  // Assinado válido (anexado depois do gerado); o assinado antigo de uma devolvida fica só no histórico.
+  const signedDoc = currentSigned ?? undefined;
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
   const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);

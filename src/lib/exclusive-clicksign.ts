@@ -321,12 +321,17 @@ export const CLICKSIGN_SIGNED_FILE = "contrato-assinado-clicksign.pdf";
 export async function clicksignCaptureSigned(
   db: SupabaseClient,
   captureId: string,
+  signedDocId?: string | null,
 ): Promise<ClicksignSignedInfo | null | "unknown"> {
   try {
     const { data, error } = await db.rpc("clicksign_capture_signed", { _id: captureId });
     if (error) return "unknown";
     if (!data || typeof data !== "object") return null;
     const d = data as Record<string, unknown>;
+    // O envelope assinado é de outro documento (ex.: upload manual por cima): origem manual.
+    if (signedDocId && typeof d.document_id === "string" && d.document_id !== signedDocId) {
+      return null;
+    }
     return {
       is_test: d.is_test === true,
       closed_at: typeof d.closed_at === "string" ? d.closed_at : "",
@@ -357,13 +362,37 @@ export function signedSignerLabels(list: ClicksignSignedInfo["signers"]): string
   });
 }
 
+type StepDoc = { kind: string; created_at?: string | null };
+const docTime = (d: StepDoc) => (d.created_at ? Date.parse(d.created_at) || 0 : 0);
+const newest = <T extends StepDoc>(list: T[]): T | null =>
+  list.reduce<T | null>((best, d) => (!best || docTime(d) > docTime(best) ? d : best), null);
+
+/**
+ * Contrato assinado que vale para a captação, com a mesma regra do banco (exclusive_capture_action
+ * 'aprovar'): o assinado precisa ter sido anexado depois (>=) do PDF gerado. Sem gerado, só vale
+ * em captação já aprovada (antigas). Quando uma aprovada é devolvida, o banco mantém o assinado
+ * velho como histórico e apaga só o gerado; esse assinado velho não conta.
+ */
+export function currentSignedDoc<T extends StepDoc>(
+  manual: boolean,
+  status: string | null | undefined,
+  docs: T[],
+): T | null {
+  if (manual) return null;
+  const signed = newest(docs.filter((d) => d.kind === "assinado"));
+  if (!signed) return null;
+  const gerado = newest(docs.filter((d) => d.kind === "gerado"));
+  if (!gerado) return status === "aprovada" ? signed : null;
+  return docTime(signed) >= docTime(gerado) ? signed : null;
+}
+
 /**
  * Qual passo final a captação usa: o passo 5 "Documento assinado" aparece quando há contrato
- * assinado anexado (Clicksign ou upload manual) numa captação normal. Captações antigas sem
- * assinado continuam com 4 passos; o cadastro manual tem fluxo próprio (contrato no passo 1).
+ * assinado válido (Clicksign ou upload manual) numa captação normal — ver currentSignedDoc.
+ * Captações sem assinado válido continuam com 4 passos; o cadastro manual tem fluxo próprio.
  */
-export function hasSignedStep(manual: boolean, docs: Array<{ kind: string }>): boolean {
-  return !manual && docs.some((d) => d.kind === "assinado");
+export function hasSignedStep(manual: boolean, docs: StepDoc[], status?: string | null): boolean {
+  return currentSignedDoc(manual, status, docs) !== null;
 }
 
 /** Origem do assinado mostrada no passo 5. */
