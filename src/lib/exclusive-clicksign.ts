@@ -210,6 +210,9 @@ export type ManagedSigner = {
   /** Mascarado pelo servidor (ex.: "an***@exemplo.com"). */
   email: string;
   signed: boolean;
+  /** Abriu o contrato (signature_started). Ausente em respostas antigas. */
+  opened?: boolean;
+  status?: "enviado" | "abriu" | "assinou";
   found: boolean;
   editable: boolean;
 };

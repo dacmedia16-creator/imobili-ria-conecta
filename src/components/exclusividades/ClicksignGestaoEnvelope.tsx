@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CheckCircle2, Clock, Pencil, RefreshCw, Send } from "lucide-react";
+import { Pencil, RefreshCw, Send } from "lucide-react";
+import { SignerStatusBadge } from "@/components/clicksign/SignerStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -141,15 +142,7 @@ export function ClicksignGestaoEnvelope({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {s.signed ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-700">
-                    <CheckCircle2 className="h-4 w-4" /> Assinou
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-amber-800">
-                    <Clock className="h-4 w-4" /> Falta assinar
-                  </span>
-                )}
+                <SignerStatusBadge signer={s} />
                 {s.editable && (
                   <Button
                     size="sm"
