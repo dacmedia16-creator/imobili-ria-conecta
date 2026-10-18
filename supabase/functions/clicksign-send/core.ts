@@ -23,7 +23,7 @@ export const POST_ACTIVATE_MSG =
   "Enviado à Clicksign, mas o registro no ADM MAX não foi concluído. Não reenvie; avise o suporte " +
   "para atualizar o status da captação.";
 export const NOTIFY_FAILED_MSG =
-  "Enviado, mas a notificação falhou; peça reenvio de aviso ao suporte.";
+  "Enviado, mas a notificação falhou; use “Reenviar aviso” na captação.";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -361,7 +361,7 @@ describe("clicksign-send (core)", () => {
       ok: true,
       status: "running",
       code: "notify_failed:notify:422",
-      warning: "Enviado, mas a notificação falhou; peça reenvio de aviso ao suporte.",
+      warning: "Enviado, mas a notificação falhou; use “Reenviar aviso” na captação.",
     });
     expect(JSON.stringify(r.body)).not.toMatch(/@/);
     expect(cs.calls.some((c) => c.method === "DELETE")).toBe(false);
@@ -378,9 +378,7 @@ describe("clicksign-send (core)", () => {
       signed: false,
     };
     expect(canStartEnvelope(env)).toBe(false);
-    expect(envelopeStatusLabel(env)).toMatch(
-      /notificação falhou; peça reenvio de aviso ao suporte/,
-    );
+    expect(envelopeStatusLabel(env)).toMatch(/notificação falhou; use “Reenviar aviso”/);
   });
   it("notificação 201 com algum signatário notified=false conta como falha parcial", async () => {
     const { deps, cs } = sendDeps();

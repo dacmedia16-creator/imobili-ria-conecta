@@ -5,6 +5,9 @@
 // 18/10/2026, conta de produção da Única Escolha). Nunca logar token, segredo nem e-mail.
 
 export const CLICKSIGN_PROD_BASE = "https://app.clicksign.com/api/v3";
+const JSONAPI = "application/vnd.api+json";
+/** bulk_requirements usa a extensão Atomic Operations do JSON:API (validado na conta real, 18/10). */
+export const JSONAPI_ATOMIC = 'application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"';
 export const WITNESS_COUNT = 2;
 export const MAX_IMOBILIARIA_SIGNERS = 10;
 
@@ -178,12 +181,18 @@ export class ClicksignClient {
     this.base = base;
   }
 
-  async call(step: string, method: string, path: string, body?: unknown): Promise<any> {
+  async call(
+    step: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    contentType = JSONAPI,
+  ): Promise<any> {
     const headers: Record<string, string> = {
       Authorization: this.token,
-      Accept: "application/vnd.api+json",
+      Accept: contentType,
     };
-    if (body !== undefined) headers["Content-Type"] = "application/vnd.api+json";
+    if (body !== undefined) headers["Content-Type"] = contentType;
     const res = await this.fetchImpl(this.base + path, {
       method,
       headers,
@@ -261,6 +270,54 @@ export class ClicksignClient {
   }
   deleteEnvelope(envelopeId: string) {
     return this.call("delete", "DELETE", `/envelopes/${envelopeId}`);
+  }
+  listSigners(envelopeId: string) {
+    return this.call("list_signers", "GET", `/envelopes/${envelopeId}/signers?page[size]=50`);
+  }
+  listRequirements(envelopeId: string) {
+    return this.call(
+      "list_requirements",
+      "GET",
+      `/envelopes/${envelopeId}/requirements?page[size]=100`,
+    );
+  }
+  listDocumentEvents(envelopeId: string, documentId: string) {
+    return this.call(
+      "list_events",
+      "GET",
+      `/envelopes/${envelopeId}/documents/${documentId}/events?page[size]=100`,
+    );
+  }
+  /** POST /signers não aceita "group" (400 "group não é permitido", teste real 18/10). */
+  addSigner(envelopeId: string, s: { nome: string; email: string }) {
+    return this.call("signer", "POST", `/envelopes/${envelopeId}/signers`, {
+      data: {
+        type: "signers",
+        attributes: {
+          name: s.nome,
+          email: s.email,
+          has_documentation: true,
+          refusable: false,
+          communicate_events: {
+            document_signed: "email",
+            signature_request: "email",
+            signature_reminder: "email",
+          },
+        },
+      },
+    });
+  }
+  bulkRequirements(envelopeId: string, operations: object[]) {
+    return this.call(
+      "bulk_requirements",
+      "POST",
+      `/envelopes/${envelopeId}/bulk_requirements`,
+      { "atomic:operations": operations },
+      JSONAPI_ATOMIC,
+    );
+  }
+  deleteSigner(envelopeId: string, signerId: string) {
+    return this.call("delete_signer", "DELETE", `/envelopes/${envelopeId}/signers/${signerId}`);
   }
 }
 
@@ -368,6 +425,82 @@ export async function notifySigners(
   } catch (e) {
     return e instanceof ClicksignError ? `${e.step}:${e.status}` : "notify:internal";
   }
+}
+
+/** Mostra só o começo do usuário e o domínio (ex.: "ed***@exemplo.com"). Nunca vai para log. */
+export function maskEmail(v: string | null | undefined): string {
+  const e = normEmail(v);
+  const at = e.indexOf("@");
+  if (at < 1) return "";
+  return `${e.slice(0, Math.min(2, at))}***${e.slice(at)}`;
+}
+
+/** Signatário gravado no ADM MAX (clicksign_envelopes.signers): sem e-mail em claro. */
+export type StoredSigner = { papel: Papel; nome: string; email_sha256: string };
+export type SignerState = {
+  idx: number;
+  papel: Papel;
+  nome: string;
+  /** id do signatário na Clicksign (null = não encontrado, ex.: alterado fora do ADM MAX). */
+  signerId: string | null;
+  emailMasked: string;
+  signed: boolean;
+};
+
+/**
+ * Cruza os signatários do ADM MAX com a Clicksign pelo sha256 do e-mail e marca quem já assinou
+ * (evento "sign" do documento). Na dúvida (evento sem e-mail), compara pelo nome: melhor bloquear a
+ * edição de quem talvez tenha assinado do que trocar quem já assinou.
+ * shortcut: lê até 50 signatários e 100 eventos (1 página); a captação tem no máximo ~16.
+ */
+export async function signerStates(
+  stored: StoredSigner[],
+  signersResp: any,
+  eventsResp: any,
+): Promise<SignerState[]> {
+  const remote = await Promise.all(
+    (Array.isArray(signersResp?.data) ? signersResp.data : []).map(async (s: any) => ({
+      id: String(s?.id ?? ""),
+      name: normName(s?.attributes?.name),
+      email: normEmail(s?.attributes?.email),
+      sha: await sha256Hex(normEmail(s?.attributes?.email)),
+    })),
+  );
+  const signedEmails = new Set<string>();
+  const signedNames = new Set<string>();
+  for (const ev of Array.isArray(eventsResp?.data) ? eventsResp.data : []) {
+    const a = ev?.attributes ?? {};
+    if (a.name !== "sign") continue;
+    const who = a.data?.signer ?? a.data?.user ?? {};
+    const em = normEmail(who.email);
+    if (em) signedEmails.add(await sha256Hex(em));
+    else if (who.name) signedNames.add(normName(who.name).toLowerCase());
+  }
+  return stored.map((s, idx) => {
+    const r = remote.find((x) => x.sha === s.email_sha256) ?? null;
+    const signed =
+      signedEmails.has(s.email_sha256) ||
+      signedNames.has(normName(r?.name ?? s.nome).toLowerCase());
+    return {
+      idx,
+      papel: s.papel,
+      nome: s.nome,
+      signerId: r?.id || null,
+      emailMasked: r ? maskEmail(r.email) : "",
+      signed,
+    };
+  });
+}
+
+/** Requisitos (ids) ligados a um signatário no documento. */
+export function requirementIdsFor(reqResp: any, signerId: string, documentId: string): string[] {
+  return (Array.isArray(reqResp?.data) ? reqResp.data : [])
+    .filter(
+      (r: any) =>
+        r?.relationships?.signer?.data?.id === signerId &&
+        (r?.relationships?.document?.data?.id ?? documentId) === documentId,
+    )
+    .map((r: any) => String(r.id));
 }
 
 /** Data limite RFC 3339 a N dias (máx. 90 pela Clicksign). */

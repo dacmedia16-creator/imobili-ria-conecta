@@ -214,6 +214,7 @@ export type CaptureDocument = {
   owner_index: number;
   storage_path: string;
   file_name: string;
+  created_at?: string;
 };
 export type CaptureEvent = {
   id: number;

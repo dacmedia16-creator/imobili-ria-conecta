@@ -21,6 +21,8 @@ export type ClicksignEnvelopeInfo = {
   created_at: string;
   error_code: string | null;
   signed: boolean;
+  last_notified_at?: string | null;
+  notify_available_at?: string | null;
 };
 
 export type ClicksignCaptureConfig =
@@ -177,7 +179,7 @@ export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
         return `Enviado à Clicksign${teste}, mas o registro no ADM MAX ficou incompleto. Não reenvie; avise o suporte.`;
       }
       if (e.error_code?.startsWith("notify_failed:")) {
-        return `Enviado${teste}, mas a notificação falhou; peça reenvio de aviso ao suporte.`;
+        return `Enviado${teste}, mas a notificação falhou; use “Reenviar aviso” abaixo.`;
       }
       return `Em assinatura na Clicksign${teste}. Quando todos assinarem, o PDF assinado é anexado sozinho.`;
     case "closed":
@@ -196,4 +198,184 @@ export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
 /** Pode (re)enviar: não há envelope em envio ou em assinatura. */
 export function canStartEnvelope(e: ClicksignEnvelopeInfo | null): boolean {
   return !e || !["sending", "running"].includes(e.status);
+}
+
+// ---------- envelope em assinatura: quem falta, reenviar aviso, editar signatário ----------
+
+export type ManagedSigner = {
+  idx: number;
+  papel: string;
+  label: string;
+  nome: string;
+  /** Mascarado pelo servidor (ex.: "an***@exemplo.com"). */
+  email: string;
+  signed: boolean;
+  found: boolean;
+  editable: boolean;
+};
+
+/** Pode gerenciar (reenviar/editar): gestor/jurídico/ADM com envelope rodando. */
+export function canManageEnvelope(config: ClicksignCaptureConfig): boolean {
+  return config.enabled && config.can_send && config.envelope?.status === "running";
+}
+
+/**
+ * Minutos que faltam para liberar "Reenviar aviso" (0 = liberado). O servidor confere de novo;
+ * aqui só evita o clique inútil.
+ */
+export function notifyWaitMinutes(e: ClicksignEnvelopeInfo | null, now = Date.now()): number {
+  const at = e?.notify_available_at ? Date.parse(e.notify_available_at) : NaN;
+  if (!Number.isFinite(at) || at <= now) return 0;
+  return Math.ceil((at - now) / 60000);
+}
+
+/** Mesmas regras do servidor (nome com sobrenome, e-mail válido) para travar o botão Salvar. */
+export function editSignerErrors(nome: string, email: string): string[] {
+  const errors: string[] = [];
+  if (!validSignerName(nome)) errors.push("Informe nome e sobrenome");
+  if (!validEmail(email)) errors.push("E-mail ausente ou inválido");
+  return errors;
+}
+
+async function invokeManage(
+  db: SupabaseClient,
+  body: Record<string, unknown>,
+  fallback: string,
+): Promise<Record<string, unknown>> {
+  const { data, error } = await db.functions.invoke("clicksign-manage", { body });
+  if (error) {
+    let message = fallback;
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === "function") {
+      try {
+        const b = (await (ctx as Response).json()) as { error?: string; details?: string[] };
+        if (b?.error) message = b.details?.length ? `${b.error}: ${b.details.join("; ")}` : b.error;
+      } catch {
+        /* corpo não-JSON */
+      }
+    }
+    throw new Error(message);
+  }
+  const d = (data ?? {}) as Record<string, unknown>;
+  if (d.ok !== true) throw new Error(fallback);
+  return d;
+}
+
+export async function clicksignSignersStatus(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<ManagedSigner[]> {
+  const d = await invokeManage(
+    db,
+    { capture_id: captureId, action: "status" },
+    "Não foi possível consultar a Clicksign agora.",
+  );
+  return Array.isArray(d.signers) ? (d.signers as ManagedSigner[]) : [];
+}
+
+export async function resendClicksignNotice(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<{ warning?: string }> {
+  const d = await invokeManage(
+    db,
+    { capture_id: captureId, action: "notify" },
+    "Não foi possível reenviar o aviso. Atualize a página e tente de novo.",
+  );
+  return typeof d.warning === "string" ? { warning: d.warning } : {};
+}
+
+export async function editClicksignSigner(
+  db: SupabaseClient,
+  input: { captureId: string; idx: number; nome: string; email: string },
+): Promise<{ warning?: string }> {
+  const d = await invokeManage(
+    db,
+    {
+      capture_id: input.captureId,
+      action: "edit_signer",
+      idx: input.idx,
+      nome: input.nome.trim(),
+      email: input.email.trim(),
+    },
+    "Não foi possível alterar o signatário. Atualize a página e confira antes de tentar de novo.",
+  );
+  return typeof d.warning === "string" ? { warning: d.warning } : {};
+}
+
+// ---------- passo "Documento assinado" ----------
+
+export type ClicksignSignedInfo = {
+  is_test: boolean;
+  closed_at: string;
+  signers: Array<{ papel: string; nome: string }>;
+};
+
+/** Nome fixo do PDF anexado pelo webhook (clicksign-webhook/core.ts). */
+export const CLICKSIGN_SIGNED_FILE = "contrato-assinado-clicksign.pdf";
+
+/**
+ * Quem assinou pela Clicksign (sem e-mail). null = o assinado atual não veio da Clicksign;
+ * "unknown" = não deu para consultar (a tela usa o nome do arquivo como pista).
+ */
+export async function clicksignCaptureSigned(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<ClicksignSignedInfo | null | "unknown"> {
+  try {
+    const { data, error } = await db.rpc("clicksign_capture_signed", { _id: captureId });
+    if (error) return "unknown";
+    if (!data || typeof data !== "object") return null;
+    const d = data as Record<string, unknown>;
+    return {
+      is_test: d.is_test === true,
+      closed_at: typeof d.closed_at === "string" ? d.closed_at : "",
+      signers: Array.isArray(d.signers) ? (d.signers as ClicksignSignedInfo["signers"]) : [],
+    };
+  } catch {
+    return "unknown";
+  }
+}
+
+const PAPEL_LABEL: Record<string, string> = {
+  proprietario_1: "Proprietário 1",
+  proprietario_2: "Proprietário 2",
+  corretor: "Corretor",
+  imobiliaria: "Imobiliária",
+  testemunha: "Testemunha",
+};
+/** "Proprietário 1", "Imobiliária 2", "Testemunha 1"… na ordem gravada. */
+export function signedSignerLabels(list: ClicksignSignedInfo["signers"]): string[] {
+  const count: Record<string, number> = {};
+  const total: Record<string, number> = {};
+  list.forEach((s) => (total[s.papel] = (total[s.papel] ?? 0) + 1));
+  return list.map((s) => {
+    count[s.papel] = (count[s.papel] ?? 0) + 1;
+    const base = PAPEL_LABEL[s.papel] ?? s.papel;
+    const n = ["imobiliaria", "testemunha"].includes(s.papel) && total[s.papel] > 1;
+    return `${base}${n ? ` ${count[s.papel]}` : ""}: ${s.nome}`;
+  });
+}
+
+/**
+ * Qual passo final a captação usa: o passo 5 "Documento assinado" aparece quando há contrato
+ * assinado anexado (Clicksign ou upload manual) numa captação normal. Captações antigas sem
+ * assinado continuam com 4 passos; o cadastro manual tem fluxo próprio (contrato no passo 1).
+ */
+export function hasSignedStep(manual: boolean, docs: Array<{ kind: string }>): boolean {
+  return !manual && docs.some((d) => d.kind === "assinado");
+}
+
+/** Origem do assinado mostrada no passo 5. */
+export function signedOrigin(
+  info: ClicksignSignedInfo | null | "unknown",
+  fileName?: string | null,
+): string {
+  if (info === "unknown") {
+    return fileName === CLICKSIGN_SIGNED_FILE
+      ? "Clicksign, anexado automaticamente"
+      : "Upload manual (anexado no ADM MAX)";
+  }
+  if (!info) return "Upload manual (anexado no ADM MAX)";
+  return `Clicksign${info.is_test ? " (TESTE)" : ""}, anexado automaticamente`;
 }

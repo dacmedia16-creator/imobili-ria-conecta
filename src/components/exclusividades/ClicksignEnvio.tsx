@@ -15,7 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { errorMessage } from "@/lib/errors";
+import { ClicksignGestaoEnvelope } from "@/components/exclusividades/ClicksignGestaoEnvelope";
 import {
+  canManageEnvelope,
   canStartEnvelope,
   CLICKSIGN_DISABLED,
   clicksignCaptureConfig,
@@ -122,6 +124,15 @@ export function ClicksignEnvio({
       </CardHeader>
       <CardContent className="space-y-3">
         {envelope && <p className="text-sm">{envelopeStatusLabel(envelope)}</p>}
+        {envelope && canManageEnvelope(config) && (
+          <ClicksignGestaoEnvelope
+            db={db}
+            captureId={captureId}
+            envelope={envelope}
+            testMode={config.test_mode}
+            onChanged={refresh}
+          />
+        )}
         {podeEnviar && (
           <>
             <p className="text-sm text-muted-foreground">

@@ -61,8 +61,14 @@ import {
   extractCaptureDocument,
   extractSignedContract,
 } from "@/lib/exclusive-captures-ai.functions";
-import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
+import {
+  clicksignCaptureSigned,
+  clicksignManualInstructions,
+  hasSignedStep,
+  type ClicksignSignedInfo,
+} from "@/lib/exclusive-clicksign";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
+import { DocumentoAssinadoResumo } from "@/components/exclusividades/DocumentoAssinadoResumo";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
 import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
@@ -183,6 +189,8 @@ const normalSteps = [
   { key: "dossie", label: "Plano de Marketing" },
   { key: "revisao", label: "Revisão e envio" },
 ] as const;
+// Passo 5 só existe depois que o contrato assinado chega (Clicksign ou upload manual).
+const signedStepItem = { key: "assinado", label: "Documento assinado" } as const;
 // Cadastro manual (contrato já assinado no papel): contrato → conferência → Plano de Marketing.
 const manualSteps = [
   { key: "contrato", label: "Contrato assinado" },
@@ -190,7 +198,10 @@ const manualSteps = [
   { key: "dossie", label: "Plano de Marketing" },
   { key: "revisao", label: "Envio ao gestor" },
 ] as const;
-type CaptureStep = (typeof normalSteps)[number]["key"] | (typeof manualSteps)[number]["key"];
+type CaptureStep =
+  | (typeof normalSteps)[number]["key"]
+  | (typeof manualSteps)[number]["key"]
+  | typeof signedStepItem.key;
 
 function ExclusiveDetail() {
   const { id } = Route.useParams();
@@ -230,7 +241,33 @@ function ExclusiveDetail() {
   const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
   // Cadastro manual: contrato de exclusividade já assinado no papel (sem PDF gerado pelo sistema).
   const manual = !!capture?.manual;
-  const captureSteps = manual ? manualSteps : normalSteps;
+  // Passo 5 "Documento assinado": captação normal com contrato assinado anexado (Clicksign ou
+  // upload). Captações antigas sem assinado e o cadastro manual seguem com 4 passos.
+  const signedStep = hasSignedStep(manual, docs);
+  const captureSteps: ReadonlyArray<{ key: CaptureStep; label: string }> = manual
+    ? manualSteps
+    : signedStep
+      ? [...normalSteps, signedStepItem]
+      : normalSteps;
+  const [signedInfo, setSignedInfo] = useState<ClicksignSignedInfo | null | "unknown">(null);
+  const signedDocId = docs.find((d) => d.kind === "assinado")?.id ?? null;
+  useEffect(() => {
+    if (!signedStep) {
+      setSignedInfo(null);
+      return;
+    }
+    let alive = true;
+    void clicksignCaptureSigned(supabase as unknown as SupabaseClient, id).then((r) => {
+      if (alive) setSignedInfo(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, signedStep, signedDocId]);
+  // Assinado removido (ex.: devolvida e contrato trocado): volta para o passo 4.
+  useEffect(() => {
+    if (!signedStep && step === "assinado") setStep("revisao");
+  }, [signedStep, step]);
   const [reading, setReading] = useState<{ ok: boolean; filled: string[] } | null>(null);
   const navigate = useNavigate();
   const archived = !!capture?.archived_at;
@@ -242,7 +279,12 @@ function ExclusiveDetail() {
       setSuggestions([]);
       setPreview(null);
       setReading(null);
-      setStep(result.capture.manual ? "contrato" : "documentos");
+      // Contrato já assinado aguardando aprovação: abre direto no passo 5.
+      const aguardandoAprovacao =
+        !result.capture.manual &&
+        ["enviada", "em_assinatura"].includes(result.capture.status) &&
+        result.docs.some((d) => d.kind === "assinado");
+      setStep(result.capture.manual ? "contrato" : aguardandoAprovacao ? "assinado" : "documentos");
       loadedId.current = id;
     }
     setCapture(result.capture);
@@ -460,6 +502,8 @@ function ExclusiveDetail() {
       if (dirty && form) await saveCapture(id, form, cpf, creci);
       const storagePath = await uploadCaptureDocument(id, kind, owner, file);
       toast.success("Documento anexado");
+      // Upload manual do assinado (captação normal) leva ao passo 5, igual ao que chega da Clicksign.
+      if (kind === "assinado" && !manual) setStep("assinado");
       if (kind === "assinado" || kind === "gerado") return;
       const scope = owner === 1 ? "proprietario_1" : owner === 2 ? "proprietario_2" : "imovel";
       try {
@@ -857,6 +901,10 @@ function ExclusiveDetail() {
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
   const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);
+  // Passo 4 = revisão, geração e envio. Com o assinado anexado, a aprovação (PDF assinado, data e
+  // botão Aprovar) passa para o passo 5 "Documento assinado".
+  const approvalStep: CaptureStep = signedStep ? "assinado" : "revisao";
+  const lastStep = captureSteps[captureSteps.length - 1].key;
   return (
     <div className="space-y-5 pb-10">
       <Link to="/exclusividades" className="text-sm text-primary underline">
@@ -1018,7 +1066,10 @@ function ExclusiveDetail() {
           <PlanoChecklist captureId={capture.id} editable={!archived} />
         </>
       )}
-      <nav aria-label="Etapas da captação" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <nav
+        aria-label="Etapas da captação"
+        className={`grid grid-cols-2 gap-2 ${captureSteps.length > 4 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}
+      >
         {captureSteps.map((item, index) => (
           <Button
             key={item.key}
@@ -1081,9 +1132,9 @@ function ExclusiveDetail() {
             <CardContent className="space-y-1 p-4 text-sm">
               <p className="font-medium">Comece pelos documentos</p>
               <p>
-                Envie RG e CPF ou CNH de cada proprietário, a matrícula e o IPTU do imóvel: sem
-                eles não dá para enviar ao gestor. O comprovante de residência é opcional. A leitura
-                é local e apresenta sugestões para sua revisão. Também é possível preencher tudo
+                Envie RG e CPF ou CNH de cada proprietário, a matrícula e o IPTU do imóvel: sem eles
+                não dá para enviar ao gestor. O comprovante de residência é opcional. A leitura é
+                local e apresenta sugestões para sua revisão. Também é possível preencher tudo
                 manualmente na próxima etapa.
               </p>
               <p className="text-muted-foreground">
@@ -1564,32 +1615,58 @@ function ExclusiveDetail() {
           )}
         </>
       )}
-      {step === "revisao" && (
+      {step === "assinado" && signedStep && (
+        <DocumentoAssinadoResumo
+          info={signedInfo}
+          fileName={signedDoc?.file_name}
+          anexadoEm={signedDoc?.created_at}
+          aprovada={capture.status === "aprovada"}
+        />
+      )}
+      {step === "revisao" && signedStep && (
+        <p
+          role="status"
+          className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+        >
+          Contrato assinado recebido.{" "}
+          <button
+            type="button"
+            className="font-medium text-primary underline"
+            onClick={() => setStep("assinado")}
+          >
+            Ver no passo 5 “Documento assinado”
+          </button>
+        </p>
+      )}
+      {(step === "revisao" || step === "assinado") && (
         <>
-          {manual && manualCheck && (capture.status !== "aprovada" || manager) && (
-            <Card className="border-violet-300">
-              <CardHeader>
-                <CardTitle>Pendências do cadastro manual</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {manualCheck.required.length > 0 && (
-                  <p className="rounded-md border border-red-300 bg-red-50 p-2 text-red-900">
-                    Obrigatório: {manualCheck.required.join(" · ")}
-                  </p>
-                )}
-                {manualCheck.optional.length ? (
-                  <ul className="list-inside list-disc text-amber-900">
-                    {manualCheck.optional.map((p) => (
-                      <li key={p}>Pendente: {p}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-emerald-700">Nenhuma pendência.</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-          {!manual && manager && capture.status === "enviada" && (
+          {step === "revisao" &&
+            manual &&
+            manualCheck &&
+            (capture.status !== "aprovada" || manager) && (
+              <Card className="border-violet-300">
+                <CardHeader>
+                  <CardTitle>Pendências do cadastro manual</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  {manualCheck.required.length > 0 && (
+                    <p className="rounded-md border border-red-300 bg-red-50 p-2 text-red-900">
+                      Obrigatório: {manualCheck.required.join(" · ")}
+                    </p>
+                  )}
+                  {manualCheck.optional.length ? (
+                    <ul className="list-inside list-disc text-amber-900">
+                      {manualCheck.optional.map((p) => (
+                        <li key={p}>Pendente: {p}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-emerald-700">Nenhuma pendência.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          {step === "revisao" && !manual && manager && capture.status === "enviada" && (
             <Card>
               <CardHeader>
                 <CardTitle>Gerar PDF para assinatura</CardTitle>
@@ -1630,7 +1707,7 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           )}
-          {editable && (
+          {step === "revisao" && editable && (
             <Card>
               <CardHeader>
                 <CardTitle>Enviar ao gestor</CardTitle>
@@ -1657,7 +1734,7 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           )}
-          {podeInformarData && (
+          {step === approvalStep && podeInformarData && (
             <Card data-testid="captador-data-assinatura">
               <CardHeader>
                 <CardTitle className="text-base">Data de assinatura do contrato</CardTitle>
@@ -1693,150 +1770,164 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           )}
-          {!manual && !archived && ["enviada", "em_assinatura"].includes(capture.status) && (
-            <ClicksignEnvio
-              captureId={capture.id}
-              status={capture.status}
-              form={form as unknown as Record<string, unknown> | null}
-              hasGerado={docs.some((d) => d.kind === "gerado")}
-              dirty={dirty}
-              onSent={reload}
-            />
-          )}
-          {manager && ["enviada", "em_assinatura"].includes(capture.status) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {manual ? "Aprovação do cadastro manual" : "Gestão e assinatura"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm">
-                  {manual
-                    ? "Contrato assinado no papel, anexado pelo captador. Confira o contrato e os dados; ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
-                    : clicksignManualInstructions}
-                </p>
-                {dossieMissing && (
-                  <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
-                    O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
-                    corretor para marcar antes de aprovar.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-primary underline"
-                      onClick={() => setStep("dossie")}
-                    >
-                      Ver Plano de Marketing
-                    </button>
+          {/* Envio/acompanhamento pela Clicksign é do passo 4; assinado, o resumo fica no passo 5. */}
+          {step === "revisao" &&
+            !signedStep &&
+            !manual &&
+            !archived &&
+            ["enviada", "em_assinatura"].includes(capture.status) && (
+              <ClicksignEnvio
+                captureId={capture.id}
+                status={capture.status}
+                form={form as unknown as Record<string, unknown> | null}
+                hasGerado={docs.some((d) => d.kind === "gerado")}
+                dirty={dirty}
+                onSent={reload}
+              />
+            )}
+          {step === approvalStep &&
+            manager &&
+            ["enviada", "em_assinatura"].includes(capture.status) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    {manual
+                      ? "Aprovação do cadastro manual"
+                      : signedStep
+                        ? "Conferência e aprovação"
+                        : "Gestão e assinatura"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm">
+                    {manual
+                      ? "Contrato assinado no papel, anexado pelo captador. Confira o contrato e os dados; ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
+                      : signedStep
+                        ? "Confira o PDF assinado e a data de assinatura. Ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
+                        : clicksignManualInstructions}
                   </p>
-                )}
-                {fileInput(
-                  manual ? "Contrato assinado (PDF ou foto)" : "Contrato assinado (PDF)",
-                  "assinado",
-                )}
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="signed-on">Data de assinatura do contrato</Label>
-                    <Input
-                      id="signed-on"
-                      type="date"
-                      className="w-44"
-                      max={hojeSaoPaulo()}
-                      value={signedOn}
-                      onChange={(e) => setSignedOn(e.target.value)}
-                    />
-                  </div>
-                  <p className="pb-2 text-xs text-muted-foreground">
-                    O prazo da exclusividade conta a partir desta data.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!manual && capture.status === "enviada" && (
-                    <Button
-                      variant="outline"
-                      disabled={busy || !docs.some((d) => d.kind === "gerado")}
-                      onClick={() => action("assinatura")}
-                    >
-                      Registrar envio para assinatura externa
-                    </Button>
+                  {dossieMissing && (
+                    <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+                      O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
+                      corretor para marcar antes de aprovar.{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-primary underline"
+                        onClick={() => setStep("dossie")}
+                      >
+                        Ver Plano de Marketing
+                      </button>
+                    </p>
                   )}
-                  <Button
-                    disabled={busy || !!bloqueioAprovar}
-                    title={bloqueioAprovar ?? undefined}
-                    onClick={() => action("aprovar")}
-                  >
-                    Aprovar captação
-                  </Button>
-                </div>
-                {avisoSemAssinado(docs) && (
-                  <p
-                    role="status"
-                    data-testid="aviso-sem-assinado"
-                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-                  >
-                    {avisoSemAssinado(docs)}
+                  {fileInput(
+                    manual ? "Contrato assinado (PDF ou foto)" : "Contrato assinado (PDF)",
+                    "assinado",
+                  )}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="signed-on">Data de assinatura do contrato</Label>
+                      <Input
+                        id="signed-on"
+                        type="date"
+                        className="w-44"
+                        max={hojeSaoPaulo()}
+                        value={signedOn}
+                        onChange={(e) => setSignedOn(e.target.value)}
+                      />
+                    </div>
+                    <p className="pb-2 text-xs text-muted-foreground">
+                      O prazo da exclusividade conta a partir desta data.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!manual && !signedStep && capture.status === "enviada" && (
+                      <Button
+                        variant="outline"
+                        disabled={busy || !docs.some((d) => d.kind === "gerado")}
+                        onClick={() => action("assinatura")}
+                      >
+                        Registrar envio para assinatura externa
+                      </Button>
+                    )}
+                    <Button
+                      disabled={busy || !!bloqueioAprovar}
+                      title={bloqueioAprovar ?? undefined}
+                      onClick={() => action("aprovar")}
+                    >
+                      Aprovar captação
+                    </Button>
+                  </div>
+                  {avisoSemAssinado(docs) && (
+                    <p
+                      role="status"
+                      data-testid="aviso-sem-assinado"
+                      className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                    >
+                      {avisoSemAssinado(docs)}
+                    </p>
+                  )}
+                  {bloqueioAprovar && bloqueioAprovar !== BLOQUEIO_SEM_ASSINADO && (
+                    <p className="text-xs text-muted-foreground">{bloqueioAprovar}</p>
+                  )}
+                  {capture.status === "em_assinatura" && (
+                    <p className="text-xs text-amber-800">Ao devolver: {AVISO_CLICKSIGN}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="Motivo da devolução"
+                      placeholder="Motivo da devolução (obrigatório)"
+                      maxLength={1000}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                    <Button
+                      variant="destructive"
+                      disabled={busy || !reason.trim()}
+                      onClick={() => action("devolver")}
+                    >
+                      Devolver
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          {step === approvalStep &&
+            podeDevolverAprovada({
+              manager,
+              status: capture.status,
+              archived,
+              temVendaAtiva: !!vendaInfo.venda,
+            }) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Devolver ao corretor</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Use quando a aprovação precisa ser refeita (dado errado, Plano de Marketing
+                    incompleto). A captação sai do mapa e do alerta de vencimento até ser aprovada
+                    de novo; o contrato assinado fica guardado no histórico. Não é possível com
+                    venda ativa ligada.
                   </p>
-                )}
-                {bloqueioAprovar && bloqueioAprovar !== BLOQUEIO_SEM_ASSINADO && (
-                  <p className="text-xs text-muted-foreground">{bloqueioAprovar}</p>
-                )}
-                {capture.status === "em_assinatura" && (
-                  <p className="text-xs text-amber-800">Ao devolver: {AVISO_CLICKSIGN}</p>
-                )}
-                <div className="flex gap-2">
-                  <Input
-                    aria-label="Motivo da devolução"
-                    placeholder="Motivo da devolução (obrigatório)"
-                    maxLength={1000}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                  <Button
-                    variant="destructive"
-                    disabled={busy || !reason.trim()}
-                    onClick={() => action("devolver")}
-                  >
-                    Devolver
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {podeDevolverAprovada({
-            manager,
-            status: capture.status,
-            archived,
-            temVendaAtiva: !!vendaInfo.venda,
-          }) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Devolver ao corretor</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Use quando a aprovação precisa ser refeita (dado errado, Plano de Marketing
-                  incompleto). A captação sai do mapa e do alerta de vencimento até ser aprovada de
-                  novo; o contrato assinado fica guardado no histórico. Não é possível com venda
-                  ativa ligada.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    aria-label="Motivo da devolução da captação aprovada"
-                    placeholder="Motivo da devolução (obrigatório)"
-                    maxLength={1000}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                  <Button
-                    variant="destructive"
-                    disabled={busy || !reason.trim()}
-                    onClick={() => action("devolver")}
-                  >
-                    Devolver ao corretor
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="Motivo da devolução da captação aprovada"
+                      placeholder="Motivo da devolução (obrigatório)"
+                      maxLength={1000}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                    <Button
+                      variant="destructive"
+                      disabled={busy || !reason.trim()}
+                      onClick={() => action("devolver")}
+                    >
+                      Devolver ao corretor
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           <Card>
             <CardHeader>
               <CardTitle>Histórico auditado</CardTitle>
@@ -1858,7 +1949,7 @@ function ExclusiveDetail() {
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
         <Button
           variant="outline"
-          disabled={step === "documentos"}
+          disabled={step === captureSteps[0].key}
           onClick={() =>
             setStep(
               captureSteps[Math.max(0, captureSteps.findIndex((s) => s.key === step) - 1)].key,
@@ -1869,7 +1960,7 @@ function ExclusiveDetail() {
         </Button>
         {dirty && <span className="text-xs text-amber-800">Alterações não salvas</span>}
         <Button
-          disabled={step === "revisao"}
+          disabled={step === lastStep}
           onClick={() =>
             setStep(
               captureSteps[
