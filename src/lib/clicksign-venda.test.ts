@@ -277,6 +277,16 @@ describe("clicksign-sale: enviar", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(deps.insertEnvelope).not.toHaveBeenCalled();
   });
+  it("org sem Clicksign ligada: 403 sem chamar a Clicksign nem criar envelope", async () => {
+    const { deps, fetch } = saleDeps({
+      authorizeError: "Envio pela Clicksign não está habilitado para esta imobiliária",
+    });
+    const r = await handleSale(deps, send);
+    expect(r.status).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(deps.insertEnvelope).not.toHaveBeenCalled();
+    expect(deps.markSent).not.toHaveBeenCalled();
+  });
   it("parte sem e-mail: 422 com a lista para o atalho da aba Partes, sem envelope", async () => {
     const { deps, fetch } = saleDeps({
       parties: [{ papel: "vendedor_1", nome: "Valter Vendedor", email: "" }, parties[0]],
