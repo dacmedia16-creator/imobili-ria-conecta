@@ -1,4 +1,5 @@
 // Lógica do webhook da Clicksign (sem Deno; testável com mock).
+/* eslint-disable @typescript-eslint/no-explicit-any -- payload do webhook da Clicksign sem tipos publicados */
 // URL por organização: /functions/v1/clicksign-webhook/<webhook_slug>. Valida o Content-Hmac
 // (sha256 = HMAC-SHA256 do corpo BRUTO com o segredo daquela org) em tempo constante, registra o
 // evento de forma idempotente (org + sha256 do corpo) e, quando o documento fecha, baixa o PDF
@@ -17,12 +18,23 @@ const SLUG_RE = /^[0-9a-f]{32,64}$/;
 const MAX_BODY = 1024 * 1024;
 
 export type OrgWebhook = { organizationId: string; secret: string | null; token: string | null };
-export type EnvelopeRow = { id: string; envelope_key: string; document_key: string | null; capture_id: string; organization_id: string };
+export type EnvelopeRow = {
+  id: string;
+  envelope_key: string;
+  document_key: string | null;
+  capture_id: string;
+  organization_id: string;
+};
 
 export type WebhookDeps = {
   findOrg(slug: string): Promise<OrgWebhook | null>;
   /** Insere o evento; devolve false se (org, body_sha256) já existe e já foi processado. */
-  recordEvent(row: { organization_id: string; body_sha256: string; event_name: string | null; document_key: string | null }): Promise<{ id: number; fresh: boolean }>;
+  recordEvent(row: {
+    organization_id: string;
+    body_sha256: string;
+    event_name: string | null;
+    document_key: string | null;
+  }): Promise<{ id: number; fresh: boolean }>;
   finishEvent(id: number, result: string): Promise<void>;
   findEnvelope(org: string, documentKey: string): Promise<EnvelopeRow | null>;
   updateEnvelope(id: string, patch: Record<string, unknown>): Promise<void>;
@@ -54,7 +66,8 @@ export async function handleWebhook(
   const org = await deps.findOrg(slug);
   // Mesma resposta para slug inexistente e HMAC inválido: não revela quais URLs existem.
   if (!org || !org.secret) return r(401, { error: "unauthorized" });
-  if (!(await verifyContentHmac(raw, headers.hmac, org.secret))) return r(401, { error: "unauthorized" });
+  if (!(await verifyContentHmac(raw, headers.hmac, org.secret)))
+    return r(401, { error: "unauthorized" });
 
   let payload: any;
   try {
@@ -83,11 +96,18 @@ export async function handleWebhook(
   if (!env) return done("ignored:unknown_document");
 
   if (eventName && CANCEL_EVENTS.has(eventName)) {
-    await deps.updateEnvelope(env.id, { status: "canceled", last_event: eventName, updated_at: new Date().toISOString() });
+    await deps.updateEnvelope(env.id, {
+      status: "canceled",
+      last_event: eventName,
+      updated_at: new Date().toISOString(),
+    });
     return done(`envelope:${eventName}`);
   }
   if (!eventName || !CLOSE_EVENTS.has(eventName)) {
-    await deps.updateEnvelope(env.id, { last_event: eventName ?? "desconhecido", updated_at: new Date().toISOString() });
+    await deps.updateEnvelope(env.id, {
+      last_event: eventName ?? "desconhecido",
+      updated_at: new Date().toISOString(),
+    });
     return done(`noted:${eventName ?? "?"}`);
   }
 
@@ -97,9 +117,15 @@ export async function handleWebhook(
   try {
     const client = new ClicksignClient(org.token, deps.fetch, deps.clicksignBase);
     const doc = await client.getDocument(env.envelope_key, documentKey);
-    url = signedUrlFrom(doc, Array.isArray(payload?.document) ? payload.document[0] : payload?.document);
+    url = signedUrlFrom(
+      doc,
+      Array.isArray(payload?.document) ? payload.document[0] : payload?.document,
+    );
   } catch {
-    url = signedUrlFrom(null, Array.isArray(payload?.document) ? payload.document[0] : payload?.document);
+    url = signedUrlFrom(
+      null,
+      Array.isArray(payload?.document) ? payload.document[0] : payload?.document,
+    );
   }
   if (!url) {
     await deps.finishEvent(ev.id, "error:no_signed_url");

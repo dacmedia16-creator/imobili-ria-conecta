@@ -12,7 +12,9 @@ Deno.serve(async (req) => {
   const url = Deno.env.get("SUPABASE_URL") ?? "";
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!url || !service) return json({ error: "function_not_configured" }, 503);
-  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const admin = createClient(url, service, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const slug = new URL(req.url).pathname.split("/").filter(Boolean).pop() ?? "";
   const raw = new Uint8Array(await req.arrayBuffer());
 
@@ -20,8 +22,11 @@ Deno.serve(async (req) => {
     {
       fetch: (u, init) => fetch(u, init),
       async findOrg(s) {
-        const { data } = await admin.from("clicksign_org_settings").select("organization_id")
-          .eq("webhook_slug", s).maybeSingle();
+        const { data } = await admin
+          .from("clicksign_org_settings")
+          .select("organization_id")
+          .eq("webhook_slug", s)
+          .maybeSingle();
         if (!data) return null;
         const [secret, token] = await Promise.all([
           admin.rpc("clicksign_org_secret", { _org: data.organization_id, _kind: "webhook" }),
@@ -38,20 +43,30 @@ Deno.serve(async (req) => {
         if (!ins.error) return { id: ins.data.id, fresh: true };
         if (ins.error.code !== "23505") throw new Error("event_insert_failed");
         // Já recebido: reprocessa só se a tentativa anterior não terminou ou falhou.
-        const { data } = await admin.from("clicksign_webhook_events").select("id, result")
-          .eq("organization_id", row.organization_id).eq("body_sha256", row.body_sha256).single();
+        const { data } = await admin
+          .from("clicksign_webhook_events")
+          .select("id, result")
+          .eq("organization_id", row.organization_id)
+          .eq("body_sha256", row.body_sha256)
+          .single();
         const retry = !data?.result || String(data.result).startsWith("error:");
         return { id: data!.id, fresh: retry };
       },
       async finishEvent(id, result) {
-        await admin.from("clicksign_webhook_events")
-          .update({ result, processed_at: new Date().toISOString() }).eq("id", id);
+        await admin
+          .from("clicksign_webhook_events")
+          .update({ result, processed_at: new Date().toISOString() })
+          .eq("id", id);
       },
       async findEnvelope(org, documentKey) {
-        const { data } = await admin.from("clicksign_envelopes")
+        const { data } = await admin
+          .from("clicksign_envelopes")
           .select("id, envelope_key, document_key, capture_id, organization_id")
-          .eq("organization_id", org).eq("document_key", documentKey)
-          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+          .eq("organization_id", org)
+          .eq("document_key", documentKey)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
         return data ?? null;
       },
       async updateEnvelope(id, patch) {
@@ -59,14 +74,17 @@ Deno.serve(async (req) => {
       },
       async storePdf(env, pdf) {
         const path = `${env.organization_id}/${env.capture_id}/${crypto.randomUUID()}.pdf`;
-        const { error } = await admin.storage.from("exclusive-captures")
+        const { error } = await admin.storage
+          .from("exclusive-captures")
           .upload(path, pdf, { contentType: "application/pdf", upsert: false });
         if (error) throw new Error("storage_upload_failed");
         return path;
       },
       async attachSigned(envelopeId, path, fileName) {
         const { data, error } = await admin.rpc("clicksign_attach_signed", {
-          _envelope: envelopeId, _path: path, _file_name: fileName,
+          _envelope: envelopeId,
+          _path: path,
+          _file_name: fileName,
         });
         if (error) throw new Error("attach_failed");
         return data as string;
@@ -82,6 +100,10 @@ Deno.serve(async (req) => {
     console.error("clicksign-webhook internal", e instanceof Error ? e.message : "erro");
     return { status: 500, body: { error: "internal" } };
   });
-  console.log("clicksign-webhook", result.status, (result.body as { result?: string }).result ?? "");
+  console.log(
+    "clicksign-webhook",
+    result.status,
+    (result.body as { result?: string }).result ?? "",
+  );
   return json(result.body, result.status);
 });

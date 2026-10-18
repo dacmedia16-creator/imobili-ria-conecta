@@ -10,7 +10,8 @@ const headers = {
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Content-Type": "application/json",
 };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers });
@@ -26,7 +27,9 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  const admin = createClient(url, service, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const { data: who, error: whoErr } = await user.auth.getUser();
   if (whoErr || !who?.user) return json({ error: "unauthorized" }, 401);
 
@@ -42,20 +45,34 @@ Deno.serve(async (req) => {
       },
       async loadContext(org, captureId) {
         const [cap, settings, imob, token, gerado] = await Promise.all([
-          admin.from("exclusive_captures").select("form_data, captor_id").eq("id", captureId)
-            .eq("organization_id", org).single(),
-          admin.from("clicksign_org_settings")
-            .select("test_mode, test_allowlist_sha256, deadline_days").eq("organization_id", org).single(),
+          admin
+            .from("exclusive_captures")
+            .select("form_data, captor_id")
+            .eq("id", captureId)
+            .eq("organization_id", org)
+            .single(),
+          admin
+            .from("clicksign_org_settings")
+            .select("test_mode, test_allowlist_sha256, deadline_days")
+            .eq("organization_id", org)
+            .single(),
           admin.rpc("clicksign_imobiliaria_signers", { _org: org }),
           admin.rpc("clicksign_org_secret", { _org: org, _kind: "access_token" }),
-          admin.from("exclusive_documents").select("id, file_name").eq("capture_id", captureId)
-            .eq("kind", "gerado").single(),
+          admin
+            .from("exclusive_documents")
+            .select("id, file_name")
+            .eq("capture_id", captureId)
+            .eq("kind", "gerado")
+            .single(),
         ]);
         if (cap.error || settings.error || imob.error || token.error || gerado.error) {
           throw new Error("context_unavailable");
         }
-        const { data: captor } = await admin.from("profiles").select("nome, email")
-          .eq("id", cap.data.captor_id).single();
+        const { data: captor } = await admin
+          .from("profiles")
+          .select("nome, email")
+          .eq("id", cap.data.captor_id)
+          .single();
         return {
           organizationId: org,
           form: (cap.data.form_data ?? {}) as Record<string, unknown>,
@@ -69,15 +86,22 @@ Deno.serve(async (req) => {
         };
       },
       async loadPdf(_captureId, documentId) {
-        const { data: d, error } = await admin.from("exclusive_documents").select("storage_path")
-          .eq("id", documentId).single();
+        const { data: d, error } = await admin
+          .from("exclusive_documents")
+          .select("storage_path")
+          .eq("id", documentId)
+          .single();
         if (error) throw new Error("pdf_unavailable");
         const file = await admin.storage.from("exclusive-captures").download(d.storage_path);
         if (file.error || !file.data) throw new Error("pdf_unavailable");
         return new Uint8Array(await file.data.arrayBuffer());
       },
       async insertEnvelope(row) {
-        const { data, error } = await admin.from("clicksign_envelopes").insert(row).select("id").single();
+        const { data, error } = await admin
+          .from("clicksign_envelopes")
+          .insert(row)
+          .select("id")
+          .single();
         if (error?.code === "23505") throw new Error("duplicate");
         if (error) throw new Error("envelope_insert_failed");
         return data.id as string;
@@ -94,7 +118,10 @@ Deno.serve(async (req) => {
     body,
   ).catch((e) => {
     console.error("clicksign-send internal", e instanceof Error ? e.message : "erro");
-    return { status: 500, body: { error: "Falha interna no envio. Nada foi enviado aos signatários." } };
+    return {
+      status: 500,
+      body: { error: "Falha interna no envio. Nada foi enviado aos signatários." },
+    };
   });
   console.log("clicksign-send", result.status, (result.body as { code?: string }).code ?? "");
   return json(result.body, result.status);

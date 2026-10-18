@@ -53,7 +53,11 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   const captureId = typeof b.capture_id === "string" ? b.capture_id : "";
   if (!UUID_RE.test(captureId)) return fail(400, "Captação inválida");
   const imobIds = Array.isArray(b.imobiliaria_ids)
-    ? [...new Set(b.imobiliaria_ids.filter((x): x is string => typeof x === "string" && UUID_RE.test(x)))]
+    ? [
+        ...new Set(
+          b.imobiliaria_ids.filter((x): x is string => typeof x === "string" && UUID_RE.test(x)),
+        ),
+      ]
     : [];
   const testemunhas = Array.isArray(b.testemunhas)
     ? b.testemunhas.slice(0, WITNESS_COUNT + 1).map((t) => {
@@ -89,7 +93,11 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   if (errors.length) return fail(422, "Dados incompletos para assinatura", { details: errors });
 
   const hashed = await Promise.all(
-    signers.map(async (s) => ({ papel: s.papel, nome: s.nome, email_sha256: await sha256Hex(s.email) })),
+    signers.map(async (s) => ({
+      papel: s.papel,
+      nome: s.nome,
+      email_sha256: await sha256Hex(s.email),
+    })),
   );
   if (ctx.testMode) {
     const allow = new Set(ctx.allowlistSha256);
@@ -137,19 +145,32 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
         onEnvelopeCreated: (id) => deps.updateEnvelope(envelopeRow, { envelope_key: id }),
       },
     );
-    await deps.updateEnvelope(envelopeRow, { document_key: r.documentId, updated_at: new Date().toISOString() });
+    await deps.updateEnvelope(envelopeRow, {
+      document_key: r.documentId,
+      updated_at: new Date().toISOString(),
+    });
     await deps.markSent(envelopeRow);
-    return { status: 200, body: { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length } };
+    return {
+      status: 200,
+      body: { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length },
+    };
   } catch (e) {
-    const code =
-      e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
+    const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
     await deps
-      .updateEnvelope(envelopeRow, { status: "error", error_code: code, updated_at: new Date().toISOString() })
+      .updateEnvelope(envelopeRow, {
+        status: "error",
+        error_code: code,
+        updated_at: new Date().toISOString(),
+      })
       .catch(() => undefined);
     const detail = e instanceof ClicksignError && e.status === 422 ? e.detail : undefined;
-    return fail(502, "Falha ao enviar para a Clicksign. Nada foi enviado aos signatários; tente de novo ou use o fluxo manual.", {
-      code,
-      ...(detail ? { details: [detail] } : {}),
-    });
+    return fail(
+      502,
+      "Falha ao enviar para a Clicksign. Nada foi enviado aos signatários; tente de novo ou use o fluxo manual.",
+      {
+        code,
+        ...(detail ? { details: [detail] } : {}),
+      },
+    );
   }
 }

@@ -1,4 +1,5 @@
 // Clicksign API v3 (envelopes, JSON:API) — cliente e regras da captação, sem dependência do Deno.
+/* eslint-disable @typescript-eslint/no-explicit-any -- respostas JSON:API da Clicksign sem tipos publicados */
 // Usado pelas edge functions clicksign-send/clicksign-webhook, pela tela (validação) e pelos testes.
 // Autenticação: header Authorization com o token SEM prefixo "Bearer" (confirmado no teste D1,
 // 18/10/2026, conta de produção da Única Escolha). Nunca logar token, segredo nem e-mail.
@@ -49,7 +50,10 @@ export type BuildInput = {
 };
 
 /** Monta e valida os signatários da captação. Retorna erros legíveis (sem e-mail na mensagem). */
-export function buildCaptureSigners(input: BuildInput): { signers: SignerInput[]; errors: string[] } {
+export function buildCaptureSigners(input: BuildInput): {
+  signers: SignerInput[];
+  errors: string[];
+} {
   const errors: string[] = [];
   const signers: SignerInput[] = [];
   const push = (papel: Papel, p: PersonInput, label: string) => {
@@ -66,8 +70,10 @@ export function buildCaptureSigners(input: BuildInput): { signers: SignerInput[]
     push("proprietario_2", { nome: o2?.nome_completo, email: o2?.email }, LABEL.proprietario_2);
   }
   push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
-  if (input.imobiliaria.length < 1) errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
-  if (input.imobiliaria.length > MAX_IMOBILIARIA_SIGNERS) errors.push("Signatários da imobiliária demais");
+  if (input.imobiliaria.length < 1)
+    errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
+  if (input.imobiliaria.length > MAX_IMOBILIARIA_SIGNERS)
+    errors.push("Signatários da imobiliária demais");
   input.imobiliaria.forEach((p, i) => push("imobiliaria", p, `${LABEL.imobiliaria} ${i + 1}`));
   if (input.testemunhas.length !== WITNESS_COUNT) {
     errors.push(`Informe exatamente ${WITNESS_COUNT} testemunhas`);
@@ -80,7 +86,9 @@ export function buildCaptureSigners(input: BuildInput): { signers: SignerInput[]
     if (!s.email) return;
     const prev = seen.get(s.email);
     if (prev !== undefined) {
-      errors.push(`A mesma pessoa não pode assinar duas vezes (${prev} e ${signerLabel(signers, i)})`);
+      errors.push(
+        `A mesma pessoa não pode assinar duas vezes (${prev} e ${signerLabel(signers, i)})`,
+      );
     } else seen.set(s.email, signerLabel(signers, i));
   });
   return { signers, errors: [...new Set(errors)] };
@@ -102,7 +110,7 @@ const hex = (buf: ArrayBuffer) =>
 
 export async function sha256Hex(data: string | Uint8Array): Promise<string> {
   const bytes = typeof data === "string" ? enc.encode(data) : data;
-  return hex(await crypto.subtle.digest("SHA-256", bytes));
+  return hex(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
 }
 export async function hmacSha256Hex(secret: string, body: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -112,7 +120,7 @@ export async function hmacSha256Hex(secret: string, body: Uint8Array): Promise<s
     false,
     ["sign"],
   );
-  return hex(await crypto.subtle.sign("HMAC", key, body));
+  return hex(await crypto.subtle.sign("HMAC", key, body as BufferSource));
 }
 export function constantTimeEqual(a: string, b: string): boolean {
   const l = enc.encode(a);
@@ -320,9 +328,7 @@ export function safeDownloadUrl(u: unknown): string | null {
     if (url.protocol !== "https:") return null;
     const h = url.hostname.toLowerCase();
     const ok =
-      h === "app.clicksign.com" ||
-      h.endsWith(".clicksign.com") ||
-      h.endsWith(".amazonaws.com");
+      h === "app.clicksign.com" || h.endsWith(".clicksign.com") || h.endsWith(".amazonaws.com");
     return ok ? url.toString() : null;
   } catch {
     return null;
