@@ -129,6 +129,8 @@ export function resumoTemPendencia(
     managedPartners.length !== 1 ||
     row.tipo !== sale.parceria_tipo ||
     row.nome !== sale.parceria_nome ||
+    // E-mail do parceiro (coluna nova, opcional): só conta quando a venda já tem um.
+    (!!sale.parceria_email?.trim() && (row.email ?? null) !== sale.parceria_email.trim()) ||
     row.cpf_cnpj !== sale.parceria_cpf_cnpj ||
     Number(row.percentual ?? 0) !== Number(sale.parceria_percentual ?? 0) ||
     Number(row.valor ?? 0) !== Number(sale.parceria_valor ?? 0)

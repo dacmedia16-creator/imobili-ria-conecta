@@ -113,6 +113,22 @@ export function destinoDaPendencia(campo: string): DestinoCampo | null {
       return { etapa: "pagamento", campoLabel: "Forma de pagamento", alvoId: "campo-pagamento" };
     case "occ_midia":
       return { etapa: "ocorrencia", campoLabel: "Mídia", alvoId: "campo-ocorrencia-midia" };
+    case "parceria_email":
+      return {
+        etapa: "resumo",
+        bloco: "equipe",
+        campoLabel: "E-mail do parceiro",
+        alvoId: "campo-venda-parceria_email",
+      };
+  }
+  const em = campo.match(/^email_((?:comprador|vendedor)_\d+)$/);
+  if (em) {
+    return {
+      etapa: "partes",
+      parte: em[1],
+      campoLabel: `E-mail de ${parteLabel(em[1])}`,
+      alvoId: `campo-parte-email-${em[1]}`,
+    };
   }
   if (campo.startsWith("doc_")) {
     const m = campo.match(DOC_RE_PARTE);

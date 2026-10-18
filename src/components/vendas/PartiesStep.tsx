@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Wizard } from "@/components/Wizard";
-import { parteLabel, parteSortKey } from "@/lib/status";
+import { emailValido, parteLabel, parteSortKey } from "@/lib/status";
 import { toast } from "sonner";
 import { ChevronRight, ChevronLeft, UserCheck } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./shared";
@@ -597,9 +597,17 @@ export function PartiesStep({
                         disabled={!editable}
                       />
                     </Field>
-                    <Field label="E-mail">
+                    <Field
+                      id={`campo-parte-email-${p}`}
+                      label="E-mail"
+                      required
+                      invalid={!!forms[p].email?.trim() && !emailValido(forms[p].email)}
+                      errorText="E-mail inválido"
+                      hint="Obrigatório: sem ele a venda não vai para revisão e não dá para assinar pela Clicksign."
+                    >
                       <Input
                         type="email"
+                        aria-label={`E-mail de ${parteLabel(p)}`}
                         spellCheck={false}
                         value={forms[p].email ?? ""}
                         onChange={(e) => update(p, "email", e.target.value)}

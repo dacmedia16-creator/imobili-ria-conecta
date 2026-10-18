@@ -66,6 +66,8 @@ import {
   parteBase,
   parteSortKey,
   CHECKS_NAO_DOCUMENTAIS,
+  emailValido,
+  totalChecksEmail,
   type SaleStatus,
   type DocParte,
   type Pendencia,
@@ -179,6 +181,13 @@ import {
   DocStatusBadge,
 } from "@/components/vendas/shared";
 import { PartiesStep } from "@/components/vendas/PartiesStep";
+import { ClicksignVenda } from "@/components/vendas/ClicksignVenda";
+import {
+  clicksignSaleConfig,
+  SALE_CLICKSIGN_DISABLED,
+  showClicksignSend,
+  type ClicksignSaleConfig,
+} from "@/lib/sale-clicksign";
 import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
 import { FichaImovelFields } from "@/components/vendas/FichaImovelFields";
 import {
@@ -848,6 +857,30 @@ function SaleDetail() {
     }
   }, [id, user]);
 
+  // ---- Clicksign na venda (só orgs com a integração ligada; falha = desligado) ----
+  const [csConfig, setCsConfig] = useState<ClicksignSaleConfig>(SALE_CLICKSIGN_DISABLED);
+  const [csSendOpen, setCsSendOpen] = useState(false);
+  const [csTick, setCsTick] = useState(0);
+  const csStatus = sale?.status ?? null;
+  const csDocsKey = docs
+    .filter((d) => d.tipo === "contrato" || d.tipo === "contrato_assinado")
+    .map((d) => d.id)
+    .join(",");
+  useEffect(() => {
+    if (!isDetailRouteId(id)) return;
+    let alive = true;
+    void clicksignSaleConfig(supabase, id).then((c) => {
+      if (alive) setCsConfig(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, csStatus, csDocsKey, csTick]);
+  const recarregarClicksign = useCallback(async () => {
+    setCsTick((n) => n + 1);
+    await load();
+  }, [load]);
+
   const commentNeedsAttention = useMemo(() => {
     if (!user?.id) return false;
     const commentIdsByMe = new Set(comments.filter((c) => c.autor_id === user.id).map((c) => c.id));
@@ -1090,6 +1123,7 @@ function SaleDetail() {
         "previsao_recebimento3_forma",
         "parceria_tipo",
         "parceria_nome",
+        "parceria_email",
         "parceria_cpf_cnpj",
         "parceria_percentual",
         "parceria_valor",
@@ -1341,6 +1375,9 @@ function SaleDetail() {
   const isGestor =
     hasManagerRole && managementCurrent && management.canManage && management.canEdit;
   const managesOwner = managementCurrent && management.teamOwner;
+  // "Enviar pela Clicksign" no lugar de "Enviar para assinatura" (gestor, jurídico e ADM — can_send
+  // vem do banco). Corretor só acompanha. Org sem Clicksign = fluxo manual de sempre.
+  const clicksignNaVenda = showClicksignSend(csConfig, status);
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
@@ -1474,6 +1511,7 @@ function SaleDetail() {
   ).length;
   const totalChecks =
     CHECKS_NAO_DOCUMENTAIS.length +
+    totalChecksEmail(sale, parties) +
     pessoalObrigatoriosCount * partesComExigenciaPessoal(parties, docs).length +
     outrosObrigatoriosCount;
   const progress = Math.round(((totalChecks - pendencias.length) / totalChecks) * 100);
@@ -1642,6 +1680,7 @@ function SaleDetail() {
       const patch: SalePatch = {
         parceria_tipo: null,
         parceria_nome: null,
+        parceria_email: null,
         parceria_cpf_cnpj: null,
         parceria_percentual: null,
         parceria_valor: null,
@@ -2546,6 +2585,27 @@ function SaleDetail() {
                                       value={formSale.parceria_nome ?? ""}
                                       disabled={!editable}
                                       onChange={(e) => updResumo({ parceria_nome: e.target.value })}
+                                    />
+                                  </Field>
+                                  <Field
+                                    id="campo-venda-parceria_email"
+                                    label="E-mail do parceiro"
+                                    required
+                                    invalid={
+                                      !!formSale.parceria_email?.trim() &&
+                                      !emailValido(formSale.parceria_email)
+                                    }
+                                    errorText="E-mail inválido"
+                                    hint="Obrigatório: sem ele a venda não vai para revisão e o parceiro não pode assinar pela Clicksign."
+                                  >
+                                    <Input
+                                      type="email"
+                                      spellCheck={false}
+                                      value={formSale.parceria_email ?? ""}
+                                      disabled={!editable}
+                                      onChange={(e) =>
+                                        updResumo({ parceria_email: e.target.value })
+                                      }
                                     />
                                   </Field>
                                   <Field label="CPF/CNPJ">
@@ -4112,41 +4172,48 @@ function SaleDetail() {
                     icon: CheckCircle2,
                     onClick: () => changeStatus("contrato_ok_corretor"),
                   }
-                : isGestor && status === "contrato_ok_corretor"
+                : clicksignNaVenda
                   ? {
-                      label: "Enviar para assinatura",
+                      label: "Enviar pela Clicksign",
                       icon: Send,
-                      onClick: () => changeStatus("aguardando_assinatura"),
+                      onClick: () => setCsSendOpen(true),
                       disabled: sale.contrato_libera_assinatura === false,
                     }
-                  : isGestor &&
-                      status === "aguardando_assinatura" &&
-                      contratoAssinadoDocs.length === 0
+                  : isGestor && status === "contrato_ok_corretor"
                     ? {
-                        label: "Subir contrato assinado",
-                        icon: Upload,
-                        onClick: () => {
-                          setContratoAssinadoFile(null);
-                          setContratoAssinadoDialogOpen(true);
-                        },
+                        label: "Enviar para assinatura",
+                        icon: Send,
+                        onClick: () => changeStatus("aguardando_assinatura"),
+                        disabled: sale.contrato_libera_assinatura === false,
                       }
                     : isGestor &&
                         status === "aguardando_assinatura" &&
-                        contratoAssinadoDocs.length > 0
+                        contratoAssinadoDocs.length === 0
                       ? {
-                          label: "Marcar contrato assinado",
-                          icon: FileCheck,
-                          onClick: marcarContratoAssinado,
+                          label: "Subir contrato assinado",
+                          icon: Upload,
+                          onClick: () => {
+                            setContratoAssinadoFile(null);
+                            setContratoAssinadoDialogOpen(true);
+                          },
                         }
                       : isGestor &&
-                          (status === "ocorrencia_pendente" ||
-                            status === "ocorrencia_devolvida_gestor")
+                          status === "aguardando_assinatura" &&
+                          contratoAssinadoDocs.length > 0
                         ? {
-                            label: "Enviar ocorrência ao financeiro",
-                            icon: DollarSign,
-                            onClick: enviarOcorrenciaFinanceiro,
+                            label: "Marcar contrato assinado",
+                            icon: FileCheck,
+                            onClick: marcarContratoAssinado,
                           }
-                        : null;
+                        : isGestor &&
+                            (status === "ocorrencia_pendente" ||
+                              status === "ocorrencia_devolvida_gestor")
+                          ? {
+                              label: "Enviar ocorrência ao financeiro",
+                              icon: DollarSign,
+                              onClick: enviarOcorrenciaFinanceiro,
+                            }
+                          : null;
 
   // Faixa amarela: venda aberta sem Mídia. Com ocorrência criada, a trava passa a ser a Mídia da
   // ocorrência (é ela que o banco confere ao enviar ao financeiro); antes disso, a Mídia da venda.
@@ -4353,20 +4420,44 @@ function SaleDetail() {
           )}
 
           {/* Gestor: liberar para assinatura */}
+          {clicksignNaVenda && !isGestor && (
+            <Button
+              onClick={() => setCsSendOpen(true)}
+              disabled={sale.contrato_libera_assinatura === false}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Enviar pela Clicksign
+            </Button>
+          )}
           {isGestor && status === "contrato_ok_corretor" && (
             <>
-              <Button
-                onClick={() => changeStatus("aguardando_assinatura")}
-                disabled={sale.contrato_libera_assinatura === false}
-                title={
-                  sale.contrato_libera_assinatura === false
-                    ? "Jurídico marcou que ainda não pode ir para assinatura"
-                    : undefined
-                }
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Enviar para assinatura
-              </Button>
+              {clicksignNaVenda ? (
+                <Button
+                  onClick={() => setCsSendOpen(true)}
+                  disabled={sale.contrato_libera_assinatura === false}
+                  title={
+                    sale.contrato_libera_assinatura === false
+                      ? "Jurídico marcou que ainda não pode ir para assinatura"
+                      : undefined
+                  }
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar pela Clicksign
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => changeStatus("aguardando_assinatura")}
+                  disabled={sale.contrato_libera_assinatura === false}
+                  title={
+                    sale.contrato_libera_assinatura === false
+                      ? "Jurídico marcou que ainda não pode ir para assinatura"
+                      : undefined
+                  }
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar para assinatura
+                </Button>
+              )}
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
                 <XCircle className="mr-2 h-4 w-4" />
                 Devolver ao jurídico
@@ -5096,6 +5187,29 @@ function SaleDetail() {
                   </div>
                 )}
               </div>
+            )}
+          {csConfig.enabled &&
+            [
+              "contrato_ok_corretor",
+              "aguardando_assinatura",
+              "contrato_assinado",
+              "ocorrencia_pendente",
+            ].includes(status) && (
+              <ClicksignVenda
+                db={supabase}
+                saleId={sale.id}
+                status={status}
+                config={csConfig}
+                parties={Object.values(parties)}
+                sendOpen={csSendOpen}
+                onSendOpenChange={setCsSendOpen}
+                onIrParaParte={(parte) => void levarAoCampo(`email_${parte}`)}
+                signedDoc={contratoAssinadoDocs[contratoAssinadoDocs.length - 1] ?? null}
+                onOpenSignedDoc={() =>
+                  void abrirContratoRapido(contratoAssinadoDocs[contratoAssinadoDocs.length - 1])
+                }
+                onChanged={recarregarClicksign}
+              />
             )}
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
@@ -6574,6 +6688,7 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleR
   const data = {
     tipo: sale.parceria_tipo,
     nome: sale.parceria_nome ?? null,
+    email: sale.parceria_email?.trim() || null,
     cpf_cnpj: sale.parceria_cpf_cnpj ?? null,
     creci_tipo: sale.parceria_creci_tipo ?? null,
     creci: sale.parceria_creci ?? null,
@@ -6587,6 +6702,7 @@ async function syncOccurrencePartnerFromSale(saleId: string, sale: Partial<SaleR
     if (
       row.tipo !== data.tipo ||
       row.nome !== data.nome ||
+      (row.email ?? null) !== data.email ||
       row.cpf_cnpj !== data.cpf_cnpj ||
       row.creci_tipo !== data.creci_tipo ||
       row.creci !== data.creci ||
@@ -7094,6 +7210,7 @@ function OccurrencePanel({
         for (const r of formPartners) {
           const data = {
             nome: r.nome ?? null,
+            email: r.email?.trim() || null,
             cpf_cnpj: r.cpf_cnpj ?? null,
             creci_tipo: r.creci_tipo ?? null,
             creci: r.creci ?? null,
@@ -7955,6 +8072,19 @@ function OccurrencePanel({
                   value={p.nome ?? ""}
                   onChange={(e) => updPartner(p.id, { nome: e.target.value })}
                   disabled={!canWrite}
+                />
+              </Field>
+              <Field
+                label="E-mail"
+                invalid={!!p.email?.trim() && !emailValido(p.email)}
+                errorText="E-mail inválido"
+              >
+                <Input
+                  type="email"
+                  spellCheck={false}
+                  value={p.email ?? ""}
+                  onChange={(e) => updPartner(p.id, { email: e.target.value })}
+                  disabled={!canWrite || !!p.from_sale}
                 />
               </Field>
               <Field label="CPF/CNPJ">

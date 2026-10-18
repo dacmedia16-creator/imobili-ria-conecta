@@ -1028,6 +1028,7 @@ export type Database = {
           creci_tipo: string | null;
           creci: string | null;
           created_at: string;
+          email: string | null;
           from_sale: boolean;
           id: string;
           nome: string | null;
@@ -1046,6 +1047,7 @@ export type Database = {
           creci_tipo?: string | null;
           creci?: string | null;
           created_at?: string;
+          email?: string | null;
           from_sale?: boolean;
           id?: string;
           nome?: string | null;
@@ -1064,6 +1066,7 @@ export type Database = {
           creci_tipo?: string | null;
           creci?: string | null;
           created_at?: string;
+          email?: string | null;
           from_sale?: boolean;
           id?: string;
           nome?: string | null;
@@ -2626,6 +2629,7 @@ export type Database = {
           parceria_percentual: number | null;
           parceria_pix: string | null;
           parceria_creci_tipo: string | null;
+          parceria_email: string | null;
           parceria_observacoes: string | null;
           parceria_creci: string | null;
           parceria_tipo: string | null;
@@ -2739,6 +2743,7 @@ export type Database = {
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_creci_tipo?: string | null;
+          parceria_email?: string | null;
           parceria_observacoes?: string | null;
           parceria_creci?: string | null;
           parceria_tipo?: string | null;
@@ -2852,6 +2857,7 @@ export type Database = {
           parceria_percentual?: number | null;
           parceria_pix?: string | null;
           parceria_creci_tipo?: string | null;
+          parceria_email?: string | null;
           parceria_observacoes?: string | null;
           parceria_creci?: string | null;
           parceria_tipo?: string | null;

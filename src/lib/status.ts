@@ -613,6 +613,67 @@ export function mensagemEnderecoFaltando(colunas: string[]): string {
   return `Complete o endereço do imóvel (falta: ${labels.join(", ")}). Sem ele a venda não segue para o gestor e o jurídico.`;
 }
 
+// ---- E-mail obrigatório (opção B de Denis, 18/10/2026) ----
+// Sem NOT NULL no banco: o e-mail é cobrado (1) no formulário, (2) aqui, como pendência ao enviar
+// para revisão, e (3) no envio pela Clicksign. Vendas antigas sem e-mail continuam abrindo e sendo
+// editadas; Lançamento fica fora (fluxo próprio, sem Clicksign nesta fase).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export function emailValido(v: string | null | undefined): boolean {
+  return EMAIL_RE.test((v ?? "").trim());
+}
+
+/** Vendedores/compradores que precisam de e-mail: os 2 papéis-base e quem já tem nome. */
+export function partesQueExigemEmail(
+  sale: Pick<SaleRow, "modalidade"> | null | undefined,
+  parties: Record<string, Pick<PartyRow, "nome">>,
+): string[] {
+  if ((sale as { modalidade?: string | null })?.modalidade === "lancamento") return [];
+  const set = new Set(["vendedor_1", "comprador_1"]);
+  for (const p of Object.keys(parties))
+    if (/^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome) set.add(p);
+  return [...set].sort();
+}
+
+/** Parceria externa precisa de e-mail (signatário possível na Clicksign). */
+export function parceriaExigeEmail(sale: Partial<SaleRow> | null | undefined): boolean {
+  return (
+    (sale as { modalidade?: string | null })?.modalidade !== "lancamento" && !!sale?.parceria_tipo
+  );
+}
+
+/** Quantos checks de e-mail a venda tem (entra no total do checklist). */
+export function totalChecksEmail(
+  sale: Partial<SaleRow> | null | undefined,
+  parties: Record<string, Pick<PartyRow, "nome">>,
+): number {
+  return partesQueExigemEmail(sale as SaleRow, parties).length + (parceriaExigeEmail(sale) ? 1 : 0);
+}
+
+export function pendenciasEmail(
+  sale: Partial<SaleRow> | null | undefined,
+  parties: Record<string, Pick<PartyRow, "nome" | "email">>,
+): Pendencia[] {
+  const pend: Pendencia[] = [];
+  for (const p of partesQueExigemEmail(sale as SaleRow, parties)) {
+    const email = parties[p]?.email;
+    if (!emailValido(email))
+      pend.push({
+        campo: `email_${p}`,
+        mensagem: email?.trim()
+          ? `E-mail inválido de ${parteLabel(p)}`
+          : `Falta o e-mail de ${parteLabel(p)}`,
+      });
+  }
+  if (parceriaExigeEmail(sale) && !emailValido(sale?.parceria_email))
+    pend.push({
+      campo: "parceria_email",
+      mensagem: sale?.parceria_email?.trim()
+        ? "E-mail inválido do parceiro"
+        : "Falta o e-mail do corretor/imobiliária parceira",
+    });
+  return pend;
+}
+
 /**
  * Valida se a venda está pronta para ser enviada para revisão do gestor.
  * Retorna lista de pendências em português simples para o corretor.
@@ -636,7 +697,8 @@ export function validarProntaParaRevisao(
   // Ficha do imóvel (mesma regra da trava bloquear_avanco_sem_ficha_imovel; Lançamento não passa).
   if ((sale as { modalidade?: string | null })?.modalidade !== "lancamento") {
     const faltaFicha = fichaFaltando(sale as unknown as FichaVenda);
-    if (faltaFicha.length) pend.push({ campo: "ficha", mensagem: mensagemFichaFaltando(faltaFicha) });
+    if (faltaFicha.length)
+      pend.push({ campo: "ficha", mensagem: mensagemFichaFaltando(faltaFicha) });
   }
   if (!midiaPreenchida(sale?.midia))
     pend.push({ campo: "midia", mensagem: "Falta informar a Mídia (de onde veio o cliente)" });
@@ -654,6 +716,7 @@ export function validarProntaParaRevisao(
       campo: "comprador",
       mensagem: "Falta preencher pelo menos um comprador (nome + CPF)",
     });
+  pend.push(...pendenciasEmail(sale, parties));
 
   // Valores
   if (!sale?.valor_negociado || Number(sale.valor_negociado) <= 0)
