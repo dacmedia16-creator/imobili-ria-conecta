@@ -21,7 +21,17 @@ export const ROLE_BY_PAPEL: Record<Papel, string> = {
   testemunha: "witness",
 };
 
-export type SignerInput = { papel: Papel; nome: string; email: string };
+/**
+ * Signatário a criar. `role` sobrepõe a qualificação do papel (venda); `documentation` = CPF
+ * formatado de quem informou (pessoa de fora na venda). A captação usa só papel/nome/e-mail.
+ */
+export type SignerInput = {
+  papel: string;
+  nome: string;
+  email: string;
+  role?: string;
+  documentation?: string;
+};
 export type PersonInput = { nome?: string | null; email?: string | null };
 
 const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
@@ -101,9 +111,9 @@ function signerLabel(list: SignerInput[], i: number): string {
   const s = list[i];
   if (s.papel === "imobiliaria" || s.papel === "testemunha") {
     const n = list.slice(0, i + 1).filter((x) => x.papel === s.papel).length;
-    return `${LABEL[s.papel]} ${n}`;
+    return `${LABEL[s.papel as Papel]} ${n}`;
   }
-  return LABEL[s.papel];
+  return LABEL[s.papel as Papel] ?? s.papel;
 }
 
 // ---------- hashing / HMAC (WebCrypto: Deno e Node 20+) ----------
@@ -219,21 +229,32 @@ export class ClicksignClient {
       data: { type: "envelopes", attributes: attrs },
     });
   }
-  uploadDocument(envelopeId: string, filename: string, pdf: Uint8Array, metadata: object) {
+  uploadDocument(
+    envelopeId: string,
+    filename: string,
+    pdf: Uint8Array,
+    metadata: object,
+    mime = "application/pdf",
+  ) {
     return this.call("document", "POST", `/envelopes/${envelopeId}/documents`, {
       data: {
         type: "documents",
         attributes: {
           filename,
-          content_base64: `data:application/pdf;base64,${toBase64(pdf)}`,
+          content_base64: `data:${mime};base64,${toBase64(pdf)}`,
           metadata,
         },
       },
     });
   }
   createSigner(envelopeId: string, s: SignerInput) {
+    const attributes: Record<string, unknown> = { name: s.nome, email: s.email };
+    if (s.documentation) {
+      attributes.has_documentation = true;
+      attributes.documentation = s.documentation;
+    }
     return this.call("signer", "POST", `/envelopes/${envelopeId}/signers`, {
-      data: { type: "signers", attributes: { name: s.nome, email: s.email } },
+      data: { type: "signers", attributes },
     });
   }
   createRequirement(envelopeId: string, documentId: string, signerId: string, attrs: object) {
@@ -281,6 +302,23 @@ export class ClicksignClient {
       `/envelopes/${envelopeId}/requirements?page[size]=100`,
     );
   }
+  /**
+   * Eventos do envelope filtrados por nome. "signature_started" = o signatário abriu o contrato e
+   * começou a assinar (docs.clicksign: Confirmação de visualização das notificações).
+   */
+  listEnvelopeEvents(envelopeId: string, name: string) {
+    return this.call(
+      "list_envelope_events",
+      "GET",
+      `/envelopes/${envelopeId}/events?filter[name]=${encodeURIComponent(name)}&page[size]=100`,
+    );
+  }
+  /** Cancela o documento em assinatura (só documento "running"; docs.clicksign: Editar Documento). */
+  cancelDocument(envelopeId: string, documentId: string) {
+    return this.call("cancel", "PATCH", `/envelopes/${envelopeId}/documents/${documentId}`, {
+      data: { id: documentId, type: "documents", attributes: { status: "canceled" } },
+    });
+  }
   listDocumentEvents(envelopeId: string, documentId: string) {
     return this.call(
       "list_events",
@@ -326,6 +364,8 @@ export type EnvelopePlan = {
   deadlineAt: string;
   filename: string;
   pdf: Uint8Array;
+  /** Tipo do arquivo (padrão PDF). A venda aceita também .doc/.docx do jurídico. */
+  mime?: string;
   metadata: Record<string, string>;
   signers: SignerInput[];
 };
@@ -372,7 +412,13 @@ export async function buildEnvelope(
   let activating = false;
   try {
     await opts.onEnvelopeCreated?.(envelopeId);
-    const doc = await client.uploadDocument(envelopeId, plan.filename, plan.pdf, plan.metadata);
+    const doc = await client.uploadDocument(
+      envelopeId,
+      plan.filename,
+      plan.pdf,
+      plan.metadata,
+      plan.mime,
+    );
     const documentId: string = doc?.data?.id;
     if (!documentId) throw new ClicksignError("document", 0, "resposta sem id");
     await opts.onDocumentCreated?.(documentId);
@@ -382,7 +428,7 @@ export async function buildEnvelope(
       if (!signerId) throw new ClicksignError("signer", 0, "resposta sem id");
       await client.createRequirement(envelopeId, documentId, signerId, {
         action: "agree",
-        role: ROLE_BY_PAPEL[s.papel],
+        role: s.role ?? ROLE_BY_PAPEL[s.papel as Papel],
       });
       await client.createRequirement(envelopeId, documentId, signerId, {
         action: "provide_evidence",
@@ -435,28 +481,63 @@ export function maskEmail(v: string | null | undefined): string {
   return `${e.slice(0, Math.min(2, at))}***${e.slice(at)}`;
 }
 
-/** Signatário gravado no ADM MAX (clicksign_envelopes.signers): sem e-mail em claro. */
-export type StoredSigner = { papel: Papel; nome: string; email_sha256: string };
+/**
+ * Signatário gravado no ADM MAX (clicksign_envelopes.signers): sem e-mail em claro. Na venda, cada
+ * um leva também o rótulo da tela e a qualificação usada (role).
+ */
+export type StoredSigner = {
+  papel: string;
+  nome: string;
+  email_sha256: string;
+  label?: string;
+  role?: string;
+};
+/** Situação mostrada por signatário. A API v3 não tem evento de "e-mail não entregue". */
+export type SignerStatus = "enviado" | "abriu" | "assinou";
 export type SignerState = {
   idx: number;
-  papel: Papel;
+  papel: string;
   nome: string;
   /** id do signatário na Clicksign (null = não encontrado, ex.: alterado fora do ADM MAX). */
   signerId: string | null;
   emailMasked: string;
   signed: boolean;
+  /** Abriu o contrato (evento signature_started). Sem evento registrado = false. */
+  opened: boolean;
+  status: SignerStatus;
 };
+
+/** Quem tem o evento `name` (sha256 do e-mail ou, sem e-mail, o nome) nas listas de eventos. */
+async function whoHasEvent(name: string, ...lists: any[]) {
+  const emails = new Set<string>();
+  const names = new Set<string>();
+  for (const resp of lists) {
+    for (const ev of Array.isArray(resp?.data) ? resp.data : []) {
+      const a = ev?.attributes ?? {};
+      if (a.name !== name) continue;
+      const who = a.data?.signer ?? a.data?.user ?? {};
+      const em = normEmail(who.email);
+      if (em) emails.add(await sha256Hex(em));
+      else if (who.name) names.add(normName(who.name).toLowerCase());
+    }
+  }
+  return { emails, names };
+}
 
 /**
  * Cruza os signatários do ADM MAX com a Clicksign pelo sha256 do e-mail e marca quem já assinou
- * (evento "sign" do documento). Na dúvida (evento sem e-mail), compara pelo nome: melhor bloquear a
- * edição de quem talvez tenha assinado do que trocar quem já assinou.
- * shortcut: lê até 50 signatários e 100 eventos (1 página); a captação tem no máximo ~16.
+ * (evento "sign" do documento) e quem abriu o contrato (evento "signature_started", vindo de
+ * `openedResp` — GET /envelopes/{id}/events?filter[name]=signature_started — ou dos próprios
+ * eventos). Na dúvida (evento sem e-mail), compara pelo nome: melhor bloquear a edição de quem
+ * talvez tenha assinado do que trocar quem já assinou. Sem evento de abertura (envelope antigo ou
+ * consulta que falhou), o status fica só "enviado" ou "assinou".
+ * shortcut: lê até 50 signatários e 100 eventos (1 página); captação e venda ficam bem abaixo.
  */
 export async function signerStates(
   stored: StoredSigner[],
   signersResp: any,
   eventsResp: any,
+  openedResp: any = null,
 ): Promise<SignerState[]> {
   const remote = await Promise.all(
     (Array.isArray(signersResp?.data) ? signersResp.data : []).map(async (s: any) => ({
@@ -466,21 +547,13 @@ export async function signerStates(
       sha: await sha256Hex(normEmail(s?.attributes?.email)),
     })),
   );
-  const signedEmails = new Set<string>();
-  const signedNames = new Set<string>();
-  for (const ev of Array.isArray(eventsResp?.data) ? eventsResp.data : []) {
-    const a = ev?.attributes ?? {};
-    if (a.name !== "sign") continue;
-    const who = a.data?.signer ?? a.data?.user ?? {};
-    const em = normEmail(who.email);
-    if (em) signedEmails.add(await sha256Hex(em));
-    else if (who.name) signedNames.add(normName(who.name).toLowerCase());
-  }
+  const sign = await whoHasEvent("sign", eventsResp);
+  const open = await whoHasEvent("signature_started", eventsResp, openedResp);
   return stored.map((s, idx) => {
     const r = remote.find((x) => x.sha === s.email_sha256) ?? null;
-    const signed =
-      signedEmails.has(s.email_sha256) ||
-      signedNames.has(normName(r?.name ?? s.nome).toLowerCase());
+    const nm = normName(r?.name ?? s.nome).toLowerCase();
+    const signed = sign.emails.has(s.email_sha256) || sign.names.has(nm);
+    const opened = signed || open.emails.has(s.email_sha256) || open.names.has(nm);
     return {
       idx,
       papel: s.papel,
@@ -488,8 +561,20 @@ export async function signerStates(
       signerId: r?.id || null,
       emailMasked: r ? maskEmail(r.email) : "",
       signed,
+      opened,
+      status: signed ? "assinou" : opened ? "abriu" : "enviado",
     };
   });
+}
+
+/** Tipo do arquivo aceito no upload da Clicksign (pdf, doc, docx). null = formato recusado. */
+export function mimeForFilename(name: string | null | undefined): string | null {
+  const ext = (name ?? "").toLowerCase().split(".").pop() ?? "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "doc") return "application/msword";
+  if (ext === "docx")
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return null;
 }
 
 /** Requisitos (ids) ligados a um signatário no documento. */

@@ -1,8 +1,9 @@
 // Gestão de um envelope JÁ em assinatura (status running) na Clicksign, sem Deno (testável com mock).
-// Ações: "status" (quem já assinou), "notify" (reenviar aviso a quem falta) e "edit_signer" (trocar
-// nome/e-mail de quem ainda não assinou). A regra de quem pode e de qual envelope fica no banco
-// (clicksign_manage_authorize, chamada com o JWT do usuário). Nunca devolve nem registra e-mail em
-// claro: só mascarado na tela e sha256 no banco.
+// Ações: "status" (Enviado / Abriu o contrato / Assinou), "notify" (reenviar aviso a quem falta) e
+// "edit_signer" (trocar nome/e-mail de quem ainda não assinou). Serve à CAPTAÇÃO (capture_id) e à
+// VENDA (sale_id, pela edge function clicksign-sale). A regra de quem pode e de qual envelope fica
+// no banco (authorize, chamada com o JWT do usuário). Nunca devolve nem registra e-mail em claro:
+// só mascarado na tela e sha256 no banco.
 import {
   ClicksignClient,
   ClicksignError,
@@ -20,18 +21,29 @@ import {
   type Papel,
   type StoredSigner,
 } from "../_shared/clicksign.ts";
+import { SALE_EDITABLE_PAPEIS } from "../_shared/clicksign-venda.ts";
 
 /** Espera mínima entre dois "Reenviar aviso" do mesmo envelope (o banco aplica; aqui é o texto). */
 export const NOTIFY_COOLDOWN_MIN = 10;
 /**
- * Só estes papéis são editáveis aqui. Corretor vem do cadastro do captador e a Imobiliária da lista
+ * Papéis editáveis na captação. Corretor vem do cadastro do captador e a Imobiliária da lista
  * autorizada da org: trocar o e-mail deles por aqui furaria essas regras (corrige-se no cadastro).
  */
-export const EDITABLE_PAPEIS: ReadonlySet<Papel> = new Set([
+export const EDITABLE_PAPEIS: ReadonlySet<string> = new Set([
   "proprietario_1",
   "proprietario_2",
   "testemunha",
 ]);
+
+export type ManageKind = "captacao" | "venda";
+const ID_FIELD: Record<ManageKind, "capture_id" | "sale_id"> = {
+  captacao: "capture_id",
+  venda: "sale_id",
+};
+const EDITABLE: Record<ManageKind, ReadonlySet<string>> = {
+  captacao: EDITABLE_PAPEIS,
+  venda: SALE_EDITABLE_PAPEIS,
+};
 
 const LABEL: Record<Papel, string> = {
   proprietario_1: "Proprietário 1",
@@ -54,8 +66,8 @@ export type ManageContext = {
 };
 
 export type ManageDeps = {
-  /** RPC clicksign_manage_authorize com o JWT do usuário; lança Error com mensagem clara. */
-  authorize(captureId: string): Promise<{ org: string; envelope: string }>;
+  /** RPC de autorização com o JWT do usuário; lança Error com mensagem clara. */
+  authorize(id: string): Promise<{ org: string; envelope: string }>;
   loadContext(org: string, envelopeRow: string): Promise<ManageContext>;
   /** Trava curta contra duplo clique/duas abas; "cooldown" = aviso reenviado há menos de 10 min. */
   lock(envelopeRow: string, kind: "notify" | "edit"): Promise<"ok" | "busy" | "cooldown">;
@@ -80,35 +92,60 @@ const fail = (status: number, error: string, extra: Record<string, unknown> = {}
   body: { error, ...extra },
 });
 
-function labelOf(list: StoredSigner[], idx: number): string {
+/** Rótulo da tela: o gravado (venda) ou o calculado pelo papel (captação). */
+export function labelOf(list: StoredSigner[], idx: number): string {
   const s = list[idx];
+  if (s.label) return s.label;
   if (s.papel === "testemunha" || s.papel === "imobiliaria") {
     const n = list.slice(0, idx + 1).filter((x) => x.papel === s.papel).length;
-    return `${LABEL[s.papel]} ${n}`;
+    return `${LABEL[s.papel as Papel]} ${n}`;
   }
-  return LABEL[s.papel];
+  return LABEL[s.papel as Papel] ?? s.papel;
 }
 
-async function readStates(client: ClicksignClient, ctx: ManageContext) {
-  const [signers, events] = await Promise.all([
+/**
+ * Lê signatários, eventos do documento e quem abriu (signature_started). A consulta de abertura é
+ * opcional: se falhar, o status cai para "Enviado"/"Assinou", sem erro na tela.
+ */
+export async function readStates(client: ClicksignClient, ctx: ManageContext) {
+  const [signers, events, opened] = await Promise.all([
     client.listSigners(ctx.envelopeKey),
     client.listDocumentEvents(ctx.envelopeKey, ctx.documentKey),
+    client.listEnvelopeEvents(ctx.envelopeKey, "signature_started").catch(() => null),
   ]);
-  return signerStates(ctx.signers, signers, events);
+  return signerStates(ctx.signers, signers, events, opened);
 }
 
-export async function handleManage(deps: ManageDeps, body: unknown): Promise<CoreResult> {
+function notEditableMsg(kind: ManageKind, papel: string): string {
+  if (papel === "corretor") {
+    return kind === "captacao"
+      ? "O e-mail do corretor vem do cadastro do captador: corrija no cadastro do usuário."
+      : "O e-mail do corretor vem do cadastro do usuário: corrija lá.";
+  }
+  if (papel === "extra_sistema")
+    return "Esta parte veio do cadastro do sistema: corrija o e-mail no cadastro dela.";
+  return "Quem assina pela imobiliária vem da lista autorizada: peça ao administrador.";
+}
+
+export async function handleManage(
+  deps: ManageDeps,
+  body: unknown,
+  kind: ManageKind = "captacao",
+): Promise<CoreResult> {
   const b = (body ?? {}) as Record<string, unknown>;
-  const captureId = typeof b.capture_id === "string" ? b.capture_id : "";
+  const field = ID_FIELD[kind];
+  const id = typeof b[field] === "string" ? (b[field] as string) : "";
   const action = b.action;
-  if (!UUID_RE.test(captureId)) return fail(400, "Captação inválida");
+  if (!UUID_RE.test(id))
+    return fail(400, kind === "captacao" ? "Captação inválida" : "Venda inválida");
   if (action !== "status" && action !== "notify" && action !== "edit_signer") {
     return fail(400, "Ação inválida");
   }
+  const editable = EDITABLE[kind];
 
   let auth: { org: string; envelope: string };
   try {
-    auth = await deps.authorize(captureId);
+    auth = await deps.authorize(id);
   } catch (e) {
     return fail(403, e instanceof Error ? e.message : "Ação não autorizada");
   }
@@ -130,8 +167,10 @@ export async function handleManage(deps: ManageDeps, body: unknown): Promise<Cor
             nome: s.nome,
             email: s.emailMasked,
             signed: s.signed,
+            opened: s.opened,
+            status: s.status,
             found: !!s.signerId,
-            editable: !s.signed && !!s.signerId && EDITABLE_PAPEIS.has(s.papel),
+            editable: !s.signed && !!s.signerId && editable.has(s.papel),
           })),
         },
       };
@@ -185,14 +224,7 @@ export async function handleManage(deps: ManageDeps, body: unknown): Promise<Cor
   const target = ctx.signers[idx];
   if (!target) return fail(422, "Signatário inválido");
   const label = labelOf(ctx.signers, idx);
-  if (!EDITABLE_PAPEIS.has(target.papel)) {
-    return fail(
-      422,
-      target.papel === "corretor"
-        ? "O e-mail do corretor vem do cadastro do captador: corrija no cadastro do usuário."
-        : "Quem assina pela imobiliária vem da lista autorizada: peça ao administrador.",
-    );
-  }
+  if (!editable.has(target.papel)) return fail(422, notEditableMsg(kind, target.papel));
   const errors: string[] = [];
   if (!validSignerName(nome)) errors.push(`${label}: informe nome e sobrenome`);
   if (!validEmail(email)) errors.push(`${label}: e-mail ausente ou inválido`);
@@ -271,14 +303,16 @@ export async function handleManage(deps: ManageDeps, body: unknown): Promise<Cor
     document: { data: { type: "documents", id: ctx.documentKey } },
     signer: { data: { type: "signers", id: newId } },
   };
+  // Venda grava a qualificação usada; captação segue a tabela fixa por papel.
+  const role = target.role ?? ROLE_BY_PAPEL[target.papel as Papel];
   try {
     await client.bulkRequirements(ctx.envelopeKey, [
-      ...oldReqs.map((id) => ({ op: "remove", ref: { type: "requirements", id } })),
+      ...oldReqs.map((rid) => ({ op: "remove", ref: { type: "requirements", id: rid } })),
       {
         op: "add",
         data: {
           type: "requirements",
-          attributes: { action: "agree", role: ROLE_BY_PAPEL[target.papel] },
+          attributes: { action: "agree", role },
           relationships: rel,
         },
       },
@@ -315,7 +349,7 @@ export async function handleManage(deps: ManageDeps, body: unknown): Promise<Cor
   if (!notified) warnings.push("Não foi possível avisar o novo signatário: use “Reenviar aviso”.");
 
   const nextSigners = ctx.signers.map((s, i) =>
-    i === idx ? { papel: s.papel, nome, email_sha256: sha } : s,
+    i === idx ? { ...s, nome, email_sha256: sha } : s,
   );
   const mudou = [
     normName(target.nome) !== nome ? `nome: ${normName(target.nome)} → ${nome}` : null,
