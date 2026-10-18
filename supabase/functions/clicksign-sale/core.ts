@@ -48,6 +48,8 @@ export type SaleSendContext = {
   corretores: PersonInput[];
   /** Signatários válidos da imobiliária (usuários ativos da org com e-mail do cadastro). */
   imobiliaria: Array<{ id: string; nome: string; email: string }>;
+  /** enabled AND sale_enabled da org (a captação lê só enabled). Falso = 403, sem Clicksign. */
+  saleEnabled: boolean;
   testMode: boolean;
   allowlistSha256: string[];
   deadlineDays: number;
@@ -144,6 +146,10 @@ async function handleSaleSend(deps: SaleDeps, b: Record<string, unknown>): Promi
     return fail(403, e instanceof Error ? e.message : "Envio não autorizado");
   }
   const ctx = await deps.loadSendContext(auth.org, saleId, auth.contrato);
+  // Segunda trava (além da RPC): venda desligada na org nunca chega à Clicksign.
+  if (!ctx.saleEnabled) {
+    return fail(403, "Envio pela Clicksign não está habilitado para esta imobiliária");
+  }
   if (!ctx.token) return fail(503, "Chave da Clicksign não configurada para esta imobiliária");
   const mime = mimeForFilename(ctx.contrato.fileName);
   if (!mime) {

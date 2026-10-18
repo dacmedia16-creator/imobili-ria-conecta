@@ -21,7 +21,14 @@
 -- 6) E-mail do parceiro: occurrence_partners.email e sales.parceria_email (aditivas, sem preencher nada).
 -- 7) criar_ocorrencia_completa e sincronizar_ocorrencia_antes_financeiro copiam parceria_email (sem apagar
 --    e-mail do Financeiro quando a venda não tem).
+-- 8) Chave própria da venda: clicksign_org_settings.sale_enabled (padrão false). A venda exige
+--    enabled AND sale_enabled; a captação continua lendo só enabled. Ligar a venda numa imobiliária é
+--    um UPDATE separado, com aprovação (t_a5b81fe6).
 -- Nenhum e-mail em claro entra no banco pelo envelope: signers guarda só o sha256.
+
+-- ===== 8) Chave da venda (desligada por padrão) =====
+ALTER TABLE public.clicksign_org_settings
+  ADD COLUMN IF NOT EXISTS sale_enabled boolean NOT NULL DEFAULT false;
 
 -- ===== 1) Envelope da venda =====
 ALTER TABLE public.clicksign_envelopes
@@ -73,7 +80,7 @@ DECLARE _org uuid := public.current_org_id(); _s public.clicksign_org_settings%R
 BEGIN
   IF auth.uid() IS NULL OR _org IS NULL THEN RETURN jsonb_build_object('enabled', false); END IF;
   SELECT * INTO _s FROM public.clicksign_org_settings WHERE organization_id = _org;
-  IF NOT FOUND OR NOT _s.enabled OR _s.access_token_secret_id IS NULL THEN
+  IF NOT FOUND OR NOT _s.enabled OR NOT _s.sale_enabled OR _s.access_token_secret_id IS NULL THEN
     RETURN jsonb_build_object('enabled', false);
   END IF;
   SELECT * INTO _sale FROM public.sales WHERE id = _id AND organization_id = _org;
@@ -122,7 +129,7 @@ BEGIN
     RAISE EXCEPTION 'Apenas gestor, jurídico ou admin da imobiliária pode enviar pela Clicksign';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.clicksign_org_settings s WHERE s.organization_id = _org
-      AND s.enabled AND s.access_token_secret_id IS NOT NULL) THEN
+      AND s.enabled AND s.sale_enabled AND s.access_token_secret_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Envio pela Clicksign não está habilitado para esta imobiliária';
   END IF;
   SELECT * INTO _sale FROM public.sales WHERE id = _id AND organization_id = _org;
@@ -160,7 +167,7 @@ BEGIN
     RAISE EXCEPTION 'Apenas gestor, jurídico ou admin da imobiliária pode gerenciar a assinatura';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.clicksign_org_settings s WHERE s.organization_id = _org
-      AND s.enabled AND s.access_token_secret_id IS NOT NULL) THEN
+      AND s.enabled AND s.sale_enabled AND s.access_token_secret_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Clicksign não está habilitada para esta imobiliária';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.sales WHERE id = _id AND organization_id = _org)

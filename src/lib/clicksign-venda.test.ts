@@ -172,6 +172,7 @@ type Opts = {
   cancelReason?: "nova_versao" | "status_mudou" | null;
   testMode?: boolean;
   allow?: string[];
+  saleEnabled?: boolean;
 };
 function saleDeps(opts: Opts = {}) {
   const calls: string[] = [];
@@ -201,6 +202,7 @@ function saleDeps(opts: Opts = {}) {
       parties: opts.parties ?? parties,
       corretores: base.corretores,
       imobiliaria: [{ id: IMOB, nome: "Edson Imobiliaria", email: "edson@example.com" }],
+      saleEnabled: opts.saleEnabled ?? true,
       testMode: opts.testMode ?? false,
       allowlistSha256: opts.allow ?? [],
       deadlineDays: 30,
@@ -284,6 +286,18 @@ describe("clicksign-sale: enviar", () => {
     const r = await handleSale(deps, send);
     expect(r.status).toBe(403);
     expect(fetch).not.toHaveBeenCalled();
+    expect(deps.insertEnvelope).not.toHaveBeenCalled();
+    expect(deps.markSent).not.toHaveBeenCalled();
+  });
+  it("captação ligada e venda desligada (sale_enabled=false): 403 sem Clicksign nem envelope", async () => {
+    const { deps, fetch } = saleDeps({ saleEnabled: false });
+    const r = await handleSale(deps, send);
+    expect(r).toMatchObject({
+      status: 403,
+      body: { error: "Envio pela Clicksign não está habilitado para esta imobiliária" },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(deps.loadFile).not.toHaveBeenCalled();
     expect(deps.insertEnvelope).not.toHaveBeenCalled();
     expect(deps.markSent).not.toHaveBeenCalled();
   });

@@ -51,6 +51,30 @@ INSERT INTO public.sale_documents (sale_id, tipo, parte, storage_path, file_name
           'enviado', now() - interval '2 hours');
 INSERT INTO ids SELECT 'doc1', id FROM public.sale_documents WHERE sale_id = pg_temp.id('venda') AND tipo = 'contrato';
 
+-- ===== chave da venda (sale_enabled) =====
+SELECT pg_temp.ok((SELECT column_default = 'false' AND is_nullable = 'NO' FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'clicksign_org_settings' AND column_name = 'sale_enabled'),
+  'sale_enabled existe, NOT NULL, padrão false');
+-- Captação ligada (enabled=true) e venda desligada: config esconde, envio e gestão recusam.
+UPDATE public.clicksign_org_settings SET sale_enabled = false WHERE organization_id = :'org';
+SELECT pg_temp.as_user(pg_temp.id('admin'));
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok((public.clicksign_sale_config(pg_temp.id('venda'))->>'enabled')::bool IS FALSE,
+  'captação ligada e venda desligada: config.enabled = false');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.clicksign_sale_authorize(%L)', pg_temp.id('venda')))
+  = 'Envio pela Clicksign não está habilitado para esta imobiliária',
+  'captação ligada e venda desligada: envio recusado');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.clicksign_sale_manage_authorize(%L)', pg_temp.id('venda')))
+  = 'Clicksign não está habilitada para esta imobiliária',
+  'captação ligada e venda desligada: gestão recusada');
+RESET ROLE;
+SELECT pg_temp.ok(pg_get_functiondef('public.clicksign_capture_config(uuid)'::regprocedure) !~ 'sale_enabled'
+  AND pg_get_functiondef('public.clicksign_capture_authorize(uuid)'::regprocedure) !~ 'sale_enabled'
+  AND pg_get_functiondef('public.clicksign_manage_authorize(uuid)'::regprocedure) !~ 'sale_enabled',
+  'captação continua lendo só enabled (não depende de sale_enabled)');
+-- Liga a venda só nesta transação revertida para o restante da suíte.
+UPDATE public.clicksign_org_settings SET sale_enabled = true WHERE organization_id = :'org';
+
 -- ===== config e autorização =====
 SELECT pg_temp.as_user(pg_temp.id('corretor'));
 SET LOCAL ROLE authenticated;

@@ -64,6 +64,9 @@ BEGIN
   END IF;
 END $$;
 
+-- Chave da venda (t_a5b81fe6): a captação não lê esta coluna.
+ALTER TABLE public.clicksign_org_settings DROP COLUMN IF EXISTS sale_enabled;
+
 DROP POLICY IF EXISTS clicksign_envelopes_read_venda ON public.clicksign_envelopes;
 REVOKE SELECT (origem, sale_id, cancel_requested_at, cancel_reason) ON public.clicksign_envelopes FROM authenticated;
 DELETE FROM public.clicksign_envelopes WHERE origem = 'venda';

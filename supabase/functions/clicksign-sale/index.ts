@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
           admin.rpc("sale_corretores", { _sale_id: saleId }),
           admin
             .from("clicksign_org_settings")
-            .select("test_mode, test_allowlist_sha256, deadline_days")
+            .select("enabled, sale_enabled, test_mode, test_allowlist_sha256, deadline_days")
             .eq("organization_id", org)
             .single(),
           admin.rpc("clicksign_imobiliaria_signers", { _org: org }),
@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
           parties: parties.data ?? [],
           corretores: (profs.data ?? []).map((p) => ({ nome: p.nome ?? "", email: p.email ?? "" })),
           imobiliaria: (imob.data ?? []) as Array<{ id: string; nome: string; email: string }>,
+          saleEnabled: settings.data.enabled === true && settings.data.sale_enabled === true,
           testMode: settings.data.test_mode,
           allowlistSha256: settings.data.test_allowlist_sha256 ?? [],
           deadlineDays: settings.data.deadline_days,
