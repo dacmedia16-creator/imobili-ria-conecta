@@ -8,7 +8,10 @@ import {
   ClicksignClient,
   ClicksignError,
   deadlineIso,
+  fileTooBigMessage,
+  MAX_CLICKSIGN_FILE_BYTES,
   notifySigners,
+  sendFailure,
   sha256Hex,
   type EnvelopeResult,
   type FetchLike,
@@ -120,6 +123,29 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
     }
   }
 
+  // PDF lido ANTES da linha de rastreio: acima de 10 MB (limite da Clicksign) a mensagem é clara e
+  // nada é criado nem chamado na Clicksign.
+  let pdf: Uint8Array;
+  try {
+    pdf = await deps.loadPdf(captureId, ctx.gerado.id);
+  } catch {
+    return fail(
+      502,
+      "Não foi possível ler o PDF do contrato agora. Nada foi enviado; tente de novo em instantes.",
+      { code: "file:read" },
+    );
+  }
+  if (!pdf.length) {
+    return fail(422, "O PDF do contrato está vazio. Gere o contrato de novo.", {
+      code: "file:empty",
+    });
+  }
+  if (pdf.length > MAX_CLICKSIGN_FILE_BYTES) {
+    return fail(422, fileTooBigMessage(pdf.length, "O PDF do contrato"), {
+      code: "file:too_big",
+    });
+  }
+
   let envelopeRow: string;
   try {
     envelopeRow = await deps.insertEnvelope({
@@ -142,7 +168,6 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);
   let built: EnvelopeResult;
   try {
-    const pdf = await deps.loadPdf(captureId, ctx.gerado.id);
     const prefix = ctx.testMode ? "TESTE - " : "";
     built = await buildEnvelope(
       client,
@@ -171,21 +196,24 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
         .catch(() => undefined);
       return fail(502, ACTIVATE_UNKNOWN_MSG, { code: "activate_unknown" });
     }
-    const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
+    const { code, detail, screen } = sendFailure(
+      e,
+      signers.map((s) => s.nome),
+    );
     await deps
       .updateEnvelope(envelopeRow, {
         status: "error",
         error_code: code,
+        error_detail: detail,
         updated_at: new Date().toISOString(),
       })
       .catch(() => undefined);
-    const detail = e instanceof ClicksignError && e.status === 422 ? e.detail : undefined;
     return fail(
       502,
       "Falha ao enviar para a Clicksign. Nada foi enviado aos signatários; tente de novo ou use o fluxo manual.",
       {
         code,
-        ...(detail ? { details: [detail] } : {}),
+        ...(screen ? { details: [screen] } : {}),
       },
     );
   }

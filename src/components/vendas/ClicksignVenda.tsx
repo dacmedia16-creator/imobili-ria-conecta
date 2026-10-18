@@ -38,6 +38,7 @@ import { editSignerErrors, notifyWaitMinutes, type ManagedSigner } from "@/lib/e
 import {
   cancelSaleClicksign,
   canCancelSaleEnvelope,
+  canReconcile,
   canStartSaleEnvelope,
   CLICKSIGN_SEND_STATUSES,
   clicksignSaleCandidates,
@@ -46,6 +47,7 @@ import {
   EXTRA_ROLE_OPTIONS,
   missingEmailMessage,
   needsAutoCancel,
+  reconcileSaleClicksign,
   resendSaleNotice,
   SALE_ROLE_LABEL,
   saleEnvelopeStatusLabel,
@@ -168,6 +170,21 @@ export function ClicksignVenda({
     }
   };
 
+  const conferir = async () => {
+    setBusy(true);
+    try {
+      const r = await reconcileSaleClicksign(db, saleId);
+      if (r.result === "manual") toast.warning(r.message, { duration: 12000 });
+      else toast.success(r.message);
+      if (r.warning) toast.warning(r.warning, { duration: 10000 });
+      await onChanged();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível conferir na Clicksign agora"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-3 rounded-md border p-3" data-testid="clicksign-venda">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -194,6 +211,17 @@ export function ClicksignVenda({
         </p>
       )}
       {env && <p className="text-sm">{saleEnvelopeStatusLabel(env)}</p>}
+      {canReconcile(canAct, env) && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          data-testid="clicksign-conferir"
+          onClick={() => void conferir()}
+        >
+          <RefreshCw className="mr-1 h-4 w-4" /> Conferir na Clicksign
+        </Button>
+      )}
 
       {env?.status === "running" && (
         <GestaoVenda
@@ -310,7 +338,7 @@ function GestaoVenda({
   if (!canAct) {
     return (
       <p className="text-xs text-muted-foreground">
-        O gestor, o jurídico ou o ADM acompanham quem já abriu e assinou. Você será avisado quando o
+        O gestor, o team leader, o jurídico ou o ADM acompanham quem já abriu e assinou. Você será avisado quando o
         contrato assinado for anexado.
       </p>
     );
@@ -545,11 +573,20 @@ function EnvioDialog({
         parties,
         corretores: config.corretores,
         liberaAssinatura: config.libera_assinatura,
+        contratoSize: config.contrato?.size ?? null,
         imobiliariaIds: imobIds,
         testemunhas,
         extras,
       }),
-    [parties, config.corretores, config.libera_assinatura, imobIds, testemunhas, extras],
+    [
+      parties,
+      config.corretores,
+      config.libera_assinatura,
+      config.contrato?.size,
+      imobIds,
+      testemunhas,
+      extras,
+    ],
   );
   const missing = check.missing.length ? check.missing : serverMissing;
   const blocked = missing.length > 0 || check.errors.length > 0 || !config.contrato;

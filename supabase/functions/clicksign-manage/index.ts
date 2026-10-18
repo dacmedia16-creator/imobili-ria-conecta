@@ -4,6 +4,7 @@
 // Logs: só ação, status e código HTTP — nunca token, segredo ou e-mail.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleManage } from "./core.ts";
+import { handleReconcile } from "../_shared/clicksign-reconcile.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +35,63 @@ Deno.serve(async (req) => {
   if (whoErr || !who?.user) return json({ error: "unauthorized" }, 401);
 
   const body = await req.json().catch(() => ({}));
+  // "Conferir na Clicksign" (R5): envio da captação que ficou sem confirmação.
+  if ((body as { action?: string })?.action === "reconcile") {
+    const res = await handleReconcile(
+      {
+        fetch: (u, init) => fetch(u, init),
+        async reconcileAuthorize(kind, id) {
+          const { data, error } = await user.rpc("clicksign_reconcile_authorize", {
+            _kind: kind,
+            _id: id,
+          });
+          if (error) throw new Error(error.message);
+          const d = (data ?? {}) as { org?: string; envelope?: string };
+          if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
+          return { org: d.org, envelope: d.envelope };
+        },
+        async reconcileContext(org, envelopeRow) {
+          const [env, token] = await Promise.all([
+            admin
+              .from("clicksign_envelopes")
+              .select("envelope_key, error_code")
+              .eq("id", envelopeRow)
+              .eq("organization_id", org)
+              .single(),
+            admin.rpc("clicksign_org_secret", { _org: org, _kind: "access_token" }),
+          ]);
+          if (env.error || token.error) throw new Error("context_unavailable");
+          return {
+            envelopeKey: env.data.envelope_key ?? null,
+            errorCode: env.data.error_code ?? null,
+            token: (token.data as string | null) ?? null,
+          };
+        },
+        async reconcileApply(envelopeRow, remote) {
+          const { data, error } = await admin.rpc("clicksign_reconcile_apply", {
+            _envelope: envelopeRow,
+            _remote: remote,
+            _actor: who.user.id,
+          });
+          if (error) throw new Error("reconcile_failed");
+          return data as string;
+        },
+        async updateEnvelope(id, patch) {
+          const { error } = await admin.from("clicksign_envelopes").update(patch).eq("id", id);
+          if (error) throw new Error("envelope_update_failed");
+        },
+      },
+      "captacao",
+      typeof (body as { capture_id?: unknown }).capture_id === "string"
+        ? (body as { capture_id: string }).capture_id
+        : "",
+    ).catch((e) => {
+      console.error("clicksign-manage internal", e instanceof Error ? e.message : "erro");
+      return { status: 500, body: { error: "Falha interna. Atualize a página e confira o status." } };
+    });
+    console.log("clicksign-manage", "reconcile", res.status, (res.body as { result?: string }).result ?? "");
+    return json(res.body, res.status);
+  }
   const result = await handleManage(
     {
       actorId: who.user.id,

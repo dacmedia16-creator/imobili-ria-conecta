@@ -181,16 +181,86 @@ export class ClicksignError extends Error {
 export const scrubEmails = (s: string) =>
   s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
 
+/** Limite da Clicksign por arquivo (docs.clicksign: 10 MB por arquivo, 100 MB por envelope). */
+export const MAX_CLICKSIGN_FILE_BYTES = 10 * 1024 * 1024;
+export const fileTooBigMessage = (bytes: number, what = "O arquivo") =>
+  `${what} tem ${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB e a Clicksign aceita no ` +
+  "máximo 10 MB por arquivo. Reduza o arquivo (ex.: PDF comprimido) ou use o fluxo manual.";
+
+/**
+ * Detalhe da recusa da Clicksign para GRAVAR no banco (clicksign_envelopes.error_detail): sem
+ * e-mail, sem CPF/CNPJ/telefone (qualquer sequência longa de dígitos) e sem os nomes dos signatários
+ * (nome inteiro e cada palavra com 3+ letras). Até 120 caracteres.
+ */
+export function sanitizeErrorDetail(detail: string, names: string[] = []): string {
+  let s = scrubEmails(detail ?? "");
+  s = s.replace(/\d[\d.\-/ ]{8,}\d/g, "<doc>");
+  const tokens = new Set<string>();
+  for (const n of names) {
+    const full = normName(n);
+    if (full) tokens.add(full);
+    for (const w of full.split(" ")) if (w.length >= 3) tokens.add(w);
+  }
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const t of [...tokens].sort((a, b) => b.length - a.length)) {
+    s = s.replace(new RegExp(`(?<![\\p{L}\\d])${esc(t)}(?![\\p{L}\\d])`, "giu"), "<nome>");
+  }
+  s = s.replace(/(<nome>[\s,]*)+<nome>/g, "<nome>").replace(/\s+/g, " ").trim();
+  return s.slice(0, 120);
+}
+
+/** Espera máxima por um 429 (a janela da Clicksign é de 10 s). Acima disso, não repete. */
+export const RATE_LIMIT_MAX_WAIT_MS = 10_000;
+/** Soma máxima de esperas por 429 num mesmo envio (cabe folgado no tempo da edge function). */
+export const RATE_LIMIT_BUDGET_MS = 20_000;
+const RATE_LIMIT_FALLBACK_MS = 3_000;
+
+/**
+ * Quanto esperar antes da única nova tentativa após HTTP 429, pelo X-Rate-Limit-Reset (Unix time
+ * em segundos, UTC). Sem header válido = 3 s. Acima do teto = null (não repete).
+ */
+export function rateLimitWaitMs(
+  reset: string | null,
+  nowMs: number,
+  cap = RATE_LIMIT_MAX_WAIT_MS,
+): number | null {
+  const sec = Number(reset);
+  if (!reset || !Number.isFinite(sec) || sec <= 0) return RATE_LIMIT_FALLBACK_MS;
+  const wait = Math.max(sec * 1000 - nowMs, 0) + 250;
+  return wait > cap ? null : Math.max(wait, 500);
+}
+
+export type ClientOptions = {
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+};
+
 export class ClicksignClient {
   private token: string;
   private fetchImpl: FetchLike;
   private base: string;
-  constructor(token: string, fetchImpl: FetchLike = fetch, base = CLICKSIGN_PROD_BASE) {
+  private sleep: (ms: number) => Promise<void>;
+  private now: () => number;
+  private retryBudgetMs = RATE_LIMIT_BUDGET_MS;
+  constructor(
+    token: string,
+    fetchImpl: FetchLike = fetch,
+    base = CLICKSIGN_PROD_BASE,
+    opts: ClientOptions = {},
+  ) {
     this.token = token;
     this.fetchImpl = fetchImpl;
     this.base = base;
+    this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.now = opts.now ?? (() => Date.now());
   }
 
+  /**
+   * Uma chamada à API. Repete UMA vez só quando a resposta é HTTP 429: o limitador da Clicksign
+   * rejeita a requisição antes de processá-la ("rejeitará as requisições adicionais até o reinício",
+   * docs.clicksign: Limite de requisições), então nada foi criado e repetir não duplica envelope,
+   * documento, signatário nem aviso. Timeout, erro de rede e 5xx NUNCA são repetidos (estado incerto).
+   */
   async call(
     step: string,
     method: string,
@@ -203,11 +273,21 @@ export class ClicksignClient {
       Accept: contentType,
     };
     if (body !== undefined) headers["Content-Type"] = contentType;
-    const res = await this.fetchImpl(this.base + path, {
+    const init = {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    };
+    let res = await this.fetchImpl(this.base + path, init);
+    if (res.status === 429) {
+      const wait = rateLimitWaitMs(res.headers?.get?.("X-Rate-Limit-Reset") ?? null, this.now());
+      if (wait !== null && wait <= this.retryBudgetMs) {
+        this.retryBudgetMs -= wait;
+        await res.text().catch(() => "");
+        await this.sleep(wait);
+        res = await this.fetchImpl(this.base + path, init);
+      }
+    }
     const text = await res.text();
     if (!res.ok) {
       let detail = text.slice(0, 300);
@@ -406,6 +486,10 @@ export async function buildEnvelope(
     auto_close: true,
     block_after_refusal: false,
     deadline_at: plan.deadlineAt,
+    // Prazo vencido com assinatura parcial: CANCELA o documento (o padrão da Clicksign é "closed",
+    // que fecha com as assinaturas que tiver e seria anexado como assinado). docs.clicksign: Criar
+    // Envelope, enum closed|canceled.
+    deadline_partial_signature_action: "canceled",
   });
   const envelopeId: string = env?.data?.id;
   if (!envelopeId) throw new ClicksignError("envelope", 0, "resposta sem id");
@@ -450,6 +534,23 @@ export async function buildEnvelope(
     if (activating && !deleted) throw new ClicksignActivationUnknownError(err);
     throw err;
   }
+}
+
+/**
+ * Código e detalhe de uma falha do envio. Detalhe só para recusa de dados (HTTP 400 e 422):
+ * `detail` = para GRAVAR (sem e-mail, CPF nem nomes dos signatários, até 120 caracteres);
+ * `screen` = para a TELA de quem enviou (sem e-mail, como antes; ele já vê nomes e CPFs da venda).
+ */
+export function sendFailure(
+  e: unknown,
+  signerNames: string[],
+): { code: string; detail: string | null; screen: string | null } {
+  if (!(e instanceof ClicksignError)) return { code: "internal", detail: null, screen: null };
+  const code = `${e.step}:${e.status}`;
+  if (e.status !== 400 && e.status !== 422) return { code, detail: null, screen: null };
+  const detail = sanitizeErrorDetail(e.detail, signerNames);
+  const screen = scrubEmails(e.detail ?? "").trim().slice(0, 300);
+  return { code, detail: detail || null, screen: screen || null };
 }
 
 /**

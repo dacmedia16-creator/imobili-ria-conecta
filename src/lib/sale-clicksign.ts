@@ -3,6 +3,8 @@
 // novo no servidor. As regras de signatários vêm do mesmo módulo do servidor (_shared/clicksign-venda).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  fileTooBigMessage,
+  MAX_CLICKSIGN_FILE_BYTES,
   normEmail,
   validEmail,
   validSignerName,
@@ -37,7 +39,10 @@ export type SaleEnvelopeInfo = {
   status: "sending" | "running" | "closed" | "canceled" | "error";
   is_test: boolean;
   created_at: string;
+  updated_at?: string | null;
   error_code: string | null;
+  /** Motivo da recusa da Clicksign (400/422), sem e-mail, CPF nem nomes. */
+  error_detail?: string | null;
   signed: boolean;
   last_event?: string | null;
   last_notified_at?: string | null;
@@ -56,7 +61,7 @@ export type ClicksignSaleConfig =
       witnesses: number;
       deadline_days: number;
       libera_assinatura: boolean;
-      contrato: { id: string; file_name: string; created_at?: string } | null;
+      contrato: { id: string; file_name: string; created_at?: string; size?: number | null } | null;
       imobiliaria: Array<{ id: string; nome: string }>;
       corretores: Array<{ nome: string; email_ok: boolean }>;
       envelope: SaleEnvelopeInfo | null;
@@ -164,6 +169,8 @@ export type SaleSendInput = {
   parties: SaleParty[];
   corretores: Array<{ nome: string; email_ok: boolean }>;
   liberaAssinatura: boolean;
+  /** Tamanho do contrato do jurídico em bytes (null/ausente = desconhecido; o servidor confere). */
+  contratoSize?: number | null;
   imobiliariaIds: string[];
   testemunhas: Testemunha[];
   extras: ExtraDraft[];
@@ -179,6 +186,9 @@ export function saleSendCheck(input: SaleSendInput): SaleSendCheck {
   const errors: string[] = [];
   const emails: Array<[string, string]> = [];
   if (!input.liberaAssinatura) errors.push("O jurídico bloqueou este contrato para assinatura");
+  if (typeof input.contratoSize === "number" && input.contratoSize > MAX_CLICKSIGN_FILE_BYTES) {
+    errors.push(fileTooBigMessage(input.contratoSize, "O contrato do jurídico"));
+  }
   const missing = missingPartyEmails(input.parties);
   input.corretores.forEach((c) => {
     if (!c.email_ok) errors.push(`Corretor${c.nome ? ` ${c.nome}` : ""}: cadastro sem e-mail`);
@@ -393,7 +403,7 @@ export function saleEnvelopeStatusLabel(e: SaleEnvelopeInfo): string {
   switch (e.status) {
     case "sending":
       if (e.error_code === "activate_unknown") {
-        return `Envio sem confirmação da Clicksign${teste}: os signatários podem ter recebido o e-mail. Não reenvie; avise o suporte.`;
+        return `Envio sem confirmação da Clicksign${teste}: os signatários podem ter recebido o e-mail. Não reenvie; use “Conferir na Clicksign”.`;
       }
       return `Enviando para a Clicksign${teste}…`;
     case "running":
@@ -416,8 +426,48 @@ export function saleEnvelopeStatusLabel(e: SaleEnvelopeInfo): string {
     case "canceled":
       return `Assinatura cancelada, recusada ou vencida na Clicksign${teste}. É possível enviar de novo.`;
     case "error":
-      return `O último envio falhou${teste}; nada foi enviado aos signatários. É possível tentar de novo.`;
+      return `O último envio falhou${teste}; nada foi enviado aos signatários. É possível tentar de novo.${errorDetailSuffix(e.error_detail)}`;
     default:
       return "";
   }
+}
+
+/** " Motivo informado pela Clicksign: …" (detalhe gravado, já sem e-mail/CPF/nomes). */
+export function errorDetailSuffix(detail: string | null | undefined): string {
+  const d = (detail ?? "").trim();
+  return d ? ` Motivo informado pela Clicksign: ${d}` : "";
+}
+
+/** Minutos parado em 'sending' a partir dos quais "Conferir na Clicksign" aparece (o banco confere). */
+export const RECONCILE_AFTER_MIN = 5;
+
+/**
+ * Mostra "Conferir na Clicksign": envio sem confirmação (activate_unknown) ou parado em 'sending'
+ * há mais de 5 minutos. Só para quem envia (can_send); o banco aplica a mesma regra.
+ */
+export function canReconcile(
+  canSend: boolean,
+  e: { status: string; error_code: string | null; updated_at?: string | null } | null,
+  now = Date.now(),
+): boolean {
+  if (!canSend || !e || e.status !== "sending") return false;
+  if (e.error_code === "activate_unknown") return true;
+  const at = e.updated_at ? Date.parse(e.updated_at) : NaN;
+  return Number.isFinite(at) && now - at > RECONCILE_AFTER_MIN * 60000;
+}
+
+export async function reconcileSaleClicksign(
+  db: SupabaseClient,
+  saleId: string,
+): Promise<{ result: string; message: string; warning?: string }> {
+  const d = await invokeSale(
+    db,
+    { sale_id: saleId, action: "reconcile" },
+    "Não foi possível conferir na Clicksign agora. Tente de novo.",
+  );
+  return {
+    result: String(d.result ?? ""),
+    message: typeof d.message === "string" ? d.message : "Conferido.",
+    ...(typeof d.warning === "string" ? { warning: d.warning } : {}),
+  };
 }

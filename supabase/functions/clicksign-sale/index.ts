@@ -159,6 +159,43 @@ Deno.serve(async (req) => {
         if (error) throw new Error("cancel_record_failed");
         return data as string;
       },
+      // ---- conferir envio sem confirmação (R5) ----
+      async reconcileAuthorize(kind, id) {
+        const { data, error } = await user.rpc("clicksign_reconcile_authorize", {
+          _kind: kind,
+          _id: id,
+        });
+        if (error) throw new Error(error.message);
+        const d = (data ?? {}) as { org?: string; envelope?: string };
+        if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
+        return { org: d.org, envelope: d.envelope };
+      },
+      async reconcileContext(org, envelopeRow) {
+        const [env, token] = await Promise.all([
+          admin
+            .from("clicksign_envelopes")
+            .select("envelope_key, error_code")
+            .eq("id", envelopeRow)
+            .eq("organization_id", org)
+            .single(),
+          admin.rpc("clicksign_org_secret", { _org: org, _kind: "access_token" }),
+        ]);
+        if (env.error || token.error) throw new Error("context_unavailable");
+        return {
+          envelopeKey: env.data.envelope_key ?? null,
+          errorCode: env.data.error_code ?? null,
+          token: (token.data as string | null) ?? null,
+        };
+      },
+      async reconcileApply(envelopeRow, remote) {
+        const { data, error } = await admin.rpc("clicksign_reconcile_apply", {
+          _envelope: envelopeRow,
+          _remote: remote,
+          _actor: who.user.id,
+        });
+        if (error) throw new Error("reconcile_failed");
+        return data as string;
+      },
       // ---- gestão (mesma da captação) ----
       async authorize(saleId) {
         const { data, error } = await user.rpc("clicksign_sale_manage_authorize", { _id: saleId });

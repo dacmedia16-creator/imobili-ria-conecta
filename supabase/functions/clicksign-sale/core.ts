@@ -12,8 +12,11 @@ import {
   ClicksignClient,
   ClicksignError,
   deadlineIso,
+  fileTooBigMessage,
+  MAX_CLICKSIGN_FILE_BYTES,
   mimeForFilename,
   notifySigners,
+  sendFailure,
   sha256Hex,
   WITNESS_COUNT,
   type EnvelopeResult,
@@ -28,6 +31,7 @@ import {
   type SaleParty,
 } from "../_shared/clicksign-venda.ts";
 import { handleManage, type ManageDeps } from "../clicksign-manage/core.ts";
+import { handleReconcile, type ReconcileDeps } from "../_shared/clicksign-reconcile.ts";
 
 export const ACTIVATE_UNKNOWN_MSG =
   "Não foi possível confirmar o envio na Clicksign: os signatários podem ter recebido o e-mail. " +
@@ -41,7 +45,8 @@ export const MISSING_EMAIL_MSG = "Há partes da venda sem e-mail";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REF_RE = /^(corretor|parceiro|parceria):[0-9a-f-]{36}$/i;
-const MAX_FILE = 20 * 1024 * 1024;
+export const FILE_UNREADABLE_MSG =
+  "Não foi possível ler o contrato do jurídico agora. Nada foi enviado; tente de novo em instantes.";
 
 export type SaleSendContext = {
   parties: SaleParty[];
@@ -58,7 +63,8 @@ export type SaleSendContext = {
   imovel: string;
 };
 
-export type SaleDeps = ManageDeps & {
+export type SaleDeps = ManageDeps &
+  Partial<Omit<ReconcileDeps, "fetch" | "clicksignBase" | "updateEnvelope">> & {
   /** clicksign_sale_authorize com o JWT do usuário → {org, contrato}; lança Error claro. */
   authorizeSend(saleId: string): Promise<{ org: string; contrato: string }>;
   loadSendContext(org: string, saleId: string, contratoId: string): Promise<SaleSendContext>;
@@ -117,6 +123,23 @@ export async function handleSale(deps: SaleDeps, body: unknown): Promise<CoreRes
   const b = (body ?? {}) as Record<string, unknown>;
   if (b.action === "send") return handleSaleSend(deps, b);
   if (b.action === "cancel") return handleSaleCancel(deps, b);
+  if (b.action === "reconcile") {
+    if (!deps.reconcileAuthorize || !deps.reconcileContext || !deps.reconcileApply) {
+      return fail(501, "Ação indisponível");
+    }
+    return handleReconcile(
+      {
+        reconcileAuthorize: deps.reconcileAuthorize,
+        reconcileContext: deps.reconcileContext,
+        reconcileApply: deps.reconcileApply,
+        updateEnvelope: deps.updateEnvelope,
+        fetch: deps.fetch,
+        clicksignBase: deps.clicksignBase,
+      },
+      "venda",
+      str(b.sale_id, 40),
+    );
+  }
   return handleManage(deps, b, "venda");
 }
 
@@ -212,6 +235,25 @@ async function handleSaleSend(deps: SaleDeps, b: Record<string, unknown>): Promi
     }
   }
 
+  // O arquivo é lido ANTES de criar a linha de rastreio: tamanho fora do limite da Clicksign
+  // (10 MB) vira mensagem clara, sem envelope com erro e sem nenhuma chamada à Clicksign.
+  let file: Uint8Array;
+  try {
+    file = await deps.loadFile(ctx.contrato.id);
+  } catch {
+    return fail(502, FILE_UNREADABLE_MSG, { code: "file:read" });
+  }
+  if (!file.length) {
+    return fail(422, "O contrato do jurídico está vazio. Peça ao jurídico para anexar de novo.", {
+      code: "file:empty",
+    });
+  }
+  if (file.length > MAX_CLICKSIGN_FILE_BYTES) {
+    return fail(422, fileTooBigMessage(file.length, "O contrato do jurídico"), {
+      code: "file:too_big",
+    });
+  }
+
   let envelopeRow: string;
   try {
     envelopeRow = await deps.insertEnvelope({
@@ -234,8 +276,6 @@ async function handleSaleSend(deps: SaleDeps, b: Record<string, unknown>): Promi
   const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);
   let built: EnvelopeResult;
   try {
-    const file = await deps.loadFile(ctx.contrato.id);
-    if (!file.length || file.length > MAX_FILE) throw new ClicksignError("document", 0, "tamanho");
     const prefix = ctx.testMode ? "TESTE - " : "";
     const ext = ctx.contrato.fileName.toLowerCase().split(".").pop();
     built = await buildEnvelope(
@@ -265,19 +305,22 @@ async function handleSaleSend(deps: SaleDeps, b: Record<string, unknown>): Promi
         .catch(() => undefined);
       return fail(502, ACTIVATE_UNKNOWN_MSG, { code: "activate_unknown" });
     }
-    const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
+    const { code, detail, screen } = sendFailure(
+      e,
+      signers.map((s) => s.nome),
+    );
     await deps
       .updateEnvelope(envelopeRow, {
         status: "error",
         error_code: code,
+        error_detail: detail,
         updated_at: new Date().toISOString(),
       })
       .catch(() => undefined);
-    const detail = e instanceof ClicksignError && e.status === 422 ? e.detail : undefined;
     return fail(
       502,
       "Falha ao enviar para a Clicksign. Nada foi enviado aos signatários; tente de novo ou use o fluxo manual.",
-      { code, ...(detail ? { details: [detail] } : {}) },
+      { code, ...(screen ? { details: [screen] } : {}) },
     );
   }
 

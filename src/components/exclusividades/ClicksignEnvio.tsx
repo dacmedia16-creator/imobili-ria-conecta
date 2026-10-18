@@ -22,12 +22,14 @@ import {
   CLICKSIGN_DISABLED,
   clicksignCaptureConfig,
   envelopeStatusLabel,
+  reconcileClicksign,
   sendDialogErrors,
   sendToClicksign,
   WITNESS_COUNT,
   type ClicksignCaptureConfig,
   type Testemunha,
 } from "@/lib/exclusive-clicksign";
+import { canReconcile } from "@/lib/sale-clicksign";
 
 const db = supabase as unknown as SupabaseClient;
 const emptyWitnesses = (): Testemunha[] =>
@@ -74,6 +76,7 @@ export function ClicksignEnvio({
             corretorEmailOk: config.corretor_email_ok,
             imobiliariaIds: imob,
             testemunhas: witnesses,
+            pdfSize: config.pdf_size,
           })
         : [],
     [config, form, imob, witnesses],
@@ -117,6 +120,22 @@ export function ClicksignEnvio({
     }
   };
 
+  const conferir = async () => {
+    setBusy(true);
+    try {
+      const r = await reconcileClicksign(db, captureId);
+      if (r.result === "manual") toast.warning(r.message, { duration: 12000 });
+      else toast.success(r.message);
+      if (r.warning) toast.warning(r.warning, { duration: 10000 });
+      await onSent();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível conferir na Clicksign agora"));
+    } finally {
+      setBusy(false);
+      void refresh();
+    }
+  };
+
   return (
     <Card data-testid="clicksign-envio">
       <CardHeader>
@@ -124,6 +143,17 @@ export function ClicksignEnvio({
       </CardHeader>
       <CardContent className="space-y-3">
         {envelope && <p className="text-sm">{envelopeStatusLabel(envelope)}</p>}
+        {canReconcile(config.can_send, envelope) && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-testid="clicksign-conferir"
+            onClick={() => void conferir()}
+          >
+            Conferir na Clicksign
+          </Button>
+        )}
         {envelope && canManageEnvelope(config) && (
           <ClicksignGestaoEnvelope
             db={db}

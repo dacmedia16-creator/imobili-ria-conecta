@@ -4,6 +4,8 @@
 // pela edge function clicksign-send, que valida papel, organização e status de novo no servidor.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  fileTooBigMessage,
+  MAX_CLICKSIGN_FILE_BYTES,
   normEmail,
   validEmail,
   validSignerName,
@@ -19,7 +21,10 @@ export type ClicksignEnvelopeInfo = {
   status: "sending" | "running" | "closed" | "canceled" | "error";
   is_test: boolean;
   created_at: string;
+  updated_at?: string | null;
   error_code: string | null;
+  /** Motivo da recusa da Clicksign (400/422), sem e-mail, CPF nem nomes. */
+  error_detail?: string | null;
   signed: boolean;
   last_notified_at?: string | null;
   notify_available_at?: string | null;
@@ -35,6 +40,8 @@ export type ClicksignCaptureConfig =
       deadline_days: number;
       imobiliaria: Array<{ id: string; nome: string }>;
       corretor_email_ok: boolean;
+      /** Tamanho do contrato gerado em bytes (null = desconhecido; o servidor confere). */
+      pdf_size?: number | null;
       envelope: ClicksignEnvelopeInfo | null;
     };
 
@@ -60,6 +67,7 @@ export async function clicksignCaptureConfig(
         ? (c.imobiliaria as Array<{ id: string; nome: string }>)
         : [],
       corretor_email_ok: c.corretor_email_ok === true,
+      pdf_size: typeof c.pdf_size === "number" ? c.pdf_size : null,
       envelope: (c.envelope as ClicksignEnvelopeInfo | null) ?? null,
     };
   } catch {
@@ -73,6 +81,8 @@ export type SendDialogInput = {
   corretorEmailOk: boolean;
   imobiliariaIds: string[];
   testemunhas: Testemunha[];
+  /** Tamanho do PDF gerado em bytes (null/ausente = desconhecido; o servidor confere). */
+  pdfSize?: number | null;
 };
 
 function ownerFilled(o: unknown): boolean {
@@ -92,6 +102,9 @@ function ownerFilled(o: unknown): boolean {
 export function sendDialogErrors(input: SendDialogInput): string[] {
   const errors: string[] = [];
   const emails: Array<[string, string]> = [];
+  if (typeof input.pdfSize === "number" && input.pdfSize > MAX_CLICKSIGN_FILE_BYTES) {
+    errors.push(fileTooBigMessage(input.pdfSize, "O PDF do contrato"));
+  }
   const p1 = (input.form?.proprietario_1 ?? {}) as Record<string, string>;
   if (!validSignerName(p1.nome_completo)) errors.push("Proprietário 1: informe nome e sobrenome");
   if (!validEmail(p1.email)) errors.push("Proprietário 1: e-mail ausente ou inválido no cadastro");
@@ -171,7 +184,7 @@ export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
   switch (e.status) {
     case "sending":
       if (e.error_code === "activate_unknown") {
-        return `Envio sem confirmação da Clicksign${teste}: os signatários podem ter recebido o e-mail. Não reenvie; avise o suporte.`;
+        return `Envio sem confirmação da Clicksign${teste}: os signatários podem ter recebido o e-mail. Não reenvie; use “Conferir na Clicksign”.`;
       }
       return `Enviando para a Clicksign${teste}…`;
     case "running":
@@ -189,10 +202,29 @@ export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
     case "canceled":
       return `Envelope cancelado, recusado ou vencido na Clicksign${teste}. É possível enviar de novo.`;
     case "error":
-      return `O último envio falhou${teste}; nada foi enviado aos signatários. É possível tentar de novo.`;
+      return `O último envio falhou${teste}; nada foi enviado aos signatários. É possível tentar de novo.${
+        e.error_detail?.trim() ? ` Motivo informado pela Clicksign: ${e.error_detail.trim()}` : ""
+      }`;
     default:
       return "";
   }
+}
+
+/** "Conferir na Clicksign" da captação (envio sem confirmação). Mesma regra da venda. */
+export async function reconcileClicksign(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<{ result: string; message: string; warning?: string }> {
+  const d = await invokeManage(
+    db,
+    { capture_id: captureId, action: "reconcile" },
+    "Não foi possível conferir na Clicksign agora. Tente de novo.",
+  );
+  return {
+    result: String(d.result ?? ""),
+    message: typeof d.message === "string" ? d.message : "Conferido.",
+    ...(typeof d.warning === "string" ? { warning: d.warning } : {}),
+  };
 }
 
 /** Pode (re)enviar: não há envelope em envio ou em assinatura. */
