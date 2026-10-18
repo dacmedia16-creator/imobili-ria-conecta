@@ -62,6 +62,7 @@ import {
   extractSignedContract,
 } from "@/lib/exclusive-captures-ai.functions";
 import { clicksignManualInstructions } from "@/lib/exclusive-clicksign";
+import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
 import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
@@ -1691,6 +1692,16 @@ function ExclusiveDetail() {
                 </p>
               </CardContent>
             </Card>
+          )}
+          {!manual && !archived && ["enviada", "em_assinatura"].includes(capture.status) && (
+            <ClicksignEnvio
+              captureId={capture.id}
+              status={capture.status}
+              form={form as unknown as Record<string, unknown> | null}
+              hasGerado={docs.some((d) => d.kind === "gerado")}
+              dirty={dirty}
+              onSent={reload}
+            />
           )}
           {manager && ["enviada", "em_assinatura"].includes(capture.status) && (
             <Card>

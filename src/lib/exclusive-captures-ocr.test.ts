@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applySuggestedFields, emptyForm } from "./exclusive-captures";
 import { parseCaptureSuggestions, validCpf, validCreci } from "./exclusive-captures-ocr";
-import { clicksignConfig, sendToClicksign } from "./exclusive-clicksign";
+import { clicksignCaptureConfig } from "./exclusive-clicksign";
 
 describe("leitura assistida local — dados sintéticos", () => {
   it("alinha CPF e CRECI às regras do banco", () => {
@@ -64,16 +64,24 @@ describe("leitura assistida local — dados sintéticos", () => {
       classificacao_fiscal_iptu: "44.21.33.0123.00.000",
       endereco: "RUA DAS FLORES, 123 - JARDIM EUROPA",
     });
-    const matricula = "MATRÍCULA Nº\n98.765\nCartório\n2º Oficial de Registro de Imóveis de Sorocaba";
+    const matricula =
+      "MATRÍCULA Nº\n98.765\nCartório\n2º Oficial de Registro de Imóveis de Sorocaba";
     expect(parseCaptureSuggestions(matricula, "property")).toEqual({
       numero_matricula: "98.765",
       cartorio_registro: "2º Oficial de Registro de Imóveis de Sorocaba",
     });
   });
-  it("bloqueia qualquer envio automático à Clicksign independentemente da configuração", async () => {
-    expect(clicksignConfig.mode).toBe("disabled");
-    await expect(sendToClicksign("test", { mode: "disabled" })).rejects.toThrow(/desativada/);
-    await expect(sendToClicksign("test", { mode: "manual" })).rejects.toThrow(/desativada/);
+  it("Clicksign fica desligada (botão oculto) quando o banco não habilita ou falha", async () => {
+    const off = { rpc: async () => ({ data: { enabled: false }, error: null }) };
+    const err = { rpc: async () => ({ data: null, error: { message: "x" } }) };
+    const boom = {
+      rpc: async () => {
+        throw new Error("rede");
+      },
+    };
+    for (const db of [off, err, boom]) {
+      expect(await clicksignCaptureConfig(db as never, "id")).toEqual({ enabled: false });
+    }
   });
 });
 

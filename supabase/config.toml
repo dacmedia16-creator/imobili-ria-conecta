@@ -11,3 +11,7 @@ verify_jwt = false
 
 [functions.suporte-satelite]
 verify_jwt = false
+
+# Público: autenticado pelo HMAC (Content-Hmac) do segredo do webhook de cada organização.
+[functions.clicksign-webhook]
+verify_jwt = false
