@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       async findEnvelope(org, documentKey) {
         const { data } = await admin
           .from("clicksign_envelopes")
-          .select("id, envelope_key, document_key, capture_id, organization_id")
+          .select("id, envelope_key, document_key, capture_id, organization_id, origem, sale_id")
           .eq("organization_id", org)
           .eq("document_key", documentKey)
           .order("created_at", { ascending: false })
@@ -73,24 +73,37 @@ Deno.serve(async (req) => {
         await admin.from("clicksign_envelopes").update(patch).eq("id", id);
       },
       async storePdf(env, pdf) {
-        const path = `${env.organization_id}/${env.capture_id}/${crypto.randomUUID()}.pdf`;
+        const venda = env.origem === "venda";
+        const path = venda
+          ? `${env.organization_id}/${env.sale_id}/outros/contrato_assinado/${crypto.randomUUID()}.pdf`
+          : `${env.organization_id}/${env.capture_id}/${crypto.randomUUID()}.pdf`;
         const { error } = await admin.storage
-          .from("exclusive-captures")
+          .from(venda ? "sale-documents" : "exclusive-captures")
           .upload(path, pdf, { contentType: "application/pdf", upsert: false });
         if (error) throw new Error("storage_upload_failed");
         return path;
       },
-      async attachSigned(envelopeId, path, fileName) {
-        const { data, error } = await admin.rpc("clicksign_attach_signed", {
-          _envelope: envelopeId,
-          _path: path,
-          _file_name: fileName,
-        });
+      async attachSigned(envelopeId, path, fileName, origem) {
+        const { data, error } = await admin.rpc(
+          origem === "venda" ? "clicksign_sale_attach_signed" : "clicksign_attach_signed",
+          { _envelope: envelopeId, _path: path, _file_name: fileName },
+        );
         if (error) throw new Error("attach_failed");
         return data as string;
       },
-      async removeObject(path) {
-        await admin.storage.from("exclusive-captures").remove([path]);
+      async removeObject(path, origem) {
+        await admin.storage
+          .from(origem === "venda" ? "sale-documents" : "exclusive-captures")
+          .remove([path]);
+      },
+      async saleCanceled(envelopeId, reason) {
+        const { data, error } = await admin.rpc("clicksign_sale_canceled", {
+          _envelope: envelopeId,
+          _reason: reason,
+          _actor: null,
+        });
+        if (error) throw new Error("cancel_failed");
+        return data as string;
       },
     },
     slug,

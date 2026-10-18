@@ -22,9 +22,13 @@ export type EnvelopeRow = {
   id: string;
   envelope_key: string;
   document_key: string | null;
-  capture_id: string;
+  capture_id: string | null;
   organization_id: string;
+  /** Ausente = captação (linhas e testes anteriores à venda). */
+  origem?: "captacao" | "venda";
+  sale_id?: string | null;
 };
+export const isVenda = (env: EnvelopeRow) => env.origem === "venda";
 
 export type WebhookDeps = {
   findOrg(slug: string): Promise<OrgWebhook | null>;
@@ -38,10 +42,22 @@ export type WebhookDeps = {
   finishEvent(id: number, result: string): Promise<void>;
   findEnvelope(org: string, documentKey: string): Promise<EnvelopeRow | null>;
   updateEnvelope(id: string, patch: Record<string, unknown>): Promise<void>;
-  /** Grava o PDF no bucket exclusive-captures (caminho org/captura/uuid.pdf) e devolve o caminho. */
+  /**
+   * Grava o PDF e devolve o caminho. Captação: bucket exclusive-captures, org/captura/uuid.pdf.
+   * Venda: bucket sale-documents, org/venda/outros/contrato_assinado/uuid.pdf.
+   */
   storePdf(env: EnvelopeRow, pdf: Uint8Array): Promise<string>;
-  attachSigned(envelopeId: string, path: string, fileName: string): Promise<string>;
-  removeObject(path: string): Promise<void>;
+  /** Captação: clicksign_attach_signed. Venda (4º argumento): clicksign_sale_attach_signed. */
+  attachSigned(
+    envelopeId: string,
+    path: string,
+    fileName: string,
+    origem?: "venda",
+  ): Promise<string>;
+  /** Remove o PDF gravado (bucket conforme a origem). */
+  removeObject(path: string, origem?: "venda"): Promise<void>;
+  /** Venda: cancelamento/prazo/recusa pela RPC (volta a venda para o gestor reenviar). */
+  saleCanceled?(envelopeId: string, reason: string): Promise<string>;
   fetch: FetchLike;
   clicksignBase?: string;
 };
@@ -96,6 +112,10 @@ export async function handleWebhook(
   if (!env) return done("ignored:unknown_document");
 
   if (eventName && CANCEL_EVENTS.has(eventName)) {
+    if (isVenda(env) && deps.saleCanceled) {
+      const res = await deps.saleCanceled(env.id, eventName);
+      return done(`envelope:${eventName}:${res}`);
+    }
     await deps.updateEnvelope(env.id, {
       status: "canceled",
       last_event: eventName,
@@ -140,13 +160,20 @@ export async function handleWebhook(
     return r(502, { ok: false, result: "error:download" });
   }
   const path = await deps.storePdf(env, pdf);
+  const venda = isVenda(env);
+  const remove = () =>
+    (venda ? deps.removeObject(path, "venda") : deps.removeObject(path)).catch(() => undefined);
   let result: string;
   try {
-    result = await deps.attachSigned(env.id, path, "contrato-assinado-clicksign.pdf");
+    result = venda
+      ? await deps.attachSigned(env.id, path, "contrato-assinado-clicksign.pdf", "venda")
+      : await deps.attachSigned(env.id, path, "contrato-assinado-clicksign.pdf");
   } catch (e) {
-    await deps.removeObject(path).catch(() => undefined);
+    await remove();
     throw e;
   }
-  if (result !== "attached") await deps.removeObject(path).catch(() => undefined);
+  // Venda: "attached_only" também anexou (só a marcação automática não aconteceu).
+  const kept = result === "attached" || (venda && result === "attached_only");
+  if (!kept) await remove();
   return done(`signed:${result}`);
 }

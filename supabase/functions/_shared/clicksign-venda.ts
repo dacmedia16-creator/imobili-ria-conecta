@@ -50,7 +50,10 @@ export type SalePapel =
   | "extra_sistema"
   | "extra_externo";
 
-export const ROLE_BY_SALE_PAPEL: Record<"vendedor" | "comprador" | "corretor" | "imobiliaria" | "testemunha", string> = {
+export const ROLE_BY_SALE_PAPEL: Record<
+  "vendedor" | "comprador" | "corretor" | "imobiliaria" | "testemunha",
+  string
+> = {
   vendedor: "seller",
   comprador: "buyer",
   corretor: "real_estate_broker",
@@ -200,7 +203,9 @@ export function buildSaleSigners(input: BuildSaleInput): {
     errors.push("Signatários da imobiliária demais");
   input.imobiliaria
     .slice(0, MAX_IMOBILIARIA_SIGNERS)
-    .forEach((p, i) => push("imobiliaria", `Imobiliária ${i + 1}`, p, ROLE_BY_SALE_PAPEL.imobiliaria));
+    .forEach((p, i) =>
+      push("imobiliaria", `Imobiliária ${i + 1}`, p, ROLE_BY_SALE_PAPEL.imobiliaria),
+    );
   if (input.testemunhas.length !== WITNESS_COUNT)
     errors.push(`Informe exatamente ${WITNESS_COUNT} testemunhas`);
   input.testemunhas
