@@ -267,15 +267,32 @@ export type EnvelopePlan = {
 export type EnvelopeResult = { envelopeId: string; documentId: string; activated: boolean };
 
 /**
+ * A ativação falhou E o rascunho não pôde ser excluído: não dá para saber se o envelope está
+ * rodando (e-mails enviados, documento consumido). Quem chama deve bloquear o reenvio.
+ */
+export class ClicksignActivationUnknownError extends ClicksignError {
+  constructor(cause: unknown) {
+    const st = cause instanceof ClicksignError ? cause.status : 0;
+    super("activate_unknown", st, "ativação sem confirmação e rascunho não excluído");
+  }
+}
+
+/**
  * Monta o envelope completo: envelope → documento → signatários → requisitos (qualificação por papel
  * + autenticação por código no e-mail) e, se `activate`, ativa (todos assinam ao mesmo tempo).
  * Se algo falhar ANTES da ativação, o rascunho é excluído (rascunho não envia e-mail nem cobra).
- * `onEnvelopeCreated` permite gravar o id logo após a criação (rastreio mesmo se cair no meio).
+ * `onEnvelopeCreated`/`onDocumentCreated` gravam os ids ANTES da ativação (rastreio e webhook mesmo
+ * se cair depois). Se a própria ativação falhar e a exclusão do rascunho também falhar, lança
+ * ClicksignActivationUnknownError (estado incerto: pode ter sido enviado).
  */
 export async function buildEnvelope(
   client: ClicksignClient,
   plan: EnvelopePlan,
-  opts: { activate: boolean; onEnvelopeCreated?: (id: string) => Promise<void> | void },
+  opts: {
+    activate: boolean;
+    onEnvelopeCreated?: (id: string) => Promise<void> | void;
+    onDocumentCreated?: (id: string) => Promise<void> | void;
+  },
 ): Promise<EnvelopeResult> {
   const env = await client.createEnvelope({
     name: plan.name.slice(0, 100),
@@ -286,11 +303,13 @@ export async function buildEnvelope(
   });
   const envelopeId: string = env?.data?.id;
   if (!envelopeId) throw new ClicksignError("envelope", 0, "resposta sem id");
+  let activating = false;
   try {
     await opts.onEnvelopeCreated?.(envelopeId);
     const doc = await client.uploadDocument(envelopeId, plan.filename, plan.pdf, plan.metadata);
     const documentId: string = doc?.data?.id;
     if (!documentId) throw new ClicksignError("document", 0, "resposta sem id");
+    await opts.onDocumentCreated?.(documentId);
     for (const s of plan.signers) {
       const signer = await client.createSigner(envelopeId, s);
       const signerId: string = signer?.data?.id;
@@ -304,12 +323,19 @@ export async function buildEnvelope(
         auth: "email",
       });
     }
-    if (opts.activate) await client.activate(envelopeId);
+    if (opts.activate) {
+      activating = true;
+      await client.activate(envelopeId);
+    }
     return { envelopeId, documentId, activated: opts.activate };
   } catch (err) {
-    // Só rascunho pode ser excluído; se a ativação respondeu erro, a exclusão também falha (403) e o
-    // erro original é o que importa.
-    await client.deleteEnvelope(envelopeId).catch(() => undefined);
+    // Só rascunho pode ser excluído. Se a exclusão funcionar, nada foi enviado. Se falhar logo após
+    // uma tentativa de ativação (timeout/5xx já aplicado), o envelope pode estar rodando.
+    const deleted = await client.deleteEnvelope(envelopeId).then(
+      () => true,
+      () => false,
+    );
+    if (activating && !deleted) throw new ClicksignActivationUnknownError(err);
     throw err;
   }
 }

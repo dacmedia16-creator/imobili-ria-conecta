@@ -270,6 +270,83 @@ describe("clicksign-send (core)", () => {
     expect(updates.at(-1)).toMatchObject({ status: "error", error_code: "signer:422" });
     expect(deps.markSent).not.toHaveBeenCalled();
   });
+  it("document_key é gravado antes da ativação", async () => {
+    const { deps, cs, updates } = sendDeps();
+    const order: string[] = [];
+    const baseFetch = cs.fetch.getMockImplementation()!;
+    deps.fetch = vi.fn(async (url: string, init: RequestInit) => {
+      if (init.method === "PATCH") order.push("activate");
+      return baseFetch(url, init);
+    });
+    deps.updateEnvelope = vi.fn(async (_id, patch) => {
+      if ("document_key" in patch) order.push("document_key");
+      updates.push(patch);
+    });
+    expect((await handleSend(deps, body)).status).toBe(200);
+    expect(order).toEqual(["document_key", "activate"]);
+  });
+  it("markSent falha DEPOIS da ativação: não marca erro, não diz 'nada foi enviado', bloqueia reenvio", async () => {
+    const { deps, cs, updates } = sendDeps({
+      markSent: vi.fn(async () => {
+        throw new Error("db fora");
+      }),
+    });
+    const r = await handleSend(deps, body);
+    expect(cs.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+    expect(cs.calls.some((c) => c.method === "DELETE")).toBe(false);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, warning: expect.stringMatching(/Não reenvie/) });
+    expect(JSON.stringify(r.body)).not.toMatch(/Nada foi enviado/i);
+    expect(updates.some((u) => u.status === "error")).toBe(false);
+    expect(updates.some((u) => typeof u.document_key === "string")).toBe(true);
+    expect(updates.at(-1)).toMatchObject({
+      status: "running",
+      error_code: "post_activate:mark_sent",
+    });
+    expect(
+      canStartEnvelope({
+        status: "running",
+        is_test: false,
+        created_at: "",
+        error_code: "post_activate:mark_sent",
+        signed: false,
+      }),
+    ).toBe(false);
+  });
+  it("ativação falha e o DELETE também: activate_unknown, fica 'sending' e o reenvio segue bloqueado", async () => {
+    const { deps, cs, updates } = sendDeps({}, "PATCH /envelopes/:id");
+    const baseFetch = cs.fetch.getMockImplementation()!;
+    deps.fetch = vi.fn(async (url: string, init: RequestInit) => {
+      if (init.method === "DELETE") return new Response("{}", { status: 403 });
+      return baseFetch(url, init);
+    });
+    const r = await handleSend(deps, body);
+    expect(r.status).toBe(502);
+    expect(r.body.code).toBe("activate_unknown");
+    expect(JSON.stringify(r.body)).not.toMatch(/Nada foi enviado/i);
+    expect(r.body.error).toMatch(/Não reenvie/);
+    expect(updates.some((u) => u.status === "error")).toBe(false);
+    expect(updates.at(-1)).toMatchObject({ error_code: "activate_unknown" });
+    expect(updates.at(-1)).not.toHaveProperty("status");
+    expect(deps.markSent).not.toHaveBeenCalled();
+    const env = {
+      status: "sending" as const,
+      is_test: false,
+      created_at: "",
+      error_code: "activate_unknown",
+      signed: false,
+    };
+    expect(canStartEnvelope(env)).toBe(false);
+    expect(envelopeStatusLabel(env)).toMatch(/Não reenvie/);
+  });
+  it("ativação falha mas o rascunho é excluído: erro normal, reenvio liberado", async () => {
+    const { deps, cs, updates } = sendDeps({}, "PATCH /envelopes/:id");
+    const r = await handleSend(deps, body);
+    expect(r.status).toBe(502);
+    expect(r.body.code).toBe("activate:422");
+    expect(cs.calls.some((c) => c.method === "DELETE")).toBe(true);
+    expect(updates.at(-1)).toMatchObject({ status: "error" });
+  });
 });
 
 describe("clicksign-webhook (core)", () => {

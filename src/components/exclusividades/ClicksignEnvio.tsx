@@ -98,9 +98,11 @@ export function ClicksignEnvio({
         imobiliariaIds: imob,
         testemunhas: witnesses,
       });
-      toast.success(
-        `Enviado pela Clicksign${r.is_test ? " (TESTE)" : ""} para ${r.signers} signatários.`,
-      );
+      if (r.warning) toast.warning(r.warning);
+      else
+        toast.success(
+          `Enviado pela Clicksign${r.is_test ? " (TESTE)" : ""} para ${r.signers} signatários.`,
+        );
       setOpen(false);
       setImob([]);
       setWitnesses(emptyWitnesses());

@@ -4,6 +4,7 @@
 import {
   buildCaptureSigners,
   buildEnvelope,
+  ClicksignActivationUnknownError,
   ClicksignClient,
   ClicksignError,
   deadlineIso,
@@ -12,6 +13,13 @@ import {
   type PersonInput,
   WITNESS_COUNT,
 } from "../_shared/clicksign.ts";
+
+export const ACTIVATE_UNKNOWN_MSG =
+  "Não foi possível confirmar o envio na Clicksign: os signatários podem ter recebido o e-mail. " +
+  "Não reenvie; confira o envelope na Clicksign ou avise o suporte.";
+export const POST_ACTIVATE_MSG =
+  "Enviado à Clicksign, mas o registro no ADM MAX não foi concluído. Não reenvie; avise o suporte " +
+  "para atualizar o status da captação.";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -126,11 +134,12 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
     throw e;
   }
 
+  // Fase 1: até a ativação confirmada. document_key é gravado ANTES de ativar (webhook acha o envelope).
   try {
     const pdf = await deps.loadPdf(captureId, ctx.gerado.id);
     const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);
     const prefix = ctx.testMode ? "TESTE - " : "";
-    const r = await buildEnvelope(
+    await buildEnvelope(
       client,
       {
         name: `${prefix}Termo de exclusividade - captação ${captureId.slice(0, 8)}`,
@@ -143,18 +152,20 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
       {
         activate: true,
         onEnvelopeCreated: (id) => deps.updateEnvelope(envelopeRow, { envelope_key: id }),
+        onDocumentCreated: (id) => deps.updateEnvelope(envelopeRow, { document_key: id }),
       },
     );
-    await deps.updateEnvelope(envelopeRow, {
-      document_key: r.documentId,
-      updated_at: new Date().toISOString(),
-    });
-    await deps.markSent(envelopeRow);
-    return {
-      status: 200,
-      body: { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length },
-    };
   } catch (e) {
+    if (e instanceof ClicksignActivationUnknownError) {
+      // Pode ter sido enviado: mantém 'sending' (o índice único continua bloqueando o reenvio).
+      await deps
+        .updateEnvelope(envelopeRow, {
+          error_code: "activate_unknown",
+          updated_at: new Date().toISOString(),
+        })
+        .catch(() => undefined);
+      return fail(502, ACTIVATE_UNKNOWN_MSG, { code: "activate_unknown" });
+    }
     const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
     await deps
       .updateEnvelope(envelopeRow, {
@@ -173,4 +184,32 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
       },
     );
   }
+
+  // Fase 2: o envelope JÁ está rodando na Clicksign (e-mails enviados). Nenhuma falha local daqui em
+  // diante pode virar 'error' (isso liberaria um reenvio real em dobro) nem dizer "nada foi enviado".
+  try {
+    await deps.markSent(envelopeRow);
+  } catch {
+    await deps
+      .updateEnvelope(envelopeRow, {
+        status: "running",
+        error_code: "post_activate:mark_sent",
+        updated_at: new Date().toISOString(),
+      })
+      .catch(() => undefined);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        status: "running",
+        is_test: ctx.testMode,
+        signers: signers.length,
+        warning: POST_ACTIVATE_MSG,
+      },
+    };
+  }
+  return {
+    status: 200,
+    body: { ok: true, status: "running", is_test: ctx.testMode, signers: signers.length },
+  };
 }

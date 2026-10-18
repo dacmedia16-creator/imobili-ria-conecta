@@ -123,7 +123,7 @@ export function sendDialogErrors(input: SendDialogInput): string[] {
   return errors;
 }
 
-export type SendResult = { ok: true; is_test: boolean; signers: number };
+export type SendResult = { ok: true; is_test: boolean; signers: number; warning?: string };
 
 /** Envia pela edge function. Lança Error com a mensagem do servidor (e detalhes, se houver). */
 export async function sendToClicksign(
@@ -138,7 +138,9 @@ export async function sendToClicksign(
     },
   });
   if (error) {
-    let message = "Falha ao enviar para a Clicksign. Nada foi enviado aos signatários.";
+    // Sem corpo do servidor não dá para saber em que ponto falhou: não afirmar que nada foi enviado.
+    let message =
+      "Falha ao enviar para a Clicksign. Atualize a página e confira o status antes de tentar de novo.";
     const ctx = (error as { context?: unknown }).context;
     if (ctx && typeof (ctx as Response).json === "function") {
       try {
@@ -154,15 +156,26 @@ export async function sendToClicksign(
   }
   const d = (data ?? {}) as Record<string, unknown>;
   if (d.ok !== true) throw new Error("Resposta inesperada do envio pela Clicksign");
-  return { ok: true, is_test: d.is_test === true, signers: Number(d.signers) || 0 };
+  return {
+    ok: true,
+    is_test: d.is_test === true,
+    signers: Number(d.signers) || 0,
+    ...(typeof d.warning === "string" && d.warning ? { warning: d.warning } : {}),
+  };
 }
 
 export function envelopeStatusLabel(e: ClicksignEnvelopeInfo): string {
   const teste = e.is_test ? " (TESTE)" : "";
   switch (e.status) {
     case "sending":
+      if (e.error_code === "activate_unknown") {
+        return `Envio sem confirmação da Clicksign${teste}: os signatários podem ter recebido o e-mail. Não reenvie; avise o suporte.`;
+      }
       return `Enviando para a Clicksign${teste}…`;
     case "running":
+      if (e.error_code?.startsWith("post_activate:")) {
+        return `Enviado à Clicksign${teste}, mas o registro no ADM MAX ficou incompleto. Não reenvie; avise o suporte.`;
+      }
       return `Em assinatura na Clicksign${teste}. Quando todos assinarem, o PDF assinado é anexado sozinho.`;
     case "closed":
       return e.signed
