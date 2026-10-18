@@ -69,6 +69,9 @@ import {
   type ClicksignSignedInfo,
 } from "@/lib/exclusive-clicksign";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
+import { juntarDocumentosEmPdf } from "@/lib/document-actions";
+import { caberNoLimite, compressPdfBytes, formatMB, GERACAO_CONTRATO } from "@/lib/pdf-compress";
+import { browserImageCodec } from "@/lib/pdf-compress-browser";
 import { DocumentoAssinadoResumo } from "@/components/exclusividades/DocumentoAssinadoResumo";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
@@ -483,6 +486,8 @@ function ExclusiveDetail() {
         });
         bytes = await appendDossieToContract(bytes, dossie);
       }
+      // Imagens do modelo em JPEG ~150 dpi: o gerado fica bem abaixo dos 10 MB da Clicksign.
+      bytes = (await compressPdfBytes(bytes, browserImageCodec, GERACAO_CONTRATO)).bytes;
       const file = new File([bytes as BlobPart], signaturePdfName(id), {
         type: "application/pdf",
       });
@@ -496,11 +501,18 @@ function ExclusiveDetail() {
   // O Plano de Marketing já está dentro do contrato assinado, então não é repetido.
   const downloadComplete = () =>
     run(async () => {
-      await baixarDocumentosComoPdf(
-        await signedDocuments(completePdfDocs(docs)),
-        completePdfName(id),
-      );
-      toast.success("PDF completo baixado: contrato assinado + documentos.");
+      // Teto de 9 MB: se passar, nova passada reduzindo a qualidade das imagens até caber.
+      const juntado = await juntarDocumentosEmPdf(await signedDocuments(completePdfDocs(docs)));
+      const fit = await caberNoLimite(juntado, browserImageCodec);
+      await baixarDocumentosComoPdf([], completePdfName(id), fit.bytes);
+      if (fit.cabe)
+        toast.success(
+          `PDF completo baixado (${formatMB(fit.bytes.length)}): contrato assinado + documentos.`,
+        );
+      else
+        toast.warning(
+          `PDF completo baixado com ${formatMB(fit.bytes.length)}: mesmo comprimido, ficou acima de 9 MB. Se precisar de arquivo menor, baixe os documentos separados.`,
+        );
     });
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
@@ -1029,7 +1041,7 @@ function ExclusiveDetail() {
                 <Handshake className="mr-1 h-4 w-4" /> Virou venda
               </Button>
             )}
-          {canBuildCompletePdf(capture, docs) && (
+          {canBuildCompletePdf(capture, docs, !!currentSigned) && (
             <Button size="sm" disabled={busy} onClick={downloadComplete}>
               <Download className="mr-1 h-4 w-4" /> Baixar PDF completo (contrato assinado +
               documentos)

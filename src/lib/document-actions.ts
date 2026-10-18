@@ -15,11 +15,15 @@ async function imageToPngBytes(blob: Blob): Promise<Uint8Array> {
   canvas.height = bitmap.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível");
+  // JPEG (não PNG): foto de documento em PNG ficava várias vezes maior (t_f8dc8b99, PDF < 9 MB).
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bitmap, 0, 0);
   const pngBlob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("Falha ao converter imagem"))),
-      "image/png",
+      "image/jpeg",
+      0.85,
     );
   });
   bitmap.close();
@@ -90,7 +94,7 @@ export async function juntarDocumentosEmPdf(
     const blob = await resp.blob();
     if (isImageFile(doc.file_name)) {
       const pngBytes = await imageToPngBytes(blob);
-      const img = await merged.embedPng(pngBytes);
+      const img = await merged.embedJpg(pngBytes);
       const page = merged.addPage([img.width, img.height]);
       page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
     } else {

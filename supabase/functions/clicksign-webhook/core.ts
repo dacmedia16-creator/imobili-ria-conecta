@@ -6,6 +6,7 @@
 // assinado e anexa como "assinado" (sem aprovar a captação: a aprovação continua manual).
 import {
   ClicksignClient,
+  normEmail,
   sha256Hex,
   signedUrlFrom,
   verifyContentHmac,
@@ -58,12 +59,25 @@ export type WebhookDeps = {
   removeObject(path: string, origem?: "venda"): Promise<void>;
   /** Venda: cancelamento/prazo/recusa pela RPC (volta a venda para o gestor reenviar). */
   saleCanceled?(envelopeId: string, reason: string): Promise<string>;
+  /**
+   * Evento "sign" (uma assinatura): aviso só no sino (clicksign_aviso_assinou). `emailSha256` = sha256
+   * do e-mail de quem assinou (o e-mail nunca sai daqui); `eventId` garante 1 aviso por evento.
+   */
+  signNotice?(envelopeId: string, emailSha256: string | null, eventId: number): Promise<number>;
   fetch: FetchLike;
   clicksignBase?: string;
 };
 
 export type CoreResult = { status: number; body: Record<string, unknown> };
 const r = (status: number, body: Record<string, unknown>): CoreResult => ({ status, body });
+
+export const SIGN_EVENT = "sign";
+
+/** sha256 do e-mail de quem assinou (evento "sign": event.data.signer.email). Nunca guarda o e-mail. */
+export async function signerEmailSha(payload: any): Promise<string | null> {
+  const email = normEmail(payload?.event?.data?.signer?.email);
+  return email && email.includes("@") ? sha256Hex(email) : null;
+}
 
 function documentKeyFrom(payload: any): string | null {
   const d = payload?.document;
@@ -128,6 +142,13 @@ export async function handleWebhook(
       last_event: eventName ?? "desconhecido",
       updated_at: new Date().toISOString(),
     });
+    if (eventName === SIGN_EVENT && deps.signNotice) {
+      // Aviso é melhor esforço: falha aqui não faz a Clicksign reenviar o evento.
+      const n = await deps
+        .signNotice(env.id, await signerEmailSha(payload), ev.id)
+        .catch(() => -1);
+      return done(`noted:sign:${n < 0 ? "aviso_falhou" : n}`);
+    }
     return done(`noted:${eventName ?? "?"}`);
   }
 

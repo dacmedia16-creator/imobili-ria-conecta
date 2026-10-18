@@ -105,6 +105,15 @@ Deno.serve(async (req) => {
         if (error) throw new Error("cancel_failed");
         return data as string;
       },
+      async signNotice(envelopeId, emailSha256, eventId) {
+        const { data, error } = await admin.rpc("clicksign_aviso_assinou", {
+          _envelope: envelopeId,
+          _sha: emailSha256,
+          _evento: eventId,
+        });
+        if (error) throw new Error("aviso_failed");
+        return (data as number | null) ?? 0;
+      },
     },
     slug,
     raw,

@@ -14,12 +14,20 @@ export function completePdfDocs(docs: CaptureDocument[]): CaptureDocument[] {
   return [...signed, ...others];
 }
 
-/** PDF completo só existe com a captação aprovada e o contrato assinado anexado. */
+/**
+ * PDF completo: captação aprovada com o assinado, ou (t_f8dc8b99) assim que a Clicksign fecha, com o
+ * assinado válido (posterior ao gerado) ainda em enviada/em_assinatura — sem esperar a aprovação.
+ */
 export function canBuildCompletePdf(
   capture: Pick<Capture, "status">,
   docs: CaptureDocument[],
+  assinadoValido = false,
 ): boolean {
-  return capture.status === "aprovada" && docs.some((d) => d.kind === "assinado");
+  if (!docs.some((d) => d.kind === "assinado")) return false;
+  return (
+    capture.status === "aprovada" ||
+    (assinadoValido && (capture.status === "enviada" || capture.status === "em_assinatura"))
+  );
 }
 
 export const signaturePdfName = (id: string) => `contrato-exclusividade-${id.slice(0, 8)}.pdf`;
