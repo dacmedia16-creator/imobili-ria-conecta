@@ -189,13 +189,13 @@ import {
 import {
   clicksignSaleConfig,
   SALE_CLICKSIGN_DISABLED,
-  showClicksignShortcut,
   type ClicksignSaleConfig,
 } from "@/lib/sale-clicksign";
 import {
   modoAssinatura,
   mostrarEnvioManualSimples,
   mostrarEscolhaAssinatura,
+  mostrarEscolhaAtalhoGestor,
   podeDevolverDaAssinatura,
   podeMarcarAssinado,
   podeOperarAssinatura,
@@ -204,6 +204,7 @@ import {
 } from "@/lib/assinatura-manual";
 import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
 import { FichaImovelFields } from "@/components/vendas/FichaImovelFields";
+import { SeletorArquivo } from "@/components/vendas/SeletorArquivo";
 import {
   sugerirAreas,
   type ExtracaoImovel,
@@ -874,6 +875,8 @@ function SaleDetail() {
   // ---- Clicksign na venda (só orgs com a integração ligada; falha = desligado) ----
   const [csConfig, setCsConfig] = useState<ClicksignSaleConfig>(SALE_CLICKSIGN_DISABLED);
   const [csSendOpen, setCsSendOpen] = useState(false);
+  // Atalho do gestor com Clicksign: "Como vai ser assinado?" num diálogo (t_70ebc484).
+  const [atalhoEscolhaOpen, setAtalhoEscolhaOpen] = useState(false);
   const [csTick, setCsTick] = useState(0);
   const csStatus = sale?.status ?? null;
   const csDocsKey = docs
@@ -1398,8 +1401,10 @@ function SaleDetail() {
   const envioManualSimples = mostrarEnvioManualSimples(csConfig, status, papeisAssinatura);
   const assinaturaManual = modoAssinatura(csConfig, status) === "manual";
   const rotuloAssinatura = rotuloStatusAssinatura(csConfig, status);
-  // Atalho do gestor em contrato_conferencia_gestor abre o mesmo fluxo da Clicksign (t_2284ea8b).
-  const clicksignAtalhoGestor = isGestor && showClicksignShortcut(csConfig, status);
+  // Atalho do gestor em contrato_conferencia_gestor: com a Clicksign, "Enviar direto para assinatura"
+  // pergunta "Como vai ser assinado?" — digital (fluxo da Clicksign, t_2284ea8b) ou papel (Denis
+  // 19/10, t_70ebc484). Mesmos papéis de antes (isGestor); o banco confere de novo.
+  const clicksignAtalhoGestor = mostrarEscolhaAtalhoGestor(csConfig, status, papeisAssinatura);
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
   // então ele pula "enviada_revisao" e manda a venda direto pro jurídico (ver confirmSendForReview).
   const isOwnerGestor = isOwner && isGestor;
@@ -4202,9 +4207,7 @@ function SaleDetail() {
                       onClick: () => changeStatus("aguardando_assinatura"),
                       disabled: sale.contrato_libera_assinatura === false,
                     }
-                  : podeAssinatura &&
-                      assinaturaManual &&
-                      contratoAssinadoDocs.length === 0
+                  : podeAssinatura && assinaturaManual && contratoAssinadoDocs.length === 0
                     ? {
                         label: "Subir contrato assinado",
                         icon: Upload,
@@ -4216,20 +4219,20 @@ function SaleDetail() {
                     : podeMarcarAssinado(papeisAssinatura) &&
                         status === "aguardando_assinatura" &&
                         contratoAssinadoDocs.length > 0
+                      ? {
+                          label: "Marcar contrato assinado",
+                          icon: FileCheck,
+                          onClick: marcarContratoAssinado,
+                        }
+                      : isGestor &&
+                          (status === "ocorrencia_pendente" ||
+                            status === "ocorrencia_devolvida_gestor")
                         ? {
-                            label: "Marcar contrato assinado",
-                            icon: FileCheck,
-                            onClick: marcarContratoAssinado,
+                            label: "Enviar ocorrência ao financeiro",
+                            icon: DollarSign,
+                            onClick: enviarOcorrenciaFinanceiro,
                           }
-                        : isGestor &&
-                            (status === "ocorrencia_pendente" ||
-                              status === "ocorrencia_devolvida_gestor")
-                          ? {
-                              label: "Enviar ocorrência ao financeiro",
-                              icon: DollarSign,
-                              onClick: enviarOcorrenciaFinanceiro,
-                            }
-                          : null;
+                        : null;
 
   // Faixa amarela: venda aberta sem Mídia. Com ocorrência criada, a trava passa a ser a Mídia da
   // ocorrência (é ela que o banco confere ao enviar ao financeiro); antes disso, a Mídia da venda.
@@ -4286,9 +4289,16 @@ function SaleDetail() {
           "aguardando_assinatura",
         ].includes(status) && (
           <div className="flex justify-end print:hidden">
-            <Button size="sm" variant="outline" onClick={openContratoDialog}>
+            {/* Versão para revisão (antes de assinar) + pendência. O contrato ASSINADO no papel sobe
+                em "Subir contrato assinado", só na assinatura manual (Denis 19/10, t_70ebc484). */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openContratoDialog}
+              title="Troca a versão do contrato para revisão e atualiza a pendência de documento"
+            >
               <AlertTriangle className="mr-2 h-4 w-4" />
-              Pendência do contrato
+              Substituir versão do contrato
             </Button>
           </div>
         )}
@@ -4369,7 +4379,7 @@ function SaleDetail() {
             <>
               <Button variant="outline" onClick={openContratoDialog}>
                 <Upload className="mr-2 h-4 w-4" />
-                {contratoDocs.length > 0 ? "Substituir contrato" : "Anexar contrato"}
+                {contratoDocs.length > 0 ? "Substituir versão do contrato" : "Anexar contrato"}
               </Button>
               <Button
                 onClick={enviarContratoAoGestor}
@@ -4402,7 +4412,7 @@ function SaleDetail() {
               <Button
                 onClick={() =>
                   clicksignAtalhoGestor
-                    ? setCsSendOpen(true)
+                    ? setAtalhoEscolhaOpen(true)
                     : changeStatus("aguardando_assinatura")
                 }
                 disabled={sale.contrato_libera_assinatura === false}
@@ -4410,14 +4420,12 @@ function SaleDetail() {
                   sale.contrato_libera_assinatura === false
                     ? "Jurídico marcou que ainda não pode ir para assinatura"
                     : clicksignAtalhoGestor
-                      ? "Pula a conferência do corretor e envia pela Clicksign"
+                      ? "Pula a conferência do corretor: escolha assinatura digital (Clicksign) ou papel"
                       : undefined
                 }
               >
                 <Send className="mr-2 h-4 w-4" />
-                {clicksignAtalhoGestor
-                  ? "Enviar direto pela Clicksign"
-                  : "Enviar direto para assinatura"}
+                Enviar direto para assinatura
               </Button>
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
                 <XCircle className="mr-2 h-4 w-4" />
@@ -5209,6 +5217,32 @@ function SaleDetail() {
               onManual={() => changeStatus("aguardando_assinatura", "Assinatura manual (papel)")}
             />
           )}
+          <Dialog open={atalhoEscolhaOpen} onOpenChange={setAtalhoEscolhaOpen}>
+            <DialogContent className="max-h-[90vh] max-w-2xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Enviar direto para assinatura</DialogTitle>
+                <DialogDescription>
+                  Pula a conferência do corretor. Escolha como o contrato vai ser assinado.
+                </DialogDescription>
+              </DialogHeader>
+              {clicksignAtalhoGestor && (
+                <EscolhaAssinaturaVenda
+                  bloqueado={sale.contrato_libera_assinatura === false}
+                  contratoNome={csConfig.enabled ? (csConfig.contrato?.file_name ?? null) : null}
+                  tituloClicksign="Assinatura digital (Clicksign)"
+                  tituloManual="Manual (papel)"
+                  onClicksign={() => {
+                    setAtalhoEscolhaOpen(false);
+                    setCsSendOpen(true);
+                  }}
+                  onManual={async () => {
+                    await changeStatus("aguardando_assinatura", "Assinatura manual (papel)");
+                    setAtalhoEscolhaOpen(false);
+                  }}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
           {assinaturaManual && (
             <AssinaturaManualCard
               podeOperar={podeAssinatura}
@@ -5220,7 +5254,9 @@ function SaleDetail() {
                 papeisAssinatura,
                 contratoAssinadoDocs.length > 0,
               )}
-              assinadoNome={contratoAssinadoDocs[contratoAssinadoDocs.length - 1]?.file_name ?? null}
+              assinadoNome={
+                contratoAssinadoDocs[contratoAssinadoDocs.length - 1]?.file_name ?? null
+              }
               onSubir={() => {
                 setContratoAssinadoFile(null);
                 setContratoAssinadoDialogOpen(true);
@@ -5722,23 +5758,35 @@ function SaleDetail() {
           if (!contratoUploading) setContratoDialogOpen(o);
         }}
       >
-        <DialogContent>
+        {/* grid-cols-[minmax(0,1fr)]: sem isso um nome de PDF longo alargava a coluna do grid e a
+            caixa "já anexado(s)" vazava à direita do modal (print de Denis 19/10, t_70ebc484). */}
+        <DialogContent className="max-h-[90vh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Anexar contrato</DialogTitle>
+            <DialogTitle>
+              {contratoDocs.length > 0 ? "Substituir versão do contrato" : "Anexar contrato"}
+            </DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato (PDF, DOC ou DOCX). Depois de anexar, confira o arquivo e
-              use o botão "Enviar ao gestor" quando estiver pronto.
+              {status === "em_elaboracao_contrato"
+                ? 'Envie o arquivo do contrato (PDF, DOC ou DOCX). Depois de anexar, confira o arquivo e use o botão "Enviar ao gestor" quando estiver pronto.'
+                : "Versão do contrato para revisão, antes de assinar (PDF, DOC ou DOCX). Aqui você também atualiza a pendência de documento. Salvar não envia para assinatura nem muda a etapa da venda."}
             </DialogDescription>
           </DialogHeader>
 
+          {status !== "em_elaboracao_contrato" && (
+            <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+              Contrato já assinado no papel? Ele vai em <b>“Subir contrato assinado”</b>, que
+              aparece quando a venda está na assinatura manual.
+            </p>
+          )}
+
           {contratoDocs.length > 0 && (
-            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+            <div className="min-w-0 rounded-md border bg-muted/40 p-3 text-sm">
               <div className="mb-1 font-medium">Contrato(s) já anexado(s):</div>
               <ul className="space-y-1 text-muted-foreground">
                 {contratoDocs.map((d) => (
-                  <li key={d.id} className="flex min-w-0 items-center gap-2">
-                    <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                    <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
+                  <li key={d.id} className="flex min-w-0 items-start gap-2">
+                    <FileCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{d.file_name}</span>
                   </li>
                 ))}
               </ul>
@@ -5753,15 +5801,13 @@ function SaleDetail() {
               Arquivo do contrato{" "}
               {contratoDocs.length === 0 && <span className="text-destructive">*</span>}
             </Label>
-            <Input
-              type="file"
+            <SeletorArquivo
+              arquivo={contratoFile}
+              onChange={setContratoFile}
+              ariaLabel="Arquivo do contrato"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={(e) => setContratoFile(e.target.files?.[0] ?? null)}
               disabled={contratoUploading}
             />
-            {contratoFile && (
-              <div className="text-xs text-muted-foreground">Selecionado: {contratoFile.name}</div>
-            )}
           </div>
 
           <div className="space-y-3 rounded-md border p-3">
@@ -5830,7 +5876,11 @@ function SaleDetail() {
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  {contratoFile || contratoDocs.length === 0 ? "Anexar contrato" : "Salvar"}
+                  {contratoDocs.length === 0
+                    ? "Anexar contrato"
+                    : contratoFile
+                      ? "Substituir versão"
+                      : "Salvar"}
                 </>
               )}
             </Button>
@@ -5844,7 +5894,7 @@ function SaleDetail() {
           if (!contratoAssinadoUploading) setContratoAssinadoDialogOpen(o);
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Subir contrato assinado</DialogTitle>
             <DialogDescription>
@@ -5855,13 +5905,13 @@ function SaleDetail() {
           </DialogHeader>
 
           {contratoAssinadoDocs.length > 0 && (
-            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+            <div className="min-w-0 rounded-md border bg-muted/40 p-3 text-sm">
               <div className="mb-1 font-medium">Contrato(s) assinado(s) já anexado(s):</div>
               <ul className="space-y-1 text-muted-foreground">
                 {contratoAssinadoDocs.map((d) => (
-                  <li key={d.id} className="flex min-w-0 items-center gap-2">
-                    <FileCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                    <span className="min-w-0 flex-1 truncate">{d.file_name}</span>
+                  <li key={d.id} className="flex min-w-0 items-start gap-2">
+                    <FileCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{d.file_name}</span>
                   </li>
                 ))}
               </ul>
@@ -5876,17 +5926,13 @@ function SaleDetail() {
               Arquivo do contrato assinado{" "}
               {contratoAssinadoDocs.length === 0 && <span className="text-destructive">*</span>}
             </Label>
-            <Input
-              type="file"
+            <SeletorArquivo
+              arquivo={contratoAssinadoFile}
+              onChange={setContratoAssinadoFile}
+              ariaLabel="Arquivo do contrato assinado"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={(e) => setContratoAssinadoFile(e.target.files?.[0] ?? null)}
               disabled={contratoAssinadoUploading}
             />
-            {contratoAssinadoFile && (
-              <div className="text-xs text-muted-foreground">
-                Selecionado: {contratoAssinadoFile.name}
-              </div>
-            )}
           </div>
 
           <DialogFooter>
