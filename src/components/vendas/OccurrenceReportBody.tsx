@@ -156,6 +156,9 @@ export function OccurrenceReportBody({
             occ?.tempo_venda_dias != null ? `${occ.tempo_venda_dias} dias` : "",
             <span className="font-semibold">
               {dateBR(dataAssinaturaOficial ?? occ?.data_assinatura)}
+              {!dataAssinaturaOficial && occ?.data_assinatura ? (
+                <span className="font-normal"> (informada na ocorrência)</span>
+              ) : null}
             </span>,
             <Checkbox
               checked={!!occ?.nota_fiscal_obrigatoria}
@@ -355,7 +358,7 @@ export function OccurrenceReportBody({
 
       <FormTitle>Previsão de recebimento da comissão</FormTitle>
       <FormTable>
-        <FormHeadRow cols={["1ª parcela", "Data", "Forma de pagamento"]} />
+        <FormHeadRow cols={["1ª parcela", "Data prevista", "Forma de pagamento"]} />
         <FormValueRow
           cols={[
             money(occ?.prev_recebimento_valor),
@@ -363,7 +366,7 @@ export function OccurrenceReportBody({
             occ?.prev_recebimento_forma,
           ]}
         />
-        <FormHeadRow cols={["2ª parcela", "Data", "Forma de pagamento"]} />
+        <FormHeadRow cols={["2ª parcela", "Data prevista", "Forma de pagamento"]} />
         <FormValueRow
           cols={[
             money(occ?.prev_recebimento2_valor),
@@ -371,7 +374,7 @@ export function OccurrenceReportBody({
             occ?.prev_recebimento2_forma,
           ]}
         />
-        <FormHeadRow cols={["3ª parcela", "Data", "Forma de pagamento"]} />
+        <FormHeadRow cols={["3ª parcela", "Data prevista", "Forma de pagamento"]} />
         <FormValueRow
           cols={[
             money(occ?.prev_recebimento3_valor),

@@ -128,7 +128,7 @@ function NotificationsPage() {
                   <p className="mt-0.5 break-words text-sm text-muted-foreground">{n.mensagem}</p>
                 )}
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {new Date(n.created_at).toLocaleString("pt-BR")}
+                  Recebida em {new Date(n.created_at).toLocaleString("pt-BR")}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">

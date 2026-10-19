@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { dataAssinaturaOficial, ultimasAssinaturasPorVenda } from "@/lib/data-assinatura-oficial";
+import { dataCivilSaoPaulo } from "@/lib/hoje-sao-paulo";
 
 type LinhaRecente = {
   id: string;
@@ -14,7 +15,7 @@ type LinhaRecente = {
  */
 export async function aplicarDatasRecentes<T extends LinhaRecente>(
   rows: T[],
-): Promise<Array<T & { data_venda: string | null }>> {
+): Promise<Array<T & { data_venda: string | null; assinada: boolean }>> {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
   try {
@@ -32,24 +33,39 @@ export async function aplicarDatasRecentes<T extends LinhaRecente>(
       (occRes.data ?? []).map((occ) => [occ.sale_id, occ.data_assinatura]),
     );
     const ultimaPorVenda = ultimasAssinaturasPorVenda(histRes.data ?? []);
-    return rows.map((row) => ({
-      ...row,
-      data_venda:
-        dataAssinaturaOficial({
-          modalidade: row.modalidade,
-          saleDataAssinatura: row.data_assinatura,
-          ultimaAssinatura: ultimaPorVenda.get(row.id),
-          occDataAssinatura: occPorVenda.get(row.id),
-        }) ?? row.created_at.slice(0, 10),
-    }));
+    return rows.map((row) => {
+      const oficial = dataAssinaturaOficial({
+        modalidade: row.modalidade,
+        saleDataAssinatura: row.data_assinatura,
+        ultimaAssinatura: ultimaPorVenda.get(row.id),
+        occDataAssinatura: occPorVenda.get(row.id),
+      });
+      // `assinada` só diz se data_venda veio de uma assinatura (legenda na tela); a data não muda.
+      return { ...row, data_venda: oficial ?? row.created_at.slice(0, 10), assinada: oficial != null };
+    });
   } catch {
     // Falha de leitura não confirma ausência de assinatura. Preserva a venda, sem inventar data.
-    return rows.map((row) => ({ ...row, data_venda: null }));
+    return rows.map((row) => ({ ...row, data_venda: null, assinada: false }));
   }
 }
 
-export function formatarDataRecente(data: string | null): string {
-  if (!data) return "Data indisponível";
-  const [ano, mes, dia] = data.split("-");
-  return `Data: ${dia}/${mes}/${ano}`;
+const dd_mm_aaaa = (data: string) => {
+  const [ano, mes, dia] = data.slice(0, 10).split("-");
+  return `${dia}/${mes}/${ano}`;
+};
+
+/**
+ * Legenda das datas da venda recente (mesmo vocabulário da lista de Vendas):
+ * "Criada em dd/mm/aaaa" + "Assinada em dd/mm/aaaa" / "Ainda não assinada".
+ */
+export function legendasDataRecente(v: {
+  created_at: string;
+  data_venda: string | null;
+  assinada?: boolean;
+}): string[] {
+  const criada = dataCivilSaoPaulo(v.created_at);
+  const linhas = [`Criada em ${criada ? dd_mm_aaaa(criada) : "—"}`];
+  if (!v.data_venda) linhas.push("Data da assinatura indisponível");
+  else linhas.push(v.assinada ? `Assinada em ${dd_mm_aaaa(v.data_venda)}` : "Ainda não assinada");
+  return linhas;
 }

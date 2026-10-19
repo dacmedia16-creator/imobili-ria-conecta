@@ -27,7 +27,7 @@ import {
   type SaleStatus,
 } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
-import { aplicarDatasRecentes, formatarDataRecente } from "@/lib/dashboard-datas-recentes";
+import { aplicarDatasRecentes, legendasDataRecente } from "@/lib/dashboard-datas-recentes";
 import {
   aplicarFiltrosEfetivacao,
   aplicarFiltrosParcelas,
@@ -176,6 +176,7 @@ type VendaRecente = {
   updated_at: string;
   created_at: string;
   data_venda: string | null;
+  assinada?: boolean;
 };
 
 function Dashboard() {
@@ -623,9 +624,11 @@ function Dashboard() {
                       ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
                       : "Valor pendente"}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatarDataRecente(s.data_venda)}
-                  </div>
+                  {legendasDataRecente(s).map((linha) => (
+                    <div key={linha} className="text-xs text-muted-foreground">
+                      {linha}
+                    </div>
+                  ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={s.status as SaleStatus} />

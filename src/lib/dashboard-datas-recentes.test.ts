@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
-import { aplicarDatasRecentes, formatarDataRecente } from "./dashboard-datas-recentes";
+import { aplicarDatasRecentes, legendasDataRecente } from "./dashboard-datas-recentes";
 
 // Cadeias reais usadas: from().select().in() e from().select().eq().in().
 function builder(table: string) {
@@ -52,8 +52,8 @@ describe("datas das vendas recentes (data oficial)", () => {
   it("sem histórico usa a ocorrência (fallback) e consulta só os IDs recentes em lote", async () => {
     mocks.respostas.occurrences = ok([{ sale_id: "recente-a", data_assinatura: "2026-08-31" }]);
     expect(await aplicarDatasRecentes(rows)).toEqual([
-      { ...rows[0], data_venda: "2026-08-31" },
-      { ...rows[1], data_venda: "2026-09-07" },
+      { ...rows[0], data_venda: "2026-08-31", assinada: true },
+      { ...rows[1], data_venda: "2026-09-07", assinada: false },
     ]);
     expect(mocks.calls).toHaveLength(2);
     expect(mocks.calls.find((c) => c.table === "occurrences")).toEqual({
@@ -106,20 +106,31 @@ describe("datas das vendas recentes (data oficial)", () => {
     mocks.respostas.sale_status_history = () =>
       Promise.resolve({ data: null, error: { message: "indisponível" } });
     expect(await aplicarDatasRecentes(rows)).toEqual(
-      rows.map((row) => ({ ...row, data_venda: null })),
+      rows.map((row) => ({ ...row, data_venda: null, assinada: false })),
     );
   });
 
   it("preserva a lista e indica data indisponível se a consulta rejeita", async () => {
     mocks.respostas.occurrences = () => Promise.reject(new Error("offline"));
     expect(await aplicarDatasRecentes(rows)).toEqual(
-      rows.map((row) => ({ ...row, data_venda: null })),
+      rows.map((row) => ({ ...row, data_venda: null, assinada: false })),
     );
   });
 
-  it("formata DD/MM/AAAA sem converter timezone", () => {
-    expect(formatarDataRecente("2026-09-08")).toBe("Data: 08/09/2026");
-    expect(formatarDataRecente("2024-02-29")).toBe("Data: 29/02/2024");
-    expect(formatarDataRecente(null)).toBe("Data indisponível");
+  it("legenda: 'Criada em' + 'Assinada em' / 'Ainda não assinada' (data civil SP, sem mudar a data)", () => {
+    expect(
+      legendasDataRecente({
+        created_at: "2026-09-08T01:00:00Z", // 22h de 07/09 em SP
+        data_venda: "2026-09-10",
+        assinada: true,
+      }),
+    ).toEqual(["Criada em 07/09/2026", "Assinada em 10/09/2026"]);
+    expect(
+      legendasDataRecente({ created_at: "2024-02-29", data_venda: "2024-02-29", assinada: false }),
+    ).toEqual(["Criada em 29/02/2024", "Ainda não assinada"]);
+    expect(legendasDataRecente({ created_at: "2026-09-08", data_venda: null })).toEqual([
+      "Criada em 08/09/2026",
+      "Data da assinatura indisponível",
+    ]);
   });
 });

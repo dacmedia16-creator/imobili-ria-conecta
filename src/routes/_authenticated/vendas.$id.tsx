@@ -4644,7 +4644,7 @@ function SaleDetail() {
                       <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(h.created_at).toLocaleString("pt-BR")}
+                      Mudou em {new Date(h.created_at).toLocaleString("pt-BR")}
                     </span>
                   </div>
                   {h.motivo && <p className="mt-1 text-muted-foreground">{h.motivo}</p>}
@@ -4717,7 +4717,7 @@ function SaleDetail() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{label}</span>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {new Date(a.created_at).toLocaleString("pt-BR")}
+                          Registrado em {new Date(a.created_at).toLocaleString("pt-BR")}
                         </span>
                       </div>
                       {detail && <p className="mt-0.5 text-muted-foreground">{detail}</p>}
@@ -4832,7 +4832,7 @@ function SaleDetail() {
                   <ReviewItem
                     key={n}
                     label={`Previsão de recebimento — ${n}ª parcela`}
-                    value={`${money(valor)}${data ? ` — ${dateBR(data)}` : ""}${forma ? ` — ${forma}` : ""}`}
+                    value={`${money(valor)}${data ? ` — previsto para ${dateBR(data)}` : ""}${forma ? ` — ${forma}` : ""}`}
                   />
                 );
               })}
@@ -5084,7 +5084,7 @@ function SaleDetail() {
                 <ReviewItem
                   key={h.id}
                   label={`${h.de ? STATUS_LABEL[h.de as SaleStatus] : "—"} → ${STATUS_LABEL[h.para as SaleStatus]}`}
-                  value={new Date(h.created_at).toLocaleString("pt-BR")}
+                  value={`Mudou em ${new Date(h.created_at).toLocaleString("pt-BR")}`}
                 />
               ))}
             </ReviewGroup>
@@ -5116,7 +5116,7 @@ function SaleDetail() {
                   {proximoResponsavel(status).papel}
                 </span>
               </span>
-              <AgingBadge since={stageChangedAt} />
+              <AgingBadge since={stageChangedAt} prefixo="Nesta etapa" />
             </div>
           </div>
           {(contratoDocs.length > 0 || contratoAssinadoDocs.length > 0) &&
@@ -6509,7 +6509,7 @@ function SaleReport({
                   <span className="font-medium">{STATUS_LABEL[h.para as SaleStatus]}</span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(h.created_at).toLocaleString("pt-BR")}
+                  Mudou em {new Date(h.created_at).toLocaleString("pt-BR")}
                 </span>
               </div>
             ))}
@@ -6619,7 +6619,7 @@ function CommentsPanel({
             <div key={c.id} className="rounded-md border p-3 text-sm">
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="uppercase">{c.escopo}</span>
-                <span>{new Date(c.created_at).toLocaleString("pt-BR")}</span>
+                <span>Comentado em {new Date(c.created_at).toLocaleString("pt-BR")}</span>
               </div>
               <p>{c.texto}</p>
             </div>

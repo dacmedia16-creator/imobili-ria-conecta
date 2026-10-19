@@ -1193,6 +1193,7 @@ function SalesList() {
                         <AgingBadge
                           since={stageSince[s.id] ?? s.created_at}
                           limites={agingLimites}
+                          prefixo="Nesta etapa"
                         />
                       </div>
                       <div className="mt-2 flex items-center justify-between text-sm">

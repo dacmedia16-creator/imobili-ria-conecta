@@ -6,10 +6,13 @@ export function AgingBadge({
   since,
   className,
   limites,
+  prefixo,
 }: {
   since: string;
   className?: string;
   limites?: AgingLimites;
+  /** Legenda antes do tempo (ex.: "Nesta etapa") quando não há cabeçalho de coluna. */
+  prefixo?: string;
 }) {
   const { label, tone } = agingInfo(since, limites);
   return (
@@ -22,7 +25,7 @@ export function AgingBadge({
         className,
       )}
     >
-      {label}
+      {prefixo ? `${prefixo} ${label}` : label}
     </span>
   );
 }

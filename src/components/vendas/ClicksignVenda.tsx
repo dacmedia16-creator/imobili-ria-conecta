@@ -258,7 +258,7 @@ export function ClicksignVenda({
                 }`
               : "upload manual (anexado no ADM MAX)"}
             {signed?.closed_at
-              ? ` · ${new Date(signed.closed_at).toLocaleString("pt-BR", {
+              ? ` · todos assinaram em ${new Date(signed.closed_at).toLocaleString("pt-BR", {
                   dateStyle: "short",
                   timeStyle: "short",
                 })}`

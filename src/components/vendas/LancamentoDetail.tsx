@@ -2057,7 +2057,7 @@ export function LancamentoDetail({
                   </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(h.created_at).toLocaleString("pt-BR")}
+                  Mudou em {new Date(h.created_at).toLocaleString("pt-BR")}
                 </span>
               </div>
             ))}
@@ -2076,7 +2076,7 @@ export function LancamentoDetail({
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{d.label}</span>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(a.created_at).toLocaleString("pt-BR")}
+                      Registrado em {new Date(a.created_at).toLocaleString("pt-BR")}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-xs text-muted-foreground">

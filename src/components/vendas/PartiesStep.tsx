@@ -573,6 +573,7 @@ export function PartiesStep({
                                       "Imóvel sem endereço cadastrado"}
                                   </span>
                                   <span className="shrink-0 text-muted-foreground">
+                                    Comprou em{" "}
                                     {new Date(h.data).toLocaleDateString("pt-BR", {
                                       month: "short",
                                       year: "numeric",
