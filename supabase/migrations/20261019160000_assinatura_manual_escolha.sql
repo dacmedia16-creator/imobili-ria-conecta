@@ -4,10 +4,10 @@
 --
 -- O que muda:
 -- 1) validate_sale_status_transition (cópia da versão vigente 20261018200000 + um bloco): o JURÍDICO
---    também leva a venda para aguardando_assinatura (escolha "Manual – papel" em contrato_ok_corretor),
---    marca o contrato assinado (aguardando_assinatura → contrato_assinado → ocorrencia_pendente, a mesma
---    transação de marcar_contrato_assinado_e_criar_ocorrencia). Gestor/team leader seguem iguais; admin
---    e super_admin já passavam. Corretor: nada muda. A regra da data da venda NÃO muda.
+--    também leva a venda para aguardando_assinatura (escolha "Manual – papel" em contrato_ok_corretor).
+--    O jurídico NÃO marca o contrato assinado (só sobe o arquivo, item 2): aguardando_assinatura →
+--    contrato_assinado continua com gestor/team leader e admin/super_admin, como hoje. Corretor: nada
+--    muda. A regra da data da venda NÃO muda.
 -- 2) Upload do contrato assinado pelo jurídico SEM abrir can_edit_sale_stage (que liberaria todos os
 --    documentos e a própria venda nessa etapa): duas policies estreitas (sale_documents e storage) só
 --    para tipo 'contrato_assinado', parte 'outros', venda em aguardando_assinatura, que o jurídico já vê
@@ -166,13 +166,11 @@ begin
   ) then allowed := true; end if;
 
   -- 19/10/2026 (Denis, t_e6f778ac): assinatura manual (papel). O jurídico também escolhe o papel em
-  -- contrato_ok_corretor e marca o contrato assinado (que já cria a ocorrência, mesma transação de
-  -- marcar_contrato_assinado_e_criar_ocorrencia). A organização e a visibilidade continuam sendo
-  -- conferidas em change_sale_status (can_view_sale); aqui é só a transição permitida.
+  -- contrato_ok_corretor. Ele NÃO marca o contrato assinado (correção de Denis 19/10, t_6efe0960):
+  -- só sobe o arquivo (policies abaixo); marcar segue com gestor/team leader e ADM, como antes.
+  -- A organização e a visibilidade continuam sendo conferidas em change_sale_status (can_view_sale).
   if not allowed and public.has_role(actor, 'juridico') and (from_status, to_status) in (
-    ('contrato_ok_corretor', 'aguardando_assinatura'),
-    ('aguardando_assinatura', 'contrato_assinado'),
-    ('contrato_assinado', 'ocorrencia_pendente')
+    ('contrato_ok_corretor', 'aguardando_assinatura')
   ) then allowed := true; end if;
 
   if not allowed and public.has_role(actor, 'financeiro') and (from_status, to_status) in (

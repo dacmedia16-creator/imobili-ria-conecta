@@ -23,6 +23,14 @@ export function podeOperarAssinatura(p: PapeisAssinatura): boolean {
   return p.isGestor || p.isJuridico || p.isAdminLike;
 }
 
+/**
+ * "Marcar contrato assinado": gestor, team leader e ADM. O jurídico só sobe/substitui o contrato
+ * assinado (correção de Denis 19/10, t_6efe0960); o banco recusa a transição para ele.
+ */
+export function podeMarcarAssinado(p: PapeisAssinatura): boolean {
+  return p.isGestor || p.isAdminLike;
+}
+
 /** "Devolver ao jurídico" na assinatura continua com gestor/team leader e ADM (regra do banco). */
 export function podeDevolverDaAssinatura(p: PapeisAssinatura): boolean {
   return p.isGestor || p.isAdminLike;

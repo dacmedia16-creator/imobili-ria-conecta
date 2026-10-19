@@ -197,6 +197,7 @@ import {
   mostrarEnvioManualSimples,
   mostrarEscolhaAssinatura,
   podeDevolverDaAssinatura,
+  podeMarcarAssinado,
   podeOperarAssinatura,
   podeTrocarParaClicksign,
   rotuloStatusAssinatura,
@@ -4212,7 +4213,7 @@ function SaleDetail() {
                           setContratoAssinadoDialogOpen(true);
                         },
                       }
-                    : podeAssinatura &&
+                    : podeMarcarAssinado(papeisAssinatura) &&
                         status === "aguardando_assinatura" &&
                         contratoAssinadoDocs.length > 0
                         ? {
@@ -5199,6 +5200,11 @@ function SaleDetail() {
             <EscolhaAssinaturaVenda
               bloqueado={sale.contrato_libera_assinatura === false}
               contratoNome={csConfig.enabled ? (csConfig.contrato?.file_name ?? null) : null}
+              ultimoPasso={
+                podeMarcarAssinado(papeisAssinatura)
+                  ? undefined
+                  : "o gestor, team leader ou ADM marca como assinado"
+              }
               onClicksign={() => setCsSendOpen(true)}
               onManual={() => changeStatus("aguardando_assinatura", "Assinatura manual (papel)")}
             />
@@ -5206,6 +5212,7 @@ function SaleDetail() {
           {assinaturaManual && (
             <AssinaturaManualCard
               podeOperar={podeAssinatura}
+              podeMarcar={podeMarcarAssinado(papeisAssinatura)}
               podeDevolver={podeDevolverDaAssinatura(papeisAssinatura)}
               podeTrocarParaClicksign={podeTrocarParaClicksign(
                 csConfig,
@@ -5841,8 +5848,9 @@ function SaleDetail() {
           <DialogHeader>
             <DialogTitle>Subir contrato assinado</DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o
-              arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.
+              {podeMarcarAssinado(papeisAssinatura)
+                ? 'Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.'
+                : "Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, o gestor, team leader ou ADM confere e marca a venda como assinada."}
             </DialogDescription>
           </DialogHeader>
 

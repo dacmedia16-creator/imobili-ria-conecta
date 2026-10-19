@@ -166,7 +166,7 @@ SELECT pg_temp.ok(pg_temp.subir(pg_temp.id('admin'), pg_temp.id('venda')) IS NUL
 
 -- ===== 3) Marcar contrato assinado =====
 SELECT pg_temp.reset(pg_temp.id('venda'), 'aguardando_assinatura');
-SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('juridico'), pg_temp.id('venda')) LIKE 'Anexe o contrato assinado%',
+SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('gestor'), pg_temp.id('venda')) LIKE 'Anexe o contrato assinado%',
   'sem o assinado anexado ninguém marca (regra mantida)');
 SELECT pg_temp.subir(pg_temp.id('admin'), pg_temp.id('venda'));
 SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('corretor'), pg_temp.id('venda')) IS NOT NULL
@@ -175,11 +175,25 @@ SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('fora'), pg_temp.id('venda')) IS NOT
   AND pg_temp.st(pg_temp.id('venda')) = 'aguardando_assinatura', 'admin de OUTRA organização NÃO marca');
 SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('juridico_b'), pg_temp.id('venda')) IS NOT NULL
   AND pg_temp.st(pg_temp.id('venda')) = 'aguardando_assinatura', 'jurídico de OUTRA organização NÃO marca');
-SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('juridico'), pg_temp.id('venda')) IS NULL
-  AND pg_temp.st(pg_temp.id('venda')) = 'contrato_assinado', 'jurídico marca contrato assinado');
-SELECT pg_temp.ok((SELECT autor_id FROM public.sale_status_history WHERE sale_id = pg_temp.id('venda')
-    AND para = 'contrato_assinado' ORDER BY created_at DESC LIMIT 1) = pg_temp.id('juridico'),
-  'histórico registra o jurídico como autor (data da venda = esse momento, regra inalterada)');
+-- Correção de Denis 19/10 (t_6efe0960): o jurídico só SOBE; não marca como assinado, nem pela
+-- chamada direta (change_sale_status) nem pela RPC da tela (marcar_contrato_assinado_e_criar_ocorrencia).
+SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('juridico'), pg_temp.id('venda')) LIKE 'Transição de status não permitida%'
+  AND pg_temp.st(pg_temp.id('venda')) = 'aguardando_assinatura',
+  'jurídico NÃO marca contrato assinado (change_sale_status direto)');
+SELECT pg_temp.as_user(pg_temp.id('juridico'));
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.err(format($q$SELECT public.marcar_contrato_assinado_e_criar_ocorrencia(%L)$q$,
+  pg_temp.id('venda'))) AS err_rpc \gset
+RESET ROLE;
+SELECT pg_temp.ok(:'err_rpc' LIKE 'Transição de status não permitida%'
+  AND pg_temp.st(pg_temp.id('venda')) = 'aguardando_assinatura'
+  AND NOT EXISTS (SELECT 1 FROM public.occurrences WHERE sale_id = pg_temp.id('venda')),
+  'jurídico NÃO marca contrato assinado (RPC marcar_contrato_assinado_e_criar_ocorrencia)');
+-- jurídico subiu; o gestor marca (o assinado do jurídico vale)
+SELECT pg_temp.reset(pg_temp.id('venda'), 'aguardando_assinatura');
+SELECT pg_temp.subir(pg_temp.id('juridico'), pg_temp.id('venda'));
+SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('gestor'), pg_temp.id('venda')) IS NULL
+  AND pg_temp.st(pg_temp.id('venda')) = 'contrato_assinado', 'gestor marca o assinado que o jurídico subiu');
 SELECT pg_temp.reset(pg_temp.id('venda'), 'aguardando_assinatura');
 SELECT pg_temp.subir(pg_temp.id('admin'), pg_temp.id('venda'));
 SELECT pg_temp.ok(pg_temp.marcar(pg_temp.id('gestor'), pg_temp.id('venda')) IS NULL, 'gestor marca contrato assinado');

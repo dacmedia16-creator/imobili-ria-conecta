@@ -143,6 +143,7 @@ export function EscolhaAssinaturaVenda({
 /** Cartão "Assinatura manual (papel)" em aguardando_assinatura sem envelope ativo. */
 export function AssinaturaManualCard({
   podeOperar,
+  podeMarcar,
   podeDevolver,
   podeTrocarParaClicksign,
   assinadoNome,
@@ -152,6 +153,8 @@ export function AssinaturaManualCard({
   onDevolver,
 }: {
   podeOperar: boolean;
+  /** Gestor/TL e ADM. O jurídico só sobe/substitui o assinado (Denis 19/10, t_6efe0960). */
+  podeMarcar: boolean;
   podeDevolver: boolean;
   podeTrocarParaClicksign: boolean;
   /** Último contrato assinado anexado (nome do arquivo) ou null. */
@@ -177,8 +180,10 @@ export function AssinaturaManualCard({
       <p className="text-sm">{TEXTO_ORIENTACAO_PAPEL}</p>
       {assinadoNome ? (
         <p className="rounded-md bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
-          Contrato assinado anexado: <b>{assinadoNome}</b>. Confira o arquivo e marque como
-          assinado.
+          Contrato assinado anexado: <b>{assinadoNome}</b>.{" "}
+          {podeMarcar
+            ? "Confira o arquivo e marque como assinado."
+            : "O gestor, team leader ou ADM confere e marca como assinado."}
         </p>
       ) : (
         <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -191,14 +196,16 @@ export function AssinaturaManualCard({
             <Upload className="mr-2 h-4 w-4" />
             {assinadoNome ? "Substituir contrato assinado" : "Subir contrato assinado"}
           </Button>
-          <Button
-            variant={assinadoNome ? "default" : "secondary"}
-            onClick={onMarcar}
-            disabled={!assinadoNome}
-          >
-            <FileCheck className="mr-2 h-4 w-4" />
-            Marcar contrato assinado
-          </Button>
+          {podeMarcar && (
+            <Button
+              variant={assinadoNome ? "default" : "secondary"}
+              onClick={onMarcar}
+              disabled={!assinadoNome}
+            >
+              <FileCheck className="mr-2 h-4 w-4" />
+              Marcar contrato assinado
+            </Button>
+          )}
           {podeTrocarParaClicksign && (
             <Button variant="outline" onClick={onTrocarParaClicksign}>
               <PenLine className="mr-2 h-4 w-4" />
@@ -214,7 +221,8 @@ export function AssinaturaManualCard({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Gestor, team leader, jurídico ou ADM sobem o contrato assinado e marcam a venda.
+          Gestor, team leader, jurídico ou ADM sobem o contrato assinado; gestor, team leader ou
+          ADM marcam a venda como assinada.
         </p>
       )}
     </div>

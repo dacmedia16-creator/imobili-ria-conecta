@@ -2,7 +2,8 @@
 -- versões vigentes antes dela (copiadas sem alteração de 20261018200000 e 20261019090000) e remove as
 -- policies/funções novas. Não apaga documentos, envelopes nem histórico. Rodar numa transação só e
 -- publicar junto o frontend anterior (sem a escolha Clicksign/manual).
--- Depois do rollback: o jurídico volta a não marcar/subir o contrato assinado da venda; envelopes
+-- Depois do rollback: o jurídico volta a não escolher o papel nem subir o contrato assinado da venda
+-- (marcar como assinado ele já não faz, nem com a migration); envelopes
 -- cancelados com motivo 'papel' ficam como estão (já cancelados).
 BEGIN;
 DROP POLICY IF EXISTS juridico_contrato_assinado_insert ON public.sale_documents;

@@ -5,6 +5,7 @@ import {
   mostrarEnvioManualSimples,
   mostrarEscolhaAssinatura,
   podeDevolverDaAssinatura,
+  podeMarcarAssinado,
   podeOperarAssinatura,
   podeTrocarParaClicksign,
   podeTrocarParaPapel,
@@ -54,6 +55,13 @@ describe("assinatura manual: quem pode", () => {
     expect(podeOperarAssinatura(P.juridico)).toBe(true);
     expect(podeOperarAssinatura(P.adm)).toBe(true);
     expect(podeOperarAssinatura(P.corretor)).toBe(false);
+  });
+  it("marcar contrato assinado: gestor/TL e ADM; jurídico e corretor não (Denis 19/10)", () => {
+    expect(podeMarcarAssinado(P.gestor)).toBe(true);
+    expect(podeMarcarAssinado(P.teamLeader)).toBe(true);
+    expect(podeMarcarAssinado(P.adm)).toBe(true);
+    expect(podeMarcarAssinado(P.juridico)).toBe(false);
+    expect(podeMarcarAssinado(P.corretor)).toBe(false);
   });
   it("devolver ao jurídico segue com gestor/TL e ADM (jurídico não)", () => {
     expect(podeDevolverDaAssinatura(P.gestor)).toBe(true);
