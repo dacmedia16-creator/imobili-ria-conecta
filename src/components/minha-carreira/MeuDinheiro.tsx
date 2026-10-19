@@ -104,7 +104,7 @@ export function MeuDinheiro({ userId }: { userId: string }) {
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-muted-foreground">
                     <tr>
-                      <th className="py-1 pr-2 font-medium">Venda</th>
+                      <th className="py-1 pr-2 font-medium">Assinada em</th>
                       <th className="py-1 pr-2 font-medium">Imóvel</th>
                       <th className="py-1 text-right font-medium">Minha comissão</th>
                     </tr>

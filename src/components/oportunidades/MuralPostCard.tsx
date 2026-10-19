@@ -37,7 +37,7 @@ export function MuralPostCard({
         </div>
         <h3 className="text-[15px] font-semibold">{post.bairro ?? "—"}</h3>
         <div className="text-xs text-muted-foreground">
-          💵 {post.kind === "outros" ? "—" : faixaTexto(post)} · 👤 {post.corretor} · 📅 {dataCurta(post.posted_at)}
+          💵 {post.kind === "outros" ? "—" : faixaTexto(post)} · 👤 {post.corretor} · 📅 publicado em {dataCurta(post.posted_at)}
         </div>
         <p className="rounded-md bg-muted/60 px-2 py-1.5 text-[12.5px] italic text-foreground/80">“{post.texto}”</p>
         {encaixes}

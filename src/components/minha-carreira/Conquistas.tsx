@@ -188,7 +188,8 @@ export function Conquistas({ userId }: { userId: string }) {
                     {d.cidade ? `, ${d.cidade}` : ""}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(d.venda_em).toLocaleDateString("pt-BR")} · {Number(d.cheers)} parabéns
+                    Assinada em {new Date(d.venda_em).toLocaleDateString("pt-BR")} ·{" "}
+                    {Number(d.cheers)} parabéns
                   </span>
                 </li>
               ))}

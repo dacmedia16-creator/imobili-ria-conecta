@@ -86,7 +86,9 @@ export function FeedPostItem({
             </li>
           ))}
         </ul>
-        <p className="mt-1 text-xs text-muted-foreground">{dataVenda(post.venda_em)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {dataVenda(post.venda_em) ? `Assinada em ${dataVenda(post.venda_em)}` : ""}
+        </p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <Button
             size="sm"
