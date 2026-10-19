@@ -5,6 +5,12 @@
 // 18/10/2026, conta de produção da Única Escolha). Nunca logar token, segredo nem e-mail.
 
 export const CLICKSIGN_PROD_BASE = "https://app.clicksign.com/api/v3";
+/**
+ * Máximo de itens por página aceito pela API v3. Acima disso a Clicksign devolve 400
+ * "size exceeds maximum page size of 50" (código 118) — conferido em produção em 19/10/2026,
+ * quando page[size]=100 quebrou a consulta de signatários (t_f1f6f335).
+ */
+export const CLICKSIGN_MAX_PAGE_SIZE = 50;
 const JSONAPI = "application/vnd.api+json";
 /** bulk_requirements usa a extensão Atomic Operations do JSON:API (validado na conta real, 18/10). */
 export const JSONAPI_ATOMIC = 'application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"';
@@ -205,7 +211,10 @@ export function sanitizeErrorDetail(detail: string, names: string[] = []): strin
   for (const t of [...tokens].sort((a, b) => b.length - a.length)) {
     s = s.replace(new RegExp(`(?<![\\p{L}\\d])${esc(t)}(?![\\p{L}\\d])`, "giu"), "<nome>");
   }
-  s = s.replace(/(<nome>[\s,]*)+<nome>/g, "<nome>").replace(/\s+/g, " ").trim();
+  s = s
+    .replace(/(<nome>[\s,]*)+<nome>/g, "<nome>")
+    .replace(/\s+/g, " ")
+    .trim();
   return s.slice(0, 120);
 }
 
@@ -373,13 +382,17 @@ export class ClicksignClient {
     return this.call("delete", "DELETE", `/envelopes/${envelopeId}`);
   }
   listSigners(envelopeId: string) {
-    return this.call("list_signers", "GET", `/envelopes/${envelopeId}/signers?page[size]=50`);
+    return this.call(
+      "list_signers",
+      "GET",
+      `/envelopes/${envelopeId}/signers?page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
+    );
   }
   listRequirements(envelopeId: string) {
     return this.call(
       "list_requirements",
       "GET",
-      `/envelopes/${envelopeId}/requirements?page[size]=100`,
+      `/envelopes/${envelopeId}/requirements?page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
     );
   }
   /**
@@ -390,7 +403,7 @@ export class ClicksignClient {
     return this.call(
       "list_envelope_events",
       "GET",
-      `/envelopes/${envelopeId}/events?filter[name]=${encodeURIComponent(name)}&page[size]=100`,
+      `/envelopes/${envelopeId}/events?filter[name]=${encodeURIComponent(name)}&page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
     );
   }
   /** Cancela o documento em assinatura (só documento "running"; docs.clicksign: Editar Documento). */
@@ -403,7 +416,7 @@ export class ClicksignClient {
     return this.call(
       "list_events",
       "GET",
-      `/envelopes/${envelopeId}/documents/${documentId}/events?page[size]=100`,
+      `/envelopes/${envelopeId}/documents/${documentId}/events?page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
     );
   }
   /** POST /signers não aceita "group" (400 "group não é permitido", teste real 18/10). */
@@ -549,7 +562,9 @@ export function sendFailure(
   const code = `${e.step}:${e.status}`;
   if (e.status !== 400 && e.status !== 422) return { code, detail: null, screen: null };
   const detail = sanitizeErrorDetail(e.detail, signerNames);
-  const screen = scrubEmails(e.detail ?? "").trim().slice(0, 300);
+  const screen = scrubEmails(e.detail ?? "")
+    .trim()
+    .slice(0, 300);
   return { code, detail: detail || null, screen: screen || null };
 }
 
