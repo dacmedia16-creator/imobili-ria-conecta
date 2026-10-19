@@ -38,6 +38,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
 import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
+import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
@@ -213,6 +214,12 @@ const AuthenticatedVisaoExecutivaRoute =
     path: '/visao-executiva',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminAssinaturaDigitalRoute =
+  AuthenticatedAdminAssinaturaDigitalRouteImport.update({
+    id: '/admin/assinatura-digital',
+    path: '/admin/assinatura-digital',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminConfiguracoesRoute =
   AuthenticatedAdminConfiguracoesRouteImport.update({
     id: '/admin/configuracoes',
@@ -331,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -376,6 +384,7 @@ export interface FileRoutesByTo {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -423,6 +432,7 @@ export interface FileRoutesById {
   '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
@@ -515,6 +526,7 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
@@ -561,6 +573,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reservas-salas'
     | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
+    | '/_authenticated/admin/assinatura-digital'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
     | '/_authenticated/admin/posicionamento'
@@ -793,6 +806,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/assinatura-digital': {
+      id: '/_authenticated/admin/assinatura-digital'
+      path: '/admin/assinatura-digital'
+      fullPath: '/admin/assinatura-digital'
+      preLoaderRoute: typeof AuthenticatedAdminAssinaturaDigitalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/configuracoes': {
       id: '/_authenticated/admin/configuracoes'
       path: '/admin/configuracoes'
@@ -924,6 +944,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReservasSalasRoute: typeof AuthenticatedReservasSalasRoute
   AuthenticatedVendasPorRegiaoRoute: typeof AuthenticatedVendasPorRegiaoRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
+  AuthenticatedAdminAssinaturaDigitalRoute: typeof AuthenticatedAdminAssinaturaDigitalRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminDadosImobiliariaRoute: typeof AuthenticatedAdminDadosImobiliariaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
@@ -965,6 +986,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReservasSalasRoute: AuthenticatedReservasSalasRoute,
   AuthenticatedVendasPorRegiaoRoute: AuthenticatedVendasPorRegiaoRoute,
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
+  AuthenticatedAdminAssinaturaDigitalRoute:
+    AuthenticatedAdminAssinaturaDigitalRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
   AuthenticatedAdminDadosImobiliariaRoute:
     AuthenticatedAdminDadosImobiliariaRoute,
