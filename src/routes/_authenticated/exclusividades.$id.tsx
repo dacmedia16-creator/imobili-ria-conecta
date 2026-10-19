@@ -69,6 +69,7 @@ import {
   type ClicksignSignedInfo,
 } from "@/lib/exclusive-clicksign";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
+import { STATUS_AGUARDANDO_MANUAL } from "@/lib/assinatura-manual";
 import { juntarDocumentosEmPdf } from "@/lib/document-actions";
 import { caberNoLimite, compressPdfBytes, formatMB, GERACAO_CONTRATO } from "@/lib/pdf-compress";
 import { browserImageCodec } from "@/lib/pdf-compress-browser";
@@ -256,6 +257,9 @@ function ExclusiveDetail() {
       ? [...normalSteps, signedStepItem]
       : normalSteps;
   const [signedInfo, setSignedInfo] = useState<ClicksignSignedInfo | null | "unknown">(null);
+  // Com a Clicksign ligada, a escolha "Como vai ser assinado?" (ClicksignEnvio) substitui o botão
+  // "Registrar envio para assinatura externa"; sem Clicksign, o botão continua igual.
+  const [clicksignModo, setClicksignModo] = useState({ disponivel: false, envelopeAtivo: false });
   const signedDocId = currentSigned?.id ?? null;
   useEffect(() => {
     if (!signedStep) {
@@ -943,7 +947,11 @@ function ExclusiveDetail() {
           )}
           {manual && capture.status === "enviada"
             ? "Aguardando aprovação do gestor"
-            : statusLabels[capture.status]}{" "}
+            : capture.status === "em_assinatura" &&
+                clicksignModo.disponivel &&
+                !clicksignModo.envelopeAtivo
+              ? STATUS_AGUARDANDO_MANUAL
+              : statusLabels[capture.status]}{" "}
           · Criada em {capture.created_on_sp} (São Paulo). Captador: {capture.broker_name}
         </p>
         {conflicts.length > 0 && (
@@ -1801,6 +1809,10 @@ function ExclusiveDetail() {
                 hasGerado={docs.some((d) => d.kind === "gerado")}
                 dirty={dirty}
                 onSent={reload}
+                podeManual={manager}
+                temAssinado={!!currentSigned}
+                onManual={() => action("assinatura")}
+                onModo={setClicksignModo}
               />
             )}
           {step === approvalStep &&
@@ -1858,15 +1870,18 @@ function ExclusiveDetail() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {!manual && !signedStep && capture.status === "enviada" && (
-                      <Button
-                        variant="outline"
-                        disabled={busy || !docs.some((d) => d.kind === "gerado")}
-                        onClick={() => action("assinatura")}
-                      >
-                        Registrar envio para assinatura externa
-                      </Button>
-                    )}
+                    {!manual &&
+                      !signedStep &&
+                      capture.status === "enviada" &&
+                      !clicksignModo.disponivel && (
+                        <Button
+                          variant="outline"
+                          disabled={busy || !docs.some((d) => d.kind === "gerado")}
+                          onClick={() => action("assinatura")}
+                        >
+                          Registrar envio para assinatura externa
+                        </Button>
+                      )}
                     <Button
                       disabled={busy || !!bloqueioAprovar}
                       title={bloqueioAprovar ?? undefined}

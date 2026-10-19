@@ -28,8 +28,17 @@ import {
   WITNESS_COUNT,
   type ClicksignCaptureConfig,
   type Testemunha,
+  cancelCaptureClicksignPapel,
+  modoAssinaturaCaptacao,
+  mostrarEscolhaCaptacao,
+  podeTrocarCaptacaoParaClicksign,
+  podeTrocarCaptacaoParaPapel,
 } from "@/lib/exclusive-clicksign";
 import { canReconcile } from "@/lib/sale-clicksign";
+import {
+  EscolhaAssinaturaVenda,
+  TrocarParaPapelButton,
+} from "@/components/vendas/AssinaturaManualVenda";
 
 const db = supabase as unknown as SupabaseClient;
 const emptyWitnesses = (): Testemunha[] =>
@@ -38,6 +47,8 @@ const emptyWitnesses = (): Testemunha[] =>
 /**
  * Envio da captação para assinatura na Clicksign. Fica oculto enquanto a organização não habilitar
  * a integração (clicksign_org_settings.enabled = false por padrão) ou se a leitura falhar.
+ * Com a Clicksign ligada, mostra "Como vai ser assinado?" (Clicksign ou papel) e a troca nos dois
+ * sentidos sem envio em dobro (t_e6f778ac; o banco confere de novo).
  */
 export function ClicksignEnvio({
   captureId,
@@ -46,6 +57,10 @@ export function ClicksignEnvio({
   hasGerado,
   dirty,
   onSent,
+  podeManual = false,
+  temAssinado = false,
+  onManual,
+  onModo,
 }: {
   captureId: string;
   status: string;
@@ -53,6 +68,14 @@ export function ClicksignEnvio({
   hasGerado: boolean;
   dirty: boolean;
   onSent: () => Promise<unknown> | void;
+  /** Gestor/TL/ADM da captação: pode levar para a assinatura no papel (regra do banco). */
+  podeManual?: boolean;
+  /** Já há contrato assinado válido anexado (aí é conferir e aprovar, não trocar). */
+  temAssinado?: boolean;
+  /** "Manual – papel": registra a captação em em_assinatura sem Clicksign. */
+  onManual?: () => Promise<void>;
+  /** Informa à tela se a Clicksign está disponível e se há envelope ativo. */
+  onModo?: (m: { disponivel: boolean; envelopeAtivo: boolean }) => void;
 }) {
   const [config, setConfig] = useState<ClicksignCaptureConfig>(CLICKSIGN_DISABLED);
   const [open, setOpen] = useState(false);
@@ -67,6 +90,12 @@ export function ClicksignEnvio({
   useEffect(() => {
     void refresh();
   }, [refresh, status]);
+  useEffect(() => {
+    onModo?.({
+      disponivel: config.enabled && config.can_send,
+      envelopeAtivo: config.enabled && !canStartEnvelope(config.envelope),
+    });
+  }, [config, onModo]);
 
   const errors = useMemo(
     () =>
@@ -84,8 +113,15 @@ export function ClicksignEnvio({
 
   if (!config.enabled) return null;
   const envelope = config.envelope;
+  const trocarParaClicksign = podeTrocarCaptacaoParaClicksign(config, status, temAssinado);
   const podeEnviar =
-    config.can_send && status === "enviada" && hasGerado && canStartEnvelope(envelope);
+    config.can_send &&
+    hasGerado &&
+    canStartEnvelope(envelope) &&
+    (status === "enviada" || trocarParaClicksign);
+  const escolha = !!onManual && podeEnviar && mostrarEscolhaCaptacao(status, envelope, podeManual);
+  const trocarParaPapel = podeManual && podeTrocarCaptacaoParaPapel(config, status);
+  const manualAtivo = modoAssinaturaCaptacao(status, envelope) === "manual";
   if (!podeEnviar && !envelope) return null;
 
   const bloqueioAbrir = dirty
@@ -120,6 +156,24 @@ export function ClicksignEnvio({
     }
   };
 
+  const abrirEnvio = () => {
+    if (bloqueioAbrir) toast.warning(bloqueioAbrir);
+    else setOpen(true);
+  };
+
+  const cancelarParaPapel = async () => {
+    try {
+      const r = await cancelCaptureClicksignPapel(db, captureId);
+      if (r.warning) toast.warning(r.warning, { duration: 12000 });
+      else toast.success("Clicksign cancelada. Siga com a assinatura no papel.");
+      await onSent();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível cancelar na Clicksign agora"));
+    } finally {
+      void refresh();
+    }
+  };
+
   const conferir = async () => {
     setBusy(true);
     try {
@@ -142,7 +196,9 @@ export function ClicksignEnvio({
         <CardTitle>Assinatura pela Clicksign{config.test_mode ? " (modo teste)" : ""}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {envelope && <p className="text-sm">{envelopeStatusLabel(envelope)}</p>}
+        {envelope && !(manualAtivo && envelope.status === "canceled") && (
+          <p className="text-sm">{envelopeStatusLabel(envelope)}</p>
+        )}
         {canReconcile(config.can_send, envelope) && (
           <Button
             size="sm"
@@ -163,7 +219,37 @@ export function ClicksignEnvio({
             onChanged={refresh}
           />
         )}
-        {podeEnviar && (
+        {trocarParaPapel && (
+          <TrocarParaPapelButton alvo="a captação" onConfirm={cancelarParaPapel} />
+        )}
+        {escolha && onManual && (
+          <EscolhaAssinaturaVenda
+            bloqueado={false}
+            alvo="A captação"
+            contratoNome="PDF para assinatura: contrato + Plano de Marketing"
+            ultimoPasso="aprove a captação"
+            onClicksign={abrirEnvio}
+            onManual={onManual}
+          />
+        )}
+        {trocarParaClicksign && !escolha && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Assinatura manual (papel) em andamento. Se preferir, troque para a Clicksign: ninguém
+              recebe o contrato duas vezes.
+            </p>
+            <Button
+              variant="outline"
+              disabled={busy || !!bloqueioAbrir}
+              data-testid="trocar-clicksign"
+              onClick={() => setOpen(true)}
+            >
+              Trocar para Clicksign
+            </Button>
+            {bloqueioAbrir && <p className="text-xs text-muted-foreground">{bloqueioAbrir}</p>}
+          </>
+        )}
+        {podeEnviar && !escolha && !trocarParaClicksign && (
           <>
             <p className="text-sm text-muted-foreground">
               Assinam ao mesmo tempo, com código por e-mail: proprietário(s), corretor, imobiliária

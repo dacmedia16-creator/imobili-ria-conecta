@@ -152,6 +152,14 @@ Deno.serve(async (req) => {
         });
         if (error) throw new Error("done_failed");
       },
+      async markCanceledPapel(envelopeRow) {
+        const { data, error } = await admin.rpc("clicksign_capture_canceled_papel", {
+          _envelope: envelopeRow,
+          _actor: who.user.id,
+        });
+        if (error) throw new Error("cancel_record_failed");
+        return data as string;
+      },
     },
     body,
   ).catch((e) => {

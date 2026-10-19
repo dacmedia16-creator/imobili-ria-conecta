@@ -1,6 +1,7 @@
 // Gestão de um envelope JÁ em assinatura (status running) na Clicksign, sem Deno (testável com mock).
 // Ações: "status" (Enviado / Abriu o contrato / Assinou), "notify" (reenviar aviso a quem falta) e
-// "edit_signer" (trocar nome/e-mail de quem ainda não assinou). Serve à CAPTAÇÃO (capture_id) e à
+// "edit_signer" (trocar nome/e-mail de quem ainda não assinou); só na captação, "cancel_papel"
+// (cancelar na Clicksign e seguir na assinatura manual, t_e6f778ac). Serve à CAPTAÇÃO (capture_id) e à
 // VENDA (sale_id, pela edge function clicksign-sale). A regra de quem pode e de qual envelope fica
 // no banco (authorize, chamada com o JWT do usuário). Nunca devolve nem registra e-mail em claro:
 // só mascarado na tela e sha256 no banco.
@@ -81,6 +82,12 @@ export type ManageDeps = {
       notified?: boolean;
     },
   ): Promise<void>;
+  /**
+   * Captação, ação cancel_papel (t_e6f778ac): clicksign_capture_canceled_papel (service_role) depois
+   * de cancelar na Clicksign. A captação segue em em_assinatura pelo fluxo manual. Retorna
+   * canceled | already.
+   */
+  markCanceledPapel?(envelopeRow: string): Promise<string>;
   actorId: string;
   fetch: FetchLike;
   clicksignBase?: string;
@@ -138,9 +145,15 @@ export async function handleManage(
   const action = b.action;
   if (!UUID_RE.test(id))
     return fail(400, kind === "captacao" ? "Captação inválida" : "Venda inválida");
-  if (action !== "status" && action !== "notify" && action !== "edit_signer") {
+  if (
+    action !== "status" &&
+    action !== "notify" &&
+    action !== "edit_signer" &&
+    !(action === "cancel_papel" && kind === "captacao")
+  ) {
     return fail(400, "Ação inválida");
   }
+  if (action === "cancel_papel" && !deps.markCanceledPapel) return fail(501, "Ação indisponível");
   const editable = EDITABLE[kind];
 
   let auth: { org: string; envelope: string };
@@ -215,6 +228,43 @@ export async function handleManage(
         ...(partial ? { warning: "A Clicksign reenviou, mas não conseguiu avisar todos." } : {}),
       },
     };
+  }
+
+  // ---------- cancel_papel (captação): cancela na Clicksign e segue no papel ----------
+  if (action === "cancel_papel") {
+    const lock = await deps.lock(auth.envelope, "edit");
+    if (lock !== "ok") return fail(409, "Outra ação está em andamento neste envelope. Aguarde.");
+    try {
+      await client.cancelDocument(ctx.envelopeKey, ctx.documentKey);
+    } catch (e) {
+      // Pode já ter fechado/cancelado lá (ex.: duas abas). Confere antes de desistir.
+      const st = await client
+        .getDocument(ctx.envelopeKey, ctx.documentKey)
+        .then(
+          (d) => (d as { data?: { attributes?: { status?: string } } })?.data?.attributes?.status,
+          () => undefined,
+        );
+      if (typeof st !== "string" || st === "running") {
+        await deps.done(auth.envelope, { action: null }).catch(() => undefined);
+        const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";
+        return fail(502, "A Clicksign não confirmou o cancelamento. Nada mudou; tente de novo.", {
+          code,
+        });
+      }
+    }
+    try {
+      const res = await deps.markCanceledPapel!(auth.envelope);
+      return { status: 200, body: { ok: true, result: res, reason: "papel" } };
+    } catch {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          reason: "papel",
+          warning: "Cancelado na Clicksign, mas o registro no ADM MAX falhou. Avise o suporte.",
+        },
+      };
+    }
   }
 
   // ---------- edit_signer ----------

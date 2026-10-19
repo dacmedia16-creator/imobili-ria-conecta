@@ -183,12 +183,25 @@ import {
 import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { ClicksignVenda } from "@/components/vendas/ClicksignVenda";
 import {
+  AssinaturaManualCard,
+  EscolhaAssinaturaVenda,
+} from "@/components/vendas/AssinaturaManualVenda";
+import {
   clicksignSaleConfig,
   SALE_CLICKSIGN_DISABLED,
-  showClicksignSend,
   showClicksignShortcut,
   type ClicksignSaleConfig,
 } from "@/lib/sale-clicksign";
+import {
+  modoAssinatura,
+  mostrarEnvioManualSimples,
+  mostrarEscolhaAssinatura,
+  podeDevolverDaAssinatura,
+  podeMarcarAssinado,
+  podeOperarAssinatura,
+  podeTrocarParaClicksign,
+  rotuloStatusAssinatura,
+} from "@/lib/assinatura-manual";
 import { EnderecoPartesFields } from "@/components/vendas/EnderecoPartesFields";
 import { FichaImovelFields } from "@/components/vendas/FichaImovelFields";
 import {
@@ -1376,9 +1389,15 @@ function SaleDetail() {
   const isGestor =
     hasManagerRole && managementCurrent && management.canManage && management.canEdit;
   const managesOwner = managementCurrent && management.teamOwner;
-  // "Enviar pela Clicksign" no lugar de "Enviar para assinatura" (gestor, jurídico e ADM — can_send
-  // vem do banco). Corretor só acompanha. Org sem Clicksign = fluxo manual de sempre.
-  const clicksignNaVenda = showClicksignSend(csConfig, status);
+  // Assinatura (t_e6f778ac, maquete aprovada 19/10): com a Clicksign ligada, gestor/TL, jurídico e ADM
+  // ESCOLHEM entre Clicksign e papel ("Como vai ser assinado?"); sem ela, o "Enviar para assinatura"
+  // manual de sempre. Corretor só acompanha. O banco confere tudo de novo.
+  const papeisAssinatura = { isGestor, isJuridico, isAdminLike };
+  const podeAssinatura = podeOperarAssinatura(papeisAssinatura);
+  const escolhaAssinatura = mostrarEscolhaAssinatura(csConfig, status, papeisAssinatura);
+  const envioManualSimples = mostrarEnvioManualSimples(csConfig, status, papeisAssinatura);
+  const assinaturaManual = modoAssinatura(csConfig, status) === "manual";
+  const rotuloAssinatura = rotuloStatusAssinatura(csConfig, status);
   // Atalho do gestor em contrato_conferencia_gestor abre o mesmo fluxo da Clicksign (t_2284ea8b).
   const clicksignAtalhoGestor = isGestor && showClicksignShortcut(csConfig, status);
   // Dono da venda que também é gestor/team leader: revisar o próprio trabalho seria redundante,
@@ -4175,34 +4194,28 @@ function SaleDetail() {
                     icon: CheckCircle2,
                     onClick: () => changeStatus("contrato_ok_corretor"),
                   }
-                : clicksignNaVenda
+                : // Com a Clicksign ligada a escolha fica no cartão "Como vai ser assinado?".
+                  envioManualSimples
                   ? {
-                      label: "Enviar pela Clicksign",
+                      label: "Enviar para assinatura",
                       icon: Send,
-                      onClick: () => setCsSendOpen(true),
+                      onClick: () => changeStatus("aguardando_assinatura"),
                       disabled: sale.contrato_libera_assinatura === false,
                     }
-                  : isGestor && status === "contrato_ok_corretor"
+                  : podeAssinatura &&
+                      assinaturaManual &&
+                      contratoAssinadoDocs.length === 0
                     ? {
-                        label: "Enviar para assinatura",
-                        icon: Send,
-                        onClick: () => changeStatus("aguardando_assinatura"),
-                        disabled: sale.contrato_libera_assinatura === false,
+                        label: "Subir contrato assinado",
+                        icon: Upload,
+                        onClick: () => {
+                          setContratoAssinadoFile(null);
+                          setContratoAssinadoDialogOpen(true);
+                        },
                       }
-                    : isGestor &&
+                    : podeMarcarAssinado(papeisAssinatura) &&
                         status === "aguardando_assinatura" &&
-                        contratoAssinadoDocs.length === 0
-                      ? {
-                          label: "Subir contrato assinado",
-                          icon: Upload,
-                          onClick: () => {
-                            setContratoAssinadoFile(null);
-                            setContratoAssinadoDialogOpen(true);
-                          },
-                        }
-                      : isGestor &&
-                          status === "aguardando_assinatura" &&
-                          contratoAssinadoDocs.length > 0
+                        contratoAssinadoDocs.length > 0
                         ? {
                             label: "Marcar contrato assinado",
                             icon: FileCheck,
@@ -4300,7 +4313,7 @@ function SaleDetail() {
             <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
               {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}
             </h1>
-            <StatusBadge status={status} />
+            <StatusBadge status={status} label={rotuloAssinatura} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}
@@ -4430,45 +4443,24 @@ function SaleDetail() {
             </>
           )}
 
-          {/* Gestor: liberar para assinatura */}
-          {clicksignNaVenda && !isGestor && (
+          {/* Liberar para assinatura: sem Clicksign, o botão manual de sempre (gestor/TL, jurídico
+              e ADM). Com Clicksign, a escolha fica no cartão "Como vai ser assinado?" abaixo. */}
+          {envioManualSimples && (
             <Button
-              onClick={() => setCsSendOpen(true)}
+              onClick={() => changeStatus("aguardando_assinatura")}
               disabled={sale.contrato_libera_assinatura === false}
+              title={
+                sale.contrato_libera_assinatura === false
+                  ? "Jurídico marcou que ainda não pode ir para assinatura"
+                  : undefined
+              }
             >
               <Send className="mr-2 h-4 w-4" />
-              Enviar pela Clicksign
+              Enviar para assinatura
             </Button>
           )}
           {isGestor && status === "contrato_ok_corretor" && (
             <>
-              {clicksignNaVenda ? (
-                <Button
-                  onClick={() => setCsSendOpen(true)}
-                  disabled={sale.contrato_libera_assinatura === false}
-                  title={
-                    sale.contrato_libera_assinatura === false
-                      ? "Jurídico marcou que ainda não pode ir para assinatura"
-                      : undefined
-                  }
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Enviar pela Clicksign
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => changeStatus("aguardando_assinatura")}
-                  disabled={sale.contrato_libera_assinatura === false}
-                  title={
-                    sale.contrato_libera_assinatura === false
-                      ? "Jurídico marcou que ainda não pode ir para assinatura"
-                      : undefined
-                  }
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Enviar para assinatura
-                </Button>
-              )}
               <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
                 <XCircle className="mr-2 h-4 w-4" />
                 Devolver ao jurídico
@@ -4483,8 +4475,9 @@ function SaleDetail() {
             </>
           )}
 
-          {/* Gestor: subir contrato assinado (após assinatura) */}
-          {isGestor && status === "aguardando_assinatura" && (
+          {/* Em assinatura pela Clicksign: o gestor mantém o caminho de reserva (subir/marcar/devolver).
+              Na assinatura manual esses botões ficam no cartão "Assinatura manual (papel)". */}
+          {isGestor && status === "aguardando_assinatura" && !assinaturaManual && (
             <>
               <Button
                 variant="outline"
@@ -5107,7 +5100,11 @@ function SaleDetail() {
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Próxima etapa
               </div>
-              <div className="font-medium">{proximoResponsavel(status).titulo}</div>
+              <div className="font-medium">
+                {assinaturaManual
+                  ? "Aguardando assinatura manual (papel) e upload do contrato assinado"
+                  : proximoResponsavel(status).titulo}
+              </div>
             </div>
             <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
               <span>
@@ -5199,6 +5196,40 @@ function SaleDetail() {
                 )}
               </div>
             )}
+          {escolhaAssinatura && (
+            <EscolhaAssinaturaVenda
+              bloqueado={sale.contrato_libera_assinatura === false}
+              contratoNome={csConfig.enabled ? (csConfig.contrato?.file_name ?? null) : null}
+              ultimoPasso={
+                podeMarcarAssinado(papeisAssinatura)
+                  ? undefined
+                  : "o gestor, team leader ou ADM marca como assinado"
+              }
+              onClicksign={() => setCsSendOpen(true)}
+              onManual={() => changeStatus("aguardando_assinatura", "Assinatura manual (papel)")}
+            />
+          )}
+          {assinaturaManual && (
+            <AssinaturaManualCard
+              podeOperar={podeAssinatura}
+              podeMarcar={podeMarcarAssinado(papeisAssinatura)}
+              podeDevolver={podeDevolverDaAssinatura(papeisAssinatura)}
+              podeTrocarParaClicksign={podeTrocarParaClicksign(
+                csConfig,
+                status,
+                papeisAssinatura,
+                contratoAssinadoDocs.length > 0,
+              )}
+              assinadoNome={contratoAssinadoDocs[contratoAssinadoDocs.length - 1]?.file_name ?? null}
+              onSubir={() => {
+                setContratoAssinadoFile(null);
+                setContratoAssinadoDialogOpen(true);
+              }}
+              onMarcar={() => void marcarContratoAssinado()}
+              onTrocarParaClicksign={() => setCsSendOpen(true)}
+              onDevolver={() => openReturnDialog("em_elaboracao_contrato")}
+            />
+          )}
           {csConfig.enabled &&
             [
               ...(clicksignAtalhoGestor ? ["contrato_conferencia_gestor"] : []),
@@ -5817,8 +5848,9 @@ function SaleDetail() {
           <DialogHeader>
             <DialogTitle>Subir contrato assinado</DialogTitle>
             <DialogDescription>
-              Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o
-              arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.
+              {podeMarcarAssinado(papeisAssinatura)
+                ? 'Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, confira o arquivo e use o botão "Marcar contrato assinado" quando estiver pronto.'
+                : "Envie o arquivo do contrato assinado (PDF, DOC ou DOCX). Depois de subir, o gestor, team leader ou ADM confere e marca a venda como assinada."}
             </DialogDescription>
           </DialogHeader>
 
