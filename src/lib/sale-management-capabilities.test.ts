@@ -41,9 +41,9 @@ function render(
 ) {
   const context = vm.createContext({
     hasManagerRole: role,
-    // Atalho pela Clicksign (t_2284ea8b): desligado = fluxo manual de sempre.
+    // Atalho com Clicksign (t_70ebc484): abre "Como vai ser assinado?"; desligado = papel de sempre.
     clicksignAtalhoGestor: clicksign,
-    setCsSendOpen: () => undefined,
+    setAtalhoEscolhaOpen: () => undefined,
     id: "fixture-sale",
     user: { id: "fixture-auxiliary" },
     management: {
@@ -93,11 +93,25 @@ describe("effective sale capability — actual route render, offline", () => {
   ])("hides actions when manager capability is ineffective", (...args) => {
     expect(render(...args)).not.toContain("Enviar direto para assinatura");
   });
-  it("com a Clicksign ligada, o atalho do gestor vira 'Enviar direto pela Clicksign'", () => {
+  it("com a Clicksign ligada, o atalho continua 'Enviar direto para assinatura' (abre a escolha)", () => {
     const html = render(true, true, true, true, true, true);
-    expect(html).toContain("Enviar direto pela Clicksign");
-    expect(html).not.toContain("Enviar direto para assinatura");
+    expect(html).toContain("Enviar direto para assinatura");
+    expect(html).not.toContain("Enviar direto pela Clicksign");
+    expect(html).toContain("escolha assinatura digital (Clicksign) ou papel");
     expect(render(true, true, false, true, true, true)).toContain('disabled=""');
+  });
+  it.each([
+    [false, false, true, true, true, true],
+    [true, false, true, true, true, true],
+    [true, true, true, false, true, true],
+    [true, true, true, true, false, true],
+  ])("com a Clicksign: sem gestão efetiva da venda não há atalho", (...args) => {
+    expect(render(...args)).not.toContain("Enviar direto para assinatura");
+  });
+  it("o botão com Clicksign abre a escolha, não o envio direto pela Clicksign", () => {
+    const src = branch.expression!.getText(ast);
+    expect(src).toContain("setAtalhoEscolhaOpen(true)");
+    expect(src).not.toContain("setCsSendOpen(true)");
   });
   it("keeps the legal signature block visible and disabled", () => {
     expect(render(true, true, false)).toContain('disabled=""');
