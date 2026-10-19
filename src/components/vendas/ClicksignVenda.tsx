@@ -33,6 +33,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SignerStatusBadge } from "@/components/clicksign/SignerStatusBadge";
+import { TrocarParaPapelButton } from "@/components/vendas/AssinaturaManualVenda";
+import { podeTrocarParaPapel } from "@/lib/assinatura-manual";
 import { errorMessage } from "@/lib/errors";
 import { editSignerErrors, notifyWaitMinutes, type ManagedSigner } from "@/lib/exclusive-clicksign";
 import {
@@ -170,6 +172,20 @@ export function ClicksignVenda({
     }
   };
 
+  // Clicksign → papel (t_e6f778ac): cancela o envelope e a venda fica em aguardando_assinatura.
+  const trocarParaPapel = async () => {
+    try {
+      const r = await cancelSaleClicksign(db, saleId, true);
+      if (r.warning) toast.warning(r.warning, { duration: 10000 });
+      else if (r.reason !== "papel")
+        toast.info("A assinatura foi cancelada por outro motivo; confira a etapa da venda.");
+      else toast.success("Clicksign cancelada. Siga com a assinatura manual (papel).");
+      await onChanged();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível cancelar a Clicksign"));
+    }
+  };
+
   const conferir = async () => {
     setBusy(true);
     try {
@@ -192,11 +208,16 @@ export function ClicksignVenda({
           <PenLine className="h-4 w-4 text-primary" /> Contrato / assinatura · Clicksign
           {config.test_mode && <span className="text-xs text-amber-700">(modo teste)</span>}
         </p>
-        {canCancelSaleEnvelope(config) && (
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => void cancelar()}>
-            <Ban className="mr-1 h-4 w-4" /> Cancelar assinatura
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {podeTrocarParaPapel(config, status) && (
+            <TrocarParaPapelButton onConfirm={trocarParaPapel} />
+          )}
+          {canCancelSaleEnvelope(config) && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void cancelar()}>
+              <Ban className="mr-1 h-4 w-4" /> Cancelar assinatura
+            </Button>
+          )}
+        </div>
       </div>
       {config.contrato && (
         <p className="text-xs text-muted-foreground">

@@ -1,7 +1,16 @@
 import { STATUS_LABEL, STATUS_TONE, type SaleStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
-export function StatusBadge({ status, className }: { status: SaleStatus; className?: string }) {
+export function StatusBadge({
+  status,
+  className,
+  label,
+}: {
+  status: SaleStatus;
+  className?: string;
+  /** Texto no lugar do rótulo padrão (ex.: "Aguardando assinatura manual"). */
+  label?: string | null;
+}) {
   return (
     <span
       className={cn(
@@ -10,7 +19,7 @@ export function StatusBadge({ status, className }: { status: SaleStatus; classNa
         className,
       )}
     >
-      {STATUS_LABEL[status]}
+      {label || STATUS_LABEL[status]}
     </span>
   );
 }

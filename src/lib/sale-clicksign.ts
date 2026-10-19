@@ -123,8 +123,16 @@ export function showClicksignShortcut(
   return config.enabled && config.can_send && status === "contrato_conferencia_gestor";
 }
 
-/** Etapas em que o diálogo de envio pela Clicksign pode abrir. */
-export const CLICKSIGN_SEND_STATUSES = ["contrato_ok_corretor", "contrato_conferencia_gestor"];
+/**
+ * Etapas em que o diálogo de envio pela Clicksign pode abrir. aguardando_assinatura = trocar da
+ * assinatura manual (papel) para a Clicksign (t_e6f778ac); o banco recusa com envelope ativo ou
+ * com o assinado no papel já anexado.
+ */
+export const CLICKSIGN_SEND_STATUSES = [
+  "contrato_ok_corretor",
+  "contrato_conferencia_gestor",
+  "aguardando_assinatura",
+];
 
 export function canStartSaleEnvelope(e: SaleEnvelopeInfo | null): boolean {
   return !e || !["sending", "running"].includes(e.status);
@@ -312,10 +320,12 @@ export async function sendSaleToClicksign(
 export async function cancelSaleClicksign(
   db: SupabaseClient,
   saleId: string,
+  /** true = "Cancelar Clicksign e assinar no papel": a venda fica em aguardando_assinatura. */
+  papel = false,
 ): Promise<{ reason: string; warning?: string }> {
   const d = await invokeSale(
     db,
-    { sale_id: saleId, action: "cancel" },
+    { sale_id: saleId, action: "cancel", ...(papel ? { papel: true } : {}) },
     "Não foi possível cancelar a assinatura. Atualize a página e confira o status.",
   );
   return {
