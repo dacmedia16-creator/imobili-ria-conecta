@@ -87,6 +87,17 @@ import {
   midiaFilterParam,
   midiaFilterValido,
 } from "@/lib/vendas-midia-filtro";
+import { datasDaVendaNaLista, type DatasVendaLista } from "@/lib/vendas-lista-datas";
+
+/** "Criada em …" + "Assinada em …" / "Ainda não assinada" (legenda de cada data). */
+function DatasVendaLegenda({ datas, className }: { datas: DatasVendaLista; className?: string }) {
+  return (
+    <div className={className}>
+      <div>Criada em {datas.criadaEm ?? "—"}</div>
+      <div>{datas.assinadaEm ? `Assinada em ${datas.assinadaEm}` : "Ainda não assinada"}</div>
+    </div>
+  );
+}
 
 type RawSale = Pick<
   SaleRow,
@@ -213,6 +224,8 @@ function SalesList() {
   const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState(0);
   const [stageSince, setStageSince] = useState<Record<string, string>>({});
+  // Vendas com ao menos um contrato_assinado no histórico (legenda "Assinada em" da lista).
+  const [assinadasHist, setAssinadasHist] = useState<Record<string, true>>({});
   const [statusFilter, setStatusFilter] = useState<string>(savedListState?.statusFilter ?? "todas");
   const [vezFilter, setVezFilter] = useState<string>(savedListState?.vezFilter ?? "todas");
   const [diasFilter, setDiasFilter] = useState<number | null>(savedListState?.diasFilter ?? null);
@@ -528,7 +541,7 @@ function SalesList() {
     if (!ids.length) return;
     const { data: hist } = await supabase
       .from("sale_status_history")
-      .select("sale_id, created_at")
+      .select("sale_id, created_at, para")
       .in("sale_id", ids)
       .order("created_at", { ascending: false });
     if (requestIdRef.current !== requestId) return;
@@ -536,6 +549,13 @@ function SalesList() {
       const next = { ...prev };
       for (const h of hist ?? []) {
         if (!next[h.sale_id]) next[h.sale_id] = h.created_at;
+      }
+      return next;
+    });
+    setAssinadasHist((prev) => {
+      const next = { ...prev };
+      for (const h of hist ?? []) {
+        if (h.para === "contrato_assinado") next[h.sale_id] = true;
       }
       return next;
     });
@@ -1181,9 +1201,10 @@ function SalesList() {
                             ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
                             : "Valor pendente"}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(`${s.data_venda}T12:00:00`).toLocaleDateString("pt-BR")}
-                        </span>
+                        <DatasVendaLegenda
+                          datas={datasDaVendaNaLista(s, Boolean(assinadasHist[s.id]))}
+                          className="text-right text-xs text-muted-foreground"
+                        />
                       </div>
                     </div>
                   );
@@ -1202,7 +1223,7 @@ function SalesList() {
                       <TableHead>Status</TableHead>
                       <TableHead>Vez de agir</TableHead>
                       <TableHead>Nesta etapa</TableHead>
-                      <TableHead>Data da venda</TableHead>
+                      <TableHead>Datas</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
@@ -1254,8 +1275,10 @@ function SalesList() {
                               limites={agingLimites}
                             />
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(`${s.data_venda}T12:00:00`).toLocaleDateString("pt-BR")}
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            <DatasVendaLegenda
+                              datas={datasDaVendaNaLista(s, Boolean(assinadasHist[s.id]))}
+                            />
                           </TableCell>
                           <TableCell>
                             {canDelete && (
