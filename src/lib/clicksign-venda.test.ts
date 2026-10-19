@@ -370,6 +370,27 @@ describe("clicksign-sale: cancelar", () => {
     expect(deps.markCanceled).not.toHaveBeenCalled();
     expect(deps.done).toHaveBeenCalledWith("row-1", { action: null });
   });
+  it("trocar para o papel (papel=true): cancela na Clicksign com motivo papel (venda fica na assinatura manual)", async () => {
+    const { deps, calls } = saleDeps();
+    const r = await handleSale(deps, { sale_id: SALE, action: "cancel", papel: true });
+    expect(r).toMatchObject({ status: 200, body: { ok: true, reason: "papel" } });
+    expect(calls).toContain("PATCH /envelopes/:id/documents/:id");
+    expect(deps.markCanceled).toHaveBeenCalledWith("row-1", "papel");
+  });
+  it("papel só com true literal; pedido automático do banco tem prioridade sobre o papel", async () => {
+    const a = saleDeps();
+    await handleSale(a.deps, { sale_id: SALE, action: "cancel", papel: "true" });
+    expect(a.deps.markCanceled).toHaveBeenCalledWith("row-1", "manual");
+    const b = saleDeps({ cancelReason: "status_mudou" });
+    await handleSale(b.deps, { sale_id: SALE, action: "cancel", papel: true });
+    expect(b.deps.markCanceled).toHaveBeenCalledWith("row-1", "status_mudou");
+  });
+  it("trocar para o papel e a Clicksign não confirma: 502, nada registrado (sem troca pela metade)", async () => {
+    const { deps } = saleDeps({ failOn: "PATCH /envelopes/:id/documents/:id" });
+    const r = await handleSale(deps, { sale_id: SALE, action: "cancel", papel: true });
+    expect(r.status).toBe(502);
+    expect(deps.markCanceled).not.toHaveBeenCalled();
+  });
   it("sem permissão (corretor): 403", async () => {
     const { deps, fetch } = saleDeps();
     deps.authorize = vi.fn(async () => {

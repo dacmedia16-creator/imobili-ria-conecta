@@ -2,7 +2,8 @@
 // - "send": envia o contrato vigente do jurídico (último sale_documents tipo 'contrato') com todas as
 //   partes da venda, corretor(es), imobiliária, 2 testemunhas e partes extras;
 // - "cancel": cancela o documento em assinatura na Clicksign (botão ou pedido automático por nova
-//   versão do contrato / venda que saiu da assinatura) e devolve a venda ao gestor;
+//   versão do contrato / venda que saiu da assinatura) e devolve a venda ao gestor; com papel=true
+//   a venda fica em aguardando_assinatura para seguir na assinatura manual (papel);
 // - "status" | "notify" | "edit_signer": mesma gestão da captação (handleManage, kind 'venda').
 // A regra de quem pode e de qual venda/envelope fica no banco (RPCs com o JWT do usuário).
 // Nunca devolve nem registra e-mail em claro (só mascarado na tela e sha256 no banco).
@@ -374,7 +375,9 @@ async function handleSaleCancel(deps: SaleDeps, b: Record<string, unknown>): Pro
   const ctx = await deps.loadContext(auth.org, auth.envelope);
   if (!ctx.token) return fail(503, "Chave da Clicksign não configurada para esta imobiliária");
   // O motivo vem do banco (pedido automático) e nunca do navegador; sem pedido = botão manual.
-  const reason = (await deps.cancelReason(auth.envelope)) ?? "manual";
+  // papel=true (t_e6f778ac): "Cancelar Clicksign e assinar no papel" — a venda fica em
+  // aguardando_assinatura (assinatura manual). O pedido automático do banco continua valendo antes.
+  const reason = (await deps.cancelReason(auth.envelope)) ?? (b.papel === true ? "papel" : "manual");
   const lock = await deps.lock(auth.envelope, "edit");
   if (lock !== "ok") return fail(409, "Outra ação está em andamento neste envelope. Aguarde.");
   const client = new ClicksignClient(ctx.token, deps.fetch, deps.clicksignBase);

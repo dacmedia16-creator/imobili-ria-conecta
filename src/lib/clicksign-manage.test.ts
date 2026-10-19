@@ -218,6 +218,49 @@ describe("clicksign-manage: editar signatário", () => {
   });
 });
 
+describe("clicksign-manage: cancelar e assinar no papel (captação, t_e6f778ac)", () => {
+  const papel = { capture_id: CAP, action: "cancel_papel" };
+  it("cancela o documento na Clicksign e registra a troca para o papel", async () => {
+    const { deps, calls, bodies } = await setup();
+    deps.markCanceledPapel = vi.fn(async () => "canceled");
+    const r = await handleManage(deps, papel);
+    expect(r).toMatchObject({ status: 200, body: { ok: true, result: "canceled", reason: "papel" } });
+    expect(calls).toContain("PATCH /envelopes/:id/documents/:id");
+    expect((bodies["PATCH /envelopes/:id/documents/:id"] as { body: unknown }).body).toMatchObject({
+      data: { attributes: { status: "canceled" } },
+    });
+    expect(deps.markCanceledPapel).toHaveBeenCalledWith("row-1");
+  });
+  it("Clicksign não confirma: 502, nada registrado e trava solta", async () => {
+    const { deps, done } = await setup({ failOn: "PATCH /envelopes/:id/documents/:id" });
+    deps.markCanceledPapel = vi.fn(async () => "canceled");
+    const r = await handleManage(deps, papel);
+    expect(r.status).toBe(502);
+    expect(deps.markCanceledPapel).not.toHaveBeenCalled();
+    expect(done).toHaveBeenCalledWith("row-1", { action: null });
+  });
+  it("sem permissão: 403 sem chamar a Clicksign; trava ocupada: 409", async () => {
+    const a = await setup();
+    a.deps.markCanceledPapel = vi.fn(async () => "canceled");
+    a.deps.authorize = vi.fn(async () => {
+      throw new Error("Apenas gestor");
+    });
+    expect((await handleManage(a.deps, papel)).status).toBe(403);
+    expect(a.fetch).not.toHaveBeenCalled();
+    const b = await setup({ lock: "busy" });
+    b.deps.markCanceledPapel = vi.fn(async () => "canceled");
+    expect((await handleManage(b.deps, papel)).status).toBe(409);
+    expect(b.deps.markCanceledPapel).not.toHaveBeenCalled();
+  });
+  it("só na captação (na venda é a ação cancel com papel=true)", async () => {
+    const { deps, fetch } = await setup();
+    deps.markCanceledPapel = vi.fn(async () => "canceled");
+    const r = await handleManage(deps, { sale_id: CAP, action: "cancel_papel" }, "venda");
+    expect(r.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("clicksign-manage: reenviar aviso", () => {
   it("reenvia e registra no histórico", async () => {
     const { deps, calls, done } = await setup();
