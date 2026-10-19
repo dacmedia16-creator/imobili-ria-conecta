@@ -89,6 +89,15 @@ Observação: `src/lib/captacao-auditoria.ts:50` (`quando`) aparece em `exclusiv
 | P3 | `src/routes/conta-max.tsx:44` | Conta MAX → erro | `failure.at` | Hora do erro | "Horário:" | OK | — |
 | — | `plataforma.usuarios.tsx:363/85` "Último acesso", `admin.posicionamento.tsx:123` "Sugerido por … em", `reservas-salas.tsx:416/586` "bloqueado até", `reservas-salas.tsx:129-138` (dias da reserva no formulário) | — | — | — | rótulo claro | OK | — |
 
+## Parte 2 aplicada (t_b956a455) — só texto na tela
+
+- Vendas: V1–V13, A2 (Dashboard "Criada em"/"Assinada em"/"Ainda não assinada"), A3 ("(informada na ocorrência)").
+- Captações: C1 "Em …", C2 "Assinada em"/"Vence em", C3 "Aprovada em", C4 "Enviar até", C6 "fazer até", C7 "previsto para". C5 mantido ("apareceu na coleta de …" já é claro).
+- Financeiro/Relatórios: F2/F3 "Data prevista", F4 "Assinada em", F6/F9 "Efetivada em", A5/F7/F8 "Assinada em" (Lançamento: "Efetivada em"), F10 "Assinada em". F5 mantido.
+- Minha carreira/Mural: M1–M3 "Assinada em", M4 "📅 publicado em".
+- Plataforma: P1 "enviada em", P2 "acesso expira às".
+- Prints (maquete, CSS real do build, dados fictícios): `docs/prints/t_b956a455/`.
+
 ## Resumo para a parte 2
 
 - 5 datas ambíguas (A1 resolvida; A2, A3, A5 a corrigir; A4 já é modelo).
