@@ -55,7 +55,7 @@ import {
   type TermsField,
 } from "@/lib/exclusive-captures";
 import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
-import { isAiReadableKind } from "@/lib/exclusive-captures-ai";
+import { fieldsFromDocument, isAiReadableKind } from "@/lib/exclusive-captures-ai";
 import { AI_TIMEOUT_MESSAGE } from "@/lib/ai-timeout";
 import {
   extractCaptureDocument,
@@ -551,6 +551,7 @@ function ExclusiveDetail() {
         const current = formRef.current;
         // Valor do imóvel é sempre digitado pelo corretor; a leitura nunca preenche.
         delete (values as Record<string, unknown>).valor_imovel;
+        values = fieldsFromDocument(kind, owner, values);
         if (!Object.keys(values).length || !current) {
           toast.info("Sem campos legíveis identificados; preencha manualmente.");
           return;
@@ -877,6 +878,12 @@ function ExclusiveDetail() {
       dispensa,
     });
   };
+  // Comprovante de residência do proprietário: opcional, nunca trava o envio; a leitura preenche
+  // só o endereço desse proprietário, se estiver vazio (t_8e496afb).
+  const ownerResidenciaInput = (owner: number) =>
+    fileInput("Comprovante de residência (opcional)", "residencia", owner, {
+      accent: "border-l-4 border-l-amber-500",
+    });
   const ownerFields = (
     scope: "proprietario_1" | "proprietario_2",
     owner: NonNullable<CaptureForm[typeof scope]>,
@@ -1231,6 +1238,7 @@ function ExclusiveDetail() {
                         {ownerDocInput("RG", "rg", index + 1)}
                         {ownerDocInput("CPF", "cpf", index + 1)}
                         {ownerDocInput("CNH (substitui RG + CPF)", "cnh", index + 1)}
+                        {ownerResidenciaInput(index + 1)}
                       </div>
                     </>
                   )}
@@ -1598,6 +1606,7 @@ function ExclusiveDetail() {
                       {ownerDocInput("RG", "rg", n)}
                       {ownerDocInput("CPF", "cpf", n)}
                       {ownerDocInput("CNH (substitui RG + CPF)", "cnh", n)}
+                      {ownerResidenciaInput(n)}
                     </div>
                   ),
                 )}
