@@ -76,6 +76,26 @@ export async function clicksignCaptureConfig(
 }
 
 export type Testemunha = { nome: string; email: string };
+
+/**
+ * Testemunhas do modal da Clicksign a partir das testemunhas já cadastradas na captação
+ * (form.testemunha_1/2: nome e, se houver, e-mail). Só preenche o que está vazio no modal:
+ * o que a pessoa já digitou ali nunca é sobrescrito. Continua tudo editável.
+ */
+export function witnessesFromForm(
+  form: Record<string, unknown> | null | undefined,
+  current?: Testemunha[],
+): Testemunha[] {
+  return Array.from({ length: WITNESS_COUNT }, (_, i) => {
+    const w = (form?.[`testemunha_${i + 1}`] ?? {}) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    const cur = current?.[i] ?? { nome: "", email: "" };
+    return {
+      nome: cur.nome.trim() ? cur.nome : str(w.nome),
+      email: cur.email.trim() ? cur.email : str(w.email),
+    };
+  });
+}
 export type SendDialogInput = {
   form: Record<string, unknown> | null | undefined;
   corretorEmailOk: boolean;

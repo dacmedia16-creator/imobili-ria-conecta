@@ -168,7 +168,8 @@ export type WitnessField = "nome" | "rg" | "cpf";
 export type Owner = Record<OwnerField, string>;
 export type Property = Record<PropertyField, string>;
 export type Terms = Record<TermsField, string>;
-export type Witness = Record<WitnessField, string>;
+/** E-mail é opcional (não trava o envio ao gestor) e não vai ao PDF: só preenche o envio à Clicksign. */
+export type Witness = Record<WitnessField, string> & { email?: string };
 export type CaptureForm = {
   proprietario_1: Owner;
   proprietario_2?: Owner;

@@ -28,6 +28,7 @@ import {
   WITNESS_COUNT,
   type ClicksignCaptureConfig,
   type Testemunha,
+  witnessesFromForm,
   cancelCaptureClicksignPapel,
   modoAssinaturaCaptacao,
   mostrarEscolhaCaptacao,
@@ -96,6 +97,13 @@ export function ClicksignEnvio({
       envelopeAtivo: config.enabled && !canStartEnvelope(config.envelope),
     });
   }, [config, onModo]);
+
+  // Ao abrir o modal, puxa as testemunhas já cadastradas em "Dados do contrato" (só onde o modal
+  // está vazio; o que foi digitado aqui fica). Continuam editáveis.
+  useEffect(() => {
+    if (open) setWitnesses((cur) => witnessesFromForm(form, cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só na abertura
+  }, [open]);
 
   const errors = useMemo(
     () =>
