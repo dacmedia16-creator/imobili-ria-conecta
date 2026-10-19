@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCaptureSigners,
   buildEnvelope,
+  CLICKSIGN_MAX_PAGE_SIZE,
   ClicksignClient,
   constantTimeEqual,
   deadlineIso,
@@ -191,6 +192,26 @@ describe("cliente v3", () => {
     expect(cs.calls.some((c) => c.method === "PATCH")).toBe(false);
     // envelope, documento, 1 signatário, 2 requisitos (qualificação + código por e-mail)
     expect(cs.calls.map((c) => c.method)).toEqual(["POST", "POST", "POST", "POST", "POST"]);
+  });
+
+  it("listagens nunca pedem page[size] acima de 50 (Clicksign devolve 400 código 118)", async () => {
+    const urls: string[] = [];
+    const fetchSpy = vi.fn(async (u: string) => {
+      urls.push(u);
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    const client = new ClicksignClient("tok-fake", fetchSpy as never);
+    await client.listSigners("env-1");
+    await client.listRequirements("env-1");
+    await client.listEnvelopeEvents("env-1", "signature_started");
+    await client.listDocumentEvents("env-1", "doc-1");
+    expect(urls).toHaveLength(4);
+    for (const u of urls) {
+      const size = Number(new URL(u).searchParams.get("page[size]"));
+      expect(size).toBeGreaterThan(0);
+      expect(size).toBeLessThanOrEqual(CLICKSIGN_MAX_PAGE_SIZE);
+    }
+    expect(CLICKSIGN_MAX_PAGE_SIZE).toBe(50);
   });
 });
 
