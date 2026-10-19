@@ -184,7 +184,7 @@ export function ChamadoDetalhe({
             className={`rounded-md border p-3 text-sm ${m.interna ? "border-amber-300 bg-amber-50" : m.autor_equipe ? "border-blue-200 bg-blue-50" : ""}`}
           >
             <div className="mb-1 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{m.autor_nome}</span> ·{" "}
+              <span className="font-medium text-foreground">{m.autor_nome}</span> · enviada em{" "}
               {new Date(m.created_at).toLocaleString("pt-BR")}
               {m.interna && " · Nota interna (só equipe MAX)"}
             </div>

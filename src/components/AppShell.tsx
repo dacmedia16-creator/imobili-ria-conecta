@@ -486,7 +486,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
           <Building2 className="h-4 w-4" aria-hidden />
           <span>
-            {contextBannerText(platformContext)} — visão da plataforma, como administrador (até{" "}
+            {contextBannerText(platformContext)} — visão da plataforma, como administrador (acesso expira às{" "}
             {formatContextExpiry(platformContext)})
           </span>
           <Button
