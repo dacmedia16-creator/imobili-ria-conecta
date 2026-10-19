@@ -84,7 +84,7 @@ export function PendenciasFeedback() {
                 <tr>
                   <th className="text-left font-normal">Imóvel</th>
                   <th className="text-left font-normal">Corretor</th>
-                  <th className="text-left font-normal">Aprovada</th>
+                  <th className="text-left font-normal">Aprovada em</th>
                   <th className="text-left font-normal">Situação</th>
                 </tr>
               </thead>
@@ -170,7 +170,7 @@ export function PendenciasFeedback() {
                   <th className="text-left font-normal">Corretor</th>
                   <th className="text-left font-normal">Ação</th>
                   <th className="text-left font-normal">Imóvel</th>
-                  <th className="text-left font-normal">Prazo</th>
+                  <th className="text-left font-normal">Enviar até</th>
                 </tr>
               </thead>
               <tbody>

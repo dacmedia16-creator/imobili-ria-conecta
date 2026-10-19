@@ -1953,6 +1953,7 @@ function ExclusiveDetail() {
             <CardContent className="space-y-1 text-sm">
               {history.map((h) => (
                 <div key={h.id} className="border-b py-1">
+                  Em{" "}
                   {new Date(h.created_at).toLocaleString("pt-BR", {
                     timeZone: "America/Sao_Paulo",
                   })}{" "}

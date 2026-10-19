@@ -155,7 +155,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                         {it.semana
                           ? semanaRotulo(it)
                           : it.prazo
-                            ? `prazo ${formatDateBR(it.prazo)}`
+                            ? `fazer até ${formatDateBR(it.prazo)}`
                             : ""}
                       </span>
                       <span className="w-40 text-right text-xs">

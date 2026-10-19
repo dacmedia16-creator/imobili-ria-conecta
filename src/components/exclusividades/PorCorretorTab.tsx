@@ -401,8 +401,8 @@ function DetalheCorretor({
               <th className="text-left font-medium">Bairro</th>
               <th className="text-left font-medium">Tipo</th>
               <th className="text-right font-medium">Valor</th>
-              <th className="pl-3 text-left font-medium">Início</th>
-              <th className="text-left font-medium">Fim</th>
+              <th className="pl-3 text-left font-medium">Assinada em</th>
+              <th className="text-left font-medium">Vence em</th>
               <th className="text-left font-medium">Dias restantes</th>
               <th className="text-left font-medium">Status</th>
               <th className="text-left font-medium">Plano de Marketing</th>

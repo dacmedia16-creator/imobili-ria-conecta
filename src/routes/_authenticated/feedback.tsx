@@ -553,7 +553,7 @@ function Review({
                   <li key={`${p.label}-${p.quando}`}>
                     • {p.label}{" "}
                     <span className="text-muted-foreground">
-                      {p.quando.startsWith("Semana ") ? `— ${p.quando}` : `(${p.quando})`}
+                      {p.quando.startsWith("Semana ") ? `— ${p.quando}` : `(previsto para ${p.quando})`}
                     </span>
                   </li>
                 ))}
