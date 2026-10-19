@@ -69,6 +69,8 @@ import {
   type ClicksignSignedInfo,
 } from "@/lib/exclusive-clicksign";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
+import { useCaptureAutosave } from "@/components/exclusividades/useCaptureAutosave";
+import { AutosaveStatus } from "@/components/vendas/shared";
 import { STATUS_AGUARDANDO_MANUAL } from "@/lib/assinatura-manual";
 import { juntarDocumentosEmPdf } from "@/lib/document-actions";
 import { caberNoLimite, compressPdfBytes, formatMB, GERACAO_CONTRATO } from "@/lib/pdf-compress";
@@ -333,10 +335,32 @@ function ExclusiveDetail() {
       .catch(() => setCapture(null))
       .finally(() => setLoading(false));
   }, [id, reload]);
+  // Salvamento automático (igual às Vendas) enquanto a captação é editável; nunca durante uma
+  // ação em andamento (upload, leitura da IA, envio), que já grava o que estiver pendente.
+  const persistCapture = useCallback(
+    (f: CaptureForm, c: string, r: string) => saveCapture(id, f, c, r),
+    [id],
+  );
+  const onAutosaved = useCallback(() => {
+    setDirty(false);
+    // O exclusive_save apaga o PDF gerado antigo (não pode ser submetido depois da edição).
+    setDocs((list) => list.filter((d) => d.kind !== "gerado"));
+  }, []);
+  const autosave = useCaptureAutosave({
+    enabled: editable && !busy,
+    dirty,
+    form,
+    cpf,
+    creci,
+    savedCpf: capture?.broker_cpf ?? "",
+    savedCreci: capture?.broker_creci ?? "",
+    persist: persistCapture,
+    onSaved: onAutosaved,
+  });
   // Página aberta há tempo mostra estado antigo (ex.: já aprovada). Nunca recarrega por cima de
   // edição não salva ou de ação em andamento.
   useRecarregarAoFocar(() => {
-    if (dirty || busy || !isDetailRouteId(id)) return;
+    if (dirty || busy || autosave.saving || !isDetailRouteId(id)) return;
     return reload().catch(() => undefined);
   });
   useEffect(() => {
@@ -520,7 +544,7 @@ function ExclusiveDetail() {
     });
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
-      if (dirty && form) await saveCapture(id, form, cpf, creci);
+      await autosave.flush();
       const storagePath = await uploadCaptureDocument(id, kind, owner, file);
       toast.success("Documento anexado");
       // Upload manual do assinado (captação normal) leva ao passo 5, igual ao que chega da Clicksign.
@@ -577,7 +601,7 @@ function ExclusiveDetail() {
   // das Vendas. Preenche só os campos vazios; se a leitura falhar, o preenchimento manual continua.
   const uploadSignedContract = (file: File) =>
     run(async () => {
-      if (dirty && form) await saveCapture(id, form, cpf, creci);
+      await autosave.flush();
       const storagePath = await uploadCaptureDocument(id, "assinado", 0, file, { manual: true });
       toast.success("Contrato assinado anexado");
       toast.info("Lendo o contrato…");
@@ -619,7 +643,8 @@ function ExclusiveDetail() {
       }
       if (name === "enviar" && !window.confirm(ask)) return;
       // Alteração não salva (ex.: Plano de Marketing marcado) não pode travar o envio: salva antes.
-      if (name === "enviar" && dirty && form) await saveCapture(id, form, cpf, creci);
+      // Espera o salvamento automático em andamento e grava o que ainda estiver pendente.
+      if (name === "enviar") await autosave.flush();
       const statusAntes = capture?.status;
       if (
         name === "devolver" &&
@@ -1538,6 +1563,9 @@ function ExclusiveDetail() {
                   {(["nome", "rg", "cpf"] as const).map((key) =>
                     field(key.toUpperCase(), form[scope][key], (v) => edit(scope, key, v)),
                   )}
+                  {field(`E-mail da testemunha ${i + 1} (opcional)`, form[scope].email ?? "", (v) =>
+                    edit(scope, "email", v),
+                  )}
                 </div>
               ))}
             </CardContent>
@@ -1996,7 +2024,25 @@ function ExclusiveDetail() {
         >
           Voltar
         </Button>
-        {dirty && <span className="text-xs text-amber-800">Alterações não salvas</span>}
+        {editable ? (
+          <div className="flex flex-col items-center gap-1" data-testid="captacao-autosave">
+            {autosave.error ? (
+              <span role="alert" className="text-xs text-destructive">
+                Não salvou: {autosave.error}
+              </span>
+            ) : autosave.bloqueio ? (
+              <span role="alert" className="text-xs text-amber-800">
+                {autosave.bloqueio}
+              </span>
+            ) : autosave.saving || dirty ? (
+              <AutosaveStatus saving={autosave.saving} dirty={dirty} />
+            ) : autosave.saved ? (
+              <span className="text-xs text-emerald-700">Salvo</span>
+            ) : null}
+          </div>
+        ) : (
+          dirty && <span className="text-xs text-amber-800">Alterações não salvas</span>
+        )}
         <Button
           disabled={step === lastStep}
           onClick={() =>
