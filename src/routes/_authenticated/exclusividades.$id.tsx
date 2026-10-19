@@ -618,6 +618,8 @@ function ExclusiveDetail() {
         throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de continuar.");
       }
       if (name === "enviar" && !window.confirm(ask)) return;
+      // Alteração não salva (ex.: Plano de Marketing marcado) não pode travar o envio: salva antes.
+      if (name === "enviar" && dirty && form) await saveCapture(id, form, cpf, creci);
       const statusAntes = capture?.status;
       if (
         name === "devolver" &&
@@ -1751,11 +1753,13 @@ function ExclusiveDetail() {
                     Campos e documentos completos. O gestor confere e gera o contrato.
                   </p>
                 )}
-                <Button
-                  disabled={busy || dirty || missing.length > 0}
-                  onClick={() => action("enviar")}
-                >
-                  Enviar ao gestor
+                {dirty && !missing.length && (
+                  <p className="text-sm text-amber-800" data-testid="enviar-salva-antes">
+                    Há alterações não salvas. Elas serão salvas antes do envio.
+                  </p>
+                )}
+                <Button disabled={busy || missing.length > 0} onClick={() => action("enviar")}>
+                  {dirty ? "Salvar e enviar ao gestor" : "Enviar ao gestor"}
                 </Button>
               </CardContent>
             </Card>
