@@ -232,6 +232,67 @@ export function canStartEnvelope(e: ClicksignEnvelopeInfo | null): boolean {
   return !e || !["sending", "running"].includes(e.status);
 }
 
+// ---------- escolha Clicksign × papel na captação (t_e6f778ac) ----------
+
+/**
+ * Em em_assinatura: "clicksign" com envelope em envio/assinatura; senão é a assinatura manual
+ * (papel). Fora dessa etapa: null. Mesma leitura do banco (clicksign_capture_authorize).
+ */
+export function modoAssinaturaCaptacao(
+  status: string,
+  envelope: ClicksignEnvelopeInfo | null,
+): "clicksign" | "manual" | null {
+  if (status !== "em_assinatura") return null;
+  return canStartEnvelope(envelope) ? "manual" : "clicksign";
+}
+
+/** Cartão "Como vai ser assinado?": enviada, sem envelope ativo, e quem pode levar ao papel. */
+export function mostrarEscolhaCaptacao(
+  status: string,
+  envelope: ClicksignEnvelopeInfo | null,
+  podeManual: boolean,
+): boolean {
+  return status === "enviada" && podeManual && canStartEnvelope(envelope);
+}
+
+/**
+ * Papel → Clicksign: em assinatura manual e sem o assinado no papel já anexado (aí é conferir e
+ * aprovar). O banco confere de novo em clicksign_capture_authorize (sem envio em dobro).
+ */
+export function podeTrocarCaptacaoParaClicksign(
+  config: ClicksignCaptureConfig,
+  status: string,
+  temAssinado: boolean,
+): boolean {
+  return (
+    config.enabled &&
+    config.can_send &&
+    modoAssinaturaCaptacao(status, config.envelope) === "manual" &&
+    !temAssinado
+  );
+}
+
+/** Clicksign → papel: envelope em assinatura (running) e quem gerencia o envelope. */
+export function podeTrocarCaptacaoParaPapel(
+  config: ClicksignCaptureConfig,
+  status: string,
+): boolean {
+  return status === "em_assinatura" && canManageEnvelope(config);
+}
+
+/** "Cancelar Clicksign e assinar no papel" da captação (edge clicksign-manage, cancel_papel). */
+export async function cancelCaptureClicksignPapel(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<{ warning?: string }> {
+  const d = await invokeManage(
+    db,
+    { capture_id: captureId, action: "cancel_papel" },
+    "Não foi possível cancelar na Clicksign agora. Nada mudou; tente de novo.",
+  );
+  return typeof d.warning === "string" ? { warning: d.warning } : {};
+}
+
 // ---------- envelope em assinatura: quem falta, reenviar aviso, editar signatário ----------
 
 export type ManagedSigner = {

@@ -24,12 +24,18 @@ type Modo = "clicksign" | "manual";
 export function EscolhaAssinaturaVenda({
   bloqueado,
   contratoNome,
+  alvo = "A venda",
+  ultimoPasso = "clique em “Marcar contrato assinado”",
   onClicksign,
   onManual,
 }: {
   /** Jurídico travou a assinatura (contrato_libera_assinatura = false). */
   bloqueado: boolean;
   contratoNome?: string | null;
+  /** "A venda" (padrão) ou "A captação". */
+  alvo?: string;
+  /** Final do passo 3 da confirmação do papel. */
+  ultimoPasso?: string;
   onClicksign: () => void;
   onManual: () => Promise<void> | void;
 }) {
@@ -94,7 +100,7 @@ export function EscolhaAssinaturaVenda({
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  A venda vai para <b>{STATUS_AGUARDANDO_MANUAL}</b>. Ninguém recebe link da
+                  {alvo} vai para <b>{STATUS_AGUARDANDO_MANUAL}</b>. Ninguém recebe link da
                   Clicksign.
                 </p>
                 <ol className="list-inside list-decimal space-y-1">
@@ -104,8 +110,7 @@ export function EscolhaAssinaturaVenda({
                   </li>
                   <li>Colete as assinaturas.</li>
                   <li>
-                    <b>Suba o contrato assinado aqui no mesmo dia</b> e clique em “Marcar contrato
-                    assinado”.
+                    <b>Suba o contrato assinado aqui no mesmo dia</b> e {ultimoPasso}.
                   </li>
                 </ol>
               </div>
@@ -172,7 +177,8 @@ export function AssinaturaManualCard({
       <p className="text-sm">{TEXTO_ORIENTACAO_PAPEL}</p>
       {assinadoNome ? (
         <p className="rounded-md bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
-          Contrato assinado anexado: <b>{assinadoNome}</b>. Confira o arquivo e marque como assinado.
+          Contrato assinado anexado: <b>{assinadoNome}</b>. Confira o arquivo e marque como
+          assinado.
         </p>
       ) : (
         <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -219,11 +225,14 @@ export function AssinaturaManualCard({
 export function TrocarParaPapelButton({
   faltam,
   total,
+  alvo = "a venda",
   onConfirm,
 }: {
   /** Quantos ainda não assinaram (null = desconhecido). */
   faltam?: number | null;
   total?: number | null;
+  /** "a venda" (padrão) ou "a captação". */
+  alvo?: string;
   onConfirm: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -244,8 +253,9 @@ export function TrocarParaPapelButton({
                 {jaAssinaram !== null && jaAssinaram > 0 && (
                   <p>
                     <b>
-                      {jaAssinaram} de {total} {jaAssinaram === 1 ? "pessoa já assinou" : "pessoas já assinaram"}{" "}
-                      na Clicksign.
+                      {jaAssinaram} de {total}{" "}
+                      {jaAssinaram === 1 ? "pessoa já assinou" : "pessoas já assinaram"} na
+                      Clicksign.
                     </b>
                   </p>
                 )}
@@ -256,7 +266,7 @@ export function TrocarParaPapelButton({
                     para o papel);
                   </li>
                   <li>
-                    a venda fica em <b>{STATUS_AGUARDANDO_MANUAL}</b>;
+                    {alvo} fica em <b>{STATUS_AGUARDANDO_MANUAL}</b>;
                   </li>
                   <li>suba o contrato assinado no papel no mesmo dia.</li>
                 </ul>
