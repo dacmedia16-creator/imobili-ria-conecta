@@ -79,6 +79,20 @@ Responda somente JSON puro.`;
   return `${head}\n\nOrientações:\n${hints[kind]}\n- "endereco": logradouro e número, sem bairro/cidade.\n- "estado": nome do estado por extenso (ex.: "São Paulo").\n- "valor_imovel": só se houver valor de venda/negócio explícito.\n\nCampos:\n${PROPERTY_SCHEMA}`;
 }
 
+/**
+ * Campos que cada documento pode preencher. Comprovante de residência do PROPRIETÁRIO (owner 1/2)
+ * só fornece o endereço dele: o titular da conta pode ser outra pessoa (cônjuge, parente), então o
+ * nome não é aproveitado. Os demais documentos (e o comprovante do imóvel) seguem sem filtro.
+ */
+export function fieldsFromDocument(
+  kind: DocumentKind,
+  owner: number,
+  values: Record<string, string>,
+): Record<string, string> {
+  if (kind !== "residencia" || owner === 0) return values;
+  return values.endereco_completo?.trim() ? { endereco_completo: values.endereco_completo } : {};
+}
+
 const OWNER_KEYS: OwnerField[] = [
   "nome_completo",
   "rg",

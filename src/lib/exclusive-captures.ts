@@ -516,7 +516,8 @@ export function manualPendencies(
     ["iptu", "IPTU"],
     ["matricula", "Matrícula"],
   ] as const)
-    if (!docs.some((d) => d.kind === kind)) optional.push(label);
+    // Só o documento do imóvel (owner 0): o comprovante do proprietário não substitui o do imóvel.
+    if (!docs.some((d) => d.kind === kind && d.owner_index === 0)) optional.push(label);
   return { required, optional };
 }
 export function missingRequirements(
