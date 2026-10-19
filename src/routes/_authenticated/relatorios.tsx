@@ -801,7 +801,7 @@ function FluxoCaixaTab({
                   <TableHead>Imóvel</TableHead>
                   <TableHead>Corretor</TableHead>
                   <TableHead>Parcela</TableHead>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data prevista</TableHead>
                   <TableHead>Forma</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Situação</TableHead>
@@ -903,7 +903,7 @@ function FluxoCaixaTab({
                   <CardField label="Valor">
                     <span className="font-semibold">{money(r.valor)}</span>
                   </CardField>
-                  <CardField label="Data">{dateBR(r.data)}</CardField>
+                  <CardField label="Data prevista">{dateBR(r.data)}</CardField>
                   <CardField label="Corretor">{corretorNome(r.sale)}</CardField>
                   <CardField label="Forma">{r.forma ?? "—"}</CardField>
                   {r.recebidoEm && (
@@ -1116,7 +1116,7 @@ function ComissoesTab({
                 <TableHead>Beneficiário</TableHead>
                 <TableHead>%</TableHead>
                 <TableHead>Valor</TableHead>
-                <TableHead>Venda comercial</TableHead>
+                <TableHead>Assinada em</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

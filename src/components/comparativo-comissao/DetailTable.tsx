@@ -28,7 +28,7 @@ const MODALIDADE_LABEL: Record<string, string> = {
 // "numerica: true" alinha coluna+valores à direita (leitura/comparação de números fica mais fácil
 // em coluna do que espalhada à esquerda) — mesma convenção usada em MonthlyGrouping.
 const COLUNAS: { campo: OrdenacaoCampo; label: string; numerica?: boolean }[] = [
-  { campo: "data", label: "Efetivação" },
+  { campo: "data", label: "Efetivada em" },
   { campo: "valor_negociado", label: "Valor do imóvel", numerica: true },
   { campo: "valor_comissao", label: "Comissão REMAX", numerica: true },
   { campo: "percentual_real", label: "% real", numerica: true },
@@ -100,7 +100,7 @@ export function DetailTable({ rows }: { rows: ComparativoRowComCalculo[] }) {
                     {r.codigo_interno || r.imovel_id || `Venda #${r.sale_id.slice(0, 8)}`}
                   </Link>
                   <p className="break-words text-xs text-muted-foreground">
-                    {formatDateBR(r.data_fechamento)} ·{" "}
+                    Efetivada em {formatDateBR(r.data_fechamento)} ·{" "}
                     {MODALIDADE_LABEL[r.modalidade] ?? r.modalidade}
                   </p>
                 </div>

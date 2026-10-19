@@ -141,7 +141,7 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
                 </span>
               </CardField>
               <CardField label="Papel">{PAPEL_LABEL[r.papel] ?? r.papel}</CardField>
-              <CardField label="Efetivação">
+              <CardField label="Efetivada em">
                 {r.dataEfetivacao ? dateBR(r.dataEfetivacao) : "—"}
               </CardField>
               <CardField label="Origem">
@@ -159,7 +159,7 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
           <TableHeader>
             <TableRow>
               <TableHead>Imóvel</TableHead>
-              <TableHead>Efetivação</TableHead>
+              <TableHead>Efetivada em</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead>Beneficiário</TableHead>
               <TableHead>Equipe</TableHead>

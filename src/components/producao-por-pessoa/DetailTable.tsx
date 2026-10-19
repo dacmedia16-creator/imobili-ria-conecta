@@ -89,7 +89,10 @@ export function DetailTable({
                   >
                     {p.imovelId || p.codigoInterno || `Venda #${p.saleId.slice(0, 8)}`}
                   </Link>
-                  <p className="text-xs text-muted-foreground">{formatDateTimeBR(p.concluidaEm)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.modalidade === "lancamento" ? "Efetivada em" : "Assinada em"}{" "}
+                    {formatDateTimeBR(p.concluidaEm)}
+                  </p>
                 </div>
                 <Pill tom={p.modalidade === "lancamento" ? "amber" : "slate"}>
                   {p.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
@@ -116,7 +119,7 @@ export function DetailTable({
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead>Operação</TableHead>
-                <TableHead>Data da venda</TableHead>
+                <TableHead>Assinada em</TableHead>
                 <TableHead>Ponta</TableHead>
                 <TableHead>Pessoa</TableHead>
                 <TableHead>Equipe</TableHead>
@@ -152,6 +155,7 @@ export function DetailTable({
                     </Badge>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {p.modalidade === "lancamento" ? "Efetivada em " : ""}
                     {formatDateTimeBR(p.concluidaEm)}
                   </TableCell>
                   <TableCell>{TIPO_LABEL[p.tipo]}</TableCell>

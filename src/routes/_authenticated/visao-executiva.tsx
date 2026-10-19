@@ -1168,7 +1168,7 @@ function DetalheComissao({
                 <TableHead>Venda</TableHead>
                 {ehEquipe && <TableHead>Corretor</TableHead>}
                 <TableHead>Modalidade</TableHead>
-                <TableHead className="text-right">Fechou em</TableHead>
+                <TableHead className="text-right">Assinada em</TableHead>
                 <TableHead className="text-right">Comissão</TableHead>
               </TableRow>
             </TableHeader>
@@ -1194,6 +1194,7 @@ function DetalheComissao({
                     {l.modalidade === "lancamento" ? "Lançamento" : "Padrão"}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
+                    {l.modalidade === "lancamento" ? "Efetivada em " : ""}
                     {new Date(l.fechado_em).toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell className="text-right">{money(l.valor_comissao)}</TableCell>
