@@ -50,8 +50,10 @@ export async function fetchVendasComerciaisPaginadas(params: {
   soMinhaVez?: boolean;
   /** Mídia da venda; "__sem_midia__" = sem mídia. Só é enviado quando há filtro. */
   midia?: string;
+  /** Cancela a requisição HTTP quando o filtro muda antes da resposta chegar. */
+  signal?: AbortSignal;
 }): Promise<VendasComerciaisPaginadas> {
-  const { data, error } = await supabase.rpc(
+  const consulta = supabase.rpc(
     (params.soMinhaVez
       ? "list_vendas_comerciais_paginadas_fila"
       : "list_vendas_comerciais_paginadas") as never,
@@ -67,6 +69,7 @@ export async function fetchVendasComerciaisPaginadas(params: {
       ...(params.midia ? { _midia: params.midia } : {}),
     } as never,
   );
+  const { data, error } = await (params.signal ? consulta.abortSignal(params.signal) : consulta);
   if (error) throw error;
   return (data ?? {
     rows: [],

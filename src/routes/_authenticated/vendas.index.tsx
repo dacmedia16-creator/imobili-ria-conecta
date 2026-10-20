@@ -75,6 +75,7 @@ import {
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
+import { criarCacheConsultas, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import { corretoresDaLinha, responsaveisDaLinha } from "@/lib/sale-permissions";
@@ -146,6 +147,10 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 });
 
 const PAGE_SIZE = 10;
+/** Espera depois da última troca de filtro/tecla antes de consultar o banco. */
+export const FILTRO_DEBOUNCE_MS = 400;
+/** Validade do pacote financeiro do resumo dentro da mesma abertura da tela. */
+const RESUMO_CACHE_MS = 60_000;
 const SALES_LIST_STATE_KEY = "adm-max:vendas-list-state";
 const SALES_LIST_RESTORE_KEY = "adm-max:vendas-list-restore";
 type SalesListState = {
@@ -426,6 +431,10 @@ function SalesList() {
     })();
   }, []);
 
+  // Só os membros da equipe escolhida entram na consulta: chegar a lista de equipes com o filtro
+  // em "todas" não recria buildFilters/load (antes isso disparava uma 2ª consulta ao abrir a tela).
+  const membrosEquipeFiltro = equipeFilter !== "todas" ? memberIdsByTeam[equipeFilter] : undefined;
+
   const buildFilters = useCallback(() => {
     const filters: {
       status?: string;
@@ -453,8 +462,8 @@ function SalesList() {
     // Sem membro nenhum na equipe escolhida (equipe recém-criada, sem corretor vinculado): usa um
     // uuid que nunca bate em vez de deixar o array vazio ser interpretado como ausência de filtro.
     if (equipeFilter !== "todas")
-      filters.corretorIds = memberIdsByTeam[equipeFilter]?.length
-        ? memberIdsByTeam[equipeFilter]
+      filters.corretorIds = membrosEquipeFiltro?.length
+        ? membrosEquipeFiltro
         : ["00000000-0000-0000-0000-000000000000"];
     if (statusFilter === ESTEIRA_FILTER) {
       // A esteira é o que está aberto hoje: não depende do período.
@@ -477,73 +486,83 @@ function SalesList() {
     dataAte,
     q,
     equipeFilter,
-    memberIdsByTeam,
+    membrosEquipeFiltro,
     midiaFilter,
   ]);
 
   const fetchSales = useCallback(
-    async (page: number) => {
+    async (page: number, signal?: AbortSignal) => {
       const filters = buildFilters();
       return fetchVendasComerciaisPaginadas({
         page,
         pageSize: PAGE_SIZE,
         soMinhaVez,
         ...filters,
+        signal,
       });
     },
     [buildFilters, soMinhaVez],
   );
 
+  // Pacote financeiro (13 consultas) e IDs por mídia não dependem de busca, status, vez, equipe
+  // nem página: ficam em cache por 60 s e chamadas simultâneas reaproveitam a mesma requisição.
+  // Sem isso, cada filtro/tecla disparava o pacote inteiro de novo e lotava o pool do banco.
+  const resumoCacheRef = useRef<CacheConsultas | null>(null);
+  resumoCacheRef.current ??= criarCacheConsultas(RESUMO_CACHE_MS);
+
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
   // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
   const fetchSummary = useCallback(async () => {
+    const cache = resumoCacheRef.current!;
     return !esteira && dataDe && dataAte
       ? resolverResumoOpcional(
-          Promise.all([fetchFinanceiroBundle(), fetchSaleIdsPorMidia(midiaFilter)]).then(
-            ([bundle, idsDaMidia]) => {
-              // O cartão de efetivadas também segue o filtro de Mídia (só restringe o que já é visível).
-              const efetivadas = filtrarPorSaleIds(
-                aplicarFiltrosEfetivacao(bundle.efetivadas, {
-                  ...filtrosPadraoFinanceiro(),
-                  dataDe,
-                  dataAte,
-                }),
-                idsDaMidia,
-              );
-              const resumo = calcularResumo({
-                parcelas: [],
-                comissoes: [],
-                efetivadas,
-                divergenciasAbertas: bundle.divergencias.length,
-                hoje: dataAte,
-              });
-              const vgvCheio = efetivadas.reduce((s, e) => s + Number(e.valorNegociado || 0), 0);
-              return {
-                quantidade: efetivadas.length,
-                vgv: resumo.vgvEfetivado,
-                vgvCheio: Number(vgvCheio.toFixed(2)),
-                comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
-                comParceriaValorCheio: Number(
-                  efetivadas
-                    .filter((e) => Number(e.parceriaExterna ?? 0) > 0)
-                    .reduce((s, e) => s + Number(e.valorNegociado || 0), 0)
-                    .toFixed(2),
-                ),
-              };
-            },
-          ),
+          Promise.all([
+            cache.buscar("bundle", fetchFinanceiroBundle),
+            cache.buscar(`midia:${midiaFilter}`, () => fetchSaleIdsPorMidia(midiaFilter)),
+          ]).then(([bundle, idsDaMidia]) => {
+            // O cartão de efetivadas também segue o filtro de Mídia (só restringe o que já é visível).
+            const efetivadas = filtrarPorSaleIds(
+              aplicarFiltrosEfetivacao(bundle.efetivadas, {
+                ...filtrosPadraoFinanceiro(),
+                dataDe,
+                dataAte,
+              }),
+              idsDaMidia,
+            );
+            const resumo = calcularResumo({
+              parcelas: [],
+              comissoes: [],
+              efetivadas,
+              divergenciasAbertas: bundle.divergencias.length,
+              hoje: dataAte,
+            });
+            const vgvCheio = efetivadas.reduce((s, e) => s + Number(e.valorNegociado || 0), 0);
+            return {
+              quantidade: efetivadas.length,
+              vgv: resumo.vgvEfetivado,
+              vgvCheio: Number(vgvCheio.toFixed(2)),
+              comParceria: efetivadas.filter((e) => Number(e.parceriaExterna ?? 0) > 0).length,
+              comParceriaValorCheio: Number(
+                efetivadas
+                  .filter((e) => Number(e.parceriaExterna ?? 0) > 0)
+                  .reduce((s, e) => s + Number(e.valorNegociado || 0), 0)
+                  .toFixed(2),
+              ),
+            };
+          }),
         )
       : Promise.resolve(null);
   }, [dataDe, dataAte, esteira, midiaFilter]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
-  const mergeStageSince = async (ids: string[], requestId: number) => {
+  const mergeStageSince = async (ids: string[], requestId: number, signal?: AbortSignal) => {
     if (!ids.length) return;
-    const { data: hist } = await supabase
+    const consulta = supabase
       .from("sale_status_history")
       .select("sale_id, created_at, para")
       .in("sale_id", ids)
       .order("created_at", { ascending: false });
+    const { data: hist } = await (signal ? consulta.abortSignal(signal) : consulta);
     if (requestIdRef.current !== requestId) return;
     setStageSince((prev) => {
       const next = { ...prev };
@@ -567,7 +586,7 @@ function SalesList() {
   const requestIdRef = useRef(0);
 
   const load = useCallback(
-    async (pageToLoad: number) => {
+    async (pageToLoad: number, signal?: AbortSignal) => {
       const myRequestId = ++requestIdRef.current;
       setLoading(true);
       setLoadError(false);
@@ -582,6 +601,7 @@ function SalesList() {
               pageSize: 50,
               soMinhaVez,
               ...filters,
+              signal,
             });
             if (requestIdRef.current !== myRequestId) return;
             todas.push(...(lote.rows as unknown as SalesListRow[]));
@@ -600,13 +620,14 @@ function SalesList() {
           await mergeStageSince(
             todas.map((s) => s.id),
             myRequestId,
+            signal,
           );
           if (requestIdRef.current === myRequestId)
             esteiraLoadedKeyRef.current = esteiraPendingKeyRef.current;
           return;
         }
         const [pageResult, resumoFinanceiro] = await Promise.all([
-          fetchSales(pageToLoad),
+          fetchSales(pageToLoad, signal),
           fetchSummary(),
         ]);
         if (requestIdRef.current !== myRequestId) return;
@@ -623,6 +644,7 @@ function SalesList() {
         await mergeStageSince(
           rows.map((s) => s.id),
           myRequestId,
+          signal,
         );
       } catch {
         if (requestIdRef.current !== myRequestId) return;
@@ -652,6 +674,8 @@ function SalesList() {
   // Na esteira a paginação é local: trocar de página não recarrega do banco.
   const esteiraLoadedKeyRef = useRef("");
   const previousLoadRef = useRef(load);
+  // Filtros da última carga disparada (null = ainda não carregou nenhuma vez).
+  const loadedFilterKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (waitingForSavedTeamFilter) return;
@@ -669,9 +693,22 @@ function SalesList() {
     if (esteira && !loadMudou && esteiraLoadedKeyRef.current === chaveEsteira) return;
     esteiraLoadedKeyRef.current = "";
     esteiraPendingKeyRef.current = chaveEsteira;
-    load(page);
+    // Troca de filtro/tecla espera FILTRO_DEBOUNCE_MS sem nova mudança antes de consultar; a
+    // primeira carga, a troca de página e o recarregar depois de excluir continuam imediatos.
+    const filtroMudou =
+      loadedFilterKeyRef.current !== null && loadedFilterKeyRef.current !== filterKey;
+    // Cancela no navegador a requisição anterior (lista + histórico) quando o filtro muda.
+    const controller = new AbortController();
+    const disparar = () => {
+      loadedFilterKeyRef.current = filterKey;
+      void load(page, controller.signal);
+    };
+    const timer = filtroMudou ? setTimeout(disparar, FILTRO_DEBOUNCE_MS) : null;
+    if (!filtroMudou) disparar();
     return () => {
+      if (timer) clearTimeout(timer);
       requestIdRef.current += 1;
+      controller.abort();
     };
   }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey, esteira]);
 
@@ -694,6 +731,7 @@ function SalesList() {
         toast.success("Venda excluída");
       }
       setToDelete(null);
+      resumoCacheRef.current?.limpar();
       setRefreshKey((k) => k + 1);
       router.invalidate();
     } catch (err: unknown) {
