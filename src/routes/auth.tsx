@@ -9,8 +9,8 @@ const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 // Login só com Google (t_bcc382de, Denis 12/10/2026): a entrada por e-mail/senha saiu da tela e o servidor
 // (hook login_so_google_hook no Supabase Auth) recusa sessão aberta por senha.
 const GOOGLE_LOGIN_URL = IS_HOMOLOG
-  ? "https://conta.unicaescolha.com.br/login?app=adm-max-homolog"
-  : "https://conta.unicaescolha.com.br/login?app=adm-max";
+  ? "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog"
+  : "https://conta.somosmaxhub.com.br/login?app=adm-max";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,

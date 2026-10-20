@@ -86,7 +86,7 @@ function SidebarNav({
       return;
     }
     await signOut();
-    window.location.assign(IS_HOMOLOG ? "/auth" : "https://conta.unicaescolha.com.br/logout");
+    window.location.assign(IS_HOMOLOG ? "/auth" : "https://conta.somosmaxhub.com.br/logout");
   };
 
   const signOutLabel = impersonation

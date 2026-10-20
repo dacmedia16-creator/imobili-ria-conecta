@@ -136,8 +136,8 @@ function fromOrg(o: OrganizationSummary): FormState {
 // Convite só com Google (t_93e80346): o link é a entrada pelo Google (Conta MAX), não "definir senha".
 const redirectTo = () =>
   import.meta.env.VITE_HOMOLOG_ONLY === "true"
-    ? "https://conta.unicaescolha.com.br/login?app=adm-max-homolog"
-    : "https://conta.unicaescolha.com.br/login?app=adm-max";
+    ? "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog"
+    : "https://conta.somosmaxhub.com.br/login?app=adm-max";
 
 async function readLogo(file: File): Promise<Logo> {
   if (!(LOGO_TYPES as readonly string[]).includes(file.type))

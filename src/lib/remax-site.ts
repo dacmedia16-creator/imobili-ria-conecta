@@ -6,7 +6,7 @@
  */
 
 export const REMAX_SEARCH = "https://www.remax.com.br/search";
-export const REMAX_USER_AGENT = "ADM-MAX-coleta/1.0 (+https://unicaescolha.com.br; 1x/dia)";
+export const REMAX_USER_AGENT = "ADM-MAX-coleta/1.0 (+https://app.somosmaxhub.com.br; 1x/dia)";
 export const PAGE_SIZE = 500;
 export const PAUSA_MS = 1500;
 /** Status do anúncio no site: 160 = ativo (168/169/161 = vendido, alugado, suspenso). */
