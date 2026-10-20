@@ -57,6 +57,7 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/admin/dados-imobiliaria", hasAny(["admin", "super_admin"])],
     ["/admin/unidades-captacao", exclusiveVisible && hasAny(["admin", "super_admin"])],
     ["/admin/configuracoes", hasAny(["super_admin"])],
+    ["/admin/assinatura-digital", hasAny(["super_admin"])],
     ["/plataforma/imobiliarias", platformAdmin],
     ["/plataforma/usuarios", platformAdmin],
     ["/plataforma/chamados", platformAdmin],

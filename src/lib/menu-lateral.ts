@@ -23,6 +23,7 @@ import {
   Building2,
   Store,
   Settings2,
+  Signature,
   Building,
   Users,
   Inbox,
@@ -245,6 +246,12 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           to: "/admin/configuracoes",
           label: "Configurações",
           icon: Settings2,
+          show: hasAny(["super_admin"]),
+        },
+        {
+          to: "/admin/assinatura-digital",
+          label: "Assinatura digital",
+          icon: Signature,
           show: hasAny(["super_admin"]),
         },
         {
