@@ -12,6 +12,10 @@ verify_jwt = false
 [functions.suporte-satelite]
 verify_jwt = false
 
+# Autenticada dentro da função: x-email-internal (pg_cron) ou chave service_role (teste manual).
+[functions.send-email-boas-vindas]
+verify_jwt = false
+
 # Público: autenticado pelo HMAC (Content-Hmac) do segredo do webhook de cada organização.
 [functions.clicksign-webhook]
 verify_jwt = false
