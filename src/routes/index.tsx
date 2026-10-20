@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useId } from "react";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
+import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -129,6 +129,13 @@ const CARDS: ServiceCard[] = [
   },
 ];
 
+/** Itens da roda: mesmos sistemas e mesmos destinos dos cartões (fonte única = CARDS). */
+const WHEEL_ITEMS: WheelItem[] = CARDS.map((c) => ({
+  id: c.id as WheelId,
+  title: c.title,
+  href: c.href,
+}));
+
 const ADM_MAX_LOGIN_URL =
   "https://conta.somosmaxhub.com.br/login?app=adm-max&return_to=%2Freservas-salas";
 
@@ -140,42 +147,6 @@ function CardIcon({ card }: { card: ServiceCard }) {
         <img src={card.icon} alt={card.title} style={{ animationDelay: card.delay }} />
       </span>
     </span>
-  );
-}
-
-function HubHex() {
-  const gradientId = `hexFill-${useId()}`;
-  return (
-    <>
-      <div className="hub-hex">
-        <svg viewBox="0 0 200 200">
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0.6" y2="1">
-              <stop offset="0%" stopColor="#14305a" />
-              <stop offset="75%" stopColor="#071325" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M42.474,21.588 Q52,4 72,4 L128,4 Q148,4 157.526,21.588 L190.474,82.412 Q200,100 190.474,117.588 L157.526,178.412 Q148,196 128,196 L72,196 Q52,196 42.474,178.412 L9.526,117.588 Q0,100 9.526,82.412 Z"
-            fill={`url(#${gradientId})`}
-            stroke="#8fb4e8"
-            strokeOpacity="0.55"
-            strokeWidth="3"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <div className="hub-text">
-        <span className="max display">MAX</span>
-        <span className="hub2 display">HUB</span>
-        <span className="underline" />
-        <span className="caption">
-          PLATAFORMA
-          <br />
-          INTEGRADA
-        </span>
-      </div>
-    </>
   );
 }
 
@@ -330,26 +301,6 @@ function FrontPage() {
         .hubpage .mcard.soon .icon-ping, .hubpage .mcard.soon .icon img { animation: none; }
         .hubpage .card.soon:hover .icon img, .hubpage .mcard.soon:hover .icon img { transform: none; }
 
-        .hubpage .hub-hex { position: absolute; inset: 6%; }
-        .hubpage .hub-hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.55)); }
-        .hubpage .hub-text {
-          position: absolute; inset: 9%; z-index: 1;
-          display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-        }
-        .hubpage .hub-text .max { font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 800; letter-spacing: -0.02em; color: #fff; font-size: clamp(1.1rem, 3.3vw, 3.2rem); line-height: 0.9; letter-spacing: 0.02em; }
-        .hubpage .hub-text .hub2 { font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 800; letter-spacing: -0.02em; color: #8fb4e8; font-size: clamp(0.9rem, 2.7vw, 2.55rem); line-height: 0.95; letter-spacing: 0.02em; margin-top: 2%; }
-        .hubpage .hub-text .underline { width: 42%; height: 3px; background: var(--red); margin: 5% 0 0; position: relative; }
-        .hubpage .hub-text .underline::after {
-          content: ""; position: absolute; right: -2px; top: -3.5px;
-          border-style: solid; border-width: 5px 0 5px 8px;
-          border-color: transparent transparent transparent var(--red);
-        }
-        .hubpage .hub-text .caption {
-          margin-top: 6%; text-align: center;
-          font-size: clamp(0.5rem, 0.85vw, 0.95rem); font-weight: 700; letter-spacing: 0.14em;
-          color: rgba(169, 184, 207, 0.85); line-height: 1.35; white-space: nowrap;
-        }
-
         /* ---------- poster (tablet/desktop, >=860px) ---------- */
         .hubpage .stage { display: none; }
         @media (min-width: 860px) {
@@ -410,8 +361,8 @@ function FrontPage() {
         }
         .hubpage .reservation-link svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .reservation-link svg .accent { stroke: var(--red); }
-        .hubpage .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-        .hubpage .hub { position: absolute; left: 36.3%; top: 28.6%; width: 25.6%; height: 45.5%; }
+        /* Roda do MAX HUB no centro do poster (44% da altura; 945/1680 converte para largura). */
+        .hubpage .hub { position: absolute; left: 36.5%; top: 25%; width: 24.75%; z-index: 2; }
         .hubpage .card {
           position: absolute; display: flex; align-items: center; gap: 3.2%;
           background: var(--card-bg); border-radius: 999px;
@@ -518,7 +469,8 @@ function FrontPage() {
         .hubpage .mobile-stage .single-login-actions a { flex: 1; }
         .hubpage .mobile-stage .single-login-status { justify-content: center; padding: 9px 12px; }
 
-        .hubpage .mhub { position: relative; width: 172px; height: 172px; margin: 26px auto 0; }
+        .hubpage .mhub { position: relative; width: 100%; max-width: 420px; margin: 22px auto 0; padding: 0 2px; }
+        .hubpage .mhub-hint { margin: 6px 0 0; text-align: center; color: var(--gray); font-size: 0.78rem; }
 
         .hubpage .mlist { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
         .hubpage .mcard {
@@ -589,53 +541,8 @@ function FrontPage() {
             <span>Reserva de Sala</span>
           </a>
 
-          <svg className="lines" viewBox="0 0 1680 945" preserveAspectRatio="none">
-            <circle
-              cx="825"
-              cy="485"
-              r="215"
-              fill="none"
-              stroke="#8fb4e8"
-              strokeOpacity="0.25"
-              strokeWidth="1.6"
-            />
-            <g
-              fill="none"
-              stroke="#8fb4e8"
-              strokeOpacity="0.45"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M585,340 H700 L758,382" />
-              <path d="M591,505 H660 L616,490" />
-              <path d="M595,665 H700 L768,600" />
-              <path d="M1095,340 H980 L900,382" />
-              <path d="M1100,505 H1000 L1035,490" />
-              <path d="M1095,665 H980 L882,600" />
-              <path d="M842,710 V645" />
-              <path d="M900,600 L980,760 H1125" />
-            </g>
-            <g fill="#dc1c2e">
-              <circle cx="585" cy="340" r="4.5" />
-              <circle cx="758" cy="382" r="4.5" />
-              <circle cx="591" cy="505" r="4.5" />
-              <circle cx="616" cy="490" r="4.5" />
-              <circle cx="595" cy="665" r="4.5" />
-              <circle cx="768" cy="600" r="4.5" />
-              <circle cx="1095" cy="340" r="4.5" />
-              <circle cx="900" cy="382" r="4.5" />
-              <circle cx="1100" cy="505" r="4.5" />
-              <circle cx="1035" cy="490" r="4.5" />
-              <circle cx="1095" cy="665" r="4.5" />
-              <circle cx="882" cy="600" r="4.5" />
-              <circle cx="842" cy="710" r="4.5" />
-              <circle cx="1125" cy="760" r="4.5" />
-              <circle cx="825" cy="270" r="4.5" />
-            </g>
-          </svg>
-
           <div className="hub">
-            <HubHex />
+            <HubWheel items={WHEEL_ITEMS} />
           </div>
 
           {CARDS.map((c) =>
@@ -729,8 +636,9 @@ function FrontPage() {
         <SingleLoginBanner />
 
         <div className="mhub">
-          <HubHex />
+          <HubWheel items={WHEEL_ITEMS} />
         </div>
+        <p className="mhub-hint">Toque num sistema da roda ou escolha na lista abaixo.</p>
 
         <div className="mlist">
           {CARDS.map((c) =>
