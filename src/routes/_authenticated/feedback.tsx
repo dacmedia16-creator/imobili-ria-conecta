@@ -27,6 +27,7 @@ import { errorMessage } from "@/lib/errors";
 import { guardOwnerFeedbackRoute } from "@/lib/owner-feedback-module";
 import { suggestOwnerRecommendation } from "@/lib/owner-feedback.functions";
 import { buildOwnerFeedbackPdf, pdfFileName } from "@/lib/owner-feedback-pdf";
+import { loadCurrentAgencyBrand, logoForPdf, type AgencyBrandInfo } from "@/lib/agency-brand";
 import {
   summarizeActions,
   type ActionList,
@@ -313,6 +314,17 @@ function Review({
   const [saving, setSaving] = useState<string | null>(null);
   const [cap, setCap] = useState<FeedbackCaptacao | null>(null);
   const [plan, setPlan] = useState<PlanItem[]>([]);
+  // Marca da imobiliária do usuário (os anúncios listados já são só dela, pelo RLS).
+  const [agency, setAgency] = useState<AgencyBrandInfo | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadCurrentAgencyBrand().then((b) => {
+      if (alive) setAgency(b);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -406,10 +418,10 @@ function Review({
   const downloadPdf = async () => {
     setPdfLoading(true);
     try {
-      const logo = await fetch("/remax-logo-transparent.png")
-        .then((r) => (r.ok ? r.arrayBuffer() : null))
-        .catch(() => null);
+      const brand = agency ?? (await loadCurrentAgencyBrand());
+      const logo = await logoForPdf(brand?.pdfLogoUrl ?? null);
       const bytes = await buildOwnerFeedbackPdf({
+        agencyName: brand?.nome ?? null,
         listing,
         brokerName: brokerName ?? "",
         ownerName,
@@ -418,7 +430,7 @@ function Review({
         checklist,
         ownerPlan: ownerPlanData,
         imovel,
-        logoPng: logo ? new Uint8Array(logo) : null,
+        logoPng: logo,
       });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
       const a = document.createElement("a");
@@ -450,6 +462,7 @@ function Review({
   const text = ownerMessage({
     ownerName,
     brokerName,
+    agencyName: agency?.nome,
     listing,
     recommendation: rec,
     planText: ownerPlanData ? ownerPlanText(ownerPlanData) : undefined,
@@ -553,7 +566,9 @@ function Review({
                   <li key={`${p.label}-${p.quando}`}>
                     • {p.label}{" "}
                     <span className="text-muted-foreground">
-                      {p.quando.startsWith("Semana ") ? `— ${p.quando}` : `(previsto para ${p.quando})`}
+                      {p.quando.startsWith("Semana ")
+                        ? `— ${p.quando}`
+                        : `(previsto para ${p.quando})`}
                     </span>
                   </li>
                 ))}

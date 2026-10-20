@@ -39,6 +39,22 @@ describe("PDF do feedback", () => {
     expect(doc.getPageCount()).toBe(1);
     expect(bytes.length).toBeGreaterThan(5000);
   });
+  it("faixa do topo usa o nome da imobiliária; sem nome, sai neutra (t_475d2778)", async () => {
+    const listing = groupByListing([snap({})])[0];
+    const { PDFDocument } = await import("pdf-lib");
+    for (const agencyName of ["RE/MAX Volute", null]) {
+      const bytes = await buildOwnerFeedbackPdf({
+        listing,
+        brokerName: "Ana",
+        ownerName: "João",
+        recommendation: "Seguimos.",
+        agencyName,
+        logoPng: null,
+        issuedAt: new Date("2026-10-06T12:00:00Z"),
+      });
+      expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+    }
+  });
   it("limpa caracteres fora da fonte e monta nome do arquivo", () => {
     expect(pdfSafe("Oi 😊 “ok” — já")).toBe('Oi  "ok" - já');
     expect(pdfFileName("630601001-12")).toBe("feedback-630601001-12.pdf");

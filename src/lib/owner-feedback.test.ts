@@ -89,6 +89,28 @@ describe("owner feedback", () => {
     expect(msg).not.toContain("Cliquei Mudei");
   });
 
+  it("assinatura usa o nome da imobiliária e nunca um nome fixo (t_475d2778)", () => {
+    const [l] = groupByListing(rows);
+    const unica = ownerMessage({
+      listing: l,
+      recommendation: "Rec.",
+      brokerName: "Ana Souza",
+      agencyName: "RE/MAX Única Escolha",
+    });
+    expect(unica.endsWith("Ana — RE/MAX Única Escolha")).toBe(true);
+    const outra = ownerMessage({
+      listing: l,
+      recommendation: "Rec.",
+      brokerName: "Ana Souza",
+      agencyName: "RE/MAX Volute",
+    });
+    expect(outra.endsWith("Ana — RE/MAX Volute")).toBe(true);
+    expect(outra).not.toContain("Única");
+    const semNome = ownerMessage({ listing: l, recommendation: "Rec.", brokerName: "Ana Souza" });
+    expect(semNome.endsWith("\nAna")).toBe(true);
+    expect(semNome).not.toContain("Única");
+  });
+
   it("link do WhatsApp com e sem telefone", () => {
     expect(whatsappLink("oi", "(15) 99999-0000")).toBe("https://wa.me/5515999990000?text=oi");
     expect(whatsappLink("oi")).toBe("https://wa.me/?text=oi");

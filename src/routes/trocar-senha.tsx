@@ -61,17 +61,8 @@ function TrocarSenhaPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
       <BrandHeroBackground />
-      {import.meta.env.VITE_HOMOLOG_ONLY === "true" ? (
-        <div className="relative z-10 mb-6 text-2xl font-bold text-white">ADM MAX</div>
-      ) : (
-        <img
-          src="/remax-logo-white.png"
-          width={1600}
-          height={756}
-          alt="RE/MAX Imóveis — Única Escolha"
-          className="relative z-10 mb-6 h-14 w-auto"
-        />
-      )}
+      {/* Marca neutra antes do login (t_475d2778). */}
+      <div className="relative z-10 mb-6 text-2xl font-bold text-white">ADM MAX</div>
       <Card className="relative z-10 w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <ShieldCheck className="mx-auto h-8 w-8 text-primary" />

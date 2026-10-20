@@ -11,6 +11,11 @@ export function fixedLogoForOrganization(id: string): string | null {
   return id === LEGACY_ORG_ID ? "/remax-icon.png" : null;
 }
 
+// Logo do PDF de Feedback da Única enquanto ela não cadastrar logo próprio (mantém o PDF de hoje).
+export function fixedPdfLogoForOrganization(id: string): string | null {
+  return id === LEGACY_ORG_ID ? "/remax-logo-transparent.png" : null;
+}
+
 export type AgencyLetterhead = { name: string; creci: string | null };
 
 export function letterheadForOrganization(

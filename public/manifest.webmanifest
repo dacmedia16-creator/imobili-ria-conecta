@@ -1,7 +1,7 @@
 {
-  "name": "RE/MAX Única Escolha — Portal Interno",
-  "short_name": "RE/MAX Portal",
-  "description": "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões.",
+  "name": "ADM MAX — Gestão para imobiliárias",
+  "short_name": "ADM MAX",
+  "description": "ADM MAX: gestão de vendas, contratos e comissões para imobiliárias.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
