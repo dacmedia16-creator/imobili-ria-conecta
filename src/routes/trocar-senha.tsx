@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BrandHeroBackground } from "@/components/BrandHeroBackground";
+import { MaxHubAuthShell, maxHubPrimaryButton } from "@/components/MaxHubAuthShell";
 import { toast } from "sonner";
 import { ShieldCheck } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
@@ -58,15 +58,13 @@ function TrocarSenhaPage() {
     }
   };
 
+  // Visual no estilo da página MAX HUB (t_610c48f7); marca neutra antes do login (t_475d2778).
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
-      <BrandHeroBackground />
-      {/* Marca neutra antes do login (t_475d2778). */}
-      <div className="relative z-10 mb-6 text-2xl font-bold text-white">ADM MAX</div>
-      <Card className="relative z-10 w-full max-w-md">
+    <MaxHubAuthShell footer={`© ${new Date().getFullYear()} ADM MAX`}>
+      <Card className="mx-auto w-full max-w-md rounded-3xl font-maxhub">
         <CardHeader className="space-y-2 text-center">
-          <ShieldCheck className="mx-auto h-8 w-8 text-primary" />
-          <CardTitle>Troque sua senha</CardTitle>
+          <ShieldCheck className="mx-auto h-8 w-8 text-[#dc1c2e]" />
+          <CardTitle className="font-maxhub-display">Troque sua senha</CardTitle>
           <CardDescription>
             Este é seu primeiro acesso — defina uma senha nova antes de continuar.
           </CardDescription>
@@ -121,12 +119,16 @@ function TrocarSenhaPage() {
                 </p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className={`${maxHubPrimaryButton} h-auto w-full`}
+              disabled={loading}
+            >
               {loading ? "Salvando…" : "Salvar e continuar"}
             </Button>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </MaxHubAuthShell>
   );
 }
