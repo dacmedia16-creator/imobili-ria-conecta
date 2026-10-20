@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   camposFaltando,
   candidatoCompletarPerfil,
+  idDaSessao,
+  lembreteAdiadoNestaSessao,
+  modoCompletarPerfil,
   normalizarCpf,
   precisaCompletarPerfil,
   type PerfilParaCompletar,
@@ -87,6 +90,53 @@ describe("completar perfil no primeiro acesso", () => {
     expect(camposFaltando({ ...completo, nome: "Amanda" })).toEqual(["nome"]);
     expect(camposFaltando({ ...completo, cpf: "111.111.111-11" })).toEqual(["cpf"]);
     expect(camposFaltando({ ...completo, telefone: "1234" })).toEqual(["telefone"]);
+  });
+
+  it("corretor antigo incompleto vê o lembrete (pode pular), não a tela obrigatória", () => {
+    const input = { ...base, roles: ["corretor"], createdAt: ANTIGA, perfil: vazio };
+    expect(modoCompletarPerfil(input)).toBe("lembrete");
+    expect(precisaCompletarPerfil(input)).toBe(false);
+  });
+
+  it("corretor novo incompleto continua obrigado a completar", () => {
+    expect(
+      modoCompletarPerfil({ ...base, roles: ["corretor"], createdAt: NOVA, perfil: vazio }),
+    ).toBe("obrigatorio");
+  });
+
+  it("perfil completo não vê nada, seja conta antiga ou nova", () => {
+    for (const createdAt of [ANTIGA, NOVA]) {
+      expect(
+        modoCompletarPerfil({ ...base, roles: ["corretor"], createdAt, perfil: completo }),
+      ).toBeNull();
+    }
+  });
+
+  it("admin e demais papéis, plataforma e 'Ver como' não veem o lembrete", () => {
+    for (const roles of [["admin"], ["gestor"], ["team_leader"], ["corretor", "admin"], []]) {
+      expect(modoCompletarPerfil({ ...base, roles, createdAt: ANTIGA, perfil: vazio })).toBeNull();
+    }
+    const c = { roles: ["corretor"], createdAt: ANTIGA, perfil: vazio };
+    expect(modoCompletarPerfil({ ...base, ...c, platformAdmin: true })).toBeNull();
+    expect(modoCompletarPerfil({ ...base, ...c, emVisaoDaPlataforma: true })).toBeNull();
+    expect(modoCompletarPerfil({ ...base, ...c, vendoComo: true })).toBeNull();
+  });
+
+  it("'Agora não' vale só para o mesmo login; login novo mostra de novo", () => {
+    expect(lembreteAdiadoNestaSessao("sessao-1", "sessao-1")).toBe(true);
+    expect(lembreteAdiadoNestaSessao("sessao-1", "sessao-2")).toBe(false);
+    expect(lembreteAdiadoNestaSessao(null, "sessao-1")).toBe(false);
+    expect(lembreteAdiadoNestaSessao("sessao-1", null)).toBe(false);
+  });
+
+  it("lê o session_id do token e ignora token inválido", () => {
+    const payload = btoa(JSON.stringify({ sub: "u1", session_id: "abc-123" }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    expect(idDaSessao(`h.${payload}.s`)).toBe("abc-123");
+    expect(idDaSessao("lixo")).toBeNull();
+    expect(idDaSessao(null)).toBeNull();
   });
 
   it("normaliza CPF para o formato do banco", () => {
