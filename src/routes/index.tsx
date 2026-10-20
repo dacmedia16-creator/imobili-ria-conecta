@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId } from "react";
+import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -72,7 +73,7 @@ const CARDS: ServiceCard[] = [
   },
   {
     id: "academia",
-    title: "Academia Única MAX",
+    title: "Academia MAX",
     lines: ["Treinamento e", "desenvolvimento"],
     icon: "/hub/academia.png",
     color: "blue",
@@ -150,15 +151,16 @@ function HubHex() {
         <svg viewBox="0 0 200 200">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0.6" y2="1">
-              <stop offset="0%" stopColor="#243867" />
-              <stop offset="75%" stopColor="#0c1730" />
+              <stop offset="0%" stopColor="#14305a" />
+              <stop offset="75%" stopColor="#071325" />
             </linearGradient>
           </defs>
           <path
             d="M42.474,21.588 Q52,4 72,4 L128,4 Q148,4 157.526,21.588 L190.474,82.412 Q200,100 190.474,117.588 L157.526,178.412 Q148,196 128,196 L72,196 Q52,196 42.474,178.412 L9.526,117.588 Q0,100 9.526,82.412 Z"
             fill={`url(#${gradientId})`}
-            stroke="#dbe4f7"
-            strokeWidth="5"
+            stroke="#8fb4e8"
+            strokeOpacity="0.55"
+            strokeWidth="3"
             strokeLinejoin="round"
           />
         </svg>
@@ -216,18 +218,21 @@ function FrontPage() {
     <div className="hubpage">
       <style>{`
         .hubpage {
-          --bg-a: #eef1f7;
-          --navy: #12213f;
-          --navy-2: #1c2c52;
-          --red: #e5262b;
-          --red-dark: #c81f2c;
-          --blue-line: #4d6fe0;
-          --gray: #5c6478;
-          --card-bg: #ffffff;
+          /* Paleta da página MAX HUB (somosmaxhub.com.br), igual ao login novo (PR #139). */
+          --navy: #0b1b33;
+          --navy-800: #14305a;
+          --red: #dc1c2e;
+          --red-dark: #c41626;
+          --red-soft: #f04a59;
+          --blue-line: #8fb4e8;
+          --gray: #a9b8cf;
+          --gold: #e3c682;
+          --card-bg: rgba(7, 19, 37, 0.72);
+          position: relative; isolation: isolate; overflow-x: hidden;
           min-height: 100vh;
-          background: #dfe4ee;
-          font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-          color: var(--navy);
+          background: var(--navy);
+          font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+          color: #fff;
           padding-bottom: env(safe-area-inset-bottom);
         }
         @font-face {
@@ -245,12 +250,29 @@ function FrontPage() {
           src: url(/fonts/barlow-condensed-600.woff2) format("woff2");
         }
         .hubpage .display { font-family: "Barlow Condensed", "Segoe UI", system-ui, sans-serif; font-weight: 800; }
+        .hubpage .hub-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+        .hubpage .hub-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+          background: radial-gradient(720px circle at 72% 18%, rgb(42 79 134 / 0.45), transparent 60%); }
+        .hubpage a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+        .hubpage .brand { display: inline-flex; align-items: center; text-decoration: none; }
+        .hubpage .eyebrow {
+          display: inline-flex; align-items: center; gap: 10px; margin: 0;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gray);
+        }
+        .hubpage .eyebrow::before { content: ""; width: 24px; height: 1px; background: var(--red); }
+        .hubpage .htitle {
+          font-family: "Sora", ui-sans-serif, system-ui, sans-serif; font-weight: 800;
+          letter-spacing: -0.04em; line-height: 1; color: #fff;
+        }
+        .hubpage .htitle a { color: inherit; text-decoration: none; }
+        .hubpage .htitle .sky { color: var(--blue-line); }
+        .hubpage .htitle .dot { color: var(--red); }
 
         /* ---------- ícones e animações (compartilhados entre poster e lista mobile) ---------- */
         .hubpage .icon-wrap { position: relative; flex: none; width: 26%; aspect-ratio: 1; }
-        .hubpage .icon-wrap.navy { --c1: #22345f; --c2: #0f1c38; }
-        .hubpage .icon-wrap.blue { --c1: #4d6fe0; --c2: #2440ac; }
-        .hubpage .icon-wrap.red { --c1: #ee4147; --c2: var(--red-dark); }
+        .hubpage .icon-wrap.navy { --c1: #2a4f86; --c2: #14305a; }
+        .hubpage .icon-wrap.blue { --c1: #8fb4e8; --c2: #2a4f86; }
+        .hubpage .icon-wrap.red { --c1: var(--red-soft); --c2: var(--red-dark); }
         .hubpage .icon-ping {
           position: absolute; inset: 0; border-radius: 999px;
           background: linear-gradient(160deg, var(--c1), var(--c2));
@@ -258,7 +280,7 @@ function FrontPage() {
         }
         .hubpage .icon {
           position: absolute; inset: 0; border-radius: 999px; background: #fff;
-          box-shadow: 0 0 0 1px rgba(20, 30, 60, 0.06) inset, 0 4px 10px -4px rgba(20, 30, 60, 0.3);
+          box-shadow: 0 0 0 1px rgba(143, 180, 232, 0.35), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
           display: flex; align-items: center; justify-content: center;
           overflow: hidden; padding: 12%;
         }
@@ -285,33 +307,37 @@ function FrontPage() {
         }
         .hubpage .soon-badge {
           position: absolute; right: 10px; top: -9px;
-          background: #fff; border: 1px solid rgba(20, 30, 60, 0.15);
-          color: var(--gray); font-size: 0.62rem; font-weight: 800;
-          letter-spacing: 0.08em; text-transform: uppercase;
-          padding: 2px 9px; border-radius: 999px;
-          box-shadow: 0 4px 10px -4px rgba(20, 30, 60, 0.25);
+          background: var(--navy); border: 1px solid rgba(227, 198, 130, 0.45);
+          color: var(--gold); font-size: 0.62rem; font-weight: 700;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          padding: 2px 10px; border-radius: 999px;
         }
         .hubpage .access-badge {
           position: absolute; right: 10px; top: -9px;
-          background: linear-gradient(135deg, var(--blue-line), #2440ac);
-          color: #fff; font-size: 0.62rem; font-weight: 800;
-          letter-spacing: 0.06em; text-transform: uppercase;
-          padding: 3px 10px; border-radius: 999px;
-          box-shadow: 0 4px 10px -4px rgba(20, 30, 60, 0.4);
+          background: var(--red);
+          color: #fff; font-size: 0.62rem; font-weight: 700;
+          letter-spacing: 0.08em; text-transform: uppercase;
+          padding: 3px 11px; border-radius: 999px;
+          box-shadow: 0 8px 22px -8px rgba(220, 28, 46, 0.75);
+          transition: background 0.2s ease;
         }
-        .hubpage .card.soon, .hubpage .mcard.soon { opacity: 0.62; filter: grayscale(0.4); cursor: default; }
+        .hubpage .card.soon, .hubpage .mcard.soon { cursor: default; border-color: rgba(255, 255, 255, 0.06); background: rgba(7, 19, 37, 0.35); }
+        .hubpage .card.soon .icon-wrap, .hubpage .mcard.soon .icon-wrap { opacity: 0.6; filter: grayscale(0.5); }
+        .hubpage .card.soon h3, .hubpage .mcard.soon h3 { color: rgba(255, 255, 255, 0.8); }
+        .hubpage .card.soon p, .hubpage .mcard.soon p { color: rgba(255, 255, 255, 0.7); }
+        .hubpage a:hover .access-badge { background: var(--red-dark); }
         .hubpage .card.soon .icon-ping, .hubpage .card.soon .icon img,
         .hubpage .mcard.soon .icon-ping, .hubpage .mcard.soon .icon img { animation: none; }
         .hubpage .card.soon:hover .icon img, .hubpage .mcard.soon:hover .icon img { transform: none; }
 
         .hubpage .hub-hex { position: absolute; inset: 6%; }
-        .hubpage .hub-hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 18px 30px rgba(12, 23, 48, 0.35)); }
+        .hubpage .hub-hex svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.55)); }
         .hubpage .hub-text {
           position: absolute; inset: 9%; z-index: 1;
           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
         }
-        .hubpage .hub-text .max { color: #fff; font-size: clamp(1.1rem, 3.3vw, 3.2rem); line-height: 0.9; letter-spacing: 0.02em; }
-        .hubpage .hub-text .hub2 { color: #5b84ff; font-size: clamp(0.9rem, 2.7vw, 2.55rem); line-height: 0.95; letter-spacing: 0.02em; margin-top: 2%; }
+        .hubpage .hub-text .max { font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 800; letter-spacing: -0.02em; color: #fff; font-size: clamp(1.1rem, 3.3vw, 3.2rem); line-height: 0.9; letter-spacing: 0.02em; }
+        .hubpage .hub-text .hub2 { font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 800; letter-spacing: -0.02em; color: #8fb4e8; font-size: clamp(0.9rem, 2.7vw, 2.55rem); line-height: 0.95; letter-spacing: 0.02em; margin-top: 2%; }
         .hubpage .hub-text .underline { width: 42%; height: 3px; background: var(--red); margin: 5% 0 0; position: relative; }
         .hubpage .hub-text .underline::after {
           content: ""; position: absolute; right: -2px; top: -3.5px;
@@ -321,7 +347,7 @@ function FrontPage() {
         .hubpage .hub-text .caption {
           margin-top: 6%; text-align: center;
           font-size: clamp(0.5rem, 0.85vw, 0.95rem); font-weight: 700; letter-spacing: 0.14em;
-          color: rgba(255, 255, 255, 0.42); line-height: 1.35; white-space: nowrap;
+          color: rgba(169, 184, 207, 0.85); line-height: 1.35; white-space: nowrap;
         }
 
         /* ---------- poster (tablet/desktop, >=860px) ---------- */
@@ -336,12 +362,13 @@ function FrontPage() {
           aspect-ratio: 1680 / 945;
           border-radius: 18px;
           overflow: hidden;
-          background: radial-gradient(120% 140% at 78% -10%, #f6f8fc 0%, var(--bg-a) 55%, #e6eaf3 100%);
-          box-shadow: 0 30px 70px -30px rgba(20, 30, 60, 0.35);
+          background: radial-gradient(120% 140% at 78% -10%, rgb(42 79 134 / 0.35) 0%, rgba(7, 19, 37, 0.6) 60%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
         }
         .hubpage .dotgrid {
           position: absolute; left: 0; bottom: 0; width: 15%; height: 30%;
-          background-image: radial-gradient(circle, #b9c3dd 1.6px, transparent 1.6px);
+          background-image: radial-gradient(circle, rgba(143, 180, 232, 0.35) 1.4px, transparent 1.4px);
           background-size: 20px 20px;
           -webkit-mask-image: linear-gradient(115deg, black 20%, transparent 75%);
           mask-image: linear-gradient(115deg, black 20%, transparent 75%);
@@ -349,11 +376,11 @@ function FrontPage() {
         }
         .hubpage .corner-navy {
           position: absolute; right: 0; bottom: 0; width: 36%; height: 26%;
-          background: var(--navy); clip-path: polygon(100% 20%, 100% 100%, 32% 100%);
+          background: var(--navy-800); clip-path: polygon(100% 20%, 100% 100%, 32% 100%);
         }
         .hubpage .corner-seam {
           position: absolute; right: 0; bottom: 0; width: 30%; height: 20%;
-          background: #ff5257; clip-path: polygon(100% 30%, 100% 100%, 42% 100%);
+          background: var(--red-soft); clip-path: polygon(100% 30%, 100% 100%, 42% 100%);
         }
         .hubpage .corner-red {
           position: absolute; right: 0; bottom: 0; width: 27.5%; height: 18%;
@@ -364,74 +391,76 @@ function FrontPage() {
         .hubpage .logo img { width: 100%; height: auto; display: block; transition: transform 0.15s ease, opacity 0.15s ease; }
         .hubpage .logo:hover img { transform: translateY(-1px); opacity: 0.85; }
         .hubpage .titleblock { position: absolute; left: 3.4%; top: 6%; width: 48%; }
-        .hubpage .titleblock h1 { margin: 0; font-size: clamp(2.4rem, 6vw, 6rem); line-height: 0.9; letter-spacing: 0.01em; }
+        .hubpage .titleblock h1 { margin: 0.9rem 0 0; font-size: clamp(2.2rem, 5vw, 5rem); }
         .hubpage .titleblock h1 a, .hubpage .mhero h1 a { text-decoration: none; }
-        .hubpage .titleblock h1 .navy { color: var(--navy); }
-        .hubpage .titleblock h1 .red { color: var(--red); }
-        .hubpage .titleblock p { margin: 0.5rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.35rem); color: var(--gray); font-weight: 500; }
+        .hubpage .titleblock p:not(.eyebrow) { margin: 0.7rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.3rem); color: var(--gray); font-weight: 400; }
         .hubpage .reservation-link {
           position: absolute; right: 3.4%; top: 15.5%; z-index: 4;
           display: inline-flex; align-items: center; justify-content: center; gap: 8px;
           width: 17%; min-width: 154px; max-width: 188px; height: 46px;
-          border: 1px solid rgba(77, 111, 224, 0.85); border-radius: 999px;
-          background: rgba(255, 255, 255, 0.96); color: var(--navy-2);
-          box-shadow: 0 12px 24px -16px rgba(20, 30, 60, 0.52);
-          font-size: clamp(0.68rem, 0.88vw, 0.9rem); font-weight: 700;
+          border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
+          background: rgba(7, 19, 37, 0.55); color: rgba(255, 255, 255, 0.9);
+          font-size: clamp(0.68rem, 0.88vw, 0.9rem); font-weight: 600;
           text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
         }
         .hubpage .reservation-link:hover,
         .hubpage .reservation-link:focus-visible {
-          border-color: var(--blue-line); box-shadow: 0 14px 28px -14px rgba(36, 64, 172, 0.5);
-          transform: translateY(-1px); outline: none;
+          border-color: rgba(255, 255, 255, 0.4); color: #fff;
+          transform: translateY(-1px);
         }
-        .hubpage .reservation-link svg { width: 22px; height: 22px; flex: none; stroke: var(--navy-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .reservation-link svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .reservation-link svg .accent { stroke: var(--red); }
         .hubpage .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
         .hubpage .hub { position: absolute; left: 36.3%; top: 28.6%; width: 25.6%; height: 45.5%; }
         .hubpage .card {
           position: absolute; display: flex; align-items: center; gap: 3.2%;
           background: var(--card-bg); border-radius: 999px;
-          box-shadow: 0 18px 34px -18px rgba(20, 30, 60, 0.28);
-          padding: 0 3.4%;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.7);
+          padding: 0 3.4%; transition: border-color 0.3s ease;
         }
-        .hubpage .txt h3 { margin: 0; color: var(--navy-2); font-weight: 700; font-size: clamp(0.58rem, 1.18vw, 1.12rem); line-height: 1.15; white-space: nowrap; }
-        .hubpage .txt p { margin: 0.2em 0 0; color: var(--gray); font-weight: 500; font-size: clamp(0.52rem, 1.05vw, 1rem); line-height: 1.22; }
+        .hubpage a:hover .card { border-color: rgba(220, 28, 46, 0.5); }
+        .hubpage .txt h3 { margin: 0; color: #fff; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: clamp(0.58rem, 1.18vw, 1.12rem); line-height: 1.15; white-space: nowrap; }
+        .hubpage .txt p { margin: 0.2em 0 0; color: var(--gray); font-weight: 400; font-size: clamp(0.52rem, 1.05vw, 1rem); line-height: 1.22; }
         .hubpage .footbar { position: absolute; left: 3.4%; bottom: 9%; display: flex; align-items: center; gap: 1.1%; }
-        .hubpage .footbar .fico { width: 3.9%; aspect-ratio: 1; border-radius: 22%; background: var(--navy); display: flex; align-items: center; justify-content: center; }
+        .hubpage .footbar .fico { width: 3.9%; aspect-ratio: 1; border-radius: 22%; background: var(--red); display: flex; align-items: center; justify-content: center; }
         .hubpage .footbar .fico svg { width: 55%; height: 55%; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .hubpage .footbar .fdiv { width: 2px; align-self: stretch; background: #9aa4c2; }
-        .hubpage .footbar p { margin: 0; color: var(--navy-2); font-weight: 600; font-size: clamp(0.6rem, 1.15vw, 1.15rem); }
+        .hubpage .footbar .fdiv { width: 1px; align-self: stretch; background: rgba(255, 255, 255, 0.2); }
+        .hubpage .footbar p { margin: 0; color: rgba(255, 255, 255, 0.85); font-weight: 500; font-size: clamp(0.6rem, 1.15vw, 1.15rem); }
         .hubpage a.card-link { text-decoration: none; }
 
         .hubpage .single-login-banner {
           display: flex; align-items: center; gap: 16px;
           color: #fff; text-decoration: none;
           background:
-            radial-gradient(circle at 12% 20%, rgba(88, 132, 255, 0.35), transparent 28%),
-            linear-gradient(115deg, #08152f 0%, #173875 60%, #c51f31 100%);
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          border-radius: 18px; padding: 14px 18px;
-          box-shadow: 0 20px 44px -20px rgba(10, 21, 48, 0.88), 0 0 0 1px rgba(77, 111, 224, 0.12);
+            radial-gradient(420px circle at 85% 0%, rgba(220, 28, 46, 0.18), transparent 60%),
+            #14305a;
+          border: 1px solid rgba(143, 180, 232, 0.35);
+          border-radius: 24px; padding: 16px 20px;
+          box-shadow: 0 30px 80px -30px rgba(42, 79, 134, 0.9);
           cursor: default;
         }
         .hubpage .single-login-icon {
           display: grid; place-items: center; flex: none;
           width: 50px; height: 50px; border-radius: 15px;
-          background: linear-gradient(145deg, #6f95ff, #3159ce);
-          box-shadow: 0 10px 22px -8px rgba(91, 132, 255, 0.95);
+          background: var(--red);
+          box-shadow: 0 10px 30px -8px rgba(220, 28, 46, 0.7);
         }
-        .hubpage .single-login-icon svg { width: 28px; height: 28px; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .single-login-icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .single-login-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; }
         .hubpage .single-login-copy b {
-          color: #b9ccff; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+          color: var(--gray); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
         }
-        .hubpage .single-login-copy strong { margin-top: 2px; font-size: 1.08rem; line-height: 1.15; }
+        .hubpage .single-login-copy strong { margin-top: 4px; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 700; letter-spacing: -0.02em; font-size: 1.1rem; line-height: 1.2; }
         .hubpage .single-login-copy > span { margin-top: 3px; color: rgba(255, 255, 255, 0.78); font-size: 0.8rem; }
         .hubpage .single-login-status {
           display: inline-flex; align-items: center; gap: 7px;
-          flex: none; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff;
-          border: 1px solid rgba(255, 255, 255, 0.24);
-          padding: 10px 16px; font-size: 0.76rem; font-weight: 800; white-space: nowrap;
+          flex: none; border-radius: 999px; background: var(--red); color: #fff;
+          padding: 10px 18px; font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+          transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .hubpage .single-login-status:hover {
+          background: var(--red-dark); box-shadow: 0 10px 40px -8px rgba(220, 28, 46, 0.7);
         }
         .hubpage .single-login-actions {
           display: flex; flex: none; align-items: center; gap: 8px;
@@ -439,26 +468,28 @@ function FrontPage() {
         .hubpage .single-login-actions a { text-decoration: none; }
         .hubpage .single-login-switch {
           display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid rgba(255, 255, 255, 0.32); border-radius: 999px;
-          color: #fff; font-size: 0.72rem; font-weight: 800; padding: 8px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
+          color: rgba(255, 255, 255, 0.85); font-size: 0.78rem; font-weight: 600; padding: 10px 16px;
           transition: background 0.15s ease, border-color 0.15s ease;
         }
         .hubpage .single-login-switch:hover,
         .hubpage .single-login-switch:focus-visible {
-          background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.62);
+          border-color: rgba(255, 255, 255, 0.4); color: #fff;
         }
         .hubpage .single-login-status > span {
           width: 8px; height: 8px; border-radius: 999px; background: #6ee7a8;
           box-shadow: 0 0 0 4px rgba(110, 231, 168, 0.14);
         }
-        .hubpage .stage > .single-login-banner { max-width: 1120px; margin: 0 auto 16px; }
+        .hubpage .stage > .single-login-banner { max-width: 1120px; margin: 0 auto 20px; }
+        .hubpage .topbar { display: none; }
+        @media (min-width: 860px) { .hubpage .topbar { max-width: 1680px; margin: 0 auto; height: 64px; display: flex; align-items: center; padding: 0 clamp(1rem, 3vw, 2.5rem); } }
 
         /* ---------- lista mobile (<860px) ---------- */
         .hubpage .mobile-stage { display: block; max-width: 560px; margin: 0 auto; padding: 0 18px 32px; }
         @media (min-width: 860px) { .hubpage .mobile-stage { display: none; } }
 
         .hubpage .mheader {
-          position: relative; min-height: 34px; display: flex; align-items: center; justify-content: center;
+          position: relative; min-height: 34px; display: flex; align-items: center; justify-content: flex-start;
           padding-top: max(18px, env(safe-area-inset-top));
         }
         .hubpage .mlogo { height: 38px; width: auto; display: block; margin: 0 auto; transition: opacity 0.15s ease; }
@@ -466,18 +497,15 @@ function FrontPage() {
         .hubpage .mobile-reservation-link {
           position: absolute; right: 0; top: max(16px, env(safe-area-inset-top));
           display: inline-flex; align-items: center; gap: 5px;
-          border: 1px solid rgba(77, 111, 224, 0.72); border-radius: 999px;
-          background: rgba(255, 255, 255, 0.96); color: var(--navy-2);
-          box-shadow: 0 8px 18px -14px rgba(20, 30, 60, 0.5);
-          padding: 7px 9px; font-size: 0.66rem; font-weight: 700; text-decoration: none;
+          border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
+          background: rgba(7, 19, 37, 0.55); color: rgba(255, 255, 255, 0.9);
+          padding: 7px 11px; font-size: 0.7rem; font-weight: 600; text-decoration: none;
         }
-        .hubpage .mobile-reservation-link svg { width: 16px; height: 16px; stroke: var(--navy-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .mobile-reservation-link svg { width: 16px; height: 16px; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
-        .hubpage .mhero { margin-top: 56px; text-align: center; }
-        .hubpage .mhero h1 { margin: 0; font-size: 3.2rem; line-height: 0.9; }
-        .hubpage .mhero h1 .navy { color: var(--navy); }
-        .hubpage .mhero h1 .red { color: var(--red); }
-        .hubpage .mhero p { margin: 0.5rem 0 0; color: var(--gray); font-size: 0.9rem; }
+        .hubpage .mhero { margin-top: 40px; text-align: left; }
+        .hubpage .mhero h1 { margin: 0.8rem 0 0; font-size: 3rem; }
+        .hubpage .mhero p:not(.eyebrow) { margin: 0.6rem 0 0; color: var(--gray); font-size: 0.95rem; }
 
         .hubpage .mobile-stage .single-login-banner {
           margin-top: 20px; align-items: flex-start; flex-wrap: wrap; gap: 11px; padding: 14px;
@@ -495,27 +523,37 @@ function FrontPage() {
         .hubpage .mlist { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
         .hubpage .mcard {
           position: relative; display: flex; align-items: center; gap: 14px;
-          background: #fff; border-radius: 20px; padding: 12px 16px;
-          box-shadow: 0 14px 28px -18px rgba(20, 30, 60, 0.32);
-          text-decoration: none; color: inherit;
+          background: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 20px; padding: 14px 16px;
+          text-decoration: none; color: inherit; transition: border-color 0.3s ease;
         }
         .hubpage .mcard .icon-wrap { width: 50px; height: 50px; }
-        .hubpage .mcard h3 { margin: 0; color: var(--navy-2); font-weight: 700; font-size: 0.95rem; }
-        .hubpage .mcard p { margin: 0.15em 0 0; color: var(--gray); font-weight: 500; font-size: 0.8rem; line-height: 1.25; }
+        .hubpage a.mcard:hover, .hubpage a.mcard:active { border-color: rgba(220, 28, 46, 0.5); }
+        .hubpage .mcard h3 { margin: 0; color: #fff; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 600; letter-spacing: -0.01em; font-size: 0.98rem; }
+        .hubpage .mcard p { margin: 0.15em 0 0; color: var(--gray); font-weight: 400; font-size: 0.8rem; line-height: 1.25; }
 
         .hubpage .mfoot {
           display: flex; align-items: flex-start; gap: 12px;
-          margin-top: 28px; padding-top: 18px; border-top: 1px solid rgba(20, 30, 60, 0.08);
+          margin-top: 28px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
         .hubpage .mfoot .fico {
-          width: 34px; height: 34px; border-radius: 22%; background: var(--navy);
+          width: 34px; height: 34px; border-radius: 22%; background: var(--red);
           display: flex; align-items: center; justify-content: center; flex: none;
         }
         .hubpage .mfoot .fico svg { width: 55%; height: 55%; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-        .hubpage .mfoot p { margin: 0; color: var(--navy-2); font-weight: 600; font-size: 0.85rem; line-height: 1.3; }
+        .hubpage .mfoot p { margin: 0; color: rgba(255, 255, 255, 0.85); font-weight: 500; font-size: 0.85rem; line-height: 1.3; }
       `}</style>
 
+      <div className="hub-bg maxhub-grid-lines" aria-hidden="true" />
+      <div className="hub-glow" aria-hidden="true" />
+      <div className="hub-bg maxhub-grain" aria-hidden="true" />
+
       {/* ---------- poster (tablet/desktop) ---------- */}
+      <div className="topbar">
+        <Link to="/auth" className="brand" aria-label="MAX Hub — entrar no portal">
+          <MaxHubLogo />
+        </Link>
+      </div>
       <div className="stage">
         <SingleLoginBanner />
         <div className="canvas">
@@ -525,9 +563,11 @@ function FrontPage() {
           <div className="corner-red" />
 
           <div className="titleblock">
-            <h1 className="display">
+            <p className="eyebrow">Plataforma integrada</p>
+            <h1 className="htitle">
               <Link to="/auth" aria-label="MAX Hub — entrar no portal">
-                <span className="red">MAX</span> <span className="navy">Hub</span>
+                MAX <span className="sky">Hub</span>
+                <span className="dot">.</span>
               </Link>
             </h1>
             <p>Todos os sistemas MAX em um só lugar</p>
@@ -550,8 +590,22 @@ function FrontPage() {
           </a>
 
           <svg className="lines" viewBox="0 0 1680 945" preserveAspectRatio="none">
-            <circle cx="825" cy="485" r="215" fill="none" stroke="#c3cee8" strokeWidth="1.6" />
-            <g fill="none" stroke="#4d6fe0" strokeWidth="2.6" strokeLinecap="round">
+            <circle
+              cx="825"
+              cy="485"
+              r="215"
+              fill="none"
+              stroke="#8fb4e8"
+              strokeOpacity="0.25"
+              strokeWidth="1.6"
+            />
+            <g
+              fill="none"
+              stroke="#8fb4e8"
+              strokeOpacity="0.45"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
               <path d="M585,340 H700 L758,382" />
               <path d="M591,505 H660 L616,490" />
               <path d="M595,665 H700 L768,600" />
@@ -561,7 +615,7 @@ function FrontPage() {
               <path d="M842,710 V645" />
               <path d="M900,600 L980,760 H1125" />
             </g>
-            <g fill="#4d6fe0">
+            <g fill="#dc1c2e">
               <circle cx="585" cy="340" r="4.5" />
               <circle cx="758" cy="382" r="4.5" />
               <circle cx="591" cy="505" r="4.5" />
@@ -641,6 +695,9 @@ function FrontPage() {
       {/* ---------- lista mobile ---------- */}
       <div className="mobile-stage">
         <div className="mheader">
+          <Link to="/auth" className="brand" aria-label="MAX Hub — entrar no portal">
+            <MaxHubLogo />
+          </Link>
           <a
             href={ADM_MAX_LOGIN_URL}
             className="mobile-reservation-link"
@@ -659,9 +716,11 @@ function FrontPage() {
         </div>
 
         <div className="mhero">
-          <h1 className="display">
+          <p className="eyebrow">Plataforma integrada</p>
+          <h1 className="htitle">
             <Link to="/auth" aria-label="MAX Hub — entrar no portal">
-              <span className="red">MAX</span> <span className="navy">Hub</span>
+              MAX <span className="sky">Hub</span>
+              <span className="dot">.</span>
             </Link>
           </h1>
           <p>Todos os sistemas MAX em um só lugar</p>
@@ -719,7 +778,7 @@ function FrontPage() {
         </div>
       </div>
 
-      <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground">
+      <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-white/60">
         Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
         {new Date().getFullYear()} MAX Hub
       </p>
