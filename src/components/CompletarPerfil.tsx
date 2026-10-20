@@ -12,25 +12,62 @@ import { storageOrganizationPath } from "@/lib/storage-org";
 import {
   CAMPO_LABEL,
   camposFaltando,
-  candidatoCompletarPerfil,
+  candidatoPerfilOuLembrete,
+  chaveLembreteAdiado,
+  idDaSessao,
+  lembreteAdiadoNestaSessao,
+  modoCompletarPerfil,
   normalizarCpf,
-  precisaCompletarPerfil,
   type PerfilParaCompletar,
 } from "@/lib/completar-perfil";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-type Estado = "carregando" | "liberado" | "completar";
+type Estado = "carregando" | "liberado" | "completar" | "lembrete";
+
+/** "Agora não" vale até o próximo login: guarda o session_id do login atual (sem ele, só na aba). */
+function lerAdiado(userId: string, sessaoAtual: string | null): boolean {
+  try {
+    if (sessaoAtual)
+      return lembreteAdiadoNestaSessao(
+        window.localStorage.getItem(chaveLembreteAdiado(userId)),
+        sessaoAtual,
+      );
+    return window.sessionStorage.getItem(chaveLembreteAdiado(userId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function gravarAdiado(userId: string, sessaoAtual: string | null) {
+  try {
+    if (sessaoAtual) window.localStorage.setItem(chaveLembreteAdiado(userId), sessaoAtual);
+    else window.sessionStorage.setItem(chaveLembreteAdiado(userId), "1");
+  } catch {
+    /* sem armazenamento: o lembrete só some até recarregar a página */
+  }
+}
 
 /**
- * Porteiro do primeiro acesso (t_9e90351e): para o corretor novo com perfil incompleto, mostra a
- * tela "Complete seu perfil" no lugar do sistema até salvar todos os dados, incluindo a foto.
+ * Porteiro do acesso (t_9e90351e + t_e951a6f1):
+ * - corretor novo com perfil incompleto → tela "Complete seu perfil" obrigatória, até salvar tudo;
+ * - corretor antigo com perfil incompleto → o mesmo formulário como LEMBRETE, com "Agora não"
+ *   (volta a aparecer no próximo login enquanto o perfil estiver incompleto).
  * Qualquer falha ao ler o perfil libera o acesso (nunca trava ninguém por erro).
  */
 export function CompletarPerfilGate({ children }: { children: ReactNode }) {
-  const { user, roles, loading, platformAdmin, platformContext, platformReady, impersonation } =
-    useAuth();
+  const {
+    user,
+    session,
+    roles,
+    loading,
+    platformAdmin,
+    platformContext,
+    platformReady,
+    impersonation,
+  } = useAuth();
+  const sessaoAtual = idDaSessao(session?.access_token);
   const [estado, setEstado] = useState<Estado>("carregando");
   const [perfil, setPerfil] = useState<PerfilParaCompletar | null>(null);
   const userId = user?.id;
@@ -42,7 +79,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
     !loading &&
     platformReady &&
     Boolean(userId) &&
-    candidatoCompletarPerfil({
+    candidatoPerfilOuLembrete({
       roles,
       platformAdmin,
       emVisaoDaPlataforma: Boolean(platformContext),
@@ -79,19 +116,18 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
         };
         if (!vivo) return;
         setPerfil(p);
-        setEstado(
-          precisaCompletarPerfil({
-            roles,
-            platformAdmin,
-            emVisaoDaPlataforma: Boolean(platformContext),
-            vendoComo: Boolean(impersonation),
-            createdAt,
-            forcar,
-            perfil: p,
-          })
-            ? "completar"
-            : "liberado",
-        );
+        const modo = modoCompletarPerfil({
+          roles,
+          platformAdmin,
+          emVisaoDaPlataforma: Boolean(platformContext),
+          vendoComo: Boolean(impersonation),
+          createdAt,
+          forcar,
+          perfil: p,
+        });
+        if (modo === "obrigatorio") setEstado("completar");
+        else if (modo === "lembrete" && !lerAdiado(userId, sessaoAtual)) setEstado("lembrete");
+        else setEstado("liberado");
       } catch {
         if (vivo) setEstado("liberado");
       }
@@ -100,7 +136,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
       vivo = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, platformReady, candidato, userId, createdAt, forcar, rolesKey]);
+  }, [loading, platformReady, candidato, userId, createdAt, forcar, rolesKey, sessaoAtual]);
 
   // Quem não é candidato (admin, gestor, plataforma…) vê o sistema direto, sem tela de espera.
   if (!candidato) return <>{children}</>;
@@ -114,15 +150,30 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
   if (estado === "completar" && perfil) {
     return <CompletarPerfilTela perfil={perfil} onConcluir={() => setEstado("liberado")} />;
   }
+  if (estado === "lembrete" && perfil && userId) {
+    return (
+      <CompletarPerfilTela
+        perfil={perfil}
+        onConcluir={() => setEstado("liberado")}
+        onAgoraNao={() => {
+          gravarAdiado(userId, sessaoAtual);
+          setEstado("liberado");
+        }}
+      />
+    );
+  }
   return <>{children}</>;
 }
 
 function CompletarPerfilTela({
   perfil,
   onConcluir,
+  onAgoraNao,
 }: {
   perfil: PerfilParaCompletar;
   onConcluir: () => void;
+  /** Presente só no modo lembrete (conta antiga): deixa entrar sem completar. */
+  onAgoraNao?: () => void;
 }) {
   const { user, signOut } = useAuth();
   const [nome, setNome] = useState(perfil.nome ?? "");
@@ -237,13 +288,18 @@ function CompletarPerfilTela({
   const inicial = (nome || user?.email || "?").trim()[0]?.toUpperCase() ?? "?";
 
   return (
-    <div className="min-h-screen bg-muted/40 px-4 py-6 sm:py-10" data-testid="completar-perfil">
+    <div
+      className="min-h-screen bg-muted/40 px-4 py-6 sm:py-10"
+      data-testid={onAgoraNao ? "lembrete-perfil" : "completar-perfil"}
+    >
       <div className="mx-auto w-full max-w-md space-y-5 rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
         <div className="space-y-1 text-center">
           <img src="/remax-icon.png" alt="RE/MAX" className="mx-auto h-10 w-10 object-contain" />
           <h1 className="text-xl font-semibold tracking-tight">Complete seu perfil</h1>
           <p className="text-sm text-muted-foreground">
-            Antes de começar, preencha seus dados e coloque uma foto. Leva menos de um minuto.
+            {onAgoraNao
+              ? "Seu perfil ainda está incompleto. Coloque sua foto e confira seus dados. Leva menos de um minuto."
+              : "Antes de começar, preencha seus dados e coloque uma foto. Leva menos de um minuto."}
           </p>
         </div>
 
@@ -361,6 +417,17 @@ function CompletarPerfilTela({
         <Button className="h-11 w-full text-base" onClick={salvar} disabled={salvando}>
           {salvando ? "Salvando…" : "Salvar e entrar"}
         </Button>
+        {onAgoraNao ? (
+          <Button
+            variant="outline"
+            className="h-11 w-full text-base"
+            onClick={onAgoraNao}
+            disabled={salvando}
+            data-testid="lembrete-agora-nao"
+          >
+            Agora não
+          </Button>
+        ) : null}
         <button
           type="button"
           className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"

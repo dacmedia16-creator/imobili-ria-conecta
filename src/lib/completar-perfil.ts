@@ -62,16 +62,38 @@ export function camposFaltando(p: PerfilParaCompletar): CampoPerfil[] {
   return faltando;
 }
 
-/** Decide, só pelo papel e pelo contexto, se a pessoa pode precisar da tela (sem ler o perfil). */
-export function candidatoCompletarPerfil(input: {
+/**
+ * Lembrete "Complete seu perfil" que NÃO trava (t_e951a6f1, escolha de Denis em 20/10/2026): para o
+ * corretor com conta ANTERIOR a COMPLETAR_PERFIL_DESDE e perfil incompleto. Abre o mesmo formulário,
+ * com "Agora não"; volta a aparecer a cada novo login enquanto o perfil estiver incompleto.
+ *
+ * Para desligar só o lembrete (a tela obrigatória continua): troque LEMBRETE_PERFIL_ATIVO para false.
+ */
+export const LEMBRETE_PERFIL_ATIVO = true;
+
+type ContextoAcesso = {
   roles: string[];
   platformAdmin: boolean;
   emVisaoDaPlataforma: boolean;
   vendoComo: boolean;
-}): boolean {
-  if (!COMPLETAR_PERFIL_ATIVO) return false;
+};
+
+/** Só quem é APENAS corretor, fora da visão da plataforma e do "Ver como". */
+function somenteCorretor(input: ContextoAcesso): boolean {
   if (input.platformAdmin || input.emVisaoDaPlataforma || input.vendoComo) return false;
   return input.roles.length > 0 && input.roles.every((r) => r === "corretor");
+}
+
+/** Decide, só pelo papel e pelo contexto, se a pessoa pode precisar da tela (sem ler o perfil). */
+export function candidatoCompletarPerfil(input: ContextoAcesso): boolean {
+  if (!COMPLETAR_PERFIL_ATIVO) return false;
+  return somenteCorretor(input);
+}
+
+/** Pode precisar da tela obrigatória OU do lembrete (decide se vale ler o perfil). */
+export function candidatoPerfilOuLembrete(input: ContextoAcesso): boolean {
+  if (!COMPLETAR_PERFIL_ATIVO && !LEMBRETE_PERFIL_ATIVO) return false;
+  return somenteCorretor(input);
 }
 
 export function contaNova(createdAt: string | null | undefined): boolean {
@@ -96,4 +118,56 @@ export function precisaCompletarPerfil(input: {
     (contaNova(input.createdAt) || input.forcar === true) &&
     camposFaltando(input.perfil).length > 0
   );
+}
+
+export type ModoCompletarPerfil = "obrigatorio" | "lembrete" | null;
+
+/**
+ * "obrigatorio": conta nova (ou marcada) com perfil incompleto — trava até completar.
+ * "lembrete": conta antiga com perfil incompleto — mostra o aviso, mas deixa entrar ("Agora não").
+ * null: não mostra nada (perfil completo, outro papel, plataforma, "Ver como" ou chaves desligadas).
+ */
+export function modoCompletarPerfil(
+  input: Parameters<typeof precisaCompletarPerfil>[0],
+): ModoCompletarPerfil {
+  if (precisaCompletarPerfil(input)) return "obrigatorio";
+  if (
+    LEMBRETE_PERFIL_ATIVO &&
+    somenteCorretor(input) &&
+    !contaNova(input.createdAt) &&
+    input.forcar !== true &&
+    camposFaltando(input.perfil).length > 0
+  )
+    return "lembrete";
+  return null;
+}
+
+/**
+ * Identificador do login atual (claim session_id do token do Supabase): igual durante a sessão,
+ * inclusive após renovar o token, e diferente a cada novo login. "Agora não" vale só para ele.
+ */
+export function idDaSessao(accessToken: string | null | undefined): string | null {
+  try {
+    const payload = (accessToken ?? "").split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      session_id?: unknown;
+    };
+    return typeof json.session_id === "string" && json.session_id ? json.session_id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Chave do "Agora não" no navegador, por usuário. Guarda o session_id do login em que foi adiado. */
+export function chaveLembreteAdiado(userId: string): string {
+  return `max:lembrete-perfil-adiado:${userId}`;
+}
+
+/** O lembrete foi adiado neste mesmo login? (Login novo → session_id diferente → aparece de novo.) */
+export function lembreteAdiadoNestaSessao(
+  adiadoEm: string | null | undefined,
+  sessaoAtual: string | null | undefined,
+): boolean {
+  return Boolean(adiadoEm) && Boolean(sessaoAtual) && adiadoEm === sessaoAtual;
 }
