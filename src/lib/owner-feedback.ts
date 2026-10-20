@@ -253,6 +253,8 @@ const n = (x: number) => x.toLocaleString("pt-BR");
 export function ownerMessage(opts: {
   ownerName?: string;
   brokerName?: string;
+  /** Nome da imobiliária (organizations.nome) que assina junto com o corretor. */
+  agencyName?: string;
   listing: ListingFeedback;
   recommendation: string;
   /** Bloco "O que já fizemos / Próximos passos" do Plano da captação ligada (opcional). */
@@ -265,6 +267,10 @@ export function ownerMessage(opts: {
       `• ${x.label} (${x.periodText}): ${n(x.views ?? 0)} visualizações e ${n(x.contacts ?? 0)} contatos`,
   );
   const outros = listing.lines.filter((x) => !x.confirmed && !x.error).map((x) => x.label);
+  const agency = opts.agencyName?.trim();
+  const assinatura = opts.brokerName
+    ? `\n${opts.brokerName.split(" ")[0]}${agency ? ` — ${agency}` : ""}`
+    : "";
   const partes = [
     `Olá${opts.ownerName ? `, ${opts.ownerName.split(" ")[0]}` : ""}! Tudo bem?`,
     `Segue o acompanhamento do seu imóvel (código ${listing.code}) nos portais:`,
@@ -272,7 +278,7 @@ export function ownerMessage(opts: {
     outros.length ? `Ele também está anunciado em: ${outros.join(", ")}.` : "",
     (opts.planText ?? "").trim(),
     opts.recommendation.trim(),
-    `Qualquer dúvida, estou à disposição.${opts.brokerName ? `\n${opts.brokerName.split(" ")[0]} — RE/MAX Única Escolha` : ""}`,
+    `Qualquer dúvida, estou à disposição.${assinatura}`,
   ];
   return partes.filter(Boolean).join("\n\n");
 }

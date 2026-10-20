@@ -122,25 +122,11 @@ function SidebarNav({
           className={`flex items-center gap-2 border-b border-white/10 py-4 ${collapsed ? "flex-col px-2" : "px-5"}`}
           style={IS_HOMOLOG && agencyBrand?.color ? { borderColor: agencyBrand.color } : undefined}
         >
-          {IS_HOMOLOG ? (
-            agencyBrand?.logoUrl ? (
-              <img
-                src={agencyBrand.logoUrl}
-                alt={`Logo ${agencyBrand.nome}`}
-                className="h-8 w-8 shrink-0 object-contain"
-              />
-            ) : (
-              <Building2 className="h-8 w-8 shrink-0" aria-hidden />
-            )
-          ) : (
-            <img
-              src="/remax-icon.png"
-              width={4500}
-              height={4500}
-              alt="RE/MAX"
-              className="h-8 w-8 shrink-0"
-            />
-          )}
+          <img
+            src={agencyBrand?.logoUrl ?? "/remax-icon.png"}
+            alt={agencyBrand?.logoUrl ? `Logo ${agencyBrand.nome}` : "RE/MAX"}
+            className="h-8 w-8 shrink-0 object-contain"
+          />
           {!collapsed && (
             <div className="min-w-0 flex-1 leading-tight">
               <span className="block truncate font-semibold tracking-tight">
@@ -486,8 +472,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
           <Building2 className="h-4 w-4" aria-hidden />
           <span>
-            {contextBannerText(platformContext)} — visão da plataforma, como administrador (acesso expira às{" "}
-            {formatContextExpiry(platformContext)})
+            {contextBannerText(platformContext)} — visão da plataforma, como administrador (acesso
+            expira às {formatContextExpiry(platformContext)})
           </span>
           <Button
             size="sm"
@@ -547,25 +533,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${topBar ? "top-12" : "top-0"}`}
       >
         <div className="flex items-center gap-2">
-          {IS_HOMOLOG ? (
-            agencyBrand?.logoUrl ? (
-              <img
-                src={agencyBrand.logoUrl}
-                alt={`Logo ${agencyBrand.nome}`}
-                className="h-7 w-7 object-contain"
-              />
-            ) : (
-              <Building2 className="h-7 w-7" aria-hidden />
-            )
-          ) : (
-            <img
-              src="/remax-icon.png"
-              width={4500}
-              height={4500}
-              alt="RE/MAX"
-              className="h-7 w-7"
-            />
-          )}
+          <img
+            src={agencyBrand?.logoUrl ?? "/remax-icon.png"}
+            alt={agencyBrand?.logoUrl ? `Logo ${agencyBrand.nome}` : "RE/MAX"}
+            className="h-7 w-7 object-contain"
+          />
           <span className="font-semibold tracking-tight">
             {IS_HOMOLOG
               ? platformAdmin && !platformContext

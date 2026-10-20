@@ -1,6 +1,6 @@
 /**
  * PDF do Feedback ao Proprietário (A4, quantas páginas precisar).
- * Visual: faixa azul RE/MAX no topo, cartão do imóvel, cartões de resumo, tabela de portais,
+ * Visual: faixa azul no topo com nome e logo da imobiliária (t_475d2778), cartão do imóvel, cartões de resumo, tabela de portais,
  * ações concluídas com selo de peso, próximas ações numeradas e recomendação em destaque.
  * Regra de dados: número só com período confirmado; erro de coleta = "sem atualização".
  */
@@ -23,8 +23,10 @@ export interface OwnerPdfInput {
   ownerPlan?: OwnerPlan | null;
   /** Imóvel descrito pela captação (ex.: "Casa · Jardim Europa"). */
   imovel?: string | null;
-  /** PNG do logo (opcional). */
+  /** Logo da imobiliária em PNG ou JPG (opcional; sem logo o PDF sai sem logo). */
   logoPng?: Uint8Array | null;
+  /** Nome da imobiliária (organizations.nome) na faixa do topo; sem nome, só o título. */
+  agencyName?: string | null;
   /** Data de emissão (padrão: hoje). */
   issuedAt?: Date;
 }
@@ -133,7 +135,15 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
       const H = 118;
       page.drawRectangle({ x: 0, y: PH - H, width: PW, height: H, color: BLUE });
       page.drawRectangle({ x: 0, y: PH - H - 4, width: PW, height: 4, color: RED });
-      txt("GESTÃO DO SEU IMÓVEL  ·  RE/MAX", M, PH - 40, 8.5, bold, rgb(0.75, 0.83, 1));
+      const agency = input.agencyName?.trim();
+      txt(
+        agency ? `GESTÃO DO SEU IMÓVEL  ·  ${agency.toUpperCase()}` : "GESTÃO DO SEU IMÓVEL",
+        M,
+        PH - 40,
+        8.5,
+        bold,
+        rgb(0.75, 0.83, 1),
+      );
       txt("Feedback do imóvel", M, PH - 70, 26, bold, WHITE);
       const issued = (input.issuedAt ?? new Date()).toLocaleDateString("pt-BR", {
         timeZone: "America/Sao_Paulo",
@@ -168,7 +178,9 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   // Logo num cartão branco sobre a faixa azul
   if (input.logoPng?.length) {
     try {
-      const img = await pdf.embedPng(input.logoPng);
+      // Logo da imobiliária pode vir em PNG ou JPG (upload aceita os dois).
+      const isPng = input.logoPng[0] === 0x89 && input.logoPng[1] === 0x50;
+      const img = isPng ? await pdf.embedPng(input.logoPng) : await pdf.embedJpg(input.logoPng);
       const lh = 46;
       const lw = (img.width / img.height) * lh;
       const bw = lw + 24;

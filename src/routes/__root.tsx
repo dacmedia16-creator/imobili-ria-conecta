@@ -15,6 +15,16 @@ import type { RouterAuth } from "@/lib/route-access";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 const HOMOLOG_URL = "https://adm-max-homolog.dacmedia16.workers.dev";
+// Marca neutra (t_475d2778): antes do login a imobiliária ainda não é conhecida, e o mesmo
+// portal atende várias imobiliárias. A og-image antiga dizia "Sistema exclusivo RE/MAX Única
+// Escolha", por isso saiu do cartão de compartilhamento.
+const SITE_TITLE = IS_HOMOLOG ? "ADM MAX — Homologação" : "ADM MAX — Portal da imobiliária";
+const SITE_DESCRIPTION = IS_HOMOLOG
+  ? "Ambiente interno de demonstração do ADM MAX, com dados fictícios."
+  : "ADM MAX: gestão de vendas, contratos e comissões para imobiliárias, do cadastro ao pós-venda.";
+const SHARE_DESCRIPTION = IS_HOMOLOG
+  ? "Ambiente interno de demonstração do ADM MAX."
+  : SITE_DESCRIPTION;
 
 function NotFoundComponent() {
   return (
@@ -78,47 +88,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient; auth
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: IS_HOMOLOG ? "ADM MAX — Homologação" : "RE/MAX Única Escolha — Portal Interno" },
-      {
-        name: "description",
-        content: IS_HOMOLOG
-          ? "Ambiente interno de demonstração do ADM MAX, com dados fictícios."
-          : "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
-      },
-      {
-        property: "og:title",
-        content: IS_HOMOLOG ? "ADM MAX — Homologação" : "RE/MAX Única Escolha — Portal Interno",
-      },
-      {
-        property: "og:description",
-        content: IS_HOMOLOG
-          ? "Ambiente interno de demonstração do ADM MAX."
-          : "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
-      },
+      { title: SITE_TITLE },
+      { name: "description", content: SITE_DESCRIPTION },
+      { property: "og:title", content: SITE_TITLE },
+      { property: "og:description", content: SHARE_DESCRIPTION },
       { property: "og:type", content: "website" },
+      // Domínio mantido: a troca de domínio é outra tarefa (migração de domínio).
       { property: "og:url", content: IS_HOMOLOG ? HOMOLOG_URL : "https://unicaescolha.com.br" },
-      ...(!IS_HOMOLOG
-        ? [
-            { property: "og:image", content: "https://unicaescolha.com.br/og-image.png" },
-            { property: "og:image:width", content: "1200" },
-            { property: "og:image:height", content: "630" },
-          ]
-        : []),
       { property: "og:locale", content: "pt_BR" },
-      { name: "twitter:card", content: IS_HOMOLOG ? "summary" : "summary_large_image" },
-      {
-        name: "twitter:title",
-        content: IS_HOMOLOG ? "ADM MAX — Homologação" : "RE/MAX Única Escolha — Portal Interno",
-      },
-      {
-        name: "twitter:description",
-        content: IS_HOMOLOG
-          ? "Ambiente interno de demonstração do ADM MAX."
-          : "Sistema exclusivo RE/MAX Única Escolha para gestão de vendas, contratos e comissões, do cadastro ao pós-venda.",
-      },
-      ...(!IS_HOMOLOG
-        ? [{ name: "twitter:image", content: "https://unicaescolha.com.br/og-image.png" }]
-        : []),
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: SITE_TITLE },
+      { name: "twitter:description", content: SHARE_DESCRIPTION },
       ...(IS_HOMOLOG ? [{ name: "robots", content: "noindex, nofollow, noarchive" }] : []),
       { name: "theme-color", content: "#0b1330" },
       { name: "mobile-web-app-capable", content: "yes" },
