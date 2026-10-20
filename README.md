@@ -1,6 +1,6 @@
 # RE/MAX Única Escolha — Portal Interno
 
-Sistema interno (TanStack Start + Supabase) pra gestão de vendas, contratos e comissões. Deploy: Cloudflare Workers, domínio [unicaescolha.com.br](https://unicaescolha.com.br).
+Sistema interno (TanStack Start + Supabase) pra gestão de vendas, contratos e comissões. Deploy: Cloudflare Workers, domínio [app.somosmaxhub.com.br](https://app.somosmaxhub.com.br).
 
 ## Gerenciador de pacotes: Bun
 

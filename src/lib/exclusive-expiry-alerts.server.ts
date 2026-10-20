@@ -28,7 +28,10 @@ export function weekStart(today: string): string {
 
 const MAX_LINES = 15;
 /** Mensagem só com dados do imóvel e do captador (nunca do proprietário). */
-export function expiryMessage(items: ExpiryItem[], appUrl = "https://unicaescolha.com.br"): string {
+export function expiryMessage(
+  items: ExpiryItem[],
+  appUrl = "https://app.somosmaxhub.com.br",
+): string {
   const line = ({ c, v }: ExpiryItem) => {
     const i = c.form_data.imovel;
     const imovel = [i?.endereco?.trim() || i?.tipo_imovel?.trim() || "Imovel", i?.bairro?.trim()]

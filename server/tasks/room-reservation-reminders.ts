@@ -4,7 +4,7 @@ import { reminderMessage, type RoomReservationRow } from "../../src/lib/room-res
 import { runRoomReservationReminders } from "../../src/lib/room-reservation-reminders.server";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
-const APP_URL = process.env.APP_URL || "https://unicaescolha.com.br";
+const APP_URL = process.env.APP_URL || "https://app.somosmaxhub.com.br";
 
 async function sendReminder(
   row: RoomReservationRow,

@@ -93,8 +93,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient; auth
       { property: "og:title", content: SITE_TITLE },
       { property: "og:description", content: SHARE_DESCRIPTION },
       { property: "og:type", content: "website" },
-      // Domínio mantido: a troca de domínio é outra tarefa (migração de domínio).
-      { property: "og:url", content: IS_HOMOLOG ? HOMOLOG_URL : "https://unicaescolha.com.br" },
+      // Domínio novo (t_97380535). O antigo unicaescolha.com.br segue no ar e depois redireciona (301).
+      { property: "og:url", content: IS_HOMOLOG ? HOMOLOG_URL : "https://app.somosmaxhub.com.br" },
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: SITE_TITLE },

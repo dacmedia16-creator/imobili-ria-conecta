@@ -40,7 +40,7 @@ const ORG_B = "2a000000-0000-4000-8000-0000000000b0"; // Agência B fictícia
 const RUN = Date.now().toString(36);
 const PASSWORD = `Homolog-${RUN}-x9!`;
 // Convite só com Google (t_93e80346): o link de convite é a entrada pelo Google (Conta MAX).
-const REDIRECT = "https://conta.unicaescolha.com.br/login?app=adm-max-homolog";
+const REDIRECT = "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog";
 /** CNPJ fictício válido e único por execução (evita colisão com sobras de execuções anteriores). */
 function cnpjDoRun(): string {
   const base = (Date.now() % 1e12).toString().padStart(12, "0");

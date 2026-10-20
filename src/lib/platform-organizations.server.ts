@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OrgScopeError } from "./org-scope";
+import { CONTA_MAX_ORIGIN, isContaMaxLoginUrl } from "./dominios";
 import {
   friendlyOrgError,
   LOGO_MAX_BYTES,
@@ -183,7 +184,7 @@ async function storeLogo(admin: SupabaseClient, orgId: string, logo: LogoUpload)
 }
 
 /** Endereço oficial do login Google (ponte Conta MAX). */
-export const CONTA_MAX_LOGIN_ORIGIN = "https://conta.unicaescolha.com.br";
+export const CONTA_MAX_LOGIN_ORIGIN = CONTA_MAX_ORIGIN;
 
 /**
  * Convite só com Google (t_93e80346): não gera mais link de "definir senha" (recovery). O convite é
@@ -197,7 +198,8 @@ async function inviteLink(_admin: SupabaseClient, _email: string, redirectTo: st
   } catch {
     throw new Error("Endereço de convite inválido.");
   }
-  if (url.origin !== CONTA_MAX_LOGIN_ORIGIN || url.pathname !== "/login") {
+  // Convivência de domínios: aceita conta.somosmaxhub e conta.unicaescolha (lista).
+  if (!isContaMaxLoginUrl(url)) {
     throw new Error("O convite precisa apontar para o login Google (Conta MAX).");
   }
   return url.toString();

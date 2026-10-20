@@ -3,7 +3,7 @@ import { defineTask } from "nitro/task";
 import { runClicksignAvisos, type PendenteWhats } from "../../src/lib/clicksign-avisos.server";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
-const APP_URL = process.env.APP_URL || "https://unicaescolha.com.br";
+const APP_URL = process.env.APP_URL || "https://app.somosmaxhub.com.br";
 
 export default defineTask({
   meta: {

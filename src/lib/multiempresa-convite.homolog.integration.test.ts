@@ -43,7 +43,7 @@ const ORG_B = "2a000000-0000-4000-8000-0000000000b0"; // Agência B fictícia
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PASSWORD = `Homolog-${RUN}-x9!`;
 // Convite só com Google (t_93e80346): o link de convite é a entrada pelo Google (Conta MAX).
-const REDIRECT = "https://conta.unicaescolha.com.br/login?app=adm-max-homolog";
+const REDIRECT = "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog";
 const IMOVEL = `E2EC-${RUN}`; // prefixo das vendas fictícias deste ensaio
 const DOCS = "sale-documents";
 
