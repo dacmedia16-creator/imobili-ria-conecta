@@ -62,6 +62,45 @@ async function readLogo(file: File): Promise<Logo> {
   return { base64: btoa(bin), contentType: file.type as Logo["contentType"], name: file.name };
 }
 
+// Seletor de cor + código #RRGGBB (mesmo padrão do cadastro de organização do super-admin).
+// Borda clara + código ao lado: a amostra fica visível mesmo com cor escura no fundo escuro.
+function CorCampo({
+  id,
+  rotulo,
+  valor,
+  onChange,
+}: {
+  id: string;
+  rotulo: string;
+  valor: string;
+  onChange: (v: string) => void;
+}) {
+  const valida = /^#[0-9a-f]{6}$/i.test(valor);
+  return (
+    <div className={label}>
+      <label htmlFor={id}>{rotulo}</label>
+      <div className="mt-1.5 flex items-center gap-2">
+        <input
+          type="color"
+          aria-label={`${rotulo} (seletor)`}
+          value={valida ? valor : "#ffffff"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-11 w-14 shrink-0 cursor-pointer rounded-xl border-2 border-white/60 bg-white p-1"
+        />
+        <input
+          id={id}
+          className={`${input} mt-0`}
+          placeholder="#RRGGBB (opcional)"
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={7}
+          autoComplete="off"
+        />
+      </div>
+    </div>
+  );
+}
+
 function Card({ children, titulo }: { children: React.ReactNode; titulo: string }) {
   return (
     <section
@@ -146,9 +185,9 @@ function CadastroPage() {
       <MaxHubAuthShell footer={footer}>
         <Card titulo="Cadastro concluído!">
           <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-white/85">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden />
-            A {pronto.nome} já está ativa no ADM MAX e você é o administrador. Entre com a mesma
-            conta Google para começar.
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden />A{" "}
+            {pronto.nome} já está ativa no ADM MAX e você é o administrador. Entre com a mesma conta
+            Google para começar.
           </p>
           <a href={entrar} className={`${maxHubPrimaryButton} mt-7 w-full`}>
             Entrar no ADM MAX <ArrowRight size={18} aria-hidden="true" />
@@ -263,24 +302,18 @@ function CadastroPage() {
                 ))}
               </select>
             </label>
-            <label className={label}>
-              Cor principal
-              <input
-                className={`${input} h-11 p-1`}
-                type="color"
-                value={form.corPrimaria || "#0d1f3b"}
-                onChange={(e) => set("corPrimaria", e.target.value)}
-              />
-            </label>
-            <label className={label}>
-              Cor secundária
-              <input
-                className={`${input} h-11 p-1`}
-                type="color"
-                value={form.corSecundaria || "#dc1c2e"}
-                onChange={(e) => set("corSecundaria", e.target.value)}
-              />
-            </label>
+            <CorCampo
+              id="cad-cor1"
+              rotulo="Cor principal"
+              valor={form.corPrimaria ?? ""}
+              onChange={(v) => set("corPrimaria", v)}
+            />
+            <CorCampo
+              id="cad-cor2"
+              rotulo="Cor secundária"
+              valor={form.corSecundaria ?? ""}
+              onChange={(v) => set("corSecundaria", v)}
+            />
             <label className={`${label} sm:col-span-2`}>
               Logo (PNG, JPG ou WEBP, até 1 MB)
               <input
