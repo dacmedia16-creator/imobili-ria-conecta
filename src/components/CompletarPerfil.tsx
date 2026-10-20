@@ -1,0 +1,399 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Camera, ImageUp, LogOut, UserRound } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { profileRegistrations } from "@/lib/exclusive-captures-db";
+import { storageOrganizationPath } from "@/lib/storage-org";
+import {
+  CAMPO_LABEL,
+  camposFaltando,
+  candidatoCompletarPerfil,
+  normalizarCpf,
+  precisaCompletarPerfil,
+  type PerfilParaCompletar,
+} from "@/lib/completar-perfil";
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+type Estado = "carregando" | "liberado" | "completar";
+
+/**
+ * Porteiro do primeiro acesso (t_9e90351e): para o corretor novo com perfil incompleto, mostra a
+ * tela "Complete seu perfil" no lugar do sistema até salvar todos os dados, incluindo a foto.
+ * Qualquer falha ao ler o perfil libera o acesso (nunca trava ninguém por erro).
+ */
+export function CompletarPerfilGate({ children }: { children: ReactNode }) {
+  const { user, roles, loading, platformAdmin, platformContext, platformReady, impersonation } =
+    useAuth();
+  const [estado, setEstado] = useState<Estado>("carregando");
+  const [perfil, setPerfil] = useState<PerfilParaCompletar | null>(null);
+  const userId = user?.id;
+  const createdAt = user?.created_at;
+  const forcar =
+    (user?.app_metadata as { completar_perfil?: unknown } | undefined)?.completar_perfil === true;
+
+  const candidato =
+    !loading &&
+    platformReady &&
+    Boolean(userId) &&
+    candidatoCompletarPerfil({
+      roles,
+      platformAdmin,
+      emVisaoDaPlataforma: Boolean(platformContext),
+      vendoComo: Boolean(impersonation),
+    });
+  const rolesKey = roles.join(",");
+
+  useEffect(() => {
+    if (loading || !platformReady) return;
+    if (!candidato || !userId) {
+      setEstado("liberado");
+      return;
+    }
+    let vivo = true;
+    setEstado("carregando");
+    (async () => {
+      try {
+        const [{ data, error }, registros] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("nome, telefone, avatar_url")
+            .eq("id", userId)
+            .maybeSingle(),
+          profileRegistrations(),
+        ]);
+        if (error || !data) throw error ?? new Error("perfil não encontrado");
+        const meu = registros.find((r) => r.user_id === userId);
+        const p: PerfilParaCompletar = {
+          nome: data.nome,
+          telefone: data.telefone,
+          avatar_url: data.avatar_url,
+          cpf: meu?.cpf ?? null,
+          creci: meu?.creci ?? null,
+        };
+        if (!vivo) return;
+        setPerfil(p);
+        setEstado(
+          precisaCompletarPerfil({
+            roles,
+            platformAdmin,
+            emVisaoDaPlataforma: Boolean(platformContext),
+            vendoComo: Boolean(impersonation),
+            createdAt,
+            forcar,
+            perfil: p,
+          })
+            ? "completar"
+            : "liberado",
+        );
+      } catch {
+        if (vivo) setEstado("liberado");
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, platformReady, candidato, userId, createdAt, forcar, rolesKey]);
+
+  // Quem não é candidato (admin, gestor, plataforma…) vê o sistema direto, sem tela de espera.
+  if (!candidato) return <>{children}</>;
+  if (estado === "carregando") {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Carregando…
+      </div>
+    );
+  }
+  if (estado === "completar" && perfil) {
+    return <CompletarPerfilTela perfil={perfil} onConcluir={() => setEstado("liberado")} />;
+  }
+  return <>{children}</>;
+}
+
+function CompletarPerfilTela({
+  perfil,
+  onConcluir,
+}: {
+  perfil: PerfilParaCompletar;
+  onConcluir: () => void;
+}) {
+  const { user, signOut } = useAuth();
+  const [nome, setNome] = useState(perfil.nome ?? "");
+  const [telefone, setTelefone] = useState(perfil.telefone ?? "");
+  const [cpf, setCpf] = useState(perfil.cpf ?? "");
+  const [creci, setCreci] = useState(perfil.creci ?? "");
+  const [remaxId, setRemaxId] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(perfil.avatar_url);
+  const [foto, setFoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [tentouSalvar, setTentouSalvar] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galeriaRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const atual: PerfilParaCompletar = {
+    nome,
+    telefone,
+    avatar_url: foto ? "nova" : avatarUrl,
+    cpf,
+    creci,
+  };
+  const faltando = camposFaltando(atual);
+  const erro = (campo: (typeof faltando)[number]) => tentouSalvar && faltando.includes(campo);
+
+  const escolherFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!TIPOS_FOTO.includes(file.type)) {
+      toast.error("Use uma foto em JPG, PNG ou WEBP.");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      toast.error("Foto muito grande (máx. 5 MB).");
+      return;
+    }
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setFoto(file);
+  };
+
+  const salvar = async () => {
+    if (!user) return;
+    setTentouSalvar(true);
+    if (faltando.length > 0) {
+      toast.error(`Falta preencher: ${faltando.map((c) => CAMPO_LABEL[c]).join(", ")}.`);
+      return;
+    }
+    const rid = remaxId.replace(/\D/g, "");
+    if (rid && rid.length !== 9) {
+      toast.error("O ID RE/MAX tem 9 números (ex.: 630601272). Deixe em branco se não tiver.");
+      return;
+    }
+    setSalvando(true);
+    try {
+      let url = avatarUrl;
+      if (foto) {
+        // Mesmo caminho e bucket da tela "Meu acesso".
+        const path = await storageOrganizationPath(`${user.id}/avatar`);
+        const { error: upErr } = await supabase.storage
+          .from("avatars")
+          .upload(path, foto, { upsert: true, contentType: foto.type });
+        if (upErr) throw new Error("Não foi possível enviar a foto. Tente de novo.");
+        url = `${supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl}?t=${Date.now()}`;
+      }
+      const patch: {
+        nome: string;
+        telefone: string;
+        cpf: string | null;
+        creci: string;
+        avatar_url: string | null;
+        remax_id?: string;
+      } = {
+        nome: nome.trim().replace(/\s+/g, " "),
+        telefone: telefone.trim(),
+        cpf: normalizarCpf(cpf),
+        creci: creci.trim(),
+        avatar_url: url,
+      };
+      if (rid) patch.remax_id = rid;
+      const { error } = await supabase.from("profiles").update(patch).eq("id", user.id);
+      if (error) {
+        if (/profiles_remax_id_org_uniq|duplicate/i.test(error.message))
+          throw new Error(
+            "Esse ID RE/MAX já está em outro cadastro. Deixe em branco e fale com o administrador.",
+          );
+        if (/cpf/i.test(error.message)) throw new Error("CPF inválido. Confira os números.");
+        if (/creci/i.test(error.message))
+          throw new Error("CRECI inválido. Use só letras, números e - . /");
+        throw new Error("Não foi possível salvar agora. Tente de novo.");
+      }
+      setAvatarUrl(url);
+      setFoto(null);
+      toast.success("Perfil completo. Bem-vindo(a)!");
+      onConcluir();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar agora.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const inicial = (nome || user?.email || "?").trim()[0]?.toUpperCase() ?? "?";
+
+  return (
+    <div className="min-h-screen bg-muted/40 px-4 py-6 sm:py-10" data-testid="completar-perfil">
+      <div className="mx-auto w-full max-w-md space-y-5 rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
+        <div className="space-y-1 text-center">
+          <img src="/remax-icon.png" alt="RE/MAX" className="mx-auto h-10 w-10 object-contain" />
+          <h1 className="text-xl font-semibold tracking-tight">Complete seu perfil</h1>
+          <p className="text-sm text-muted-foreground">
+            Antes de começar, preencha seus dados e coloque uma foto. Leva menos de um minuto.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          <Avatar
+            className={`h-28 w-28 ring-2 ring-offset-2 ring-offset-background ${erro("foto") ? "ring-destructive" : "ring-primary/20"}`}
+          >
+            <AvatarImage src={preview ?? avatarUrl ?? undefined} alt="Sua foto de perfil" />
+            <AvatarFallback className="text-3xl">
+              {preview || avatarUrl ? inicial : <UserRound className="h-12 w-12 opacity-50" />}
+            </AvatarFallback>
+          </Avatar>
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={escolherFoto}
+            data-testid="foto-camera"
+          />
+          <input
+            ref={galeriaRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={escolherFoto}
+            data-testid="foto-galeria"
+          />
+          <div className="grid w-full grid-cols-2 gap-2">
+            <Button type="button" variant="outline" onClick={() => cameraRef.current?.click()}>
+              <Camera className="h-4 w-4" aria-hidden /> Tirar foto
+            </Button>
+            <Button type="button" variant="outline" onClick={() => galeriaRef.current?.click()}>
+              <ImageUp className="h-4 w-4" aria-hidden /> Da galeria
+            </Button>
+          </div>
+          <p className={`text-xs ${erro("foto") ? "text-destructive" : "text-muted-foreground"}`}>
+            Foto obrigatória: rosto visível, de frente.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <Campo id="cp-nome" label="Nome completo" erro={erro("nome")} dica="Nome e sobrenome.">
+            <Input
+              id="cp-nome"
+              autoComplete="name"
+              value={nome}
+              maxLength={120}
+              onChange={(e) => setNome(e.target.value)}
+            />
+          </Campo>
+          <Campo id="cp-email" label="E-mail">
+            <Input id="cp-email" value={user?.email ?? ""} disabled readOnly />
+          </Campo>
+          <Campo
+            id="cp-telefone"
+            label="Telefone (WhatsApp)"
+            erro={erro("telefone")}
+            dica="Com DDD."
+          >
+            <Input
+              id="cp-telefone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="(15) 99123-4567"
+              value={telefone}
+              maxLength={20}
+              onChange={(e) => setTelefone(e.target.value)}
+            />
+          </Campo>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Campo
+              id="cp-cpf"
+              label="CPF"
+              erro={erro("cpf")}
+              dica={erro("cpf") ? "CPF inválido." : undefined}
+            >
+              <Input
+                id="cp-cpf"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                value={cpf}
+                maxLength={14}
+                onChange={(e) => setCpf(e.target.value)}
+              />
+            </Campo>
+            <Campo id="cp-creci" label="CRECI" erro={erro("creci")}>
+              <Input
+                id="cp-creci"
+                placeholder="Ex.: 123456-F"
+                value={creci}
+                maxLength={50}
+                onChange={(e) => setCreci(e.target.value)}
+              />
+            </Campo>
+          </div>
+          <Campo
+            id="cp-remax"
+            label="ID RE/MAX (opcional)"
+            dica="9 números. Deixe em branco se ainda não tiver."
+          >
+            <Input
+              id="cp-remax"
+              inputMode="numeric"
+              placeholder="Ex.: 630601272"
+              value={remaxId}
+              maxLength={9}
+              onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
+            />
+          </Campo>
+        </div>
+
+        <Button className="h-11 w-full text-base" onClick={salvar} disabled={salvando}>
+          {salvando ? "Salvando…" : "Salvar e entrar"}
+        </Button>
+        <button
+          type="button"
+          className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"
+          onClick={() => void signOut().then(() => window.location.assign("/auth"))}
+        >
+          <LogOut className="h-3.5 w-3.5" aria-hidden /> Sair
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Campo({
+  id,
+  label,
+  erro,
+  dica,
+  children,
+}: {
+  id: string;
+  label: string;
+  erro?: boolean;
+  dica?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className={erro ? "text-destructive" : undefined}>
+        {label}
+        {erro ? " — obrigatório" : ""}
+      </Label>
+      {children}
+      {dica && <p className="text-xs text-muted-foreground">{dica}</p>}
+    </div>
+  );
+}

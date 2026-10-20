@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
+import { CompletarPerfilGate } from "@/components/CompletarPerfil";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -11,9 +12,11 @@ export const Route = createFileRoute("/_authenticated")({
   },
   component: () => (
     <AuthProvider>
-      <AppShell>
-        <Outlet />
-      </AppShell>
+      <CompletarPerfilGate>
+        <AppShell>
+          <Outlet />
+        </AppShell>
+      </CompletarPerfilGate>
     </AuthProvider>
   ),
 });
