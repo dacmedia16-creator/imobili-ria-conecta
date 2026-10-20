@@ -45,6 +45,7 @@ import {
   updatePlatformOrganization,
 } from "@/lib/platform-organizations.functions";
 import { Switch } from "@/components/ui/switch";
+import { OrgInvitesPanel } from "@/components/platform/OrgInvitesPanel";
 import {
   formatCnpj,
   ORGANIZATION_MODULE_LABELS,
@@ -663,6 +664,8 @@ function PlatformOrganizations() {
           </div>
         )
       )}
+
+      <OrgInvitesPanel />
 
       {orgs && (orgs.length > 0 || query) && (
         <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">

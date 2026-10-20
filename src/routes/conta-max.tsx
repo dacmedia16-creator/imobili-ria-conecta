@@ -1,7 +1,13 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { retryContaMaxLogin, startContaMaxBridge, type ContaMaxFailure } from "./conta-max-flow";
+import {
+  retryContaMaxLogin,
+  runContaMaxInvite,
+  startContaMaxBridge,
+  type ContaMaxFailure,
+} from "./conta-max-flow";
+import { INVITE_CLAIM_STORAGE, pendingInviteStorage, takePendingInvite } from "@/lib/org-invites";
 
 export const Route = createFileRoute("/conta-max")({
   ssr: false,
@@ -14,6 +20,28 @@ function ContaMaxBridge() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Login iniciado por um convite (t_6e4dab96): a ponte só confere o e-mail e reserva o cadastro.
+    const inviteToken = takePendingInvite(pendingInviteStorage(window));
+    if (inviteToken) {
+      let active = true;
+      void runContaMaxInvite({
+        ticket: params.get("ticket"),
+        inviteToken,
+        invoke: (body) => supabase.functions.invoke("conta-max-bridge", { body }),
+      }).then((r) => {
+        if (!active) return;
+        if (r.ok) window.sessionStorage.setItem(INVITE_CLAIM_STORAGE, r.claim);
+        else window.sessionStorage.removeItem(INVITE_CLAIM_STORAGE);
+        void router.navigate({
+          to: "/convite/cadastro",
+          search: r.ok ? {} : { erro: r.code },
+          replace: true,
+        });
+      });
+      return () => {
+        active = false;
+      };
+    }
     return startContaMaxBridge({
       ticket: params.get("ticket"),
       returnTo: params.get("return_to"),

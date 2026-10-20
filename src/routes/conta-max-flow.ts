@@ -95,6 +95,41 @@ export function startContaMaxBridge(options: {
   };
 }
 
+/**
+ * Volta da Conta MAX quando o login começou por um convite (t_6e4dab96). A ponte só devolve uma
+ * reserva de cadastro se o e-mail Google for exatamente o convidado; nenhuma sessão é aberta aqui.
+ */
+export async function runContaMaxInvite(options: {
+  ticket: string | null;
+  inviteToken: string;
+  invoke: (body: { ticket: string; invite_token: string }) => Promise<{
+    data: { invite_claim?: string } | null;
+    error: { context?: { status?: number; json?: () => Promise<unknown> } } | null;
+  }>;
+}): Promise<{ ok: true; claim: string } | { ok: false; code: string }> {
+  if (!options.ticket) return { ok: false, code: "invalid_ticket" };
+  try {
+    const { data, error } = await options.invoke({
+      ticket: options.ticket,
+      invite_token: options.inviteToken,
+    });
+    if (error) {
+      let code = "convite_falhou";
+      try {
+        const body = (await error.context?.json?.()) as { error?: unknown } | undefined;
+        if (typeof body?.error === "string") code = body.error;
+      } catch {
+        /* corpo ilegível: mensagem genérica */
+      }
+      return { ok: false, code };
+    }
+    if (!data?.invite_claim) return { ok: false, code: "convite_falhou" };
+    return { ok: true, claim: data.invite_claim };
+  } catch {
+    return { ok: false, code: "convite_falhou" };
+  }
+}
+
 export function retryContaMaxLogin(options: {
   supabaseUrl: string | undefined;
   homolog: boolean;

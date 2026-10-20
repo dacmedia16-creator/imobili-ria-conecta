@@ -16,12 +16,17 @@ import {
   type Banco,
   chaveServidorOk,
   type Config,
+  DOMINIO_MESSAGE_ID,
+  mascararErro,
   type Mensagem,
+  NOME_REMETENTE,
   processarFila,
+  REMETENTE,
   segredoInternoOk,
   testeFicticio,
   testeUsuario,
 } from "./core.ts";
+import { enviarConvite } from "../_shared/email-convite/envio.ts";
 
 const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 const resp = (body: unknown, status = 200) =>
@@ -110,6 +115,28 @@ Deno.serve(async (req) => {
   const db = banco(admin);
   try {
     if (body?.acao === "processar") return resp(await processarFila(db, smtp, SEGREDOS));
+    // Convite de autocadastro (t_6e4dab96): chamado só pelo servidor do ADM (chave service_role)
+    // logo depois de o super-admin criar/reenviar o convite. Destino = e-mail gravado no convite.
+    if (body?.acao === "convite" && manual) {
+      return resp(
+        await enviarConvite(
+          {
+            async dados(id) {
+              const { data, error } = await admin.rpc("org_invite_email_data", { _id: id });
+              if (error) throw new Error("org_invite_email_data falhou");
+              return (Array.isArray(data) ? data[0] : data) ?? null;
+            },
+            async marcar(id, ok, erro) {
+              await admin.rpc("org_invite_mark_sent", { _id: id, _ok: ok, _erro: erro ?? null });
+            },
+          },
+          smtp,
+          { inviteId: body.invite_id, token: body.token, appUrl: body.app_url },
+          { from: `"${NOME_REMETENTE}" <${REMETENTE}>`, dominio: DOMINIO_MESSAGE_ID },
+          (e) => mascararErro(e, SEGREDOS),
+        ),
+      );
+    }
     if (body?.acao === "teste" && manual) {
       if (typeof body.user_id === "string")
         return resp(await testeUsuario(db, smtp, body.user_id, SEGREDOS));

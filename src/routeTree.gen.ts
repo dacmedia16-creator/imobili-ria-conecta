@@ -38,6 +38,8 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
 import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
+import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
+import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
@@ -214,6 +216,16 @@ const AuthenticatedVisaoExecutivaRoute =
     path: '/visao-executiva',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ConviteTokenRoute = ConviteTokenRouteImport.update({
+  id: '/convite/$token',
+  path: '/convite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConviteCadastroRoute = ConviteCadastroRouteImport.update({
+  id: '/convite/cadastro',
+  path: '/convite/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminAssinaturaDigitalRoute =
   AuthenticatedAdminAssinaturaDigitalRouteImport.update({
     id: '/admin/assinatura-digital',
@@ -338,6 +350,8 @@ export interface FileRoutesByFullPath {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/convite/$token': typeof ConviteTokenRoute
+  '/convite/cadastro': typeof ConviteCadastroRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -384,6 +398,8 @@ export interface FileRoutesByTo {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/convite/$token': typeof ConviteTokenRoute
+  '/convite/cadastro': typeof ConviteCadastroRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -432,6 +448,8 @@ export interface FileRoutesById {
   '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/convite/$token': typeof ConviteTokenRoute
+  '/convite/cadastro': typeof ConviteCadastroRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -480,6 +498,8 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/convite/$token'
+    | '/convite/cadastro'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -526,6 +546,8 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/convite/$token'
+    | '/convite/cadastro'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -573,6 +595,8 @@ export interface FileRouteTypes {
     | '/_authenticated/reservas-salas'
     | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
+    | '/convite/$token'
+    | '/convite/cadastro'
     | '/_authenticated/admin/assinatura-digital'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
@@ -599,6 +623,8 @@ export interface RootRouteChildren {
   EspecialistasRoute: typeof EspecialistasRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
+  ConviteTokenRoute: typeof ConviteTokenRoute
+  ConviteCadastroRoute: typeof ConviteCadastroRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -805,6 +831,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/visao-executiva'
       preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/convite/$token': {
+      id: '/convite/$token'
+      path: '/convite/$token'
+      fullPath: '/convite/$token'
+      preLoaderRoute: typeof ConviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/convite/cadastro': {
+      id: '/convite/cadastro'
+      path: '/convite/cadastro'
+      fullPath: '/convite/cadastro'
+      preLoaderRoute: typeof ConviteCadastroRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/assinatura-digital': {
       id: '/_authenticated/admin/assinatura-digital'
@@ -1021,6 +1061,8 @@ const rootRouteChildren: RootRouteChildren = {
   EspecialistasRoute: EspecialistasRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
+  ConviteTokenRoute: ConviteTokenRoute,
+  ConviteCadastroRoute: ConviteCadastroRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -159,8 +159,11 @@ function decodeLogo(logo: LogoUpload): { bytes: Uint8Array; ext: string } {
   return { bytes, ext };
 }
 
-/** Grava o logo em `<org>/logo-<ts>.<ext>` e remove o anterior. Chamar após assertPlatformAdmin. */
-async function storeLogo(admin: SupabaseClient, orgId: string, logo: LogoUpload) {
+/**
+ * Grava o logo em `<org>/logo-<ts>.<ext>` e remove o anterior. Chamar após assertPlatformAdmin
+ * (ou, no autocadastro por convite, logo depois do aceite atômico da imobiliária recém-criada).
+ */
+export async function storeLogo(admin: SupabaseClient, orgId: string, logo: LogoUpload) {
   const { bytes, ext } = decodeLogo(logo);
   const { data: current } = await admin
     .from("organizations")
@@ -206,7 +209,7 @@ async function inviteLink(_admin: SupabaseClient, _email: string, redirectTo: st
 }
 
 /** Cria o primeiro administrador DENTRO da agência (app_metadata) sem senha e sem e-mail. */
-async function createFirstAdmin(
+export async function createFirstAdmin(
   admin: SupabaseClient,
   orgId: string,
   input: Pick<FirstAdminInput, "nome" | "email">,
@@ -246,7 +249,11 @@ async function createFirstAdmin(
   const ins = await admin
     .from("user_roles")
     .insert({ organization_id: orgId, user_id: userId, role });
-  if (ins.error) throw new Error(ins.error.message);
+  if (ins.error) {
+    // Sem o papel, o usuário ficaria sem função e travaria o e-mail: apaga antes de devolver o erro.
+    await admin.auth.admin.deleteUser(userId);
+    throw new Error(ins.error.message);
+  }
   return userId;
 }
 
