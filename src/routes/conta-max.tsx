@@ -7,7 +7,7 @@ import {
   startContaMaxBridge,
   type ContaMaxFailure,
 } from "./conta-max-flow";
-import { INVITE_CLAIM_STORAGE, takePendingInvite } from "@/lib/org-invites";
+import { INVITE_CLAIM_STORAGE, pendingInviteStorage, takePendingInvite } from "@/lib/org-invites";
 
 export const Route = createFileRoute("/conta-max")({
   ssr: false,
@@ -21,7 +21,7 @@ function ContaMaxBridge() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     // Login iniciado por um convite (t_6e4dab96): a ponte só confere o e-mail e reserva o cadastro.
-    const inviteToken = takePendingInvite(window.sessionStorage);
+    const inviteToken = takePendingInvite(pendingInviteStorage(window));
     if (inviteToken) {
       let active = true;
       void runContaMaxInvite({

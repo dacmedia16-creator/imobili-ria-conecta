@@ -7,10 +7,10 @@ import {
   MaxHubMark,
   maxHubPrimaryButton,
 } from "@/components/MaxHubAuthShell";
-import { INVITE_TOKEN_RE, savePendingInvite } from "@/lib/org-invites";
+import { INVITE_TOKEN_RE, pendingInviteStorage, savePendingInvite } from "@/lib/org-invites";
 import { contaMaxLoginUrl } from "@/lib/dominios";
 
-// Link do e-mail de convite (t_6e4dab96). Guarda o token só nesta aba e leva para o login da Conta MAX
+// Link do e-mail de convite (t_6e4dab96). Guarda o token no navegador (localStorage, 30 min, uso único) e leva para o login da Conta MAX
 // (o mesmo "Entrar com Google" do ADM). Na volta, /conta-max confere o e-mail e abre o cadastro.
 export const Route = createFileRoute("/convite/$token")({
   ssr: false,
@@ -29,7 +29,7 @@ function ConvitePage() {
 
   useEffect(() => {
     if (!valido) return;
-    savePendingInvite(window.sessionStorage, token);
+    savePendingInvite(pendingInviteStorage(window), token);
     setPronto(true);
   }, [token, valido]);
 

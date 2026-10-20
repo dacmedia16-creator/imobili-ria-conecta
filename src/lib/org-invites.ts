@@ -50,6 +50,20 @@ export const INVITE_PENDING_TTL_MS = 30 * 60_000;
 
 type KV = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+/**
+ * Onde o token pendente fica: localStorage (vale para todas as abas do mesmo navegador), porque no
+ * celular o link costuma abrir no navegador interno do Gmail e o login pode voltar em outra aba.
+ * A validade de 30 min e o uso único (takePendingInvite apaga) limitam o efeito de ficar guardado.
+ */
+export function pendingInviteStorage(w: { localStorage?: Storage; sessionStorage?: Storage }): KV {
+  try {
+    if (w.localStorage) return w.localStorage;
+  } catch {
+    /* localStorage bloqueado: cai para a aba */
+  }
+  return w.sessionStorage as KV;
+}
+
 export function savePendingInvite(storage: KV, token: string, now = Date.now()) {
   storage.setItem(INVITE_TOKEN_STORAGE, JSON.stringify({ token, at: now }));
 }

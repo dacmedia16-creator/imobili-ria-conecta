@@ -6,6 +6,7 @@ import {
   inviteErrorMessage,
   inviteModules,
   newInviteToken,
+  pendingInviteStorage,
   savePendingInvite,
   selfSignupSchema,
   sha256Hex,
@@ -57,6 +58,43 @@ describe("token e status do convite", () => {
     expect(takePendingInvite(s, 2_000)).toBeNull();
     savePendingInvite(s, t, 0);
     expect(takePendingInvite(s, 31 * 60_000)).toBeNull();
+  });
+
+  it("token pendente vai para o localStorage (sobrevive à troca de aba do Gmail no celular)", () => {
+    const local = memStorage();
+    const session = memStorage();
+    const w = { localStorage: local, sessionStorage: session } as unknown as {
+      localStorage: Storage;
+      sessionStorage: Storage;
+    };
+    const t = newInviteToken();
+    // aba 1 (navegador interno do Gmail) guarda
+    savePendingInvite(pendingInviteStorage(w), t, 1_000);
+    expect(session.getItem("adm_max_convite_token")).toBeNull();
+    // aba 2 (volta do login) lê no mesmo localStorage, dentro dos 30 min, uma vez só
+    expect(takePendingInvite(pendingInviteStorage(w), 29 * 60_000)).toBe(t);
+    expect(local.getItem("adm_max_convite_token")).toBeNull();
+    // passado 30 min, mesmo no localStorage, não vale e é apagado
+    savePendingInvite(pendingInviteStorage(w), t, 0);
+    expect(takePendingInvite(pendingInviteStorage(w), 30 * 60_000 + 1)).toBeNull();
+    expect(local.getItem("adm_max_convite_token")).toBeNull();
+    // localStorage bloqueado: cai para a aba
+    const bloqueado = {
+      get localStorage(): Storage {
+        throw new Error("SecurityError");
+      },
+      sessionStorage: session as unknown as Storage,
+    };
+    savePendingInvite(pendingInviteStorage(bloqueado), t, 1_000);
+    expect(takePendingInvite(session, 2_000)).toBe(t);
+  });
+
+  it("as telas usam o localStorage para o token pendente", () => {
+    for (const f of ["src/routes/convite.$token.tsx", "src/routes/conta-max.tsx"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src).toMatch(/PendingInvite\(pendingInviteStorage\(window\)/);
+      expect(src).not.toMatch(/PendingInvite\(window\.sessionStorage/);
+    }
   });
 
   it("mensagens claras para link inválido, expirado, usado, cancelado e conta errada", () => {
