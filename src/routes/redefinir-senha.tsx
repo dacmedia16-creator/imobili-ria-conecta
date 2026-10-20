@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BrandHeroBackground } from "@/components/BrandHeroBackground";
+import { MaxHubAuthShell, maxHubPrimaryButton } from "@/components/MaxHubAuthShell";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
@@ -59,15 +59,13 @@ function RedefinirSenhaPage() {
     }
   };
 
+  // Visual no estilo da página MAX HUB (t_610c48f7); marca neutra antes do login (t_475d2778).
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
-      <BrandHeroBackground />
-      {/* Marca neutra antes do login (t_475d2778). */}
-      <div className="relative z-10 mb-6 text-2xl font-bold text-white">ADM MAX</div>
-      <Card className="relative z-10 w-full max-w-md">
+    <MaxHubAuthShell footer={`© ${new Date().getFullYear()} ADM MAX`}>
+      <Card className="mx-auto w-full max-w-md rounded-3xl font-maxhub">
         <CardHeader className="space-y-2 text-center">
-          <KeyRound className="mx-auto h-8 w-8 text-primary" />
-          <CardTitle>Redefinir senha</CardTitle>
+          <KeyRound className="mx-auto h-8 w-8 text-[#dc1c2e]" />
+          <CardTitle className="font-maxhub-display">Redefinir senha</CardTitle>
           <CardDescription>Defina uma nova senha para sua conta.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -120,12 +118,16 @@ function RedefinirSenhaPage() {
                 </p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className={`${maxHubPrimaryButton} h-auto w-full`}
+              disabled={loading}
+            >
               {loading ? "Salvando…" : "Redefinir senha"}
             </Button>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </MaxHubAuthShell>
   );
 }

@@ -184,3 +184,39 @@
     display: none;
   }
 }
+
+/* ---- Identidade MAX HUB nas telas pré-login (t_610c48f7) ----
+ * Fontes e texturas iguais às da página MAX HUB (somosmaxhub.com.br). Escopo: .maxhub-auth. */
+@font-face {
+  font-family: "Sora";
+  src: url("/fonts/sora-latin.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@utility font-maxhub {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+@utility font-maxhub-display {
+  font-family: "Sora", ui-sans-serif, system-ui, sans-serif;
+}
+.maxhub-auth :focus-visible {
+  outline: 2px solid #e3c682;
+  outline-offset: 3px;
+}
+.maxhub-grid-lines {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 30%, black 30%, transparent 75%);
+}
+.maxhub-grain {
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
