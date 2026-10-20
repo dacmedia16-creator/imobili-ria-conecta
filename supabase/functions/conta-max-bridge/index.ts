@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bridgeOrgGate, resolveBridgeLink, ticketEmailVerified } from "./core.ts";
+import { reservarConvite } from "./convite.ts";
 
 const encoder = new TextEncoder();
 const cors = {
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (secret.length < 32 || !url || !serviceKey || !anonKey)
     return response({ error: "bridge_not_configured" }, 503);
-  const { ticket } = await req.json().catch(() => ({ ticket: "" }));
+  const { ticket, invite_token } = await req.json().catch(() => ({ ticket: "" }));
   const payload = await verify(String(ticket ?? ""), secret);
   if (!payload) return response({ error: "invalid_ticket" }, 401);
   if (!ticketEmailVerified(payload)) return response({ error: "email_not_verified" }, 403);
@@ -65,6 +66,18 @@ Deno.serve(async (req) => {
     .from("conta_max_ticket_uses")
     .insert({ jti: payload.jti, expires_at: new Date(payload.exp * 1000).toISOString() });
   if (useError) return response({ error: "ticket_reused" }, 409);
+  // Convite de autocadastro (t_6e4dab96): só reserva o cadastro se o e-mail do passe for o convidado.
+  // Não emite sessão: o dono entra de verdade depois de concluir o cadastro.
+  if (invite_token !== undefined && invite_token !== null && invite_token !== "") {
+    const r = await reservarConvite(admin, {
+      inviteToken: invite_token,
+      email: payload.email,
+      sub: String(payload.sub),
+    });
+    return r.ok
+      ? response({ invite_claim: r.claim, email: r.email })
+      : response({ error: r.error }, r.status);
+  }
   // Nunca sobrescreve nem reativa vínculo existente (ver resolveBridgeLink em core.ts).
   const resolved = await resolveBridgeLink(admin, String(payload.sub), payload.email);
   if (!resolved.ok) return response({ error: resolved.error }, resolved.status);
