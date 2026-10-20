@@ -4,6 +4,7 @@ import {
   modoAssinatura,
   mostrarEnvioManualSimples,
   mostrarEscolhaAssinatura,
+  mostrarEscolhaAtalhoGestor,
   podeDevolverDaAssinatura,
   podeMarcarAssinado,
   podeOperarAssinatura,
@@ -34,7 +35,9 @@ const env = (status: SaleEnvelopeInfo["status"]): SaleEnvelopeInfo => ({
   error_code: null,
   signed: false,
 });
-const cs = (over: Partial<Extract<ClicksignSaleConfig, { enabled: true }>> = {}): ClicksignSaleConfig => ({
+const cs = (
+  over: Partial<Extract<ClicksignSaleConfig, { enabled: true }>> = {},
+): ClicksignSaleConfig => ({
   enabled: true,
   test_mode: true,
   can_send: true,
@@ -77,13 +80,23 @@ describe("assinatura manual: escolha Clicksign ou papel (contrato_ok_corretor)",
       expect(mostrarEscolhaAssinatura(cs(), "contrato_ok_corretor", p)).toBe(true);
       expect(mostrarEnvioManualSimples(cs(), "contrato_ok_corretor", p)).toBe(false);
     }
-    expect(mostrarEscolhaAssinatura(cs({ can_send: false }), "contrato_ok_corretor", P.corretor)).toBe(false);
-    expect(mostrarEnvioManualSimples(cs({ can_send: false }), "contrato_ok_corretor", P.corretor)).toBe(false);
+    expect(
+      mostrarEscolhaAssinatura(cs({ can_send: false }), "contrato_ok_corretor", P.corretor),
+    ).toBe(false);
+    expect(
+      mostrarEnvioManualSimples(cs({ can_send: false }), "contrato_ok_corretor", P.corretor),
+    ).toBe(false);
   });
   it("sem Clicksign na org: volta o botão manual de sempre (sem cartão de escolha)", () => {
-    expect(mostrarEscolhaAssinatura(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.gestor)).toBe(false);
-    expect(mostrarEnvioManualSimples(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.gestor)).toBe(true);
-    expect(mostrarEnvioManualSimples(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.juridico)).toBe(true);
+    expect(
+      mostrarEscolhaAssinatura(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.gestor),
+    ).toBe(false);
+    expect(
+      mostrarEnvioManualSimples(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.gestor),
+    ).toBe(true);
+    expect(
+      mostrarEnvioManualSimples(SALE_CLICKSIGN_DISABLED, "contrato_ok_corretor", P.juridico),
+    ).toBe(true);
   });
   it("fora de contrato_ok_corretor não mostra a escolha", () => {
     expect(mostrarEscolhaAssinatura(cs(), "aguardando_assinatura", P.gestor)).toBe(false);
@@ -91,32 +104,96 @@ describe("assinatura manual: escolha Clicksign ou papel (contrato_ok_corretor)",
   });
 });
 
+describe("atalho do gestor em contrato_conferencia_gestor (t_70ebc484)", () => {
+  it("com Clicksign: só gestor/team leader (isGestor) recebe a escolha digital ou papel", () => {
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_conferencia_gestor", P.gestor)).toBe(true);
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_conferencia_gestor", P.teamLeader)).toBe(
+      true,
+    );
+    // Mesmos papéis do atalho de antes: jurídico, ADM sem gestão e corretor não.
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_conferencia_gestor", P.juridico)).toBe(false);
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_conferencia_gestor", P.adm)).toBe(false);
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_conferencia_gestor", P.corretor)).toBe(false);
+  });
+  it("sem Clicksign (ou sem can_send): nada muda, o atalho vai direto para o papel", () => {
+    expect(
+      mostrarEscolhaAtalhoGestor(SALE_CLICKSIGN_DISABLED, "contrato_conferencia_gestor", P.gestor),
+    ).toBe(false);
+    expect(
+      mostrarEscolhaAtalhoGestor(cs({ can_send: false }), "contrato_conferencia_gestor", P.gestor),
+    ).toBe(false);
+  });
+  it("só nessa etapa", () => {
+    expect(mostrarEscolhaAtalhoGestor(cs(), "contrato_ok_corretor", P.gestor)).toBe(false);
+    expect(mostrarEscolhaAtalhoGestor(cs(), "aguardando_assinatura", P.gestor)).toBe(false);
+  });
+  it("depois do papel pelo atalho, a venda cai no mesmo modo manual (jurídico não marca)", () => {
+    expect(modoAssinatura(cs(), "aguardando_assinatura")).toBe("manual");
+    expect(podeMarcarAssinado(P.juridico)).toBe(false);
+  });
+});
+
 describe("assinatura manual: status e troca de ideia (aguardando_assinatura)", () => {
   it("sem envelope ativo = manual, com rótulo 'Aguardando assinatura manual'", () => {
     expect(modoAssinatura(cs(), "aguardando_assinatura")).toBe("manual");
     expect(modoAssinatura(SALE_CLICKSIGN_DISABLED, "aguardando_assinatura")).toBe("manual");
-    expect(modoAssinatura(cs({ envelope: env("canceled") }), "aguardando_assinatura")).toBe("manual");
+    expect(modoAssinatura(cs({ envelope: env("canceled") }), "aguardando_assinatura")).toBe(
+      "manual",
+    );
     expect(rotuloStatusAssinatura(cs(), "aguardando_assinatura")).toBe(STATUS_AGUARDANDO_MANUAL);
   });
   it("envelope em envio/assinatura = Clicksign (sem rótulo manual)", () => {
-    expect(modoAssinatura(cs({ envelope: env("running") }), "aguardando_assinatura")).toBe("clicksign");
-    expect(modoAssinatura(cs({ envelope: env("sending") }), "aguardando_assinatura")).toBe("clicksign");
-    expect(rotuloStatusAssinatura(cs({ envelope: env("running") }), "aguardando_assinatura")).toBeNull();
+    expect(modoAssinatura(cs({ envelope: env("running") }), "aguardando_assinatura")).toBe(
+      "clicksign",
+    );
+    expect(modoAssinatura(cs({ envelope: env("sending") }), "aguardando_assinatura")).toBe(
+      "clicksign",
+    );
+    expect(
+      rotuloStatusAssinatura(cs({ envelope: env("running") }), "aguardando_assinatura"),
+    ).toBeNull();
     expect(modoAssinatura(cs(), "contrato_ok_corretor")).toBeNull();
   });
   it("manual → Clicksign: sem envelope e sem assinado anexado; corretor nunca", () => {
     expect(podeTrocarParaClicksign(cs(), "aguardando_assinatura", P.juridico, false)).toBe(true);
     expect(podeTrocarParaClicksign(cs(), "aguardando_assinatura", P.gestor, false)).toBe(true);
     expect(podeTrocarParaClicksign(cs(), "aguardando_assinatura", P.gestor, true)).toBe(false);
-    expect(podeTrocarParaClicksign(cs({ envelope: env("running") }), "aguardando_assinatura", P.gestor, false)).toBe(false);
-    expect(podeTrocarParaClicksign(cs({ libera_assinatura: false }), "aguardando_assinatura", P.gestor, false)).toBe(false);
-    expect(podeTrocarParaClicksign(SALE_CLICKSIGN_DISABLED, "aguardando_assinatura", P.gestor, false)).toBe(false);
-    expect(podeTrocarParaClicksign(cs({ can_send: false }), "aguardando_assinatura", P.corretor, false)).toBe(false);
+    expect(
+      podeTrocarParaClicksign(
+        cs({ envelope: env("running") }),
+        "aguardando_assinatura",
+        P.gestor,
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      podeTrocarParaClicksign(
+        cs({ libera_assinatura: false }),
+        "aguardando_assinatura",
+        P.gestor,
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      podeTrocarParaClicksign(SALE_CLICKSIGN_DISABLED, "aguardando_assinatura", P.gestor, false),
+    ).toBe(false);
+    expect(
+      podeTrocarParaClicksign(cs({ can_send: false }), "aguardando_assinatura", P.corretor, false),
+    ).toBe(false);
   });
   it("Clicksign → papel: só com envelope em assinatura e quem pode enviar", () => {
-    expect(podeTrocarParaPapel(cs({ envelope: env("running") }), "aguardando_assinatura")).toBe(true);
-    expect(podeTrocarParaPapel(cs({ envelope: env("sending") }), "aguardando_assinatura")).toBe(false);
-    expect(podeTrocarParaPapel(cs({ envelope: env("running"), can_send: false }), "aguardando_assinatura")).toBe(false);
+    expect(podeTrocarParaPapel(cs({ envelope: env("running") }), "aguardando_assinatura")).toBe(
+      true,
+    );
+    expect(podeTrocarParaPapel(cs({ envelope: env("sending") }), "aguardando_assinatura")).toBe(
+      false,
+    );
+    expect(
+      podeTrocarParaPapel(
+        cs({ envelope: env("running"), can_send: false }),
+        "aguardando_assinatura",
+      ),
+    ).toBe(false);
     expect(podeTrocarParaPapel(cs(), "aguardando_assinatura")).toBe(false);
   });
 });

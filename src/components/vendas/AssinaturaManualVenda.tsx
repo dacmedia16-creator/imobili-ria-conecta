@@ -26,9 +26,14 @@ export function EscolhaAssinaturaVenda({
   contratoNome,
   alvo = "A venda",
   ultimoPasso = "clique em “Marcar contrato assinado”",
+  tituloClicksign = "Pela Clicksign (sistema)",
+  tituloManual = "Manual – papel",
   onClicksign,
   onManual,
 }: {
+  /** Títulos das opções (o atalho do gestor usa "Assinatura digital (Clicksign)" / "Manual (papel)"). */
+  tituloClicksign?: string;
+  tituloManual?: string;
   /** Jurídico travou a assinatura (contrato_libera_assinatura = false). */
   bloqueado: boolean;
   contratoNome?: string | null;
@@ -80,10 +85,10 @@ export function EscolhaAssinaturaVenda({
       <div className="flex flex-col gap-2 sm:flex-row" role="radiogroup">
         {opcao(
           "clicksign",
-          "Pela Clicksign (sistema)",
+          tituloClicksign,
           "Cada pessoa recebe o link por e-mail e assina pelo celular ou computador. O assinado volta sozinho para o sistema.",
         )}
-        {opcao("manual", "Manual – papel", TEXTO_ORIENTACAO_PAPEL)}
+        {opcao("manual", tituloManual, TEXTO_ORIENTACAO_PAPEL)}
       </div>
       <Button
         disabled={bloqueado || busy}
@@ -221,8 +226,8 @@ export function AssinaturaManualCard({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Gestor, team leader, jurídico ou ADM sobem o contrato assinado; gestor, team leader ou
-          ADM marcam a venda como assinada.
+          Gestor, team leader, jurídico ou ADM sobem o contrato assinado; gestor, team leader ou ADM
+          marcam a venda como assinada.
         </p>
       )}
     </div>

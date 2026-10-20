@@ -54,7 +54,23 @@ export function mostrarEscolhaAssinatura(
   status: string,
   p: PapeisAssinatura,
 ): boolean {
-  return status === "contrato_ok_corretor" && podeOperarAssinatura(p) && clicksignDisponivel(config);
+  return (
+    status === "contrato_ok_corretor" && podeOperarAssinatura(p) && clicksignDisponivel(config)
+  );
+}
+
+/**
+ * Atalho do gestor em contrato_conferencia_gestor ("Enviar direto para assinatura"): com a Clicksign
+ * disponível, abre a mesma escolha "Como vai ser assinado?" (digital ou papel) — Denis 19/10,
+ * t_70ebc484. Mesmos papéis do atalho de antes: só gestor/team leader com gestão da venda (isGestor).
+ * Sem Clicksign o atalho continua indo direto para a assinatura manual, como sempre.
+ */
+export function mostrarEscolhaAtalhoGestor(
+  config: ClicksignSaleConfig,
+  status: string,
+  p: PapeisAssinatura,
+): boolean {
+  return status === "contrato_conferencia_gestor" && p.isGestor && clicksignDisponivel(config);
 }
 
 /** Org sem Clicksign (ou usuário sem can_send): botão manual "Enviar para assinatura". */
@@ -63,7 +79,9 @@ export function mostrarEnvioManualSimples(
   status: string,
   p: PapeisAssinatura,
 ): boolean {
-  return status === "contrato_ok_corretor" && podeOperarAssinatura(p) && !clicksignDisponivel(config);
+  return (
+    status === "contrato_ok_corretor" && podeOperarAssinatura(p) && !clicksignDisponivel(config)
+  );
 }
 
 /**
