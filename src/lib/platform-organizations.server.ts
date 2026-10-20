@@ -249,7 +249,11 @@ export async function createFirstAdmin(
   const ins = await admin
     .from("user_roles")
     .insert({ organization_id: orgId, user_id: userId, role });
-  if (ins.error) throw new Error(ins.error.message);
+  if (ins.error) {
+    // Sem o papel, o usuário ficaria sem função e travaria o e-mail: apaga antes de devolver o erro.
+    await admin.auth.admin.deleteUser(userId);
+    throw new Error(ins.error.message);
+  }
   return userId;
 }
 

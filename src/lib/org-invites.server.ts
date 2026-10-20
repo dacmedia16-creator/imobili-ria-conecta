@@ -191,10 +191,19 @@ export async function acceptInvite(
     await admin.rpc("org_invite_accept_undo", { _invite_id: accepted.invite_id });
     throw friendly(e, "Não foi possível criar seu acesso. Tente de novo em instantes.");
   }
-  await rpc(admin, "org_invite_accept_finish", {
-    _invite_id: accepted.invite_id,
-    _user_id: userId,
-  });
+  try {
+    await rpc(admin, "org_invite_accept_finish", {
+      _invite_id: accepted.invite_id,
+      _user_id: userId,
+    });
+  } catch (e) {
+    // A imobiliária e o dono já existem; só o vínculo Conta MAX/registro final falhou. O primeiro login
+    // pela Conta MAX refaz o vínculo pelo e-mail. Não desfaz (evita apagar dados válidos).
+    console.error("[convite] org_invite_accept_finish falhou", {
+      invite: accepted.invite_id,
+      erro: e instanceof Error ? e.message.slice(0, 200) : "desconhecido",
+    });
+  }
   // Dados pessoais complementares e logo: falha aqui não desfaz a imobiliária (o dono ajusta depois).
   await admin
     .from("profiles")
