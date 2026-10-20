@@ -75,7 +75,7 @@ import {
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
-import { criarCacheConsultas, type CacheConsultas } from "@/lib/cache-consultas";
+import { criarCacheConsultas, ehErroDePermissao, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import { corretoresDaLinha, responsaveisDaLinha } from "@/lib/sale-permissions";
@@ -508,7 +508,11 @@ function SalesList() {
   // nem página: ficam em cache por 60 s e chamadas simultâneas reaproveitam a mesma requisição.
   // Sem isso, cada filtro/tecla disparava o pacote inteiro de novo e lotava o pool do banco.
   const resumoCacheRef = useRef<CacheConsultas | null>(null);
-  resumoCacheRef.current ??= criarCacheConsultas(RESUMO_CACHE_MS);
+  // Falta de permissão (403/42501, ex.: gestor no pacote financeiro) também fica guardada pelos
+  // mesmos 60 s: o resultado seria o mesmo e repetir só gasta conexões do banco.
+  resumoCacheRef.current ??= criarCacheConsultas(RESUMO_CACHE_MS, {
+    guardarErro: ehErroDePermissao,
+  });
 
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
   // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
