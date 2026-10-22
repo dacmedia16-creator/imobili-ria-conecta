@@ -85,6 +85,12 @@ import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { filterAdminUsers, type UserStatusFilter } from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
+import {
+  DATA_NASCIMENTO_MIN,
+  dataNascimentoMaxima,
+  erroCampoDataNascimento,
+} from "@/lib/data-nascimento";
+import { dataNascimentoDoUsuario, salvarDataNascimentoDoUsuario } from "@/lib/data-nascimento-db";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 type AdminUser = Pick<
@@ -1167,7 +1173,28 @@ function EditUserDialog({
   const [creci, setCreci] = useState(target.creci ?? "");
   const [remaxId, setRemaxId] = useState(target.remax_id ?? "");
   const [loading, setLoading] = useState(false);
+  // Data de nascimento (t_dff88e75): lida e gravada por RPC de UMA pessoa; o banco confere org e
+  // papel. Se a leitura for recusada (sem permissão), o campo nem aparece.
+  const [nascSalva, setNascSalva] = useState<string | null>(null);
+  const [nasc, setNasc] = useState("");
+  const [nascStatus, setNascStatus] = useState<"carregando" | "ok" | "indisponivel">("carregando");
 
+  useEffect(() => {
+    let vivo = true;
+    dataNascimentoDoUsuario(target.id)
+      .then((d) => {
+        if (!vivo) return;
+        setNascSalva(d);
+        setNasc(d ?? "");
+        setNascStatus("ok");
+      })
+      .catch(() => vivo && setNascStatus("indisponivel"));
+    return () => {
+      vivo = false;
+    };
+  }, [target.id]);
+
+  const nascErro = nascStatus === "ok" ? erroCampoDataNascimento(nasc, false) : null;
   const nomeCompletoInvalido = nome.trim().split(/\s+/).filter(Boolean).length < 2;
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -1175,6 +1202,10 @@ function EditUserDialog({
     if (nomeCompletoInvalido) {
       e.currentTarget.querySelector<HTMLInputElement>("#eu-nome, #nu-nome")?.focus();
       toast.error("Digite o nome completo (nome e sobrenome).");
+      return;
+    }
+    if (nascErro) {
+      toast.error(nascErro);
       return;
     }
     setLoading(true);
@@ -1192,6 +1223,10 @@ function EditUserDialog({
           motivo: requireReason ? motivo.trim() : null,
         },
       });
+      const novaNasc = nasc.trim() || null;
+      if (nascStatus === "ok" && novaNasc !== nascSalva) {
+        await salvarDataNascimentoDoUsuario(target.id, novaNasc);
+      }
       toast.success("Dados do usuário atualizados.");
       onDone();
     } catch (err: unknown) {
@@ -1282,6 +1317,28 @@ function EditUserDialog({
             onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
           />
         </div>
+        {nascStatus === "ok" && (
+          <div data-testid="eu-nascimento-campo">
+            <Label htmlFor="eu-nascimento">Data de nascimento</Label>
+            <Input
+              id="eu-nascimento"
+              type="date"
+              min={DATA_NASCIMENTO_MIN}
+              max={dataNascimentoMaxima()}
+              value={nasc}
+              aria-invalid={Boolean(nascErro)}
+              onChange={(e) => setNasc(e.target.value)}
+            />
+            <p
+              className={`mt-1 text-xs ${nascErro ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {nascErro ??
+                (nascSalva
+                  ? "Os colegas veem só o dia e o mês. O ano fica com a pessoa e a gestão."
+                  : "Ainda não preenchida. Os colegas verão só o dia e o mês.")}
+            </p>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
           <div>
             <Label htmlFor="eu-sessenta">Participa do 60 Dias MAX</Label>
@@ -1349,6 +1406,8 @@ function NewUserDialog({
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [nasc, setNasc] = useState("");
+  const nascErro = erroCampoDataNascimento(nasc, false);
   const [role, setRole] = useState<AppRole>(allowedRoles[0]);
   const [loading, setLoading] = useState(false);
 
@@ -1369,9 +1428,25 @@ function NewUserDialog({
       toast.error("Digite o nome completo (nome e sobrenome).");
       return;
     }
+    // Valida a data ANTES de criar o login (senão a conta nasceria e só a data falharia).
+    if (nascErro) {
+      toast.error(nascErro);
+      return;
+    }
     setLoading(true);
     try {
-      await createUserFn({ data: { nome, email, telefone, role } });
+      const created = (await createUserFn({ data: { nome, email, telefone, role } })) as {
+        id?: string;
+      } | null;
+      if (nasc.trim() && created?.id) {
+        try {
+          await salvarDataNascimentoDoUsuario(created.id, nasc.trim());
+        } catch (err: unknown) {
+          toast.warning(
+            `Usuário criado, mas a data de nascimento não foi salva (${errorMessage(err, "erro")}). Preencha em "Editar dados".`,
+          );
+        }
+      }
       toast.success("Usuário criado. Copie e envie a instrução de acesso pelo Google.", {
         action: { label: "Copiar", onClick: copyCreds },
         duration: 10000,
@@ -1430,6 +1505,19 @@ function NewUserDialog({
             minLength={10}
             placeholder="(11) 91234-5678"
           />
+        </div>
+        <div>
+          <Label htmlFor="nu-nascimento">Data de nascimento (opcional)</Label>
+          <Input
+            id="nu-nascimento"
+            type="date"
+            min={DATA_NASCIMENTO_MIN}
+            max={dataNascimentoMaxima()}
+            value={nasc}
+            aria-invalid={Boolean(nascErro)}
+            onChange={(e) => setNasc(e.target.value)}
+          />
+          {nascErro && <p className="mt-1 text-xs text-destructive">{nascErro}</p>}
         </div>
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="flex-1" data-testid="acesso-google">

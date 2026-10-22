@@ -10,6 +10,12 @@ import { Label } from "@/components/ui/label";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
 import {
+  DATA_NASCIMENTO_MIN,
+  dataNascimentoMaxima,
+  erroCampoDataNascimento,
+} from "@/lib/data-nascimento";
+import { minhaDataNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import {
   CAMPO_LABEL,
   camposFaltando,
   candidatoPerfilOuLembrete,
@@ -70,6 +76,9 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
   const sessaoAtual = idDaSessao(session?.access_token);
   const [estado, setEstado] = useState<Estado>("carregando");
   const [perfil, setPerfil] = useState<PerfilParaCompletar | null>(null);
+  /** Data já gravada (AAAA-MM-DD) ou null. Falha ao ler = null (o campo aparece, não trava ninguém). */
+  const [nascimento, setNascimento] = useState<string | null>(null);
+  const [nascimentoLido, setNascimentoLido] = useState(false);
   const userId = user?.id;
   const createdAt = user?.created_at;
   const forcar =
@@ -97,13 +106,15 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
     setEstado("carregando");
     (async () => {
       try {
-        const [{ data, error }, registros] = await Promise.all([
+        const [{ data, error }, registros, dataNasc] = await Promise.all([
           supabase
             .from("profiles")
             .select("nome, telefone, avatar_url")
             .eq("id", userId)
             .maybeSingle(),
           profileRegistrations(),
+          // undefined = não deu para ler (nunca trava por isso); null = sem data gravada.
+          minhaDataNascimento(userId).catch(() => undefined),
         ]);
         if (error || !data) throw error ?? new Error("perfil não encontrado");
         const meu = registros.find((r) => r.user_id === userId);
@@ -116,6 +127,8 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
         };
         if (!vivo) return;
         setPerfil(p);
+        setNascimento(dataNasc ?? null);
+        setNascimentoLido(dataNasc !== undefined);
         const modo = modoCompletarPerfil({
           roles,
           platformAdmin,
@@ -124,6 +137,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
           createdAt,
           forcar,
           perfil: p,
+          semDataNascimento: dataNasc === null,
         });
         if (modo === "obrigatorio") setEstado("completar");
         else if (modo === "lembrete" && !lerAdiado(userId, sessaoAtual)) setEstado("lembrete");
@@ -148,12 +162,20 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
     );
   }
   if (estado === "completar" && perfil) {
-    return <CompletarPerfilTela perfil={perfil} onConcluir={() => setEstado("liberado")} />;
+    return (
+      <CompletarPerfilTela
+        perfil={perfil}
+        nascimento={nascimento}
+        nascimentoObrigatorio={nascimentoLido && !nascimento}
+        onConcluir={() => setEstado("liberado")}
+      />
+    );
   }
   if (estado === "lembrete" && perfil && userId) {
     return (
       <CompletarPerfilTela
         perfil={perfil}
+        nascimento={nascimento}
         onConcluir={() => setEstado("liberado")}
         onAgoraNao={() => {
           gravarAdiado(userId, sessaoAtual);
@@ -167,10 +189,16 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
 
 function CompletarPerfilTela({
   perfil,
+  nascimento,
+  nascimentoObrigatorio = false,
   onConcluir,
   onAgoraNao,
 }: {
   perfil: PerfilParaCompletar;
+  /** Data de nascimento já gravada (AAAA-MM-DD) ou null. */
+  nascimento: string | null;
+  /** Só na tela obrigatória (conta nova) de quem ainda não tem data. No lembrete, sempre opcional. */
+  nascimentoObrigatorio?: boolean;
   onConcluir: () => void;
   /** Presente só no modo lembrete (conta antiga): deixa entrar sem completar. */
   onAgoraNao?: () => void;
@@ -181,6 +209,7 @@ function CompletarPerfilTela({
   const [cpf, setCpf] = useState(perfil.cpf ?? "");
   const [creci, setCreci] = useState(perfil.creci ?? "");
   const [remaxId, setRemaxId] = useState("");
+  const [dataNasc, setDataNasc] = useState(nascimento ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(perfil.avatar_url);
   const [foto, setFoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -204,6 +233,10 @@ function CompletarPerfilTela({
   };
   const faltando = camposFaltando(atual);
   const erro = (campo: (typeof faltando)[number]) => tentouSalvar && faltando.includes(campo);
+  // Data de nascimento (t_dff88e75): obrigatória só no 1º acesso (tela obrigatória) de quem ainda
+  // não tem data; no lembrete de conta antiga é opcional.
+  const nascObrigatoria = nascimentoObrigatorio && !onAgoraNao;
+  const erroNasc = erroCampoDataNascimento(dataNasc, nascObrigatoria);
 
   const escolherFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,7 +261,13 @@ function CompletarPerfilTela({
     if (!user) return;
     setTentouSalvar(true);
     if (faltando.length > 0) {
-      toast.error(`Falta preencher: ${faltando.map((c) => CAMPO_LABEL[c]).join(", ")}.`);
+      const nomes = faltando.map((c) => CAMPO_LABEL[c]);
+      if (erroNasc && !dataNasc.trim()) nomes.push("Data de nascimento");
+      toast.error(`Falta preencher: ${nomes.join(", ")}.`);
+      return;
+    }
+    if (erroNasc) {
+      toast.error(erroNasc);
       return;
     }
     const rid = remaxId.replace(/\D/g, "");
@@ -238,6 +277,9 @@ function CompletarPerfilTela({
     }
     setSalvando(true);
     try {
+      // Data primeiro: o banco valida de novo (1900..hoje, 16 anos); se recusar, nada mais é gravado.
+      const nasc = dataNasc.trim();
+      if (nasc && nasc !== (nascimento ?? "")) await salvarMinhaDataNascimento(nasc);
       let url = avatarUrl;
       if (foto) {
         // Mesmo caminho e bucket da tela "Meu acesso".
@@ -398,6 +440,27 @@ function CompletarPerfilTela({
               />
             </Campo>
           </div>
+          <Campo
+            id="cp-nascimento"
+            label={nascObrigatoria ? "Data de nascimento" : "Data de nascimento (opcional)"}
+            erro={tentouSalvar && Boolean(erroNasc)}
+            dica={
+              tentouSalvar && erroNasc
+                ? erroNasc
+                : "Seus colegas veem só o dia e o mês, no aniversário. O ano fica com você e a gestão."
+            }
+          >
+            <Input
+              id="cp-nascimento"
+              type="date"
+              autoComplete="bday"
+              min={DATA_NASCIMENTO_MIN}
+              max={dataNascimentoMaxima()}
+              value={dataNasc}
+              onChange={(e) => setDataNasc(e.target.value)}
+              data-testid="cp-nascimento"
+            />
+          </Campo>
           <Campo
             id="cp-remax"
             label="ID RE/MAX (opcional)"

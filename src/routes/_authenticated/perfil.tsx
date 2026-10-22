@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/visual/base";
 import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
 import { MeusDadosPagamento } from "@/components/vendas/DadosPagamento";
+import { MinhaDataNascimento } from "@/components/perfil/MinhaDataNascimento";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -616,6 +617,7 @@ function MeuAcesso() {
               Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.
             </p>
           </div>
+          {user && <MinhaDataNascimento userId={user.id} />}
           {canUsePositioning && (
             <div className="grid max-w-2xl gap-3 border-t pt-4 sm:grid-cols-2">
               <div>
