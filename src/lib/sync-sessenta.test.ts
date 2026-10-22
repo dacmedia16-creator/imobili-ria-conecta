@@ -64,7 +64,15 @@ function fakeAdmin(m: Mapa) {
           return { error: null };
         },
         then: (res: (v: unknown) => void) =>
-          res({ data: nome === "sync_org_map" ? [m] : [], error: null }),
+          res({
+            data:
+              nome === "sync_org_map"
+                ? [m]
+                : nome === "platform_admins"
+                  ? [{ user_id: "conta-plataforma" }]
+                  : [],
+            error: null,
+          }),
       };
       return q;
     },

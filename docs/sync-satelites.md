@@ -24,7 +24,8 @@ Plano aprovado por Denis em 11/10/2026 (cartões t_5406fe1b e t_41bcad66). Banco
 - Equipe inexistente no Estudo: só relata. Nunca cria equipe. Nunca apaga nada.
 - Visita: se passar do limite do plano, cria e avisa (`limite_corretores_do_plano_ultrapassado`).
 - Desligar = suspende/inativa + `ban` no Auth + `adm_sync_revoke_sessions` (derruba refresh tokens). As pontes Conta MAX recusam conta banida/inativa (`account_inactive`).
-- `super_admin` do ADM fica fora da sincronização.
+- Só a **conta da plataforma** (`platform_admins`) fica fora da sincronização (motivo `conta_da_plataforma`). Se a leitura de `platform_admins` falhar ou vier vazia, a rodada para antes de pegar a fila e sem enviar nada (falha fechada; os itens continuam pendentes). Conta que entra em `platform_admins` depois de já existir no satélite não é desativada pelo robô (fica "fora" e intocada).
+- `super_admin` do ADM = **"Administrador principal" da imobiliária** (t_44d957b1) e é sincronizado (t_06782054): `owner` no Estudo e no 60 Dias; `imobiliaria_admin` com `admin_adm=true` no Visita. Conta já existente no satélite é vinculada pelo e-mail; `owner` nunca é rebaixado pelo robô.
 
 ## Operação
 - Reconciliação sob demanda (sempre `dry_run`, nunca grava): `select public.sync_disparar('reconciliar');` → resultado em `sync_reconcile_runs`.

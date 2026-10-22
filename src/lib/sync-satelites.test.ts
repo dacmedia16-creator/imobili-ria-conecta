@@ -42,10 +42,30 @@ describe("tradução de papéis (tabela 4.1)", () => {
     );
     expect(papelNoSatelite([], "visita")).toBe("none");
   });
-  it("super_admin fica fora da sincronização", () => {
-    expect(foraDaSync(linha({ roles: ["super_admin", "corretor"] }))).toBe("super_admin");
-    expect(foraDaSync(linha({ email: null }))).toBe("sem_email");
-    expect(foraDaSync(linha())).toBeNull();
+  it("só a conta da plataforma fica fora; Administrador principal (super_admin) entra (t_06782054)", () => {
+    const plataforma = new Set(["plat"]);
+    expect(foraDaSync(linha({ adm_user_id: "plat", roles: ["super_admin"] }), plataforma)).toBe(
+      "conta_da_plataforma",
+    );
+    expect(foraDaSync(linha({ adm_user_id: "plat", roles: [] }), plataforma)).toBe(
+      "conta_da_plataforma",
+    );
+    expect(foraDaSync(linha({ roles: ["super_admin"] }), plataforma)).toBeNull();
+    expect(foraDaSync(linha({ email: null }), plataforma)).toBe("sem_email");
+    expect(foraDaSync(linha(), plataforma)).toBeNull();
+  });
+  it("Administrador principal vira owner no Estudo/60 Dias e imobiliaria_admin (admin de verdade) no Visita", () => {
+    expect(papelNoSatelite(["super_admin"], "estudo")).toBe("owner");
+    expect(papelNoSatelite(["super_admin"], "sessenta")).toBe("owner");
+    expect(papelNoSatelite(["super_admin"], "visita")).toBe("imobiliaria_admin");
+    const v = pessoaParaSatelite(linha({ roles: ["super_admin"] }), "visita", { tlLider: true });
+    expect(v.papel).toBe("imobiliaria_admin");
+    expect(v.admin_adm).toBe(true);
+    expect(
+      pessoaParaSatelite(linha({ roles: ["super_admin", "team_leader"] }), "visita", {
+        tlLider: true,
+      }).papel,
+    ).toBe("imobiliaria_admin");
   });
   it("envia só campos mínimos, e-mail normalizado e sem líder no Visita", () => {
     const p = pessoaParaSatelite(linha(), "visita");
@@ -64,7 +84,9 @@ describe("tradução de papéis (tabela 4.1)", () => {
     for (const r of ["gestor", "coordenador", "team_leader", "corretor"]) {
       expect(pessoaParaSatelite(linha({ roles: [r] }), "visita").admin_adm).toBe(false);
     }
-    expect(pessoaParaSatelite(linha({ roles: ["admin"] }), "estudo")).not.toHaveProperty("admin_adm");
+    expect(pessoaParaSatelite(linha({ roles: ["admin"] }), "estudo")).not.toHaveProperty(
+      "admin_adm",
+    );
     expect(pessoaParaSatelite(linha(), "estudo").lider_email).toBe("lider@remax.com.br");
   });
 });
@@ -96,6 +118,9 @@ function fakeAdmin(o: {
   estado?: LinhaEstado[];
   exclusoes?: Array<{ adm_user_id: string; satelite: Satelite }>;
   erroInsertConflito?: { code: string; message: string };
+  /** user_id das contas da plataforma (platform_admins). */
+  plataforma?: string[];
+  erroPlataforma?: boolean;
 }) {
   const gravado: Record<string, unknown[]> = {
     sync_log: [],
@@ -133,32 +158,45 @@ function fakeAdmin(o: {
         return { error: null };
       },
       then: (res: (v: unknown) => void) =>
-        res({
-          data:
-            nome === "sync_org_map"
-              ? [
-                  {
-                    adm_org_id: ORG,
-                    estudo_org_id: "E",
-                    visita_imobiliaria_id: "V",
-                    mode: o.orgMode ?? "live",
-                    estudo_enabled: true,
-                    visita_enabled: true,
+        nome === "platform_admins"
+          ? res(
+              o.erroPlataforma
+                ? { data: null, error: { message: "permission denied" } }
+                : {
+                    data: (o.plataforma ?? ["conta-plataforma"]).map((user_id) => ({ user_id })),
+                    error: null,
                   },
-                ]
-              : nome === "sync_exclusoes"
-                ? (o.exclusoes ?? [])
-                : [],
-          error: null,
-        }),
+            )
+          : res({
+              data:
+                nome === "sync_org_map"
+                  ? [
+                      {
+                        adm_org_id: ORG,
+                        estudo_org_id: "E",
+                        visita_imobiliaria_id: "V",
+                        mode: o.orgMode ?? "live",
+                        estudo_enabled: true,
+                        visita_enabled: true,
+                      },
+                    ]
+                  : nome === "sync_exclusoes"
+                    ? (o.exclusoes ?? [])
+                    : [],
+              error: null,
+            }),
     };
     return q;
   };
-  return {
+  const fake = {
     gravado,
+    pegou: false,
     from: tabela,
     rpc: async (fn: string, args: any) => {
-      if (fn === "sync_outbox_pegar") return { data: o.itens ?? [], error: null };
+      if (fn === "sync_outbox_pegar") {
+        fake.pegou = true;
+        return { data: o.itens ?? [], error: null };
+      }
       if (fn === "sync_estado_desejado") return { data: o.estado ?? [], error: null };
       if (fn === "sync_outbox_concluir") {
         gravado.concluir.push(args);
@@ -167,6 +205,7 @@ function fakeAdmin(o: {
       return { data: null, error: { message: "rpc desconhecida" } };
     },
   };
+  return fake;
 }
 
 function ambiente(resposta: (sat: Satelite, body: any) => { status: number; json: any }) {
@@ -216,7 +255,7 @@ describe("processarFila", () => {
     expect(admin.gravado.concluir).toEqual([{ p_id: 1, p_resultado: "ok", p_erro: null }]);
   });
 
-  it("imobiliária em off ou super_admin: não envia nada e descarta", async () => {
+  it("imobiliária em off ou conta da plataforma: não envia nada e descarta", async () => {
     const admin = fakeAdmin({
       orgMode: "off",
       itens: [{ id: 1, adm_user_id: "u1" }],
@@ -228,10 +267,52 @@ describe("processarFila", () => {
     const admin2 = fakeAdmin({
       itens: [{ id: 2, adm_user_id: "u1" }],
       estado: [linha({ roles: ["super_admin"] })],
+      plataforma: ["u1"],
     });
     await processarFila(admin2, amb);
     expect(enviados).toHaveLength(0);
     expect(admin2.gravado.concluir).toEqual([{ p_id: 2, p_resultado: "ok", p_erro: null }]);
+  });
+
+  it("t_06782054: Administrador principal (super_admin fora da plataforma) vai como owner/imobiliaria_admin", async () => {
+    const admin = fakeAdmin({
+      itens: [{ id: 3, adm_user_id: "u1" }],
+      estado: [linha({ roles: ["super_admin"], lider_email: null })],
+      plataforma: ["outra-conta"],
+    });
+    const { amb, enviados } = ambiente(okResp);
+    await processarFila(admin, amb);
+    expect(enviados.map((e) => e.sat)).toEqual(["estudo", "visita"]);
+    expect(enviados[0].body.pessoas[0]).toMatchObject({ adm_user_id: "u1", papel: "owner" });
+    expect(enviados[1].body.pessoas[0]).toMatchObject({
+      adm_user_id: "u1",
+      papel: "imobiliaria_admin",
+      admin_adm: true,
+    });
+    expect(admin.gravado.concluir).toEqual([{ p_id: 3, p_resultado: "ok", p_erro: null }]);
+  });
+
+  it("t_06782054: erro ao ler platform_admins para a rodada sem enviar nada (falha fechada)", async () => {
+    const admin = fakeAdmin({
+      itens: [{ id: 4, adm_user_id: "u1" }],
+      estado: [linha({ roles: ["super_admin"] })],
+      erroPlataforma: true,
+    });
+    const { amb, enviados } = ambiente(okResp);
+    await expect(processarFila(admin, amb)).rejects.toThrow(/platform_admins/);
+    expect(enviados).toHaveLength(0);
+    expect(admin.gravado.concluir).toEqual([]);
+    expect(admin.pegou).toBe(false); // nada ficou preso em "processando"
+    // Lista vazia também para (leitura suspeita): nunca trata como "ninguém a excluir".
+    const vazio = fakeAdmin({
+      itens: [{ id: 5, adm_user_id: "u1" }],
+      estado: [linha({ roles: ["super_admin"] })],
+      plataforma: [],
+    });
+    await expect(processarFila(vazio, amb)).rejects.toThrow(/lista_vazia/);
+    await expect(reconciliar(vazio, amb)).rejects.toThrow(/lista_vazia/);
+    expect(enviados).toHaveLength(0);
+    expect(vazio.pegou).toBe(false);
   });
 
   it("falha de rede vira erro (vai para nova tentativa) e fica no log", async () => {
@@ -331,6 +412,7 @@ describe("reconciliar (sob demanda)", () => {
     const admin = fakeAdmin({
       mode: "live",
       estado: [linha(), linha({ adm_user_id: "u2", roles: ["super_admin"] })],
+      plataforma: ["u2"],
     });
     const { amb, enviados } = ambiente((_s, b) => ({
       status: 200,
@@ -351,7 +433,10 @@ describe("reconciliar (sob demanda)", () => {
     expect(
       enviados.every((e) => e.body.modo === "dry_run" && e.body.incluir_so_no_satelite === true),
     ).toBe(true);
-    expect(enviados[0].body.pessoas).toHaveLength(1); // super_admin fora
+    expect(enviados[0].body.pessoas).toHaveLength(1); // conta da plataforma fora
+    expect((r.relatorios[0] as any).fora_da_sync).toEqual([
+      { adm_user_id: "u2", motivo: "conta_da_plataforma" },
+    ]);
     expect((r.relatorios[0] as any).estudo.contagem).toMatchObject({
       pessoas: 1,
       so_no_satelite: 1,

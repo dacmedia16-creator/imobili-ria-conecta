@@ -68,13 +68,24 @@ function fakeAdmin() {
           return { error: null };
         },
         then: (res: (v: unknown) => void) =>
-          res({ data: nome === "sync_org_map" ? [mapa] : [], error: null }),
+          res({
+            data:
+              nome === "sync_org_map"
+                ? [mapa]
+                : nome === "platform_admins"
+                  ? [{ user_id: "conta-plataforma" }]
+                  : [],
+            error: null,
+          }),
       };
       return q;
     },
     rpc: async (fn: string, args: any) => {
       if (fn === "sync_outbox_pegar")
-        return { data: LINHAS.map((l, i) => ({ id: i + 1, adm_user_id: l.adm_user_id })), error: null };
+        return {
+          data: LINHAS.map((l, i) => ({ id: i + 1, adm_user_id: l.adm_user_id })),
+          error: null,
+        };
       if (fn === "sync_estado_desejado") return { data: LINHAS, error: null };
       if (fn === "sync_outbox_concluir") {
         gravado.concluir.push(args);
@@ -126,9 +137,13 @@ describe("Participa do 60 Dias MAX", () => {
       false,
       false,
     ]);
-    expect(LINHAS.every((l) => vaiAoSatelite(l, "estudo") && vaiAoSatelite(l, "visita"))).toBe(true);
+    expect(LINHAS.every((l) => vaiAoSatelite(l, "estudo") && vaiAoSatelite(l, "visita"))).toBe(
+      true,
+    );
     // Papel sem tradução (none) não vai ao 60 Dias nem com a opção ligada.
-    expect(vaiAoSatelite(linha("j", ["juridico"], { participa_sessenta: true }), "sessenta")).toBe(false);
+    expect(vaiAoSatelite(linha("j", ["juridico"], { participa_sessenta: true }), "sessenta")).toBe(
+      false,
+    );
   });
 
   it("fila: 60 Dias recebe só dono, gestor e corretor marcado; Estudo e Visita recebem todos", async () => {

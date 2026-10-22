@@ -17,7 +17,10 @@ export function modoEfetivo(...modos: unknown[]): Modo {
 }
 
 // ---------- Tradução de papéis (tabela 4.1 aprovada) ----------
+// super_admin = "Administrador principal" da imobiliária (t_44d957b1). A conta da PLATAFORMA é outra coisa
+// (platform_admins) e fica fora da sync em foraDaSync (t_06782054).
 const ESTUDO: Record<string, "owner" | "manager" | "agent"> = {
+  super_admin: "owner",
   admin: "owner",
   gestor: "manager",
   coordenador: "manager",
@@ -25,6 +28,7 @@ const ESTUDO: Record<string, "owner" | "manager" | "agent"> = {
   corretor: "agent",
 };
 const VISITA: Record<string, "imobiliaria_admin" | "corretor"> = {
+  super_admin: "imobiliaria_admin",
   admin: "imobiliaria_admin",
   gestor: "imobiliaria_admin",
   coordenador: "imobiliaria_admin",
@@ -107,9 +111,13 @@ export function alvosDoMapa(mapa: Mapa): Array<[Satelite, string | null, boolean
   ];
 }
 
-/** Pessoa fora da sincronização: super_admin (nunca mexe) ou sem e-mail. */
-export function foraDaSync(l: LinhaEstado): string | null {
-  if (l.roles.includes("super_admin")) return "super_admin";
+/**
+ * Pessoa fora da sincronização: conta da plataforma (platform_admins, nunca mexe) ou sem e-mail.
+ * t_06782054: antes saía todo super_admin, mas desde t_44d957b1 esse papel é o "Administrador principal" da
+ * imobiliária, que precisa de conta no Estudo/Visita. A lista da plataforma é obrigatória (sem padrão vazio).
+ */
+export function foraDaSync(l: LinhaEstado, plataforma: ReadonlySet<string>): string | null {
+  if (plataforma.has(l.adm_user_id)) return "conta_da_plataforma";
   if (!l.email || !l.email.includes("@")) return "sem_email";
   return null;
 }
@@ -122,7 +130,9 @@ export function foraDaSync(l: LinhaEstado): string | null {
 export function papelVisita(roles: string[], tlLider: boolean): string {
   const base = papelNoSatelite(roles, "visita");
   if (!tlLider || base !== "imobiliaria_admin") return base;
-  const acimaDeTl = roles.some((r) => r === "admin" || r === "gestor" || r === "coordenador");
+  const acimaDeTl = roles.some(
+    (r) => r === "super_admin" || r === "admin" || r === "gestor" || r === "coordenador",
+  );
   return acimaDeTl ? base : "corretor";
 }
 
@@ -153,7 +163,10 @@ export function pessoaParaSatelite(
     ativo: l.ativo === true,
     lider_email: comoEstudo(sat) ? l.lider_email : null,
     // t_4d901b13: só o Visita recebe a marca de "admin de verdade" (Configurações/Assinatura). Gestor/TL = false.
-    ...(sat === "visita" ? { admin_adm: (l.roles ?? []).includes("admin") } : {}),
+    // t_06782054: o Administrador principal (super_admin) também é admin de verdade.
+    ...(sat === "visita"
+      ? { admin_adm: (l.roles ?? []).some((r) => r === "admin" || r === "super_admin") }
+      : {}),
   };
 }
 
@@ -229,6 +242,21 @@ export async function carregarExclusoes(admin: Admin): Promise<Map<string, Set<S
   return m;
 }
 
+/**
+ * Contas da plataforma (platform_admins): nunca vão aos satélites. Erro na leitura OU lista vazia derruba a
+ * rodada antes de pegar a fila (falha fechada): nada é enviado e os itens continuam pendentes. A plataforma
+ * sempre tem ao menos 1 conta; lista vazia = leitura suspeita, não "ninguém a excluir".
+ */
+export async function carregarPlataforma(admin: Admin): Promise<Set<string>> {
+  const rows = await ok<Array<{ user_id: string }>>(
+    admin.from("platform_admins").select("user_id"),
+    "platform_admins",
+  );
+  const ids = new Set((rows ?? []).map((r) => r.user_id).filter(Boolean));
+  if (!ids.size) throw new Error("platform_admins: lista_vazia");
+  return ids;
+}
+
 export function excluido(ex: Map<string, Set<Satelite>>, admUserId: string, sat: Satelite) {
   return ex.get(admUserId)?.has(sat) === true;
 }
@@ -286,6 +314,8 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     admin.from("sync_config").select("mode,allow_deactivate").eq("id", true).maybeSingle(),
     "config",
   );
+  // Antes de pegar a fila: se falhar, nenhum item fica preso em "processando" (t_06782054).
+  const plataforma = await carregarPlataforma(admin);
   const itens = await ok<Array<{ id: number; adm_user_id: string }>>(
     admin.rpc("sync_outbox_pegar", { p_limite: limite }),
     "pegar",
@@ -314,7 +344,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
   for (const it of itens) {
     const l = porUser.get(it.adm_user_id);
     const mapa = l?.org_id ? mapaPorOrg.get(l.org_id) : undefined;
-    const fora = l ? foraDaSync(l) : "sem_perfil";
+    const fora = l ? foraDaSync(l, plataforma) : "sem_perfil";
     if (!l || !mapa || fora || modoEfetivo(geral, mapa.mode) === "off") {
       set(it.id, "ok");
       continue; // fora de imobiliária mapeada/ligada: descarta (nada_a_fazer)
@@ -802,6 +832,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
   );
   const mapas = await ok<Mapa[]>(admin.from("sync_org_map").select("*"), "mapa");
   const exclusoes = await carregarExclusoes(admin);
+  const plataforma = await carregarPlataforma(admin);
   const relatorios = [];
   for (const mapa of mapas) {
     if (somenteOrg && mapa.adm_org_id !== somenteOrg) continue;
@@ -809,7 +840,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
       admin.rpc("sync_estado_desejado", { p_user_ids: null, p_org: mapa.adm_org_id }),
       "estado",
     );
-    const foraLista = linhas.map((l) => ({ l, f: foraDaSync(l) }));
+    const foraLista = linhas.map((l) => ({ l, f: foraDaSync(l, plataforma) }));
     const dentro = foraLista.filter((x) => !x.f).map((x) => x.l);
     const rel: Record<string, unknown> = {
       adm_org_id: mapa.adm_org_id,
