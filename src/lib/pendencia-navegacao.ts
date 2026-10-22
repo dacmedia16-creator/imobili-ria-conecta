@@ -179,7 +179,7 @@ export function primeiraPendencia(pendencias: Pendencia[]) {
 /** Mensagem do aviso: nome do campo, onde fica e o resto da lista (se houver). */
 export function mensagemPendencias(
   pendencias: Pendencia[],
-  verbo: "preencher" | "aprovar" = "preencher",
+  verbo: "preencher" | "aprovar" | "enviar" = "preencher",
 ): {
   titulo: string;
   descricao?: string;

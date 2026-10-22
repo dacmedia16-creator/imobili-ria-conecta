@@ -771,15 +771,23 @@ export function validarProntaParaRevisao(
 /**
  * Valida se todos os documentos obrigatórios já foram aprovados (não só enviados) — usado antes de
  * "Aprovar p/ jurídico": o gestor precisa ter revisado e aprovado cada um, não só recebido.
+ *
+ * `proprioGestor` (Denis 22/10/2026, t_83e2ee96): gestor/team leader mandando ao jurídico a venda que
+ * ele mesmo criou ou da qual é o corretor não aprova os próprios documentos — basta estarem
+ * enviados (recusado continua barrando). Venda de OUTRO corretor segue exigindo "aprovado".
  */
 export function validarDocsAprovadosParaJuridico(
   parties: Record<string, PartyRow>,
   docs: DocumentRow[],
+  proprioGestor = false,
 ): Pendencia[] {
   const pend: Pendencia[] = [];
   const obrigatoriosImovel = DOC_TYPES.filter((d) => d.obrigatorio && d.grupo !== "pessoal");
   const partesPessoais = partesComExigenciaPessoal(parties, docs);
-  const aprovado = (s: string) => s === "aprovado";
+  const aprovado = proprioGestor
+    ? (s: string) => s !== "recusado"
+    : (s: string) => s === "aprovado";
+  const verbo = proprioGestor ? "enviar" : "aprovar";
   for (const parte of partesPessoais) {
     const tipoPessoa: TipoPessoa =
       parties[parte]?.tipo_pessoa === "juridica" ? "juridica" : "fisica";
@@ -788,7 +796,7 @@ export function validarDocsAprovadosParaJuridico(
       if (!temDocDoTipo(docs, t.key, parte, aprovado)) {
         pend.push({
           campo: `doc_${t.key}_${parte}`,
-          mensagem: `Falta aprovar ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}`,
+          mensagem: `Falta ${verbo} ${t.label} de ${parteLabel(parte)}${substituiPorCnh ? " (ou a CNH)" : ""}`,
         });
       }
     }
@@ -800,7 +808,7 @@ export function validarDocsAprovadosParaJuridico(
         (d) => (d.tipo === t.key || (substituiPorCnh && d.tipo === "cnh")) && aprovado(d.status),
       )
     ) {
-      pend.push({ campo: `doc_${t.key}`, mensagem: `Falta aprovar ${t.label}` });
+      pend.push({ campo: `doc_${t.key}`, mensagem: `Falta ${verbo} ${t.label}` });
     }
   }
   return pend;

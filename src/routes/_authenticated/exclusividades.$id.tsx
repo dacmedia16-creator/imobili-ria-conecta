@@ -121,6 +121,7 @@ import { notifyCaptureTransition } from "@/lib/captacao-notifications.functions"
 import {
   avisoSemAssinado,
   BLOQUEIO_SEM_ASSINADO,
+  captacaoDoProprioGestor,
   DATA_ASSINATURA_MIN,
   podeCaptadorInformarData,
   textoAprovacao,
@@ -246,6 +247,9 @@ function ExclusiveDetail() {
   const formRef = useRef<CaptureForm | null>(null);
   formRef.current = form;
   const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
+  // Captação do próprio gestor/TL (Denis 22/10/2026): o envio já gera o PDF para assinatura.
+  const proprioGestor =
+    !!capture && captacaoDoProprioGestor(capture, user?.id, hasAny(["gestor", "team_leader"]));
   // Cadastro manual: contrato de exclusividade já assinado no papel (sem PDF gerado pelo sistema).
   const manual = !!capture?.manual;
   // Passo 5 "Documento assinado": captação normal com contrato assinado anexado (Clicksign ou
@@ -467,64 +471,63 @@ function ExclusiveDetail() {
       await saveCapture(id, form, cpf, creci);
       toast.success("Rascunho salvo.");
     });
-  const generate = () =>
-    run(async () => {
-      if (!capture || !form) return;
-      if (dossieMissing) {
-        setStep("dossie");
-        throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.");
-      }
-      const catalogReady = dossieCatalog(dossieActions).length > 0;
-      const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
-      // Contrato é gerado pelo gestor depois do envio; só salva se ainda for editável.
-      if (editable) await saveCapture(id, saved, cpf, creci);
-      // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
-      // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
-      const source = contractSource(capture, units);
-      let bytes = await fillExclusiveTemplate(
-        await downloadCaptureTemplate(source.file),
-        { ...capture, form_data: saved, broker_cpf: cpf, broker_creci: creci },
-        true,
-        hojeSaoPaulo(),
-        source.unit,
-      );
-      // Plano de Marketing vai anexado ao final do contrato (mesma assinatura).
-      if (catalogReady && selectedDossie(dossieActions, dossieIds).length) {
-        const [ano, mes, dia] = hojeSaoPaulo().split("-");
-        const dossie = await buildDossiePdf({
-          actions: dossieActions,
-          selected: dossieIds,
-          semanas: saved.plano_semanas,
-          totalSemanas: semanasInfo.total,
-          ownerNames: [
-            saved.proprietario_1.nome_completo,
-            saved.proprietario_2?.nome_completo ?? "",
-          ],
-          brokerName: capture.broker_name,
-          brokerCreci: creci,
-          property: {
-            tipo: saved.imovel.tipo_imovel,
-            endereco: [saved.imovel.endereco, saved.imovel.complemento].filter(Boolean).join(" - "),
-            bairro: saved.imovel.bairro,
-            municipio: saved.imovel.municipio,
-            valor: saved.imovel.valor_imovel,
-          },
-          company: source.unit?.nome_comercial || undefined,
-          issuedOn: `${dia}/${mes}/${ano}`,
-        });
-        bytes = await appendDossieToContract(bytes, dossie);
-      }
-      // Imagens do modelo em JPEG ~150 dpi: o gerado fica bem abaixo dos 10 MB da Clicksign.
-      bytes = (await compressPdfBytes(bytes, browserImageCodec, GERACAO_CONTRATO)).bytes;
-      const file = new File([bytes as BlobPart], signaturePdfName(id), {
-        type: "application/pdf",
+  const generate = () => run(() => gerarPdfAssinatura(editable));
+  // `salvar`: grava o formulário antes (só enquanto editável). Depois do envio não salva: o
+  // exclusive_save só aceita rascunho/devolvida e apagaria o PDF gerado.
+  const gerarPdfAssinatura = async (salvar: boolean) => {
+    if (!capture || !form) return;
+    if (dossieMissing) {
+      setStep("dossie");
+      throw new Error("Marque ao menos 1 ação no Plano de Marketing antes de gerar o contrato.");
+    }
+    const catalogReady = dossieCatalog(dossieActions).length > 0;
+    const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
+    // Contrato é gerado pelo gestor depois do envio; só salva se ainda for editável.
+    if (salvar) await saveCapture(id, saved, cpf, creci);
+    // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
+    // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
+    const source = contractSource(capture, units);
+    let bytes = await fillExclusiveTemplate(
+      await downloadCaptureTemplate(source.file),
+      { ...capture, form_data: saved, broker_cpf: cpf, broker_creci: creci },
+      true,
+      hojeSaoPaulo(),
+      source.unit,
+    );
+    // Plano de Marketing vai anexado ao final do contrato (mesma assinatura).
+    if (catalogReady && selectedDossie(dossieActions, dossieIds).length) {
+      const [ano, mes, dia] = hojeSaoPaulo().split("-");
+      const dossie = await buildDossiePdf({
+        actions: dossieActions,
+        selected: dossieIds,
+        semanas: saved.plano_semanas,
+        totalSemanas: semanasInfo.total,
+        ownerNames: [saved.proprietario_1.nome_completo, saved.proprietario_2?.nome_completo ?? ""],
+        brokerName: capture.broker_name,
+        brokerCreci: creci,
+        property: {
+          tipo: saved.imovel.tipo_imovel,
+          endereco: [saved.imovel.endereco, saved.imovel.complemento].filter(Boolean).join(" - "),
+          bairro: saved.imovel.bairro,
+          municipio: saved.imovel.municipio,
+          valor: saved.imovel.valor_imovel,
+        },
+        company: source.unit?.nome_comercial || undefined,
+        issuedOn: `${dia}/${mes}/${ano}`,
       });
-      // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
-      // arquivo salvo na captação e o que o gestor envia ao Clicksign.
-      await uploadCaptureDocument(id, "gerado", 0, file);
-      await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
-      toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
+      bytes = await appendDossieToContract(bytes, dossie);
+    }
+    // Imagens do modelo em JPEG ~150 dpi: o gerado fica bem abaixo dos 10 MB da Clicksign.
+    bytes = (await compressPdfBytes(bytes, browserImageCodec, GERACAO_CONTRATO)).bytes;
+    const file = new File([bytes as BlobPart], signaturePdfName(id), {
+      type: "application/pdf",
     });
+    // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
+    // arquivo salvo na captação e o que o gestor envia ao Clicksign.
+    await uploadCaptureDocument(id, "gerado", 0, file);
+    await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
+    toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
+  };
   // PDF completo (depois da aprovação): contrato ASSINADO + todos os documentos anexados.
   // O Plano de Marketing já está dentro do contrato assinado, então não é repetido.
   const downloadComplete = () =>
@@ -636,7 +639,9 @@ function ExclusiveDetail() {
     run(async () => {
       const ask = manual
         ? "Você conferiu os dados lidos do contrato assinado?"
-        : "Você conferiu o PDF gerado e todos os documentos?";
+        : proprioGestor
+          ? "Você conferiu os dados e todos os documentos? O PDF para assinatura será gerado em seguida."
+          : "Você conferiu o PDF gerado e todos os documentos?";
       // Plano de Marketing obrigatório (mesma regra e navegação da captação normal).
       if (manual && dossieMissing && (name === "enviar" || name === "aprovar")) {
         setStep("dossie");
@@ -663,6 +668,19 @@ function ExclusiveDetail() {
       void avisarTransicao(name, id, notifyCaptureTransition);
       setReason("");
       toast.success("Histórico atualizado");
+      // Captação do próprio gestor/TL: não espera ele mesmo revisar — já gera o PDF para
+      // assinatura (o banco só aceita o PDF com a captação em 'enviada', por isso vem depois).
+      // Se a geração falhar, a captação fica enviada e o cartão "Gerar PDF" continua disponível.
+      if (name === "enviar" && proprioGestor) {
+        try {
+          await gerarPdfAssinatura(false);
+          setStep("revisao");
+        } catch (e: unknown) {
+          toast.error(
+            `Captação enviada, mas o PDF para assinatura não foi gerado: ${errorMessage(e, "erro desconhecido")}. Use "Gerar PDF para assinatura".`,
+          );
+        }
+      }
       if (name === "devolver" && statusAntes === "em_assinatura")
         toast.warning(AVISO_CLICKSIGN, { duration: 10000 });
     });
@@ -985,7 +1003,9 @@ function ExclusiveDetail() {
                 clicksignModo.disponivel &&
                 !clicksignModo.envelopeAtivo
               ? STATUS_AGUARDANDO_MANUAL
-              : statusLabels[capture.status]}{" "}
+              : capture.status === "enviada" && proprioGestor
+                ? "Pronta para assinatura"
+                : statusLabels[capture.status]}{" "}
           · Criada em {capture.created_on_sp} (São Paulo). Captador: {capture.broker_name}
         </p>
         {conflicts.length > 0 && (
@@ -1775,11 +1795,20 @@ function ExclusiveDetail() {
           {step === "revisao" && editable && (
             <Card>
               <CardHeader>
-                <CardTitle>Enviar ao gestor</CardTitle>
+                <CardTitle>
+                  {proprioGestor ? "Enviar e gerar PDF para assinatura" : "Enviar ao gestor"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {missing.length ? (
                   <p className="text-sm text-amber-800">Pendências: {missing.join(" · ")}</p>
+                ) : proprioGestor ? (
+                  <p className="text-sm">
+                    Campos e documentos completos. Como a captação é sua e você é gestor/team
+                    leader, não precisa aprovar os próprios documentos: o envio já gera o PDF para
+                    assinatura. Depois é só mandar para assinatura e aprovar com o contrato
+                    assinado.
+                  </p>
                 ) : manual ? (
                   <p className="text-sm">
                     Contrato assinado anexado. O gestor confere e aprova; só depois a captação conta
@@ -1796,7 +1825,13 @@ function ExclusiveDetail() {
                   </p>
                 )}
                 <Button disabled={busy || missing.length > 0} onClick={() => action("enviar")}>
-                  {dirty ? "Salvar e enviar ao gestor" : "Enviar ao gestor"}
+                  {proprioGestor
+                    ? dirty
+                      ? "Salvar, enviar e gerar PDF para assinatura"
+                      : "Enviar e gerar PDF para assinatura"
+                    : dirty
+                      ? "Salvar e enviar ao gestor"
+                      : "Enviar ao gestor"}
                 </Button>
               </CardContent>
             </Card>
