@@ -199,7 +199,7 @@ export function HubWheel({ items, className = "" }: { items: WheelItem[]; classN
 
       <div className="hw-center" aria-hidden="true">
         <span className="hw-name">
-          MAX <span>HUB</span>
+          Uni<span>Hub</span>
         </span>
         <span className="hw-bar" />
         <span className="hw-cap">Plataforma integrada</span>

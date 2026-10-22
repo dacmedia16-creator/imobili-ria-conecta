@@ -73,7 +73,7 @@ function ConvitePage() {
             </h1>
             <p role="alert" className="mt-3 text-sm leading-relaxed text-white/80">
               Este link não é válido. Confira se copiou o endereço inteiro do e-mail ou peça um
-              novo convite ao MAX HUB.
+              novo convite ao UniHub.
             </p>
           </>
         )}

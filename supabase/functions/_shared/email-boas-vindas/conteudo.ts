@@ -11,12 +11,12 @@ export const LINKS = {
 };
 
 export const CONTEUDO = {
-  assunto: "Bem-vindo ao MAX HUB, {{primeiroNome}}",
+  assunto: "Bem-vindo ao UniHub, {{primeiroNome}}",
   preheader: "Seu acesso na {{imobiliaria}} já está liberado.",
   saudacao: "Olá, {{primeiroNome}}!",
   abertura:
-    "A {{imobiliaria}} liberou seu acesso ao MAX HUB. Com um único login, você entra em todos os sistemas MAX.",
-  botao: "Entrar no MAX HUB",
+    "A {{imobiliaria}} liberou seu acesso ao UniHub. Com um único login, você entra em todos os sistemas MAX.",
+  botao: "Entrar no UniHub",
   loginGoogle: "Entre com a sua conta Google:",
   tituloRecursos: "O que você encontra lá:",
   recursos: [
@@ -40,11 +40,11 @@ export const CONTEUDO = {
   ],
   emBreve: "Em breve: Academia MAX, 60 Dias MAX, Recruta MAX e Locação MAX.",
   duvidas: "Dúvidas? Fale com o gestor da sua imobiliária.",
-  assinatura: "Equipe MAX HUB",
+  assinatura: "Equipe UniHub",
   slogan: "Sistemas feitos por quem faz imobiliária no dia a dia.",
   rodape: "Este é um e-mail automático. Por favor, não responda.",
   /** Texto alternativo da capa (aparece se a imagem não carregar). */
-  altCapa: "MAX HUB — todos os sistemas MAX em um só lugar",
+  altCapa: "UniHub — todos os sistemas MAX em um só lugar",
   /** Valores usados quando a variável vier vazia. */
   padroes: { primeiroNome: "corretor(a)", imobiliaria: "sua imobiliária" },
 };

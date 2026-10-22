@@ -1,6 +1,6 @@
 # send-email-boas-vindas
 
-E-mail de boas-vindas do MAX HUB para o usuário que a imobiliária cadastra no ADM MAX.
+E-mail de boas-vindas do UniHub (antes MAX HUB) para o usuário que a imobiliária cadastra no ADM MAX.
 **Tudo nasce DESLIGADO** (`email_config.boas_vindas_mode = 'off'`).
 
 ## Como funciona
@@ -11,7 +11,7 @@ E-mail de boas-vindas do MAX HUB para o usuário que a imobiliária cadastra no 
 2. O pg_cron chama `public.email_disparar()` a cada minuto. Se houver pendência, ele chama esta Edge Function.
 3. A função pega os pendentes, lê nome, e-mail e imobiliária **na hora**, monta o e-mail (HTML + texto, modelo único
    em `../_shared/email-boas-vindas/`) e envia pelo SMTP do Zoho (`smtppro.zoho.com:465`, SSL), com o remetente
-   `MAX HUB <no-reply@somosmaxhub.com.br>`.
+   `UniHub <no-reply@somosmaxhub.com.br>`.
 4. **No máximo 1 e-mail por usuário**: `unique (user_id, tipo)` em `email_outbox`. Se o envio falhar, o erro é
    gravado já mascarado, e há nova tentativa em 1, 5, 30 e 30 min. Na 5ª falha, o status vira `falhou`.
    Item travado em `processando` por mais de 15 min vira `falhou` e não é reenviado sozinho.

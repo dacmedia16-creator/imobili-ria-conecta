@@ -230,14 +230,14 @@ describe("ponte Conta MAX: conferência do e-mail Google", () => {
 });
 
 describe("e-mail do convite (mesmo SMTP das boas-vindas)", () => {
-  it("texto em pt-BR, marca MAX HUB, link do app e validade", () => {
+  it("texto em pt-BR, marca UniHub, link do app e validade", () => {
     const r = renderEmailConvite({
       link: "https://app.somosmaxhub.com.br/convite/abc",
       expiraEm: new Date("2026-10-27T15:00:00Z"),
       email: "dono@exemplo.com",
     });
     expect(r.subject).toMatch(/ADM MAX/);
-    expect(r.html).toMatch(/MAX&nbsp;<span[^>]*>HUB/);
+    expect(r.html).toMatch(/Uni<span[^>]*>Hub/);
     expect(r.text).toContain("https://app.somosmaxhub.com.br/convite/abc");
     expect(r.text).toMatch(/27\/10\/2026/);
     expect(r.text).toMatch(/uma única vez/);
@@ -266,7 +266,7 @@ describe("e-mail do convite (mesmo SMTP das boas-vindas)", () => {
         token,
         appUrl: "https://app.somosmaxhub.com.br",
       },
-      { from: '"MAX HUB" <no-reply@somosmaxhub.com.br>', dominio: "somosmaxhub.com.br" },
+      { from: '"UniHub" <no-reply@somosmaxhub.com.br>', dominio: "somosmaxhub.com.br" },
       () => "erro",
     );
     return { r, marcas, enviados, token };

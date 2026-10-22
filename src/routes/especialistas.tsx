@@ -101,7 +101,7 @@ function SpecialistsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071a44] via-[#0d2d6c] to-slate-100">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link to="/" aria-label="Voltar ao Hub Única Escolha">
+        <Link to="/" aria-label="Voltar ao UniHub">
           <img
             src="/remax-logo-white.png"
             width={1600}
@@ -284,7 +284,7 @@ function SpecialistsPage() {
             <div className="mt-10 text-center">
               <Button variant="ghost" asChild>
                 <Link to="/">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Hub
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao UniHub
                 </Link>
               </Button>
             </div>

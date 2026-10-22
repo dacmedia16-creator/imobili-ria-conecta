@@ -120,7 +120,7 @@ function cabecalho(incluirCapa: boolean): string {
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td aria-hidden="true" style="${FONTE}font-size:26px;line-height:26px;color:${COR.vermelho};padding-right:10px;">&#11042;</td>
-                <td style="${FONTE}font-size:20px;line-height:26px;font-weight:bold;letter-spacing:1px;color:#ffffff;">MAX&nbsp;<span style="color:${COR.vermelho};">HUB</span></td>
+                <td style="${FONTE}font-size:20px;line-height:26px;font-weight:bold;letter-spacing:1px;color:#ffffff;">Uni<span style="color:#8fb4e8;">Hub</span></td>
               </tr>
             </table>
           </td>
