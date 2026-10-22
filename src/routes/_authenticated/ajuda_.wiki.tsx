@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/visual/base";
+import { WikiVideo } from "@/components/wiki/WikiVideo";
 import { FAQ, GUIAS } from "@/lib/wiki-max/guias";
 import {
   buscarGuias,
@@ -258,6 +259,15 @@ function GuiaAberto({
         ))}
       </ol>
       <Caixa tom="border-slate-400 bg-slate-50" titulo="👥 Outros papéis:" s={g.outrosPapeis} />
+      {g.video && (
+        <WikiVideo
+          key={g.id}
+          chave={g.video.chave}
+          capaUrl={urlDoPrint(g.video.capa)}
+          legenda={g.video.legenda}
+          duracao={g.video.duracao}
+        />
+      )}
       {(g.prints ?? []).map((p) => {
         const url = urlDoPrint(p.chave);
         if (!url) return null;

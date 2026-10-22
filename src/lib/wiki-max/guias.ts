@@ -173,6 +173,12 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Tela Nova venda, com o botão Criar rascunho.",
       },
     ],
+    video: {
+      chave: "venda",
+      capa: "video-venda-capa",
+      legenda: "Vídeo: como registrar uma venda, do rascunho até o envio ao gestor.",
+      duracao: "5:29",
+    },
   },
   {
     id: "captacao",
