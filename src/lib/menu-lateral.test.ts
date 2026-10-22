@@ -181,6 +181,34 @@ describe("menu lateral agrupado", () => {
       expect(vê([p], true)).toBe(false);
   });
 
+  it('"Entrar como" da plataforma esconde só os 3 itens da plataforma (card t_722085c6)', () => {
+    const PLATAFORMA = ["/plataforma/imobiliarias", "/plataforma/usuarios", "/plataforma/chamados"];
+    const base: MenuContexto = {
+      roles: ["super_admin", "admin"], // papéis virtuais do contexto (CONTEXT_ROLES)
+      platformAdmin: true,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+    };
+    const fora = itensVisiveis(montarMenuLateral(base));
+    const dentro = itensVisiveis(montarMenuLateral({ ...base, inPlatformContext: true }));
+    for (const p of PLATAFORMA) {
+      expect(fora).toContain(p);
+      expect(dentro).not.toContain(p);
+    }
+    // Todo o resto continua igual, inclusive Configurações e Assinatura digital.
+    expect(dentro).toEqual(fora.filter((to) => !PLATAFORMA.includes(to)));
+    expect(dentro).toContain("/admin/configuracoes");
+    expect(dentro).toContain("/admin/assinatura-digital");
+    // Usuário real (sem platformAdmin) não muda com a flag.
+    for (const roles of [["admin"], ["gestor"], ["corretor"], ["super_admin"]]) {
+      const real = { ...base, roles, platformAdmin: false };
+      expect(itensVisiveis(montarMenuLateral({ ...real, inPlatformContext: true }))).toEqual(
+        itensVisiveis(montarMenuLateral(real)),
+      );
+    }
+  });
+
   it("iniciais do e-mail", () => {
     expect(iniciaisDoEmail("alexandre.fernandes@x.com")).toBe("AF");
     expect(iniciaisDoEmail("denis@x.com")).toBe("DE");

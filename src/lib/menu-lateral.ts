@@ -57,6 +57,9 @@ export type MenuContexto = {
   achievementsVisible?: boolean;
   /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
   carreiraVisible?: boolean;
+  /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
+   * itens da plataforma; a volta é pelo "Sair" da faixa (card t_722085c6). Ausente = fora. */
+  inPlatformContext?: boolean;
 };
 
 export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
@@ -64,6 +67,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const opportunitiesVisible = ctx.opportunitiesVisible === true;
   const achievementsVisible = ctx.achievementsVisible === true;
   const carreiraVisible = ctx.carreiraVisible === true;
+  const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
   return [
@@ -261,19 +265,19 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           to: "/plataforma/imobiliarias",
           label: "Imobiliárias",
           icon: Building,
-          show: platformAdmin,
+          show: platformItems,
         },
         {
           to: "/plataforma/usuarios",
           label: "Usuários da plataforma",
           icon: Users,
-          show: platformAdmin,
+          show: platformItems,
         },
         {
           to: "/plataforma/chamados",
           label: "Central de chamados",
           icon: Inbox,
-          show: platformAdmin,
+          show: platformItems,
         },
       ],
     },

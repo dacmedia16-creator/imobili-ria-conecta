@@ -418,6 +418,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     opportunitiesVisible,
     achievementsVisible,
     carreiraVisible: exclusiveVisible,
+    inPlatformContext: Boolean(platformContext),
   });
   const unread = useUnreadNotifications();
   // Na sessão "Ver como" os papéis carregados já são os da pessoa vista.
