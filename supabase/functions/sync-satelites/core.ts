@@ -94,6 +94,8 @@ export type Mapa = {
   visita_tl_lider?: boolean;
   /** Chave da etapa 1 acabou de ser desligada: mandar ligado=false ao Visita uma vez. */
   visita_equipes_desligar_pendente?: boolean;
+  /** Quando o Visita confirmou as equipes pela 1ª vez (etapa 1 aplicada). Zerado ao desligar a etapa 1. */
+  visita_equipes_ok_em?: string | null;
 };
 
 /** Satélites que recebem PESSOAS desta imobiliária. O 60 Dias só entra com sessenta_enabled === true. */
@@ -124,9 +126,12 @@ export function papelVisita(roles: string[], tlLider: boolean): string {
   return acimaDeTl ? base : "corretor";
 }
 
-/** Etapa 2 só vale com a etapa 1 ligada: sem equipes no Visita, o TL rebaixado ficaria sem enxergar ninguém. */
+/**
+ * Etapa 2 só vale com a etapa 1 ligada E já confirmada pelo Visita (visita_equipes_ok_em): sem as equipes lá,
+ * o TL rebaixado ficaria sem enxergar ninguém (ex.: Visita recusou ou deu erro nas equipes).
+ */
 export const tlComoLider = (mapa: Partial<Mapa>) =>
-  mapa.visita_tl_lider === true && mapa.visita_equipes === true;
+  mapa.visita_tl_lider === true && mapa.visita_equipes === true && !!mapa.visita_equipes_ok_em;
 
 /** Monta a pessoa no formato do satélite (só campos mínimos; sem CPF, CRECI, remax_id etc.). */
 export function pessoaParaSatelite(
@@ -393,7 +398,9 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     const eq = await sincronizarEquipesVisita(admin, amb, mapa, modo);
     if (eq) {
       logs.push(eq.log);
-      if (eq.erro) for (const { id } of giTodos) set(id, "erro", `visita_equipes: ${eq.erro}`);
+      // Erro nas equipes não derruba as pessoas já aplicadas: só UM item da org volta para nova tentativa (a fila
+      // desiste sozinha após 6 tentativas). O erro fica no sync_log com acao=equipes.
+      if (eq.erro && giTodos.length) set(giTodos[0].id, "erro", `visita_equipes: ${eq.erro}`);
     }
   }
 
@@ -485,6 +492,23 @@ export async function sincronizarEquipesVisita(
       throw new Error(
         `http_${r.status}_${String(r.json?.erro ?? r.json?.error ?? "resposta_invalida").slice(0, 80)}`,
       );
+    }
+    // Etapa 1 confirmada pelo Visita (equipes aplicadas): só agora a etapa 2 pode rebaixar o TL. Na 1ª vez,
+    // reenfileira a org para as pessoas irem de novo já com o papel da etapa 2 (se ela estiver ligada).
+    if (ligado && modo === "live" && (res === "ok" || res === "nada_a_fazer") && !mapa.visita_equipes_ok_em) {
+      await ok(
+        admin
+          .from("sync_org_map")
+          .update({ visita_equipes_ok_em: new Date().toISOString() })
+          .eq("adm_org_id", mapa.adm_org_id),
+        "equipes_ok_em",
+      );
+      if (mapa.visita_tl_lider === true) {
+        await ok(
+          admin.rpc("sync_enfileirar_org", { p_org: mapa.adm_org_id, p_motivo: "visita_equipes_ok" }),
+          "reenfileirar_org",
+        );
+      }
     }
     if (desligar && modo === "live" && res !== "desligado") {
       await ok(

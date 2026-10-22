@@ -89,6 +89,10 @@ function fakeAdmin(o: {
         gravado.concluir.push(args);
         return { data: "ok", error: null };
       }
+      if (fn === "sync_enfileirar_org") {
+        (gravado.reenfileirar ??= []).push(args);
+        return { data: 1, error: null };
+      }
       return { data: null, error: { message: "rpc desconhecida" } };
     },
   };
@@ -145,7 +149,9 @@ describe("papel no Visita com a etapa 2 (TL vira corretor-líder)", () => {
   it("etapa 2 só vale com a etapa 1 ligada", () => {
     expect(tlComoLider({ visita_tl_lider: true, visita_equipes: false })).toBe(false);
     expect(tlComoLider({ visita_tl_lider: true })).toBe(false);
-    expect(tlComoLider({ visita_tl_lider: true, visita_equipes: true })).toBe(true);
+    // ligada mas ainda sem confirmação do Visita: TL NÃO é rebaixado
+    expect(tlComoLider({ visita_tl_lider: true, visita_equipes: true })).toBe(false);
+    expect(tlComoLider({ visita_tl_lider: true, visita_equipes: true, visita_equipes_ok_em: "2026-10-22" })).toBe(true);
     expect(tlComoLider({ visita_tl_lider: false, visita_equipes: true })).toBe(false);
   });
   it("Estudo/60 Dias não são afetados pela chave do Visita", () => {
@@ -260,9 +266,34 @@ describe("equipes do ADM para o Visita", () => {
 });
 
 describe("processarFila com as chaves", () => {
-  it("etapa 1+2 ligadas: pessoas primeiro (TL como corretor), depois equipes; conclui ok", async () => {
+  it("etapa 1+2 ligadas mas equipes ainda não confirmadas: TL fica imobiliaria_admin; ao confirmar, marca e reenfileira", async () => {
     const admin = fakeAdmin({
       mapa: mapaBase({ visita_equipes: true, visita_tl_lider: true }),
+      itens: [{ id: 1, adm_user_id: "u1" }],
+      estado: [linha()],
+    });
+    const { amb, enviados } = ambiente();
+    await processarFila(admin, amb);
+    expect(enviados.map((e) => e.body.acao)).toEqual(["apply", "equipes"]);
+    expect(enviados[0].body.pessoas[0].papel).toBe("imobiliaria_admin");
+    expect(admin.gravado.updates.some((u: any) => u.nome === "sync_org_map" && u.v.visita_equipes_ok_em)).toBe(true);
+    expect(admin.gravado.reenfileirar).toEqual([{ p_org: ORG, p_motivo: "visita_equipes_ok" }]);
+  });
+
+  it("equipes com erro: NÃO marca confirmação (TL continua imobiliaria_admin na próxima rodada)", async () => {
+    const admin = fakeAdmin({
+      mapa: mapaBase({ visita_equipes: true, visita_tl_lider: true }),
+      itens: [{ id: 1, adm_user_id: "u1" }, { id: 2, adm_user_id: "u1" }],
+      estado: [linha()],
+    });
+    await processarFila(admin, ambiente({ resultado: "erro", erro: "x" }).amb);
+    expect(admin.gravado.updates.some((u: any) => u.v?.visita_equipes_ok_em)).toBe(false);
+    expect(admin.gravado.reenfileirar).toBeUndefined();
+  });
+
+  it("etapa 1+2 ligadas e confirmadas: pessoas primeiro (TL como corretor), depois equipes; conclui ok", async () => {
+    const admin = fakeAdmin({
+      mapa: mapaBase({ visita_equipes: true, visita_tl_lider: true, visita_equipes_ok_em: "2026-10-22T00:00:00Z" }),
       itens: [{ id: 1, adm_user_id: "u1" }],
       estado: [linha()],
     });
@@ -286,15 +317,16 @@ describe("processarFila com as chaves", () => {
     expect(enviados[0].body.pessoas[0].papel).toBe("imobiliaria_admin");
   });
 
-  it("falha nas equipes: itens da org voltam para nova tentativa", async () => {
+  it("falha nas equipes: só 1 item da org volta para nova tentativa (as pessoas aplicadas ficam ok)", async () => {
     const admin = fakeAdmin({
       mapa: mapaBase({ visita_equipes: true }),
-      itens: [{ id: 7, adm_user_id: "u1" }],
+      itens: [{ id: 7, adm_user_id: "u1" }, { id: 8, adm_user_id: "u1" }],
       estado: [linha()],
     });
     const { amb } = ambiente({ resultado: "erro", erro: "x" });
     await processarFila(admin, amb);
     expect(admin.gravado.concluir[0]).toMatchObject({ p_id: 7, p_resultado: "erro" });
     expect(admin.gravado.concluir[0].p_erro).toContain("visita_equipes");
+    expect(admin.gravado.concluir[1]).toMatchObject({ p_id: 8, p_resultado: "ok" });
   });
 });

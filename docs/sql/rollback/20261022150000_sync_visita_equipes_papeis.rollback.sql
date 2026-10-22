@@ -52,6 +52,7 @@ create trigger trg_zz_sync_teams after update of lider_id on public.teams
   for each row execute function public.sync_enfileirar_trg();
 
 alter table public.sync_org_map
+  drop column if exists visita_equipes_ok_em,
   drop column if exists visita_equipes_desligar_pendente,
   drop column if exists visita_tl_lider,
   drop column if exists visita_equipes;

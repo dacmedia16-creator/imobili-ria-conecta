@@ -9,7 +9,9 @@
 alter table public.sync_org_map
   add column if not exists visita_equipes boolean not null default false,
   add column if not exists visita_tl_lider boolean not null default false,
-  add column if not exists visita_equipes_desligar_pendente boolean not null default false;
+  add column if not exists visita_equipes_desligar_pendente boolean not null default false,
+  -- quando o Visita confirmou as equipes (etapa 1 aplicada); a etapa 2 só rebaixa o TL depois disso
+  add column if not exists visita_equipes_ok_em timestamptz;
 
 -- Gatilho genérico: times também avisam o líder (equipe sem membros mudou de nome/cor/pai) e o líder antigo.
 -- team_co_leaders cai no ramo "else" (user_id), como user_roles. Só anota; nunca faz o cadastro falhar.
@@ -69,6 +71,7 @@ begin
   if new.visita_equipes is distinct from old.visita_equipes or new.visita_tl_lider is distinct from old.visita_tl_lider then
     if old.visita_equipes and not new.visita_equipes then
       new.visita_equipes_desligar_pendente := true;
+      new.visita_equipes_ok_em := null; -- religar exige nova confirmação do Visita antes da etapa 2
     elsif new.visita_equipes then
       new.visita_equipes_desligar_pendente := false;
     end if;
