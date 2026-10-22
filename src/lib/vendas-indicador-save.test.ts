@@ -14,6 +14,8 @@ import {
   responsaveisDaVenda,
 } from "./sale-permissions";
 import { saleManagementCapabilities } from "./sale-management-capabilities";
+import { extraSemPessoaCadastrada } from "./sale-financial-calc";
+import { COMISSAO_PAPEIS } from "./status";
 
 // OFFLINE: executa os handlers extraídos do TSX real. Somente as fronteiras React/Supabase
 // são simuladas. Não monta DOM, não executa PostgreSQL/RLS nem chama rede/produção.
@@ -104,6 +106,8 @@ function harness(initial = fixture()) {
     teamIds: new Set(["owner-fixture"]),
     podeSincronizarResumo,
     saleManagementCapabilities,
+    extraSemPessoaCadastrada,
+    COMISSAO_PAPEIS,
     temEdicaoFinanceiraResumo,
     resumoTemPendencia,
     corretorPodeEditar,
