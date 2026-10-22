@@ -112,11 +112,14 @@ export function precisaCompletarPerfil(input: {
    * usada para conferir a tela com a conta de teste, que é anterior a COMPLETAR_PERFIL_DESDE. */
   forcar?: boolean;
   perfil: PerfilParaCompletar;
+  /** Data de nascimento (t_dff88e75): true SÓ quando a leitura deu certo e não há data gravada.
+   * Conta nova sem data vê a tela obrigatória; conta antiga nunca é travada nem lembrada por isso. */
+  semDataNascimento?: boolean;
 }): boolean {
   return (
     candidatoCompletarPerfil(input) &&
     (contaNova(input.createdAt) || input.forcar === true) &&
-    camposFaltando(input.perfil).length > 0
+    (camposFaltando(input.perfil).length > 0 || input.semDataNascimento === true)
   );
 }
 
