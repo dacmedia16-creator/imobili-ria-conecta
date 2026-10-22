@@ -312,7 +312,7 @@ export async function createOrganizationFlow(
     const fa = input.firstAdmin;
     const created = await r.run("administrador", async () => {
       await createFirstAdmin(admin, orgId as string, fa, fa.role);
-      return `${fa.nome} cadastrado como ${fa.role === "super_admin" ? "Super Admin" : "Administrador"} da imobiliária.`;
+      return `${fa.nome} cadastrado como ${fa.role === "super_admin" ? "Administrador principal" : "Administrador"} da imobiliária.`;
     });
     if (created) {
       await r.run("convite", async () => {

@@ -36,7 +36,7 @@ async function assertCanManageTeams(
       (r: string) => r === "gestor" || r === "team_leader" || r === "admin" || r === "super_admin",
     )
   ) {
-    throw new Error("Só gestor, team leader, admin ou super admin podem gerenciar equipes.");
+    throw new Error("Só gestor, team leader, administrador ou administrador principal podem gerenciar equipes.");
   }
 }
 

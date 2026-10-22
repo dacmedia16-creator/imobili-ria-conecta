@@ -5293,7 +5293,7 @@ function SaleDetail() {
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
               🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo
-              leitura. Somente Financeiro, Admin ou Super Admin podem reabrir edições.
+              leitura. Somente Financeiro, Administrador ou Administrador principal podem reabrir edições.
             </div>
           )}
           {!editable && isOwner && (
@@ -7373,7 +7373,7 @@ function OccurrencePanel({
   const toggleAceite = async () => {
     if (!occ) return;
     if (!canFinLock) {
-      toast.error("Somente financeiro/admin/super admin");
+      toast.error("Somente financeiro, administrador ou administrador principal");
       return;
     }
     if (!occ.aceita_financeiro && !podeTravar) {
@@ -7415,7 +7415,7 @@ function OccurrencePanel({
 
   const openReopenDialog = () => {
     if (!canFinLock) {
-      toast.error("Somente financeiro/admin/super admin podem reabrir");
+      toast.error("Somente financeiro, administrador ou administrador principal podem reabrir");
       return;
     }
     setReopenMotivo("");

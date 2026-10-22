@@ -72,6 +72,7 @@ const DB_CREATE_REASONS: Record<string, string> = {
   cadastro_sem_agencia: REASONS.noOrg,
   cadastro_sem_permissao: REASONS.noPermission,
   cadastro_admin_nao_cria_admin: REASONS.adminGrantsAdmin,
+  cadastro_principal_so_plataforma: REASONS.platformGrantsPrincipal,
   cadastro_lider_so_corretor: REASONS.leadCreatesOnlyCorretor,
   cadastro_lider_sem_equipe: REASONS.leadNoTeam,
 };

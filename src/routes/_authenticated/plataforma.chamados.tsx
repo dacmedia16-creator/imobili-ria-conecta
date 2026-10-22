@@ -35,7 +35,7 @@ const PAPEL: Record<string, string> = {
   gestor: "Gestor",
   team_leader: "Team Leader",
   admin: "Admin",
-  super_admin: "Super admin",
+  super_admin: "Administrador principal",
   financeiro: "Financeiro",
 };
 

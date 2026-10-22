@@ -152,7 +152,8 @@ export const ROLE_LABEL: Record<AppRole, string> = {
   juridico: "Jurídico",
   financeiro: "Financeiro",
   admin: "Administrador",
-  super_admin: "Super Admin",
+  // Papel de agência. "Super Admin" é só o da plataforma (platform_admins) — t_44d957b1.
+  super_admin: "Administrador principal",
   lancamento: "Lançamento",
   staff: "Staff",
 };

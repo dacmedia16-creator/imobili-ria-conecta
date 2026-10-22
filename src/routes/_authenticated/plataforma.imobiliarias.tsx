@@ -1180,7 +1180,7 @@ function RoleSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="super_admin">
-            Super Admin da imobiliária (pode criar administradores)
+            Administrador principal (pode criar administradores)
           </SelectItem>
           <SelectItem value="admin">Administrador</SelectItem>
         </SelectContent>

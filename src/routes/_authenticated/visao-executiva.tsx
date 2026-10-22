@@ -100,7 +100,7 @@ type VisaoExecutivaStats = {
     quantidade_captacoes: number;
   };
   evolucao_mensal: { mes: string; vendas_fechadas: number; comissao: number }[];
-  /** Só vem preenchido pra super_admin — a RPC devolve null pra qualquer outro papel. */
+  /** Só vem preenchido pro super-admin da plataforma — a RPC devolve null pra qualquer outro. */
   whatsapp: { eventos: number; enviados: number; falhas: number; eventos_com_falha: number } | null;
 };
 
@@ -189,7 +189,7 @@ type DetalheSelecao =
   | { tipo: "equipe"; teamId: string | null; nome: string };
 
 function VisaoExecutiva() {
-  const { user, hasAny, roles, loading: authLoading } = useAuth();
+  const { user, hasAny, roles, loading: authLoading, platformAdmin } = useAuth();
   // `financeiro` foi adicionado aqui junto com a migração dos cards de comissão/VGV consolidados
   // do Dashboard pra esta página — sem isso, esse papel perderia acesso aos próprios números.
   const allowed = hasAny(["admin", "super_admin", "financeiro", "gestor", "team_leader"]);
@@ -199,7 +199,8 @@ function VisaoExecutiva() {
   const [visaoEscolhida, setVisaoEscolhida] = useState<VisaoDesempenho | null>(null);
   const visao = visaoEscolhida ?? visaoInicialDesempenho(roles, temEquipe);
   const usaConsolidadoEmpresa = podeAlternarVisao && visao === "empresa";
-  const isSuperAdmin = hasAny(["super_admin"]);
+  // Bloco "Saúde do WhatsApp": só o super-admin da PLATAFORMA (t_44d957b1); a RPC repete a regra.
+  const isSuperAdmin = platformAdmin;
   const [stats, setStats] = useState<VisaoExecutivaStats | null>(null);
   const [operacaoRemax, setOperacaoRemax] = useState<ResumoDesempenho>({
     vgv_proprio: 0,

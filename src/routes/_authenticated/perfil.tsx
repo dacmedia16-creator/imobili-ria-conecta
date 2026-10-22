@@ -528,9 +528,9 @@ function MeuAcesso() {
       case "financeiro":
         return "Você vê todas as vendas e é quem trava/libera a edição via ocorrência.";
       case "admin":
-        return "Você vê e edita tudo. Não pode conceder o papel Admin ou Super Admin — só o Super Admin pode.";
+        return "Você vê e edita tudo. Não pode conceder o papel Administrador nem Administrador principal — só o Administrador principal concede Administrador.";
       case "super_admin":
-        return "Acesso total, incluindo conceder ou revogar os papéis Admin e Super Admin.";
+        return "Acesso total na imobiliária, incluindo conceder ou retirar o papel Administrador e acessar Configurações. O papel Administrador principal só é concedido pela plataforma.";
       default:
         return "Permissões definidas conforme o papel atribuído ao usuário.";
     }

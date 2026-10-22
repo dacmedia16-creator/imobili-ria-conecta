@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   decideCreateUser,
+  decideImpersonationActor,
   decideImpersonationTarget,
   decideOrgAction,
   decideUserAction,
@@ -126,6 +127,49 @@ describe("matriz papel × ação × agência (regra única)", () => {
     expect(
       decideUserAction(actors.superAdminA, "change_roles", corretorForaA, "admin").allowed,
     ).toBe(true);
+    // Administrador principal também RETIRA papel de administrador.
+    expect(decideUserAction(actors.superAdminA, "change_roles", adminAlvoA, "admin").allowed).toBe(
+      true,
+    );
+  });
+
+  it("administrador principal não concede nem retira 'Administrador principal'; plataforma sim", () => {
+    expect(decideUserAction(actors.superAdminA, "change_roles", corretorForaA, "super_admin")).toEqual(
+      { allowed: false, reason: REASONS.platformGrantsPrincipal },
+    );
+    const outroPrincipal = t("sa2-a", A, ["super_admin", "admin"]);
+    expect(
+      decideUserAction(actors.superAdminA, "change_roles", outroPrincipal, "super_admin"),
+    ).toEqual({ allowed: false, reason: REASONS.platformGrantsPrincipal });
+    expect(
+      decideUserAction(actors.adminA, "change_roles", corretorForaA, "super_admin").allowed,
+    ).toBe(false);
+    const plataformaNaA: Actor = {
+      userId: "denis",
+      orgId: A,
+      roles: ["super_admin", "admin"],
+      isPlatformAdmin: true,
+    };
+    expect(
+      decideUserAction(plataformaNaA, "change_roles", corretorForaA, "super_admin").allowed,
+    ).toBe(true);
+    expect(
+      decideUserAction(plataformaNaA, "change_roles", outroPrincipal, "super_admin").allowed,
+    ).toBe(true);
+    // Plataforma não atravessa agência: org do contexto é a única aceita.
+    expect(decideUserAction(plataformaNaA, "change_roles", corretorB, "admin")).toEqual({
+      allowed: false,
+      reason: REASONS.otherOrg,
+    });
+  });
+
+  it("administrador principal de A não age em usuário de B (sem vazamento entre orgs)", () => {
+    for (const action of ["edit_user", "change_roles", "set_active", "change_email"] as const) {
+      expect(decideUserAction(actors.superAdminA, action, corretorB, "admin")).toEqual({
+        allowed: false,
+        reason: REASONS.otherOrg,
+      });
+    }
   });
 
   it("gestor e team leader não mexem em contas de outros papéis, nem da própria equipe", () => {
@@ -212,6 +256,30 @@ describe("matriz papel × ação × agência (regra única)", () => {
     expect(decideUserAction(actors.adminA, "change_email", corretorB).allowed).toBe(false);
   });
 
+  it("'entrar como': só o super-admin da plataforma; nenhum papel de agência (t_44d957b1)", () => {
+    expect(decideImpersonationActor(actors.plataforma)).toEqual({ allowed: true });
+    for (const key of ["superAdminA", "adminA", "gestorA", "tlA", "corretorA", "adminB"]) {
+      expect(decideImpersonationActor(actors[key])).toEqual({
+        allowed: false,
+        reason: REASONS.impersonatePlatformOnly,
+      });
+    }
+    // Ter TODOS os papéis de agência (caso da conta da Única Escolha) não basta.
+    const todos: ManagedRole[] = [
+      "super_admin",
+      "admin",
+      "gestor",
+      "team_leader",
+      "corretor",
+      "financeiro",
+      "juridico",
+      "lancamento",
+      "staff",
+    ];
+    const contaComTodos: Actor = { userId: "de-ue", orgId: A, roles: todos };
+    expect(decideImpersonationActor(contaComTodos).allowed).toBe(false);
+  });
+
   it("'entrar como' recusa super admin e administrador da plataforma", () => {
     expect(decideImpersonationTarget(t("sa2-a", A, ["super_admin"]))).toEqual({
       allowed: false,
@@ -237,6 +305,10 @@ describe("matriz papel × ação × agência (regra única)", () => {
 describe("cadastro de usuário por papel", () => {
   it("papéis concedíveis", () => {
     expect(grantableRoles(["super_admin"])).toContain("admin");
+    // Administrador principal NÃO concede Administrador principal (t_44d957b1).
+    expect(grantableRoles(["super_admin"])).not.toContain("super_admin");
+    expect(grantableRoles(["super_admin", "admin"])).not.toContain("super_admin");
+    expect(grantableRoles([], { isPlatformAdmin: true })).toContain("super_admin");
     expect(grantableRoles(["admin"])).not.toContain("admin");
     expect(grantableRoles(["admin"])).not.toContain("super_admin");
     expect(grantableRoles(["gestor"])).toEqual(["corretor"]);
@@ -244,8 +316,19 @@ describe("cadastro de usuário por papel", () => {
     expect(grantableRoles(["corretor"])).toEqual([]);
   });
 
+  it("administrador principal recebe motivo específico ao cadastrar administrador principal", () => {
+    expect(decideCreateUser(actors.superAdminA, "super_admin")).toEqual({
+      allowed: false,
+      reason: REASONS.platformGrantsPrincipal,
+    });
+    expect(
+      decideCreateUser({ ...actors.superAdminA, isPlatformAdmin: true }, "super_admin").allowed,
+    ).toBe(true);
+  });
+
   it.each([
     ["superAdminA", "admin", true],
+    ["superAdminA", "super_admin", false],
     ["adminA", "gestor", true],
     ["adminA", "admin", false],
     ["adminA", "super_admin", false],
