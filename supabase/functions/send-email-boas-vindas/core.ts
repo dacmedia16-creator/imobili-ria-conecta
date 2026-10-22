@@ -4,7 +4,7 @@
 import { renderEmailBoasVindas } from "../_shared/email-boas-vindas/render.ts";
 
 export const REMETENTE = "no-reply@somosmaxhub.com.br";
-export const NOME_REMETENTE = "MAX HUB";
+export const NOME_REMETENTE = "UniHub";
 export const DOMINIO_MESSAGE_ID = "somosmaxhub.com.br";
 
 export type Modo = "off" | "dry_run" | "live";

@@ -28,12 +28,12 @@ export function dataValidade(d: Date): string {
 export function renderEmailConvite(d: DadosConvite): EmailConvite {
   const validade = dataValidade(d.expiraEm);
   const subject = "Convite para cadastrar sua imobiliária no ADM MAX";
-  const preheader = `Cadastre sua imobiliária no MAX HUB. O link vale até ${validade}.`;
+  const preheader = `Cadastre sua imobiliária no UniHub. O link vale até ${validade}.`;
   const e = escapeHtml;
   const linhas = [
     "Olá!",
     "",
-    "Você recebeu um convite para cadastrar a sua imobiliária no ADM MAX, o sistema de gestão do MAX HUB.",
+    "Você recebeu um convite para cadastrar a sua imobiliária no ADM MAX, o sistema de gestão do UniHub.",
     "",
     `Cadastrar minha imobiliária: ${d.link}`,
     "",
@@ -42,7 +42,7 @@ export function renderEmailConvite(d: DadosConvite): EmailConvite {
     "",
     "Se você não esperava este convite, ignore este e-mail.",
     "",
-    "Equipe MAX HUB",
+    "Equipe UniHub",
     "",
     "--",
     "Este é um e-mail automático. Por favor, não responda.",
@@ -65,13 +65,13 @@ export function renderEmailConvite(d: DadosConvite): EmailConvite {
       <tr><td style="background:${COR.navyEscuro};padding:18px 28px;" class="px">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
           <td aria-hidden="true" style="${FONTE}font-size:26px;line-height:26px;color:${COR.vermelho};padding-right:10px;">&#11042;</td>
-          <td style="${FONTE}font-size:20px;line-height:26px;font-weight:bold;letter-spacing:1px;color:#ffffff;">MAX&nbsp;<span style="color:${COR.vermelho};">HUB</span></td>
+          <td style="${FONTE}font-size:20px;line-height:26px;font-weight:bold;letter-spacing:1px;color:#ffffff;">Uni<span style="color:#8fb4e8;">Hub</span></td>
         </tr></table>
       </td></tr>
       <tr><td style="background:${COR.vermelho};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
       <tr><td class="px" style="padding:32px 36px 8px 36px;">
         <h1 style="margin:0 0 16px 0;${FONTE}font-size:24px;line-height:32px;font-weight:bold;color:${COR.navy};">Cadastre sua imobiliária no ADM MAX</h1>
-        <p style="margin:0 0 24px 0;${FONTE}font-size:16px;line-height:24px;color:${COR.texto};">Você recebeu um convite para cadastrar a sua imobiliária no ADM MAX, o sistema de gestão do MAX HUB. Leva poucos minutos.</p>
+        <p style="margin:0 0 24px 0;${FONTE}font-size:16px;line-height:24px;color:${COR.texto};">Você recebeu um convite para cadastrar a sua imobiliária no ADM MAX, o sistema de gestão do UniHub. Leva poucos minutos.</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr>
           <td align="center" bgcolor="${COR.vermelho}" style="border-radius:8px;background:${COR.vermelho};">
             <a class="btn" href="${e(d.link)}" target="_blank" rel="noopener" style="display:inline-block;padding:16px 36px;${FONTE}font-size:17px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;background:${COR.vermelho};">Cadastrar minha imobiliária&nbsp;&rarr;</a>
@@ -80,7 +80,7 @@ export function renderEmailConvite(d: DadosConvite): EmailConvite {
         <p style="margin:24px 0 8px 0;${FONTE}font-size:14px;line-height:21px;color:${COR.cinza};text-align:center;">Entre com a conta Google do e-mail<br><strong style="color:${COR.navy};word-break:break-all;">${e(d.email)}</strong><br>Com outra conta, o convite não funciona.</p>
         <p style="margin:0 0 24px 0;${FONTE}font-size:14px;line-height:21px;color:${COR.cinza};text-align:center;">O link é pessoal, pode ser usado uma única vez e vale até <strong>${e(validade)}</strong> (7 dias).</p>
         <p style="margin:0 0 24px 0;${FONTE}font-size:13px;line-height:20px;color:${COR.cinza};">Se você não esperava este convite, ignore este e-mail.</p>
-        <p style="margin:0 0 28px 0;${FONTE}font-size:15px;line-height:22px;color:${COR.navy};font-weight:bold;">Equipe MAX HUB</p>
+        <p style="margin:0 0 28px 0;${FONTE}font-size:15px;line-height:22px;color:${COR.navy};font-weight:bold;">Equipe UniHub</p>
       </td></tr>
       <tr><td class="px" style="padding:16px 36px;background:${COR.fundo};${FONTE}font-size:12px;line-height:18px;color:${COR.cinza};">Este é um e-mail automático. Por favor, não responda.</td></tr>
     </table>

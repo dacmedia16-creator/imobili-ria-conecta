@@ -92,14 +92,14 @@ const usuarios: Record<string, Dados> = {
 };
 
 describe("envio do e-mail de boas-vindas", () => {
-  it("mensagem multipart (texto + HTML) com o remetente MAX HUB e o modelo compartilhado", () => {
+  it("mensagem multipart (texto + HTML) com o remetente UniHub e o modelo compartilhado", () => {
     const m = montarMensagem(
       "x@y.com",
       { nome: "maria silva", imobiliaria: "RE/MAX Única" },
       "<a@b>",
     );
-    expect(m.from).toBe('"MAX HUB" <no-reply@somosmaxhub.com.br>');
-    expect(m.subject).toBe("Bem-vindo ao MAX HUB, Maria");
+    expect(m.from).toBe('"UniHub" <no-reply@somosmaxhub.com.br>');
+    expect(m.subject).toBe("Bem-vindo ao UniHub, Maria");
     expect(m.text).toContain("RE/MAX Única");
     expect(m.html).toContain("<html");
     expect(m.text).not.toContain("<");

@@ -11,9 +11,9 @@ export const GUIAS: WikiGuia[] = [
     titulo: "Como entrar nos sistemas",
     resumo: "Uma conta Google só para os três sistemas.",
     papeis: ["c", "tl", "g", "a", "f"],
-    onde: "Site <b>unicaescolha.com.br</b> (abre o <b>MAX Hub</b>) → cartão do sistema → entrar com a sua conta <b>Google</b>",
+    onde: "Site <b>unicaescolha.com.br</b> (abre o <b>UniHub</b>) → cartão do sistema → entrar com a sua conta <b>Google</b>",
     passos: [
-      "Abra <b>unicaescolha.com.br</b>. Ele abre o <b>MAX Hub</b>, a página com todos os sistemas MAX.",
+      "Abra <b>unicaescolha.com.br</b>. Ele abre o <b>UniHub</b>, a página com todos os sistemas MAX.",
       "Clique no cartão do sistema que você quer usar: <b>Sistema ADM MAX</b>, <b>Visita MAX</b> ou <b>Estudo de Mercado MAX</b>.",
       "Entre com a sua <b>conta Google</b>. Use o mesmo e-mail que a imobiliária cadastrou (ex.: o seu @remax.com.br). O MAX não tem senha própria.",
       "<b>1º acesso ao ADM MAX:</b> aparece a tela <b>Complete seu perfil</b> (foto, nome, e-mail, telefone, CPF, CRECI, <b>Data de nascimento</b> e ID RE/MAX). Preencha e clique em <b>Salvar e entrar</b>. Para conta nova, é obrigatório, inclusive a data de nascimento. Quem já tinha conta pode clicar em <b>Agora não</b> e recebe um lembrete a cada entrada; para essas contas, a data aparece como <b>(opcional)</b>.",
@@ -28,7 +28,7 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "entrar-1",
         legenda:
-          "MAX Hub: escolha o sistema. No topo ficam os botões Trocar conta e Sair da Conta MAX.",
+          "UniHub: escolha o sistema. No topo ficam os botões Trocar conta e Sair da Conta MAX.",
       },
       {
         chave: "adm-1acesso-nascimento",
@@ -51,7 +51,7 @@ export const GUIAS: WikiGuia[] = [
     passos: [
       "Lembre: o MAX <b>não tem senha própria</b>. Você entra com a conta Google do e-mail que a imobiliária cadastrou.",
       "Esqueceu a senha do Google? Recupere pela tela de entrada do próprio Google.",
-      "Entrou com outro e-mail do Google? No MAX Hub, clique em <b>Trocar conta</b> e escolha o e-mail certo.",
+      "Entrou com outro e-mail do Google? No UniHub, clique em <b>Trocar conta</b> e escolha o e-mail certo.",
       "O e-mail cadastrado está errado ou você não tem conta Google nesse e-mail? Peça ao seu team leader, gestor ou administrador. Ele corrige no ADM MAX em <b>Administração</b> → <b>Usuários</b> → <b>Editar dados</b>.",
       "Nada resolveu? Peça a um colega que já entra para abrir um chamado em <b>Ajuda e sugestões</b> por você.",
     ],

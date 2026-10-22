@@ -124,10 +124,10 @@ export type InviteListItem = InviteRow & { situacao: InviteDisplayStatus };
 
 /** Mensagens claras para os códigos levantados pelo banco e pela ponte. */
 export const INVITE_ERROR_MESSAGES = {
-  convite_invalido: "Este link de convite não é válido. Peça um novo convite ao MAX HUB.",
-  convite_expirado: "Este convite expirou (vale 7 dias). Peça um novo convite ao MAX HUB.",
+  convite_invalido: "Este link de convite não é válido. Peça um novo convite ao UniHub.",
+  convite_expirado: "Este convite expirou (vale 7 dias). Peça um novo convite ao UniHub.",
   convite_ja_usado: "Este convite já foi usado: a imobiliária já foi cadastrada.",
-  convite_cancelado: "Este convite foi cancelado. Peça um novo convite ao MAX HUB.",
+  convite_cancelado: "Este convite foi cancelado. Peça um novo convite ao UniHub.",
   convite_substituido:
     "Este link foi substituído por um convite mais novo. Use o último e-mail recebido.",
   convite_outro_email:

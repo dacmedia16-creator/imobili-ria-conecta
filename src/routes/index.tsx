@@ -688,7 +688,7 @@ function FrontPage() {
 
       <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-white/60">
         Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
-        {new Date().getFullYear()} MAX Hub
+        {new Date().getFullYear()} UniHub
       </p>
     </div>
   );

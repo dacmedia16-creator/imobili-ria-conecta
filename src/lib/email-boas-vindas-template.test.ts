@@ -11,7 +11,7 @@ const d = { primeiroNome: "maria", imobiliaria: "RE/MAX Única", email: "maria@e
 describe("renderEmailBoasVindas", () => {
   it("preenche assunto e preheader", () => {
     const r = renderEmailBoasVindas(d);
-    expect(r.subject).toBe("Bem-vindo ao MAX HUB, Maria");
+    expect(r.subject).toBe("Bem-vindo ao UniHub, Maria");
     expect(r.preheader).toBe("Seu acesso na RE/MAX Única já está liberado.");
     expect(r.html).toContain(r.preheader);
     expect(r.html).toMatch(/<div style="display:none;[^"]*">Seu acesso na/);
@@ -21,8 +21,8 @@ describe("renderEmailBoasVindas", () => {
     const { text } = renderEmailBoasVindas(d);
     for (const trecho of [
       "Olá, Maria!",
-      "A RE/MAX Única liberou seu acesso ao MAX HUB. Com um único login, você entra em todos os sistemas MAX.",
-      `Entrar no MAX HUB: ${LINKS.app}`,
+      "A RE/MAX Única liberou seu acesso ao UniHub. Com um único login, você entra em todos os sistemas MAX.",
+      `Entrar no UniHub: ${LINKS.app}`,
       "Entre com a sua conta Google: maria@example.com",
       "O que você encontra lá:",
       ...CONTEUDO.recursos.map((r) => `• ${r.nome}: ${r.descricao}`),
@@ -81,13 +81,13 @@ describe("renderEmailBoasVindas", () => {
       imobiliaria: "",
       email: "x@example.com",
     });
-    expect(r.subject).toBe("Bem-vindo ao MAX HUB, corretor(a)");
+    expect(r.subject).toBe("Bem-vindo ao UniHub, corretor(a)");
     expect(r.preheader).toBe("Seu acesso na sua imobiliária já está liberado.");
   });
 
   it("pega só o primeiro nome", () => {
     expect(renderEmailBoasVindas({ ...d, primeiroNome: " joão pedro " }).subject).toBe(
-      "Bem-vindo ao MAX HUB, João",
+      "Bem-vindo ao UniHub, João",
     );
   });
 });
