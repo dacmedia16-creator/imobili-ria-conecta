@@ -35,7 +35,13 @@ async function callerContext(
   // (validada no banco), sempre com motivo obrigatório e registro em activity_logs.
   if (mode === "write" && inPlatformContext) assertPlatformReason(motivo);
   const actor = inPlatformContext
-    ? { userId: callerId, orgId, roles: ["super_admin", "admin"] as ManagedRole[] }
+    ? {
+        userId: callerId,
+        orgId,
+        roles: ["super_admin", "admin"] as ManagedRole[],
+        // Só a plataforma concede/retira "Administrador principal" (t_44d957b1).
+        isPlatformAdmin: true,
+      }
     : await policy.loadActor(admin, orgId, callerId);
   return { supabaseAdmin, admin, orgId, actor, scope, policy, inPlatformContext };
 }
@@ -140,6 +146,8 @@ export const createUser = createServerFn({ method: "POST" })
       userId: context.userId,
       orgId: ctxOrg,
       roles: ["super_admin", "admin"] as ManagedRole[],
+      // Só a plataforma cadastra alguém já como "Administrador principal" (t_44d957b1).
+      isPlatformAdmin: true,
     });
     await admin.from("activity_logs").insert({
       organization_id: ctxOrg,

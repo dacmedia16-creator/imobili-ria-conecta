@@ -98,8 +98,8 @@ const ROLES: AppRole[] = [
 ];
 
 // Regra única (user-management-policy.ts): a mesma decisão é repetida no servidor e no banco.
-function allowedRolesFor(roles: AppRole[]): AppRole[] {
-  return grantableRoles(roles as ManagedRole[]).filter((r): r is AppRole =>
+function allowedRolesFor(roles: AppRole[], isPlatformAdmin = false): AppRole[] {
+  return grantableRoles(roles as ManagedRole[], { isPlatformAdmin }).filter((r): r is AppRole =>
     (ROLES as string[]).includes(r),
   );
 }
@@ -124,7 +124,7 @@ function genPassword() {
 }
 
 function AdminUsers() {
-  const { hasRole, hasAny, user, roles: myRoles, platformContext } = useAuth();
+  const { hasRole, hasAny, user, roles: myRoles, platformContext, platformAdmin } = useAuth();
   const inPlatform = platformContext !== null;
   /** Na visão da plataforma toda alteração exige motivo (fica na auditoria da imobiliária). */
   const askReason = (acao: string): string | null | undefined => {
@@ -189,7 +189,7 @@ function AdminUsers() {
   const [enteringAs, setEnteringAs] = useState<string | null>(null);
 
   const enterAsUser = async (target: AdminUser) => {
-    if (!user || !isSuper || target.id === user.id || target.ativo === false) return;
+    if (!user || !isPlatformInOrg || target.id === user.id || target.ativo === false) return;
     const confirmed = window.confirm(
       `Entrar como ${target.nome || target.email}?\n\nVocê terá exatamente as permissões desse usuário. Criações, edições e exclusões afetarão dados reais e serão auditadas.`,
     );
@@ -200,13 +200,13 @@ function AdminUsers() {
     let auditId: string | null = null;
     try {
       const { data: current } = await supabase.auth.getSession();
-      if (!current.session) throw new Error("Sua sessão de Super Admin expirou.");
+      if (!current.session) throw new Error("Sua sessão da plataforma expirou.");
       const result = await startImpersonationFn({ data: { targetUserId: target.id } });
       auditId = result.auditId;
       writeOperationalImpersonation({
         auditId: result.auditId,
         actorUserId: current.session.user.id,
-        actorEmail: current.session.user.email ?? "Super Admin",
+        actorEmail: current.session.user.email ?? "Plataforma",
         targetUserId: result.target.id,
         targetName: result.target.name,
         targetEmail: result.target.email,
@@ -333,8 +333,13 @@ function AdminUsers() {
 
   const canManage = hasAny(["admin", "super_admin", "gestor", "team_leader"]);
   const isAdminLike = hasAny(["admin", "super_admin"]);
-  const isSuper = hasRole("super_admin");
-  const allowedRoles = useMemo(() => allowedRolesFor(myRoles), [myRoles]);
+  // "Entrar como" e conceder "Administrador principal": só o super-admin da PLATAFORMA, dentro da
+  // imobiliária (Painel da Plataforma). O servidor repete a regra (t_44d957b1).
+  const isPlatformInOrg = platformAdmin && inPlatform;
+  const allowedRoles = useMemo(
+    () => allowedRolesFor(myRoles, isPlatformInOrg),
+    [myRoles, isPlatformInOrg],
+  );
 
   // Agrupa por equipe (líder + líder auxiliar primeiro, depois membros) — só pra visão de
   // admin/super admin, que vê todo mundo; gestor/team leader já enxerga só a própria equipe,
@@ -395,7 +400,12 @@ function AdminUsers() {
       </p>
     );
 
-  const actor: Actor = { userId: user?.id ?? "", orgId: SAME_ORG, roles: myRoles as ManagedRole[] };
+  const actor: Actor = {
+    userId: user?.id ?? "",
+    orgId: SAME_ORG,
+    roles: myRoles as ManagedRole[],
+    isPlatformAdmin: isPlatformInOrg,
+  };
   const decide = (
     u: AdminUser,
     action: "edit_user" | "change_email" | "reset_password" | "set_active" | "change_roles",
@@ -590,7 +600,7 @@ function AdminUsers() {
                 {isEditingRoles ? "Fechar" : "Editar papéis"}
               </Button>
             )}
-            {isSuper && canEnterAs && u.id !== user?.id && u.ativo !== false && (
+            {isPlatformInOrg && canEnterAs && u.id !== user?.id && u.ativo !== false && (
               <Button
                 size="sm"
                 variant="destructive"
@@ -654,7 +664,10 @@ function AdminUsers() {
         )}
         {isEditingRoles && canEditThis && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t pt-3">
-            {ROLES.map((r) => {
+            {ROLES.filter(
+              // "Administrador principal" só aparece para a plataforma ou se o usuário já o tem.
+              (r) => r !== "super_admin" || isPlatformInOrg || userRoles.includes(r),
+            ).map((r) => {
               const has = userRoles.includes(r);
               const d = decide(u, "change_roles", r);
               const restrict = !d.allowed;
@@ -686,7 +699,7 @@ function AdminUsers() {
           <>
             Você gerencia somente usuários da sua agência.{" "}
             {isAdminLike
-              ? "Só o super admin da agência concede ou retira papel de administrador."
+              ? 'Só o administrador principal concede ou retira papel de administrador; o papel "Administrador principal" é concedido somente pela plataforma.'
               : "Gestor cadastra corretores e edita os dados dos corretores da imobiliária; team leader cadastra e edita só corretores da própria equipe. Papéis são alterados por administradores."}{" "}
             Novas imobiliárias são cadastradas apenas pelo super-admin da plataforma.
           </>

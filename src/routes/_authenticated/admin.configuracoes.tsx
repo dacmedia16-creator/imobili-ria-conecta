@@ -134,7 +134,7 @@ function AdminSettings() {
   }, [canManage]);
 
   if (loading) return <p>Carregando acesso…</p>;
-  if (!canManage) return <p>Apenas Super Admin pode alterar as configurações.</p>;
+  if (!canManage) return <p>Apenas o Administrador principal pode alterar as configurações.</p>;
 
   const change = async (next: boolean) => {
     if (!platformAdmin || saving || enabled === null || enabled === next) return;

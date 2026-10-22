@@ -35,14 +35,20 @@ type ImpersonationDatabase = Omit<Database, "public"> & {
 
 type ImpersonationClient = SupabaseClient<ImpersonationDatabase>;
 
-async function requireSuperAdmin(supabase: SupabaseClient<Database>, userId: string) {
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select("role")
+/**
+ * "Entrar como" é EXCLUSIVO do super-admin da plataforma (decisão de Denis, 21/10/2026 — cartão
+ * t_44d957b1). Papel de agência, inclusive "Administrador principal" (super_admin), é recusado.
+ * Lê platform_admins com service_role; erro de leitura = recusa (falha fechada).
+ */
+async function requirePlatformSuperAdmin(admin: OrgAdminClient, userId: string) {
+  const { data, error } = await admin
+    .from("platform_admins")
+    .select("user_id")
     .eq("user_id", userId)
-    .eq("role", "super_admin")
     .maybeSingle();
-  if (error || !data) throw new Error("Apenas Super Admin pode entrar como outro usuário.");
+  const { decideImpersonationActor } = await import("@/lib/user-management-policy");
+  const d = decideImpersonationActor({ isPlatformAdmin: !error && Boolean(data) });
+  if (!d.allowed) throw new Error(d.reason);
 }
 
 export const startOperationalImpersonation = createServerFn({ method: "POST" })
@@ -50,18 +56,21 @@ export const startOperationalImpersonation = createServerFn({ method: "POST" })
   .validator((input: unknown) => startSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId: actorUserId } = context;
-    // Na visão da plataforma, "entrar como usuário" usaria a agência de origem do ator e sairia
-    // da auditoria do contexto: bloqueado até sair da imobiliária.
-    const { assertNotInPlatformContext } = await import("@/lib/org-scope");
-    await assertNotInPlatformContext(supabase);
-    await requireSuperAdmin(supabase, actorUserId);
-    if (data.targetUserId === actorUserId) throw new Error("Escolha outro usuário.");
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as ImpersonationClient;
-    // Multiempresa: o Super Admin da agência só entra como usuário da própria agência.
-    const { resolveActiveOrg } = await import("@/lib/org-scope");
-    const orgId = await resolveActiveOrg(supabaseAdmin as unknown as OrgAdminClient, actorUserId);
+    await requirePlatformSuperAdmin(supabaseAdmin as unknown as OrgAdminClient, actorUserId);
+    if (data.targetUserId === actorUserId) throw new Error("Escolha outro usuário.");
+
+    // A plataforma não é membro de imobiliária: a agência vem SÓ do contexto ativo (Painel da
+    // Plataforma → entrar na imobiliária), validado no banco por platform_current_org (sessão de
+    // login + validade). Sem contexto, recusa — nunca usa agência escolhida pelo navegador.
+    const { currentContextOrg } = await import("@/lib/org-scope");
+    const orgId = await currentContextOrg(supabase);
+    if (!orgId) {
+      throw new Error(
+        'Entre na imobiliária pelo Painel da Plataforma antes de usar "Entrar como".',
+      );
+    }
     const { data: profile, error: profileError } = await (
       supabaseAdmin as unknown as OrgAdminClient
     )

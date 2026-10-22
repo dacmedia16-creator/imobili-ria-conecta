@@ -47,7 +47,7 @@ function AssinaturaDigitalPage() {
   }, [canManage, reload]);
 
   if (loading) return <p>Carregando acesso…</p>;
-  if (!canManage) return <p>Apenas o Super Admin configura a assinatura digital.</p>;
+  if (!canManage) return <p>Apenas o Administrador principal configura a assinatura digital.</p>;
 
   const run = async (
     body: Parameters<typeof callClicksignConfig>[1],

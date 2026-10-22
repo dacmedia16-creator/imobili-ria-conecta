@@ -9,6 +9,12 @@
  * - gestor não cria nem promove administrador e não altera o próprio papel;
  * - só o super-admin da plataforma cria/edita/suspende imobiliárias;
  * - nenhum papel de agência move usuário entre agências.
+ *
+ * Decisão de Denis (21/10/2026, cartão t_44d957b1): "Super Admin" é SÓ o super-admin da plataforma.
+ * O papel `super_admin` de agência continua no banco, mas na tela se chama "Administrador principal":
+ * faz tudo que o administrador faz, concede/retira papel de administrador na própria agência e
+ * acessa Configurações; NÃO concede "Administrador principal" (só a plataforma concede) e não
+ * "entra como" outro usuário (exclusivo da plataforma).
  */
 export type ManagedRole =
   | "corretor"
@@ -35,6 +41,8 @@ export const ALL_MANAGED_ROLES: ManagedRole[] = [
 ];
 
 const ADMIN_LEVEL: ManagedRole[] = ["admin", "super_admin"];
+/** Papel que só o super-admin da plataforma concede ou retira ("Administrador principal"). */
+const PLATFORM_GRANTED: ManagedRole[] = ["super_admin"];
 const LEAD_LEVEL: ManagedRole[] = ["gestor", "team_leader"];
 
 export type UserAction =
@@ -83,16 +91,19 @@ export const REASONS = {
   leadNoTeam:
     "Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua equipe antes de cadastrar corretores.",
   leadNoRoles: "Somente administradores alteram papéis.",
-  adminGrantsAdmin: "Somente o super admin da agência concede papel de administrador.",
+  adminGrantsAdmin: "Somente o administrador principal da agência concede papel de administrador.",
+  platformGrantsPrincipal:
+    'Somente o super-admin da plataforma concede ou retira o papel "Administrador principal".',
   moveOrg: "Nenhum papel de agência move usuário entre agências.",
   platformOnly:
     "Somente o super-admin da plataforma (Denis) cadastra, edita ou suspende imobiliárias.",
   protectedPlatformAdmin:
     "Esta conta é do administrador da plataforma e não pode ser alterada pela gestão da agência.",
   protectedSuperAdmin:
-    "Somente outro super admin da agência pode alterar a conta de um super admin.",
+    "Somente outro administrador principal da agência pode alterar a conta de um administrador principal.",
   impersonateProtected:
-    'Não é possível "entrar como" um super admin ou o administrador da plataforma.',
+    'Não é possível "entrar como" um administrador principal ou o administrador da plataforma.',
+  impersonatePlatformOnly: 'Somente o super-admin da plataforma pode "entrar como" outro usuário.',
   leadEmailOnlyTeam:
     "Gestor e team leader só trocam o e-mail de corretores da própria equipe (mesma regra da senha).",
 } as const;
@@ -104,9 +115,18 @@ export const isLeadLevel = (roles: ManagedRole[]) => hasAnyOf(roles, LEAD_LEVEL)
 const isOnlyCorretor = (roles: ManagedRole[]) =>
   roles.length > 0 && roles.every((r) => r === "corretor");
 
-/** Papéis que o ator pode atribuir ao cadastrar (ou conceder na edição de papéis). */
-export function grantableRoles(actorRoles: ManagedRole[]): ManagedRole[] {
-  if (actorRoles.includes("super_admin")) return [...ALL_MANAGED_ROLES];
+/**
+ * Papéis que o ator pode atribuir ao cadastrar (ou conceder na edição de papéis).
+ * `isPlatformAdmin`: super-admin da plataforma (visão de uma imobiliária) concede todos.
+ * Administrador principal (super_admin): todos, MENOS "Administrador principal".
+ */
+export function grantableRoles(
+  actorRoles: ManagedRole[],
+  opts: { isPlatformAdmin?: boolean } = {},
+): ManagedRole[] {
+  if (opts.isPlatformAdmin) return [...ALL_MANAGED_ROLES];
+  if (actorRoles.includes("super_admin"))
+    return ALL_MANAGED_ROLES.filter((r) => !PLATFORM_GRANTED.includes(r));
   if (actorRoles.includes("admin"))
     return ALL_MANAGED_ROLES.filter((r) => !ADMIN_LEVEL.includes(r));
   if (isLeadLevel(actorRoles)) return ["corretor"];
@@ -116,9 +136,11 @@ export function grantableRoles(actorRoles: ManagedRole[]): ManagedRole[] {
 /** Cadastro de usuário: sempre na agência de quem cadastra (o servidor não aceita outra). */
 export function decideCreateUser(actor: Actor, role: ManagedRole): Decision {
   if (!actor.orgId) return deny(REASONS.noOrg);
-  const grantable = grantableRoles(actor.roles);
+  const grantable = grantableRoles(actor.roles, { isPlatformAdmin: actor.isPlatformAdmin });
   if (grantable.length === 0) return deny(REASONS.noPermission);
   if (grantable.includes(role)) return allow;
+  if (PLATFORM_GRANTED.includes(role) && actor.roles.includes("super_admin"))
+    return deny(REASONS.platformGrantsPrincipal);
   if (isLeadLevel(actor.roles) && !isAdminLevel(actor.roles))
     return deny(REASONS.leadCreatesOnlyCorretor);
   return deny(REASONS.adminGrantsAdmin);
@@ -138,8 +160,9 @@ export function decideUserAction(
     return deny(action === "change_roles" ? REASONS.selfRole : REASONS.self);
   }
 
-  const actorSuper = actor.roles.includes("super_admin");
-  const actorAdmin = isAdminLevel(actor.roles);
+  const actorPlatform = actor.isPlatformAdmin === true;
+  const actorSuper = actorPlatform || actor.roles.includes("super_admin");
+  const actorAdmin = actorPlatform || isAdminLevel(actor.roles);
   const actorLead = isLeadLevel(actor.roles);
 
   if (!actorAdmin && !actorLead) return deny(REASONS.noPermission);
@@ -154,6 +177,10 @@ export function decideUserAction(
   }
 
   if (actorAdmin) {
+    // "Administrador principal" (super_admin) só é concedido/retirado pela plataforma (21/10/2026).
+    if (action === "change_roles" && role && PLATFORM_GRANTED.includes(role) && !actorPlatform) {
+      return deny(REASONS.platformGrantsPrincipal);
+    }
     // Legado preservado: admin gerencia qualquer usuário da própria agência, mas só o super admin
     // da agência concede ou retira papel de administrador (mesma regra da policy user_roles).
     if (action === "change_roles" && role && ADMIN_LEVEL.includes(role) && !actorSuper) {
@@ -179,7 +206,15 @@ export function decideUserAction(
   return allow;
 }
 
-/** "Entrar como" usuário: nunca em administrador da plataforma nem em super admin da agência. */
+/**
+ * "Entrar como" — QUEM pode: somente o super-admin da plataforma (decisão de Denis, 21/10/2026).
+ * Nenhum papel de agência (inclusive "Administrador principal") entra como outro usuário.
+ */
+export function decideImpersonationActor(actor: Pick<Actor, "isPlatformAdmin">): Decision {
+  return actor.isPlatformAdmin === true ? allow : deny(REASONS.impersonatePlatformOnly);
+}
+
+/** "Entrar como" usuário: nunca em administrador da plataforma nem em administrador principal. */
 export function decideImpersonationTarget(target: Target): Decision {
   if (target.isPlatformAdmin) return deny(REASONS.impersonateProtected);
   if (target.roles.includes("super_admin")) return deny(REASONS.impersonateProtected);

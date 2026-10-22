@@ -24,7 +24,7 @@ import {
   type SelfSignupForm,
 } from "./org-invites";
 
-/** O dono vira o primeiro administrador com o mesmo papel do fluxo atual (padrão "Super Admin"). */
+/** O dono vira o primeiro responsável como "Administrador principal" (papel super_admin da agência). */
 export const INVITE_OWNER_ROLE = "super_admin" as const;
 
 export type SendEmail = (input: {

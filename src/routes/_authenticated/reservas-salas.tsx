@@ -539,7 +539,7 @@ function RoomReservationsPage() {
         <AlertDescription>
           As reservas são salvas no banco da imobiliária. O cancelamento pode ser feito a qualquer
           momento pelo responsável; gestores e team leaders, as reservas da própria equipe; staff,
-          administradores e super administradores, qualquer reserva da imobiliária. Cancelamentos
+          administradores e administradores principais, qualquer reserva da imobiliária. Cancelamentos
           feitos pelo responsável depois da primeira hora contam para a regra de bloqueio: ao
           atingir 3, o usuário fica 7 dias corridos sem poder reservar.
         </AlertDescription>
@@ -797,7 +797,7 @@ function RoomReservationsPage() {
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>
                 Responsável cancela a própria reserva; gestores e team leaders, as da própria
-                equipe; staff, administradores e super administradores, qualquer reserva da
+                equipe; staff, administradores e administradores principais, qualquer reserva da
                 imobiliária.
               </span>
             </div>
