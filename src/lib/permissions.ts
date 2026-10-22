@@ -32,7 +32,10 @@ export function canDeleteSale(
 // sem confirmação do banco (isPlatformAdmin !== true) ou sem status conhecido, não mostra.
 const STATUS_NAO_CANCELAVEIS = ["rascunho", "cancelada"];
 
-export function canCancelSale(isPlatformAdmin: boolean | null | undefined, status?: string | null): boolean {
+export function canCancelSale(
+  isPlatformAdmin: boolean | null | undefined,
+  status?: string | null,
+): boolean {
   if (isPlatformAdmin !== true) return false;
   if (!status || STATUS_NAO_CANCELAVEIS.includes(status)) return false;
   return true;
@@ -47,38 +50,5 @@ export async function cancelSaleAsPlatform(saleId: string, motivo: string): Prom
   if (error) throw error;
 }
 
-/**
- * Deleta a venda (sale_documents cai junto via ON DELETE CASCADE) e só depois limpa o storage.
- * Nessa ordem: se a exclusão da venda falhar (RLS, rede), nada foi perdido — os arquivos continuam
- * intactos. Na ordem inversa (storage antes do banco), uma falha no passo do banco deixava a venda
- * viva mas com os documentos já apagados do storage, sem como recuperar.
- *
- * `orphanedFiles` vem preenchido quando a venda já foi apagada do banco mas a limpeza do storage
- * falhou (rede, permissão) — os arquivos ficam órfãos (nada mais referencia esse sale_id). Antes
- * esse erro era simplesmente ignorado; agora quem chamar sabe disso e pode avisar o usuário em vez
- * de mostrar "Venda excluída" como se estivesse tudo certo.
- */
-export async function deleteSaleCascade(saleId: string): Promise<{ orphanedFiles: string[] }> {
-  const { data: docs } = await supabase
-    .from("sale_documents")
-    .select("storage_path")
-    .eq("sale_id", saleId);
-  const paths = (docs ?? [])
-    .map((d) => d.storage_path)
-    .filter((path): path is string => Boolean(path));
-
-  const { error } = await supabase.from("sales").delete().eq("id", saleId);
-  if (error) throw error;
-
-  if (paths.length === 0) return { orphanedFiles: [] };
-
-  const { error: storageError } = await supabase.storage.from("sale-documents").remove(paths);
-  if (storageError) {
-    console.error(
-      `Falha ao remover ${paths.length} arquivo(s) do storage da venda ${saleId} (venda já excluída):`,
-      storageError,
-    );
-    return { orphanedFiles: paths };
-  }
-  return { orphanedFiles: [] };
-}
+// Excluir venda (com os arquivos do storage): ver src/lib/excluir-venda.ts — roda no servidor,
+// apaga os arquivos ANTES da venda e confere a quantidade (t_42d1f0bb).

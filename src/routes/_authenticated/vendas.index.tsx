@@ -52,7 +52,8 @@ import {
   type SaleStatus,
   type VezDeAgir,
 } from "@/lib/status";
-import { canDeleteSale, deleteSaleCascade } from "@/lib/permissions";
+import { canDeleteSale } from "@/lib/permissions";
+import { excluirVenda } from "@/lib/excluir-venda.functions";
 import { fetchLedMemberIds } from "@/lib/team";
 import {
   ArrowRight,
@@ -726,14 +727,8 @@ function SalesList() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      const { orphanedFiles } = await deleteSaleCascade(toDelete.id);
-      if (orphanedFiles.length > 0) {
-        toast.warning(
-          `Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`,
-        );
-      } else {
-        toast.success("Venda excluída");
-      }
+      await excluirVenda({ data: { saleId: toDelete.id } });
+      toast.success("Venda excluída");
       setToDelete(null);
       resumoCacheRef.current?.limpar();
       setRefreshKey((k) => k + 1);
