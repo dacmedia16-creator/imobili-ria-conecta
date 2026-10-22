@@ -30,6 +30,7 @@ import {
   Radar,
   Trophy,
   Sprout,
+  BookOpen,
 } from "lucide-react";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
@@ -211,6 +212,8 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
         { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
         { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
         { to: "/ajuda", label: "Ajuda e sugestões", icon: LifeBuoy, show: true },
+        // Wiki MAX v4 (t_5e94d050): para todos os logados; o conteúdo filtra pelo papel.
+        { to: "/ajuda/wiki", label: "Wiki MAX (guias)", icon: BookOpen, show: true },
       ],
     },
     {

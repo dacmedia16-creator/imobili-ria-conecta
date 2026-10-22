@@ -95,6 +95,7 @@ const TELAS: [RegExp, string][] = [
   [/^\/desempenho/, "Desempenho"],
   [/^\/notificacoes/, "Notificações"],
   [/^\/perfil/, "Meu acesso"],
+  [/^\/ajuda\/wiki/, "Wiki MAX"],
   [/^\/ajuda/, "Ajuda e sugestões"],
   [/^\/admin\/usuarios/, "Usuários"],
   [/^\/admin/, "Administração"],
