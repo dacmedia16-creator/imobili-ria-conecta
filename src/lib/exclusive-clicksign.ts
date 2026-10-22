@@ -10,6 +10,8 @@ import {
   validEmail,
   validSignerName,
   WITNESS_COUNT,
+  captureOwnerList,
+  papelLabel,
 } from "../../supabase/functions/_shared/clicksign.ts";
 
 export { WITNESS_COUNT };
@@ -125,18 +127,17 @@ export function sendDialogErrors(input: SendDialogInput): string[] {
   if (typeof input.pdfSize === "number" && input.pdfSize > MAX_CLICKSIGN_FILE_BYTES) {
     errors.push(fileTooBigMessage(input.pdfSize, "O PDF do contrato"));
   }
-  const p1 = (input.form?.proprietario_1 ?? {}) as Record<string, string>;
-  if (!validSignerName(p1.nome_completo)) errors.push("Proprietário 1: informe nome e sobrenome");
-  if (!validEmail(p1.email)) errors.push("Proprietário 1: e-mail ausente ou inválido no cadastro");
-  else emails.push([normEmail(p1.email), "Proprietário 1"]);
-  const p2 = input.form?.proprietario_2 as Record<string, string> | undefined;
-  if (ownerFilled(p2)) {
-    if (!validSignerName(p2?.nome_completo))
-      errors.push("Proprietário 2: informe nome e sobrenome");
-    if (!validEmail(p2?.email))
-      errors.push("Proprietário 2: e-mail ausente ou inválido no cadastro");
-    else emails.push([normEmail(p2?.email), "Proprietário 2"]);
-  }
+  // Todos os proprietários assinam (t_58effd65): mesma lista do servidor (captureOwnerList).
+  captureOwnerList(input.form).forEach((o, i) => {
+    const label = `Proprietário ${i + 1}`;
+    if (i > 1 && !ownerFilled(o)) {
+      errors.push(`${label}: preencha os dados ou remova o proprietário`);
+      return;
+    }
+    if (!validSignerName(o.nome_completo)) errors.push(`${label}: informe nome e sobrenome`);
+    if (!validEmail(o.email)) errors.push(`${label}: e-mail ausente ou inválido no cadastro`);
+    else emails.push([normEmail(o.email), label]);
+  });
   if (!input.corretorEmailOk) errors.push("Corretor: o cadastro do captador está sem e-mail");
   if (input.imobiliariaIds.length < 1)
     errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
@@ -459,8 +460,6 @@ export async function clicksignCaptureSigned(
 }
 
 const PAPEL_LABEL: Record<string, string> = {
-  proprietario_1: "Proprietário 1",
-  proprietario_2: "Proprietário 2",
   corretor: "Corretor",
   imobiliaria: "Imobiliária",
   testemunha: "Testemunha",
@@ -472,7 +471,7 @@ export function signedSignerLabels(list: ClicksignSignedInfo["signers"]): string
   list.forEach((s) => (total[s.papel] = (total[s.papel] ?? 0) + 1));
   return list.map((s) => {
     count[s.papel] = (count[s.papel] ?? 0) + 1;
-    const base = PAPEL_LABEL[s.papel] ?? s.papel;
+    const base = papelLabel(s.papel) ?? PAPEL_LABEL[s.papel] ?? s.papel;
     const n = ["imobiliaria", "testemunha"].includes(s.papel) && total[s.papel] > 1;
     return `${base}${n ? ` ${count[s.papel]}` : ""}: ${s.nome}`;
   });

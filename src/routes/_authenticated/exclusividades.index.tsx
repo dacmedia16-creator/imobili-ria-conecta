@@ -17,6 +17,7 @@ import {
   captureUnitLabel,
   captureValidity,
   MANUAL_COLOR,
+  ownerListSuffix,
   VALIDITY_STYLE,
   validityText,
   type Capture,
@@ -335,9 +336,7 @@ function ExclusiveList() {
                       )}
                       <p className="mt-1 truncate text-sm text-muted-foreground">
                         {c.form_data.proprietario_1?.nome_completo || "Proprietário a preencher"}
-                        {c.form_data.proprietario_2?.nome_completo
-                          ? ` · ${c.form_data.proprietario_2.nome_completo}`
-                          : ""}
+                        {ownerListSuffix(c.form_data)}
                       </p>
                     </div>
                     <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />

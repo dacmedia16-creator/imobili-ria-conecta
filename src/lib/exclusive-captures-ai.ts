@@ -156,6 +156,7 @@ Responda somente JSON puro.
 
 Orientações:
 - "proprietario_1"/"proprietario_2": os CONTRATANTES/proprietários (não a imobiliária nem o corretor). "proprietario_2" null se houver só um.
+- "proprietarios_adicionais": do 3º proprietário em diante, na ordem do contrato (inclusive de quadros/páginas de "proprietários adicionais"). [] se houver até dois.
 - "estado_civil": em minúsculas (ex.: "casado(a)"), com o regime de bens se constar.
 - "cpf": no formato 000.000.000-00.
 - "imovel.endereco": logradouro e número, sem bairro/cidade. "imovel.estado": por extenso (ex.: "São Paulo").
@@ -170,6 +171,7 @@ Campos:
 {
   "proprietario_1": ${OWNER_SCHEMA.replaceAll("\n", "\n  ")},
   "proprietario_2": ${OWNER_SCHEMA.replaceAll("\n", "\n  ")} | null,
+  "proprietarios_adicionais": [ mesmo formato de "proprietario_1" ],
   "imovel": ${PROPERTY_SCHEMA.replaceAll("\n", "\n  ")},
   "prazo_dias": number|null,
   "comissao_percentual": string|null,
@@ -183,10 +185,14 @@ Campos:
 export type SignedContractValues = {
   proprietario_1: Record<string, string>;
   proprietario_2?: Record<string, string>;
+  /** 3º proprietário em diante (t_58effd65). Só vem quando há o 2º. */
+  proprietarios_extras?: Record<string, string>[];
   imovel: Record<string, string>;
   condicoes: Record<string, string>;
   data_assinatura?: string;
 };
+/** Limite de proprietários lidos do contrato (mesmo limite do banco: 60). */
+const MAX_AI_OWNERS = 60;
 
 const isoDate = (v: unknown): string | undefined => {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return undefined;
@@ -212,7 +218,14 @@ export function sanitizeSignedContractAi(
     condicoes: {},
   };
   const p2 = sanitizeCaptureAi(obj(raw.proprietario_2), "owner");
-  if (Object.keys(p2).length) out.proprietario_2 = p2;
+  if (Object.keys(p2).length) {
+    out.proprietario_2 = p2;
+    const extras = (Array.isArray(raw.proprietarios_adicionais) ? raw.proprietarios_adicionais : [])
+      .slice(0, MAX_AI_OWNERS - 2)
+      .map((o) => sanitizeCaptureAi(obj(o), "owner"))
+      .filter((o) => Object.keys(o).length);
+    if (extras.length) out.proprietarios_extras = extras;
+  }
   const signed = isoDate(raw.data_assinatura);
   if (signed && signed <= today) out.data_assinatura = signed;
   let prazo = Number.parseInt(String(raw.prazo_dias ?? "").replace(/\D/g, ""), 10);
