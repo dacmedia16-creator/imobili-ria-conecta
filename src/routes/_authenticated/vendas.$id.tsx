@@ -118,12 +118,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  canCancelSale,
-  canDeleteSale,
-  cancelSaleAsPlatform,
-  deleteSaleCascade,
-} from "@/lib/permissions";
+import { canCancelSale, canDeleteSale, cancelSaleAsPlatform } from "@/lib/permissions";
+import { excluirVenda } from "@/lib/excluir-venda.functions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
 import { VendaOrigemCaptacao } from "@/components/VendaOrigemCaptacao";
 import { buscarResponsaveisDaVenda } from "@/lib/sale-participantes";
@@ -1459,14 +1455,8 @@ function SaleDetail() {
   const onConfirmDelete = async () => {
     setDeleting(true);
     try {
-      const { orphanedFiles } = await deleteSaleCascade(sale.id);
-      if (orphanedFiles.length > 0) {
-        toast.warning(
-          `Venda excluída, mas ${orphanedFiles.length} arquivo(s) não puderam ser removidos do armazenamento.`,
-        );
-      } else {
-        toast.success("Venda excluída");
-      }
+      await excluirVenda({ data: { saleId: sale.id } });
+      toast.success("Venda excluída");
       setDeleteOpen(false);
       router.navigate({ to: "/vendas" });
     } catch (err: unknown) {
