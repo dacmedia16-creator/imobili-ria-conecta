@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { FAQ, GUIAS } from "./guias";
 import { buscarGuias, guiasDoPapel, papeisDaWiki, partesNegrito } from "./filtro";
+import { WIKI_VIDEO_BUCKET, WIKI_VIDEOS } from "./videos";
 
 const raiz = resolve(__dirname, "../../..");
 const texto = (g: (typeof GUIAS)[number]) =>
@@ -46,7 +47,11 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
 
   it("todo print citado existe em src/assets (fora de public/) e não sobra arquivo", () => {
     const dir = resolve(raiz, "src/assets/wiki-max");
-    const citados = new Set(GUIAS.flatMap((g) => (g.prints ?? []).map((p) => p.chave)));
+    const citados = new Set(
+      GUIAS.flatMap((g) =>
+        (g.prints ?? []).map((p) => p.chave).concat(g.video ? [g.video.capa] : []),
+      ),
+    );
     for (const c of citados) expect(existsSync(resolve(dir, `${c}.webp`))).toBe(true);
     const arquivos = readdirSync(dir).map((f) => f.replace(/\.webp$/, ""));
     expect(arquivos.sort()).toEqual([...citados].sort());
@@ -79,5 +84,29 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
     const rota = readFileSync(resolve(raiz, "src/routes/_authenticated/ajuda_.wiki.tsx"), "utf8");
     expect(rota).toContain('createFileRoute("/_authenticated/ajuda_/wiki")');
     expect(rota).not.toContain("dangerouslySetInnerHTML");
+  });
+
+  it("vídeo: só o guia venda tem; arquivo no bucket privado, link só com login e chave fixa", () => {
+    expect(GUIAS.filter((g) => g.video).map((g) => g.id)).toEqual(["venda"]);
+    const venda = GUIAS.find((g) => g.id === "venda")!;
+    expect(venda.video?.chave).toBe("venda");
+    expect(WIKI_VIDEOS[venda.video!.chave]).toMatch(/^venda\/.+-v2\.mp4$/);
+    expect(WIKI_VIDEO_BUCKET).toBe("wiki-midia");
+    expect(existsSync(resolve(raiz, "public/wiki-midia"))).toBe(false);
+
+    const fn = readFileSync(resolve(raiz, "src/lib/wiki-max/videos.functions.ts"), "utf8");
+    expect(fn).toContain("requireSupabaseAuth");
+    expect(fn).toContain("z.enum(WIKI_VIDEO_CHAVES)");
+
+    const player = readFileSync(resolve(raiz, "src/components/wiki/WikiVideo.tsx"), "utf8");
+    for (const attr of ["controls", 'preload="metadata"', "playsInline"])
+      expect(player).toContain(attr);
+
+    const sql = readFileSync(
+      resolve(raiz, "supabase/migrations/20261022230000_wiki_midia_bucket.sql"),
+      "utf8",
+    );
+    expect(sql).toMatch(/'wiki-midia', 'wiki-midia', false/);
+    expect(sql).not.toMatch(/CREATE POLICY/i);
   });
 });
