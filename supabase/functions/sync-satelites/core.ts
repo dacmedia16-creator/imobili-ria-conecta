@@ -88,6 +88,12 @@ export type Mapa = {
   /** 60 Dias MAX: opcional por imobiliária, ligado à mão (ausente = desligado). */
   sessenta_org_id?: string | null;
   sessenta_enabled?: boolean;
+  /** t_cbc7cc69 etapa 1: equipes do ADM vão ao Visita (ausente = desligado). */
+  visita_equipes?: boolean;
+  /** t_cbc7cc69 etapa 2: TL puro vai ao Visita como corretor-líder (só com visita_equipes). */
+  visita_tl_lider?: boolean;
+  /** Chave da etapa 1 acabou de ser desligada: mandar ligado=false ao Visita uma vez. */
+  visita_equipes_desligar_pendente?: boolean;
 };
 
 /** Satélites que recebem PESSOAS desta imobiliária. O 60 Dias só entra com sessenta_enabled === true. */
@@ -106,8 +112,28 @@ export function foraDaSync(l: LinhaEstado): string | null {
   return null;
 }
 
+/**
+ * t_cbc7cc69 (etapa 2, chave visita_tl_lider): no Visita, quem é SÓ team_leader (sem admin/gestor/coordenador)
+ * entra como "corretor" e enxerga a própria equipe pelo papel de líder (equipes.lider_id/colideres, que vêm do ADM
+ * na etapa 1). Gestor+TL continua imobiliaria_admin (decisão 1 de Denis). Chave desligada = tabela 4.1 de sempre.
+ */
+export function papelVisita(roles: string[], tlLider: boolean): string {
+  const base = papelNoSatelite(roles, "visita");
+  if (!tlLider || base !== "imobiliaria_admin") return base;
+  const acimaDeTl = roles.some((r) => r === "admin" || r === "gestor" || r === "coordenador");
+  return acimaDeTl ? base : "corretor";
+}
+
+/** Etapa 2 só vale com a etapa 1 ligada: sem equipes no Visita, o TL rebaixado ficaria sem enxergar ninguém. */
+export const tlComoLider = (mapa: Partial<Mapa>) =>
+  mapa.visita_tl_lider === true && mapa.visita_equipes === true;
+
 /** Monta a pessoa no formato do satélite (só campos mínimos; sem CPF, CRECI, remax_id etc.). */
-export function pessoaParaSatelite(l: LinhaEstado, sat: Satelite) {
+export function pessoaParaSatelite(
+  l: LinhaEstado,
+  sat: Satelite,
+  opts: { tlLider?: boolean } = {},
+) {
   return {
     adm_user_id: l.adm_user_id,
     email: String(l.email).trim().toLowerCase(),
@@ -115,7 +141,10 @@ export function pessoaParaSatelite(l: LinhaEstado, sat: Satelite) {
       .replace(/\s+/g, " ")
       .trim(),
     telefone: l.telefone ?? null,
-    papel: papelNoSatelite(l.roles, sat),
+    papel:
+      sat === "visita"
+        ? papelVisita(l.roles, opts.tlLider === true)
+        : papelNoSatelite(l.roles, sat),
     ativo: l.ativo === true,
     lider_email: comoEstudo(sat) ? l.lider_email : null,
     // t_4d901b13: só o Visita recebe a marca de "admin de verdade" (Configurações/Assinatura). Gestor/TL = false.
@@ -306,7 +335,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
           modo,
           allow_deactivate: cfg?.allow_deactivate === true,
           org_id: orgSat,
-          pessoas: gi.map(({ l }) => pessoaParaSatelite(l, sat)),
+          pessoas: gi.map(({ l }) => pessoaParaSatelite(l, sat, { tlLider: tlComoLider(mapa) })),
         });
         const porAdm = new Map(resp.resultados.map((r) => [r.adm_user_id, r]));
         for (const { id, l } of gi) {
@@ -359,6 +388,13 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
         }
       }
     }
+
+    // t_cbc7cc69: depois das pessoas (o líder precisa existir no Visita), as equipes da org.
+    const eq = await sincronizarEquipesVisita(admin, amb, mapa, modo);
+    if (eq) {
+      logs.push(eq.log);
+      if (eq.erro) for (const { id } of giTodos) set(id, "erro", `visita_equipes: ${eq.erro}`);
+    }
   }
 
   if (logs.length) await ok(admin.from("sync_log").insert(logs), "log");
@@ -370,6 +406,113 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     );
   }
   return { processados: itens.length, logs: logs.length };
+}
+
+// ---------- Equipes do ADM no Visita (t_cbc7cc69, etapa 1) ----------
+export type EquipeOrg = {
+  adm_team_id: string;
+  nome: string;
+  cor: string | null;
+  parent_adm_team_id: string | null;
+  lider_adm_user_id: string | null;
+  colideres_adm_user_ids: string[] | null;
+  membros_adm_user_ids: string[] | null;
+};
+
+/** Só ids do ADM, nome e cor: nada de e-mail, telefone ou outro dado pessoal. */
+export function equipeParaVisita(t: EquipeOrg) {
+  return {
+    adm_team_id: t.adm_team_id,
+    nome: String(t.nome ?? "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    cor: t.cor ?? null,
+    parent_adm_team_id: t.parent_adm_team_id ?? null,
+    lider_adm_user_id: t.lider_adm_user_id ?? null,
+    colideres_adm_user_ids: t.colideres_adm_user_ids ?? [],
+    membros_adm_user_ids: t.membros_adm_user_ids ?? [],
+  };
+}
+
+/**
+ * Envia as equipes da org ao Visita quando a chave visita_equipes está ligada (ou manda ligado=false uma vez,
+ * logo depois de desligada). Devolve null quando não há nada a enviar. Erro não lança: volta no campo erro e os
+ * itens da fila daquela org ganham nova tentativa.
+ */
+export async function sincronizarEquipesVisita(
+  admin: Admin,
+  amb: Ambiente,
+  mapa: Mapa,
+  modo: Modo,
+) {
+  const ligado = mapa.visita_equipes === true;
+  const desligar = !ligado && mapa.visita_equipes_desligar_pendente === true;
+  if (
+    (!ligado && !desligar) ||
+    !mapa.visita_enabled ||
+    !mapa.visita_imobiliaria_id ||
+    modo === "off"
+  )
+    return null;
+  const base = {
+    adm_user_id: null,
+    adm_org_id: mapa.adm_org_id,
+    satelite: "visita",
+    acao: "equipes",
+    modo,
+  };
+  try {
+    const equipes = ligado
+      ? (
+          await ok<EquipeOrg[]>(
+            admin.rpc("sync_equipes_da_org", { p_org: mapa.adm_org_id }),
+            "equipes_da_org",
+          )
+        ).map(equipeParaVisita)
+      : [];
+    const segredo = amb.segredos.visita;
+    if (!segredo || segredo.length < 32) throw new Error("visita: segredo_nao_configurado");
+    const { corpo, assinatura } = await assinarPedido(segredo, {
+      acao: "equipes",
+      modo,
+      org_id: mapa.visita_imobiliaria_id,
+      ligado,
+      equipes,
+    });
+    const r = await amb.enviar("visita", corpo, assinatura);
+    const res = r.json?.resultado;
+    if (r.status !== 200 || typeof res !== "string" || res === "erro") {
+      throw new Error(
+        `http_${r.status}_${String(r.json?.erro ?? r.json?.error ?? "resposta_invalida").slice(0, 80)}`,
+      );
+    }
+    if (desligar && modo === "live" && res !== "desligado") {
+      await ok(
+        admin
+          .from("sync_org_map")
+          .update({ visita_equipes_desligar_pendente: false })
+          .eq("adm_org_id", mapa.adm_org_id),
+        "desligar_pendente",
+      );
+    }
+    return {
+      erro: null as string | null,
+      log: {
+        ...base,
+        resultado: res === "ok" ? "ok" : res === "simulado" ? "simulado" : "nada_a_fazer",
+        detalhe: {
+          ligado,
+          equipes: equipes.length,
+          resumo: r.json?.resumo ?? {},
+          avisos: r.json?.avisos ?? [],
+        },
+        erro: null,
+      },
+    };
+  } catch (err) {
+    const msg = String((err as Error).message ?? err).slice(0, 300);
+    return { erro: msg, log: { ...base, resultado: "erro", detalhe: { ligado }, erro: msg } };
+  }
 }
 
 // ---------- Provisionamento automático de imobiliária (cartão t_c0844acb) ----------
@@ -666,7 +809,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
           modo: "dry_run",
           allow_deactivate: cfg?.allow_deactivate === true,
           org_id: orgSat,
-          pessoas: enviar.map((l) => pessoaParaSatelite(l, sat)),
+          pessoas: enviar.map((l) => pessoaParaSatelite(l, sat, { tlLider: tlComoLider(mapa) })),
           incluir_so_no_satelite: true,
         });
         const r = resumir(resp.resultados, resp.so_no_satelite ?? [], resp.modo);
