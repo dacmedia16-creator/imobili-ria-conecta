@@ -118,6 +118,8 @@ export function pessoaParaSatelite(l: LinhaEstado, sat: Satelite) {
     papel: papelNoSatelite(l.roles, sat),
     ativo: l.ativo === true,
     lider_email: comoEstudo(sat) ? l.lider_email : null,
+    // t_4d901b13: só o Visita recebe a marca de "admin de verdade" (Configurações/Assinatura). Gestor/TL = false.
+    ...(sat === "visita" ? { admin_adm: (l.roles ?? []).includes("admin") } : {}),
   };
 }
 

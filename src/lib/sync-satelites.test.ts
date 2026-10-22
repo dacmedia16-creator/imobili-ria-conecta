@@ -57,8 +57,14 @@ describe("tradução de papéis (tabela 4.1)", () => {
       papel: "corretor",
       ativo: true,
       lider_email: null,
+      admin_adm: false,
     });
     expect(JSON.stringify(p)).not.toContain("não deve sair");
+    expect(pessoaParaSatelite(linha({ roles: ["admin"] }), "visita").admin_adm).toBe(true);
+    for (const r of ["gestor", "coordenador", "team_leader", "corretor"]) {
+      expect(pessoaParaSatelite(linha({ roles: [r] }), "visita").admin_adm).toBe(false);
+    }
+    expect(pessoaParaSatelite(linha({ roles: ["admin"] }), "estudo")).not.toHaveProperty("admin_adm");
     expect(pessoaParaSatelite(linha(), "estudo").lider_email).toBe("lider@remax.com.br");
   });
 });
