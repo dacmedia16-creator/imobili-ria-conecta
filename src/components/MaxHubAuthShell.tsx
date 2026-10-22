@@ -28,15 +28,28 @@ export function MaxHubMark({ className = "h-6 w-6" }: { className?: string }) {
   );
 }
 
-/** Logo "MAX HUB" (marca + texto), como no topo da página MAX HUB. */
-export function MaxHubLogo({ className = "" }: { className?: string }) {
+/**
+ * Logo "MAX HUB" (marca + texto), como no topo da página MAX HUB.
+ * `nome` troca o texto exibido (ex.: ["Uni", "Hub"] na tela inicial — UniHub, t_fab8e9bf):
+ * a 1ª parte fica em branco e a 2ª em azul claro (#8fb4e8). Padrão: "MAX HUB" (telas de login).
+ */
+export function MaxHubLogo({
+  className = "",
+  nome = ["MAX ", "HUB"],
+}: {
+  className?: string;
+  nome?: [string, string];
+}) {
   return (
     <span
       className={`inline-flex items-center gap-2.5 font-maxhub-display text-[15px] font-extrabold tracking-tight text-white ${className}`}
     >
       <MaxHubMark />
       <span>
-        MAX <span className="-ml-0.5 text-[#8fb4e8]">HUB</span>
+        {nome[0]}
+        <span className={nome[0].endsWith(" ") ? "-ml-0.5 text-[#8fb4e8]" : "text-[#8fb4e8]"}>
+          {nome[1]}
+        </span>
       </span>
     </span>
   );

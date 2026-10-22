@@ -11,7 +11,7 @@ const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
-    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "MAX Hub — Todos os sistemas MAX" }],
+    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "UniHub — Todos os sistemas MAX" }],
   }),
   component: IS_HOMOLOG ? HomologHome : FrontPage,
 });
@@ -502,8 +502,8 @@ function FrontPage() {
 
       {/* ---------- poster (tablet/desktop) ---------- */}
       <div className="topbar">
-        <Link to="/auth" className="brand" aria-label="MAX Hub — entrar no portal">
-          <MaxHubLogo />
+        <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
+          <MaxHubLogo nome={["Uni", "Hub"]} />
         </Link>
       </div>
       <div className="stage">
@@ -517,8 +517,8 @@ function FrontPage() {
           <div className="titleblock">
             <p className="eyebrow">Plataforma integrada</p>
             <h1 className="htitle">
-              <Link to="/auth" aria-label="MAX Hub — entrar no portal">
-                MAX <span className="sky">Hub</span>
+              <Link to="/auth" aria-label="UniHub — entrar no portal">
+                Uni<span className="sky">Hub</span>
                 <span className="dot">.</span>
               </Link>
             </h1>
@@ -602,8 +602,8 @@ function FrontPage() {
       {/* ---------- lista mobile ---------- */}
       <div className="mobile-stage">
         <div className="mheader">
-          <Link to="/auth" className="brand" aria-label="MAX Hub — entrar no portal">
-            <MaxHubLogo />
+          <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
+            <MaxHubLogo nome={["Uni", "Hub"]} />
           </Link>
           <a
             href={ADM_MAX_LOGIN_URL}
@@ -625,8 +625,8 @@ function FrontPage() {
         <div className="mhero">
           <p className="eyebrow">Plataforma integrada</p>
           <h1 className="htitle">
-            <Link to="/auth" aria-label="MAX Hub — entrar no portal">
-              MAX <span className="sky">Hub</span>
+            <Link to="/auth" aria-label="UniHub — entrar no portal">
+              Uni<span className="sky">Hub</span>
               <span className="dot">.</span>
             </Link>
           </h1>
