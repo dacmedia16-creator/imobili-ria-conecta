@@ -47,6 +47,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DESCRICAO_CONFIRMAR_DESATIVAR,
+  podeConfirmarDesativar,
+  precisaConfirmarStatus,
+  tituloConfirmarDesativar,
+} from "@/lib/confirmar-desativar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import {
@@ -158,6 +174,11 @@ function AdminUsers() {
   const [page, setPage] = useState(1);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
+  const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; nome: string } | null>(
+    null,
+  );
+  const [deactivateReason, setDeactivateReason] = useState("");
+  const [deactivating, setDeactivating] = useState(false);
   const [resetPasswordFor, setResetPasswordFor] = useState<{
     id: string;
     email: string;
@@ -435,15 +456,43 @@ function AdminUsers() {
     load();
   };
 
-  const toggleAtivo = async (userId: string, ativo: boolean) => {
-    const motivo = askReason(ativo ? "Desativar usuário" : "Ativar usuário");
+  // Desativar sempre abre o diálogo de confirmação (na plataforma ele também pede o motivo);
+  // ativar continua com um clique (na plataforma, com o motivo de sempre).
+  const toggleAtivo = async (userId: string, ativo: boolean, nome: string) => {
+    if (precisaConfirmarStatus(ativo)) {
+      setDeactivateReason("");
+      setConfirmDeactivate({ id: userId, nome });
+      return;
+    }
+    const motivo = askReason("Ativar usuário");
     if (motivo === undefined) return;
     try {
-      await setUserActiveFn({ data: { userId, ativo: !ativo, motivo } });
-      toast.success(ativo ? "Usuário desativado" : "Usuário ativado");
+      await setUserActiveFn({ data: { userId, ativo: true, motivo } });
+      toast.success("Usuário ativado");
       load();
     } catch (error: unknown) {
       toast.error(errorMessage(error, "Não foi possível alterar o status do usuário."));
+    }
+  };
+
+  const confirmarDesativar = async () => {
+    if (!confirmDeactivate || !podeConfirmarDesativar(inPlatform, deactivateReason)) return;
+    setDeactivating(true);
+    try {
+      await setUserActiveFn({
+        data: {
+          userId: confirmDeactivate.id,
+          ativo: false,
+          motivo: inPlatform ? deactivateReason.trim() : null,
+        },
+      });
+      toast.success("Usuário desativado");
+      setConfirmDeactivate(null);
+      load();
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Não foi possível alterar o status do usuário."));
+    } finally {
+      setDeactivating(false);
     }
   };
 
@@ -631,7 +680,7 @@ function AdminUsers() {
               <Button
                 size="sm"
                 variant={u.ativo === false ? "default" : "outline"}
-                onClick={() => toggleAtivo(u.id, u.ativo !== false)}
+                onClick={() => toggleAtivo(u.id, u.ativo !== false, displayName)}
               >
                 {u.ativo === false ? "Ativar" : "Desativar"}
               </Button>
@@ -916,6 +965,40 @@ function AdminUsers() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={!!confirmDeactivate}
+        onOpenChange={(o) => {
+          if (!o && !deactivating) setConfirmDeactivate(null);
+        }}
+      >
+        <AlertDialogContent data-testid="confirmar-desativar">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tituloConfirmarDesativar(confirmDeactivate?.nome)}</AlertDialogTitle>
+            <AlertDialogDescription>{DESCRICAO_CONFIRMAR_DESATIVAR}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {inPlatform && (
+            <ReasonField
+              id="desativar-motivo"
+              value={deactivateReason}
+              onChange={setDeactivateReason}
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deactivating}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deactivating || !podeConfirmarDesativar(inPlatform, deactivateReason)}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmarDesativar();
+              }}
+            >
+              {deactivating ? "Desativando…" : "Desativar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!resetPasswordFor} onOpenChange={(o) => !o && setResetPasswordFor(null)}>
         {resetPasswordFor && (
