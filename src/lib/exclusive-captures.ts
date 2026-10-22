@@ -173,6 +173,9 @@ export type Witness = Record<WitnessField, string> & { email?: string };
 export type CaptureForm = {
   proprietario_1: Owner;
   proprietario_2?: Owner;
+  /** 3º proprietário em diante (t_58effd65). Posição k = documentos com owner_index k + 3.
+   * Só existe junto com proprietario_2; captações antigas não têm a chave e não mudam. */
+  proprietarios_extras?: Owner[];
   imovel: Property;
   condicoes: Terms;
   testemunha_1: Witness;
@@ -303,9 +306,123 @@ export function propertyDocumentsMissing(docs: CaptureDocument[]): string[] {
     ([kind]) => !docs.some((d) => d.kind === kind && d.owner_index === 0),
   ).map(([, label]) => label);
 }
-export function ownerDocumentsComplete(docs: CaptureDocument[], owner: 1 | 2): boolean {
+export function ownerDocumentsComplete(docs: CaptureDocument[], owner: number): boolean {
   const types = new Set(docs.filter((d) => d.owner_index === owner).map((d) => d.kind));
   return types.has("cnh") || (types.has("rg") && types.has("cpf"));
+}
+/** Tipos de documento por proprietário (owner_index ≥ 1), lidos uma vez só (30+ proprietários). */
+export function ownerDocKinds(docs: CaptureDocument[]): Map<number, Set<DocumentKind>> {
+  const out = new Map<number, Set<DocumentKind>>();
+  for (const d of docs) {
+    if (d.owner_index < 1) continue;
+    const s = out.get(d.owner_index) ?? new Set<DocumentKind>();
+    s.add(d.kind);
+    out.set(d.owner_index, s);
+  }
+  return out;
+}
+const kindsComplete = (s: Set<DocumentKind> | undefined) =>
+  !!s && (s.has("cnh") || (s.has("rg") && s.has("cpf")));
+
+/** Limite de segurança de proprietários por captação (mesmo CHECK do banco: owner_index 1..60). */
+export const MAX_OWNERS = 60;
+export type OwnerScope = `proprietario_${number}`;
+export const ownerScope = (n: number): OwnerScope => `proprietario_${n}`;
+export const ownerNumber = (scope: string): number | null => {
+  const m = /^proprietario_(\d+)$/.exec(scope);
+  return m ? Number(m[1]) : null;
+};
+/**
+ * Proprietários na ordem do contrato: 1º, 2º (se houver) e os extras. A posição + 1 é o owner_index
+ * dos documentos (normalizeForm garante o 2º sempre que houver extras).
+ */
+export function captureOwners(form: Partial<CaptureForm> | null | undefined): Owner[] {
+  if (!form) return [];
+  const out: Owner[] = [form.proprietario_1 ?? emptyOwner()];
+  if (form.proprietario_2) out.push(form.proprietario_2);
+  if (form.proprietario_2 && Array.isArray(form.proprietarios_extras))
+    out.push(...form.proprietarios_extras);
+  return out;
+}
+/** Grava a lista de volta no formato salvo (proprietario_1, proprietario_2, proprietarios_extras). */
+export function withOwners(form: CaptureForm, owners: Owner[]): CaptureForm {
+  const {
+    proprietario_2: _p2,
+    proprietarios_extras: _extras,
+    ...rest
+  } = form;
+  const list = owners.length ? owners.slice(0, MAX_OWNERS) : [emptyOwner()];
+  return {
+    ...rest,
+    proprietario_1: list[0],
+    ...(list[1] ? { proprietario_2: list[1] } : {}),
+    ...(list.length > 2 ? { proprietarios_extras: list.slice(2) } : {}),
+  };
+}
+export function ownerAt(form: CaptureForm, n: number): Owner | undefined {
+  return captureOwners(form)[n - 1];
+}
+/**
+ * Listagem: o que vem depois do nome do 1º. Até 2 = " · João" (igual a antes); 3+ = " · João +2"
+ * (contagem dos demais, sem estourar a linha).
+ */
+export function ownerListSuffix(form: Partial<CaptureForm> | null | undefined): string {
+  const owners = captureOwners(form);
+  const second = owners[1]?.nome_completo?.trim();
+  const rest = owners.length - 2;
+  if (rest > 0) return `${second ? ` · ${second}` : ""} +${rest}`;
+  return second ? ` · ${second}` : "";
+}
+/** Nomes preenchidos: "Maria", "Maria e João", "Maria, João e mais 3". */
+export function ownerNamesSummary(form: Partial<CaptureForm> | null | undefined): string {
+  const names = captureOwners(form)
+    .map((o) => o?.nome_completo?.trim() ?? "")
+    .filter(Boolean);
+  if (names.length <= 2) return names.join(" e ");
+  return `${names[0]}, ${names[1]} e mais ${names.length - 2}`;
+}
+/**
+ * Pode remover o proprietário N? O 1º nunca (mínimo 1). Os documentos ficam presos à posição
+ * (owner_index), então só sai o ÚLTIMO, ou um do meio quando nem ele nem os seguintes têm
+ * documentos (os seguintes sobem uma posição sem trocar de documento).
+ */
+export function canRemoveOwner(
+  form: CaptureForm,
+  docs: CaptureDocument[],
+  n: number,
+): { ok: boolean; reason?: string } {
+  const total = captureOwners(form).length;
+  if (n <= 1 || n > total) return { ok: false, reason: "O 1º proprietário é obrigatório." };
+  if (n === total) return { ok: true };
+  const withDocs = docs.some((d) => d.owner_index >= n && d.owner_index <= total);
+  return withDocs
+    ? {
+        ok: false,
+        reason:
+          "Este proprietário ou um dos seguintes já tem documento anexado. Para não trocar documentos de pessoa, remova a partir do último.",
+      }
+    : { ok: true };
+}
+export function removeOwner(form: CaptureForm, n: number): CaptureForm {
+  const owners = captureOwners(form);
+  if (n <= 1 || n > owners.length) return form;
+  return withOwners(
+    form,
+    owners.filter((_, i) => i !== n - 1),
+  );
+}
+export function addOwner(form: CaptureForm): CaptureForm {
+  const owners = captureOwners(form);
+  if (owners.length >= MAX_OWNERS) return form;
+  return withOwners(form, [...owners, emptyOwner()]);
+}
+/** Pendências de um proprietário (campos obrigatórios vazios + documento), para o selo do bloco. */
+export function ownerPendencies(
+  owner: Owner,
+  kinds: Set<DocumentKind> | undefined,
+): { fields: number; docs: boolean } {
+  const fields = OWNER_FIELDS.filter((f) => f.required && !owner[f.key]?.trim()).length;
+  return { fields, docs: !kindsComplete(kinds) };
 }
 export const OWNER_FIELDS: { key: OwnerField; label: string; required?: boolean }[] = [
   { key: "nome_completo", label: "Nome completo", required: true },
@@ -385,6 +502,19 @@ export function normalizeForm(
     proprietario_1: { ...emptyOwner(), ...value?.proprietario_1 },
     ...(value?.proprietario_2
       ? { proprietario_2: { ...emptyOwner(), ...value.proprietario_2 } }
+      : {}),
+    // 3º em diante só existe com o 2º (as posições são o owner_index dos documentos).
+    ...(value?.proprietario_2 &&
+    Array.isArray(value.proprietarios_extras) &&
+    value.proprietarios_extras.length
+      ? {
+          proprietarios_extras: value.proprietarios_extras
+            .slice(0, MAX_OWNERS - 2)
+            .map((o) => ({
+              ...emptyOwner(),
+              ...(o && typeof o === "object" && !Array.isArray(o) ? o : {}),
+            })),
+        }
       : {}),
     imovel: { ...emptyProperty(), ...value?.imovel },
     condicoes: { ...defaultTerms(), ...(unit ? unitForoDefaults(unit) : {}), ...value?.condicoes },
@@ -506,11 +636,11 @@ export function manualPendencies(
     optional.push("Data de assinatura (sem ela vale o dia da aprovação)");
   if (!(Number.parseInt(form.condicoes.prazo_dias_numero ?? "", 10) > 0))
     optional.push("Prazo da exclusividade em dias");
-  for (const owner of [1, 2] as const) {
-    if (owner === 2 && !form.proprietario_2) continue;
-    if (!ownerDocumentsComplete(docs, owner))
-      optional.push(`RG + CPF ou CNH do proprietário ${owner}`);
-  }
+  const kinds = ownerDocKinds(docs);
+  captureOwners(form).forEach((_, i) => {
+    if (!kindsComplete(kinds.get(i + 1)))
+      optional.push(`RG + CPF ou CNH do proprietário ${i + 1}`);
+  });
   for (const [kind, label] of [
     ["residencia", "Comprovante de residência"],
     ["iptu", "IPTU"],
@@ -529,14 +659,15 @@ export function missingRequirements(
   const missing: string[] = [];
   if (!cpf.trim()) missing.push("CPF do captador");
   if (!creci.trim()) missing.push("CRECI do captador");
-  for (const [index, owner] of [form.proprietario_1, form.proprietario_2].entries()) {
-    if (!owner) continue;
+  // Documentos indexados uma vez: com 30+ proprietários não varre a lista de novo por pessoa.
+  const kinds = ownerDocKinds(docs);
+  captureOwners(form).forEach((owner, index) => {
     for (const { key, label, required } of OWNER_FIELDS) {
       if (required && !owner[key]?.trim()) missing.push(`Proprietário ${index + 1}: ${label}`);
     }
-    if (!ownerDocumentsComplete(docs, (index + 1) as 1 | 2))
+    if (!kindsComplete(kinds.get(index + 1)))
       missing.push(`Proprietário ${index + 1}: RG e CPF ou CNH`);
-  }
+  });
   missing.push(...propertyDocumentsMissing(docs));
   for (const { key, label, required } of PROPERTY_FIELDS) {
     if (required && !form.imovel[key]?.trim()) missing.push(label);
@@ -738,15 +869,33 @@ export async function fillExclusiveTemplate(
   set("kgmf", capture.broker_creci);
   set("NameGF", capture.broker_cpf);
   if (flatten) form.flatten({ updateFieldAppearances: false });
+  // 3º proprietário em diante: páginas "Proprietários adicionais" no fim do contrato (o modelo só
+  // tem campos para 2). Com 1 ou 2 proprietários o PDF sai igual ao de antes.
+  const extras = data.proprietario_2 ? (data.proprietarios_extras ?? []) : [];
+  if (extras.length) {
+    const { appendExtraOwnersPages } = await import("@/lib/exclusive-owners-pdf");
+    await appendExtraOwnersPages(pdf, extras, 3, {
+      imovel: [data.imovel.endereco, data.imovel.complemento, data.imovel.municipio]
+        .filter((s) => s?.trim())
+        .join(", "),
+      totalOwners: extras.length + 2,
+    });
+  }
   return pdf.save();
 }
 
 export function applySuggestedFields(
   form: CaptureForm,
-  scope: "proprietario_1" | "proprietario_2" | "imovel",
+  scope: OwnerScope | "imovel",
   suggestions: Record<string, unknown>,
 ): CaptureForm {
-  const target = scope === "imovel" ? { ...form.imovel } : { ...(form[scope] ?? emptyOwner()) };
+  const n = scope === "imovel" ? null : ownerNumber(scope);
+  if (scope !== "imovel" && !n) return form;
+  const owners = captureOwners(form);
+  // Proprietário que ainda não existe na lista: só o 2º é criado (compatível com a leitura antiga).
+  if (n && n > owners.length && !(n === 2 && owners.length === 1)) return form;
+  const target =
+    scope === "imovel" ? { ...form.imovel } : { ...(owners[(n as number) - 1] ?? emptyOwner()) };
   for (const [key, value] of Object.entries(suggestions)) {
     if (
       Object.hasOwn(target, key) &&
@@ -756,7 +905,10 @@ export function applySuggestedFields(
       (target as Record<string, string>)[key] = value.trim();
     }
   }
-  return { ...form, [scope]: target };
+  if (scope === "imovel") return { ...form, imovel: target as Property };
+  const next = [...owners];
+  next[(n as number) - 1] = target as Owner;
+  return withOwners(form, next);
 }
 
 export type ValidityLevel = "ok" | "atencao" | "urgente" | "vencida";

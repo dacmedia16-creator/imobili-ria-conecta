@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   captureValidity,
   captureUnitLabel,
+  ownerNamesSummary,
   type Capture,
   type ExclusiveUnit,
 } from "@/lib/exclusive-captures";
@@ -40,12 +41,7 @@ export function CaptureSummaryDialog({
   const cidade = [i?.bairro, [i?.municipio, i?.estado].filter((x) => x?.trim()).join("/")]
     .filter((x) => x?.trim())
     .join(" · ");
-  const donos = [
-    c?.form_data.proprietario_1?.nome_completo,
-    c?.form_data.proprietario_2?.nome_completo,
-  ]
-    .filter((x) => x?.trim())
-    .join(" e ");
+  const donos = ownerNamesSummary(c?.form_data);
 
   const row = (label: string, value: string) => (
     <div className="flex justify-between gap-4 border-b py-1.5 text-sm last:border-0">

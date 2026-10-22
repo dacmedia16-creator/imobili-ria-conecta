@@ -28,13 +28,20 @@ import {
   captureValidity,
   MANUAL_COLOR,
   manualPendencies,
-  emptyOwner,
+  ownerNamesSummary,
   formatDateBR,
   VALIDITY_STYLE,
   validityText,
   fillExclusiveTemplate,
   missingRequirements,
-  ownerDocumentsComplete,
+  addOwner,
+  canRemoveOwner,
+  captureOwners,
+  ownerDocKinds,
+  ownerNumber,
+  ownerScope,
+  removeOwner,
+  withOwners,
   OWNER_FIELDS,
   PROPERTY_FIELDS,
   TERMS_FIELDS,
@@ -51,6 +58,7 @@ import {
   type CaptureForm,
   type DocumentKind,
   type OwnerField,
+  type OwnerScope,
   type PropertyField,
   type TermsField,
 } from "@/lib/exclusive-captures";
@@ -69,6 +77,7 @@ import {
   type ClicksignSignedInfo,
 } from "@/lib/exclusive-clicksign";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
+import { OwnerBlocks } from "@/components/exclusividades/OwnerBlocks";
 import { useCaptureAutosave } from "@/components/exclusividades/useCaptureAutosave";
 import { AutosaveStatus } from "@/components/vendas/shared";
 import { STATUS_AGUARDANDO_MANUAL } from "@/lib/assinatura-manual";
@@ -238,7 +247,7 @@ function ExclusiveDetail() {
   }>({ pode_virar: false, venda: null });
   const [suggestions, setSuggestions] = useState<
     {
-      scope: "proprietario_1" | "proprietario_2" | "imovel";
+      scope: OwnerScope | "imovel";
       values: Record<string, string>;
     }[]
   >([]);
@@ -438,15 +447,33 @@ function ExclusiveDetail() {
       setBusy(false);
     }
   };
-  const edit = <
-    K extends
-      | "proprietario_1"
-      | "proprietario_2"
-      | "imovel"
-      | "condicoes"
-      | "testemunha_1"
-      | "testemunha_2",
-  >(
+  // Proprietário N (1, 2, 3…): grava na lista e devolve ao formato salvo.
+  const editOwner = (n: number, key: OwnerField, value: string) => {
+    setForm((f) => {
+      if (!f) return f;
+      const list = captureOwners(f);
+      if (!list[n - 1]) return f;
+      list[n - 1] = { ...list[n - 1], [key]: value };
+      return withOwners(f, list);
+    });
+    setDirty(true);
+  };
+  const addOwnerToForm = () => {
+    setForm((f) => (f ? addOwner(f) : f));
+    setDirty(true);
+  };
+  const removeOwnerFromForm = (n: number) => {
+    setForm((f) => (f ? removeOwner(f, n) : f));
+    // Sugestões pendentes do removido e dos seguintes perdem a referência.
+    setSuggestions((current) =>
+      current.filter((item) => {
+        const k = ownerNumber(item.scope);
+        return k === null || k < n;
+      }),
+    );
+    setDirty(true);
+  };
+  const edit = <K extends "imovel" | "condicoes" | "testemunha_1" | "testemunha_2">(
     scope: K,
     key: keyof NonNullable<CaptureForm[K]>,
     value: string,
@@ -502,7 +529,8 @@ function ExclusiveDetail() {
         selected: dossieIds,
         semanas: saved.plano_semanas,
         totalSemanas: semanasInfo.total,
-        ownerNames: [saved.proprietario_1.nome_completo, saved.proprietario_2?.nome_completo ?? ""],
+        // Até 2: "A e B" (igual a antes). 3+: "A, B e mais N" (a lista completa está no contrato).
+        ownerNames: [ownerNamesSummary(saved)],
         brokerName: capture.broker_name,
         brokerCreci: creci,
         property: {
@@ -553,7 +581,7 @@ function ExclusiveDetail() {
       // Upload manual do assinado (captação normal) leva ao passo 5, igual ao que chega da Clicksign.
       if (kind === "assinado" && !manual) setStep("assinado");
       if (kind === "assinado" || kind === "gerado") return;
-      const scope = owner === 1 ? "proprietario_1" : owner === 2 ? "proprietario_2" : "imovel";
+      const scope: OwnerScope | "imovel" = owner > 0 ? ownerScope(owner) : "imovel";
       try {
         toast.info("Lendo o documento…");
         // Leitura por IA (mesma das Vendas); se falhar, cai para a leitura local antiga.
@@ -583,9 +611,14 @@ function ExclusiveDetail() {
           toast.info("Sem campos legíveis identificados; preencha manualmente.");
           return;
         }
-        const before = ((current[scope] ?? {}) as Record<string, string>) || {};
+        const pick = (f: CaptureForm) =>
+          ((scope === "imovel" ? f.imovel : captureOwners(f)[owner - 1]) ?? {}) as Record<
+            string,
+            string
+          >;
+        const before = pick(current);
         const next = applySuggestedFields(current, scope, values);
-        const after = (next[scope] ?? {}) as Record<string, string>;
+        const after = pick(next);
         const filled = Object.keys(after).filter((k) => !before[k]?.trim() && after[k]?.trim());
         if (!filled.length) {
           toast.info("Documento lido. Os campos encontrados já estavam preenchidos.");
@@ -745,6 +778,9 @@ function ExclusiveDetail() {
     );
   // Manual: contrato assinado e Plano de Marketing são obrigatórios; o resto é pendência (o gestor vê).
   const manualCheck = manual ? manualPendencies(form, docs) : null;
+  // Lista de proprietários e documentos por proprietário calculados uma vez por render (30+).
+  const owners = captureOwners(form);
+  const docKinds = ownerDocKinds(docs);
   // Mesma regra do banco (exclusive_transition 'aprovar'): contrato gerado, assinado e Plano.
   const bloqueioAprovar = aprovarBloqueio({ manual, docs, dossieMissing });
   // Plano de Marketing é obrigatório também no manual (mesma regra da captação normal).
@@ -761,9 +797,11 @@ function ExclusiveDetail() {
     );
   const pendingSuggestions = suggestions.map((suggestion) => ({
     ...suggestion,
-    fields: Object.entries(suggestion.values).filter(
-      ([key]) => !((form[suggestion.scope] ?? {}) as Record<string, string>)[key]?.trim(),
-    ),
+    fields: Object.entries(suggestion.values).filter(([key]) => {
+      const n = ownerNumber(suggestion.scope);
+      const target = (n ? owners[n - 1] : form.imovel) as Record<string, string> | undefined;
+      return !target?.[key]?.trim();
+    }),
   }));
   const field = (
     label: string,
@@ -786,7 +824,9 @@ function ExclusiveDetail() {
     </div>
   );
   const hasDoc = (kind: DocumentKind, owner: number) =>
-    docs.some((doc) => doc.kind === kind && doc.owner_index === owner);
+    owner > 0
+      ? !!docKinds.get(owner)?.has(kind)
+      : docs.some((doc) => doc.kind === kind && doc.owner_index === owner);
   const printOne = (doc: CaptureDocument) => {
     const printWindow = openDocumentPrintWindow();
     if (!printWindow) return;
@@ -929,13 +969,39 @@ function ExclusiveDetail() {
     fileInput("Comprovante de residência (opcional)", "residencia", owner, {
       accent: "border-l-4 border-l-amber-500",
     });
-  const ownerFields = (
-    scope: "proprietario_1" | "proprietario_2",
-    owner: NonNullable<CaptureForm[typeof scope]>,
-  ) =>
-    OWNER_FIELDS.map(({ key, label, required }) =>
-      field(label, owner[key], (value) => edit(scope, key as OwnerField, value), required),
+  // Só o bloco aberto chama estes dois (OwnerBlocks): com 30+ proprietários a tela não monta
+  // centenas de campos e envios de documento de uma vez.
+  const ownerFields = (n: number) => {
+    const owner = owners[n - 1];
+    if (!owner) return null;
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {OWNER_FIELDS.map(({ key, label, required }) =>
+          field(label, owner[key], (value) => editOwner(n, key, value), required),
+        )}
+      </div>
     );
+  };
+  const ownerDocs = (n: number) => (
+    <div className="space-y-3">
+      {ownerDocInput("RG", "rg", n)}
+      {ownerDocInput("CPF", "cpf", n)}
+      {ownerDocInput("CNH (substitui RG + CPF)", "cnh", n)}
+      {ownerResidenciaInput(n)}
+    </div>
+  );
+  const ownerBlocksCommon = {
+    owners,
+    docKinds,
+    editable,
+    busy,
+    onAdd: addOwnerToForm,
+    onRemove: removeOwnerFromForm,
+    removeBlocked: (n: number) => {
+      const r = canRemoveOwner(form, docs, n);
+      return r.ok ? null : (r.reason ?? "Não é possível remover");
+    },
+  };
   // Mesma regra do banco (exclusive_archive): contrato gerado ou fora do rascunho → arquivar.
   const validity = captureValidity(capture, hojeSaoPaulo());
   const saveSignedOn = () =>
@@ -1242,57 +1308,8 @@ function ExclusiveDetail() {
               </div>
             </CardContent>
           </Card>
-          {(["proprietario_1", "proprietario_2"] as const).map((scope, index) => {
-            const owner = form[scope];
-            return (
-              <Card key={scope}>
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    Proprietário {index + 1} {index === 1 && !owner ? "(opcional)" : ""}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {index === 1 && editable && (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => {
-                        setForm((f) =>
-                          f
-                            ? f.proprietario_2
-                              ? (({ proprietario_2: _, ...rest }) => rest)(f)
-                              : { ...f, proprietario_2: emptyOwner() }
-                            : f,
-                        );
-                        setSuggestions((current) =>
-                          current.filter((item) => item.scope !== "proprietario_2"),
-                        );
-                        setDirty(true);
-                      }}
-                    >
-                      {owner ? "Remover segundo proprietário" : "Adicionar segundo proprietário"}
-                    </Button>
-                  )}
-                  {owner && (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        {owner.nome_completo || "Nome a preencher"} ·{" "}
-                        {ownerDocumentsComplete(docs, (index + 1) as 1 | 2)
-                          ? "Identificação completa"
-                          : "RG + CPF ou CNH pendentes"}
-                      </p>
-                      <div className="space-y-3">
-                        {ownerDocInput("RG", "rg", index + 1)}
-                        {ownerDocInput("CPF", "cpf", index + 1)}
-                        {ownerDocInput("CNH (substitui RG + CPF)", "cnh", index + 1)}
-                        {ownerResidenciaInput(index + 1)}
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          <OwnerBlocks {...ownerBlocksCommon} badges="docs" renderBody={ownerDocs} />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Documentos do imóvel</CardTitle>
@@ -1342,7 +1359,7 @@ function ExclusiveDetail() {
                       Sugestões da leitura local —{" "}
                       {suggestion.scope === "imovel"
                         ? "imóvel"
-                        : `proprietário ${suggestion.scope === "proprietario_1" ? 1 : 2}`}
+                        : `proprietário ${ownerNumber(suggestion.scope) ?? ""}`}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
@@ -1450,28 +1467,12 @@ function ExclusiveDetail() {
               </p>
             </CardContent>
           </Card>
-          {(["proprietario_1", "proprietario_2"] as const).map((scope, index) => {
-            const owner = form[scope];
-            return (
-              <Card key={scope}>
-                <CardHeader>
-                  <CardTitle>
-                    Proprietário {index + 1} {index === 1 && !owner ? "(opcional)" : ""}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {owner && (
-                    <div className="grid gap-3 sm:grid-cols-2">{ownerFields(scope, owner)}</div>
-                  )}
-                  {!owner && (
-                    <p className="text-sm text-muted-foreground">
-                      Adicione este proprietário na etapa Documentos se necessário.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          <OwnerBlocks
+            {...ownerBlocksCommon}
+            badges="fields"
+            title="Proprietários (CONTRATANTES)"
+            renderBody={ownerFields}
+          />
           <Card>
             <CardHeader>
               <CardTitle>Imóvel</CardTitle>
@@ -1644,43 +1645,12 @@ function ExclusiveDetail() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
-                {([1, 2] as const).map((n) =>
-                  n === 2 && !form.proprietario_2 ? null : (
-                    <div key={n} className="space-y-3">
-                      <p className="text-sm font-medium">
-                        Proprietário {n}
-                        {form[`proprietario_${n}`]?.nome_completo
-                          ? ` · ${form[`proprietario_${n}`]?.nome_completo}`
-                          : ""}
-                      </p>
-                      {ownerDocInput("RG", "rg", n)}
-                      {ownerDocInput("CPF", "cpf", n)}
-                      {ownerDocInput("CNH (substitui RG + CPF)", "cnh", n)}
-                      {ownerResidenciaInput(n)}
-                    </div>
-                  ),
-                )}
-                {editable && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      setForm((f) =>
-                        f
-                          ? f.proprietario_2
-                            ? (({ proprietario_2: _, ...rest }) => rest)(f)
-                            : { ...f, proprietario_2: emptyOwner() }
-                          : f,
-                      );
-                      setDirty(true);
-                    }}
-                  >
-                    {form.proprietario_2
-                      ? "Remover segundo proprietário"
-                      : "Adicionar segundo proprietário"}
-                  </Button>
-                )}
+                <OwnerBlocks
+                  {...ownerBlocksCommon}
+                  badges="docs"
+                  docsOptional
+                  renderBody={ownerDocs}
+                />
                 {fileInput("Comprovante de residência", "residencia", 0, {
                   accent: "border-l-4 border-l-emerald-500",
                 })}
