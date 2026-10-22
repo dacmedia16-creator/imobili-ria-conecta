@@ -46,6 +46,7 @@ import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
 import { Route as AuthenticatedAdminUnidadesCaptacaoRouteImport } from './routes/_authenticated/admin.unidades-captacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as AuthenticatedAjudaWikiRouteImport } from './routes/_authenticated/ajuda_.wiki'
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
@@ -262,6 +263,11 @@ const AuthenticatedAdminUsuariosRoute =
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAjudaWikiRoute = AuthenticatedAjudaWikiRouteImport.update({
+  id: '/ajuda_/wiki',
+  path: '/ajuda/wiki',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedExclusividadesIndexRoute =
   AuthenticatedExclusividadesIndexRouteImport.update({
     id: '/exclusividades/',
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
@@ -406,6 +413,7 @@ export interface FileRoutesByTo {
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
@@ -456,6 +464,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
   '/_authenticated/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/_authenticated/ajuda_/wiki': typeof AuthenticatedAjudaWikiRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
@@ -506,6 +515,7 @@ export interface FileRouteTypes {
     | '/admin/posicionamento'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
+    | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/plataforma/chamados'
@@ -554,6 +564,7 @@ export interface FileRouteTypes {
     | '/admin/posicionamento'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
+    | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/plataforma/chamados'
@@ -603,6 +614,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/posicionamento'
     | '/_authenticated/admin/unidades-captacao'
     | '/_authenticated/admin/usuarios'
+    | '/_authenticated/ajuda_/wiki'
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
     | '/_authenticated/plataforma/chamados'
@@ -888,6 +900,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ajuda_/wiki': {
+      id: '/_authenticated/ajuda_/wiki'
+      path: '/ajuda/wiki'
+      fullPath: '/ajuda/wiki'
+      preLoaderRoute: typeof AuthenticatedAjudaWikiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/exclusividades/': {
       id: '/_authenticated/exclusividades/'
       path: '/exclusividades'
@@ -990,6 +1009,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
   AuthenticatedAdminUnidadesCaptacaoRoute: typeof AuthenticatedAdminUnidadesCaptacaoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
+  AuthenticatedAjudaWikiRoute: typeof AuthenticatedAjudaWikiRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
   AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
@@ -1035,6 +1055,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminUnidadesCaptacaoRoute:
     AuthenticatedAdminUnidadesCaptacaoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
+  AuthenticatedAjudaWikiRoute: AuthenticatedAjudaWikiRoute,
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,

@@ -52,6 +52,7 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/notificacoes", true],
     ["/perfil", true],
     ["/ajuda", true],
+    ["/ajuda/wiki", true], // Wiki MAX v4 (t_5e94d050): item novo, igual para todos
     ["/admin/usuarios", hasAny(["admin", "super_admin", "gestor", "team_leader"])],
     ["/admin/posicionamento", hasAny(["admin", "super_admin"])],
     ["/admin/dados-imobiliaria", hasAny(["admin", "super_admin"])],
