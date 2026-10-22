@@ -122,7 +122,11 @@ export function buildCaptureSigners(input: BuildInput): {
       errors.push(`Proprietário ${i + 1}: preencha os dados ou remova o proprietário`);
       return;
     }
-    push(`proprietario_${i + 1}`, { nome: o.nome_completo, email: o.email }, `Proprietário ${i + 1}`);
+    push(
+      `proprietario_${i + 1}`,
+      { nome: o.nome_completo, email: o.email },
+      `Proprietário ${i + 1}`,
+    );
   });
   push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
   if (input.imobiliaria.length < 1)

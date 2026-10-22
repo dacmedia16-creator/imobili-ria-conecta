@@ -26,7 +26,10 @@ describe("IA do contrato assinado: vários proprietários", () => {
       { nome_completo: "Davi Ficticio" },
     ]);
     const sem2 = sanitizeSignedContractAi(
-      { proprietario_1: { nome_completo: "Ana" }, proprietarios_adicionais: [{ nome_completo: "C" }] },
+      {
+        proprietario_1: { nome_completo: "Ana" },
+        proprietarios_adicionais: [{ nome_completo: "C" }],
+      },
       "2026-10-22",
     );
     expect(sem2.proprietarios_extras).toBeUndefined();
@@ -36,7 +39,10 @@ describe("IA do contrato assinado: vários proprietários", () => {
     const { form, filled } = applySignedContract(normalizeForm({}), {
       proprietario_1: { nome_completo: "Ana Ficticia" },
       proprietario_2: { nome_completo: "Bruno Ficticio" },
-      proprietarios_extras: [{ nome_completo: "Carla Ficticia" }, { nome_completo: "Davi Ficticio" }],
+      proprietarios_extras: [
+        { nome_completo: "Carla Ficticia" },
+        { nome_completo: "Davi Ficticio" },
+      ],
     });
     expect(captureOwners(form).map((o) => o.nome_completo)).toEqual([
       "Ana Ficticia",
@@ -57,7 +63,7 @@ describe("IA do contrato assinado: vários proprietários", () => {
   });
 
   it("não sobrescreve proprietário já digitado", () => {
-    const base = normalizeForm({
+    const base = normalizeForm(<Parameters<typeof normalizeForm>[0]>{
       proprietario_1: { nome_completo: "Digitado 1" },
       proprietario_2: { nome_completo: "Digitado 2" },
       proprietarios_extras: [{ nome_completo: "Digitado 3" }],

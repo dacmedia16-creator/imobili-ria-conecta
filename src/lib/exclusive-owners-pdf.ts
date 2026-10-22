@@ -183,7 +183,12 @@ export async function appendExtraOwnersPages(
     }
     y -= SIGN_SPACE - LINE;
     const sw = Math.min(300, W);
-    list[b.page].drawLine({ start: { x: M, y }, end: { x: M + sw, y }, thickness: 0.8, color: INK });
+    list[b.page].drawLine({
+      start: { x: M, y },
+      end: { x: M + sw, y },
+      thickness: 0.8,
+      color: INK,
+    });
     txt(b.page, `Assinatura do Proprietário ${b.number}`, M, y - 11, 8, true);
     const nome = wrapText(b.name, 8, sw, measure)[0] ?? "";
     txt(b.page, nome, M, y - 22, 8, false, MUTED);

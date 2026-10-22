@@ -346,11 +346,7 @@ export function captureOwners(form: Partial<CaptureForm> | null | undefined): Ow
 }
 /** Grava a lista de volta no formato salvo (proprietario_1, proprietario_2, proprietarios_extras). */
 export function withOwners(form: CaptureForm, owners: Owner[]): CaptureForm {
-  const {
-    proprietario_2: _p2,
-    proprietarios_extras: _extras,
-    ...rest
-  } = form;
+  const { proprietario_2: _p2, proprietarios_extras: _extras, ...rest } = form;
   const list = owners.length ? owners.slice(0, MAX_OWNERS) : [emptyOwner()];
   return {
     ...rest,
@@ -508,12 +504,10 @@ export function normalizeForm(
     Array.isArray(value.proprietarios_extras) &&
     value.proprietarios_extras.length
       ? {
-          proprietarios_extras: value.proprietarios_extras
-            .slice(0, MAX_OWNERS - 2)
-            .map((o) => ({
-              ...emptyOwner(),
-              ...(o && typeof o === "object" && !Array.isArray(o) ? o : {}),
-            })),
+          proprietarios_extras: value.proprietarios_extras.slice(0, MAX_OWNERS - 2).map((o) => ({
+            ...emptyOwner(),
+            ...(o && typeof o === "object" && !Array.isArray(o) ? o : {}),
+          })),
         }
       : {}),
     imovel: { ...emptyProperty(), ...value?.imovel },
@@ -600,8 +594,7 @@ export function applySignedContract(
   for (const [scope, v] of scopes) {
     if (!v || !Object.keys(v).length) continue;
     const num = scope === "imovel" ? null : ownerNumber(scope);
-    const base =
-      num && num >= 2 && captureOwners(next).length === num - 1 ? addOwner(next) : next;
+    const base = num && num >= 2 && captureOwners(next).length === num - 1 ? addOwner(next) : next;
     const pick = (f: CaptureForm) =>
       (scope === "imovel" ? f.imovel : (captureOwners(f)[(num as number) - 1] ?? {})) as Record<
         string,
@@ -651,8 +644,7 @@ export function manualPendencies(
     optional.push("Prazo da exclusividade em dias");
   const kinds = ownerDocKinds(docs);
   captureOwners(form).forEach((_, i) => {
-    if (!kindsComplete(kinds.get(i + 1)))
-      optional.push(`RG + CPF ou CNH do proprietário ${i + 1}`);
+    if (!kindsComplete(kinds.get(i + 1))) optional.push(`RG + CPF ou CNH do proprietário ${i + 1}`);
   });
   for (const [kind, label] of [
     ["residencia", "Comprovante de residência"],

@@ -236,12 +236,10 @@ export async function handleManage(
       await client.cancelDocument(ctx.envelopeKey, ctx.documentKey);
     } catch (e) {
       // Pode já ter fechado/cancelado lá (ex.: duas abas). Confere antes de desistir.
-      const st = await client
-        .getDocument(ctx.envelopeKey, ctx.documentKey)
-        .then(
-          (d) => (d as { data?: { attributes?: { status?: string } } })?.data?.attributes?.status,
-          () => undefined,
-        );
+      const st = await client.getDocument(ctx.envelopeKey, ctx.documentKey).then(
+        (d) => (d as { data?: { attributes?: { status?: string } } })?.data?.attributes?.status,
+        () => undefined,
+      );
       if (typeof st !== "string" || st === "running") {
         await deps.done(auth.envelope, { action: null }).catch(() => undefined);
         const code = e instanceof ClicksignError ? `${e.step}:${e.status}` : "internal";

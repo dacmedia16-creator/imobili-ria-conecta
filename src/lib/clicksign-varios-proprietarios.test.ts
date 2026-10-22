@@ -1,5 +1,6 @@
 // t_58effd65 — Clicksign com vários proprietários (até 35+ no teste). Só mock: sem rede, sem token
 // real, e-mails fictícios (example.com).
+/* eslint-disable @typescript-eslint/no-explicit-any -- corpos JSON:API simulados da Clicksign */
 import { describe, expect, it, vi } from "vitest";
 import {
   buildCaptureSigners,
@@ -73,7 +74,9 @@ function fakeApi(clock: ReturnType<typeof fakeClock>, opts: { rateLimitAt?: numb
     if (key.endsWith("/bulk_requirements")) {
       const ops = body["atomic:operations"];
       return new Response(
-        JSON.stringify({ "atomic:results": ops.map(() => ({ data: { id, type: "requirements" } })) }),
+        JSON.stringify({
+          "atomic:results": ops.map(() => ({ data: { id, type: "requirements" } })),
+        }),
         { status: 200 },
       );
     }
@@ -100,7 +103,9 @@ describe("signatários: todos os proprietários assinam", () => {
     expect(
       captureOwnerList({ proprietario_1: dono(1), proprietarios_extras: [dono(3)] }),
     ).toHaveLength(1);
-    expect(captureOwnerList({ proprietario_1: dono(1), proprietario_2: { nome_completo: "" } })).toHaveLength(1);
+    expect(
+      captureOwnerList({ proprietario_1: dono(1), proprietario_2: { nome_completo: "" } }),
+    ).toHaveLength(1);
   });
 
   it("captação antiga (2 proprietários) gera os mesmos papéis de antes", () => {

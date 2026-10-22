@@ -33,8 +33,8 @@ export type OwnerBlocksProps = {
 
 export function OwnerBlocks(p: OwnerBlocksProps) {
   // Começa com o 1º aberto (captação de 1 ou 2 proprietários fica igual a hoje: tudo à vista).
-  const [open, setOpen] = useState<Set<number>>(() =>
-    new Set(p.owners.length <= 2 ? p.owners.map((_, i) => i + 1) : [1]),
+  const [open, setOpen] = useState<Set<number>>(
+    () => new Set(p.owners.length <= 2 ? p.owners.map((_, i) => i + 1) : [1]),
   );
   const toggle = (n: number) =>
     setOpen((s) => {
@@ -69,11 +69,7 @@ export function OwnerBlocks(p: OwnerBlocksProps) {
               Recolher todos
             </Button>
             {withPend.length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setOpen(new Set([withPend[0]]))}
-              >
+              <Button size="sm" variant="outline" onClick={() => setOpen(new Set([withPend[0]]))}>
                 Abrir o próximo pendente ({withPend[0]}º)
               </Button>
             )}
