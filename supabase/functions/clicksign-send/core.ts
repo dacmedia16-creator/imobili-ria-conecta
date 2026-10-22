@@ -178,6 +178,7 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
         pdf,
         metadata: { origem: "adm-max-captacao", capture_id: captureId, row: envelopeRow },
         signers,
+        bulkLargeEnvelope: true,
       },
       {
         activate: true,

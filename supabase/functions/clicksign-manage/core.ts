@@ -13,13 +13,13 @@ import {
   normName,
   notifySigners,
   requirementIdsFor,
-  ROLE_BY_PAPEL,
+  papelLabel,
+  roleByPapel,
   sha256Hex,
   signerStates,
   validEmail,
   validSignerName,
   type FetchLike,
-  type Papel,
   type StoredSigner,
 } from "../_shared/clicksign.ts";
 import { SALE_EDITABLE_PAPEIS } from "../_shared/clicksign-venda.ts";
@@ -30,9 +30,9 @@ export const NOTIFY_COOLDOWN_MIN = 10;
  * Papéis editáveis na captação. Corretor vem do cadastro do captador e a Imobiliária da lista
  * autorizada da org: trocar o e-mail deles por aqui furaria essas regras (corrige-se no cadastro).
  */
+/** Todos os proprietários (1..60, t_58effd65) e as testemunhas. */
 export const EDITABLE_PAPEIS: ReadonlySet<string> = new Set([
-  "proprietario_1",
-  "proprietario_2",
+  ...Array.from({ length: 60 }, (_, i) => `proprietario_${i + 1}`),
   "testemunha",
 ]);
 
@@ -46,9 +46,7 @@ const EDITABLE: Record<ManageKind, ReadonlySet<string>> = {
   venda: SALE_EDITABLE_PAPEIS,
 };
 
-const LABEL: Record<Papel, string> = {
-  proprietario_1: "Proprietário 1",
-  proprietario_2: "Proprietário 2",
+const LABEL: Record<string, string> = {
   corretor: "Corretor",
   imobiliaria: "Imobiliária",
   testemunha: "Testemunha",
@@ -105,9 +103,9 @@ export function labelOf(list: StoredSigner[], idx: number): string {
   if (s.label) return s.label;
   if (s.papel === "testemunha" || s.papel === "imobiliaria") {
     const n = list.slice(0, idx + 1).filter((x) => x.papel === s.papel).length;
-    return `${LABEL[s.papel as Papel]} ${n}`;
+    return `${LABEL[s.papel]} ${n}`;
   }
-  return LABEL[s.papel as Papel] ?? s.papel;
+  return papelLabel(s.papel) ?? s.papel;
 }
 
 /**
@@ -354,7 +352,7 @@ export async function handleManage(
     signer: { data: { type: "signers", id: newId } },
   };
   // Venda grava a qualificação usada; captação segue a tabela fixa por papel.
-  const role = target.role ?? ROLE_BY_PAPEL[target.papel as Papel];
+  const role = target.role ?? roleByPapel(target.papel);
   try {
     await client.bulkRequirements(ctx.envelopeKey, [
       ...oldReqs.map((rid) => ({ op: "remove", ref: { type: "requirements", id: rid } })),

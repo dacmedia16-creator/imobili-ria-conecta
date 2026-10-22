@@ -11,21 +11,36 @@ export const CLICKSIGN_PROD_BASE = "https://app.clicksign.com/api/v3";
  * quando page[size]=100 quebrou a consulta de signatários (t_f1f6f335).
  */
 export const CLICKSIGN_MAX_PAGE_SIZE = 50;
+/** Teto de páginas por listagem (5 × 50 = 250 itens: 73 signatários × 2 requisitos cabem). */
+export const LIST_MAX_PAGES = 5;
 const JSONAPI = "application/vnd.api+json";
 /** bulk_requirements usa a extensão Atomic Operations do JSON:API (validado na conta real, 18/10). */
 export const JSONAPI_ATOMIC = 'application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"';
 export const WITNESS_COUNT = 2;
 export const MAX_IMOBILIARIA_SIGNERS = 10;
 
-export type Papel = "proprietario_1" | "proprietario_2" | "corretor" | "imobiliaria" | "testemunha";
+/** Proprietários: proprietario_1, proprietario_2, … proprietario_N (t_58effd65, até 60). */
+export type Papel = `proprietario_${number}` | "corretor" | "imobiliaria" | "testemunha";
 /** Qualificação (requisito "agree") por papel. Validada na conta real no teste D2. */
-export const ROLE_BY_PAPEL: Record<Papel, string> = {
+export const ROLE_BY_PAPEL: Record<string, string> = {
   proprietario_1: "contractor",
   proprietario_2: "contractor",
   corretor: "real_estate_broker",
   imobiliaria: "contractee",
   testemunha: "witness",
 };
+const OWNER_PAPEL_RE = /^proprietario_(\d{1,2})$/;
+/** Todo proprietário (1º ao N-ésimo) assina como contratante. */
+export function roleByPapel(papel: string): string | undefined {
+  return OWNER_PAPEL_RE.test(papel) ? "contractor" : ROLE_BY_PAPEL[papel];
+}
+/** Ritmo do envio: a Clicksign aceita 50 requisições por conta a cada 10 s (produção). */
+export const PACE_MAX_CALLS = 40;
+export const PACE_WINDOW_MS = 10_000;
+/** Requisitos por chamada de bulk_requirements (2 por signatário: qualificação + código por e-mail). */
+export const BULK_REQUIREMENTS_CHUNK = 20;
+/** A partir de quantos signatários o envio usa lote (abaixo disso, fluxo antigo, sem mudança). */
+export const BULK_MIN_SIGNERS = 9;
 
 /**
  * Signatário a criar. `role` sobrepõe a qualificação do papel (venda); `documentation` = CPF
@@ -47,13 +62,32 @@ export const validEmail = (v: string | null | undefined) => EMAIL_RE.test(normEm
 /** A Clicksign exige ao menos duas palavras no nome do signatário. */
 export const validSignerName = (v: string | null | undefined) => /^\S+\s+\S+/.test(normName(v));
 
-const LABEL: Record<Papel, string> = {
-  proprietario_1: "Proprietário 1",
-  proprietario_2: "Proprietário 2",
+const LABEL: Record<string, string> = {
   corretor: "Corretor",
   imobiliaria: "Imobiliária",
   testemunha: "Testemunha",
 };
+/** "Proprietário N", "Corretor", "Imobiliária", "Testemunha" (sem número para os dois últimos). */
+export function papelLabel(papel: string): string | undefined {
+  const m = OWNER_PAPEL_RE.exec(papel);
+  return m ? `Proprietário ${m[1]}` : LABEL[papel];
+}
+/**
+ * Proprietários da captação na ordem do contrato: 1º sempre; 2º se preenchido; proprietarios_extras
+ * (3º em diante) só com o 2º. Mesma regra de exclusive_owner_list (banco) e captureOwners (tela).
+ */
+export function captureOwnerList(form: Record<string, unknown> | null | undefined) {
+  const f = (form ?? {}) as Record<string, unknown>;
+  const asObj = (v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, string>) : {};
+  const out: Record<string, string>[] = [asObj(f.proprietario_1)];
+  const o2 = f.proprietario_2 as Record<string, unknown> | undefined;
+  if (!ownerFilled(o2)) return out;
+  out.push(asObj(o2));
+  if (Array.isArray(f.proprietarios_extras))
+    f.proprietarios_extras.slice(0, 58).forEach((o) => out.push(asObj(o)));
+  return out;
+}
 
 function ownerFilled(o: Record<string, unknown> | null | undefined): boolean {
   if (!o || typeof o !== "object") return false;
@@ -82,12 +116,14 @@ export function buildCaptureSigners(input: BuildInput): {
     if (!validEmail(email)) errors.push(`${label}: e-mail ausente ou inválido`);
     signers.push({ papel, nome, email });
   };
-  const o1 = (input.form?.proprietario_1 ?? {}) as Record<string, string>;
-  push("proprietario_1", { nome: o1.nome_completo, email: o1.email }, LABEL.proprietario_1);
-  const o2 = input.form?.proprietario_2 as Record<string, string> | undefined;
-  if (ownerFilled(o2)) {
-    push("proprietario_2", { nome: o2?.nome_completo, email: o2?.email }, LABEL.proprietario_2);
-  }
+  // Todos os proprietários assinam (t_58effd65). O 2º vazio continua fora, como antes.
+  captureOwnerList(input.form).forEach((o, i) => {
+    if (i > 1 && !ownerFilled(o)) {
+      errors.push(`Proprietário ${i + 1}: preencha os dados ou remova o proprietário`);
+      return;
+    }
+    push(`proprietario_${i + 1}`, { nome: o.nome_completo, email: o.email }, `Proprietário ${i + 1}`);
+  });
   push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
   if (input.imobiliaria.length < 1)
     errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
@@ -117,9 +153,9 @@ function signerLabel(list: SignerInput[], i: number): string {
   const s = list[i];
   if (s.papel === "imobiliaria" || s.papel === "testemunha") {
     const n = list.slice(0, i + 1).filter((x) => x.papel === s.papel).length;
-    return `${LABEL[s.papel as Papel]} ${n}`;
+    return `${LABEL[s.papel]} ${n}`;
   }
-  return LABEL[s.papel as Papel] ?? s.papel;
+  return papelLabel(s.papel) ?? s.papel;
 }
 
 // ---------- hashing / HMAC (WebCrypto: Deno e Node 20+) ----------
@@ -242,7 +278,11 @@ export function rateLimitWaitMs(
 export type ClientOptions = {
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  /** Teste: muda o ritmo máximo por janela de 10 s (padrão PACE_MAX_CALLS). */
+  paceMaxCalls?: number;
 };
+/** Teto do orçamento de espera por 429 num envio grande (cabe no tempo da edge function). */
+export const RATE_LIMIT_BUDGET_MAX_MS = 60_000;
 
 export class ClicksignClient {
   private token: string;
@@ -251,6 +291,9 @@ export class ClicksignClient {
   private sleep: (ms: number) => Promise<void>;
   private now: () => number;
   private retryBudgetMs = RATE_LIMIT_BUDGET_MS;
+  /** Horários (ms) das últimas chamadas, para o ritmo de PACE_MAX_CALLS por PACE_WINDOW_MS. */
+  private sent: number[] = [];
+  private paceMax = PACE_MAX_CALLS;
   constructor(
     token: string,
     fetchImpl: FetchLike = fetch,
@@ -262,6 +305,28 @@ export class ClicksignClient {
     this.base = base;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = opts.now ?? (() => Date.now());
+    if (opts.paceMaxCalls) this.paceMax = opts.paceMaxCalls;
+  }
+
+  /**
+   * Orçamento total de espera por 429 deste envio. Envelope grande (30+ proprietários) ganha mais
+   * tempo, proporcional ao número de signatários, sem passar de RATE_LIMIT_BUDGET_MAX_MS.
+   */
+  setRetryBudget(ms: number) {
+    this.retryBudgetMs = Math.max(0, Math.min(ms, RATE_LIMIT_BUDGET_MAX_MS));
+  }
+
+  /** Espera o necessário para não passar de paceMax chamadas na janela de 10 s. */
+  private async pace() {
+    const now = this.now();
+    this.sent = this.sent.filter((t) => now - t < PACE_WINDOW_MS);
+    if (this.sent.length >= this.paceMax) {
+      const wait = PACE_WINDOW_MS - (now - this.sent[0]) + 50;
+      if (wait > 0) await this.sleep(wait);
+      const after = this.now();
+      this.sent = this.sent.filter((t) => after - t < PACE_WINDOW_MS);
+    }
+    this.sent.push(this.now());
   }
 
   /**
@@ -287,6 +352,7 @@ export class ClicksignClient {
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     };
+    await this.pace();
     let res = await this.fetchImpl(this.base + path, init);
     if (res.status === 429) {
       const wait = rateLimitWaitMs(res.headers?.get?.("X-Rate-Limit-Reset") ?? null, this.now());
@@ -294,6 +360,7 @@ export class ClicksignClient {
         this.retryBudgetMs -= wait;
         await res.text().catch(() => "");
         await this.sleep(wait);
+        await this.pace();
         res = await this.fetchImpl(this.base + path, init);
       }
     }
@@ -381,19 +448,30 @@ export class ClicksignClient {
   deleteEnvelope(envelopeId: string) {
     return this.call("delete", "DELETE", `/envelopes/${envelopeId}`);
   }
+  /**
+   * Lê todas as páginas (page[number]) até vir uma página incompleta. Captação com 30+ proprietários
+   * passa de 50 signatários/requisitos (t_58effd65). Devolve { data: [...todas] }.
+   */
+  async listAll(step: string, path: string, maxPages = LIST_MAX_PAGES): Promise<any> {
+    const sep = path.includes("?") ? "&" : "?";
+    const all: any[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const r = await this.call(
+        step,
+        "GET",
+        `${path}${sep}page[size]=${CLICKSIGN_MAX_PAGE_SIZE}&page[number]=${page}`,
+      );
+      const data = Array.isArray(r?.data) ? r.data : [];
+      all.push(...data);
+      if (data.length < CLICKSIGN_MAX_PAGE_SIZE) break;
+    }
+    return { data: all };
+  }
   listSigners(envelopeId: string) {
-    return this.call(
-      "list_signers",
-      "GET",
-      `/envelopes/${envelopeId}/signers?page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
-    );
+    return this.listAll("list_signers", `/envelopes/${envelopeId}/signers`);
   }
   listRequirements(envelopeId: string) {
-    return this.call(
-      "list_requirements",
-      "GET",
-      `/envelopes/${envelopeId}/requirements?page[size]=${CLICKSIGN_MAX_PAGE_SIZE}`,
-    );
+    return this.listAll("list_requirements", `/envelopes/${envelopeId}/requirements`);
   }
   /**
    * Eventos do envelope filtrados por nome. "signature_started" = o signatário abriu o contrato e
@@ -461,6 +539,8 @@ export type EnvelopePlan = {
   mime?: string;
   metadata: Record<string, string>;
   signers: SignerInput[];
+  /** Captação (t_58effd65): envelope grande cria requisitos em lote. Venda não usa (sem mudança). */
+  bulkLargeEnvelope?: boolean;
 };
 
 export type EnvelopeResult = { envelopeId: string; documentId: string; activated: boolean };
@@ -519,18 +599,48 @@ export async function buildEnvelope(
     const documentId: string = doc?.data?.id;
     if (!documentId) throw new ClicksignError("document", 0, "resposta sem id");
     await opts.onDocumentCreated?.(documentId);
+    // t_58effd65: envelope pequeno (até BULK_MIN_SIGNERS − 1 signatários: venda e captação com até
+    // 4 proprietários) segue EXATAMENTE como antes (3 chamadas por signatário). Envelope grande (30+
+    // proprietários) cria os requisitos em lote (bulk_requirements, Atomic Operations, validado na
+    // conta real em 18/10), no ritmo de PACE_MAX_CALLS/10 s, com espera por 429 proporcional.
+    const bulk = !!plan.bulkLargeEnvelope && plan.signers.length >= BULK_MIN_SIGNERS;
+    if (bulk) client.setRetryBudget(RATE_LIMIT_BUDGET_MS + 1_000 * plan.signers.length);
+    const ops: object[] = [];
     for (const s of plan.signers) {
       const signer = await client.createSigner(envelopeId, s);
       const signerId: string = signer?.data?.id;
       if (!signerId) throw new ClicksignError("signer", 0, "resposta sem id");
-      await client.createRequirement(envelopeId, documentId, signerId, {
-        action: "agree",
-        role: s.role ?? ROLE_BY_PAPEL[s.papel as Papel],
-      });
-      await client.createRequirement(envelopeId, documentId, signerId, {
-        action: "provide_evidence",
-        auth: "email",
-      });
+      const role = s.role ?? roleByPapel(s.papel);
+      if (!bulk) {
+        await client.createRequirement(envelopeId, documentId, signerId, { action: "agree", role });
+        await client.createRequirement(envelopeId, documentId, signerId, {
+          action: "provide_evidence",
+          auth: "email",
+        });
+        continue;
+      }
+      if (!role) throw new ClicksignError("signer", 0, "papel sem qualificação");
+      const relationships = {
+        document: { data: { type: "documents", id: documentId } },
+        signer: { data: { type: "signers", id: signerId } },
+      };
+      ops.push(
+        {
+          op: "add",
+          data: { type: "requirements", attributes: { action: "agree", role }, relationships },
+        },
+        {
+          op: "add",
+          data: {
+            type: "requirements",
+            attributes: { action: "provide_evidence", auth: "email" },
+            relationships,
+          },
+        },
+      );
+    }
+    for (let i = 0; i < ops.length; i += BULK_REQUIREMENTS_CHUNK) {
+      await client.bulkRequirements(envelopeId, ops.slice(i, i + BULK_REQUIREMENTS_CHUNK));
     }
     if (opts.activate) {
       activating = true;
