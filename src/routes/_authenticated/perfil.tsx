@@ -1004,7 +1004,7 @@ function MeuAcesso() {
           ))}
           <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
             🔒 Regra geral: quando o financeiro aceita a ocorrência, a venda fica travada para
-            edição de corretor, gestor e jurídico até que o financeiro (ou admin/super admin)
+            edição de corretor, gestor e jurídico até que o financeiro (ou administrador ou administrador principal)
             libere.
           </div>
         </CardContent>
