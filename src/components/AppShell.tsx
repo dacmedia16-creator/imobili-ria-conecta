@@ -79,9 +79,10 @@ function SidebarNav({
       }
       try {
         await restoreSuperAdmin();
-        window.location.href = "/admin/usuarios";
+        // A volta cria sessão nova da plataforma (sem contexto de imobiliária): vai ao Painel.
+        window.location.assign(PLATFORM_PANEL_PATH);
       } catch (error: unknown) {
-        toast.error(errorMessage(error, "Não foi possível retornar ao Super Admin."));
+        toast.error(errorMessage(error, "Não foi possível voltar à conta da plataforma."));
       }
       return;
     }
@@ -90,7 +91,7 @@ function SidebarNav({
   };
 
   const signOutLabel = impersonation
-    ? "Retornar ao Super Admin"
+    ? "Voltar à plataforma"
     : IS_HOMOLOG
       ? "Sair da homologação"
       : "Sair da Conta MAX";
@@ -401,10 +402,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     try {
       await restoreSuperAdmin();
-      router.navigate({ to: "/admin/usuarios", replace: true });
-      window.location.reload();
+      // A volta cria sessão nova da plataforma (sem contexto de imobiliária): vai ao Painel.
+      window.location.assign(PLATFORM_PANEL_PATH);
     } catch (error: unknown) {
-      toast.error(errorMessage(error, "Não foi possível retornar ao Super Admin."));
+      toast.error(errorMessage(error, "Não foi possível voltar à conta da plataforma."));
     }
   };
 
@@ -442,7 +443,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         onClick={leaveImpersonation}
       >
         <Undo2 className="h-4 w-4" aria-hidden />
-        Voltar ao Super Admin
+        Voltar à plataforma
       </Button>
     </div>
   ) : null;
@@ -506,10 +507,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             variant="secondary"
             className="shrink-0 bg-white text-red-800 hover:bg-red-50"
             onClick={leaveImpersonation}
-            aria-label="Voltar ao Super Admin"
+            aria-label="Voltar à plataforma"
           >
             <Undo2 className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Voltar ao Super Admin</span>
+            <span className="hidden sm:inline">Voltar à plataforma</span>
             <span className="sm:hidden">Voltar</span>
           </Button>
         </div>

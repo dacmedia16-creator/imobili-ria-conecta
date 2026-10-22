@@ -126,6 +126,70 @@ begin
     j ? 'tempo_por_etapa' and j ? 'evolucao_mensal');
 end $$;
 
+-- 22-28. "Entrar como" no BANCO (seção 4): sessão gravada como o servidor grava (service_role,
+-- sem JWT de usuário). A plataforma (perfil em A) abre sessão em alvo de B; agência nunca abre.
+create or replace function pg_temp.sess(_n int, _caso text, _esperado text, _actor text, _alvo text, _org uuid)
+returns void language plpgsql as $$
+declare obt text; c int;
+begin
+  begin
+    perform set_config('request.jwt.claims', '', true);
+    execute 'set local role service_role';
+    insert into public.operational_impersonation_sessions (organization_id, actor_user_id, target_user_id, status)
+    values (_org, md5('apri-' || _actor)::uuid, md5('apri-' || _alvo)::uuid, 'pending');
+    get diagnostics c = row_count;
+    obt := case when c > 0 then 'gravou' else 'bloqueado:0 linhas' end;
+  exception when others then obt := 'bloqueado:' || sqlerrm;
+  end;
+  execute 'reset role';
+  insert into _r values (_n, _caso, _esperado, obt, obt like _esperado || '%');
+end $$;
+
+\o /dev/null
+select pg_temp.sess(22, 'plataforma abre "entrar como" em usuário de B (sem ser membro de B)', 'gravou', 'plat', 'corb', '2a000000-0000-4000-8000-0000000000b0');
+select pg_temp.sess(23, 'plataforma abre "entrar como" em usuário de A', 'gravou', 'plat', 'cor', '00000000-0000-4000-8000-000000000001');
+select pg_temp.sess(24, 'admin principal NÃO abre "entrar como" (nem via service_role)', 'bloqueado:impersonacao_so_plataforma', 'pa', 'cor', '00000000-0000-4000-8000-000000000001');
+select pg_temp.sess(25, 'admin comum NÃO abre "entrar como"', 'bloqueado:impersonacao_so_plataforma', 'adm', 'cor', '00000000-0000-4000-8000-000000000001');
+select pg_temp.sess(26, 'sessão com agência diferente da do alvo é recusada (sem vazamento)', 'bloqueado:organization_id divergente', 'plat', 'corb', '00000000-0000-4000-8000-000000000001');
+\o
+
+do $$
+declare obt text; s uuid;
+begin
+  perform set_config('request.jwt.claims', '', true);
+  set local role service_role;
+  select id into s from public.operational_impersonation_sessions
+   where actor_user_id = md5('apri-plat')::uuid and target_user_id = md5('apri-corb')::uuid;
+  begin
+    update public.operational_impersonation_sessions set actor_user_id = md5('apri-pa')::uuid where id = s;
+    obt := 'gravou';
+  exception when others then obt := 'bloqueado:' || sqlerrm;
+  end;
+  insert into _r values (27, 'trocar o autor da sessão para conta de agência é recusado', 'bloqueado:impersonacao_so_plataforma', obt, obt like 'bloqueado:impersonacao_so_plataforma%');
+  begin
+    update public.operational_impersonation_sessions set status = 'active', started_at = now() where id = s;
+    update public.operational_impersonation_sessions set status = 'ended', ended_at = now() where id = s;
+    insert into public.operational_impersonation_actions (impersonation_session_id, actor_user_id, target_user_id, table_name, operation, record_id)
+    values (s, md5('apri-plat')::uuid, md5('apri-corb')::uuid, 'teste', 'UPDATE', 'x');
+    select 'ok:' || o.organization_id::text into obt from public.operational_impersonation_actions o where o.impersonation_session_id = s;
+  exception when others then obt := 'bloqueado:' || sqlerrm;
+  end;
+  reset role;
+  insert into _r values (28, 'sessão da plataforma: ativar, encerrar e registrar ação (agência = B, do alvo)', 'ok:2a000000-0000-4000-8000-0000000000b0', obt, obt = 'ok:2a000000-0000-4000-8000-0000000000b0');
+end $$;
+
+-- 29. Visão executiva: a plataforma (contexto) continua recebendo o bloco WhatsApp.
+do $$
+declare j jsonb;
+begin
+  insert into public.user_roles (organization_id, user_id, role) values ('00000000-0000-4000-8000-000000000001', md5('apri-plat')::uuid, 'admin');
+  perform pg_temp.como('plat');
+  j := public.desempenho_contexto_periodo(current_date - 30, current_date);
+  reset role;
+  insert into _r values (29, 'visão executiva: plataforma recebe o bloco WhatsApp', 'objeto',
+    coalesce(jsonb_typeof(j->'whatsapp'), 'null'), jsonb_typeof(j->'whatsapp') = 'object');
+end $$;
+
 select n, case when ok then 'PASSOU' else 'FALHOU' end as resultado, caso, esperado, obtido from _r order by n;
 select count(*) filter (where ok) as passou, count(*) filter (where not ok) as falhou from _r;
 

@@ -146,6 +146,8 @@ export const createUser = createServerFn({ method: "POST" })
       userId: context.userId,
       orgId: ctxOrg,
       roles: ["super_admin", "admin"] as ManagedRole[],
+      // Só a plataforma cadastra alguém já como "Administrador principal" (t_44d957b1).
+      isPlatformAdmin: true,
     });
     await admin.from("activity_logs").insert({
       organization_id: ctxOrg,

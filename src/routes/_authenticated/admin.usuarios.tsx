@@ -200,13 +200,13 @@ function AdminUsers() {
     let auditId: string | null = null;
     try {
       const { data: current } = await supabase.auth.getSession();
-      if (!current.session) throw new Error("Sua sessão de Super Admin expirou.");
+      if (!current.session) throw new Error("Sua sessão da plataforma expirou.");
       const result = await startImpersonationFn({ data: { targetUserId: target.id } });
       auditId = result.auditId;
       writeOperationalImpersonation({
         auditId: result.auditId,
         actorUserId: current.session.user.id,
-        actorEmail: current.session.user.email ?? "Super Admin",
+        actorEmail: current.session.user.email ?? "Plataforma",
         targetUserId: result.target.id,
         targetName: result.target.name,
         targetEmail: result.target.email,

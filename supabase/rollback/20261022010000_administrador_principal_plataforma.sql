@@ -129,4 +129,36 @@ AS $function$
   ) where _de <= _ate and has_any_role(auth.uid(), array['financeiro','admin','super_admin','gestor','team_leader']::app_role[]);
 $function$;
 
+
+-- 4) "Entrar como": volta a exigir autor e alvo com perfil na mesma agência (definição original de
+--    20260928010000_mt_fase1b_escopo). NOT VALID: sessões já gravadas pela plataforma em agência da
+--    qual ela não é membro continuam no histórico (não se apaga auditoria); vale para linhas novas.
+DROP TRIGGER IF EXISTS trg_01_impersonation_actor_plataforma ON public.operational_impersonation_sessions;
+DROP FUNCTION IF EXISTS public.impersonation_actor_plataforma();
+DROP TRIGGER IF EXISTS trg_00_org ON public.operational_impersonation_sessions;
+CREATE TRIGGER trg_00_org BEFORE INSERT OR UPDATE ON public.operational_impersonation_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.mt_1b_set_org('profiles', 'target_user_id', 'profiles', 'actor_user_id');
+ALTER TABLE public.operational_impersonation_sessions
+  DROP CONSTRAINT IF EXISTS mt_1b_operational_impersonation_sessions_actor_user_id_org_fk;
+ALTER TABLE public.operational_impersonation_sessions
+  ADD CONSTRAINT mt_1b_operational_impersonation_sessions_actor_user_id_org_fk
+  FOREIGN KEY (actor_user_id, organization_id) REFERENCES public.profiles(id, organization_id) NOT VALID;
+ALTER TABLE public.operational_impersonation_actions
+  DROP CONSTRAINT IF EXISTS mt_1b_operational_impersonation_actions_actor_user_id_org_fk;
+ALTER TABLE public.operational_impersonation_actions
+  ADD CONSTRAINT mt_1b_operational_impersonation_actions_actor_user_id_org_fk
+  FOREIGN KEY (actor_user_id, organization_id) REFERENCES public.profiles(id, organization_id) NOT VALID;
+-- Se não houver sessão da plataforma fora da própria agência, valida (fica idêntico ao original).
+DO $$
+BEGIN
+  BEGIN
+    ALTER TABLE public.operational_impersonation_sessions
+      VALIDATE CONSTRAINT mt_1b_operational_impersonation_sessions_actor_user_id_org_fk;
+    ALTER TABLE public.operational_impersonation_actions
+      VALIDATE CONSTRAINT mt_1b_operational_impersonation_actions_actor_user_id_org_fk;
+  EXCEPTION WHEN foreign_key_violation THEN
+    RAISE NOTICE 'FKs do autor ficam NOT VALID: há sessões históricas da plataforma em outra agência.';
+  END;
+END $$;
+
 COMMIT;

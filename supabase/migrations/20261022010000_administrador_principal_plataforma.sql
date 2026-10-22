@@ -7,7 +7,12 @@
 --   3) ver o bloco "Saúde do WhatsApp" da visão executiva (desempenho_contexto_periodo).
 -- Continua podendo: conceder/retirar "admin" e todos os demais papéis da própria agência,
 -- Configurações, Assinatura digital etc. "Entrar como" não tem RPC: a tabela de sessões é fechada
--- para authenticated; a trava é a server function (is_platform_super_admin).
+-- para authenticated; a trava é a server function (is_platform_super_admin) e, NO BANCO, o
+-- gatilho da seção 4 (autor da sessão precisa estar em platform_admins).
+--   4) "Entrar como" pela plataforma: a auditoria (operational_impersonation_sessions/_actions)
+--      exigia autor e alvo com perfil NA MESMA agência (FK composta + mt_1b_set_org). A plataforma
+--      não é membro das imobiliárias em que entra pelo Painel, então a auditoria passa a herdar a
+--      agência SÓ do alvo (e da sessão), e o autor passa a ser exigido como super-admin da plataforma.
 -- Idempotente. Rollback: supabase/rollback/20261022010000_administrador_principal_plataforma.sql (definições lidas de produção em 22/10/2026).
 -- NÃO aplicar em produção sem novo "sim" de Denis.
 -- Sem BEGIN/COMMIT próprios (o aplicador já abre transação; o teste roda dentro de uma desfeita).
@@ -157,3 +162,40 @@ AS $function$
       else null end
   ) where _de <= _ate and has_any_role(auth.uid(), array['financeiro','admin','super_admin','gestor','team_leader']::app_role[]);
 $function$;
+
+-- 4) "Entrar como" pela plataforma (auditoria). O autor da sessão deixa de precisar de perfil na
+--    agência do alvo (a plataforma não é membro dela); a agência da auditoria vem SÓ do alvo.
+--    Em troca, o banco passa a exigir que o autor de uma sessão nova seja super-admin da plataforma
+--    (falha fechada também para service_role): agência nenhuma abre sessão de "entrar como".
+ALTER TABLE public.operational_impersonation_sessions
+  DROP CONSTRAINT IF EXISTS mt_1b_operational_impersonation_sessions_actor_user_id_org_fk;
+ALTER TABLE public.operational_impersonation_actions
+  DROP CONSTRAINT IF EXISTS mt_1b_operational_impersonation_actions_actor_user_id_org_fk;
+-- actor_user_id continua com FK para auth.users (operational_impersonation_*_actor_user_id_fkey).
+
+DROP TRIGGER IF EXISTS trg_00_org ON public.operational_impersonation_sessions;
+CREATE TRIGGER trg_00_org BEFORE INSERT OR UPDATE ON public.operational_impersonation_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.mt_1b_set_org('profiles', 'target_user_id', 'null', 'null');
+
+CREATE OR REPLACE FUNCTION public.impersonation_actor_plataforma()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.actor_user_id IS NOT DISTINCT FROM OLD.actor_user_id THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.actor_user_id IS NULL
+     OR NOT EXISTS (SELECT 1 FROM public.platform_admins WHERE user_id = NEW.actor_user_id) THEN
+    RAISE EXCEPTION 'impersonacao_so_plataforma' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $function$;
+REVOKE ALL ON FUNCTION public.impersonation_actor_plataforma() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_01_impersonation_actor_plataforma ON public.operational_impersonation_sessions;
+CREATE TRIGGER trg_01_impersonation_actor_plataforma
+  BEFORE INSERT OR UPDATE OF actor_user_id ON public.operational_impersonation_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.impersonation_actor_plataforma();
