@@ -7,6 +7,7 @@ import {
   podeEditarComissaoNaOcorrencia,
   verificarComissoesDesatualizadas,
   comissaoExtraApareceNoTopo,
+  extraSemPessoaCadastrada,
   type OcorrenciaComissaoRow,
   type SaleExtraRow,
 } from "./sale-financial-calc";
@@ -395,5 +396,28 @@ describe("podeEditarComissaoNaOcorrencia", () => {
 
   it("mantém editável uma linha manual criada pelo Financeiro", () => {
     expect(podeEditarComissaoNaOcorrencia({ managed_by_sale: false })).toBe(true);
+  });
+});
+
+describe("extraSemPessoaCadastrada (espelha o CHECK sale_commission_extras_exige_vinculo_ou_confirmacao)", () => {
+  it("acusa gestor/TL/corretor extra sem pessoa escolhida", () => {
+    for (const papel of ["gestor", "team_leader", "corretor_captador", "corretor_vendedor"]) {
+      const r = { papel, user_id: null, nome: "Fulano" };
+      expect(extraSemPessoaCadastrada([r])).toBe(r);
+    }
+  });
+  it("libera com pessoa escolhida, sem papel, papel 'outro' ou sem cadastro confirmado", () => {
+    expect(extraSemPessoaCadastrada([{ papel: "gestor", user_id: "u1" }])).toBeNull();
+    expect(extraSemPessoaCadastrada([{ papel: null, user_id: null }])).toBeNull();
+    expect(extraSemPessoaCadastrada([{ papel: "outro", user_id: null }])).toBeNull();
+    expect(
+      extraSemPessoaCadastrada([
+        { papel: "team_leader", user_id: null, sem_cadastro_confirmado: true },
+      ]),
+    ).toBeNull();
+  });
+  it("devolve a primeira linha recusada entre várias", () => {
+    const ruim = { papel: "team_leader", user_id: null, nome: "X" };
+    expect(extraSemPessoaCadastrada([{ papel: "gestor", user_id: "u1" }, ruim])).toBe(ruim);
   });
 });

@@ -119,6 +119,37 @@ export function comissaoExtraApareceNoTopo(extra: {
   return false;
 }
 
+const PAPEIS_EXTRA_EXIGEM_PESSOA = new Set([
+  "gestor",
+  "team_leader",
+  "corretor_captador",
+  "corretor_vendedor",
+]);
+
+/**
+ * Espelha o CHECK sale_commission_extras_exige_vinculo_ou_confirmacao do banco: papel de pessoa da
+ * casa (gestor, TL, corretor captador/vendedor) só pode ser salvo com a pessoa escolhida na lista.
+ * Sem isso o banco recusa com 23514 e a tela só mostrava "Dados de comissão incompatíveis".
+ * Devolve a primeira linha que o banco recusaria, ou null.
+ */
+export function extraSemPessoaCadastrada<
+  T extends {
+    papel?: string | null;
+    user_id?: string | null;
+    sem_cadastro_confirmado?: boolean | null;
+  },
+>(extras: T[]): T | null {
+  return (
+    extras.find(
+      (r) =>
+        !!r.papel &&
+        PAPEIS_EXTRA_EXIGEM_PESSOA.has(r.papel) &&
+        !r.user_id &&
+        !r.sem_cadastro_confirmado,
+    ) ?? null
+  );
+}
+
 // Só pra partes EXTRAS (sale_commission_extras / papelDaExtra) — nunca usar userIdParaPapel pra
 // "corretor_captador"/"corretor_vendedor" aqui, porque um "Outro captador/vendedor" extra é uma
 // PESSOA DIFERENTE do captador/vendedor principal da venda. Usar userIdParaPapel nesse caso

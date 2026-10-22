@@ -164,6 +164,7 @@ import {
   userIdParaExtra,
   verificarComissoesDesatualizadas,
   comissaoExtraApareceNoTopo,
+  extraSemPessoaCadastrada,
 } from "@/lib/sale-financial-calc";
 import { useRouter } from "@tanstack/react-router";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -1218,6 +1219,15 @@ function SaleDetail() {
         setResumoSaveFailed(true);
         toast.error(
           "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.",
+        );
+        return false;
+      }
+      const extraSemPessoa = dirtyExtras ? extraSemPessoaCadastrada(formExtras) : null;
+      if (extraSemPessoa) {
+        // Mesmo critério do CHECK do banco (23514): avisa antes, com o nome da linha.
+        setResumoSaveFailed(true);
+        toast.error(
+          `A parte extra "${(extraSemPessoa.nome ?? "").trim() || "sem nome"}" está como ${COMISSAO_PAPEIS.find((p) => p.key === extraSemPessoa.papel)?.label ?? extraSemPessoa.papel}, mas sem pessoa cadastrada. Escolha a pessoa na lista ou, se for parceiro sem cadastro, mude o papel para "Outro".`,
         );
         return false;
       }
