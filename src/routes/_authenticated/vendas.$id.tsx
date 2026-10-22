@@ -3518,15 +3518,21 @@ function SaleDetail() {
                         {/* Cada lado da operação tem sua própria coluna. Assim, participantes adicionais
                   aparecem junto de quem representam, em vez de virarem uma lista solta no rodapé. */}
                         <div className="space-y-4">
-                          <Field
-                            label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}
-                          >
-                            <CurrencyInput
-                              value={formSale.valor_comissao_captador}
-                              disabled={!editableComissao}
-                              onChange={(v) => applyComissaoValor("captador", v)}
-                            />
-                          </Field>
+                          {/* Lado em parceria externa: o parceiro recebe direto, fora da conta da
+                            imobiliária. Só esconde os campos; o valor salvo não muda. */}
+                          {formSale.parceria_externa_captacao ? (
+                            <AvisoLadoParceria lado="captador" nome={formSale.parceria_nome} />
+                          ) : (
+                            <Field
+                              label={`Comissão corretor captador${formSale.corretor_captador ? ` — ${formSale.corretor_captador}` : ""} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_captador}
+                                disabled={!editableComissao}
+                                onChange={(v) => applyComissaoValor("captador", v)}
+                              />
+                            </Field>
+                          )}
                           {formExtras
                             .filter((r) => r.papel === "corretor_captador")
                             .map((r) => (
@@ -3583,24 +3589,30 @@ function SaleDetail() {
                               />
                             </Field>
                           )}
-                          <Field label="Líquido do captador (R$)">
-                            <CurrencyInput
-                              value={distribuicao?.liquido_captador ?? null}
-                              disabled
-                              onChange={() => {}}
-                            />
-                          </Field>
+                          {!formSale.parceria_externa_captacao && (
+                            <Field label="Líquido do captador (R$)">
+                              <CurrencyInput
+                                value={distribuicao?.liquido_captador ?? null}
+                                disabled
+                                onChange={() => {}}
+                              />
+                            </Field>
+                          )}
                         </div>
                         <div className="space-y-4">
-                          <Field
-                            label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}
-                          >
-                            <CurrencyInput
-                              value={formSale.valor_comissao_vendedor}
-                              disabled={!editableComissao}
-                              onChange={(v) => applyComissaoValor("vendedor", v)}
-                            />
-                          </Field>
+                          {formSale.parceria_externa_venda ? (
+                            <AvisoLadoParceria lado="vendedor" nome={formSale.parceria_nome} />
+                          ) : (
+                            <Field
+                              label={`Comissão corretor vendedor${formSale.corretor_vendedor ? ` — ${formSale.corretor_vendedor}` : ""} (R$)`}
+                            >
+                              <CurrencyInput
+                                value={formSale.valor_comissao_vendedor}
+                                disabled={!editableComissao}
+                                onChange={(v) => applyComissaoValor("vendedor", v)}
+                              />
+                            </Field>
+                          )}
                           {formExtras
                             .filter((r) => r.papel === "corretor_vendedor")
                             .map((r) => (
@@ -3657,13 +3669,15 @@ function SaleDetail() {
                               />
                             </Field>
                           )}
-                          <Field label="Líquido do vendedor (R$)">
-                            <CurrencyInput
-                              value={distribuicao?.liquido_vendedor ?? null}
-                              disabled
-                              onChange={() => {}}
-                            />
-                          </Field>
+                          {!formSale.parceria_externa_venda && (
+                            <Field label="Líquido do vendedor (R$)">
+                              <CurrencyInput
+                                value={distribuicao?.liquido_vendedor ?? null}
+                                disabled
+                                onChange={() => {}}
+                              />
+                            </Field>
+                          )}
                         </div>
                         <Field label="Valor para a imobiliária (R$)" colSpan={2}>
                           <CurrencyInput
@@ -6023,6 +6037,23 @@ function partiesComNome(parties: Record<string, PartyRow>): string[] {
         kb = parteSortKey(b);
       return ka[0] - kb[0] || ka[1] - kb[1];
     });
+}
+
+// Substitui "Comissão corretor X" e "Líquido do X" na Divisão da comissão quando aquele lado é
+// parceria externa: o parceiro recebe direto, fora da conta da imobiliária. Só apresentação.
+function AvisoLadoParceria({
+  lado,
+  nome,
+}: {
+  lado: "captador" | "vendedor";
+  nome: string | null | undefined;
+}) {
+  return (
+    <p role="note" className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+      Lado {lado}: parceria com <b>{nome?.trim() || "o parceiro"}</b>. O parceiro recebe a parte
+      dele direto, fora desta conta.
+    </p>
+  );
 }
 
 function ReviewGroup({ title, children }: { title: string; children: React.ReactNode }) {
