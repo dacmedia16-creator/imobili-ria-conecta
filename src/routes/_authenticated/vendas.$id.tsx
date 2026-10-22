@@ -1412,6 +1412,10 @@ function SaleDetail() {
   const isCriadorDaVenda = !!user?.id && sale.corretor_id === user.id;
   const podeEnviarRevisao =
     (isOwner || isCriadorDaVenda) && (status === "rascunho" || status === "devolvida_ajuste");
+  // Venda do próprio gestor/team leader (é corretor dela ou a cadastrou): ele não aprova os próprios
+  // documentos um a um — enviados bastam para ir ao jurídico (Denis 22/10/2026, t_83e2ee96).
+  // Venda de OUTRO corretor da equipe continua exigindo cada documento aprovado.
+  const docsDoProprioGestor = isGestor && (isOwner || isCriadorDaVenda);
   const gestorDaEquipeRascunho = isGestor && status === "rascunho" && managesOwner;
   const envioDiretoJuridico = isOwnerGestor || gestorDaEquipeRascunho;
   const locked = isSaleLocked(status, aceitaFin);
@@ -1548,7 +1552,12 @@ function SaleDetail() {
   ).length;
   // Gestor só manda pro jurídico com todo documento obrigatório já aprovado (não só enviado) —
   // sem isso, ficava aberto aprovar a venda inteira sem ter revisado nenhum documento de fato.
-  const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(parties, docs);
+  // Exceção: venda do próprio gestor/TL (docsDoProprioGestor) — enviados bastam.
+  const docsPendentesAprovacao = validarDocsAprovadosParaJuridico(
+    parties,
+    docs,
+    docsDoProprioGestor,
+  );
   const pendenciasPagamento = validarComposicaoPagamento(sale, payment);
 
   // ---- Resumo (buffered) save ----
@@ -2208,7 +2217,7 @@ function SaleDetail() {
   /** Pendências → abre o primeiro campo e avisa o nome dele, onde fica e o que mais falta. */
   const barrarPorPendencias = (
     lista: Pendencia[],
-    verbo: "preencher" | "aprovar" = "preencher",
+    verbo: "preencher" | "aprovar" | "enviar" = "preencher",
   ): boolean => {
     const primeira = primeiraPendencia(lista);
     if (!primeira) return false;
@@ -2257,7 +2266,8 @@ function SaleDetail() {
     // revisar), já checa aqui o que "Aprovar p/ jurídico" checaria e manda direto pro jurídico.
     if (envioDiretoJuridico) {
       if (barrarPorPendencias(pendenciasPagamento)) return;
-      if (barrarPorPendencias(docsPendentesAprovacao, "aprovar")) return;
+      if (barrarPorPendencias(docsPendentesAprovacao, docsDoProprioGestor ? "enviar" : "aprovar"))
+        return;
       if (distribuicao && !distribuicao.calculo_valido) {
         toast.error(
           `Não é possível enviar ao jurídico: ${(distribuicao.inconsistencias ?? []).join("; ")}`,
@@ -2275,7 +2285,8 @@ function SaleDetail() {
   const attemptApproveJuridico = () => setApproveJuridicoOpen(true);
   const confirmApproveJuridico = async () => {
     if (barrarPorPendencias(pendenciasPagamento)) return;
-    if (barrarPorPendencias(docsPendentesAprovacao, "aprovar")) return;
+    if (barrarPorPendencias(docsPendentesAprovacao, docsDoProprioGestor ? "enviar" : "aprovar"))
+      return;
     // Checagem completa (líquidos negativos, indicador/gestor/parceria excedendo, etc.) — o banco
     // bloqueia isso de qualquer forma (trigger em change_sale_status), mas checar aqui primeiro evita
     // a viagem ao servidor e mostra a mensagem específica na hora, sem travar a digitação da Resumo.
@@ -5293,7 +5304,8 @@ function SaleDetail() {
           {locked && (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
               🔒 <b>Venda travada pelo Financeiro.</b> Corretor, gestor e jurídico ficam em modo
-              leitura. Somente Financeiro, Administrador ou Administrador principal podem reabrir edições.
+              leitura. Somente Financeiro, Administrador ou Administrador principal podem reabrir
+              edições.
             </div>
           )}
           {!editable && isOwner && (
@@ -5404,8 +5416,9 @@ function SaleDetail() {
             {envioDiretoJuridico && docsPendentesAprovacao.length > 0 && (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />
-                {docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na
-                etapa Documentos antes de enviar ao jurídico.
+                {docsDoProprioGestor
+                  ? `${docsPendentesAprovacao.length} documento(s) obrigatório(s) faltando ou recusado(s). Envie-os na etapa Documentos antes de enviar ao jurídico.`
+                  : `${docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.`}
                 <ul className="mt-2 space-y-1 pl-2">
                   {docsPendentesAprovacao.map((p) => (
                     <li key={p.campo} className="flex items-start gap-2">
@@ -5503,7 +5516,7 @@ function SaleDetail() {
               </ReviewGroup>
 
               <ReviewGroup title="Documentos">
-                {envioDiretoJuridico ? (
+                {envioDiretoJuridico && !docsDoProprioGestor ? (
                   <ReviewItem label="Aprovados" value={`${docsApproved}/${requiredTypes.length}`} />
                 ) : (
                   <ReviewItem label="Anexados" value={`${docs.length}`} />
@@ -5543,13 +5556,16 @@ function SaleDetail() {
             {docsPendentesAprovacao.length === 0 ? (
               <div className="rounded-md bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
                 <CheckCircle2 className="mr-2 inline h-4 w-4" />
-                Todos os documentos obrigatórios estão aprovados.
+                {docsDoProprioGestor
+                  ? "Todos os documentos obrigatórios foram enviados."
+                  : "Todos os documentos obrigatórios estão aprovados."}
               </div>
             ) : (
               <div className="rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 <AlertTriangle className="mr-2 inline h-4 w-4" />
-                {docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na
-                etapa Documentos antes de enviar ao jurídico.
+                {docsDoProprioGestor
+                  ? `${docsPendentesAprovacao.length} documento(s) obrigatório(s) faltando ou recusado(s). Envie-os na etapa Documentos antes de enviar ao jurídico.`
+                  : `${docsPendentesAprovacao.length} documento(s) ainda não aprovado(s). Aprove-os na etapa Documentos antes de enviar ao jurídico.`}
                 <ul className="mt-2 space-y-1 pl-2">
                   {docsPendentesAprovacao.map((p) => (
                     <li key={p.campo} className="flex items-start gap-2">

@@ -74,12 +74,16 @@ export function noCard(c: CaptureLike, key: PainelCardKey, hoje: string): boolea
 
 export function contarPainel(list: CaptureLike[], hoje: string): Record<PainelCardKey, number> {
   const out = { aguardando_gestor: 0, em_assinatura: 0, devolvidas: 0, aprovadas_mes: 0 };
-  for (const c of list) for (const card of PAINEL_CARDS) if (noCard(c, card.key, hoje)) out[card.key]++;
+  for (const c of list)
+    for (const card of PAINEL_CARDS) if (noCard(c, card.key, hoje)) out[card.key]++;
   return out;
 }
 
 /** Clicar no mesmo cartão limpa o filtro; clicar em outro troca. */
-export function alternarCard(atual: PainelCardKey | null, clicado: PainelCardKey): PainelCardKey | null {
+export function alternarCard(
+  atual: PainelCardKey | null,
+  clicado: PainelCardKey,
+): PainelCardKey | null {
   return atual === clicado ? null : clicado;
 }
 
@@ -112,6 +116,20 @@ export function podeCaptadorInformarData(
     !c.archived_at &&
     (c.status === "enviada" || c.status === "em_assinatura")
   );
+}
+
+/**
+ * Captação do próprio gestor/team leader (Denis 22/10/2026, t_83e2ee96): quem envia já é quem
+ * revisaria, então "Enviar" não para em "Enviada ao gestor" esperando ele mesmo — envia e já gera o
+ * PDF para assinatura no mesmo clique. Mesma regra do banco: exclusive_is_manager aceita o próprio
+ * captador gestor/TL (captor_id = actor). Cadastro manual fica de fora (não tem PDF gerado).
+ */
+export function captacaoDoProprioGestor(
+  c: Pick<Capture, "captor_id" | "manual">,
+  userId: string | null | undefined,
+  gestor: boolean,
+): boolean {
+  return gestor && !!userId && c.captor_id === userId && !c.manual;
 }
 
 const FORMATO_DATA_HORA_SP = new Intl.DateTimeFormat("pt-BR", {
