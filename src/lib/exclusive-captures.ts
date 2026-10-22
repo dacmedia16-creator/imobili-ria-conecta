@@ -573,6 +573,7 @@ export function applySignedContract(
   values: {
     proprietario_1?: Record<string, string>;
     proprietario_2?: Record<string, string>;
+    proprietarios_extras?: Record<string, string>[];
     imovel?: Record<string, string>;
     condicoes?: Record<string, string>;
     data_assinatura?: string;
@@ -582,21 +583,33 @@ export function applySignedContract(
   let next = form;
   const label = (scope: string, key: string) => {
     if (scope === "imovel") return PROPERTY_FIELDS.find((f) => f.key === key)?.label ?? key;
-    const n = scope === "proprietario_2" ? " (proprietário 2)" : "";
+    const num = ownerNumber(scope) ?? 1;
+    const n = num > 1 ? ` (proprietário ${num})` : "";
     return (OWNER_FIELDS.find((f) => f.key === key)?.label ?? key) + n;
   };
-  for (const scope of ["proprietario_1", "proprietario_2", "imovel"] as const) {
-    const v = values[scope];
+  // 3º em diante (t_58effd65): entram depois do 2º, na ordem do contrato.
+  const extraScopes: Array<[OwnerScope, Record<string, string>]> = (
+    values.proprietarios_extras ?? []
+  ).map((v, i) => [ownerScope(i + 3), v]);
+  const scopes: Array<[OwnerScope | "imovel", Record<string, string> | undefined]> = [
+    ["proprietario_1", values.proprietario_1],
+    ["proprietario_2", values.proprietario_2],
+    ...extraScopes,
+    ["imovel", values.imovel],
+  ];
+  for (const [scope, v] of scopes) {
     if (!v || !Object.keys(v).length) continue;
+    const num = scope === "imovel" ? null : ownerNumber(scope);
     const base =
-      scope === "proprietario_2" && !next.proprietario_2
-        ? { ...next, proprietario_2: emptyOwner() }
-        : next;
-    const before = (base[scope] ?? {}) as Record<string, string>;
+      num && num >= 2 && captureOwners(next).length === num - 1 ? addOwner(next) : next;
+    const pick = (f: CaptureForm) =>
+      (scope === "imovel" ? f.imovel : (captureOwners(f)[(num as number) - 1] ?? {})) as Record<
+        string,
+        string
+      >;
+    const before = pick(base);
     const after = applySuggestedFields(base, scope, v);
-    const got = Object.keys(v).filter(
-      (k) => !before[k]?.trim() && (after[scope] as Record<string, string>)[k]?.trim(),
-    );
+    const got = Object.keys(v).filter((k) => !before[k]?.trim() && pick(after)[k]?.trim());
     if (!got.length) continue;
     next = after;
     filled.push(...got.map((k) => label(scope, k)));
