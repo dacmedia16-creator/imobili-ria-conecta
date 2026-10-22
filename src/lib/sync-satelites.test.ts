@@ -162,7 +162,10 @@ function fakeAdmin(o: {
           ? res(
               o.erroPlataforma
                 ? { data: null, error: { message: "permission denied" } }
-                : { data: (o.plataforma ?? []).map((user_id) => ({ user_id })), error: null },
+                : {
+                    data: (o.plataforma ?? ["conta-plataforma"]).map((user_id) => ({ user_id })),
+                    error: null,
+                  },
             )
           : res({
               data:
@@ -185,11 +188,15 @@ function fakeAdmin(o: {
     };
     return q;
   };
-  return {
+  const fake = {
     gravado,
+    pegou: false,
     from: tabela,
     rpc: async (fn: string, args: any) => {
-      if (fn === "sync_outbox_pegar") return { data: o.itens ?? [], error: null };
+      if (fn === "sync_outbox_pegar") {
+        fake.pegou = true;
+        return { data: o.itens ?? [], error: null };
+      }
       if (fn === "sync_estado_desejado") return { data: o.estado ?? [], error: null };
       if (fn === "sync_outbox_concluir") {
         gravado.concluir.push(args);
@@ -198,6 +205,7 @@ function fakeAdmin(o: {
       return { data: null, error: { message: "rpc desconhecida" } };
     },
   };
+  return fake;
 }
 
 function ambiente(resposta: (sat: Satelite, body: any) => { status: number; json: any }) {
@@ -294,6 +302,17 @@ describe("processarFila", () => {
     await expect(processarFila(admin, amb)).rejects.toThrow(/platform_admins/);
     expect(enviados).toHaveLength(0);
     expect(admin.gravado.concluir).toEqual([]);
+    expect(admin.pegou).toBe(false); // nada ficou preso em "processando"
+    // Lista vazia também para (leitura suspeita): nunca trata como "ninguém a excluir".
+    const vazio = fakeAdmin({
+      itens: [{ id: 5, adm_user_id: "u1" }],
+      estado: [linha({ roles: ["super_admin"] })],
+      plataforma: [],
+    });
+    await expect(processarFila(vazio, amb)).rejects.toThrow(/lista_vazia/);
+    await expect(reconciliar(vazio, amb)).rejects.toThrow(/lista_vazia/);
+    expect(enviados).toHaveLength(0);
+    expect(vazio.pegou).toBe(false);
   });
 
   it("falha de rede vira erro (vai para nova tentativa) e fica no log", async () => {

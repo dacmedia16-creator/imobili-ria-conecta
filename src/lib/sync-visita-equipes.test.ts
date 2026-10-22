@@ -71,7 +71,15 @@ function fakeAdmin(o: {
         return { error: null };
       },
       then: (res: (v: unknown) => void) =>
-        res({ data: nome === "sync_org_map" ? [o.mapa ?? mapaBase()] : [], error: null }),
+        res({
+          data:
+            nome === "sync_org_map"
+              ? [o.mapa ?? mapaBase()]
+              : nome === "platform_admins"
+                ? [{ user_id: "conta-plataforma" }]
+                : [],
+          error: null,
+        }),
     };
     return q;
   };
@@ -151,7 +159,13 @@ describe("papel no Visita com a etapa 2 (TL vira corretor-líder)", () => {
     expect(tlComoLider({ visita_tl_lider: true })).toBe(false);
     // ligada mas ainda sem confirmação do Visita: TL NÃO é rebaixado
     expect(tlComoLider({ visita_tl_lider: true, visita_equipes: true })).toBe(false);
-    expect(tlComoLider({ visita_tl_lider: true, visita_equipes: true, visita_equipes_ok_em: "2026-10-22" })).toBe(true);
+    expect(
+      tlComoLider({
+        visita_tl_lider: true,
+        visita_equipes: true,
+        visita_equipes_ok_em: "2026-10-22",
+      }),
+    ).toBe(true);
     expect(tlComoLider({ visita_tl_lider: false, visita_equipes: true })).toBe(false);
   });
   it("Estudo/60 Dias não são afetados pela chave do Visita", () => {
@@ -276,14 +290,19 @@ describe("processarFila com as chaves", () => {
     await processarFila(admin, amb);
     expect(enviados.map((e) => e.body.acao)).toEqual(["apply", "equipes"]);
     expect(enviados[0].body.pessoas[0].papel).toBe("imobiliaria_admin");
-    expect(admin.gravado.updates.some((u: any) => u.nome === "sync_org_map" && u.v.visita_equipes_ok_em)).toBe(true);
+    expect(
+      admin.gravado.updates.some((u: any) => u.nome === "sync_org_map" && u.v.visita_equipes_ok_em),
+    ).toBe(true);
     expect(admin.gravado.reenfileirar).toEqual([{ p_org: ORG, p_motivo: "visita_equipes_ok" }]);
   });
 
   it("equipes com erro: NÃO marca confirmação (TL continua imobiliaria_admin na próxima rodada)", async () => {
     const admin = fakeAdmin({
       mapa: mapaBase({ visita_equipes: true, visita_tl_lider: true }),
-      itens: [{ id: 1, adm_user_id: "u1" }, { id: 2, adm_user_id: "u1" }],
+      itens: [
+        { id: 1, adm_user_id: "u1" },
+        { id: 2, adm_user_id: "u1" },
+      ],
       estado: [linha()],
     });
     await processarFila(admin, ambiente({ resultado: "erro", erro: "x" }).amb);
@@ -293,7 +312,11 @@ describe("processarFila com as chaves", () => {
 
   it("etapa 1+2 ligadas e confirmadas: pessoas primeiro (TL como corretor), depois equipes; conclui ok", async () => {
     const admin = fakeAdmin({
-      mapa: mapaBase({ visita_equipes: true, visita_tl_lider: true, visita_equipes_ok_em: "2026-10-22T00:00:00Z" }),
+      mapa: mapaBase({
+        visita_equipes: true,
+        visita_tl_lider: true,
+        visita_equipes_ok_em: "2026-10-22T00:00:00Z",
+      }),
       itens: [{ id: 1, adm_user_id: "u1" }],
       estado: [linha()],
     });
@@ -320,7 +343,10 @@ describe("processarFila com as chaves", () => {
   it("falha nas equipes: só 1 item da org volta para nova tentativa (as pessoas aplicadas ficam ok)", async () => {
     const admin = fakeAdmin({
       mapa: mapaBase({ visita_equipes: true }),
-      itens: [{ id: 7, adm_user_id: "u1" }, { id: 8, adm_user_id: "u1" }],
+      itens: [
+        { id: 7, adm_user_id: "u1" },
+        { id: 8, adm_user_id: "u1" },
+      ],
       estado: [linha()],
     });
     const { amb } = ambiente({ resultado: "erro", erro: "x" });

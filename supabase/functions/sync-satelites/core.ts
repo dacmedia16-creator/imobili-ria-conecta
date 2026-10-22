@@ -243,15 +243,18 @@ export async function carregarExclusoes(admin: Admin): Promise<Map<string, Set<S
 }
 
 /**
- * Contas da plataforma (platform_admins): nunca vão aos satélites. Erro na leitura derruba a rodada (falha
- * fechada): os itens voltam para a fila em vez de arriscar enviar a conta da plataforma.
+ * Contas da plataforma (platform_admins): nunca vão aos satélites. Erro na leitura OU lista vazia derruba a
+ * rodada antes de pegar a fila (falha fechada): nada é enviado e os itens continuam pendentes. A plataforma
+ * sempre tem ao menos 1 conta; lista vazia = leitura suspeita, não "ninguém a excluir".
  */
 export async function carregarPlataforma(admin: Admin): Promise<Set<string>> {
   const rows = await ok<Array<{ user_id: string }>>(
     admin.from("platform_admins").select("user_id"),
     "platform_admins",
   );
-  return new Set((rows ?? []).map((r) => r.user_id));
+  const ids = new Set((rows ?? []).map((r) => r.user_id).filter(Boolean));
+  if (!ids.size) throw new Error("platform_admins: lista_vazia");
+  return ids;
 }
 
 export function excluido(ex: Map<string, Set<Satelite>>, admUserId: string, sat: Satelite) {
@@ -311,6 +314,8 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
     admin.from("sync_config").select("mode,allow_deactivate").eq("id", true).maybeSingle(),
     "config",
   );
+  // Antes de pegar a fila: se falhar, nenhum item fica preso em "processando" (t_06782054).
+  const plataforma = await carregarPlataforma(admin);
   const itens = await ok<Array<{ id: number; adm_user_id: string }>>(
     admin.rpc("sync_outbox_pegar", { p_limite: limite }),
     "pegar",
@@ -325,7 +330,6 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
   const porUser = new Map(estado.map((l) => [l.adm_user_id, l]));
   const mapaPorOrg = new Map(mapas.map((m) => [m.adm_org_id, m]));
   const exclusoes = await carregarExclusoes(admin);
-  const plataforma = await carregarPlataforma(admin);
 
   // desfecho por item da fila: ok | erro | aguardando_humano
   const desfecho = new Map<number, { r: "ok" | "erro" | "aguardando_humano"; erro?: string }>();
