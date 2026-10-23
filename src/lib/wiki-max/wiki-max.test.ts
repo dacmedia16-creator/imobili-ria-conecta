@@ -86,7 +86,7 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
     expect(rota).not.toContain("dangerouslySetInnerHTML");
   });
 
-  it("vídeo: 5 vídeos em 4 guias; arquivo no bucket privado, link só com login e chave fixa", () => {
+  it("vídeo: 13 vídeos em 12 guias; arquivo no bucket privado, link só com login e chave fixa", () => {
     const comVideo = Object.fromEntries(
       GUIAS.filter((g) => g.videos?.length).map((g) => [g.id, g.videos!.map((v) => v.chave)]),
     );
@@ -95,6 +95,14 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
       ajuda: ["ajuda"],
       venda: ["venda-parte1", "venda-parte2"],
       captacao: ["captacao"],
+      entrar: ["entrar"],
+      inicio: ["inicio"],
+      carreira: ["carreira"],
+      feedback: ["feedback"],
+      oportunidades: ["oportunidades"],
+      mural: ["mural"],
+      sala: ["sala"],
+      visita: ["visita"],
     });
     const venda = GUIAS.find((g) => g.id === "venda")!;
     expect(venda.videos!.map((v) => v.titulo)).toEqual([

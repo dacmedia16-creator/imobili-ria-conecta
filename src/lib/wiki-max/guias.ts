@@ -39,6 +39,14 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Visita MAX, 1º acesso: tela Termos de Uso.",
       },
     ],
+    videos: [
+      {
+        chave: "entrar",
+        capa: "video-entrar-capa",
+        legenda: "Vídeo: como entrar nos sistemas com a sua conta Google.",
+        duracao: "3:08",
+      },
+    ],
   },
   {
     id: "nao-entro",
@@ -141,6 +149,14 @@ export const GUIAS: WikiGuia[] = [
       "<b>Team leader e gestor</b> veem também o <b>Painel do gestor</b>.",
       "<b>Administrador:</b> vê o <b>Painel administrativo</b>, com <b>Este mês</b> (botões <b>Mês anterior</b> e <b>Abrir financeiro</b>), o <b>Painel financeiro</b> e a <b>Movimentação do período</b>.",
     ],
+    videos: [
+      {
+        chave: "inicio",
+        capa: "video-inicio-capa",
+        legenda: "Vídeo: o que aparece na tela Início para cada papel.",
+        duracao: "3:15",
+      },
+    ],
   },
   {
     id: "carreira",
@@ -154,7 +170,7 @@ export const GUIAS: WikiGuia[] = [
       "<b>O que fazer hoje:</b> as suas pendências do dia.",
       "<b>Meu mês:</b> escolha <b>Mês</b> ou <b>Ano</b>, preencha as metas de Comissão, VGV, Vendas e Captações e clique em <b>Salvar minha meta</b>.",
       "<b>Meu dinheiro:</b> as suas comissões no mês, no ano ou em todo o período.",
-      "<b>Conquistas:</b> Clube RE/MAX, Ranking e Meus destaques no Mural.",
+      "<b>Conquistas:</b> Clube, Ranking e Meus destaques no Mural.",
       "<b>Diário de atividades:</b> registre cada <b>Ligação</b>, <b>Visita</b> ou <b>ACM</b> que você fez.",
       "<b>Minhas captações:</b> as suas captações, com o filtro das que estão paradas.",
     ],
@@ -163,6 +179,14 @@ export const GUIAS: WikiGuia[] = [
       "Se “Minha carreira” não aparece no menu, o módulo de captação está desligado para a sua imobiliária.",
     outrosPapeis:
       "Gestor e administrador veem também o <b>Diário da equipe</b>. O administrador tem ainda o botão <b>Editar faixas</b> do Clube.",
+    videos: [
+      {
+        chave: "carreira",
+        capa: "video-carreira-capa",
+        legenda: "Vídeo: meta, comissões, conquistas e diário em Minha carreira.",
+        duracao: "3:28",
+      },
+    ],
   },
   {
     id: "venda",
@@ -249,6 +273,14 @@ export const GUIAS: WikiGuia[] = [
       "Envie pelo <b>seu WhatsApp</b>, com o PDF anexado e a mensagem.",
     ],
     dica: "O proprietário que recebe relatório sente que o imóvel está sendo trabalhado, e isso ajuda a renovar a exclusividade.",
+    videos: [
+      {
+        chave: "feedback",
+        capa: "video-feedback-capa",
+        legenda: "Vídeo: como montar e enviar o feedback ao proprietário.",
+        duracao: "3:02",
+      },
+    ],
   },
   {
     id: "oportunidades",
@@ -270,6 +302,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "adm-oportunidades-2-corretor",
         legenda: "Oportunidades: abas, filtros e legenda dos selos.",
+      },
+    ],
+    videos: [
+      {
+        chave: "oportunidades",
+        capa: "video-oportunidades-capa",
+        legenda: "Vídeo: como usar o mural de oportunidades e os encaixes.",
+        duracao: "2:47",
       },
     ],
   },
@@ -301,6 +341,14 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Aniversariantes do mês, no Mural de Conquistas.",
       },
     ],
+    videos: [
+      {
+        chave: "mural",
+        capa: "video-mural-capa",
+        legenda: "Vídeo: como usar o Mural de Conquistas.",
+        duracao: "2:28",
+      },
+    ],
   },
   {
     id: "sala",
@@ -324,6 +372,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "adm-sala-2-dialogo",
         legenda: "Janela Nova reserva de sala.",
+      },
+    ],
+    videos: [
+      {
+        chave: "sala",
+        capa: "video-sala-capa",
+        legenda: "Vídeo: como reservar e cancelar uma sala de reunião.",
+        duracao: "2:51",
       },
     ],
   },
@@ -465,6 +521,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "visita-registro-enviar",
         legenda: "Registro criado: quadro Enviar para Confirmação.",
+      },
+    ],
+    videos: [
+      {
+        chave: "visita",
+        capa: "video-visita-capa",
+        legenda: "Vídeo: como registrar uma visita com prova no Visita MAX.",
+        duracao: "3:40",
       },
     ],
   },
