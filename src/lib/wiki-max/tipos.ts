@@ -17,8 +17,20 @@ export type WikiGuia = {
   cuidado?: string;
   outrosPapeis?: string;
   prints?: { chave: string; legenda: string }[];
-  /** Vídeo do guia: arquivo em WIKI_VIDEOS (bucket privado); capa = print em src/assets/wiki-max. */
-  video?: { chave: WikiVideoChave; capa: string; legenda: string; duracao: string };
+  /**
+   * Vídeos do guia, na ordem em que aparecem: arquivo em WIKI_VIDEOS (bucket privado);
+   * capa = print em src/assets/wiki-max.
+   */
+  videos?: WikiGuiaVideo[];
+};
+
+export type WikiGuiaVideo = {
+  chave: WikiVideoChave;
+  capa: string;
+  /** Título curto mostrado acima do player (ex.: "Vídeo 1 de 2 · Registrar a venda"). */
+  titulo?: string;
+  legenda: string;
+  duracao: string;
 };
 
 export type WikiFaq = { pergunta: string; resposta: string };

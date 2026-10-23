@@ -259,15 +259,16 @@ function GuiaAberto({
         ))}
       </ol>
       <Caixa tom="border-slate-400 bg-slate-50" titulo="👥 Outros papéis:" s={g.outrosPapeis} />
-      {g.video && (
+      {(g.videos ?? []).map((v) => (
         <WikiVideo
-          key={g.id}
-          chave={g.video.chave}
-          capaUrl={urlDoPrint(g.video.capa)}
-          legenda={g.video.legenda}
-          duracao={g.video.duracao}
+          key={`${g.id}-${v.chave}`}
+          chave={v.chave}
+          capaUrl={urlDoPrint(v.capa)}
+          titulo={v.titulo}
+          legenda={v.legenda}
+          duracao={v.duracao}
         />
-      )}
+      ))}
       {(g.prints ?? []).map((p) => {
         const url = urlDoPrint(p.chave);
         if (!url) return null;

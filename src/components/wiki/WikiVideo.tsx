@@ -13,11 +13,13 @@ import type { WikiVideoChave } from "@/lib/wiki-max/videos";
 export function WikiVideo({
   chave,
   capaUrl,
+  titulo,
   legenda,
   duracao,
 }: {
   chave: WikiVideoChave;
   capaUrl?: string;
+  titulo?: string;
   legenda: string;
   duracao: string;
 }) {
@@ -41,6 +43,7 @@ export function WikiVideo({
 
   return (
     <figure className="space-y-1" data-testid={`wiki-video-${chave}`}>
+      {titulo && <h3 className="text-sm font-semibold">🎬 {titulo}</h3>}
       <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-black">
         {url ? (
           <video
@@ -52,7 +55,7 @@ export function WikiVideo({
             preload="metadata"
             controlsList="nodownload"
             className="h-full w-full"
-            aria-label={legenda}
+            aria-label={titulo ?? legenda}
             onError={() =>
               setErro("Não foi possível tocar o vídeo. Recarregue a página e tente de novo.")
             }
@@ -63,7 +66,7 @@ export function WikiVideo({
             onClick={assistir}
             disabled={carregando}
             className="group absolute inset-0 flex items-center justify-center"
-            aria-label={`Assistir: ${legenda}`}
+            aria-label={`Assistir: ${titulo ?? legenda}`}
           >
             {capaUrl && (
               <img
@@ -80,7 +83,9 @@ export function WikiVideo({
           </button>
         )}
       </div>
-      <figcaption className="text-xs text-muted-foreground">🎬 {legenda}</figcaption>
+      <figcaption className="text-xs text-muted-foreground">
+        {titulo ? legenda : `🎬 ${legenda}`}
+      </figcaption>
       {erro && (
         <p role="alert" className="text-xs text-destructive">
           {erro}
