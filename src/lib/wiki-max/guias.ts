@@ -76,13 +76,13 @@ export const GUIAS: WikiGuia[] = [
     onde: "ADM MAX → Menu → Conta e acesso → <b>Meu acesso</b>",
     passos: [
       "No ADM MAX, abra <b>Meu acesso</b>.",
-      "Estes dados você mesmo corrige: <b>Telefone (WhatsApp)</b> → botão <b>Salvar</b>; foto → <b>Escolher foto</b>; CPF e CRECI → <b>Salvar CPF e CRECI</b>; ID RE/MAX → <b>Salvar ID RE/MAX</b>.",
+      "Estes dados você mesmo corrige: <b>Telefone (WhatsApp)</b> → botão <b>Salvar</b>; foto → <b>Escolher foto</b>; CPF e CRECI → <b>Salvar CPF e CRECI</b>; ID de corretor → botão <b>Salvar</b> ao lado.",
       "<b>Data de nascimento:</b> logo abaixo do telefone. Enquanto estiver vazia, o quadro fica em amarelo com o aviso “Preencha sua data de nascimento para a equipe lembrar do seu aniversário.” Escolha a data no calendário e clique em <b>Salvar</b> ao lado. Aparece “Data de nascimento salva”.",
       "Na mesma tela ficam também os seus links públicos, o seu posicionamento (regiões onde atua) e os <b>Dados para pagamento</b>.",
       "<b>Nome e e-mail</b> você não muda sozinho. Peça ao team leader, ao gestor ou ao administrador: ele corrige em <b>Administração</b> → <b>Usuários</b> → <b>Editar dados</b>.",
       "No Visita MAX e no Estudo, os seus dados aparecem travados de propósito. Corrija sempre no ADM MAX: em cerca de 1 minuto a mudança aparece nos três sistemas.",
     ],
-    dica: "Preencha o <b>ID RE/MAX</b> (os 9 primeiros números do código dos seus imóveis). Sem ele, o Feedback ao proprietário não encontra os seus anúncios. Preencha também a <b>data de nascimento</b>: é ela que coloca você nos <b>Aniversariantes do mês</b> do Mural.",
+    dica: "Preencha o <b>ID de corretor</b> (os 9 primeiros números do código dos seus imóveis). Sem ele, o Feedback ao proprietário não encontra os seus anúncios. Preencha também a <b>data de nascimento</b>: é ela que coloca você nos <b>Aniversariantes do mês</b> do Mural.",
     cuidado:
       "O team leader só corrige dados das pessoas da equipe dele. Na data de nascimento, os colegas veem só o <b>dia e o mês</b>; o ano e a idade ficam só com você e a gestão. A idade mínima aceita é 16 anos. Para tirar a data, apague o campo e clique em Salvar (“Data de nascimento removida”).",
     prints: [
@@ -116,6 +116,7 @@ export const GUIAS: WikiGuia[] = [
       "Se quiser, clique em <b>Anexar imagem</b> e mande um print. Antes de enviar, dá para passar uma tarja sobre nomes, CPF, telefone e valores.",
       "Clique em <b>Enviar chamado</b>. A resposta chega no sino 🔔.",
       "Para acompanhar: ADM MAX → Conta e acesso → <b>Ajuda e sugestões</b> (lista <b>Meus chamados</b>). No Visita e no Estudo, use o menu <b>Meus chamados</b>.",
+      "Problema resolvido? Abra o chamado em <b>Meus chamados</b> e clique em <b>Resolveu, pode fechar</b>. Ele passa para <b>Resolvido</b>; se precisar de novo, abra outro chamado.",
     ],
     dica: "O administrador vê também a aba <b>Chamados da imobiliária</b>.",
     cuidado: "Não mande CPF, RG, telefone ou dados de clientes no texto nem no print.",
@@ -170,7 +171,7 @@ export const GUIAS: WikiGuia[] = [
       "<b>O que fazer hoje:</b> as suas pendências do dia.",
       "<b>Meu mês:</b> escolha <b>Mês</b> ou <b>Ano</b>, preencha as metas de Comissão, VGV, Vendas e Captações e clique em <b>Salvar minha meta</b>.",
       "<b>Meu dinheiro:</b> as suas comissões no mês, no ano ou em todo o período.",
-      "<b>Conquistas:</b> Clube, Ranking e Meus destaques no Mural.",
+      "<b>Conquistas:</b> Clube RE/MAX, Ranking e Meus destaques no Mural.",
       "<b>Diário de atividades:</b> registre cada <b>Ligação</b>, <b>Visita</b> ou <b>ACM</b> que você fez.",
       "<b>Minhas captações:</b> as suas captações, com o filtro das que estão paradas.",
     ],
