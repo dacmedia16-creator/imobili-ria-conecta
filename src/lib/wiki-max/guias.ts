@@ -84,6 +84,14 @@ export const GUIAS: WikiGuia[] = [
           "Meu acesso: quadro Data de nascimento ainda vazio, em destaque, com o botão Salvar.",
       },
     ],
+    videos: [
+      {
+        chave: "dados",
+        capa: "video-dados-capa",
+        legenda: "Vídeo: como corrigir os seus dados em Meu acesso.",
+        duracao: "2:48",
+      },
+    ],
   },
   {
     id: "ajuda",
@@ -107,6 +115,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "ajuda-1-gaveta",
         legenda: "A gaveta Ajuda e sugestões aberta.",
+      },
+    ],
+    videos: [
+      {
+        chave: "ajuda",
+        capa: "video-ajuda-capa",
+        legenda: "Vídeo: como abrir um chamado, acompanhar e ver a resposta.",
+        duracao: "3:08",
       },
     ],
   },
@@ -173,12 +189,22 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Tela Nova venda, com o botão Criar rascunho.",
       },
     ],
-    video: {
-      chave: "venda",
-      capa: "video-venda-capa",
-      legenda: "Vídeo: como registrar uma venda, do rascunho até o envio ao gestor.",
-      duracao: "5:29",
-    },
+    videos: [
+      {
+        chave: "venda-parte1",
+        capa: "video-venda-parte1-capa",
+        titulo: "Vídeo 1 de 2 · Registrar a venda",
+        legenda: "Do rascunho até o envio ao gestor e a aprovação para o jurídico.",
+        duracao: "6:30",
+      },
+      {
+        chave: "venda-parte2",
+        capa: "video-venda-parte2-capa",
+        titulo: "Vídeo 2 de 2 · Do contrato à assinatura",
+        legenda: "Do jurídico até o contrato assinado, digital ou no papel.",
+        duracao: "4:42",
+      },
+    ],
   },
   {
     id: "captacao",
@@ -198,6 +224,14 @@ export const GUIAS: WikiGuia[] = [
     ],
     cuidado:
       "Clicar no nome da unidade já cria uma captação. Não clique só para “ver como é”. Se criou sem querer, use <b>Excluir</b> no rascunho.",
+    videos: [
+      {
+        chave: "captacao",
+        capa: "video-captacao-capa",
+        legenda: "Vídeo: captação exclusiva, do rascunho até o contrato assinado.",
+        duracao: "8:05",
+      },
+    ],
   },
   {
     id: "feedback",
