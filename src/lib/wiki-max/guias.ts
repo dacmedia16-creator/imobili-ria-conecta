@@ -65,6 +65,14 @@ export const GUIAS: WikiGuia[] = [
     ],
     cuidado:
       "Se no Visita MAX aparecer a página <b>Recuperar senha</b>, não use. Ela é de contas antigas. Volte e entre pelo Google.",
+    videos: [
+      {
+        chave: "nao-entro",
+        capa: "video-nao-entro-capa",
+        legenda: "Vídeo: o que fazer quando não consegue entrar.",
+        duracao: "2:13",
+      },
+    ],
   },
   {
     id: "dados",
@@ -402,6 +410,14 @@ export const GUIAS: WikiGuia[] = [
     dica: "Use a tela na reunião semanal da equipe.",
     cuidado:
       "O gestor que não lidera nenhuma equipe vê a mensagem “Você não lidera nenhuma equipe nesta imobiliária.”",
+    videos: [
+      {
+        chave: "painel-equipe",
+        capa: "video-painel-equipe-capa",
+        legenda: "Vídeo: como usar o Painel da Equipe.",
+        duracao: "3:51",
+      },
+    ],
   },
   {
     id: "desempenho",
@@ -416,6 +432,14 @@ export const GUIAS: WikiGuia[] = [
       "<b>Administrador e gestor:</b> use as abas <b>Por corretor</b>, <b>Por equipe</b> e <b>Total geral</b>.",
       "<b>Team leader:</b> escolha <b>Minha equipe</b> ou <b>Empresa</b> e veja o ranking <b>Por corretor</b> ou <b>Total geral</b>.",
       "Veja o <b>Resumo da operação</b> e as <b>Comissões em carteira</b> (vendas em andamento × concluídas).",
+    ],
+    videos: [
+      {
+        chave: "desempenho",
+        capa: "video-desempenho-capa",
+        legenda: "Vídeo: desempenho da equipe e da empresa.",
+        duracao: "3:19",
+      },
     ],
   },
   {
@@ -439,6 +463,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "adm-financeiro-1-visao-geral",
         legenda: "Financeiro: filtros e as 5 abas.",
+      },
+    ],
+    videos: [
+      {
+        chave: "financeiro",
+        capa: "video-financeiro-capa",
+        legenda: "Vídeo: as abas da Central financeira e a baixa de recebimentos.",
+        duracao: "2:58",
       },
     ],
   },
@@ -477,6 +509,14 @@ export const GUIAS: WikiGuia[] = [
           "Novo usuário: data de quem teria menos de 16 anos mostra “A idade mínima é 16 anos.”",
       },
     ],
+    videos: [
+      {
+        chave: "usuarios",
+        capa: "video-usuarios-capa",
+        legenda: "Vídeo: como cadastrar, editar e desligar um corretor.",
+        duracao: "3:06",
+      },
+    ],
   },
   {
     id: "modulos",
@@ -491,6 +531,14 @@ export const GUIAS: WikiGuia[] = [
       "Ainda em Dados da imobiliária, na parte <b>Salas de reunião</b>: <b>Nova sala</b>, <b>Editar</b> e <b>Ver reservas</b>.",
       "Em <b>Unidades da captação</b>: <b>Nova unidade</b> e <b>Editar</b>. O nome de cada unidade vira um botão na tela de Nova captação.",
       "Ligar ou desligar módulos (captações, feedback, oportunidades, mural, salas) é feito pela equipe MAX, não pelo administrador. Se precisar, peça em <b>Ajuda e sugestões</b>.",
+    ],
+    videos: [
+      {
+        chave: "modulos",
+        capa: "video-modulos-capa",
+        legenda: "Vídeo: como configurar dados, salas e unidades da imobiliária.",
+        duracao: "2:56",
+      },
     ],
   },
   {
@@ -554,6 +602,14 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Pesquisas Pós-Visita (visão da imobiliária).",
       },
     ],
+    videos: [
+      {
+        chave: "visita-pesquisa",
+        capa: "video-visita-pesquisa-capa",
+        legenda: "Vídeo: como ver as pesquisas pós-visita no Visita MAX.",
+        duracao: "2:49",
+      },
+    ],
   },
   {
     id: "visita-gestao",
@@ -576,6 +632,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "visita-gestao-1-empresa-admin",
         legenda: "Dashboard da imobiliária no Visita MAX.",
+      },
+    ],
+    videos: [
+      {
+        chave: "visita-gestao",
+        capa: "video-visita-gestao-capa",
+        legenda: "Vídeo: como acompanhar as visitas da equipe no Visita MAX.",
+        duracao: "3:02",
       },
     ],
   },
@@ -604,6 +668,14 @@ export const GUIAS: WikiGuia[] = [
         legenda: "Novo estudo: as 6 etapas.",
       },
     ],
+    videos: [
+      {
+        chave: "estudo",
+        capa: "video-estudo-capa",
+        legenda: "Vídeo: como fazer um estudo de mercado, etapa por etapa.",
+        duracao: "3:10",
+      },
+    ],
   },
   {
     id: "estudo-pdf",
@@ -626,6 +698,14 @@ export const GUIAS: WikiGuia[] = [
       {
         chave: "estudo-modo-cliente",
         legenda: "Modo cliente aberto num estudo.",
+      },
+    ],
+    videos: [
+      {
+        chave: "estudo-pdf",
+        capa: "video-estudo-pdf-capa",
+        legenda: "Vídeo: modo cliente e PDF do estudo para o proprietário.",
+        duracao: "2:15",
       },
     ],
   },
