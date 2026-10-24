@@ -126,11 +126,29 @@ describe("platform users", () => {
         table: "activity_logs",
         row: expect.objectContaining({
           organization_id: "org-b",
-          autor_id: "platform-admin",
+          // t_2cd53d1e: sem autor_id (o gatilho puxaria a imobiliária do super-admin e recusaria);
+          // o ator real vai no payload.
+          autor_id: null,
+          sale_id: null,
           acao: "user_deactivated_platform",
-          payload: expect.objectContaining({ motivo: "teste ok", via: "plataforma_global" }),
+          payload: expect.objectContaining({
+            motivo: "teste ok",
+            via: "plataforma_global",
+            target_user: "u2",
+            ator_plataforma_id: "platform-admin",
+          }),
         }),
       },
     ]);
+  });
+
+  it("avisa quando a auditoria é recusada pelo banco", async () => {
+    const actor = await platformActorFor(fakeAdmin(rows), "platform-admin", "u2");
+    const failing = {
+      from: () => ({ insert: async () => ({ error: { message: "recusado" } }) }),
+    } as unknown as SupabaseClient;
+    await expect(
+      logPlatformUserAction(failing, actor, "user_updated", { target_user: "u2" }, "teste ok"),
+    ).rejects.toThrow("Alteração feita, mas a auditoria falhou: recusado");
   });
 });
