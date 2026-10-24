@@ -86,7 +86,7 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
     expect(rota).not.toContain("dangerouslySetInnerHTML");
   });
 
-  it("vídeo: 13 vídeos em 12 guias; arquivo no bucket privado, link só com login e chave fixa", () => {
+  it("vídeo: 23 vídeos em 22 guias; arquivo no bucket privado, link só com login e chave fixa", () => {
     const comVideo = Object.fromEntries(
       GUIAS.filter((g) => g.videos?.length).map((g) => [g.id, g.videos!.map((v) => v.chave)]),
     );
@@ -103,6 +103,16 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
       mural: ["mural"],
       sala: ["sala"],
       visita: ["visita"],
+      "visita-pesquisa": ["visita-pesquisa"],
+      estudo: ["estudo"],
+      "estudo-pdf": ["estudo-pdf"],
+      "painel-equipe": ["painel-equipe"],
+      desempenho: ["desempenho"],
+      "visita-gestao": ["visita-gestao"],
+      usuarios: ["usuarios"],
+      financeiro: ["financeiro"],
+      modulos: ["modulos"],
+      "nao-entro": ["nao-entro"],
     });
     const venda = GUIAS.find((g) => g.id === "venda")!;
     expect(venda.videos!.map((v) => v.titulo)).toEqual([
@@ -112,7 +122,7 @@ describe("Wiki MAX v4 dentro da ajuda", () => {
     // toda chave usada existe, nenhuma sobra, e cada arquivo é MP4 com nome versionado
     const usadas = GUIAS.flatMap((g) => (g.videos ?? []).map((v) => v.chave));
     expect([...usadas].sort()).toEqual(Object.keys(WIKI_VIDEOS).sort());
-    for (const c of usadas) expect(WIKI_VIDEOS[c]).toMatch(/^[a-z]+\/[a-z0-9-]+-v\d+\.mp4$/);
+    for (const c of usadas) expect(WIKI_VIDEOS[c]).toMatch(/^[a-z][a-z-]*\/[a-z0-9-]+-v\d+\.mp4$/);
     expect(WIKI_VIDEO_BUCKET).toBe("wiki-midia");
     expect(existsSync(resolve(raiz, "public/wiki-midia"))).toBe(false);
 

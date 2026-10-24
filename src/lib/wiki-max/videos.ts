@@ -7,6 +7,8 @@
 // antigo venda/como-registrar-uma-venda-v2.mp4 continua no bucket, só para reversão.
 // t_57d7f0e7 (23/10/2026): mais 8 vídeos v1 (entrar, inicio, carreira, feedback, oportunidades,
 // mural, sala, visita), todos no arquivo original (< 50 MB).
+// t_51e34a82 (24/10/2026): os 10 restantes v1 (visita-pesquisa, estudo, estudo-pdf, painel-equipe,
+// desempenho, visita-gestao, usuarios, financeiro, modulos, nao-entro), arquivo original (< 50 MB).
 export const WIKI_VIDEO_BUCKET = "wiki-midia";
 
 export const WIKI_VIDEOS = {
@@ -23,6 +25,16 @@ export const WIKI_VIDEOS = {
   mural: "mural/mural-de-conquistas-v1.mp4",
   sala: "sala/reservar-sala-de-reuniao-v1.mp4",
   visita: "visita/registrar-visita-com-prova-v1.mp4",
+  "visita-pesquisa": "visita-pesquisa/pesquisa-pos-visita-v1.mp4",
+  estudo: "estudo/fazer-um-estudo-de-mercado-v1.mp4",
+  "estudo-pdf": "estudo-pdf/apresentar-estudo-ao-proprietario-v1.mp4",
+  "painel-equipe": "painel-equipe/painel-da-equipe-v1.mp4",
+  desempenho: "desempenho/desempenho-equipe-e-empresa-v1.mp4",
+  "visita-gestao": "visita-gestao/acompanhar-visitas-da-equipe-v1.mp4",
+  usuarios: "usuarios/cadastrar-ou-desligar-corretor-v1.mp4",
+  financeiro: "financeiro/central-financeira-v1.mp4",
+  modulos: "modulos/configurar-a-imobiliaria-v1.mp4",
+  "nao-entro": "nao-entro/nao-consigo-entrar-v1.mp4",
 } as const;
 
 export type WikiVideoChave = keyof typeof WIKI_VIDEOS;
