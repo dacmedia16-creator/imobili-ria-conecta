@@ -63,14 +63,24 @@ async function logUserAction(
   inPlatformContext: boolean,
   motivo?: string | null,
 ) {
+  if (inPlatformContext) {
+    // O perfil do super-admin é de outra imobiliária: sem autor_id, o ator vai no payload
+    // (t_2cd53d1e — antes o gatilho recusava e a falha passava em silêncio).
+    const { insertPlatformAudit } = await import("@/lib/platform-audit.server");
+    await insertPlatformAudit(admin, {
+      orgId,
+      actorId: callerId,
+      acao: `${acao}_platform_context`,
+      payload: { ...payload, motivo: motivo?.trim(), via: "plataforma" },
+    });
+    return;
+  }
   await admin.from("activity_logs").insert({
     organization_id: orgId,
     autor_id: callerId,
     sale_id: null,
-    acao: inPlatformContext ? `${acao}_platform_context` : acao,
-    payload: inPlatformContext
-      ? { ...payload, motivo: motivo?.trim(), via: "plataforma" }
-      : payload,
+    acao,
+    payload,
   });
 }
 
@@ -149,12 +159,12 @@ export const createUser = createServerFn({ method: "POST" })
       // Só a plataforma cadastra alguém já como "Administrador principal" (t_44d957b1).
       isPlatformAdmin: true,
     });
-    await admin.from("activity_logs").insert({
-      organization_id: ctxOrg,
-      autor_id: context.userId,
-      sale_id: null,
+    const { insertPlatformAudit } = await import("@/lib/platform-audit.server");
+    await insertPlatformAudit(admin, {
+      orgId: ctxOrg,
+      actorId: context.userId,
       acao: "user_created_platform_context",
-      payload: { target_user: created.id, role: data.role },
+      payload: { target_user: created.id, role: data.role, via: "plataforma" },
     });
     return created;
   });

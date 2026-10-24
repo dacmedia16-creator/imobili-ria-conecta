@@ -8,12 +8,14 @@
  * - toda função começa por `assertPlatformAdmin` (lê `platform_admins` pelo servidor, falha fechada);
  * - a imobiliária do alvo vem SEMPRE do banco (profiles.organization_id), nunca do navegador;
  * - toda alteração exige motivo (mín. 5 caracteres) e grava em `activity_logs` da imobiliária
- *   do usuário, com `via: "plataforma_global"`;
+ *   do usuário, com `via: "plataforma_global"` e o ator em `payload.ator_plataforma_id`
+ *   (ver `platform-audit.server.ts`);
  * - as regras de papel/usuário continuam as mesmas de `user-management-policy` (ator = super admin
  *   da imobiliária do alvo); ninguém altera a própria conta por aqui.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertPlatformAdmin } from "./platform-organizations.server";
+import { insertPlatformAudit } from "./platform-audit.server";
 import type { Actor, ManagedRole } from "./user-management-policy";
 
 export type PlatformUserRow = {
@@ -136,12 +138,10 @@ export async function logPlatformUserAction(
   payload: Record<string, unknown>,
   motivo: string,
 ) {
-  const { error } = await admin.from("activity_logs").insert({
-    organization_id: actor.orgId,
-    autor_id: actor.userId,
-    sale_id: null,
+  await insertPlatformAudit(admin, {
+    orgId: actor.orgId as string,
+    actorId: actor.userId,
     acao: `${acao}_platform`,
     payload: { ...payload, motivo, via: "plataforma_global" },
   });
-  if (error) throw new Error(`Alteração feita, mas a auditoria falhou: ${error.message}`);
 }
