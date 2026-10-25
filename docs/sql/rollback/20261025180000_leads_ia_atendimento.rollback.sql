@@ -8,6 +8,10 @@ BEGIN;
 
 DROP TRIGGER IF EXISTS zz_lead_ia_iniciar ON public.leads;
 
+DROP FUNCTION IF EXISTS public.lead_ia_envio_resultado(uuid, boolean);
+DROP FUNCTION IF EXISTS public.lead_ia_envio_reservar(uuid);
+DROP FUNCTION IF EXISTS public.lead_ia_allowlist_definir(uuid, text[]);
+DROP FUNCTION IF EXISTS public.lead_ia_envio_definir(uuid, integer, integer, integer);
 DROP FUNCTION IF EXISTS public.lead_ia_canal_definir(uuid, text);
 DROP FUNCTION IF EXISTS public.lead_ia_aplicar(uuid, integer, text, jsonb, text, text, text);
 DROP FUNCTION IF EXISTS public.lead_ia_config_salvar(boolean, text, text);
@@ -38,6 +42,10 @@ ALTER TABLE public.lead_eventos ADD CONSTRAINT lead_eventos_tipo_check
                   'aceite', 'devolvido_banco', 'redistribuido', 'ligacao'));
 
 ALTER TABLE public.lead_config
+  DROP COLUMN IF EXISTS ia_envio_allowlist,
+  DROP COLUMN IF EXISTS ia_envio_intervalo_max_s,
+  DROP COLUMN IF EXISTS ia_envio_intervalo_min_s,
+  DROP COLUMN IF EXISTS ia_envio_limite_dia,
   DROP COLUMN IF EXISTS ia_canal,
   DROP COLUMN IF EXISTS ia_boas_vindas,
   DROP COLUMN IF EXISTS ia_nome,

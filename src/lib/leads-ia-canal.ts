@@ -74,3 +74,26 @@ export function escolherCanal(env: Record<string, string | undefined>, fetchFn: 
   if (env[ENV_FLAG] !== "on" || !chave) return canalTeste;
   return canalZionTalk(chave, fetchFn);
 }
+
+// Travas do envio real FUTURO por QR Code (chip comum). Ainda não são chamadas por nenhuma tarefa:
+// a tarefa de envio (outro "sim" de Denis) deve usá-las antes de cada 1ª mensagem.
+export const ENVIO_LIMITE_DIA_PADRAO = 10;
+export const ENVIO_INTERVALO_PADRAO_S = { min: 60, max: 180 } as const;
+
+/** true = ainda cabe mais uma 1ª mensagem hoje. */
+export function cabePrimeiraHoje(enviadasHoje: number, limiteDia: number): boolean {
+  return Number.isFinite(limiteDia) && limiteDia > 0 && enviadasHoje < limiteDia;
+}
+
+/** Espera aleatória (em ms) entre dois envios, dentro de [min, max] segundos. */
+export function intervaloAleatorioMs(minS: number, maxS: number, rand: () => number = Math.random): number {
+  const lo = Math.max(30, Math.min(minS, maxS));
+  const hi = Math.max(lo, maxS);
+  return Math.round((lo + rand() * (hi - lo)) * 1000);
+}
+
+/** Detecta link/endereço (a 1ª mensagem não pode ter nenhum). Mesma regra do CHECK no banco. */
+export const LINK_RE = /(https?:\/\/|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|app|site|link)(\b|\/))/i;
+export function temLink(texto: string | null | undefined): boolean {
+  return LINK_RE.test(texto ?? "");
+}

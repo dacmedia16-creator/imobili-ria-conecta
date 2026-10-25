@@ -28,7 +28,24 @@ ALTER TABLE public.lead_config
   ADD COLUMN IF NOT EXISTS ia_boas_vindas text
     CONSTRAINT lead_config_ia_boas_vindas_check CHECK (char_length(ia_boas_vindas) <= 400),
   ADD COLUMN IF NOT EXISTS ia_canal text NOT NULL DEFAULT 'teste'
-    CONSTRAINT lead_config_ia_canal_check CHECK (ia_canal IN ('teste', 'ziontalk'));
+    CONSTRAINT lead_config_ia_canal_check CHECK (ia_canal IN ('teste', 'ziontalk')),
+  -- Envio real FUTURO por QR Code (chip comum): travas anti-bloqueio. Nada é enviado por esta migration;
+  -- o envio só existe com LEADS_IA_ENVIO_REAL=on + canal 'ziontalk' (outro "sim" de Denis).
+  ADD COLUMN IF NOT EXISTS ia_envio_limite_dia integer NOT NULL DEFAULT 10
+    CONSTRAINT lead_config_ia_envio_limite_dia_check CHECK (ia_envio_limite_dia BETWEEN 1 AND 200),
+  ADD COLUMN IF NOT EXISTS ia_envio_intervalo_min_s integer NOT NULL DEFAULT 60,
+  ADD COLUMN IF NOT EXISTS ia_envio_intervalo_max_s integer NOT NULL DEFAULT 180,
+  -- Envio real SÓ para estes contatos (telefone sem o 55, como em lead_ia_contatos). Vazio = ninguém.
+  -- Não existe chave geral: mesmo com o canal 'ziontalk', contato fora da lista fica em modo teste.
+  ADD COLUMN IF NOT EXISTS ia_envio_allowlist text[] NOT NULL DEFAULT '{}'
+    CONSTRAINT lead_config_ia_envio_allowlist_check CHECK (cardinality(ia_envio_allowlist) <= 20);
+ALTER TABLE public.lead_config DROP CONSTRAINT IF EXISTS lead_config_ia_envio_intervalo_check;
+ALTER TABLE public.lead_config ADD CONSTRAINT lead_config_ia_envio_intervalo_check
+  CHECK (ia_envio_intervalo_min_s BETWEEN 30 AND 900 AND ia_envio_intervalo_max_s BETWEEN ia_envio_intervalo_min_s AND 1800);
+-- Nenhum link na 1ª mensagem: o texto de boas-vindas não aceita endereço (endereço web, www, dominio.com.br...).
+ALTER TABLE public.lead_config DROP CONSTRAINT IF EXISTS lead_config_ia_boas_vindas_sem_link;
+ALTER TABLE public.lead_config ADD CONSTRAINT lead_config_ia_boas_vindas_sem_link
+  CHECK (ia_boas_vindas IS NULL OR ia_boas_vindas !~* '(h[t]tps?://|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|app|site|link)(\M|/))');
 
 -- 2) Linha do tempo: tipo 'ia' -----------------------------------------------------------------------
 ALTER TABLE public.lead_eventos DROP CONSTRAINT lead_eventos_tipo_check;
@@ -53,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.lead_conversas (
                                         'parada_manual', 'limite')),
   resumo text CHECK (char_length(resumo) <= 1000),
   encerrada_em timestamptz,
+  primeira_enviada_em timestamptz, -- 1ª mensagem que saiu de verdade (limite por dia)
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lead_conversas_um_por_lead UNIQUE (lead_id),
@@ -70,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.lead_mensagens (
   texto text NOT NULL CHECK (char_length(texto) BETWEEN 1 AND 2000),
   -- nao_enviada = modo teste (nada saiu do ADM); pendente/enviada/falhou = canal real (fase seguinte);
   -- simulada = o gestor respondeu como cliente na tela de teste; recebida = veio do WhatsApp real.
-  status text NOT NULL CHECK (status IN ('nao_enviada', 'pendente', 'enviada', 'falhou', 'simulada', 'recebida')),
+  status text NOT NULL CHECK (status IN ('nao_enviada', 'pendente', 'enviando', 'enviada', 'falhou', 'simulada', 'recebida')),
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lead_mensagens_conversa_org_fk FOREIGN KEY (conversa_id, organization_id)
     REFERENCES public.lead_conversas(id, organization_id) ON DELETE CASCADE
@@ -184,7 +202,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
       JOIN public.lead_config c ON c.organization_id = cv.organization_id
       JOIN public.leads l ON l.id = cv.lead_id
      WHERE cv.id = _conversa AND cv.canal = 'ziontalk' AND c.ia_canal = 'ziontalk'
-       AND l.telefone IS NOT NULL AND NOT l.simulado), 'nao_enviada')
+       AND l.telefone IS NOT NULL AND NOT l.simulado
+       AND public.lead_ia_contatos(l.telefone, NULL) && c.ia_envio_allowlist), 'nao_enviada')
 $$;
 
 -- Conversa conta como interação (7/30 dias) quando o lead já foi aceito e está com alguém.
@@ -310,7 +329,10 @@ BEGIN
       RETURN NULL;
     END IF;
     INSERT INTO public.lead_conversas (organization_id, lead_id, canal)
-    VALUES (NEW.organization_id, NEW.id, CASE WHEN NEW.simulado THEN 'teste' ELSE _c.ia_canal END)
+    VALUES (NEW.organization_id, NEW.id,
+            CASE WHEN NOT NEW.simulado AND _c.ia_canal = 'ziontalk'
+                      AND public.lead_ia_contatos(NEW.telefone, NULL) && _c.ia_envio_allowlist THEN 'ziontalk'
+                 ELSE 'teste' END)
     ON CONFLICT (lead_id) DO NOTHING RETURNING id INTO _conv;
     IF _conv IS NULL THEN RETURN NULL; END IF;
     INSERT INTO public.lead_mensagens (organization_id, conversa_id, autor, texto, status)
@@ -318,7 +340,7 @@ BEGIN
             public.lead_ia_status_saida(_conv));
     INSERT INTO public.lead_eventos (organization_id, lead_id, tipo, para, nota)
     VALUES (NEW.organization_id, NEW.id, 'ia', 'iniciada',
-            CASE WHEN _c.ia_canal = 'teste' OR NEW.simulado THEN 'IA preparou a 1ª mensagem (modo teste: não enviada).'
+            CASE WHEN (SELECT canal FROM public.lead_conversas WHERE id = _conv) = 'teste' THEN 'IA preparou a 1ª mensagem (modo teste: não enviada).'
                  ELSE 'IA preparou a 1ª mensagem.' END);
   EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'lead_ia_iniciar: lead % falhou: %', NEW.id, SQLERRM;
@@ -456,9 +478,91 @@ BEGIN
   RETURN _canal;
 END $$;
 
+-- Travas do envio real futuro (QR Code): limite de 1ª mensagem por dia e intervalo aleatório entre envios.
+-- Só a plataforma (service_role) ajusta; não liga nada.
+CREATE OR REPLACE FUNCTION public.lead_ia_envio_definir(_org uuid, _limite_dia integer, _min_s integer, _max_s integer)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+  IF _limite_dia IS NULL OR _limite_dia NOT BETWEEN 1 AND 200 OR _min_s IS NULL OR _min_s NOT BETWEEN 30 AND 900
+     OR _max_s IS NULL OR _max_s < _min_s OR _max_s > 1800 THEN
+    RAISE EXCEPTION 'Travas de envio invalidas' USING ERRCODE = '22023';
+  END IF;
+  UPDATE public.lead_config SET ia_envio_limite_dia = _limite_dia, ia_envio_intervalo_min_s = _min_s,
+         ia_envio_intervalo_max_s = _max_s, updated_at = now() WHERE organization_id = _org;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Imobiliaria nao encontrada' USING ERRCODE = 'P0002'; END IF;
+END $$;
+
 REVOKE ALL ON FUNCTION public.lead_ia_aplicar(uuid, integer, text, jsonb, text, text, text),
   public.lead_ia_canal_definir(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.lead_ia_aplicar(uuid, integer, text, jsonb, text, text, text),
   public.lead_ia_canal_definir(uuid, text) TO service_role;
+-- Lista de contatos liberados para o envio real (teste autorizado por Denis). Só a plataforma.
+CREATE OR REPLACE FUNCTION public.lead_ia_allowlist_definir(_org uuid, _telefones text[])
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _lista text[];
+BEGIN
+  SELECT coalesce(array_agg(DISTINCT k), '{}') INTO _lista
+    FROM unnest(coalesce(_telefones, '{}')) t, unnest(public.lead_ia_contatos(t, NULL)) k;
+  IF cardinality(_lista) > 20 THEN RAISE EXCEPTION 'Lista grande demais' USING ERRCODE = '22023'; END IF;
+  UPDATE public.lead_config SET ia_envio_allowlist = _lista, updated_at = now() WHERE organization_id = _org;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Imobiliaria nao encontrada' USING ERRCODE = 'P0002'; END IF;
+  RETURN cardinality(_lista);
+END $$;
+
+-- Reserva a próxima mensagem pendente de UM lead para o envio real (1 por chamada).
+-- Confere tudo de novo: módulo, IA ligada, canal real na imobiliária E na conversa, contato na lista,
+-- não está em opt-out e, se for a 1ª mensagem, o limite do dia. Marca 'enviando' (dois cliques = 1 envio).
+CREATE OR REPLACE FUNCTION public.lead_ia_envio_reservar(_lead uuid)
+RETURNS TABLE (msg_id uuid, telefone text, texto text, primeira boolean)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+#variable_conflict use_column
+DECLARE _cv public.lead_conversas; _l public.leads; _c public.lead_config; _m public.lead_mensagens; _hoje integer;
+BEGIN
+  SELECT * INTO _l FROM public.leads WHERE id = _lead FOR UPDATE;
+  SELECT * INTO _cv FROM public.lead_conversas WHERE lead_id = _lead FOR UPDATE;
+  SELECT * INTO _c FROM public.lead_config WHERE organization_id = _l.organization_id;
+  IF _l.id IS NULL OR _cv.id IS NULL OR _c.organization_id IS NULL THEN RETURN; END IF;
+  IF NOT _c.ia_ativa OR _c.ia_canal <> 'ziontalk' OR _cv.canal <> 'ziontalk' OR _l.simulado
+     OR NOT (public.lead_ia_contatos(_l.telefone, NULL) && _c.ia_envio_allowlist)
+     OR NOT EXISTS (SELECT 1 FROM public.organization_modules WHERE organization_id = _l.organization_id
+                     AND module = 'leads' AND enabled)
+     OR EXISTS (SELECT 1 FROM public.lead_ia_optouts WHERE organization_id = _l.organization_id
+                 AND contato = ANY (public.lead_ia_contatos(_l.telefone, _l.email))
+                 AND _cv.estado <> 'optout') THEN
+    RETURN;
+  END IF;
+  SELECT * INTO _m FROM public.lead_mensagens WHERE conversa_id = _cv.id AND status = 'pendente'
+   ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED;
+  IF _m.id IS NULL THEN RETURN; END IF;
+  IF _cv.primeira_enviada_em IS NULL THEN
+    SELECT count(*) INTO _hoje FROM public.lead_conversas
+     WHERE organization_id = _cv.organization_id AND primeira_enviada_em IS NOT NULL
+       AND (primeira_enviada_em AT TIME ZONE 'America/Sao_Paulo')::date = (now() AT TIME ZONE 'America/Sao_Paulo')::date;
+    IF _hoje >= _c.ia_envio_limite_dia THEN RETURN; END IF;
+  END IF;
+  UPDATE public.lead_mensagens SET status = 'enviando' WHERE id = _m.id;
+  msg_id := _m.id; telefone := _l.telefone; texto := _m.texto; primeira := _cv.primeira_enviada_em IS NULL;
+  RETURN NEXT;
+END $$;
+
+-- Resultado do envio real de uma mensagem reservada.
+CREATE OR REPLACE FUNCTION public.lead_ia_envio_resultado(_msg uuid, _ok boolean)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _cv uuid;
+BEGIN
+  UPDATE public.lead_mensagens SET status = CASE WHEN _ok THEN 'enviada' ELSE 'falhou' END
+   WHERE id = _msg AND status = 'enviando' RETURNING conversa_id INTO _cv;
+  IF _cv IS NOT NULL AND _ok THEN
+    UPDATE public.lead_conversas SET primeira_enviada_em = coalesce(primeira_enviada_em, now()), updated_at = now()
+     WHERE id = _cv;
+  END IF;
+END $$;
+
+REVOKE ALL ON FUNCTION public.lead_ia_allowlist_definir(uuid, text[]), public.lead_ia_envio_reservar(uuid),
+  public.lead_ia_envio_resultado(uuid, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lead_ia_allowlist_definir(uuid, text[]), public.lead_ia_envio_reservar(uuid),
+  public.lead_ia_envio_resultado(uuid, boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.lead_ia_envio_definir(uuid, integer, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lead_ia_envio_definir(uuid, integer, integer, integer) TO service_role;
 
 COMMIT;

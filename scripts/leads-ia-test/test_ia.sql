@@ -185,7 +185,7 @@ SELECT t.como(:gesA);
 SELECT public.lead_criar('Pedro Parar', '15999990005', NULL, 'manual') AS lead5 \gset
 SELECT t.ok(public.lead_ia_parar(:'lead5') = 'parada', '38 gestor para a IA');
 SELECT t.dono();
-SELECT public.lead_ia_canal_definir(:orgA, 'ziontalk');
+SELECT public.lead_ia_canal_definir(:orgA, 'ziontalk'), public.lead_ia_allowlist_definir(:orgA, ARRAY['15999990006']);
 SELECT t.como(:gesA);
 SELECT public.lead_criar('Canal Real', '15999990006', NULL, 'manual') AS lead6 \gset
 SELECT t.dono();
@@ -250,13 +250,44 @@ SELECT public.lead_ia_canal_definir(:orgA, 'ziontalk');
 SELECT public.lead_inserir(:orgA, 'Simulado Real', '15999990040', NULL, 'olx', NULL, NULL, NULL, true, NULL, 'x40') AS lead40 \gset
 SELECT t.ok((SELECT c.canal = 'teste' AND m.status = 'nao_enviada' FROM public.lead_conversas c JOIN public.lead_mensagens m ON m.conversa_id = c.id
               WHERE c.lead_id = :'lead40'), '50 lead simulado nunca entra no canal real');
+SELECT public.lead_inserir(:orgA, 'Fora Da Lista', '15999990042', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'x42') AS lead42 \gset
+SELECT t.ok((SELECT c.canal = 'teste' AND m.status = 'nao_enviada' FROM public.lead_conversas c JOIN public.lead_mensagens m ON m.conversa_id = c.id
+              WHERE c.lead_id = :'lead42'), '50b canal real SEM allowlist: contato fica em teste (nada sai)');
+SELECT public.lead_ia_allowlist_definir(:orgA, ARRAY['+55 (15) 99999-0041']);
 SELECT public.lead_inserir(:orgA, 'Real Pendente', '15999990041', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'x41') AS lead41 \gset
 SELECT t.ok((SELECT m.status = 'pendente' FROM public.lead_conversas c JOIN public.lead_mensagens m ON m.conversa_id = c.id WHERE c.lead_id = :'lead41'),
             '51 lead real no canal ziontalk fica pendente');
+SELECT t.ok((SELECT count(*) = 0 FROM public.lead_ia_envio_reservar(:'lead42')), '51b reservar: contato fora da lista não sai');
+SELECT t.ok((SELECT count(*) = 1 AND bool_and(primeira) FROM public.lead_ia_envio_reservar(:'lead41')), '51c reservar: 1 mensagem do contato liberado');
+SELECT t.ok((SELECT count(*) = 0 FROM public.lead_ia_envio_reservar(:'lead41')), '51d reservar de novo: não duplica (enviando)');
+SELECT public.lead_ia_envio_resultado((SELECT m.id FROM public.lead_mensagens m JOIN public.lead_conversas c ON c.id = m.conversa_id
+                                        WHERE c.lead_id = :'lead41' AND m.status = 'enviando'), true);
+SELECT t.ok((SELECT primeira_enviada_em IS NOT NULL FROM public.lead_conversas WHERE lead_id = :'lead41'), '51e enviada marca a 1ª do dia');
+UPDATE public.lead_config SET ia_envio_limite_dia = 1 WHERE organization_id = :orgA;
+SELECT public.lead_ia_allowlist_definir(:orgA, ARRAY['15999990041', '15999990043']);
+SELECT public.lead_inserir(:orgA, 'Segundo Hoje', '15999990043', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'x43') AS lead43 \gset
+SELECT t.ok((SELECT count(*) = 0 FROM public.lead_ia_envio_reservar(:'lead43')), '51f limite de 1ª mensagem por dia segura o envio');
+UPDATE public.lead_config SET ia_envio_limite_dia = 10 WHERE organization_id = :orgA;
+SELECT t.ok(NOT has_function_privilege('authenticated', 'public.lead_ia_envio_reservar(uuid)', 'EXECUTE')
+            AND NOT has_function_privilege('authenticated', 'public.lead_ia_allowlist_definir(uuid, text[])', 'EXECUTE'),
+            '51g app não reserva envio nem mexe na lista');
+SELECT t.ok((SELECT count(*) = 0 FROM public.lead_conversas c, LATERAL public.lead_ia_envio_reservar(c.lead_id) r WHERE c.organization_id = :orgB),
+            '51h outra imobiliária: nada a enviar');
 SELECT public.lead_ia_canal_definir(:orgA, 'teste');
 SELECT t.ok((SELECT count(*) = 0 FROM public.lead_mensagens WHERE organization_id = :orgA AND status = 'pendente')
             AND (SELECT count(*) = 0 FROM public.lead_conversas WHERE organization_id = :orgA AND canal <> 'teste'),
             '52 voltar para teste: nenhuma conversa/mensagem fica no canal real');
+
+-- 13) Travas do envio futuro (QR Code): padrões baixos, sem link, só service_role ajusta.
+SELECT t.ok((SELECT ia_envio_limite_dia = 10 AND ia_envio_intervalo_min_s = 60 AND ia_envio_intervalo_max_s = 180
+               FROM public.lead_config WHERE organization_id = :orgA), '53 padrões: 10/dia, 60-180 s');
+DO $t$ BEGIN
+  UPDATE public.lead_config SET ia_boas_vindas = 'veja www.imob.com.br' WHERE organization_id = (SELECT organization_id FROM public.lead_config LIMIT 1);
+  INSERT INTO t.res (label, ok) VALUES ('54 boas-vindas com link é recusado', false);
+EXCEPTION WHEN check_violation THEN INSERT INTO t.res (label, ok) VALUES ('54 boas-vindas com link é recusado', true);
+END $t$;
+SELECT t.ok(NOT has_function_privilege('authenticated', 'public.lead_ia_envio_definir(uuid, integer, integer, integer)', 'EXECUTE'),
+            '55 travas de envio: app não altera');
 
 SELECT count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail FROM t.res;
 SELECT label FROM t.res WHERE NOT ok;

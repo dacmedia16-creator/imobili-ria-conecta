@@ -11,7 +11,17 @@ import {
   validarIaConfig,
   type ContextoIa,
 } from "./leads-ia";
-import { canalTeste, canalZionTalk, escolherCanal, telefoneE164, ZIONTALK_SEND_URL } from "./leads-ia-canal";
+import {
+  cabePrimeiraHoje,
+  canalTeste,
+  canalZionTalk,
+  ENVIO_LIMITE_DIA_PADRAO,
+  escolherCanal,
+  intervaloAleatorioMs,
+  telefoneE164,
+  temLink,
+  ZIONTALK_SEND_URL,
+} from "./leads-ia-canal";
 import { extratorGemini } from "./leads-ia.functions";
 
 // Card t_8046ecb0. As regras de acesso, opt-out, deduplicação e passagem ao corretor estão no banco e
@@ -252,5 +262,43 @@ describe("travas da migration", () => {
   it("rollback desfaz tudo", () => {
     for (const x of ["DROP TRIGGER IF EXISTS zz_lead_ia_iniciar", "DROP TABLE IF EXISTS public.lead_conversas", "DROP COLUMN IF EXISTS ia_ativa"])
       expect(RB).toContain(x);
+  });
+});
+
+describe("travas do envio futuro por QR Code (ainda desligadas)", () => {
+  it("limite de 1ª mensagem por dia: padrão baixo (10) e bloqueia ao atingir", () => {
+    expect(ENVIO_LIMITE_DIA_PADRAO).toBe(10);
+    expect(cabePrimeiraHoje(9, 10)).toBe(true);
+    expect(cabePrimeiraHoje(10, 10)).toBe(false);
+    expect(cabePrimeiraHoje(0, 0)).toBe(false);
+    expect(MIG).toMatch(/ia_envio_limite_dia integer NOT NULL DEFAULT 10/);
+  });
+  it("intervalo aleatório entre envios dentro da faixa", () => {
+    expect(intervaloAleatorioMs(60, 180, () => 0)).toBe(60_000);
+    expect(intervaloAleatorioMs(60, 180, () => 1)).toBe(180_000);
+    expect(intervaloAleatorioMs(10, 20, () => 0)).toBe(30_000);
+    expect(MIG).toMatch(/ia_envio_intervalo_min_s integer NOT NULL DEFAULT 60/);
+    expect(MIG).toMatch(/lead_ia_envio_definir\(uuid, integer, integer, integer\) FROM PUBLIC, anon, authenticated/);
+  });
+  it("nenhum link na 1ª mensagem", () => {
+    for (const x of ["veja https://x.com", "www.imob.com.br", "acesse imob.com.br/ap", "site.app"]) expect(temLink(x)).toBe(true);
+    for (const x of ["Recebi seu contato pelo anúncio no ZAP", "R$ 500.000", "Sr. João"]) expect(temLink(x)).toBe(false);
+    expect(validarIaConfig({ ia_nome: "Emanuella", ia_boas_vindas: "veja www.imob.com.br" })).not.toBeNull();
+    expect(MIG).toMatch(/lead_config_ia_boas_vindas_sem_link/);
+  });
+});
+
+describe("envio real por lista de liberados (t_5d8c0b63)", () => {
+  const ENVIO = readFileSync("src/lib/leads-ia-envio.functions.ts", "utf8");
+  it("só envia se o servidor tiver flag + chave própria e o banco liberar o contato", () => {
+    expect(ENVIO).toMatch(/escolherCanal\(/);
+    expect(ENVIO).toMatch(/lead_ia_envio_reservar/);
+    expect(ENVIO).toMatch(/leads_gestor/);
+    expect(ENVIO).not.toMatch(/console\.(log|error)\([^)]*(telefone|texto)/);
+  });
+  it("sem chave geral: canal real exige o contato na lista", () => {
+    expect(MIG).toMatch(/ia_envio_allowlist text\[\] NOT NULL DEFAULT '\{\}'/);
+    expect(MIG).toMatch(/lead_ia_contatos\(l\.telefone, NULL\) && c\.ia_envio_allowlist/);
+    expect(MIG).toMatch(/lead_ia_envio_reservar\(uuid\),\s+public\.lead_ia_envio_resultado\(uuid, boolean\) FROM PUBLIC, anon, authenticated/);
   });
 });

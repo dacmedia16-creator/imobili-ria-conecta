@@ -12,8 +12,19 @@ import {
   type MensagemIa,
 } from "@/lib/leads-ia";
 import { responderComoCliente } from "@/lib/leads-ia.functions";
+import { enviarMensagemIa } from "@/lib/leads-ia-envio.functions";
 import { lerConversaIa, pararIa } from "@/lib/leads-db";
 import { mensagemErroLead } from "@/lib/leads";
+
+const ERRO_ENVIO: Record<string, string> = {
+  sem_permissao: "Só gestor ou administrador envia.",
+  modo_teste: "Este lead está em modo teste: nada é enviado.",
+  envio_desligado: "O envio real está desligado no servidor.",
+  nada_a_enviar: "Nada a enviar (contato fora da lista liberada, limite do dia ou já enviado).",
+  link_na_primeira: "A 1ª mensagem não pode ter link.",
+  http_401: "A ZionTalk recusou a chave (401).",
+  http_403: "A ZionTalk recusou a chave (403).",
+};
 
 const hora = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {
@@ -38,6 +49,7 @@ export function LeadConversaIa({
   onChanged: () => void;
 }) {
   const responder = useServerFn(responderComoCliente);
+  const enviarReal = useServerFn(enviarMensagemIa);
   const [conversa, setConversa] = useState<ConversaIa | null | undefined>(undefined);
   const [msgs, setMsgs] = useState<MensagemIa[]>([]);
   const [texto, setTexto] = useState("");
@@ -77,6 +89,23 @@ export function LeadConversaIa({
       if (r.estado !== "ativa") onChanged();
     } catch (e) {
       toast.error(errorMessage(e, "Não foi possível enviar."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pendentes = msgs.filter((m) => m.status === "pendente").length;
+
+  const enviarWhatsApp = async () => {
+    setBusy(true);
+    try {
+      const r = await enviarReal({ data: { leadId } });
+      if (!r.ok) throw new Error(ERRO_ENVIO[r.erro] ?? "Não foi possível enviar.");
+      toast.success("Mensagem enviada pelo WhatsApp.");
+      setVersao((v) => v + 1);
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível enviar."));
+      setVersao((v) => v + 1);
     } finally {
       setBusy(false);
     }
@@ -141,6 +170,11 @@ export function LeadConversaIa({
             Responder como cliente
           </Button>
         </div>
+      )}
+      {gestor && !teste && pendentes > 0 && (
+        <Button size="sm" disabled={busy} onClick={() => void enviarWhatsApp()}>
+          Enviar pelo WhatsApp ({pendentes})
+        </Button>
       )}
       {ativa && (gestor || podeAtender) && (
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void parar()}>

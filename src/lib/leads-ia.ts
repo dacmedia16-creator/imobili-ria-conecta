@@ -4,6 +4,8 @@
 // inventa preço, condição, disponibilidade ou dado do imóvel. Um modelo de linguagem, quando ligado,
 // só ajuda a ENTENDER a resposta do cliente (extrair finalidade/pagamento...); nunca escreve a resposta.
 
+import { temLink } from "./leads-ia-canal";
+
 export const PASSOS = [
   "interesse",
   "finalidade",
@@ -305,7 +307,7 @@ export type MensagemIa = {
   id: string;
   autor: "ia" | "cliente" | "sistema";
   texto: string;
-  status: "nao_enviada" | "pendente" | "enviada" | "falhou" | "simulada" | "recebida";
+  status: "nao_enviada" | "pendente" | "enviando" | "enviada" | "falhou" | "simulada" | "recebida";
   created_at: string;
 };
 
@@ -319,6 +321,7 @@ export const ESTADO_CONVERSA_LABEL: Record<ConversaIa["estado"], string> = {
 export const STATUS_MSG_LABEL: Record<MensagemIa["status"], string> = {
   nao_enviada: "não enviada (modo teste)",
   pendente: "aguardando envio",
+  enviando: "enviando",
   enviada: "enviada",
   falhou: "falhou",
   simulada: "cliente simulado",
@@ -331,6 +334,7 @@ export function validarIaConfig(c: Pick<IaConfig, "ia_nome" | "ia_boas_vindas">)
   const n = c.ia_nome.trim();
   if (n.length < 1 || n.length > 40) return "Nome da IA entre 1 e 40 caracteres.";
   if ((c.ia_boas_vindas ?? "").length > 400) return "Texto de boas-vindas até 400 caracteres.";
+  if (temLink(c.ia_boas_vindas)) return "Não coloque link no texto de boas-vindas (a 1ª mensagem vai sem link).";
   return null;
 }
 
