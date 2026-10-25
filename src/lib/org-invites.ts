@@ -15,7 +15,8 @@ import {
 
 export const INVITE_TTL_DAYS = 7;
 /** Módulos desligados na imobiliária que nasce pelo convite (decisão de Denis). */
-export const INVITE_MODULES_OFF: readonly OrganizationModule[] = ["oportunidades"];
+// "leads" (piloto t_2472761a): a RPC do convite não grava esse módulo; sem linha = desligado.
+export const INVITE_MODULES_OFF: readonly OrganizationModule[] = ["oportunidades", "leads"];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {
   return Object.fromEntries(
