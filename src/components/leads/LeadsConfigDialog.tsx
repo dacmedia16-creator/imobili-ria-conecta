@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LeadsIaConfig } from "@/components/leads/LeadsIaConfig";
 import { errorMessage } from "@/lib/errors";
 import { DISTRIBUICAO_LABEL, validarConfig, type LeadConfig } from "@/lib/leads";
 import { configurarFormulario, salvarConfig } from "@/lib/leads-db";
@@ -159,6 +160,8 @@ export function LeadsConfigDialog({
               </div>
             )}
           </section>
+
+          <LeadsIaConfig open={open} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>

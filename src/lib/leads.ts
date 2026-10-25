@@ -103,7 +103,8 @@ export type LeadEvento = {
     | "aceite"
     | "devolvido_banco"
     | "redistribuido"
-    | "ligacao";
+    | "ligacao"
+    | "ia";
   de: string | null;
   para: string | null;
   nota: string | null;
@@ -230,6 +231,19 @@ export function textoEvento(e: LeadEvento, nome: (id: string | null) => string):
       return "Anotação";
     case "ligacao":
       return "Ligação registrada";
+    case "ia":
+      return (
+        {
+          iniciada: "IA de atendimento iniciou a conversa",
+          qualificado: "IA qualificou o lead e passou ao corretor",
+          pediu_pessoa: "Cliente pediu uma pessoa: IA passou ao corretor",
+          sensivel: "Assunto sensível: IA passou ao corretor e ao gestor",
+          sem_interesse: "Cliente disse que não tem interesse",
+          optout: "Cliente pediu para não receber mensagens (SAIR)",
+          parada_manual: "IA parada manualmente",
+          limite: "Conversa longa: IA passou ao corretor",
+        }[e.para ?? ""] ?? "IA de atendimento"
+      );
     case "aceite":
       return `Lead aceito por ${nome(e.para)}`;
     case "devolvido_banco":
@@ -427,5 +441,10 @@ export function mensagemErroLead(msg: string): string {
   if (m.includes("apenas administrador")) return "Só o administrador altera esta configuração.";
   if (m.includes("entre 1 e 20")) return "O simulador cria de 1 a 20 leads por vez.";
   if (m.includes("lead encerrado")) return "Lead encerrado.";
+  if (m.includes("simulador so funciona no modo teste"))
+    return "O simulador de cliente só funciona com a IA em modo teste.";
+  if (m.includes("configuracao da ia invalida")) return "Confira o nome e o texto da IA.";
+  if (m.includes("conversa nao encontrada")) return "Este lead não tem conversa da IA.";
+  if (m.includes("mensagem vazia")) return "Escreva a mensagem (até 1000 caracteres).";
   return "Não foi possível concluir. Tente de novo.";
 }
