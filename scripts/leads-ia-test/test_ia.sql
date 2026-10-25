@@ -289,5 +289,19 @@ END $t$;
 SELECT t.ok(NOT has_function_privilege('authenticated', 'public.lead_ia_envio_definir(uuid, integer, integer, integer)', 'EXECUTE'),
             '55 travas de envio: app não altera');
 
+-- 14) Tela lê a config da IA (20261025190000), mas nunca a lista de telefones nem as travas.
+SELECT t.ok(has_column_privilege('authenticated', 'public.lead_config', 'ia_ativa', 'SELECT')
+            AND has_column_privilege('authenticated', 'public.lead_config', 'ia_nome', 'SELECT')
+            AND has_column_privilege('authenticated', 'public.lead_config', 'ia_boas_vindas', 'SELECT')
+            AND has_column_privilege('authenticated', 'public.lead_config', 'ia_canal', 'SELECT'),
+            '56 tela lê ligada/nome/boas-vindas/canal da IA');
+SELECT t.ok(NOT has_column_privilege('authenticated', 'public.lead_config', 'ia_envio_allowlist', 'SELECT')
+            AND NOT has_column_privilege('authenticated', 'public.lead_config', 'grupo_olx_token_hash', 'SELECT')
+            AND NOT has_any_column_privilege('anon', 'public.lead_config', 'SELECT'),
+            '57 lista de liberados e hash do ZAP seguem fechados; anon sem acesso');
+SELECT t.como(:admA);
+SELECT t.ok((SELECT count(*) = 1 AND bool_and(ia_nome IS NOT NULL) FROM public.lead_config), '58 admin A lê só a config da própria imobiliária');
+SELECT t.dono();
+
 SELECT count(*) FILTER (WHERE ok) AS pass, count(*) FILTER (WHERE NOT ok) AS fail FROM t.res;
 SELECT label FROM t.res WHERE NOT ok;
