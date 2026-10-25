@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Pill } from "@/components/visual/base";
+import { LeadConversaIa } from "@/components/leads/LeadConversaIa";
 import { errorMessage } from "@/lib/errors";
 import {
   aguardandoMeuAceite,
@@ -325,6 +326,17 @@ export function LeadDetalhe({
               </Button>
             </section>
           )}
+
+          <LeadConversaIa
+            key={`${lead.id}-${versao}`}
+            leadId={lead.id}
+            gestor={gestor}
+            podeAtender={podeAtender}
+            onChanged={() => {
+              setVersao((v) => v + 1);
+              onChanged();
+            }}
+          />
 
           <section className="space-y-2">
             <h3 className="font-medium">Linha do tempo</h3>

@@ -19,6 +19,7 @@ import {
   type NovoLeadForm,
   type Pessoa,
 } from "@/lib/leads";
+import type { ConversaIa, IaConfig, MensagemIa } from "@/lib/leads-ia";
 
 // Tabelas/RPCs da migração 20261025120000_leads_piloto (ainda fora de types.ts).
 const db = supabase as unknown as SupabaseClient;
@@ -205,4 +206,57 @@ export async function configurarFormulario(ativo: boolean): Promise<string> {
   const { data, error } = await db.rpc("lead_form_configurar", { _ativo: ativo });
   if (error) falha(error);
   return data as string;
+}
+
+// --- IA de atendimento (migration 20261025180000, card t_8046ecb0) --------------------------------
+
+/** Conversa da IA do lead (a RLS só entrega para gestor/admin e para o responsável depois do aceite). */
+export async function lerConversaIa(
+  leadId: string,
+): Promise<{ conversa: ConversaIa | null; mensagens: MensagemIa[] }> {
+  const { data, error } = await db
+    .from("lead_conversas")
+    .select("id,lead_id,canal,estado,passo,motivo_fim,resumo,created_at")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+  if (error) falha(error);
+  if (!data) return { conversa: null, mensagens: [] };
+  const conversa = data as ConversaIa;
+  const { data: m, error: e2 } = await db
+    .from("lead_mensagens")
+    .select("id,autor,texto,status,created_at")
+    .eq("conversa_id", conversa.id)
+    .order("created_at", { ascending: true })
+    .limit(200);
+  if (e2) falha(e2);
+  return { conversa, mensagens: (m ?? []) as MensagemIa[] };
+}
+
+export async function pararIa(leadId: string) {
+  const { error } = await db.rpc("lead_ia_parar", { _lead: leadId });
+  if (error) falha(error);
+}
+
+export async function lerIaConfig(): Promise<IaConfig> {
+  const { data, error } = await db
+    .from("lead_config")
+    .select("ia_ativa,ia_nome,ia_boas_vindas,ia_canal")
+    .maybeSingle();
+  if (error) falha(error);
+  return {
+    ia_ativa: false,
+    ia_nome: "Assistente virtual",
+    ia_boas_vindas: null,
+    ia_canal: "teste",
+    ...((data ?? {}) as Partial<IaConfig>),
+  };
+}
+
+export async function salvarIaConfig(c: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_boas_vindas">) {
+  const { error } = await db.rpc("lead_ia_config_salvar", {
+    _ativa: c.ia_ativa,
+    _nome: c.ia_nome.trim(),
+    _boas_vindas: c.ia_boas_vindas?.trim() || null,
+  });
+  if (error) falha(error);
 }
