@@ -42,6 +42,7 @@ import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_auth
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
+import { Route as LeadFormTokenRouteImport } from './routes/lead-form.$token'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
@@ -240,6 +241,11 @@ const ConviteCadastroRoute = ConviteCadastroRouteImport.update({
   path: '/convite/cadastro',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LeadFormTokenRoute = LeadFormTokenRouteImport.update({
+  id: '/lead-form/$token',
+  path: '/lead-form/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminAssinaturaDigitalRoute =
   AuthenticatedAdminAssinaturaDigitalRouteImport.update({
     id: '/admin/assinatura-digital',
@@ -373,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/lead-form/$token': typeof LeadFormTokenRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -424,6 +431,7 @@ export interface FileRoutesByTo {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/lead-form/$token': typeof LeadFormTokenRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -477,6 +485,7 @@ export interface FileRoutesById {
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/lead-form/$token': typeof LeadFormTokenRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -530,6 +539,7 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/lead-form/$token'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -581,6 +591,7 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/lead-form/$token'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -633,6 +644,7 @@ export interface FileRouteTypes {
     | '/_authenticated/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/lead-form/$token'
     | '/_authenticated/admin/assinatura-digital'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
@@ -662,6 +674,7 @@ export interface RootRouteChildren {
   TrocarSenhaRoute: typeof TrocarSenhaRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
+  LeadFormTokenRoute: typeof LeadFormTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -897,6 +910,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConviteCadastroRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lead-form/$token': {
+      id: '/lead-form/$token'
+      path: '/lead-form/$token'
+      fullPath: '/lead-form/$token'
+      preLoaderRoute: typeof LeadFormTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/assinatura-digital': {
       id: '/_authenticated/admin/assinatura-digital'
       path: '/admin/assinatura-digital'
@@ -1127,6 +1147,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrocarSenhaRoute: TrocarSenhaRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
+  LeadFormTokenRoute: LeadFormTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

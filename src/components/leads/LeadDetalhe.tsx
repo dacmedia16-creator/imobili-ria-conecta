@@ -12,19 +12,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Pill } from "@/components/visual/base";
 import { errorMessage } from "@/lib/errors";
 import {
+  aguardandoMeuAceite,
   ETAPA_LABEL,
   ETAPA_TOM,
   ORIGEM_LABEL,
+  prazoDoLead,
   proximasEtapas,
   textoEvento,
+  textoPrazo,
   type CapturaOpcao,
   type Etapa,
   type Lead,
+  type LeadConfig,
   type LeadEvento,
   type MotivoPerda,
   type Pessoa,
 } from "@/lib/leads";
-import { anotarLead, atribuirLead, listarEventos, mudarEtapa } from "@/lib/leads-db";
+import {
+  aceitarLead,
+  anotarLead,
+  atribuirLead,
+  listarEventos,
+  mudarEtapa,
+  registrarLigacao,
+} from "@/lib/leads-db";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -40,6 +51,8 @@ const dataHora = (iso: string) =>
 export function LeadDetalhe({
   lead,
   gestor,
+  userId,
+  config,
   pessoas,
   capturas,
   motivos,
@@ -48,6 +61,8 @@ export function LeadDetalhe({
 }: {
   lead: Lead | null;
   gestor: boolean;
+  userId: string | undefined;
+  config: LeadConfig;
   pessoas: Pessoa[];
   capturas: CapturaOpcao[];
   motivos: MotivoPerda[];
@@ -88,7 +103,11 @@ export function LeadDetalhe({
   const nomeDe = (id: string | null) =>
     pessoas.find((p) => p.id === id)?.nome ?? (id ? "Pessoa" : "—");
   const captura = capturas.find((c) => c.id === lead.capture_id);
-  const opcoes = proximasEtapas(lead.etapa, gestor);
+  // Antes do aceite, o responsável só vê o botão Aceitar (o banco também recusa atendimento sem aceite).
+  const precisaAceitar = aguardandoMeuAceite(lead, userId);
+  const opcoes = precisaAceitar ? [] : proximasEtapas(lead.etapa, gestor);
+  const prazo = textoPrazo(prazoDoLead(lead, config));
+  const podeAtender = !precisaAceitar && (gestor || lead.responsavel_id === userId);
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true);
@@ -118,7 +137,30 @@ export function LeadDetalhe({
           <div className="flex flex-wrap items-center gap-2">
             <Pill tom={ETAPA_TOM[lead.etapa]}>{ETAPA_LABEL[lead.etapa]}</Pill>
             <span className="text-muted-foreground">desde {dataHora(lead.etapa_em)}</span>
+            {lead.simulado && <Pill tom="slate">Simulado</Pill>}
           </div>
+          {prazo && (
+            <p className="rounded-md border border-amber-300/60 bg-amber-50 px-2 py-1 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Prazo: {prazo}
+            </p>
+          )}
+
+          {precisaAceitar && (
+            <section className="space-y-2 rounded-lg border border-primary/40 p-3">
+              <h3 className="font-medium">Este lead chegou para você</h3>
+              <p className="text-muted-foreground">
+                Aceite para começar o atendimento. Se não aceitar no prazo, ele vai para o próximo
+                corretor da vez.
+              </p>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => run(() => aceitarLead(lead.id), "Lead aceito.")}
+              >
+                Aceitar lead
+              </Button>
+            </section>
+          )}
 
           <dl className="grid grid-cols-[110px_1fr] gap-x-2 gap-y-1">
             <dt className="text-muted-foreground">Telefone</dt>
@@ -226,28 +268,47 @@ export function LeadDetalhe({
             </section>
           )}
 
-          <section className="space-y-2 rounded-lg border p-3">
-            <h3 className="font-medium">Anotação</h3>
-            <Textarea
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              maxLength={2000}
-              placeholder="Ex.: liguei, cliente pediu retorno amanhã"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !nota.trim()}
-              onClick={() =>
-                run(async () => {
-                  await anotarLead(lead.id, nota);
-                  setNota("");
-                }, "Anotação salva.")
-              }
-            >
-              Salvar anotação
-            </Button>
-          </section>
+          {podeAtender && (
+            <section className="space-y-2 rounded-lg border p-3">
+              <h3 className="font-medium">Anotação ou ligação</h3>
+              <p className="text-xs text-muted-foreground">
+                Anotação, ligação e mudança de etapa contam como atendimento. Só abrir o lead não
+                conta.
+              </p>
+              <Textarea
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                maxLength={2000}
+                placeholder="Ex.: liguei, cliente pediu retorno amanhã"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || !nota.trim()}
+                onClick={() =>
+                  run(async () => {
+                    await anotarLead(lead.id, nota);
+                    setNota("");
+                  }, "Anotação salva.")
+                }
+              >
+                Salvar anotação
+              </Button>{" "}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    await registrarLigacao(lead.id, nota);
+                    setNota("");
+                  }, "Ligação registrada.")
+                }
+              >
+                Registrar ligação
+              </Button>
+            </section>
+          )}
 
           <section className="space-y-2">
             <h3 className="font-medium">Linha do tempo</h3>

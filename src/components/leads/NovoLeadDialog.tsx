@@ -76,16 +76,8 @@ export function NovoLeadDialog({
     }
   };
 
-  // Ao escolher o imóvel, sugere o captador como responsável (D4); P3 fará isso sozinho.
-  const escolherCaptura = (id: string) => {
-    const c = capturas.find((x) => x.id === id);
-    setF((x) => ({
-      ...x,
-      captureId: id,
-      responsavelId:
-        c && pessoas.some((p) => p.id === c.captador_id) ? c.captador_id : x.responsavelId,
-    }));
-  };
+  // P3: com "Distribuição automática" o banco entrega ao captador do imóvel (ou ao rodízio).
+  const escolherCaptura = (id: string) => setF((x) => ({ ...x, captureId: id }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -167,7 +159,7 @@ export function NovoLeadDialog({
               value={f.responsavelId}
               onChange={(e) => set("responsavelId", e.target.value)}
             >
-              <option value="">Sem responsável (definir depois)</option>
+              <option value="">Distribuição automática (captador do imóvel ou rodízio)</option>
               {pessoas.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}
