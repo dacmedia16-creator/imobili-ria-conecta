@@ -61,6 +61,7 @@ import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
 import { Route as AuthenticatedVendasLancamentoNovaRouteImport } from './routes/_authenticated/vendas.lancamento.nova'
 import { Route as ApiLeadsGrupoOlxTokenRouteImport } from './routes/api/leads/grupo-olx.$token'
+import { Route as ApiLeadsZiontalkTokenRouteImport } from './routes/api/leads/ziontalk.$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -351,6 +352,11 @@ const ApiLeadsGrupoOlxTokenRoute = ApiLeadsGrupoOlxTokenRouteImport.update({
   path: '/api/leads/grupo-olx/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLeadsZiontalkTokenRoute = ApiLeadsZiontalkTokenRouteImport.update({
+  id: '/api/leads/ziontalk/$token',
+  path: '/api/leads/ziontalk/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -404,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
+  '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
+  '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -512,6 +520,7 @@ export interface FileRoutesById {
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
+  '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -567,6 +576,7 @@ export interface FileRouteTypes {
     | '/vendas/'
     | '/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
+    | '/api/leads/ziontalk/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -620,6 +630,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
+    | '/api/leads/ziontalk/$token'
   id:
     | '__root__'
     | '/'
@@ -674,6 +685,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
+    | '/api/leads/ziontalk/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -688,6 +700,7 @@ export interface RootRouteChildren {
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
   ApiLeadsGrupoOlxTokenRoute: typeof ApiLeadsGrupoOlxTokenRoute
+  ApiLeadsZiontalkTokenRoute: typeof ApiLeadsZiontalkTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1056,6 +1069,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLeadsGrupoOlxTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/leads/ziontalk/$token': {
+      id: '/api/leads/ziontalk/$token'
+      path: '/api/leads/ziontalk/$token'
+      fullPath: '/api/leads/ziontalk/$token'
+      preLoaderRoute: typeof ApiLeadsZiontalkTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1169,6 +1189,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteCadastroRoute: ConviteCadastroRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
   ApiLeadsGrupoOlxTokenRoute: ApiLeadsGrupoOlxTokenRoute,
+  ApiLeadsZiontalkTokenRoute: ApiLeadsZiontalkTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

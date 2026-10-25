@@ -252,6 +252,40 @@ export async function lerIaConfig(): Promise<IaConfig> {
   };
 }
 
+// --- Retorno ZionTalk e escolha de modelo (migration 20261025200000, card t_6f688b4b) ----------------
+
+export type IaRetornoConfig = {
+  ia_retorno_token_em: string | null;
+  ia_modelo_provedor: "gemini" | "openrouter";
+  ia_modelo: string | null;
+};
+
+export async function lerIaRetornoConfig(): Promise<IaRetornoConfig> {
+  const { data, error } = await db
+    .from("lead_config")
+    .select("ia_retorno_token_em,ia_modelo_provedor,ia_modelo")
+    .maybeSingle();
+  if (error) falha(error);
+  return {
+    ia_retorno_token_em: null,
+    ia_modelo_provedor: "gemini",
+    ia_modelo: null,
+    ...((data ?? {}) as Partial<IaRetornoConfig>),
+  };
+}
+
+/** "gerar" devolve o token novo UMA vez (o banco guarda só o hash; o anterior para na hora). */
+export async function tokenRetornoIa(acao: "gerar" | "desligar"): Promise<string | null> {
+  const { data, error } = await db.rpc("lead_ia_retorno_token", { _acao: acao });
+  if (error) falha(error);
+  return (data as string | null) ?? null;
+}
+
+export async function salvarModeloIa(provedor: "gemini" | "openrouter", modelo: string | null) {
+  const { error } = await db.rpc("lead_ia_modelo_salvar", { _provedor: provedor, _modelo: modelo });
+  if (error) falha(error);
+}
+
 export async function salvarIaConfig(c: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_boas_vindas">) {
   const { error } = await db.rpc("lead_ia_config_salvar", {
     _ativa: c.ia_ativa,
