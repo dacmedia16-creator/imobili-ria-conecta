@@ -24,7 +24,7 @@ import {
 const db = supabase as unknown as SupabaseClient;
 
 const LEAD_COLS =
-  "id,nome,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado";
+  "id,nome,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado,anuncio_codigo,anuncio_portal_id,portal_tipo,portal_temperatura,portal_transacao";
 
 function falha(error: { message?: string } | null): never {
   throw new Error(mensagemErroLead(error?.message ?? ""));
@@ -173,7 +173,7 @@ export async function lerConfig(): Promise<LeadConfig> {
   const { data, error } = await db
     .from("lead_config")
     .select(
-      "prazo_aceite_min,prazo_primeira_interacao_dias,prazo_sem_interacao_dias,distribuicao,form_publico_ativo,form_token",
+      "prazo_aceite_min,prazo_primeira_interacao_dias,prazo_sem_interacao_dias,distribuicao,form_publico_ativo,form_token,grupo_olx_token_em",
     )
     .maybeSingle();
   if (error) falha(error);
@@ -188,6 +188,16 @@ export async function salvarConfig(c: LeadConfig) {
     _distribuicao: c.distribuicao,
   });
   if (error) falha(error);
+}
+
+/**
+ * Grupo ZAP ("Receber leads no CRM"): "gerar" devolve um token novo (aparece só agora; o banco guarda
+ * o hash e o anterior para na hora); "desligar" apaga o token.
+ */
+export async function tokenGrupoOlx(acao: "gerar" | "desligar"): Promise<string | null> {
+  const { data, error } = await db.rpc("lead_grupo_olx_token", { _acao: acao });
+  if (error) falha(error);
+  return (data as string | null) ?? null;
 }
 
 /** Liga/desliga o formulário público de teste; devolve o token do link. */

@@ -60,6 +60,7 @@ import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
 import { Route as AuthenticatedVendasLancamentoNovaRouteImport } from './routes/_authenticated/vendas.lancamento.nova'
+import { Route as ApiLeadsGrupoOlxTokenRouteImport } from './routes/api/leads/grupo-olx.$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -345,6 +346,11 @@ const AuthenticatedVendasLancamentoNovaRoute =
     path: '/vendas/lancamento/nova',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiLeadsGrupoOlxTokenRoute = ApiLeadsGrupoOlxTokenRouteImport.update({
+  id: '/api/leads/grupo-olx/$token',
+  path: '/api/leads/grupo-olx/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -449,6 +456,7 @@ export interface FileRoutesByTo {
   '/exclusividades': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -503,6 +511,7 @@ export interface FileRoutesById {
   '/_authenticated/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -557,6 +566,7 @@ export interface FileRouteTypes {
     | '/exclusividades/'
     | '/vendas/'
     | '/vendas/lancamento/nova'
+    | '/api/leads/grupo-olx/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -609,6 +619,7 @@ export interface FileRouteTypes {
     | '/exclusividades'
     | '/vendas'
     | '/vendas/lancamento/nova'
+    | '/api/leads/grupo-olx/$token'
   id:
     | '__root__'
     | '/'
@@ -662,6 +673,7 @@ export interface FileRouteTypes {
     | '/_authenticated/exclusividades/'
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
+    | '/api/leads/grupo-olx/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -675,6 +687,7 @@ export interface RootRouteChildren {
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
+  ApiLeadsGrupoOlxTokenRoute: typeof ApiLeadsGrupoOlxTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1036,6 +1049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVendasLancamentoNovaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/leads/grupo-olx/$token': {
+      id: '/api/leads/grupo-olx/$token'
+      path: '/api/leads/grupo-olx/$token'
+      fullPath: '/api/leads/grupo-olx/$token'
+      preLoaderRoute: typeof ApiLeadsGrupoOlxTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1148,6 +1168,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
+  ApiLeadsGrupoOlxTokenRoute: ApiLeadsGrupoOlxTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

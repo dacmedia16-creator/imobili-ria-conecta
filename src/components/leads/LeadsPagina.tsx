@@ -139,7 +139,7 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
                   <FlaskConical className="mr-1 h-4 w-4" /> Simular leads
                 </Button>
               )}
-              {painel && admin && (
+              {painel && (
                 <Button variant="outline" onClick={() => setConfigurar(true)}>
                   <Settings2 className="mr-1 h-4 w-4" /> Configurar
                 </Button>
@@ -300,8 +300,9 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
           onCreated={() => void carregar()}
         />
       )}
-      {admin && painel && (
+      {gestor && painel && (
         <LeadsConfigDialog
+          admin={admin}
           open={configurar}
           onOpenChange={setConfigurar}
           config={config}
