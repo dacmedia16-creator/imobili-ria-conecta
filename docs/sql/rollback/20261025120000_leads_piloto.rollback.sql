@@ -19,7 +19,7 @@ DROP FUNCTION IF EXISTS public.leads_responsaveis_visiveis();
 DROP FUNCTION IF EXISTS public.leads_gestor();
 DROP FUNCTION IF EXISTS public.leads_enabled();
 
-DELETE FROM public.organization_module_history WHERE module = 'leads';
+-- O histórico (organization_module_history) é MANTIDO como prova de quem ligou/desligou o módulo.
 DELETE FROM public.organization_modules WHERE module = 'leads';
 ALTER TABLE public.organization_modules DROP CONSTRAINT organization_modules_module_check;
 ALTER TABLE public.organization_modules ADD CONSTRAINT organization_modules_module_check

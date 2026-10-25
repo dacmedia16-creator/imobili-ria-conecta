@@ -167,6 +167,7 @@ if (isMain) {
 /* Reversão (só ZZ, manual, com autorização):
  *  - Desligar o módulo "Leads" da ZZ no painel Plataforma.
  *  - Captações fictícias: descartar (discarded_at) as 3 de "ZZ Corretor Teste N".
- *  - Corretores de teste: desativar no "Usuários da plataforma" (ou excluir os 3 usuários .invalid).
+ *  - Corretores de teste: DESATIVAR no "Usuários da plataforma" (preserva a linha do tempo dos leads).
+ *    Se excluir, os leads ficam sem responsável/captador (ON DELETE SET NULL), sem apagar nada.
  *  - Banco inteiro do piloto: docs/sql/rollback/20261025120000_leads_piloto.rollback.sql.
  */

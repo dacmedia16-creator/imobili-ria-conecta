@@ -201,7 +201,7 @@ export function textoEvento(e: LeadEvento, nome: (id: string | null) => string):
     case "nota":
       return "Anotação";
     default:
-      return "Vínculo atualizado";
+      return `Imóvel vinculado — captador: ${nome(e.para)}`;
   }
 }
 

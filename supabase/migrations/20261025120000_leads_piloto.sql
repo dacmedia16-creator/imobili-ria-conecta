@@ -107,13 +107,14 @@ CREATE TABLE IF NOT EXISTS public.leads (
   cliente_id uuid,
   motivo_perda_id uuid,
   motivo_perda_obs text CHECK (char_length(motivo_perda_obs) <= 1000),
-  created_by uuid REFERENCES public.profiles(id),
+  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, organization_id),
   -- FKs compostas: responsável, captação, captador, cliente e motivo têm de ser da MESMA imobiliária.
-  CONSTRAINT leads_responsavel_org_fk FOREIGN KEY (responsavel_id, organization_id) REFERENCES public.profiles(id, organization_id),
-  CONSTRAINT leads_captador_org_fk FOREIGN KEY (captador_id, organization_id) REFERENCES public.profiles(id, organization_id),
+  -- Usuário excluído: o lead fica sem responsável/captador (volta para distribuição), não some.
+  CONSTRAINT leads_responsavel_org_fk FOREIGN KEY (responsavel_id, organization_id) REFERENCES public.profiles(id, organization_id) ON DELETE SET NULL (responsavel_id),
+  CONSTRAINT leads_captador_org_fk FOREIGN KEY (captador_id, organization_id) REFERENCES public.profiles(id, organization_id) ON DELETE SET NULL (captador_id),
   CONSTRAINT leads_capture_org_fk FOREIGN KEY (capture_id, organization_id) REFERENCES public.exclusive_captures(id, organization_id) ON DELETE SET NULL (capture_id),
   CONSTRAINT leads_cliente_org_fk FOREIGN KEY (cliente_id, organization_id) REFERENCES public.clientes(id, organization_id) ON DELETE SET NULL (cliente_id),
   CONSTRAINT leads_motivo_org_fk FOREIGN KEY (motivo_perda_id, organization_id) REFERENCES public.lead_motivos_perda(id, organization_id),
@@ -125,6 +126,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS leads_externo_uniq ON public.leads (organizati
 CREATE INDEX IF NOT EXISTS leads_org_etapa_idx ON public.leads (organization_id, etapa, created_at DESC);
 CREATE INDEX IF NOT EXISTS leads_org_resp_idx ON public.leads (organization_id, responsavel_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS leads_capture_idx ON public.leads (capture_id) WHERE capture_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS leads_captador_idx ON public.leads (captador_id) WHERE captador_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS leads_cliente_idx ON public.leads (cliente_id) WHERE cliente_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS leads_motivo_idx ON public.leads (motivo_perda_id) WHERE motivo_perda_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS leads_created_by_idx ON public.leads (created_by) WHERE created_by IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.lead_eventos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -134,12 +139,13 @@ CREATE TABLE IF NOT EXISTS public.lead_eventos (
   de text CHECK (char_length(de) <= 60),
   para text CHECK (char_length(para) <= 60),
   nota text CHECK (char_length(nota) <= 2000),
-  autor_id uuid REFERENCES public.profiles(id),
+  autor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lead_eventos_lead_org_fk FOREIGN KEY (lead_id, organization_id)
     REFERENCES public.leads(id, organization_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS lead_eventos_lead_idx ON public.lead_eventos (lead_id, created_at);
+CREATE INDEX IF NOT EXISTS lead_eventos_autor_idx ON public.lead_eventos (autor_id) WHERE autor_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS lead_eventos_org_idx ON public.lead_eventos (organization_id, created_at);
 
 -- 3) Acesso -----------------------------------------------------------------------------------
@@ -231,8 +237,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _l public.leads;
 BEGIN
   SELECT * INTO _l FROM public.leads WHERE id = _lead AND organization_id = _org FOR UPDATE;
-  IF _l.id IS NULL OR NOT (public.leads_gestor()
-       OR _l.responsavel_id IN (SELECT public.leads_responsaveis_visiveis())) THEN
+  -- coalesce: lead sem responsável dá NULL no IN e NÃO pode passar para corretor (revisão t_2472761a).
+  IF _l.id IS NULL OR NOT coalesce(public.leads_gestor()
+       OR _l.responsavel_id IN (SELECT public.leads_responsaveis_visiveis()), false) THEN
     RAISE EXCEPTION 'Lead nao encontrado' USING ERRCODE = 'P0002';
   END IF;
   RETURN _l;
@@ -256,7 +263,7 @@ BEGIN
   END IF;
   IF _capture_id IS NOT NULL THEN
     SELECT c.captor_id INTO _captador FROM public.exclusive_captures c
-     WHERE c.id = _capture_id AND c.organization_id = _org AND c.discarded_at IS NULL;
+     WHERE c.id = _capture_id AND c.organization_id = _org AND c.discarded_at IS NULL AND c.archived_at IS NULL;
     IF NOT FOUND THEN RAISE EXCEPTION 'Captacao nao encontrada' USING ERRCODE = 'P0002'; END IF;
   END IF;
   IF _responsavel_id IS NOT NULL AND NOT public.lead_pode_ser_responsavel(_responsavel_id, _org) THEN
@@ -270,6 +277,11 @@ BEGIN
   RETURNING id INTO _id;
   INSERT INTO public.lead_eventos (organization_id, lead_id, tipo, para, autor_id)
   VALUES (_org, _id, 'criado', _origem, _me);
+  IF _capture_id IS NOT NULL THEN
+    -- Registra o imóvel e o captador (D4) na linha do tempo.
+    INSERT INTO public.lead_eventos (organization_id, lead_id, tipo, para, autor_id)
+    VALUES (_org, _id, 'vinculo', _captador::text, _me);
+  END IF;
   IF _responsavel_id IS NOT NULL THEN
     INSERT INTO public.lead_eventos (organization_id, lead_id, tipo, para, autor_id)
     VALUES (_org, _id, 'atribuido', _responsavel_id::text, _me);
@@ -350,14 +362,30 @@ CREATE OR REPLACE FUNCTION public.lead_opcoes()
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _org uuid := public.lead_ctx();
 BEGIN
+  -- Corretor recebe só os nomes de quem já aparece nos leads que ele vê (para a linha do tempo);
+  -- gestor/admin/TL recebem a lista de quem pode ser responsável. Nunca telefone/e-mail.
   RETURN jsonb_build_object(
     'responsaveis', coalesce((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'nome', p.nome) ORDER BY p.nome)
-       FROM public.profiles p WHERE p.organization_id = _org AND public.lead_pode_ser_responsavel(p.id, _org)), '[]'::jsonb),
+       FROM public.profiles p
+       WHERE p.organization_id = _org AND p.ativo IS TRUE
+         AND EXISTS (SELECT 1 FROM public.organization_members m
+                      WHERE m.user_id = p.id AND m.organization_id = _org AND m.ativo)
+         AND EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = p.id AND r.organization_id = _org
+                      AND r.role::text IN ('corretor', 'team_leader', 'gestor', 'admin', 'super_admin'))
+         AND (public.leads_gestor() OR public.has_role(auth.uid(), 'team_leader'::public.app_role)
+              OR p.id = auth.uid()
+              OR p.id IN (SELECT e.autor_id FROM public.lead_eventos e
+                           JOIN public.leads l ON l.id = e.lead_id
+                          WHERE l.organization_id = _org
+                            AND l.responsavel_id IN (SELECT public.leads_responsaveis_visiveis())))), '[]'::jsonb),
     'capturas', CASE WHEN public.leads_gestor() THEN coalesce((SELECT jsonb_agg(jsonb_build_object(
          'id', c.id, 'captador_id', c.captor_id, 'captador', coalesce(nullif(c.broker_name, ''), p.nome),
          'tipo', c.form_data->'imovel'->>'tipo_imovel', 'bairro', c.form_data->'imovel'->>'bairro') ORDER BY c.created_at DESC)
        FROM public.exclusive_captures c LEFT JOIN public.profiles p ON p.id = c.captor_id
-       WHERE c.organization_id = _org AND c.discarded_at IS NULL AND c.archived_at IS NULL), '[]'::jsonb)
+       WHERE c.organization_id = _org AND c.discarded_at IS NULL AND c.archived_at IS NULL
+         AND c.id IN (SELECT c2.id FROM public.exclusive_captures c2 WHERE c2.organization_id = _org
+                        AND c2.discarded_at IS NULL AND c2.archived_at IS NULL
+                      ORDER BY c2.created_at DESC LIMIT 500)), '[]'::jsonb)
       ELSE '[]'::jsonb END);
 END $$;
 
