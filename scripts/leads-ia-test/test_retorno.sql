@@ -203,6 +203,7 @@ SELECT t.ok((SELECT ultima_interacao_em > now() - interval '1 minute' FROM publi
 
 -- Isolamento: token da A não acha lead da B com o mesmo telefone; B no canal real só vê B.
 SELECT public.lead_ia_canal_definir(:orgB, 'ziontalk'), public.lead_ia_allowlist_definir(:orgB, ARRAY['15981110007']);
+SELECT public.lead_ia_canal_numero_definir(:orgB, '15981112222');
 SELECT public.lead_inserir(:orgB, 'Lead da B', '15981110007', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'b1') AS lb \gset
 SELECT public.lead_ia_allowlist_definir(:orgA, ARRAY['15981110007']);
 SELECT t.ok(public.lead_ia_retorno_receber(:'toka', t.m('iso1', '15981110007', 'oi'))->>'r' = 'desconhecido',

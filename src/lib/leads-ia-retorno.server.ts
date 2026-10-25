@@ -70,7 +70,9 @@ export function normalizarZionTalk(p: unknown, corpoBruto: string): MensagemZion
   const arquivo = primeiro(p, ["mensagem.arquivo_url", "mensagem.url", "message.mediaUrl", "message.media_url", "mediaUrl", "media_url"]);
   const evento = primeiro(p, ["evento", "event", "event_type"]).toLowerCase();
   const ehMidia = !!arquivo || /(audio|ptt|voice|imag|video|document|arquivo|sticker|figurinha|file)/.test(tipoBruto);
-  const id = primeiro(p, ["mensagem.id", "mensagem.message_id", "message.id", "data.message.id", "data.message_id", "key.id", "data.key.id", "message_id", "messageId", "id"]);
+  // Só campos que são, sem dúvida, id da MENSAGEM. O "id" solto na raiz fica de fora até confirmar o formato
+  // real da ZionTalk: se fosse o id do contato, toda mensagem depois da 1ª viraria "duplicado".
+  const id = primeiro(p, ["mensagem.id", "mensagem.message_id", "message.id", "data.message.id", "data.message_id", "key.id", "data.key.id", "message_id", "messageId"]);
   return {
     // Sem id do provedor: id determinístico pelo corpo (reenvio idêntico = mesmo id). Nunca só horário.
     id: id || `h:${corpoBruto.length}:${hashSimples(corpoBruto)}`,
@@ -165,22 +167,51 @@ function falhou(ip: string | null, agora = Date.now()) {
   else f.n++;
 }
 
+/** Lê o corpo cortando no limite (não confia no content-length nem carrega tudo na memória). */
 async function lerCorpo(request: Request): Promise<string | null> {
   if (Number(request.headers.get("content-length") ?? "0") > RETORNO_MAX_BYTES) return null;
-  const buf = await request.arrayBuffer();
-  return buf.byteLength > RETORNO_MAX_BYTES ? null : new TextDecoder().decode(buf);
+  if (!request.body) return "";
+  const leitor = request.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > RETORNO_MAX_BYTES) {
+      await leitor.cancel().catch(() => undefined);
+      return null;
+    }
+    partes.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let pos = 0;
+  for (const p of partes) {
+    buf.set(p, pos);
+    pos += p.byteLength;
+  }
+  return new TextDecoder().decode(buf);
 }
+
+const CHAVE_PROIBIDA = new Set(["__proto__", "constructor", "prototype"]);
 
 function parse(texto: string, ct: string): unknown {
   if (ct.includes("application/x-www-form-urlencoded")) {
-    const o: Obj = {};
+    // Objetos sem protótipo e chaves perigosas recusadas: o payload nunca altera Object.prototype.
+    const o: Obj = Object.create(null) as Obj;
     for (const [k, v] of new URLSearchParams(texto)) {
       // "contato[telefone]" ou "contato.telefone" -> {contato:{telefone}}
-      const partes = k.replace(/\]/g, "").split(/[[.]/);
+      const partes = k.replace(/\]/g, "").split(/[[.]/).slice(0, 4);
+      if (partes.some((p) => !p || CHAVE_PROIBIDA.has(p))) continue;
       let alvo = o;
       partes.forEach((p, i) => {
-        if (i === partes.length - 1) alvo[p] = v;
-        else alvo = (alvo[p] = (alvo[p] && typeof alvo[p] === "object" ? alvo[p] : {}) as Obj) as Obj;
+        if (i === partes.length - 1) {
+          alvo[p] = v;
+          return;
+        }
+        const prox = Object.prototype.hasOwnProperty.call(alvo, p) ? alvo[p] : undefined;
+        if (!prox || typeof prox !== "object") alvo[p] = Object.create(null) as Obj;
+        alvo = alvo[p] as Obj;
       });
     }
     return o;

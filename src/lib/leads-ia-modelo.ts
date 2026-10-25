@@ -155,7 +155,8 @@ export async function chamarOpenRouter(
         temperature: 0,
         response_format: { type: "json_object" },
         // LGPD: só provedores que não guardam/treinam com os dados e com retenção zero.
-        provider: { data_collection: "deny", zdr: true, allow_fallbacks: true },
+        // Teto de preço (US$ por milhão de tokens): modelo caro demais não é usado (cai para o Gemini).
+        provider: { data_collection: "deny", zdr: true, allow_fallbacks: true, max_price: { prompt: 3, completion: 15 } },
         reasoning: { exclude: true },
         usage: { include: true },
       }),

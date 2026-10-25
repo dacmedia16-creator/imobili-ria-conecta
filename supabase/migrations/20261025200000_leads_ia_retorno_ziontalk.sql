@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.lead_ia_retorno_eventos (
   id bigserial PRIMARY KEY,
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   externo_hash text NOT NULL CHECK (externo_hash ~ '^[0-9a-f]{64}$'),
-  resultado text NOT NULL CHECK (resultado IN ('recebido', 'ok', 'fora_lista', 'desconhecido', 'limite_minuto')),
+  resultado text NOT NULL CHECK (resultado IN ('recebido', 'ok', 'responder', 'fora_lista', 'desconhecido', 'limite_minuto')),
   conversa_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lead_ia_retorno_eventos_uniq UNIQUE (organization_id, externo_hash)
@@ -98,12 +98,14 @@ BEGIN
   -- Token primeiro: nada é gravado antes disso.
   IF _token IS NULL OR _token !~ '^[A-Za-z0-9_-]{40,64}$' THEN RETURN jsonb_build_object('r', 'token'); END IF;
   SELECT * INTO _c FROM public.lead_config
-   WHERE ia_retorno_token_hash = encode(extensions.digest(_token, 'sha256'), 'hex');
+   WHERE ia_retorno_token_hash = encode(extensions.digest(_token, 'sha256'), 'hex')
+     FOR UPDATE; -- serializa a imobiliária: o limite por minuto vale também em rajada
   IF _c.organization_id IS NULL THEN RETURN jsonb_build_object('r', 'token'); END IF;
   SELECT (m.enabled AND o.status = 'ativa') INTO _ok FROM public.organization_modules m
     JOIN public.organizations o ON o.id = m.organization_id
    WHERE m.organization_id = _c.organization_id AND m.module = 'leads';
-  IF NOT coalesce(_ok, false) OR NOT _c.ia_ativa OR _c.ia_canal <> 'ziontalk' THEN
+  -- Sem o número do próprio canal cadastrado não dá para ignorar o eco do próprio número: fica desligado.
+  IF NOT coalesce(_ok, false) OR NOT _c.ia_ativa OR _c.ia_canal <> 'ziontalk' OR _c.ia_canal_numero IS NULL THEN
     RETURN jsonb_build_object('r', 'desligada');
   END IF;
   IF _msg IS NULL OR jsonb_typeof(_msg) <> 'object' THEN RETURN jsonb_build_object('r', 'invalido'); END IF;
@@ -153,6 +155,11 @@ BEGIN
   UPDATE public.lead_ia_retorno_eventos SET resultado = 'ok', conversa_id = _cv.id WHERE id = _ev;
 
   IF _ctx->>'estado' IS DISTINCT FROM 'ativa' THEN
+    -- SAIR: perguntas da IA ainda não enviadas são canceladas; só a confirmação de saída pode sair.
+    IF _ctx->>'estado' = 'optout' THEN
+      UPDATE public.lead_mensagens SET status = 'nao_enviada'
+       WHERE conversa_id = _cv.id AND autor = 'ia' AND status = 'pendente';
+    END IF;
     RETURN jsonb_build_object('r', 'ok', 'responder', false, 'lead_id', _cv.lead_id);
   END IF;
   -- Limite total de respostas da IA nesta conversa: passa ao corretor.
@@ -165,11 +172,13 @@ BEGIN
   -- a próxima mensagem do cliente recebe resposta normalmente.
   IF (SELECT count(*) FROM public.lead_mensagens WHERE conversa_id = _cv.id AND autor IN ('ia', 'sistema')
         AND created_at > now() - interval '1 minute') >= 2
-     OR (SELECT count(*) FROM public.lead_mensagens WHERE organization_id = _c.organization_id
-        AND autor IN ('ia', 'sistema') AND created_at > now() - interval '1 minute') >= _c.ia_resp_max_minuto THEN
+     -- Na imobiliária conta as respostas já LIBERADAS (eventos 'responder'): a resposta é gravada segundos depois.
+     OR (SELECT count(*) FROM public.lead_ia_retorno_eventos WHERE organization_id = _c.organization_id
+        AND resultado = 'responder' AND created_at > now() - interval '1 minute') >= _c.ia_resp_max_minuto THEN
     UPDATE public.lead_ia_retorno_eventos SET resultado = 'limite_minuto' WHERE id = _ev;
     RETURN jsonb_build_object('r', 'ok', 'responder', false, 'lead_id', _cv.lead_id, 'limite', true);
   END IF;
+  UPDATE public.lead_ia_retorno_eventos SET resultado = 'responder' WHERE id = _ev;
   RETURN jsonb_build_object('r', 'ok', 'responder', true, 'lead_id', _cv.lead_id, 'tipo', _tipo,
     'organization_id', _c.organization_id, 'ia_modelo_provedor', _c.ia_modelo_provedor, 'ia_modelo', _c.ia_modelo,
     'ctx', _ctx);
