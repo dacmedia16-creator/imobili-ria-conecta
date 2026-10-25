@@ -138,6 +138,11 @@ export function urlGrupoOlx(origem: string, token: string): string {
   return `${origem.replace(/\/+$/, "")}/api/leads/grupo-olx/${token}`;
 }
 
+/** URL que o administrador cola no painel da ZionTalk (webhook de mensagens recebidas do canal da IA). */
+export function urlRetornoZionTalk(origem: string, token: string): string {
+  return `${origem.replace(/\/+$/, "")}/api/leads/ziontalk/${token}`;
+}
+
 export type LeadContato = { id: string; telefone: string | null; email: string | null };
 export type LeadSemContato = Omit<Lead, "telefone" | "email" | "contato_liberado">;
 

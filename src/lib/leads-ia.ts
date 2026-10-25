@@ -30,6 +30,8 @@ export type DadosQualificacao = {
   proximo_passo?: "visita" | "contato";
   /** Quantas vezes a mesma pergunta já foi repetida (máx. 1 repetição). */
   repeticoes?: Partial<Record<Passo, number>>;
+  /** Áudios/arquivos recebidos pelo WhatsApp (2º = passa ao corretor). */
+  midias?: number;
 };
 
 export type ContextoIa = {
@@ -266,6 +268,31 @@ export async function proximaResposta(
     return fim(ctx, dados, "qualificado", `Perfeito, obrigado! ${pref}`, resumoQualificacao(dados));
   }
   return { passo: prox, dados, resposta: PERGUNTA[prox as keyof typeof PERGUNTA], fim: null, resumo: null };
+}
+
+/**
+ * Áudio, foto ou arquivo pelo WhatsApp (card t_6f688b4b): a IA não ouve nem lê anexos. Na 1ª vez pede
+ * para escrever; na 2ª, passa ao corretor (que pode ouvir o áudio no WhatsApp).
+ */
+export function respostaMidia(ctx: ContextoIa): RespostaIa {
+  const dados: DadosQualificacao = { ...ctx.dados, midias: (ctx.dados.midias ?? 0) + 1 };
+  if ((ctx.dados.midias ?? 0) >= 1)
+    return fim(
+      ctx,
+      dados,
+      "pediu_pessoa",
+      "Vou pedir para o corretor responsável falar com você por aqui, combinado?",
+      `Cliente mandou áudio ou arquivo pelo WhatsApp (a IA não lê anexos). Dados até aqui: ${resumoQualificacao(ctx.dados)}`,
+    );
+  const passo = ctx.passo === "fim" ? "proximo_passo" : ctx.passo;
+  const q = passo === "interesse" ? "Você ainda tem interesse no imóvel?" : PERGUNTA[passo as keyof typeof PERGUNTA];
+  return {
+    passo,
+    dados,
+    resposta: `Desculpe, por aqui eu só consigo ler mensagens escritas. Pode me responder em texto? ${q}`,
+    fim: null,
+    resumo: null,
+  };
 }
 
 /** Só aceita do extrator (modelo) o campo do passo, em formato seguro. */
