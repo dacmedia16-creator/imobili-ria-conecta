@@ -19,6 +19,7 @@ import {
   ORIGEM_LABEL,
   prazoDoLead,
   proximasEtapas,
+  resumoPortal,
   textoEvento,
   textoPrazo,
   type CapturaOpcao,
@@ -175,6 +176,12 @@ export function LeadDetalhe({
               <>
                 <dt className="text-muted-foreground">Contato</dt>
                 <dd className="text-muted-foreground">Aparece depois que o lead for aceito.</dd>
+              </>
+            )}
+            {resumoPortal(lead) && (
+              <>
+                <dt className="text-muted-foreground">Portal</dt>
+                <dd>{resumoPortal(lead)}</dd>
               </>
             )}
             <dt className="text-muted-foreground">Responsável</dt>

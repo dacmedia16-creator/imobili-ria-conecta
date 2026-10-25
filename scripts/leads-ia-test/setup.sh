@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 docker exec pgt-3284-db psql -U postgres -qc "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"
 grep -v '^\\restrict\|^\\unrestrict' base.sql | $P -d $DB >/dev/null
 $P -d $DB -c "TRUNCATE public.notifications"
-for m in 20261025120000_leads_piloto 20261025150000_leads_p2p3_distribuicao 20261025160000_leads_contato_apos_aceite 20261025180000_leads_ia_atendimento; do
+for m in 20261025120000_leads_piloto 20261025150000_leads_p2p3_distribuicao 20261025160000_leads_contato_apos_aceite 20261025170000_leads_grupo_olx 20261025180000_leads_ia_atendimento; do
   $P -d $DB < $W/supabase/migrations/$m.sql
   echo "migration $m ok"
 done

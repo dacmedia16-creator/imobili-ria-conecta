@@ -41,7 +41,9 @@ export const ORIGENS = [
   "site",
   "outro",
 ] as const;
-export type Origem = (typeof ORIGENS)[number];
+/** Todas as origens do banco. "grupo_olx" só entra pelo Canal Pro (webhook), nunca pelo cadastro manual. */
+export const ORIGENS_TODAS = [...ORIGENS, "grupo_olx"] as const;
+export type Origem = (typeof ORIGENS_TODAS)[number];
 export const ORIGEM_LABEL: Record<Origem, string> = {
   manual: "Manual",
   formulario: "Formulário",
@@ -51,6 +53,7 @@ export const ORIGEM_LABEL: Record<Origem, string> = {
   meta: "Meta",
   site: "Site",
   outro: "Outro",
+  grupo_olx: "Grupo ZAP (ZAP/Viva Real/OLX)",
 };
 
 export type Lead = {
@@ -77,7 +80,63 @@ export type Lead = {
   simulado: boolean;
   // Contato (migration 20261025160000): false = o banco não liberou telefone/e-mail (aguardando aceite).
   contato_liberado: boolean;
+  // Grupo ZAP (migration 20261025170000). Só preenchidos em leads de origem "grupo_olx".
+  anuncio_codigo?: string | null;
+  anuncio_portal_id?: string | null;
+  portal_tipo?: string | null;
+  portal_temperatura?: "baixa" | "media" | "alta" | null;
+  portal_transacao?: "venda" | "aluguel" | null;
 };
+
+/** extraData.leadType do Grupo OLX (doc oficial) em português. */
+export const PORTAL_TIPO_LABEL: Record<string, string> = {
+  CONTACT_FORM: "Formulário",
+  CONTACT_CHAT: "Chat",
+  CLICK_WHATSAPP: "WhatsApp",
+  PHONE_VIEW: "Viu o telefone",
+  VISIT_REQUEST: "Pediu visita",
+  CLICK_SCHEDULE: "Agendamento",
+  MCMV: "Simulação Minha Casa Minha Vida",
+};
+export const TEMPERATURA_LABEL = { baixa: "Baixa", media: "Média", alta: "Alta" } as const;
+export const TRANSACAO_LABEL = { venda: "Venda", aluguel: "Aluguel" } as const;
+
+/** Resumo do anúncio do Grupo ZAP para o detalhe do lead ("" quando não é desse portal). */
+export function resumoPortal(
+  l: Pick<
+    Lead,
+    | "origem"
+    | "anuncio_codigo"
+    | "anuncio_portal_id"
+    | "portal_tipo"
+    | "portal_temperatura"
+    | "portal_transacao"
+  >,
+): string {
+  if (l.origem !== "grupo_olx") return "";
+  const tipo = l.portal_tipo ? (PORTAL_TIPO_LABEL[l.portal_tipo] ?? l.portal_tipo) : "";
+  return [
+    l.anuncio_codigo
+      ? `Anúncio ${l.anuncio_codigo}`
+      : l.anuncio_portal_id
+        ? `Anúncio no portal ${l.anuncio_portal_id}`
+        : "",
+    tipo,
+    l.portal_transacao ? TRANSACAO_LABEL[l.portal_transacao] : "",
+    l.portal_temperatura
+      ? `temperatura ${TEMPERATURA_LABEL[l.portal_temperatura].toLowerCase()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Token do Grupo ZAP: 32 bytes em base64url (43 caracteres). O banco guarda só o hash. */
+export const GRUPO_OLX_TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
+/** URL que o administrador cola no Canal Pro ("Receber leads no CRM"). */
+export function urlGrupoOlx(origem: string, token: string): string {
+  return `${origem.replace(/\/+$/, "")}/api/leads/grupo-olx/${token}`;
+}
 
 export type LeadContato = { id: string; telefone: string | null; email: string | null };
 export type LeadSemContato = Omit<Lead, "telefone" | "email" | "contato_liberado">;
@@ -266,6 +325,8 @@ export type LeadConfig = {
   distribuicao: "captador_depois_rodizio" | "rodizio" | "manual";
   form_publico_ativo: boolean;
   form_token: string | null;
+  /** Quando o link do Grupo ZAP foi gerado (null = desligado). O token em si não é legível. */
+  grupo_olx_token_em: string | null;
 };
 
 export const CONFIG_PADRAO: LeadConfig = {
@@ -275,6 +336,7 @@ export const CONFIG_PADRAO: LeadConfig = {
   distribuicao: "captador_depois_rodizio",
   form_publico_ativo: false,
   form_token: null,
+  grupo_olx_token_em: null,
 };
 
 export const DISTRIBUICAO_LABEL: Record<LeadConfig["distribuicao"], string> = {
