@@ -37,9 +37,9 @@ const ctx: ContextoIa = {
 
 const payload = (p: Record<string, unknown> = {}) => ({
   evento: "mensagem_recebida",
-  id: "wamid.ABC123",
+
   contato: { nome: "Denis", telefone: TEL },
-  mensagem: { tipo: "texto", texto: "Sim, tenho interesse" },
+  mensagem: { id: "wamid.ABC123", tipo: "texto", texto: "Sim, tenho interesse" },
   ...p,
 });
 
@@ -166,8 +166,9 @@ describe("retorno: autenticação e recusas", () => {
   });
   it("aceita formulário (contato[telefone]=...)", async () => {
     const { d, receber } = deps({ r: "ignorado" });
-    const body = new URLSearchParams({ "contato[telefone]": TEL, "mensagem[texto]": "oi", id: "f1" }).toString();
+    const body = new URLSearchParams({ "contato[telefone]": TEL, "mensagem[texto]": "oi", "mensagem[id]": "f1", "__proto__[fromMe]": "1" }).toString();
     await post(d, body, TOKEN, "application/x-www-form-urlencoded");
+    expect(({} as Record<string, unknown>).fromMe).toBeUndefined();
     expect(arg(receber, 1)).toMatchObject({ telefone: TEL, texto: "oi", id: "f1" });
   });
 });
