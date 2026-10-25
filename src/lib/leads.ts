@@ -75,7 +75,21 @@ export type Lead = {
   ultima_interacao_em: string | null;
   no_banco_desde: string | null;
   simulado: boolean;
+  // Contato (migration 20261025160000): false = o banco não liberou telefone/e-mail (aguardando aceite).
+  contato_liberado: boolean;
 };
+
+export type LeadContato = { id: string; telefone: string | null; email: string | null };
+export type LeadSemContato = Omit<Lead, "telefone" | "email" | "contato_liberado">;
+
+/** Junta o contato liberado pelo banco (lead_contatos) aos leads; sem linha = contato oculto. */
+export function juntarContatos(leads: LeadSemContato[], contatos: LeadContato[]): Lead[] {
+  const m = new Map(contatos.map((c) => [c.id, c]));
+  return leads.map((l) => {
+    const c = m.get(l.id);
+    return { ...l, telefone: c?.telefone ?? null, email: c?.email ?? null, contato_liberado: !!c };
+  });
+}
 
 export type LeadEvento = {
   id: string;

@@ -10,6 +10,9 @@ import {
   type Lead,
   type LeadBanco,
   type LeadConfig,
+  type LeadContato,
+  type LeadSemContato,
+  juntarContatos,
   type LeadEvento,
   type OrigemSimulador,
   type MotivoPerda,
@@ -21,7 +24,7 @@ import {
 const db = supabase as unknown as SupabaseClient;
 
 const LEAD_COLS =
-  "id,nome,telefone,email,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado";
+  "id,nome,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado";
 
 function falha(error: { message?: string } | null): never {
   throw new Error(mensagemErroLead(error?.message ?? ""));
@@ -46,7 +49,19 @@ export async function listarLeads(opts: { responsavel?: string } = {}): Promise<
   if (opts.responsavel) q = q.eq("responsavel_id", opts.responsavel);
   const { data, error } = await q;
   if (error) falha(error);
-  return (data ?? []) as Lead[];
+  const leads = (data ?? []) as LeadSemContato[];
+  return juntarContatos(leads, await lerContatos(leads.map((l) => l.id)));
+}
+
+/**
+ * Telefone/e-mail vêm só pela RPC lead_contatos: o banco entrega para gestor/admin sempre e para o
+ * responsável (ou o Team Leader dele) só depois do aceite. A tabela leads não entrega essas colunas ao app.
+ */
+async function lerContatos(ids: string[]): Promise<LeadContato[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await db.rpc("lead_contatos", { _ids: ids });
+  if (error) falha(error);
+  return (data ?? []) as LeadContato[];
 }
 
 export async function listarEventos(leadId: string): Promise<LeadEvento[]> {

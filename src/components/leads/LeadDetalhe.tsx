@@ -163,10 +163,19 @@ export function LeadDetalhe({
           )}
 
           <dl className="grid grid-cols-[110px_1fr] gap-x-2 gap-y-1">
-            <dt className="text-muted-foreground">Telefone</dt>
-            <dd className="break-all">{lead.telefone ?? "—"}</dd>
-            <dt className="text-muted-foreground">E-mail</dt>
-            <dd className="break-all">{lead.email ?? "—"}</dd>
+            {lead.contato_liberado ? (
+              <>
+                <dt className="text-muted-foreground">Telefone</dt>
+                <dd className="break-all">{lead.telefone ?? "—"}</dd>
+                <dt className="text-muted-foreground">E-mail</dt>
+                <dd className="break-all">{lead.email ?? "—"}</dd>
+              </>
+            ) : (
+              <>
+                <dt className="text-muted-foreground">Contato</dt>
+                <dd className="text-muted-foreground">Aparece depois que o lead for aceito.</dd>
+              </>
+            )}
             <dt className="text-muted-foreground">Responsável</dt>
             <dd>{lead.responsavel_id ? nomeDe(lead.responsavel_id) : "Sem responsável"}</dd>
             <dt className="text-muted-foreground">Imóvel</dt>

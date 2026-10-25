@@ -51,6 +51,7 @@ const lead = (p: Partial<Lead>): Lead => ({
   ultima_interacao_em: null,
   no_banco_desde: null,
   simulado: false,
+  contato_liberado: true,
   ...p,
 });
 
