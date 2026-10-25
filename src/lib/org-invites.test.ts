@@ -108,17 +108,19 @@ describe("token e status do convite", () => {
 });
 
 describe("módulos da imobiliária criada pelo convite", () => {
-  it("todos ligados, exceto Oportunidades", () => {
+  it("todos ligados, exceto Oportunidades e Leads (piloto)", () => {
     const m = inviteModules();
     expect(m.oportunidades).toBe(false);
-    for (const k of ORGANIZATION_MODULES.filter((x) => x !== "oportunidades"))
+    expect(m.leads).toBe(false);
+    for (const k of ORGANIZATION_MODULES.filter((x) => x !== "oportunidades" && x !== "leads"))
       expect(m[k]).toBe(true);
   });
 
   it("a migration liga exatamente a mesma lista de módulos do sistema", () => {
     const lista = MIGRATION.match(/FOREACH _m IN ARRAY ARRAY\[([^\]]+)\]/)?.[1] ?? "";
     const mods = [...lista.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
-    expect(mods).toEqual([...ORGANIZATION_MODULES].sort());
+    // "leads" (t_2472761a) é posterior ao convite: sem linha no organization_modules = desligado.
+    expect(mods).toEqual([...ORGANIZATION_MODULES].filter((x) => x !== "leads").sort());
     expect(MIGRATION).toMatch(/_m <> 'oportunidades'/);
   });
 });
@@ -126,11 +128,15 @@ describe("módulos da imobiliária criada pelo convite", () => {
 describe("migration: segurança", () => {
   it("RLS ligada, leitura só para super-admin e funções só para o servidor", () => {
     expect(MIGRATION).toMatch(/ENABLE ROW LEVEL SECURITY/);
-    expect(MIGRATION).toMatch(/REVOKE ALL ON public\.organization_invites FROM PUBLIC, anon, authenticated/);
+    expect(MIGRATION).toMatch(
+      /REVOKE ALL ON public\.organization_invites FROM PUBLIC, anon, authenticated/,
+    );
     expect(MIGRATION).toMatch(/USING \(\(SELECT public\.is_platform_super_admin\(\)\)\)/);
     expect(MIGRATION).toMatch(/REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated/);
     expect(MIGRATION).toMatch(/GRANT EXECUTE ON FUNCTION %s TO service_role/);
-    const fns = [...MIGRATION.matchAll(/CREATE OR REPLACE FUNCTION (public\.\w+)/g)].map((x) => x[1]);
+    const fns = [...MIGRATION.matchAll(/CREATE OR REPLACE FUNCTION (public\.\w+)/g)].map(
+      (x) => x[1],
+    );
     for (const f of fns) expect(MIGRATION).toContain(`'${f}(`);
   });
 
@@ -209,9 +215,9 @@ describe("ponte Conta MAX: conferência do e-mail Google", () => {
 
   it("token malformado nem chega ao banco", async () => {
     const admin = fakeAdmin({ email: "a@b.com", tokenHash: "x" });
-    expect(await reservarConvite(admin, { inviteToken: "abc", email: "a@b.com", sub: "u" })).toEqual(
-      { ok: false, status: 400, error: "convite_invalido" },
-    );
+    expect(
+      await reservarConvite(admin, { inviteToken: "abc", email: "a@b.com", sub: "u" }),
+    ).toEqual({ ok: false, status: 400, error: "convite_invalido" });
     expect(admin.calls).toHaveLength(0);
   });
 
@@ -225,7 +231,13 @@ describe("ponte Conta MAX: conferência do e-mail Google", () => {
       }),
     });
     expect(r).toEqual({ ok: false, code: "convite_outro_email" });
-    expect(await runContaMaxInvite({ ticket: null, inviteToken: "x", invoke: async () => ({ data: null, error: null }) })).toEqual({ ok: false, code: "invalid_ticket" });
+    expect(
+      await runContaMaxInvite({
+        ticket: null,
+        inviteToken: "x",
+        invoke: async () => ({ data: null, error: null }),
+      }),
+    ).toEqual({ ok: false, code: "invalid_ticket" });
   });
 });
 
@@ -297,7 +309,9 @@ describe("login atual intacto", () => {
   });
   it("a ponte só desvia para o convite quando o pedido traz invite_token", () => {
     const idx = readFileSync("supabase/functions/conta-max-bridge/index.ts", "utf8");
-    expect(idx).toMatch(/if \(invite_token !== undefined && invite_token !== null && invite_token !== ""\)/);
+    expect(idx).toMatch(
+      /if \(invite_token !== undefined && invite_token !== null && invite_token !== ""\)/,
+    );
     expect(idx).toMatch(/resolveBridgeLink\(admin, String\(payload\.sub\), payload\.email\)/);
   });
 });

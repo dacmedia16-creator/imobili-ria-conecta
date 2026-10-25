@@ -31,6 +31,7 @@ import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { opportunitiesEnabled } from "@/lib/oportunidades-module";
+import { leadsEnabled } from "@/lib/leads-db";
 import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
@@ -306,6 +307,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
   const [achievementsVisible, setAchievementsVisible] = useState(false);
+  const [leadsVisible, setLeadsVisible] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -327,6 +329,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     achievementsEnabled().then((enabled) => {
       if (alive) setAchievementsVisible(enabled);
+    });
+    leadsEnabled().then((enabled) => {
+      if (alive) setLeadsVisible(enabled);
     });
     if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -417,6 +422,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     feedbackVisible,
     opportunitiesVisible,
     achievementsVisible,
+    leadsVisible,
     carreiraVisible: exclusiveVisible,
     inPlatformContext: Boolean(platformContext),
   });

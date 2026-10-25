@@ -31,7 +31,10 @@ import {
   Trophy,
   Sprout,
   BookOpen,
+  Contact,
+  KanbanSquare,
 } from "lucide-react";
+import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
@@ -55,6 +58,8 @@ export type MenuContexto = {
   opportunitiesVisible?: boolean;
   /** Módulo Mural de Conquistas ligado na imobiliária (opcional: ausente = desligado). */
   achievementsVisible?: boolean;
+  /** Módulo Leads (piloto t_2472761a) ligado na imobiliária (opcional: ausente = desligado). */
+  leadsVisible?: boolean;
   /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
   carreiraVisible?: boolean;
   /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
@@ -67,6 +72,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const opportunitiesVisible = ctx.opportunitiesVisible === true;
   const achievementsVisible = ctx.achievementsVisible === true;
   const carreiraVisible = ctx.carreiraVisible === true;
+  const leadsVisible = ctx.leadsVisible === true;
   const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
@@ -127,6 +133,19 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: Trophy,
           // Toda a equipe da imobiliária vê; o banco (policy do módulo + RPCs) é a proteção real.
           show: achievementsVisible,
+        },
+        {
+          to: "/meus-leads",
+          label: "Meus leads",
+          icon: Contact,
+          // Piloto de leads: só com o módulo ligado; o banco (RLS + RPCs) é a proteção real.
+          show: leadsVisible && podeAtenderLeads(roles),
+        },
+        {
+          to: "/painel-leads",
+          label: "Painel de leads",
+          icon: KanbanSquare,
+          show: leadsVisible && podeVerPainelLeads(roles),
         },
       ],
     },

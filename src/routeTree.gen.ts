@@ -25,6 +25,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
+import { Route as AuthenticatedMeusLeadsRouteImport } from './routes/_authenticated/meus-leads'
 import { Route as AuthenticatedMinhaCarreiraRouteImport } from './routes/_authenticated/minha-carreira'
 import { Route as AuthenticatedMuralConquistasRouteImport } from './routes/_authenticated/mural-conquistas'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
@@ -32,6 +33,7 @@ import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes
 import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_authenticated/ocorrencias-imprimir'
 import { Route as AuthenticatedOportunidadesRouteImport } from './routes/_authenticated/oportunidades'
 import { Route as AuthenticatedPainelEquipeRouteImport } from './routes/_authenticated/painel-equipe'
+import { Route as AuthenticatedPainelLeadsRouteImport } from './routes/_authenticated/painel-leads'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -141,6 +143,11 @@ const AuthenticatedMapaCaptacoesRoute =
     path: '/mapa-captacoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMeusLeadsRoute = AuthenticatedMeusLeadsRouteImport.update({
+  id: '/meus-leads',
+  path: '/meus-leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMinhaCarreiraRoute =
   AuthenticatedMinhaCarreiraRouteImport.update({
     id: '/minha-carreira',
@@ -181,6 +188,12 @@ const AuthenticatedPainelEquipeRoute =
   AuthenticatedPainelEquipeRouteImport.update({
     id: '/painel-equipe',
     path: '/painel-equipe',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPainelLeadsRoute =
+  AuthenticatedPainelLeadsRouteImport.update({
+    id: '/painel-leads',
+    path: '/painel-leads',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
@@ -343,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
   '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -350,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
+  '/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -392,6 +407,7 @@ export interface FileRoutesByTo {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
   '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -399,6 +415,7 @@ export interface FileRoutesByTo {
   '/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
+  '/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -443,6 +460,7 @@ export interface FileRoutesById {
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
+  '/_authenticated/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/_authenticated/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
   '/_authenticated/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
@@ -450,6 +468,7 @@ export interface FileRoutesById {
   '/_authenticated/ocorrencias-imprimir': typeof AuthenticatedOcorrenciasImprimirRoute
   '/_authenticated/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/_authenticated/painel-equipe': typeof AuthenticatedPainelEquipeRoute
+  '/_authenticated/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -494,6 +513,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/financeiro'
     | '/mapa-captacoes'
+    | '/meus-leads'
     | '/minha-carreira'
     | '/mural-conquistas'
     | '/notificacoes'
@@ -501,6 +521,7 @@ export interface FileRouteTypes {
     | '/ocorrencias-imprimir'
     | '/oportunidades'
     | '/painel-equipe'
+    | '/painel-leads'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -543,6 +564,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/financeiro'
     | '/mapa-captacoes'
+    | '/meus-leads'
     | '/minha-carreira'
     | '/mural-conquistas'
     | '/notificacoes'
@@ -550,6 +572,7 @@ export interface FileRouteTypes {
     | '/ocorrencias-imprimir'
     | '/oportunidades'
     | '/painel-equipe'
+    | '/painel-leads'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -593,6 +616,7 @@ export interface FileRouteTypes {
     | '/_authenticated/feedback'
     | '/_authenticated/financeiro'
     | '/_authenticated/mapa-captacoes'
+    | '/_authenticated/meus-leads'
     | '/_authenticated/minha-carreira'
     | '/_authenticated/mural-conquistas'
     | '/_authenticated/notificacoes'
@@ -600,6 +624,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ocorrencias-imprimir'
     | '/_authenticated/oportunidades'
     | '/_authenticated/painel-equipe'
+    | '/_authenticated/painel-leads'
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
@@ -753,6 +778,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMapaCaptacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/meus-leads': {
+      id: '/_authenticated/meus-leads'
+      path: '/meus-leads'
+      fullPath: '/meus-leads'
+      preLoaderRoute: typeof AuthenticatedMeusLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/minha-carreira': {
       id: '/_authenticated/minha-carreira'
       path: '/minha-carreira'
@@ -800,6 +832,13 @@ declare module '@tanstack/react-router' {
       path: '/painel-equipe'
       fullPath: '/painel-equipe'
       preLoaderRoute: typeof AuthenticatedPainelEquipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/painel-leads': {
+      id: '/_authenticated/painel-leads'
+      path: '/painel-leads'
+      fullPath: '/painel-leads'
+      preLoaderRoute: typeof AuthenticatedPainelLeadsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/perfil': {
@@ -990,6 +1029,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
+  AuthenticatedMeusLeadsRoute: typeof AuthenticatedMeusLeadsRoute
   AuthenticatedMinhaCarreiraRoute: typeof AuthenticatedMinhaCarreiraRoute
   AuthenticatedMuralConquistasRoute: typeof AuthenticatedMuralConquistasRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
@@ -997,6 +1037,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOcorrenciasImprimirRoute: typeof AuthenticatedOcorrenciasImprimirRoute
   AuthenticatedOportunidadesRoute: typeof AuthenticatedOportunidadesRoute
   AuthenticatedPainelEquipeRoute: typeof AuthenticatedPainelEquipeRoute
+  AuthenticatedPainelLeadsRoute: typeof AuthenticatedPainelLeadsRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -1032,6 +1073,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
+  AuthenticatedMeusLeadsRoute: AuthenticatedMeusLeadsRoute,
   AuthenticatedMinhaCarreiraRoute: AuthenticatedMinhaCarreiraRoute,
   AuthenticatedMuralConquistasRoute: AuthenticatedMuralConquistasRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
@@ -1040,6 +1082,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOcorrenciasImprimirRoute: AuthenticatedOcorrenciasImprimirRoute,
   AuthenticatedOportunidadesRoute: AuthenticatedOportunidadesRoute,
   AuthenticatedPainelEquipeRoute: AuthenticatedPainelEquipeRoute,
+  AuthenticatedPainelLeadsRoute: AuthenticatedPainelLeadsRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,

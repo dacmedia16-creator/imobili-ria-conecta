@@ -1,0 +1,234 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  Contact,
+  Hourglass,
+  KanbanSquare,
+  Percent,
+  Plus,
+  SearchX,
+  Trophy,
+  Users,
+  UserX,
+} from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
+import { NovoLeadDialog } from "@/components/leads/NovoLeadDialog";
+import {
+  contarPorEtapa,
+  ETAPA_LABEL,
+  ETAPA_TOM,
+  ETAPAS,
+  filtrarLeads,
+  FILTRO_VAZIO,
+  ORIGEM_LABEL,
+  resumoPainel,
+  SEM_RESPONSAVEL,
+  type CapturaOpcao,
+  type Etapa,
+  type FiltroLeads,
+  type Lead,
+  type MotivoPerda,
+  type Pessoa,
+} from "@/lib/leads";
+import { carregarOpcoes, listarLeads, listarMotivos } from "@/lib/leads-db";
+
+const SELECT =
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+const dataCurta = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+/**
+ * "meus": corretor vê os leads em que é o responsável.
+ * "painel": gestor/admin vê a imobiliária; Team Leader vê a própria equipe (a RLS decide).
+ */
+export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
+  const { user, hasAny } = useAuth();
+  const gestor = hasAny(["admin", "super_admin", "gestor"]);
+  const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [pessoas, setPessoas] = useState<Pessoa[]>([]);
+  const [capturas, setCapturas] = useState<CapturaOpcao[]>([]);
+  const [motivos, setMotivos] = useState<MotivoPerda[]>([]);
+  const [filtro, setFiltro] = useState<FiltroLeads>(FILTRO_VAZIO);
+  const [abertoId, setAbertoId] = useState<string | null>(null);
+  const [novo, setNovo] = useState(false);
+
+  const carregar = useCallback(async () => {
+    try {
+      const l = await listarLeads(modo === "meus" && user ? { responsavel: user.id } : {});
+      setLeads(l);
+    } catch (e) {
+      setLeads([]);
+      toast.error(errorMessage(e, "Não foi possível carregar os leads."));
+    }
+  }, [modo, user]);
+
+  useEffect(() => {
+    void carregar();
+    carregarOpcoes()
+      .then((o) => {
+        setPessoas(o.responsaveis);
+        setCapturas(o.capturas);
+      })
+      .catch(() => undefined);
+    listarMotivos()
+      .then(setMotivos)
+      .catch(() => undefined);
+  }, [carregar]);
+
+  const visiveis = useMemo(() => filtrarLeads(leads ?? [], filtro), [leads, filtro]);
+  const porEtapa = useMemo(() => contarPorEtapa(leads ?? []), [leads]);
+  const resumo = useMemo(() => resumoPainel(leads ?? []), [leads]);
+  const nomeDe = (id: string | null) =>
+    id ? (pessoas.find((p) => p.id === id)?.nome ?? "Pessoa") : "Sem responsável";
+  const aberto = leads?.find((l) => l.id === abertoId) ?? null;
+  const painel = modo === "painel";
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        icon={painel ? KanbanSquare : Contact}
+        title={painel ? "Painel de leads" : "Meus leads"}
+        description={
+          painel
+            ? "Todos os leads que você pode acompanhar, por etapa do funil. Piloto: dados de teste."
+            : "Leads em que você é o responsável. Atualize a etapa e registre o atendimento."
+        }
+        actions={
+          gestor ? (
+            <Button onClick={() => setNovo(true)}>
+              <Plus className="mr-1 h-4 w-4" /> Novo lead
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {painel && leads && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <KpiTile icon={Users} label="Total" value={String(resumo.total)} />
+          <KpiTile icon={Hourglass} tom="amber" label="Em aberto" value={String(resumo.abertos)} />
+          <KpiTile
+            icon={UserX}
+            tom="red"
+            label="Sem responsável"
+            value={String(resumo.semResponsavel)}
+          />
+          <KpiTile icon={Trophy} tom="green" label="Ganhos" value={String(resumo.ganhos)} />
+          <KpiTile
+            icon={Percent}
+            tom="violet"
+            label="% ganho (encerrados)"
+            value={resumo.taxaGanho === null ? "—" : `${resumo.taxaGanho}%`}
+          />
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Etapas">
+        <Button
+          size="sm"
+          variant={filtro.etapa === "" ? "default" : "outline"}
+          onClick={() => setFiltro((f) => ({ ...f, etapa: "" }))}
+        >
+          Todas ({leads?.length ?? 0})
+        </Button>
+        {ETAPAS.map((e) => (
+          <Button
+            key={e}
+            size="sm"
+            variant={filtro.etapa === e ? "default" : "outline"}
+            onClick={() => setFiltro((f) => ({ ...f, etapa: e as Etapa }))}
+          >
+            {ETAPA_LABEL[e]} ({porEtapa[e]})
+          </Button>
+        ))}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Input
+          placeholder="Buscar por nome, telefone ou e-mail"
+          value={filtro.busca}
+          onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))}
+        />
+        {painel && (
+          <select
+            className={SELECT}
+            value={filtro.responsavel}
+            onChange={(e) => setFiltro((f) => ({ ...f, responsavel: e.target.value }))}
+            aria-label="Responsável"
+          >
+            <option value="">Todos os responsáveis</option>
+            <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+            {pessoas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {leads === null ? (
+        <ListSkeleton />
+      ) : visiveis.length === 0 ? (
+        <EmptyState icon={SearchX}>
+          {leads.length === 0
+            ? painel
+              ? "Nenhum lead ainda. Use “Novo lead” para cadastrar um lead de teste."
+              : "Você ainda não tem leads."
+            : "Nenhum lead com esses filtros."}
+        </EmptyState>
+      ) : (
+        <div className="grid gap-2">
+          {visiveis.map((l) => (
+            <Card
+              key={l.id}
+              className="cursor-pointer transition hover:border-primary/50"
+              onClick={() => setAbertoId(l.id)}
+            >
+              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
+                <div className="min-w-0">
+                  <div className="break-words font-medium">{l.nome}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {ORIGEM_LABEL[l.origem]} · {dataCurta(l.created_at)}
+                    {painel ? ` · ${nomeDe(l.responsavel_id)}` : ""}
+                    {l.capture_id ? " · com imóvel" : ""}
+                  </div>
+                </div>
+                <Pill tom={ETAPA_TOM[l.etapa]}>{ETAPA_LABEL[l.etapa]}</Pill>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <LeadDetalhe
+        lead={aberto}
+        gestor={gestor}
+        pessoas={pessoas}
+        capturas={capturas}
+        motivos={motivos}
+        onClose={() => setAbertoId(null)}
+        onChanged={() => void carregar()}
+      />
+      {gestor && (
+        <NovoLeadDialog
+          open={novo}
+          onOpenChange={setNovo}
+          pessoas={pessoas}
+          capturas={capturas}
+          onCreated={() => void carregar()}
+        />
+      )}
+    </div>
+  );
+}
