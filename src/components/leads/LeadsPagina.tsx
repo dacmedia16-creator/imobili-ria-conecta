@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Contact,
+  FlaskConical,
   Hourglass,
+  Settings2,
   KanbanSquare,
   Percent,
   Plus,
@@ -18,9 +20,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
+import { LeadsBanco } from "@/components/leads/LeadsBanco";
+import { LeadsConfigDialog } from "@/components/leads/LeadsConfigDialog";
 import { NovoLeadDialog } from "@/components/leads/NovoLeadDialog";
+import { SimuladorLeadsDialog } from "@/components/leads/SimuladorLeadsDialog";
 import {
+  aguardandoMeuAceite,
+  CONFIG_PADRAO,
   contarPorEtapa,
+  duracaoTxt,
+  podeAtenderLeads,
+  prazoDoLead,
+  textoPrazo,
+  type LeadConfig,
   ETAPA_LABEL,
   ETAPA_TOM,
   ETAPAS,
@@ -36,7 +48,7 @@ import {
   type MotivoPerda,
   type Pessoa,
 } from "@/lib/leads";
-import { carregarOpcoes, listarLeads, listarMotivos } from "@/lib/leads-db";
+import { carregarOpcoes, lerConfig, listarLeads, listarMotivos } from "@/lib/leads-db";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -53,8 +65,14 @@ const dataCurta = (iso: string) =>
  * "painel": gestor/admin vê a imobiliária; Team Leader vê a própria equipe (a RLS decide).
  */
 export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
-  const { user, hasAny } = useAuth();
+  const { user, hasAny, roles } = useAuth();
   const gestor = hasAny(["admin", "super_admin", "gestor"]);
+  const admin = hasAny(["admin", "super_admin"]);
+  const atende = podeAtenderLeads(roles);
+  const [config, setConfig] = useState<LeadConfig>(CONFIG_PADRAO);
+  const [simular, setSimular] = useState(false);
+  const [configurar, setConfigurar] = useState(false);
+  const [versaoBanco, setVersaoBanco] = useState(0);
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [capturas, setCapturas] = useState<CapturaOpcao[]>([]);
@@ -67,6 +85,7 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
     try {
       const l = await listarLeads(modo === "meus" && user ? { responsavel: user.id } : {});
       setLeads(l);
+      setVersaoBanco((v) => v + 1);
     } catch (e) {
       setLeads([]);
       toast.error(errorMessage(e, "Não foi possível carregar os leads."));
@@ -84,7 +103,14 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
     listarMotivos()
       .then(setMotivos)
       .catch(() => undefined);
+    lerConfig()
+      .then(setConfig)
+      .catch(() => undefined);
   }, [carregar]);
+  const recarregarConfig = () =>
+    void lerConfig()
+      .then(setConfig)
+      .catch(() => undefined);
 
   const visiveis = useMemo(() => filtrarLeads(leads ?? [], filtro), [leads, filtro]);
   const porEtapa = useMemo(() => contarPorEtapa(leads ?? []), [leads]);
@@ -93,6 +119,7 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
     id ? (pessoas.find((p) => p.id === id)?.nome ?? "Pessoa") : "Sem responsável";
   const aberto = leads?.find((l) => l.id === abertoId) ?? null;
   const painel = modo === "painel";
+  const pendentesAceite = (leads ?? []).filter((l) => aguardandoMeuAceite(l, user?.id)).length;
 
   return (
     <div className="space-y-4">
@@ -106,12 +133,31 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
         }
         actions={
           gestor ? (
-            <Button onClick={() => setNovo(true)}>
-              <Plus className="mr-1 h-4 w-4" /> Novo lead
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {painel && (
+                <Button variant="outline" onClick={() => setSimular(true)}>
+                  <FlaskConical className="mr-1 h-4 w-4" /> Simular leads
+                </Button>
+              )}
+              {painel && admin && (
+                <Button variant="outline" onClick={() => setConfigurar(true)}>
+                  <Settings2 className="mr-1 h-4 w-4" /> Configurar
+                </Button>
+              )}
+              <Button onClick={() => setNovo(true)}>
+                <Plus className="mr-1 h-4 w-4" /> Novo lead
+              </Button>
+            </div>
           ) : undefined
         }
       />
+
+      {!painel && pendentesAceite > 0 && (
+        <p className="rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+          Você tem {pendentesAceite} lead(s) aguardando aceite. Abra o lead e clique em “Aceitar
+          lead”. Prazo para aceitar: {duracaoTxt(config.prazo_aceite_min * 60_000)}.
+        </p>
+      )}
 
       {painel && leads && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -200,20 +246,37 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
                   <div className="break-words font-medium">{l.nome}</div>
                   <div className="text-xs text-muted-foreground">
                     {ORIGEM_LABEL[l.origem]} · {dataCurta(l.created_at)}
-                    {painel ? ` · ${nomeDe(l.responsavel_id)}` : ""}
+                    {painel ? ` · ${l.no_banco_desde ? "No banco" : nomeDe(l.responsavel_id)}` : ""}
                     {l.capture_id ? " · com imóvel" : ""}
+                    {l.simulado ? " · simulado" : ""}
                   </div>
+                  {textoPrazo(prazoDoLead(l, config)) && (
+                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                      {textoPrazo(prazoDoLead(l, config))}
+                    </div>
+                  )}
                 </div>
-                <Pill tom={ETAPA_TOM[l.etapa]}>{ETAPA_LABEL[l.etapa]}</Pill>
+                <div className="flex items-center gap-2">
+                  {aguardandoMeuAceite(l, user?.id) && (
+                    <Pill tom="blue">Aguardando seu aceite</Pill>
+                  )}
+                  <Pill tom={ETAPA_TOM[l.etapa]}>{ETAPA_LABEL[l.etapa]}</Pill>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      {(atende || gestor) && (
+        <LeadsBanco podePegar={atende} versao={versaoBanco} onChanged={() => void carregar()} />
+      )}
+
       <LeadDetalhe
         lead={aberto}
         gestor={gestor}
+        userId={user?.id}
+        config={config}
         pessoas={pessoas}
         capturas={capturas}
         motivos={motivos}
@@ -227,6 +290,22 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
           pessoas={pessoas}
           capturas={capturas}
           onCreated={() => void carregar()}
+        />
+      )}
+      {gestor && painel && (
+        <SimuladorLeadsDialog
+          open={simular}
+          onOpenChange={setSimular}
+          temCaptacoes={capturas.length > 0}
+          onCreated={() => void carregar()}
+        />
+      )}
+      {admin && painel && (
+        <LeadsConfigDialog
+          open={configurar}
+          onOpenChange={setConfigurar}
+          config={config}
+          onSaved={recarregarConfig}
         />
       )}
     </div>

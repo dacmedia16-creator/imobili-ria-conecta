@@ -70,12 +70,40 @@ export type Lead = {
   motivo_perda_obs: string | null;
   created_at: string;
   updated_at: string;
+  // P3 (migration 20261025150000): aceite, interação e banco "Leads da imobiliária".
+  aceito_em: string | null;
+  ultima_interacao_em: string | null;
+  no_banco_desde: string | null;
+  simulado: boolean;
+  // Contato (migration 20261025160000): false = o banco não liberou telefone/e-mail (aguardando aceite).
+  contato_liberado: boolean;
 };
+
+export type LeadContato = { id: string; telefone: string | null; email: string | null };
+export type LeadSemContato = Omit<Lead, "telefone" | "email" | "contato_liberado">;
+
+/** Junta o contato liberado pelo banco (lead_contatos) aos leads; sem linha = contato oculto. */
+export function juntarContatos(leads: LeadSemContato[], contatos: LeadContato[]): Lead[] {
+  const m = new Map(contatos.map((c) => [c.id, c]));
+  return leads.map((l) => {
+    const c = m.get(l.id);
+    return { ...l, telefone: c?.telefone ?? null, email: c?.email ?? null, contato_liberado: !!c };
+  });
+}
 
 export type LeadEvento = {
   id: string;
   lead_id: string;
-  tipo: "criado" | "etapa" | "atribuido" | "nota" | "vinculo";
+  tipo:
+    | "criado"
+    | "etapa"
+    | "atribuido"
+    | "nota"
+    | "vinculo"
+    | "aceite"
+    | "devolvido_banco"
+    | "redistribuido"
+    | "ligacao";
   de: string | null;
   para: string | null;
   nota: string | null;
@@ -200,10 +228,184 @@ export function textoEvento(e: LeadEvento, nome: (id: string | null) => string):
         : `Responsável: ${nome(e.para)}`;
     case "nota":
       return "Anotação";
+    case "ligacao":
+      return "Ligação registrada";
+    case "aceite":
+      return `Lead aceito por ${nome(e.para)}`;
+    case "devolvido_banco":
+      return "Devolvido ao banco “Leads da imobiliária”";
+    case "redistribuido":
+      return e.de === "banco"
+        ? `Saiu do banco para ${nome(e.para)}`
+        : `Passado de ${nome(e.de)} para ${nome(e.para)}`;
     default:
       return `Imóvel vinculado — captador: ${nome(e.para)}`;
   }
 }
+
+// --- P3: prazos (mesma regra da tarefa agendada leads_processar_prazos) -------------------------
+
+export type LeadConfig = {
+  prazo_aceite_min: number;
+  prazo_primeira_interacao_dias: number;
+  prazo_sem_interacao_dias: number;
+  distribuicao: "captador_depois_rodizio" | "rodizio" | "manual";
+  form_publico_ativo: boolean;
+  form_token: string | null;
+};
+
+export const CONFIG_PADRAO: LeadConfig = {
+  prazo_aceite_min: 1440,
+  prazo_primeira_interacao_dias: 7,
+  prazo_sem_interacao_dias: 30,
+  distribuicao: "captador_depois_rodizio",
+  form_publico_ativo: false,
+  form_token: null,
+};
+
+export const DISTRIBUICAO_LABEL: Record<LeadConfig["distribuicao"], string> = {
+  captador_depois_rodizio: "Captador do imóvel, depois rodízio",
+  rodizio: "Só rodízio",
+  manual: "Manual (gestor distribui)",
+};
+
+const MIN = 60_000;
+const DIA = 24 * 60 * MIN;
+
+/** "24 h", "30 min", "7 dias"... */
+export function duracaoTxt(ms: number): string {
+  const m = Math.max(0, Math.round(ms / MIN));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} h`;
+  return `${Math.floor(h / 24)} dias`;
+}
+
+export type PrazoLead =
+  | { tipo: "encerrado" | "banco" | "sem_responsavel" }
+  | { tipo: "aceite" | "primeira_interacao" | "sem_interacao"; vence: Date; restante: number };
+
+/** Qual prazo está correndo para o lead agora (para mostrar na tela). */
+export function prazoDoLead(l: Lead, c: LeadConfig, agora = new Date()): PrazoLead {
+  if (encerrado(l.etapa)) return { tipo: "encerrado" };
+  if (l.no_banco_desde) return { tipo: "banco" };
+  if (!l.responsavel_id) return { tipo: "sem_responsavel" };
+  const base = (iso: string | null, extra: number) =>
+    new Date(new Date(iso ?? l.created_at).getTime() + extra);
+  let tipo: "aceite" | "primeira_interacao" | "sem_interacao";
+  let vence: Date;
+  if (!l.aceito_em) {
+    tipo = "aceite";
+    vence = base(l.atribuido_em, c.prazo_aceite_min * MIN);
+  } else if (!l.ultima_interacao_em) {
+    tipo = "primeira_interacao";
+    vence = base(l.aceito_em, c.prazo_primeira_interacao_dias * DIA);
+  } else {
+    tipo = "sem_interacao";
+    vence = base(l.ultima_interacao_em, c.prazo_sem_interacao_dias * DIA);
+  }
+  return { tipo, vence, restante: vence.getTime() - agora.getTime() };
+}
+
+/** Texto curto do prazo: "Aceitar em 23 h", "1ª interação em 6 dias"... */
+export function textoPrazo(p: PrazoLead): string | null {
+  switch (p.tipo) {
+    case "encerrado":
+    case "sem_responsavel":
+      return null;
+    case "banco":
+      return "No banco da imobiliária";
+    default: {
+      const quando = p.restante <= 0 ? "vencido" : `em ${duracaoTxt(p.restante)}`;
+      const o = {
+        aceite: "Aceitar",
+        primeira_interacao: "1ª interação",
+        sem_interacao: "Próxima interação",
+      };
+      return `${o[p.tipo]} ${quando}`;
+    }
+  }
+}
+
+/** Lead aguardando aceite do próprio usuário. */
+export const aguardandoMeuAceite = (l: Lead, userId: string | undefined) =>
+  !!userId && l.responsavel_id === userId && !l.aceito_em && !encerrado(l.etapa);
+
+export function validarConfig(c: LeadConfig): string | null {
+  if (!Number.isInteger(c.prazo_aceite_min) || c.prazo_aceite_min < 1 || c.prazo_aceite_min > 1440)
+    return "Prazo de aceite entre 1 minuto e 24 horas.";
+  if (
+    !Number.isInteger(c.prazo_primeira_interacao_dias) ||
+    c.prazo_primeira_interacao_dias < 1 ||
+    c.prazo_primeira_interacao_dias > 90
+  )
+    return "Prazo da 1ª interação entre 1 e 90 dias.";
+  if (
+    !Number.isInteger(c.prazo_sem_interacao_dias) ||
+    c.prazo_sem_interacao_dias < 1 ||
+    c.prazo_sem_interacao_dias > 365
+  )
+    return "Prazo sem interação entre 1 e 365 dias.";
+  return null;
+}
+
+// --- P2: banco, simulador e formulário público --------------------------------------------------
+
+export type LeadBanco = {
+  id: string;
+  nome: string;
+  origem: Origem;
+  etapa: Etapa;
+  no_banco_desde: string;
+  created_at: string;
+  com_imovel: boolean;
+  simulado: boolean;
+  mensagem: string | null;
+};
+
+export const ORIGENS_SIMULADOR = ["olx", "meta", "site"] as const;
+export type OrigemSimulador = (typeof ORIGENS_SIMULADOR)[number];
+
+/** Texto do consentimento LGPD gravado junto com o lead do formulário público. */
+export const CONSENTIMENTO_LGPD =
+  "Autorizo a imobiliária a usar meu nome, telefone e e-mail somente para retornar este contato " +
+  "sobre imóveis, conforme a LGPD. Posso pedir a exclusão dos meus dados a qualquer momento.";
+
+/** Tempo mínimo (ms) entre abrir e enviar o formulário: robô costuma enviar na hora. */
+export const FORM_TEMPO_MINIMO_MS = 3000;
+
+export type FormPublico = {
+  nome: string;
+  telefone: string;
+  email: string;
+  mensagem: string;
+  consentimento: boolean;
+  /** Campo-armadilha escondido: gente não vê nem preenche; robô preenche. */
+  site: string;
+};
+
+export function validarFormPublico(f: FormPublico): string | null {
+  const base = validarNovoLead({
+    nome: f.nome,
+    telefone: f.telefone,
+    email: f.email,
+    origem: "formulario",
+    mensagem: f.mensagem,
+    captureId: "",
+    responsavelId: "",
+  });
+  if (base) return base;
+  if (f.mensagem.length > 1000) return "Mensagem longa demais.";
+  if (!f.consentimento) return "Marque a autorização de contato (LGPD).";
+  return null;
+}
+
+/** Anti-spam gratuito do formulário: armadilha + tempo mínimo. Devolve true se parece robô. */
+export function pareceRobo(f: Pick<FormPublico, "site">, abertoEm: number, agora: number) {
+  return f.site.trim() !== "" || agora - abertoEm < FORM_TEMPO_MINIMO_MS;
+}
+
+export const FORM_TOKEN_RE = /^[A-Za-z0-9_-]{32,64}$/;
 
 /** Mensagens do banco (RPCs) em português de tela. */
 export function mensagemErroLead(msg: string): string {
@@ -217,5 +419,13 @@ export function mensagemErroLead(msg: string): string {
   if (m.includes("responsavel invalido")) return "Responsável inválido para esta imobiliária.";
   if (m.includes("captacao nao encontrada")) return "Captação não encontrada nesta imobiliária.";
   if (m.includes("leads_contato")) return "Informe telefone ou e-mail.";
+  if (m.includes("aceite o lead")) return "Aceite o lead antes de registrar o atendimento.";
+  if (m.includes("so o responsavel aceita")) return "Só o responsável pode aceitar este lead.";
+  if (m.includes("nao esta mais no banco")) return "Outro corretor já pegou este lead.";
+  if (m.includes("sem papel de atendimento") || m.includes("sem acesso ao banco"))
+    return "Seu papel não atende leads.";
+  if (m.includes("apenas administrador")) return "Só o administrador altera esta configuração.";
+  if (m.includes("entre 1 e 20")) return "O simulador cria de 1 a 20 leads por vez.";
+  if (m.includes("lead encerrado")) return "Lead encerrado.";
   return "Não foi possível concluir. Tente de novo.";
 }

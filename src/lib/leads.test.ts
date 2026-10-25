@@ -41,6 +41,11 @@ const lead = (p: Partial<Lead>): Lead => ({
   motivo_perda_obs: null,
   created_at: "2026-10-25T00:00:00Z",
   updated_at: "2026-10-25T00:00:00Z",
+  aceito_em: null,
+  ultima_interacao_em: null,
+  no_banco_desde: null,
+  simulado: false,
+  contato_liberado: true,
   ...p,
 });
 
