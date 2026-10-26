@@ -118,6 +118,8 @@ export function DocumentsPanel({
   activeParte: activeParteProp,
   onActiveParteChange,
   onReachedLastBloco,
+  pedidoNovaParte,
+  onPedidoNovaParteAtendido,
 }: {
   saleId: string;
   saleStatus: SaleStatus;
@@ -138,6 +140,11 @@ export function DocumentsPanel({
   /** Avisa o pai quando o usuário chega no último bloco de documentos — usado pra só liberar o
    * "Próximo" do wizard da venda depois que corretor/gestor passaram por todos os blocos. */
   onReachedLastBloco?: () => void;
+  /** "Adicionar comprador/vendedor / cônjuge" vindo da etapa Partes: cria o bloco da parte nova,
+   * abre-o e rola até o envio de documentos dela. `n` muda a cada pedido. */
+  pedidoNovaParte?: { tipo: "comprador" | "vendedor"; n: number } | null;
+  /** Limpa o pedido depois de atendido, para não criar outra parte ao voltar à etapa. */
+  onPedidoNovaParteAtendido?: () => void;
 }) {
   const { user } = useAuth();
   const [applying, setApplying] = useState(false);
@@ -627,10 +634,27 @@ export function DocumentsPanel({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs]);
+  // Adiciona mais um comprador/vendedor (ex.: o cônjuge) e leva direto ao envio de documentos dele:
+  // abre o bloco novo, rola até ele e o destaca por alguns segundos.
   const addParte = (tipo: "comprador" | "vendedor") => {
+    const extras = tipo === "comprador" ? compradorExtras : vendedorExtras;
+    const re = new RegExp(`^${tipo}_(\\d+)$`);
+    const daPartes = Object.keys(parties)
+      .map((k) => Number(k.match(re)?.[1] ?? 0))
+      .filter((n) => n > 0);
+    const novo = Math.max(1, ...extras, ...daPartes) + 1;
     const setFn = tipo === "comprador" ? setCompradorExtras : setVendedorExtras;
-    setFn((prev) => [...prev, (prev.length ? Math.max(...prev) : 1) + 1]);
+    setFn((prev) => Array.from(new Set([...prev, novo])).sort((a, b) => a - b));
+    const parte = `${tipo}_${novo}` as DocParte;
+    setActiveParte(parte);
+    irParaBlocoDocumentos(parte);
   };
+  useEffect(() => {
+    if (!pedidoNovaParte) return;
+    addParte(pedidoNovaParte.tipo);
+    onPedidoNovaParteAtendido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedidoNovaParte?.n]);
 
   // Cada parte pede um checklist diferente conforme o tipo_pessoa marcado na aba Partes (física:
   // RG/CPF/Certidão; jurídica: Cartão CNPJ/Última Alteração Contratual) — ver docTypesPessoalPara.
@@ -826,7 +850,7 @@ export function DocumentsPanel({
             key: parte,
             label: parteLabel(parte),
             content: (
-              <section className="space-y-3">
+              <section id={`doc-bloco-${parte}`} className="space-y-3 rounded-md transition-shadow">
                 {editable && parteNumero > 1 && (
                   <div className="flex justify-end">
                     <Button
@@ -1119,12 +1143,12 @@ export function DocumentsPanel({
                   <div className="flex gap-2">
                     {editable && parte.startsWith("comprador_") && (
                       <Button size="sm" variant="outline" onClick={() => addParte("comprador")}>
-                        + Adicionar comprador
+                        + Adicionar comprador / cônjuge
                       </Button>
                     )}
                     {editable && parte.startsWith("vendedor_") && (
                       <Button size="sm" variant="outline" onClick={() => addParte("vendedor")}>
-                        + Adicionar vendedor/proprietário
+                        + Adicionar vendedor / cônjuge
                       </Button>
                     )}
                   </div>
@@ -1297,4 +1321,22 @@ export function DocumentsPanel({
       </Dialog>
     </div>
   );
+}
+
+/** Rola até o bloco de documentos da parte e o contorna (cor primária) por alguns segundos. */
+function irParaBlocoDocumentos(parte: string, tentativas = 25): void {
+  if (typeof document === "undefined") return;
+  const el = document.getElementById(`doc-bloco-${parte}`);
+  if (!el) {
+    if (tentativas > 0) setTimeout(() => irParaBlocoDocumentos(parte, tentativas - 1), 80);
+    return;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const destaque = ["ring-2", "ring-primary", "ring-offset-4"];
+  el.classList.add(...destaque);
+  el.setAttribute("data-parte-nova", "true");
+  setTimeout(() => {
+    el.classList.remove(...destaque);
+    el.removeAttribute("data-parte-nova");
+  }, 6000);
 }
