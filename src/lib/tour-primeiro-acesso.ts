@@ -8,10 +8,50 @@ import type { NavGroup } from "@/lib/menu-lateral";
 export const TOUR_ADM_INICIO = "adm_inicio";
 /** Evento para abrir o tour de novo (botão "Ver tour de novo" nos Guias de Ajuda). */
 export const TOUR_EVENTO_INICIAR = "adm-max:tour-iniciar";
-/** Cópia local da escolha: evita reabrir neste navegador se a gravação no banco falhar. */
-export const chaveTourLocal = (userId: string) => `adm-max:tour:${TOUR_ADM_INICIO}:${userId}`;
+/** Quantas vezes o tour abre sozinho (a trava real fica no banco, função tour_registrar_abertura). */
+export const TOUR_MAX_ABERTURAS = 3;
+/** Marca da sessão da aba: recarregar a página ou trocar de tela não conta como novo acesso. */
+export const chaveTourSessao = (userId: string) =>
+  `adm-max:tour:${TOUR_ADM_INICIO}:sessao:${userId}`;
 
 export type TourStatus = "concluido" | "fechado";
+
+/**
+ * true = é um acesso novo (primeira checagem nesta sessão da aba) e já marca a sessão.
+ * Sem armazenamento disponível devolve false (não abre sozinho, para não abrir a cada recarga).
+ */
+export function novoAcessoNaSessao(
+  storage: Pick<Storage, "getItem" | "setItem"> | null,
+  userId: string,
+): boolean {
+  if (!storage) return false;
+  try {
+    const chave = chaveTourSessao(userId);
+    if (storage.getItem(chave) !== null) return false;
+    storage.setItem(chave, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Ao sair da conta, a próxima entrada nesta aba volta a contar como acesso novo. */
+export function limparAcessosDaSessao(
+  storage: Pick<Storage, "length" | "key" | "removeItem"> | null,
+) {
+  if (!storage) return;
+  try {
+    const prefixo = `adm-max:tour:${TOUR_ADM_INICIO}:sessao:`;
+    const chaves: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k?.startsWith(prefixo)) chaves.push(k);
+    }
+    chaves.forEach((k) => storage.removeItem(k));
+  } catch {
+    /* sem armazenamento: nada a limpar */
+  }
+}
 
 export type PassoTour = {
   /** Seletor CSS do elemento real. Sem seletor = balão centralizado (celular). */
