@@ -3,14 +3,14 @@ import { defineTask } from "nitro/task";
 import { runRemaxXmlCollect } from "../../src/lib/remax-xml";
 import { fetchXmlSeguro } from "../../src/lib/xml-feed-seguro";
 
-// Coleta de HORA EM HORA dos links "Link do XML (portais)" cadastrados na tela (card t_76243950), modo
+// Coleta 2x por dia (11h15 e 17h15 UTC, ver nitro.config.ts) dos links "Link do XML (portais)" cadastrados na tela (card t_76243950), modo
 // genérico (sem contato). Mesma chave da coleta RE/MAX: só roda com REMAX_XML_COLLECT=on. Os links vêm da
 // tabela organization_xml_feeds (só service_role lê). Download sempre com fetchXmlSeguro (sem IP interno).
 // O REMAX_XML_FEEDS (Única Escolha) continua na task remax-xml-collect, 1x por dia, sem mudança.
 export default defineTask({
   meta: {
     name: "xml-feed-collect",
-    description: "Coleta de hora em hora dos XML de portais cadastrados por imobiliária (modo genérico).",
+    description: "Coleta 2x por dia dos XML de portais cadastrados por imobiliária (modo genérico).",
   },
   async run() {
     if (process.env.REMAX_XML_COLLECT !== "on") return { result: "disabled" };
