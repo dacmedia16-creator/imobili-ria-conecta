@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Search } from "lucide-react";
+import { ArrowLeft, BookOpen, Compass, Search } from "lucide-react";
+import { TOUR_EVENTO_INICIAR } from "@/lib/tour-primeiro-acesso";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/visual/base";
@@ -101,12 +102,22 @@ function WikiPage() {
         title="Wiki MAX"
         description="Guias passo a passo do ADM MAX, do Visita MAX e do Estudo de Mercado MAX."
         actions={
-          <Link
-            to="/ajuda"
-            className="inline-flex items-center gap-1 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
-          >
-            <ArrowLeft className="h-4 w-4" /> Meus chamados
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-testid="ver-tour-de-novo"
+              onClick={() => window.dispatchEvent(new Event(TOUR_EVENTO_INICIAR))}
+              className="inline-flex items-center gap-1 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
+            >
+              <Compass className="h-4 w-4" /> Ver tour de novo
+            </button>
+            <Link
+              to="/ajuda"
+              className="inline-flex items-center gap-1 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
+            >
+              <ArrowLeft className="h-4 w-4" /> Meus chamados
+            </Link>
+          </div>
         }
       />
 
