@@ -38,7 +38,7 @@ function HomologHome() {
 
 /** Cada card abre o sistema externo correspondente numa aba nova.
  * Sem `href` = sistema ainda não tem endereço definido, aparece marcado "Em breve". */
-type CardColor = "navy" | "blue" | "red";
+type CardColor = "navy" | "blue" | "red" | "teal";
 type ServiceCard = {
   id: string;
   title: string;
@@ -127,10 +127,23 @@ const CARDS: ServiceCard[] = [
     pos: { left: "67%", top: "78.2%", width: "23.2%", height: "10.6%" },
     delay: "2.45s",
   },
+  {
+    // Parceiro externo (Obah Crédito), não é um sistema MAX: fica só no cartão, fora da roda.
+    id: "obah",
+    title: "Simulador de Crédito",
+    lines: ["Simule financiamento", "com a Obah Crédito"],
+    icon: "/hub/obah.png",
+    color: "teal",
+    href: "https://simulador.obahcredito.com.br/",
+    // Faixa livre entre o card Academia e o rodapé do poster; mais largo porque o título é longo.
+    pos: { left: "6.7%", top: "77.6%", width: "30.5%", height: "8.8%" },
+    delay: "2.8s",
+  },
 ];
 
-/** Itens da roda: mesmos sistemas e mesmos destinos dos cartões (fonte única = CARDS). */
-const WHEEL_ITEMS: WheelItem[] = CARDS.map((c) => ({
+/** Itens da roda: mesmos sistemas e mesmos destinos dos cartões (fonte única = CARDS).
+ * A roda tem 8 posições fixas (uma por sistema MAX); o parceiro Obah fica de fora. */
+const WHEEL_ITEMS: WheelItem[] = CARDS.filter((c) => c.id !== "obah").map((c) => ({
   id: c.id as WheelId,
   title: c.title,
   href: c.href,
@@ -244,6 +257,9 @@ function FrontPage() {
         .hubpage .icon-wrap.navy { --c1: #2a4f86; --c2: #14305a; }
         .hubpage .icon-wrap.blue { --c1: #8fb4e8; --c2: #2a4f86; }
         .hubpage .icon-wrap.red { --c1: var(--red-soft); --c2: var(--red-dark); }
+        .hubpage .icon-wrap.teal { --c1: #3cc8e0; --c2: #0e8f9c; }
+        /* Card Obah é mais largo e mais baixo: o ícone segue a altura para não vazar do card. */
+        .hubpage a[href*="obahcredito"] .card .icon-wrap { width: auto; height: 86%; }
         .hubpage .icon-ping {
           position: absolute; inset: 0; border-radius: 999px;
           background: linear-gradient(160deg, var(--c1), var(--c2));
