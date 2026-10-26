@@ -878,6 +878,24 @@ export function validarIaConfig(c: Pick<IaConfig, "ia_nome" | "ia_boas_vindas" |
   return null;
 }
 
+/**
+ * A tela da IA tem alteração que ainda não foi gravada? (t_71832765: o nome trocado ficava só na tela
+ * quando a pessoa clicava em "Salvar prazos" no rodapé em vez de "Salvar IA".) Compara só o que o
+ * administrador edita, do mesmo jeito que o banco grava (nome sem espaços nas pontas, texto vazio = padrão).
+ */
+export function iaConfigMudou(
+  salvo: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar">,
+  atual: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar">,
+): boolean {
+  const txt = (s: string | null | undefined) => (s ?? "").trim();
+  return (
+    salvo.ia_ativa !== atual.ia_ativa ||
+    txt(salvo.ia_nome) !== txt(atual.ia_nome) ||
+    txt(salvo.ia_primeira_msg) !== txt(atual.ia_primeira_msg) ||
+    (salvo.ia_reengajar === true) !== (atual.ia_reengajar === true)
+  );
+}
+
 /** Prévia da 1ª mensagem (mesma regra de lead_ia_primeira_msg no banco). imovel = \"no apartamento do bairro X\". */
 export function previaPrimeiraMensagem(
   c: Pick<IaConfig, "ia_nome" | "ia_primeira_msg">,
