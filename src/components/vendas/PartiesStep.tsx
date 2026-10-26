@@ -53,6 +53,7 @@ export function PartiesStep({
   registerSaver,
   onDirtyChange,
   foco,
+  onAdicionarParte,
 }: {
   saleId: string;
   parties: Record<string, PartyRow>;
@@ -64,6 +65,8 @@ export function PartiesStep({
   onDirtyChange: (d: boolean) => void;
   /** Abre a aba desta parte (ex.: pendência "falta o comprador"). `n` muda a cada pedido. */
   foco?: { papel: string; n: number } | null;
+  /** "Adicionar comprador/vendedor / cônjuge": quando passado, o pai abre o envio de documentos da parte nova. */
+  onAdicionarParte?: (tipo: "comprador" | "vendedor") => void;
 }) {
   const { user } = useAuth();
   const [papeis, setPapeis] = useState<string[]>(() => {
@@ -253,6 +256,11 @@ export function PartiesStep({
   }, [foco?.n]);
 
   const addPapel = (tipo: "vendedor" | "comprador") => {
+    // Cônjuge entra como mais uma parte: o pai leva direto ao envio de documentos dela (etapa Documentos).
+    if (onAdicionarParte) {
+      onAdicionarParte(tipo);
+      return;
+    }
     const nums = papeis.filter((p) => p.startsWith(`${tipo}_`)).map((p) => Number(p.split("_")[1]));
     const novoPapel = `${tipo}_${(nums.length ? Math.max(...nums) : 0) + 1}`;
     setPapeis((prev) => [...prev, novoPapel].sort(partePapelSort));
@@ -643,18 +651,8 @@ export function PartiesStep({
                         disabled={!editable}
                       />
                     </Field>
-                    <Field label="Nome do cônjuge">
-                      <Input value={forms[p].conjuge_nome ?? ""} onChange={(e) => update(p, "conjuge_nome", e.target.value)} disabled={!editable} />
-                    </Field>
-                    {forms[p].conjuge_nome?.trim() && (
-                      <>
-                        {(["conjuge_nacionalidade", "conjuge_profissao", "conjuge_rg", "conjuge_cpf", "conjuge_endereco"] as const).map((k) => (
-                          <Field key={k} label={{ conjuge_nacionalidade: "Nacionalidade do cônjuge", conjuge_profissao: "Profissão do cônjuge", conjuge_rg: "RG do cônjuge", conjuge_cpf: "CPF do cônjuge", conjuge_endereco: "Endereço do cônjuge" }[k]}>
-                            <Input value={forms[p][k] ?? ""} onChange={(e) => update(p, k, e.target.value)} disabled={!editable} />
-                          </Field>
-                        ))}
-                      </>
-                    )}
+                    {/* Campos do cônjuge saíram da tela (pedido de Denis 26/10). As colunas e os dados já gravados
+                        continuam no banco e seguem sendo salvos sem alteração (ver payload do upsert). */}
                   </FieldGrid>
                 </CardContent>
                 {individual && p.startsWith("vendedor_") && (
@@ -716,10 +714,10 @@ export function PartiesStep({
                     {editable && (
                       <>
                         <Button size="sm" variant="outline" onClick={() => addPapel("comprador")}>
-                          + Adicionar comprador
+                          + Adicionar comprador / cônjuge
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => addPapel("vendedor")}>
-                          + Adicionar vendedor/proprietário
+                          + Adicionar vendedor / cônjuge
                         </Button>
                       </>
                     )}

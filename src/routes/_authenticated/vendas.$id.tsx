@@ -422,6 +422,11 @@ function SaleDetail() {
   const [occSemMidia, setOccSemMidia] = useState<boolean | null>(null);
   // Pedido para a etapa Partes abrir a aba de uma parte (comprador/vendedor) faltante.
   const [partesFoco, setPartesFoco] = useState<{ papel: string; n: number } | null>(null);
+  // "Adicionar comprador/vendedor / cônjuge" na etapa Partes leva ao envio de documentos da parte nova.
+  const [novaParteDocs, setNovaParteDocs] = useState<{
+    tipo: "comprador" | "vendedor";
+    n: number;
+  } | null>(null);
   // Distribuição financeira da venda (captador/vendedor líquidos, saldo da imobiliária, etc.) —
   // calculada uma única vez no banco por calcular_distribuicao_venda(), fonte de verdade usada
   // tanto no Resumo quanto na Ocorrência (ver migration 20260809030000). Reflete o que está
@@ -2359,6 +2364,8 @@ function SaleDetail() {
             onChange={load}
             activeParte={docParte}
             onActiveParteChange={setDocParte}
+            pedidoNovaParte={novaParteDocs}
+            onPedidoNovaParteAtendido={() => setNovaParteDocs(null)}
           />
         </>
       ),
@@ -4137,6 +4144,12 @@ function SaleDetail() {
           registerSaver={(fn) => registerSaver("partes", fn)}
           onDirtyChange={(d) => setStepDirty("partes", d)}
           foco={partesFoco}
+          onAdicionarParte={async (tipo) => {
+            // Salva o que estiver pendente em Partes antes de trocar de etapa (mesmo caminho do wizard).
+            if (!(await onBeforeLeave("partes"))) return;
+            setStep("documentos");
+            setNovaParteDocs({ tipo, n: Date.now() });
+          }}
         />
       ),
     },
