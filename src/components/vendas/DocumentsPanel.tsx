@@ -52,6 +52,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
+import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-indisponivel";
 import { baixarDocumentosComoPdf, isImageFile, printDocumentUrls } from "@/lib/document-actions";
 import { DocStatusBadge } from "./shared";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
@@ -330,7 +331,9 @@ export function DocumentsPanel({
       try {
         const res = await extractDocument({ data: { documentId } });
         if (!res.ok) {
-          toast.error(`Falha ao ler documento: ${res.error}`);
+          // IA sem crédito/cota: a mensagem já diz o que fazer (preencher manualmente).
+          if ("aiUnavailable" in res && res.aiUnavailable) toast.warning(res.error);
+          else toast.error(`Falha ao ler documento: ${res.error}`);
           return;
         }
         // Uma leitura bem-sucedida só vira dado visível se for aplicada aos campos —
@@ -563,6 +566,7 @@ export function DocumentsPanel({
       );
       let lidos = 0;
       let falhas = 0;
+      let iaIndisponivel = false;
       if (pendentes.length > 0) {
         setProgress({ done: 0, total: pendentes.length });
         // marca todos como "IA lendo" no UI
@@ -575,6 +579,7 @@ export function DocumentsPanel({
           pendentes.map(async (d) => {
             try {
               const res = await extractDocument({ data: { documentId: d.id } });
+              if (!res.ok && "aiUnavailable" in res && res.aiUnavailable) iaIndisponivel = true;
               return res.ok;
             } finally {
               setExtracting((m) => ({ ...m, [d.id]: false }));
@@ -594,6 +599,7 @@ export function DocumentsPanel({
       const partes = [];
       if (lidos) partes.push(`${lidos} doc(s) lido(s) pela IA`);
       if (falhas) partes.push(`${falhas} falha(s) na leitura`);
+      if (iaIndisponivel) partes.push(AI_UNAVAILABLE_MESSAGE);
       if (res.filled.length) partes.push(`${res.filled.length} campo(s) preenchido(s)`);
       if (partes.length === 0) toast.info("Nenhum campo novo para preencher");
       else if (falhas) toast.warning(partes.join(" • "));

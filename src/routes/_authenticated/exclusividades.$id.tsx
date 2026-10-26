@@ -65,6 +65,7 @@ import {
 import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
 import { fieldsFromDocument, isAiReadableKind } from "@/lib/exclusive-captures-ai";
 import { AI_TIMEOUT_MESSAGE } from "@/lib/ai-timeout";
+import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-indisponivel";
 import {
   extractCaptureDocument,
   extractSignedContract,
@@ -586,11 +587,14 @@ function ExclusiveDetail() {
         toast.info("Lendo o documento…");
         // Leitura por IA (mesma das Vendas); se falhar, cai para a leitura local antiga.
         let values: Record<string, string> = {};
+        // IA sem crédito/cota: o plano B (leitura local) continua; o aviso só aparece se nada for lido.
+        let iaIndisponivel = false;
         if (isAiReadableKind(kind)) {
           const res = await extractCaptureDocument({
             data: { captureId: id, storagePath, kind, scope: owner ? "owner" : "property" },
           }).catch(() => null);
           if (res?.ok) values = res.values;
+          else if (res?.aiUnavailable) iaIndisponivel = true;
           else if (res?.timedOut) {
             // A IA passou do tempo-limite: o documento já está anexado; libera a tela.
             toast.info(AI_TIMEOUT_MESSAGE);
@@ -608,7 +612,11 @@ function ExclusiveDetail() {
         delete (values as Record<string, unknown>).valor_imovel;
         values = fieldsFromDocument(kind, owner, values);
         if (!Object.keys(values).length || !current) {
-          toast.info("Sem campos legíveis identificados; preencha manualmente.");
+          toast.info(
+            iaIndisponivel
+              ? AI_UNAVAILABLE_MESSAGE
+              : "Sem campos legíveis identificados; preencha manualmente.",
+          );
           return;
         }
         const pick = (f: CaptureForm) =>
@@ -651,7 +659,9 @@ function ExclusiveDetail() {
         toast.info(
           res && !res.ok && res.timedOut
             ? AI_TIMEOUT_MESSAGE
-            : "Não foi possível ler o contrato. Preencha os dados na conferência.",
+            : res && !res.ok && res.aiUnavailable
+              ? AI_UNAVAILABLE_MESSAGE
+              : "Não foi possível ler o contrato. Preencha os dados na conferência.",
         );
         return;
       }
