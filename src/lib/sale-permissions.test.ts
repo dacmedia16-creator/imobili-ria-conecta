@@ -50,6 +50,17 @@ describe("getSaleRoleFlags", () => {
     expect(getSaleRoleFlags(["corretor"], CORRETOR_ID, OUTRO_ID).isJuridico).toBe(false);
   });
 
+  it("isAdminPrincipal só para super_admin (Administrador principal), não para admin comum", () => {
+    expect(getSaleRoleFlags(["super_admin"], CORRETOR_ID, OUTRO_ID).isAdminPrincipal).toBe(true);
+    expect(getSaleRoleFlags(["admin"], CORRETOR_ID, OUTRO_ID).isAdminPrincipal).toBe(false);
+    expect(getSaleRoleFlags(["gestor"], CORRETOR_ID, OUTRO_ID).isAdminPrincipal).toBe(false);
+    expect(getSaleRoleFlags(["corretor"], CORRETOR_ID, OUTRO_ID).isAdminPrincipal).toBe(false);
+    // Papéis de origem continuam exatos: super_admin não "vira" gestor/jurídico na flag pura.
+    const f = getSaleRoleFlags(["super_admin"], CORRETOR_ID, OUTRO_ID);
+    expect(f.isGestor).toBe(false);
+    expect(f.isJuridico).toBe(false);
+  });
+
   it("um usuário pode acumular vários papéis ao mesmo tempo", () => {
     const roles: AppRole[] = ["gestor", "admin"];
     const flags = getSaleRoleFlags(roles, CORRETOR_ID, OUTRO_ID);

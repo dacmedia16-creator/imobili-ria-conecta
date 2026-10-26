@@ -10,6 +10,8 @@ import {
   sanitizeSignedContractAi,
 } from "./exclusive-captures-ai";
 import { AI_TIMEOUT_MESSAGE, AI_TIMEOUT_MS, isAiTimeoutError } from "./ai-timeout";
+import { AI_UNAVAILABLE_MESSAGE, geminiHttpError, isAiUnavailableError } from "./ai-indisponivel";
+import { reportAiUnavailableSafe } from "./ai-indisponivel.server";
 
 const MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -60,15 +62,17 @@ async function readWithGemini(
   system: string,
   prompt: string,
   maxOutputTokens: number,
+  quem: { userId: string; origem: "captacao_documento" | "captacao_contrato" },
 ): Promise<
-  { ok: true; raw: Record<string, unknown> } | { ok: false; error: string; timedOut?: boolean }
+  | { ok: true; raw: Record<string, unknown> }
+  | { ok: false; error: string; timedOut?: boolean; aiUnavailable?: boolean }
 > {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, error: "Leitura por IA não configurada" };
 
   let q = supabase
     .from("exclusive_documents")
-    .select("id, kind, file_name")
+    .select("id, kind, file_name, organization_id")
     .eq("capture_id", args.captureId)
     .eq("storage_path", args.storagePath);
   if (args.kind) q = q.eq("kind", args.kind);
@@ -107,8 +111,11 @@ async function readWithGemini(
         generationConfig: { responseMimeType: "application/json", maxOutputTokens },
       }),
     });
-    if (!res.ok)
-      throw Object.assign(new Error(`Gemini ${res.status}`), { retry: res.status >= 500 });
+    if (!res.ok) {
+      // 402 (crédito) / 429 (cota) ganham código identificável; só 5xx repete.
+      const err = geminiHttpError(res.status);
+      throw Object.assign(err, { retry: err.retryable });
+    }
     const json = (await res.json()) as GeminiResponse;
     const parsed = parseJson(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
     if (!parsed) throw Object.assign(new Error("Resposta inválida da IA"), { retry: true });
@@ -127,6 +134,19 @@ async function readWithGemini(
     // Sem conteúdo do documento no log: só o código do erro.
     console.error(`leitura IA da captação falhou (doc ${doc.id}):`, (err as Error).message);
     if (isAiTimeoutError(err)) return { ok: false, error: AI_TIMEOUT_MESSAGE, timedOut: true };
+    if (isAiUnavailableError(err)) {
+      const d = doc as { id: string; organization_id?: string | null };
+      if (d.organization_id)
+        await reportAiUnavailableSafe({
+          orgId: d.organization_id,
+          userId: quem.userId,
+          origem: quem.origem,
+          code: err.aiUnavailable,
+          httpStatus: err.httpStatus,
+          documentId: d.id,
+        });
+      return { ok: false, error: AI_UNAVAILABLE_MESSAGE, aiUnavailable: true };
+    }
     return { ok: false, error: "Não foi possível ler o documento por IA" };
   }
 }
@@ -145,8 +165,15 @@ export const extractCaptureDocument = createServerFn({ method: "POST" })
       "Você extrai dados de documentos brasileiros (RG, CPF, CNH, comprovantes, IPTU, matrícula de imóvel). Responda APENAS com JSON válido.",
       buildCapturePrompt(data.kind, data.scope),
       4096,
+      { userId: context.userId, origem: "captacao_documento" },
     );
-    if (!res.ok) return { ok: false as const, error: res.error, timedOut: res.timedOut === true };
+    if (!res.ok)
+      return {
+        ok: false as const,
+        error: res.error,
+        timedOut: res.timedOut === true,
+        ...(res.aiUnavailable ? { aiUnavailable: true as const } : {}),
+      };
     return { ok: true as const, values: sanitizeCaptureAi(res.raw, data.scope) };
   });
 
@@ -165,8 +192,15 @@ export const extractSignedContract = createServerFn({ method: "POST" })
       "Você extrai dados de contratos imobiliários brasileiros. Responda APENAS com JSON válido.",
       buildSignedContractPrompt(),
       8192,
+      { userId: context.userId, origem: "captacao_contrato" },
     );
-    if (!res.ok) return { ok: false as const, error: res.error, timedOut: res.timedOut === true };
+    if (!res.ok)
+      return {
+        ok: false as const,
+        error: res.error,
+        timedOut: res.timedOut === true,
+        ...(res.aiUnavailable ? { aiUnavailable: true as const } : {}),
+      };
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
       new Date(),
     );

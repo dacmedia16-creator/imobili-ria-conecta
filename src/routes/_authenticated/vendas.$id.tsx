@@ -1396,9 +1396,15 @@ function SaleDetail() {
     isOwner,
     isFinanceiro,
     isAdminLike,
-    isGestor: hasManagerRole,
-    isJuridico,
+    isGestor: hasGestorRole,
+    isJuridico: hasJuridicoRole,
+    isAdminPrincipal,
   } = getSaleRoleFlags(roles, responsaveisDaVenda(sale, commissionExtras), user?.id);
+  // Administrador principal faz as ações de gestor E de jurídico (t_c6638199). As de gestor seguem
+  // passando por sale_management_capabilities (o banco agora inclui super_admin); vínculo de equipe
+  // (managesOwner/isGestorDaVenda) continua só de quem lidera de verdade.
+  const hasManagerRole = hasGestorRole || isAdminPrincipal;
+  const isJuridico = hasJuridicoRole || isAdminPrincipal;
   const managementCurrent = management.saleId === id && management.userId === user?.id;
   const isGestor =
     hasManagerRole && managementCurrent && management.canManage && management.canEdit;
@@ -1445,7 +1451,7 @@ function SaleDetail() {
     etapaAnterior: etapaAntesDeArquivar,
     isAdminLike,
     isCriador: !!user?.id && sale.corretor_id === user.id,
-    isGestorDaVenda: hasManagerRole && managesOwner,
+    isGestorDaVenda: hasGestorRole && managesOwner,
   });
   const submitUnarchive = async () => {
     if (!etapaAntesDeArquivar || !unarchiveMotivo.trim()) {
