@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { montarMenuLateral, type MenuContexto } from "@/lib/menu-lateral";
 import {
   PASSO_GUIAS_TITULO,
+  TOUR_MAX_ABERTURAS,
   idDaArea,
+  limparAcessosDaSessao,
+  novoAcessoNaSessao,
   listaEmTexto,
   montarPassosTour,
   podeGravarTour,
@@ -167,6 +170,75 @@ describe("tour de primeiro acesso — regras", () => {
     expect(statusDoEncerramento("replaced")).toBeNull();
     expect(statusDoEncerramento("api")).toBeNull();
     expect(statusDoEncerramento(undefined)).toBeNull();
+  });
+});
+
+function memoria() {
+  const m = new Map<string, string>();
+  return {
+    get length() {
+      return m.size;
+    },
+    key: (i: number) => [...m.keys()][i] ?? null,
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+    removeItem: (k: string) => void m.delete(k),
+  };
+}
+
+describe("tour — 3 aberturas: 1 acesso por sessão da aba (t_7444a154)", () => {
+  it("1ª checagem da sessão é acesso novo; recarregar/trocar de tela na mesma sessão não conta", () => {
+    const s = memoria();
+    expect(novoAcessoNaSessao(s, "u1")).toBe(true);
+    expect(novoAcessoNaSessao(s, "u1")).toBe(false); // recarregou
+    expect(novoAcessoNaSessao(s, "u1")).toBe(false); // trocou de tela/remontou
+    expect(novoAcessoNaSessao(s, "u2")).toBe(true); // outra pessoa na mesma aba
+  });
+  it("sessão nova (aba/janela nova ou depois de sair da conta) conta de novo", () => {
+    const s = memoria();
+    expect(novoAcessoNaSessao(s, "u1")).toBe(true);
+    s.setItem("outra-coisa", "x");
+    limparAcessosDaSessao(s); // saiu da conta
+    expect(s.getItem("outra-coisa")).toBe("x"); // só apaga a marca do tour
+    expect(novoAcessoNaSessao(s, "u1")).toBe(true);
+    expect(novoAcessoNaSessao(memoria(), "u1")).toBe(true); // aba nova
+  });
+  it("sem armazenamento: não abre sozinho (evita abrir a cada recarga)", () => {
+    expect(novoAcessoNaSessao(null, "u1")).toBe(false);
+    const quebrado = {
+      getItem: () => {
+        throw new Error("bloqueado");
+      },
+      setItem: () => {},
+    };
+    expect(novoAcessoNaSessao(quebrado, "u1")).toBe(false);
+  });
+  it("limite é 3", () => expect(TOUR_MAX_ABERTURAS).toBe(3));
+});
+
+describe("tour — migration das 3 aberturas", () => {
+  const sql = readFileSync(
+    new URL("../../supabase/migrations/20261026150000_tour_tres_aberturas.sql", import.meta.url),
+    "utf8",
+  );
+  it("aditiva: só a tabela do tour, sem apagar dados, função sem SECURITY DEFINER", () => {
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS aberturas integer NOT NULL DEFAULT 1/);
+    expect(sql).toMatch(/SECURITY INVOKER/);
+    expect(sql).not.toMatch(/SECURITY DEFINER/);
+    expect(sql).toMatch(/t\.aberturas < 3/);
+    expect(sql).not.toMatch(/\b(DROP TABLE|DROP COLUMN|DELETE FROM|TRUNCATE|DISABLE ROW)\b/i);
+    expect(sql).not.toMatch(/ALTER TABLE public\.(?!user_tour_estado)/);
+    expect(sql).not.toMatch(/GRANT[^;]*\banon\b/);
+    expect(sql).not.toMatch(/CREATE POLICY|DROP POLICY/); // RLS igual
+    const rb = readFileSync(
+      new URL(
+        "../../docs/sql/rollback/20261026150000_tour_tres_aberturas.rollback.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(rb).toContain("DROP FUNCTION IF EXISTS public.tour_registrar_abertura(text)");
+    expect(rb).not.toMatch(/DROP TABLE|DELETE FROM/i);
   });
 });
 

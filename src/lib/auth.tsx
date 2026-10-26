@@ -12,6 +12,15 @@ import {
 import { restoreOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { effectiveRoles, fetchPlatformState, type PlatformContext } from "@/lib/platform-context";
 import { clearRouteAccessCache } from "@/lib/route-access";
+import { limparAcessosDaSessao } from "@/lib/tour-primeiro-acesso";
+
+function sessaoDaAba(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 export type AppRole =
   | "corretor"
@@ -82,7 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, s) => {
+      // Saiu da conta: a próxima entrada nesta aba conta como novo acesso para o tour (t_7444a154).
+      if (evt === "SIGNED_OUT") limparAcessosDaSessao(sessaoDaAba());
       setSession(s);
       setTimeout(() => {
         loadRoles(s?.user.id);

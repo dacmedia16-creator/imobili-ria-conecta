@@ -1,6 +1,7 @@
 // Tour guiado de primeiro acesso (card t_2e09bc40). Usa driver.js (MIT, sem dependências), carregado
-// só quando o tour vai abrir. Abre sozinho uma única vez por pessoa (escolha gravada no banco); depois,
-// só pelo botão "Ver tour de novo" dos Guias de Ajuda.
+// só quando o tour vai abrir. Abre sozinho nos 3 primeiros acessos (1 por sessão da aba; contagem no
+// banco, card t_7444a154). Pular/fechar vale só daquela vez. O botão "Ver tour de novo" dos Guias de
+// Ajuda abre sempre e não gasta abertura.
 import { useCallback, useEffect, useRef } from "react";
 import type { NavGroup } from "@/lib/menu-lateral";
 import {
@@ -9,10 +10,11 @@ import {
   statusDoEncerramento,
   type PassoTour,
 } from "@/lib/tour-primeiro-acesso";
-import { gravarTour, tourJaVisto } from "@/lib/tour-primeiro-acesso-db";
+import { gravarTour, registrarAberturaAutomatica } from "@/lib/tour-primeiro-acesso-db";
 
 const CELULAR = "(max-width: 767px)"; // mesmo corte do md: do Tailwind (barra lateral escondida).
 let pedidoPendente = false;
+let aberturaPendente = false;
 
 /** Fica só com passos cujo elemento existe e aparece na tela agora (ou balões sem elemento). */
 function passosPresentes(passos: PassoTour[]): PassoTour[] {
@@ -97,14 +99,19 @@ export function TourPrimeiroAcesso({
     [userId],
   );
 
-  // Abre sozinho na primeira vez (uma checagem por usuário por carregamento da página).
+  // Abre sozinho nos 3 primeiros acessos (1 por sessão da aba; o banco conta e trava na 3ª).
   useEffect(() => {
     if (!pronto || !podeGravar || !userId || verificado.current === userId) return;
     verificado.current = userId;
     let vivo = true;
     const t = window.setTimeout(async () => {
-      const visto = await tourJaVisto(userId).catch(() => true);
-      if (vivo && !visto) void iniciar(true);
+      if (!vivo) return;
+      const pendente = aberturaPendente;
+      aberturaPendente = false;
+      const abrir = pendente || (await registrarAberturaAutomatica(userId).catch(() => false));
+      // Contou no banco mas a casca foi remontada no meio: mostra na remontagem, sem contar de novo.
+      if (abrir && !vivo) aberturaPendente = true;
+      if (vivo && abrir) void iniciar(true);
     }, 900);
     return () => {
       vivo = false;
