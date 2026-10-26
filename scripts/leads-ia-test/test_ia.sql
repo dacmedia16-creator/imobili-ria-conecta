@@ -68,6 +68,8 @@ SELECT id AS conv1 FROM public.lead_conversas WHERE lead_id = :'lead1' \gset
 SELECT texto AS msg1 FROM public.lead_mensagens WHERE conversa_id = :'conv1' \gset
 SELECT t.ok((SELECT count(*) = 1 FROM public.lead_mensagens WHERE conversa_id = :'conv1' AND autor = 'ia' AND status = 'nao_enviada'),
             '05 1ª mensagem gravada como NÃO ENVIADA (modo teste)');
+-- Os itens 06 e 33 conferem a 1ª mensagem ANTIGA: com a 20261026140000 (ROTEIRO=1) eles mudam de propósito;
+-- a 1ª mensagem nova é conferida em test_roteiro.sql (P07-P10).
 SELECT t.ok(:'msg1' LIKE 'Olá, Maria! Aqui é Lais, da Org A.%' AND :'msg1' LIKE '%apartamento no bairro Campolim%'
             AND :'msg1' LIKE '%ainda tem interesse%' AND :'msg1' LIKE '%SAIR%' AND :'msg1' NOT LIKE '%999999%',
             '06 1ª mensagem: nome da IA, imobiliária, imóvel cadastrado, confirma interesse, SAIR, sem preço');

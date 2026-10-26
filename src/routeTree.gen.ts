@@ -59,6 +59,7 @@ import { Route as AuthenticatedPlataformaUsuariosRouteImport } from './routes/_a
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
+import { Route as ApiLeadsReengajarRouteImport } from './routes/api/leads/reengajar'
 import { Route as AuthenticatedVendasLancamentoNovaRouteImport } from './routes/_authenticated/vendas.lancamento.nova'
 import { Route as ApiLeadsGrupoOlxTokenRouteImport } from './routes/api/leads/grupo-olx.$token'
 import { Route as ApiLeadsZiontalkTokenRouteImport } from './routes/api/leads/ziontalk.$token'
@@ -341,6 +342,11 @@ const AuthenticatedVendasNovaRoute = AuthenticatedVendasNovaRouteImport.update({
   path: '/vendas/nova',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiLeadsReengajarRoute = ApiLeadsReengajarRouteImport.update({
+  id: '/api/leads/reengajar',
+  path: '/api/leads/reengajar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedVendasLancamentoNovaRoute =
   AuthenticatedVendasLancamentoNovaRouteImport.update({
     id: '/vendas/lancamento/nova',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
@@ -460,6 +467,7 @@ export interface FileRoutesByTo {
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/exclusividades': typeof AuthenticatedExclusividadesIndexRoute
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
@@ -516,6 +524,7 @@ export interface FileRoutesById {
   '/_authenticated/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/_authenticated/vendas/nova': typeof AuthenticatedVendasNovaRoute
+  '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/_authenticated/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
@@ -572,6 +581,7 @@ export interface FileRouteTypes {
     | '/plataforma/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
+    | '/api/leads/reengajar'
     | '/exclusividades/'
     | '/vendas/'
     | '/vendas/lancamento/nova'
@@ -626,6 +636,7 @@ export interface FileRouteTypes {
     | '/plataforma/usuarios'
     | '/vendas/$id'
     | '/vendas/nova'
+    | '/api/leads/reengajar'
     | '/exclusividades'
     | '/vendas'
     | '/vendas/lancamento/nova'
@@ -681,6 +692,7 @@ export interface FileRouteTypes {
     | '/_authenticated/plataforma/usuarios'
     | '/_authenticated/vendas/$id'
     | '/_authenticated/vendas/nova'
+    | '/api/leads/reengajar'
     | '/_authenticated/exclusividades/'
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
@@ -699,6 +711,7 @@ export interface RootRouteChildren {
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
+  ApiLeadsReengajarRoute: typeof ApiLeadsReengajarRoute
   ApiLeadsGrupoOlxTokenRoute: typeof ApiLeadsGrupoOlxTokenRoute
   ApiLeadsZiontalkTokenRoute: typeof ApiLeadsZiontalkTokenRoute
 }
@@ -1055,6 +1068,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVendasNovaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/leads/reengajar': {
+      id: '/api/leads/reengajar'
+      path: '/api/leads/reengajar'
+      fullPath: '/api/leads/reengajar'
+      preLoaderRoute: typeof ApiLeadsReengajarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/vendas/lancamento/nova': {
       id: '/_authenticated/vendas/lancamento/nova'
       path: '/vendas/lancamento/nova'
@@ -1188,6 +1208,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
+  ApiLeadsReengajarRoute: ApiLeadsReengajarRoute,
   ApiLeadsGrupoOlxTokenRoute: ApiLeadsGrupoOlxTokenRoute,
   ApiLeadsZiontalkTokenRoute: ApiLeadsZiontalkTokenRoute,
 }

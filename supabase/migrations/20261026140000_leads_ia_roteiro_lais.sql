@@ -109,9 +109,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
     'suites', substring(btrim(f->>'suites') from '^[0-9]{1,2}$'),
     'banheiros', substring(btrim(f->>'banheiros') from '^[0-9]{1,2}$'),
     'vagas', substring(btrim(f->>'vagas') from '^[0-9]{1,2}$'),
-    'area_util_m2', substring(btrim(f->>'area_util_m2') from '^[0-9]{1,7}([.,][0-9]{1,2})?$'),
-    'area_construida_m2', substring(btrim(f->>'area_construida_m2') from '^[0-9]{1,7}([.,][0-9]{1,2})?$'),
-    'area_terreno_m2', substring(btrim(f->>'area_terreno_m2') from '^[0-9]{1,7}([.,][0-9]{1,2})?$')))
+    'area_util_m2', substring(btrim(f->>'area_util_m2') from '^[0-9]{1,7}(?:[.,][0-9]{1,2})?$'),
+    'area_construida_m2', substring(btrim(f->>'area_construida_m2') from '^[0-9]{1,7}(?:[.,][0-9]{1,2})?$'),
+    'area_terreno_m2', substring(btrim(f->>'area_terreno_m2') from '^[0-9]{1,7}(?:[.,][0-9]{1,2})?$')))
   FROM (SELECT c.form_data->'imovel' AS i,
                CASE WHEN jsonb_typeof(c.form_data->'ficha') = 'object' THEN c.form_data->'ficha' ELSE '{}'::jsonb END AS f
           FROM public.exclusive_captures c

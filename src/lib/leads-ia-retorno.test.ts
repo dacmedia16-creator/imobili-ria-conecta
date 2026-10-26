@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   _zerarFalhasRetorno,
   normalizarZionTalk,
+  receberReengajar,
   receberRetornoZionTalk,
   RETORNO_MAX_BYTES,
   type DepsRetorno,
@@ -180,9 +181,27 @@ describe("retorno: resposta e envio", () => {
     const { d, aplicar, zion, reservar } = deps(ok);
     expect((await post(d)).status).toBe(200);
     expect(aplicar).toHaveBeenCalledOnce();
-    expect(arg(aplicar, 0)).toMatchObject({ _conversa: "cv", _versao: 1, _passo: "finalidade" });
+    // Sem captação e sem código do portal: pede o código do anúncio UMA vez (t_fc4d9b27, item 7).
+    expect(arg(aplicar, 0)).toMatchObject({ _conversa: "cv", _versao: 1, _passo: "codigo" });
     expect(reservar).not.toHaveBeenCalled();
     expect(zion).not.toHaveBeenCalled();
+  });
+
+  it("roteiro novo: com código do portal e venda, não pede código nem finalidade; manda o texto de falha", async () => {
+    const novo: RespostaBanco = {
+      ...ok,
+      ctx: { ...ctx, transacao: "venda", anuncio_codigo: "2712345678", tem_captacao: true, imovel_frase: "o apartamento do bairro Campolim" },
+    };
+    const { d, aplicar } = deps(novo, { env: {} });
+    await post(d, payload({ mensagem: { id: "wamid.X", tipo: "texto", texto: "quero falar com um corretor" } }));
+    const a = arg(aplicar, 0) as Record<string, unknown>;
+    expect(a._fim).toBe("pediu_pessoa");
+    expect(a._resposta).toContain("{corretor}");
+    expect(String(a._resposta_falha)).toMatch(/estou confirmando/);
+    expect(String(a._resposta_falha)).not.toMatch(/Encaminhei/);
+    const { d: d2, aplicar: ap2 } = deps(novo);
+    await post(d2);
+    expect(arg(ap2, 0)).toMatchObject({ _passo: "faixa", _resposta_falha: null });
   });
 
   it("envio ligado: espera humana, responde e envia 1 mensagem pela ZionTalk (fetch falso)", async () => {
@@ -358,5 +377,38 @@ describe("travas no código e na migration", () => {
       expect(s).not.toMatch(/ZIONTALK_API_KEY\b|ZIONTALK_MAX_API_KEY|VISITA_PROVA_NOTIFICATION/);
       expect(s).not.toMatch(/sk-or-|AIza[0-9A-Za-z_-]{20}/);
     }
+  });
+});
+
+describe("reengajamento (t_fc4d9b27): rota desligada sem segredo", () => {
+  const SEG = "S".repeat(40);
+  const req = (h: Record<string, string> = {}, method = "POST") => new Request("https://app/api/leads/reengajar", { method, headers: h });
+  const dReeng = (env: Record<string, string>, data: unknown = [{ lead_id: "l1", toque: 1 }]) => {
+    const reengajarReservar = vi.fn(async () => ({ data, error: null }));
+    const reservar = vi.fn(async () => ({ data: [], error: null }));
+    const zion = vi.fn(async () => new Response("", { status: 201 }));
+    return { d: { reengajarReservar, reservar, resultado: vi.fn(async () => undefined), env, fetchFn: zion as unknown as typeof fetch }, reengajarReservar, zion };
+  };
+  it("sem segredo no servidor: 404 e nada reservado", async () => {
+    const { d, reengajarReservar } = dReeng({});
+    expect((await receberReengajar(req({ "x-leads-ia-segredo": SEG }), d)).status).toBe(404);
+    expect(reengajarReservar).not.toHaveBeenCalled();
+  });
+  it("segredo errado: 404", async () => {
+    const { d, reengajarReservar } = dReeng({ LEADS_IA_REENGAJAR_SEGREDO: SEG });
+    expect((await receberReengajar(req({ "x-leads-ia-segredo": "x".repeat(40) }), d)).status).toBe(404);
+    expect(reengajarReservar).not.toHaveBeenCalled();
+  });
+  it("segredo certo: reserva no máximo 1 toque; sem envio real ligado, nada sai pela ZionTalk", async () => {
+    const { d, reengajarReservar, zion } = dReeng({ LEADS_IA_REENGAJAR_SEGREDO: SEG });
+    const r = await receberReengajar(req({ "x-leads-ia-segredo": SEG }), d);
+    expect(r.status).toBe(200);
+    expect(reengajarReservar).toHaveBeenCalledOnce();
+    expect(zion).not.toHaveBeenCalled();
+  });
+  it("GET não dispara", async () => {
+    const { d, reengajarReservar } = dReeng({ LEADS_IA_REENGAJAR_SEGREDO: SEG });
+    expect((await receberReengajar(req({ "x-leads-ia-segredo": SEG }, "GET"), d)).status).toBe(405);
+    expect(reengajarReservar).not.toHaveBeenCalled();
   });
 });
