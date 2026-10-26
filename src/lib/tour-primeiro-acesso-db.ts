@@ -1,44 +1,33 @@
-// Leitura e gravação da escolha do tour (tabela public.user_tour_estado, migration 20261026120000).
-// A RLS só deixa cada pessoa ler e gravar a PRÓPRIA linha. Falha de leitura = não abre o tour
-// (nunca atrapalha o uso); falha de gravação = guarda só neste navegador.
+// Leitura e gravação do tour (tabela public.user_tour_estado, migrations 20261026120000 e 20261026150000).
+// A RLS só deixa cada pessoa ler e gravar a PRÓPRIA linha. Falha = não abre o tour sozinho (nunca
+// atrapalha o uso).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { TOUR_ADM_INICIO, chaveTourLocal, type TourStatus } from "@/lib/tour-primeiro-acesso";
+import { TOUR_ADM_INICIO, novoAcessoNaSessao, type TourStatus } from "@/lib/tour-primeiro-acesso";
 
 const db = supabase as unknown as SupabaseClient;
 
-function lerLocal(userId: string): boolean {
+function armazenamentoDaSessao(): Storage | null {
   try {
-    return window.localStorage.getItem(chaveTourLocal(userId)) !== null;
+    return window.sessionStorage;
   } catch {
-    return false;
+    return null;
   }
 }
 
-function gravarLocal(userId: string, status: TourStatus) {
-  try {
-    window.localStorage.setItem(chaveTourLocal(userId), status);
-  } catch {
-    /* sem armazenamento local: fica só o banco */
-  }
+/**
+ * true = o tour deve abrir sozinho agora. Conta 1 acesso por sessão da aba (recarregar ou trocar de
+ * tela não conta) e o banco soma a abertura de forma atômica: só devolve true até a 3ª abertura.
+ */
+export async function registrarAberturaAutomatica(userId: string): Promise<boolean> {
+  if (!novoAcessoNaSessao(armazenamentoDaSessao(), userId)) return false;
+  const { data, error } = await db.rpc("tour_registrar_abertura", { p_tour: TOUR_ADM_INICIO });
+  if (error) return false; // shortcut: função ausente/erro de rede = não abre sozinho nesta sessão.
+  return data === true;
 }
 
-/** true = já viu (ou não deu para saber); false = primeira vez. */
-export async function tourJaVisto(userId: string): Promise<boolean> {
-  if (lerLocal(userId)) return true;
-  const { data, error } = await db
-    .from("user_tour_estado")
-    .select("status")
-    .eq("user_id", userId)
-    .eq("tour", TOUR_ADM_INICIO)
-    .maybeSingle();
-  if (error) return true; // shortcut: tabela ausente/erro de rede = não abre sozinho.
-  if (data) gravarLocal(userId, (data as { status: TourStatus }).status);
-  return Boolean(data);
-}
-
+/** Guarda como terminou (concluído/fechado). Não mexe na contagem de aberturas. */
 export async function gravarTour(userId: string, status: TourStatus, passo: number) {
-  gravarLocal(userId, status);
   const { error } = await db.from("user_tour_estado").upsert(
     {
       user_id: userId,
