@@ -25,7 +25,22 @@ export interface XmlListing {
   corretor_nome: string | null;
   corretor_email: string | null;
   corretor_telefone: string | null;
+  // Só no modo "generico" (XML de portal de qualquer imobiliária, t_76243950). No modo RE/MAX ficam ausentes.
+  titulo?: string | null;
+  condominio?: number | null;
+  iptu?: number | null;
+  iptu_periodo?: "mensal" | "anual" | null;
+  suites?: number | null;
+  fotos_qtd?: number | null;
+  area_util?: number | null;
+  area_terreno?: number | null;
 }
+
+/**
+ * "remax": XML da RE/MAX (código 123456789-42, link remax.com.br, contato do corretor guardado).
+ * "generico": VRSync de qualquer imobiliária (código livre de 1 a 60 caracteres, NENHUM contato guardado).
+ */
+export type ModoXml = "remax" | "generico";
 
 export interface XmlParse {
   /** Todos os <Listing> do arquivo (venda + aluguel), só para conferência. */
@@ -74,6 +89,8 @@ const TIPOS: Record<string, string> = {
   "residential / home": "casa",
   "residential / land lot": "terreno",
   "commercial / land lot": "terreno",
+  "residential / allotment land": "terreno",
+  "commercial / allotment land": "terreno",
   "residential / condo": "casa-de-condominio",
   "residential / farm ranch": "chacara",
   "residential / sobrado": "sobrado",
@@ -93,11 +110,21 @@ export function tipoXml(propertyType: string | null): string | null {
   return TIPOS[propertyType.trim().toLowerCase()] ?? "outros";
 }
 
-/** Converte um <Listing> de venda. null = aluguel ou código fora do padrão RE/MAX (ignorado). */
-export function mapXmlListing(item: string): XmlListing | null {
+/** Código aceito no modo genérico (o banco confere o mesmo padrão em remax_xml_ingest). */
+export const CODIGO_GENERICO_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$/;
+
+/** Atributo period="Monthly|Yearly" do <Iptu>. */
+function periodoIptu(details: string): "mensal" | "anual" | null {
+  const p = /<Iptu\b[^>]*\bperiod="([^"]*)"/i.exec(details)?.[1]?.toLowerCase();
+  return p === "monthly" ? "mensal" : p === "yearly" ? "anual" : null;
+}
+
+/** Converte um <Listing> de venda. null = aluguel ou código fora do padrão do modo (ignorado). */
+export function mapXmlListing(item: string, modo: ModoXml = "remax"): XmlListing | null {
   if (tag(item, "TransactionType") !== "For Sale") return null;
   const code = (tag(item, "ListingID") ?? "").trim();
-  if (!/^[0-9]{9}-[0-9]{1,6}$/.test(code)) return null;
+  const generico = modo === "generico";
+  if (!(generico ? CODIGO_GENERICO_RE : /^[0-9]{9}-[0-9]{1,6}$/).test(code)) return null;
   const details = tag(item, "Details") ?? "";
   // <Location> do imóvel vem antes de <ContactInfo> (que tem a própria <Location> do escritório).
   const contact = tag(item, "ContactInfo") ?? "";
@@ -107,7 +134,7 @@ export function mapXmlListing(item: string): XmlListing | null {
   const lon = num(tag(loc, "Longitude"), -180, 180);
   const coordOk = lat != null && lon != null && !(lat === 0 && lon === 0);
   const url = tag(item, "DetailViewUrl");
-  return {
+  const base = {
     code,
     tipo: tipoXml(tag(details, "PropertyType")),
     rua: cut(tag(loc, "Address"), 200),
@@ -123,10 +150,32 @@ export function mapXmlListing(item: string): XmlListing | null {
     vagas: int(tag(details, "Garage")),
     preco: num(tag(details, "ListPrice"), 1, 1e11),
     url: url && /^https?:\/\/(www\.)?remax\.com\.br\//.test(url) ? url.slice(0, 300) : null,
-    escritorio: cut(tag(contact, "OfficeName"), 120),
-    corretor_nome: cut(tag(contact, "Name"), 160),
-    corretor_email: cut(tag(contact, "Email")?.toLowerCase() ?? null, 200),
-    corretor_telefone: cut(tag(contact, "Telephone"), 30),
+  };
+  if (!generico)
+    return {
+      ...base,
+      escritorio: cut(tag(contact, "OfficeName"), 120),
+      corretor_nome: cut(tag(contact, "Name"), 160),
+      corretor_email: cut(tag(contact, "Email")?.toLowerCase() ?? null, 200),
+      corretor_telefone: cut(tag(contact, "Telephone"), 30),
+    };
+  // Genérico: nenhum contato (nem do escritório) é lido. Título sem link/telefone/e-mail.
+  const titulo = cut(tag(item, "Title"), 200);
+  const fotos = (tag(item, "Media") ?? "").match(/<Item\b[^>]*\bmedium="image"/gi)?.length ?? 0;
+  return {
+    ...base,
+    escritorio: null,
+    corretor_nome: null,
+    corretor_email: null,
+    corretor_telefone: null,
+    titulo: titulo && !/(https?:|www\.|@|\d{4,5}-?\d{4})/i.test(titulo) ? titulo : null,
+    condominio: num(tag(details, "PropertyAdministrationFee"), 0, 1e7),
+    iptu: num(tag(details, "Iptu"), 0, 1e8),
+    iptu_periodo: periodoIptu(details),
+    suites: int(tag(details, "Suites")),
+    fotos_qtd: Math.min(fotos, 999),
+    area_util: num(tag(details, "LivingArea"), 0.01, 1e8),
+    area_terreno: num(tag(details, "LotArea"), 0.01, 1e8),
   };
 }
 
@@ -191,11 +240,11 @@ export function contagemVrsync(anuncios: XmlAnuncio[]) {
 }
 
 /** Lê o arquivo inteiro. Lança erro se não for um feed VRSync (ex.: página de erro em HTML). */
-export function parseVrsync(xml: string): XmlParse {
+export function parseVrsync(xml: string, modo: ModoXml = "remax"): XmlParse {
   const items = listingsDe(xml);
   const venda: XmlListing[] = [];
   for (const it of items) {
-    const m = mapXmlListing(it);
+    const m = mapXmlListing(it, modo);
     if (m) venda.push(m);
   }
   return { total: items.length, venda };
@@ -218,16 +267,25 @@ export function feedTargets(raw: string | undefined): { org: string; url: string
 }
 
 export interface XmlCollectDb {
-  ingest(org: string, listings: XmlListing[], total: number, started: string): Promise<unknown>;
+  ingest(
+    org: string,
+    listings: XmlListing[],
+    total: number,
+    started: string,
+    modo?: ModoXml,
+  ): Promise<unknown>;
   failed(org: string, message: string, started: string): Promise<void>;
 }
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 const LIMITE_BYTES = 60 * 1024 * 1024;
 
-/** Coleta diária: baixa, lê e grava. Mensagem de erro nunca leva a URL nem dados de corretor. */
+/**
+ * Coleta: baixa, lê e grava. Mensagem de erro nunca leva a URL nem dados de corretor.
+ * Alvo sem `modo` = RE/MAX (REMAX_XML_FEEDS, 1x/dia). `modo: "generico"` = link cadastrado na tela.
+ */
 export async function runRemaxXmlCollect(
-  targets: { org: string; url: string }[],
+  targets: { org: string; url: string; modo?: ModoXml }[],
   db: XmlCollectDb,
   fetchFn: FetchLike,
 ): Promise<string[]> {
@@ -244,8 +302,12 @@ export async function runRemaxXmlCollect(
       if (len > LIMITE_BYTES) throw new Error("XML grande demais");
       const text = await res.text();
       if (text.length > LIMITE_BYTES) throw new Error("XML grande demais");
-      const p = parseVrsync(text);
-      const r = await db.ingest(t.org, p.venda, p.total, started);
+      const p = parseVrsync(text, t.modo);
+      // Modo RE/MAX: mesma chamada de sempre (4 argumentos); o genérico informa o modo ao banco.
+      const r =
+        t.modo === "generico"
+          ? await db.ingest(t.org, p.venda, p.total, started, "generico")
+          : await db.ingest(t.org, p.venda, p.total, started);
       log.push(`${t.org}: ${JSON.stringify(r)}`);
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);

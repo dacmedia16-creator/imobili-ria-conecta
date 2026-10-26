@@ -112,7 +112,8 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
   it("dúvida no meio: responde e repete a pergunta do passo uma vez só", async () => {
     const r = await conversa(["sim", "ainda está disponível?", "e o condomínio?", "500 mil"]);
     expect(r[1].passo).toBe("faixa");
-    expect(r[1].resposta).toMatch(/^Sobre disponibilidade, não tenho esse dado confirmado, vou confirmar com o corretor\. .*faixa de valor/);
+    // t_76243950: disponibilidade nunca é garantida; a resposta fixa é "confirmo a disponibilidade com o corretor".
+    expect(r[1].resposta).toMatch(/^Confirmo a disponibilidade com o corretor\. .*faixa de valor/);
     expect(r[2].resposta).not.toMatch(/faixa de valor/); // não repete a 2ª vez
   });
 });
@@ -123,20 +124,31 @@ describe("item 3 — respostas só pela ficha da captação", () => {
     expect(r.resposta).toMatch(/^Tem 3 quartos \(1 suíte\)\. Sobre condomínio e permuta, não tenho esse dado confirmado, vou confirmar com o corretor\./);
     expect(r.dados.pendentes).toEqual(expect.arrayContaining(["condomínio", "permuta"]));
   });
-  it("disponibilidade, condomínio/IPTU, permuta, financiamento e andar sem dado: nunca estima", async () => {
-    for (const t of ["ainda está disponível?", "qual o valor do condomínio?", "quanto é o IPTU?", "aceita permuta?", "aceita financiamento?", "qual andar?"]) {
+  it("condomínio/IPTU, permuta, financiamento e andar sem dado: nunca estima", async () => {
+    for (const t of ["qual o valor do condomínio?", "quanto é o IPTU?", "aceita permuta?", "aceita financiamento?", "qual andar?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
       expect(r.resposta).toContain("não tenho esse dado confirmado, vou confirmar com o corretor");
       expect(r.resposta).not.toMatch(/R\$|\d+ ?(mil|reais)|aceita (permuta|financiamento)\b(?! ?\?)|andar \d/);
       expect(r.fim).toBeNull();
     }
   });
-  it("quando a ficha passar a ter os campos, responde com eles (sem inventar)", async () => {
+  it("disponibilidade: NUNCA garante, nem com a ficha dizendo disponível (t_76243950)", async () => {
+    for (const ficha of [FICHA, { ...FICHA, disponivel: true }, { ...FICHA, disponivel: false }]) {
+      for (const t of ["ainda está disponível?", "já foi vendido?", "ainda está à venda?"]) {
+        const r = await proximaResposta(ctx({ passo: "faixa", ficha }), t, undefined, { agora: AGORA });
+        expect(r.resposta).toContain("Confirmo a disponibilidade com o corretor.");
+        expect(r.resposta).not.toMatch(/está disponível|indisponível|já foi vendido|não está/i);
+        expect(r.dados.pendentes).toContain("disponibilidade");
+      }
+    }
+  });
+  it("quando a ficha passar a ter os campos, responde com eles (sem inventar; disponibilidade continua com o corretor)", async () => {
     const ficha: FichaIa = { ...FICHA, condominio: "R$ 650,00", iptu: "R$ 120,00", aceita_permuta: false, aceita_financiamento: true, andar: "5º andar, frente", disponivel: true };
     const r = await proximaResposta(ctx({ passo: "faixa", ficha }), "Aceita permuta? aceita financiamento? qual o condomínio e o iptu? qual andar? ainda está disponível?", undefined, { agora: AGORA });
-    for (const x of ["não aceita permuta", "aceita financiamento", "condomínio é de R$ 650,00", "IPTU é de R$ 120,00", "fica no 5º andar, frente", "stá disponível"])
+    for (const x of ["não aceita permuta", "aceita financiamento", "condomínio é de R$ 650,00", "IPTU é de R$ 120,00", "fica no 5º andar, frente", "Confirmo a disponibilidade com o corretor."])
       expect(r.resposta).toContain(x);
     expect(r.resposta).not.toContain("não tenho esse dado");
+    expect(r.resposta).not.toContain("stá disponível");
   });
   it("preço e negociação: sempre o corretor, sem número", async () => {
     for (const t of ["qual o valor?", "quanto custa?", "aceita proposta?"]) {
@@ -267,6 +279,22 @@ describe("item 7 — código do anúncio", () => {
     expect(r[1].dados.imovel_capture_id).toBe("cap9");
     expect(r[1].resposta).toMatch(/É uma casa, no bairro Centro/);
     expect(r.slice(1).some((x) => /código do anúncio/.test(x.resposta))).toBe(false);
+  });
+  it("código informado achado no XML (sem captação): usa a ficha do XML e guarda o código na conversa (t_76243950)", async () => {
+    const fichaXml: FichaIa = { tipo: "apartamento", bairro: "Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "92", condominio: "R$ 720,00", iptu: "R$ 140,00 por mês" };
+    const buscarImovel = vi.fn(async () => ({ capture_id: null, xml_codigo: "VIP0028", frase: "o apartamento do bairro Campolim", ficha: fichaXml }));
+    const r = await conversa(["oi", "é o VIP0028", "qual o condomínio e o IPTU? ainda está disponível?"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null }, undefined, { buscarImovel });
+    expect(r[1].dados.imovel_xml_codigo).toBe("VIP0028");
+    expect(r[1].dados.imovel_capture_id).toBeUndefined();
+    expect(r[1].resposta).toMatch(/É um apartamento com 3 quartos \(1 suíte\), 2 vagas e 92 m² de área útil, no bairro Campolim\./);
+  });
+  it("ficha do XML no contexto: responde condomínio e IPTU, e nunca garante disponibilidade nem deduz permuta/andar", async () => {
+    const fichaXml: FichaIa = { tipo: "apartamento", bairro: "Campolim", quartos: "3", condominio: "R$ 720,00", iptu: "R$ 140,00 por mês" };
+    const r = await proximaResposta(ctx({ passo: "faixa", ficha: fichaXml }), "qual o condomínio e o IPTU? ainda está disponível? aceita permuta? qual andar?", undefined, { agora: AGORA });
+    expect(r.resposta).toContain("condomínio é de R$ 720,00");
+    expect(r.resposta).toContain("IPTU é de R$ 140,00 por mês");
+    expect(r.resposta).toContain("Confirmo a disponibilidade com o corretor.");
+    expect(r.resposta).toMatch(/Sobre permuta e andar\/posição, não tenho esse dado confirmado, vou confirmar com o corretor\./);
   });
   it("cliente não sabe o código: segue sem pedir de novo", async () => {
     const r = await conversa(["oi", "não sei o código", "comprar"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null });

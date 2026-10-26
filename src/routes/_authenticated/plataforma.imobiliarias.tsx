@@ -46,6 +46,7 @@ import {
 } from "@/lib/platform-organizations.functions";
 import { Switch } from "@/components/ui/switch";
 import { OrgInvitesPanel } from "@/components/platform/OrgInvitesPanel";
+import { XmlFeedField } from "@/components/platform/XmlFeedField";
 import {
   formatCnpj,
   ORGANIZATION_MODULE_LABELS,
@@ -1066,6 +1067,7 @@ function PlatformOrganizations() {
                 />
               )}
             </div>
+            {editing !== null && editing !== "new" && <XmlFeedField organizationId={editing.id} />}
             {editing === "new" && (
               <fieldset className="space-y-3 rounded-md border p-3">
                 <legend className="px-1 text-sm font-medium">

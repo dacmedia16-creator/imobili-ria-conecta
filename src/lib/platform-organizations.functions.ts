@@ -71,6 +71,41 @@ const inviteSchema = firstAdminSchema.extend({
   redirectTo: redirectSchema,
 });
 
+// "Link do XML (portais)" (card t_76243950): só o administrador da plataforma lê, altera e testa.
+const xmlOrgSchema = z.object({ organizationId: z.string().uuid() });
+const xmlSalvarSchema = z.object({
+  organizationId: z.string().uuid(),
+  url: z.string().trim().max(500),
+});
+const xmlTestarSchema = z.object({ url: z.string().trim().min(1).max(500) });
+
+export const getOrganizationXmlFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => xmlOrgSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { admin, callerId } = await clients(context);
+    const xml = await import("@/lib/xml-feed.server");
+    return xml.lerLinkXml(admin, callerId, data.organizationId);
+  });
+
+export const saveOrganizationXmlFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => xmlSalvarSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { user, admin, callerId } = await clients(context);
+    const xml = await import("@/lib/xml-feed.server");
+    return xml.salvarLinkXml(user, admin, callerId, data.organizationId, data.url);
+  });
+
+export const testOrganizationXmlFeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => xmlTestarSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { admin, callerId } = await clients(context);
+    const xml = await import("@/lib/xml-feed.server");
+    return xml.testarLinkXml(admin, callerId, data.url);
+  });
+
 /** Só diz se quem pede é super-admin da plataforma (para mostrar o menu). Nunca lança. */
 export const getPlatformAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

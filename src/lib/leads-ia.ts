@@ -38,8 +38,9 @@ export type Pergunta = "finalidade" | "faixa" | "pagamento";
 
 export type FimConversa = "qualificado" | "pediu_pessoa" | "sensivel" | "sem_interesse" | "visita" | "nao_lead";
 
-/** Ficha do imóvel que o banco entrega (lead_ia_ficha): só o que existe e está preenchido na captação.
- * Os campos marcados como "futuro" ainda NÃO existem na captação; o roteiro já sabe usá-los quando existirem. */
+/** Ficha do imóvel que o banco entrega: pelo XML da imobiliária (lead_ia_ficha_xml, prioridade) ou pela
+ * captação (lead_ia_ficha). Só o que existe e está preenchido. Os campos marcados como "futuro" ainda NÃO
+ * vêm de nenhuma das duas fontes; o roteiro já sabe usá-los quando existirem. */
 export type FichaIa = {
   tipo?: string;
   bairro?: string;
@@ -51,9 +52,9 @@ export type FichaIa = {
   area_util_m2?: string;
   area_construida_m2?: string;
   area_terreno_m2?: string;
-  /** futuro */ disponivel?: boolean;
-  /** futuro (texto já formatado, ex.: "R$ 650,00") */ condominio?: string;
-  /** futuro */ iptu?: string;
+  /** Ignorado de propósito: a disponibilidade NUNCA é garantida pela IA (t_76243950). */ disponivel?: boolean;
+  /** XML (texto já formatado, ex.: "R$ 650,00") */ condominio?: string;
+  /** XML (ex.: "R$ 140,00 por mês") */ iptu?: string;
   /** futuro */ aceita_permuta?: boolean;
   /** futuro */ aceita_financiamento?: boolean;
   /** futuro (ex.: "5º andar, frente") */ andar?: string;
@@ -72,6 +73,8 @@ export type DadosQualificacao = {
   codigo_pedido?: boolean;
   anuncio_informado?: string;
   imovel_capture_id?: string;
+  /** Código achado no XML da imobiliária (o banco usa para montar a ficha nos turnos seguintes). */
+  imovel_xml_codigo?: string;
   /** Visita: opções oferecidas, escolha e prazo de confirmação. */
   visita_opcoes?: string[];
   visita?: string;
@@ -128,7 +131,13 @@ export type Extrator = (
   texto: string,
 ) => Promise<Partial<DadosQualificacao> | null | undefined>;
 
-export type ImovelEncontrado = { capture_id: string; frase: string | null; ficha: FichaIa | null };
+/** Imóvel achado pelo código: no XML (xml_codigo, sem captação) ou na captação (capture_id). */
+export type ImovelEncontrado = {
+  capture_id: string | null;
+  xml_codigo?: string | null;
+  frase: string | null;
+  ficha: FichaIa | null;
+};
 
 export type OpcoesRoteiro = {
   /** Relógio (testes). */
@@ -215,6 +224,8 @@ export const PERGUNTA: Record<Pergunta, string> = {
 };
 
 const NAO_SEI = "não tenho esse dado confirmado, vou confirmar com o corretor";
+/** Resposta fixa sobre disponibilidade (t_76243950): a IA nunca garante que o imóvel está disponível. */
+export const CONFIRMO_DISPONIBILIDADE = "confirmo a disponibilidade com o corretor";
 /** Texto de quem retorna: o banco troca {corretor} só depois de gravar registro e aviso. */
 export const CORRETOR = "{corretor}";
 
@@ -384,7 +395,7 @@ function respostaTema(t: Tema, f: FichaIa | null | undefined): string | null {
     case "andar":
       return f.andar ? `fica no ${f.andar}` : null;
     case "disponibilidade":
-      return f.disponivel === true ? "está disponível" : null; // \"indisponível\" nunca é dito pela IA
+      return null; // nunca garante: tratado em responderDuvidas ("confirmo a disponibilidade com o corretor")
     case "preco":
       return null; // valor e negociação: sempre o corretor
   }
@@ -406,9 +417,11 @@ export function responderDuvidas(
   }
   const partes: string[] = [];
   if (sei.length) partes.push(`${maiuscula(juntar(sei))}.`);
-  const semPreco = naoSei.filter((t) => t !== "preco");
+  const semPreco = naoSei.filter((t) => t !== "preco" && t !== "disponibilidade");
   if (naoSei.includes("preco"))
     partes.push("O valor e as condições de negociação quem confirma é o corretor, para não te passar nada desatualizado.");
+  // Disponibilidade: nunca garante (nem pelo XML, que pode estar até 1 h atrasado).
+  if (naoSei.includes("disponibilidade")) partes.push(`${maiuscula(CONFIRMO_DISPONIBILIDADE)}.`);
   if (semPreco.length) partes.push(`Sobre ${juntar(semPreco.map((t) => ROTULO[t]))}, ${NAO_SEI}.`);
   dados.pendentes = [...new Set([...(dados.pendentes ?? []), ...naoSei.map((t) => ROTULO[t])])].slice(0, 12);
   return partes.join(" ");
@@ -614,7 +627,9 @@ export async function proximaResposta(
       dados.anuncio_informado = cod;
       const achou = op.buscarImovel ? await op.buscarImovel(cod).catch(() => null) : null;
       if (achou) {
-        dados.imovel_capture_id = achou.capture_id;
+        // XML da imobiliária (prioridade no banco) ou captação.
+        if (achou.capture_id) dados.imovel_capture_id = achou.capture_id;
+        if (achou.xml_codigo) dados.imovel_xml_codigo = achou.xml_codigo.slice(0, 60);
         ficha = achou.ficha;
         frase = achou.frase;
       }
