@@ -1139,7 +1139,9 @@ export function DocumentsPanel({
                     )}
                   </>
                 )}
-                <div className="flex items-center justify-between gap-2">
+                {/* flex-wrap: no celular "Adicionar … / cônjuge" + Voltar/Próximo bloco não cabem
+                    numa linha e empurravam "Próximo bloco" para fora da tela. */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex gap-2">
                     {editable && parte.startsWith("comprador_") && (
                       <Button size="sm" variant="outline" onClick={() => addParte("comprador")}>
