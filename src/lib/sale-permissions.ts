@@ -69,6 +69,11 @@ export function getSaleRoleFlags(
     // funções espelhadas na migration team_leader_same_perms_as_gestor).
     isGestor: roles.some((r) => (["gestor", "team_leader"] as AppRole[]).includes(r)),
     isJuridico: roles.includes("juridico"),
+    // Administrador principal (super_admin DA IMOBILIÁRIA, t_c6638199, Denis 26/10/2026): cobre sozinho
+    // as etapas de gestor e de jurídico da venda — resolve imobiliária sem gestor/jurídico. O "admin"
+    // comum não entra aqui. O banco confere de novo (sale_management_capabilities etc.), sempre na
+    // própria imobiliária.
+    isAdminPrincipal: roles.includes("super_admin"),
   };
 }
 
