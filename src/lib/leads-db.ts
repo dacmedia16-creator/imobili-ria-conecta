@@ -243,13 +243,35 @@ export async function lerIaConfig(): Promise<IaConfig> {
     .select("ia_ativa,ia_nome,ia_boas_vindas,ia_canal")
     .maybeSingle();
   if (error) falha(error);
+  // Roteiro novo (migration 20261026170000): lido à parte para a tela seguir funcionando sem ela.
+  const { data: rot } = await db.from("lead_config").select("ia_primeira_msg,ia_reengajar").maybeSingle();
   return {
     ia_ativa: false,
     ia_nome: "Assistente virtual",
     ia_boas_vindas: null,
     ia_canal: "teste",
+    ia_primeira_msg: null,
+    ia_reengajar: false,
     ...((data ?? {}) as Partial<IaConfig>),
+    ...((rot ?? {}) as Partial<IaConfig>),
   };
+}
+
+/** Texto da 1ª mensagem e reengajamento (só administrador; o banco confere e recusa link). */
+export async function salvarRoteiroIa(c: Pick<IaConfig, "ia_primeira_msg" | "ia_reengajar">) {
+  const { error } = await db.rpc("lead_ia_roteiro_salvar", {
+    _primeira_msg: c.ia_primeira_msg?.trim() || null,
+    _reengajar: c.ia_reengajar === true,
+  });
+  if (error) falha(error);
+}
+
+/** Nome da imobiliária do usuário (a RLS entrega só a própria), para a prévia da 1ª mensagem. */
+export async function nomeImobiliaria(): Promise<string | null> {
+  const { data: org } = await db.rpc("current_org_id");
+  if (!org) return null;
+  const { data } = await db.from("organizations").select("nome").eq("id", org as string).maybeSingle();
+  return (data as { nome?: string } | null)?.nome ?? null;
 }
 
 // --- Retorno ZionTalk e escolha de modelo (migration 20261025200000, card t_6f688b4b) ----------------

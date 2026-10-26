@@ -59,7 +59,7 @@ SELECT t.ok((SELECT ia_retorno_token_hash = encode(extensions.digest(:'toka', 's
             'R06 banco guarda só o SHA-256');
 
 -- IA ligada nas duas, canal real só pela plataforma, lista de liberados = número de teste.
-UPDATE public.lead_config SET ia_ativa = true, ia_nome = 'Emanuella' WHERE organization_id IN (:orgA, :orgB);
+UPDATE public.lead_config SET ia_ativa = true, ia_nome = 'Nicole' WHERE organization_id IN (:orgA, :orgB);
 SELECT public.lead_ia_canal_definir(:orgA, 'ziontalk'), public.lead_ia_allowlist_definir(:orgA, ARRAY['15981110001']);
 SELECT public.lead_ia_canal_numero_definir(:orgA, '+55 15 98111-1149');
 -- Lead real do número liberado (1ª mensagem fica "pendente"), lead real de outro número, lead simulado.

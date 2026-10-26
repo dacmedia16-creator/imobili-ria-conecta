@@ -15,6 +15,9 @@ export default defineConfig({
     "20 6 * * *": ["remax-site-collect"],
     // 6h40 UTC: XML RE/MAX -> OLX (venda), base do Feedback e do mapa; só com REMAX_XML_COLLECT=on.
     "40 6 * * *": ["remax-xml-collect"],
+    // De hora em hora (minuto 15): links "Link do XML (portais)" cadastrados na tela, modo genérico
+    // (t_76243950). Mesma chave REMAX_XML_COLLECT=on; sem link cadastrado não baixa nada.
+    "15 * * * *": ["xml-feed-collect"],
     // A cada 30 min: alertas de Oportunidades (dry-run; só envia com OPORTUNIDADES_ALERTAS=on).
     "*/30 * * * *": ["opportunity-alerts"],
   },

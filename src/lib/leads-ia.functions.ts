@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { proximaResposta, type ContextoIa, type Extrator } from "./leads-ia";
+import { proximaResposta, type ContextoIa, type Extrator, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
 
 /**
@@ -53,7 +53,12 @@ export const responderComoCliente = createServerFn({ method: "POST" })
       process.env as Record<string, string | undefined>,
       (u) => usos.push(u),
     );
-    const r = await proximaResposta({ ...c, dados: c.dados ?? {} }, data.texto, extrator);
+    const r = await proximaResposta({ ...c, dados: c.dados ?? {} }, data.texto, extrator, {
+      buscarImovel: async (codigo) => {
+        const { data: im, error: ei } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: c.conversa_id, _codigo: codigo });
+        return ei ? null : ((im as ImovelEncontrado | null) ?? null);
+      },
+    });
     if (conf.organization_id && usos.length) {
       const { error: eu } = await db
         .from("lead_ia_uso")
@@ -68,6 +73,8 @@ export const responderComoCliente = createServerFn({ method: "POST" })
       _resposta: r.resposta,
       _fim: r.fim,
       _resumo: r.resumo,
+      // O banco só diz "encaminhei" se gravou o registro e o aviso; senão usa este texto (t_fc4d9b27).
+      _resposta_falha: r.resposta_falha,
     });
     // Sem conteúdo da conversa no log.
     if (e2) {
