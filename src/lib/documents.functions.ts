@@ -5,6 +5,12 @@ import { buscarCep, COLUNAS_ENDERECO, enderecoDaExtracao, mesmaRua } from "@/lib
 import { dadosDaCertidaoParaParte } from "@/lib/conferencia-documentos-venda";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import {
+  AI_UNAVAILABLE_MESSAGE,
+  geminiHttpError,
+  isAiUnavailableError,
+} from "@/lib/ai-indisponivel";
+import { reportAiUnavailableSafe } from "@/lib/ai-indisponivel.server";
 
 type ExtractionData = Record<string, Json | undefined>;
 type RetryableError = Error & { retryable?: boolean };
@@ -36,7 +42,7 @@ export const extractDocument = createServerFn({ method: "POST" })
 
     const { data: doc, error: docErr } = await supabase
       .from("sale_documents")
-      .select("id, sale_id, storage_path, file_name, tipo, parte")
+      .select("id, sale_id, organization_id, storage_path, file_name, tipo, parte")
       .eq("id", data.documentId)
       .maybeSingle();
     if (docErr || !doc) throw new Error(docErr?.message ?? "Documento não encontrado");
@@ -91,10 +97,9 @@ export const extractDocument = createServerFn({ method: "POST" })
 
       if (!res.ok) {
         const txt = await res.text();
-        const err = new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`) as RetryableError;
-        // 429 (cota) não adianta tentar de novo na hora; erro 5xx costuma ser transiente do servidor.
-        err.retryable = res.status >= 500;
-        throw err;
+        // 402 (crédito) e 429 (cota) não adianta repetir na hora; 5xx costuma ser passageiro.
+        // Os dois primeiros ganham código identificável (IA_SEM_CREDITO / IA_COTA_EXCEDIDA).
+        throw geminiHttpError(res.status, txt.slice(0, 300));
       }
       const json = (await res.json()) as GeminiResponse;
       const finishReason = json.candidates?.[0]?.finishReason;
@@ -128,6 +133,17 @@ export const extractDocument = createServerFn({ method: "POST" })
       const detail = err instanceof Error ? err.message : "Falha na extração";
       console.error(`extractDocument falhou (doc ${doc.id}):`, detail);
       await markFailed(supabase, doc.id, doc.sale_id, detail);
+      if (isAiUnavailableError(err)) {
+        await reportAiUnavailableSafe({
+          orgId: doc.organization_id,
+          userId: context.userId,
+          origem: "vendas",
+          code: err.aiUnavailable,
+          httpStatus: err.httpStatus,
+          documentId: doc.id,
+        });
+        return { ok: false as const, error: AI_UNAVAILABLE_MESSAGE, aiUnavailable: true as const };
+      }
       return {
         ok: false as const,
         error:
