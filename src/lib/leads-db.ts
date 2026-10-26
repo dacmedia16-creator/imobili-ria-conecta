@@ -243,7 +243,7 @@ export async function lerIaConfig(): Promise<IaConfig> {
     .select("ia_ativa,ia_nome,ia_boas_vindas,ia_canal")
     .maybeSingle();
   if (error) falha(error);
-  // Roteiro novo (migration 20261026140000): lido à parte para a tela seguir funcionando sem ela.
+  // Roteiro novo (migration 20261026170000): lido à parte para a tela seguir funcionando sem ela.
   const { data: rot } = await db.from("lead_config").select("ia_primeira_msg,ia_reengajar").maybeSingle();
   return {
     ia_ativa: false,

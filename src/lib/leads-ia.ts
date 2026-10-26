@@ -1,7 +1,7 @@
 // IA de atendimento dos leads (Emanuella) — cards t_8046ecb0 e t_fc4d9b27 (roteiro novo a partir do estudo
 // de 1.347 conversas da Lais). Lógica pura, sem rede.
 // O banco decide quem vê, opt-out, deduplicação e a passagem ao corretor (migrations 20261025180000 e
-// 20261026140000). Aqui fica o roteiro. Todos os textos que vão ao cliente são FIXOS ou montados SÓ com
+// 20261026170000). Aqui fica o roteiro. Todos os textos que vão ao cliente são FIXOS ou montados SÓ com
 // dados da ficha da captação: a IA nunca inventa preço, condição, disponibilidade ou dado do imóvel.
 // Um modelo de linguagem, quando ligado, só ajuda a ENTENDER a resposta do cliente; nunca escreve a resposta.
 //
@@ -99,7 +99,7 @@ export type ContextoIa = {
   ia_nome: string;
   lead_nome: string;
   imovel: string | null;
-  // Roteiro novo (lead_ia_registrar_cliente, migration 20261026140000). Opcionais: banco antigo não manda.
+  // Roteiro novo (lead_ia_registrar_cliente, migration 20261026170000). Opcionais: banco antigo não manda.
   org_nome?: string | null;
   /** Do portal (Grupo ZAP): venda/aluguel. Com isso a finalidade não é perguntada. */
   transacao?: "venda" | "aluguel" | null;

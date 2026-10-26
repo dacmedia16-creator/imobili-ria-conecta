@@ -2,7 +2,7 @@
 -- Card t_fc4d9b27; "sim, ajusta a Emanuella", Denis 26/10/2026, tópico 6238. Base: 20261025180000,
 -- 20261025190000 e 20261025200000.
 --
--- ADITIVA. Rollback: docs/sql/rollback/20261026140000_leads_ia_roteiro_lais.rollback.sql
+-- ADITIVA. Rollback: docs/sql/rollback/20261026170000_leads_ia_roteiro_lais.rollback.sql
 --
 -- O que muda:
 --  1) 1ª mensagem: uma bolha, sem link. Apresenta-se como assistente virtual da imobiliária (nome da org),

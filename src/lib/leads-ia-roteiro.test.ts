@@ -19,8 +19,8 @@ import {
 // Card t_fc4d9b27: roteiro novo da Emanuella (estudo de 1.347 conversas da Lais). Conversas simuladas, modelo
 // de linguagem SIMULADO (mock) e nenhuma chamada de rede. O banco (passagem verificável, reengajamento,
 // isolamento) foi testado em PostgreSQL descartável: scripts/leads-ia-test/test_roteiro.sql.
-const MIG = readFileSync("supabase/migrations/20261026140000_leads_ia_roteiro_lais.sql", "utf8");
-const RB = readFileSync("docs/sql/rollback/20261026140000_leads_ia_roteiro_lais.rollback.sql", "utf8");
+const MIG = readFileSync("supabase/migrations/20261026170000_leads_ia_roteiro_lais.sql", "utf8");
+const RB = readFileSync("docs/sql/rollback/20261026170000_leads_ia_roteiro_lais.rollback.sql", "utf8");
 
 const AGORA = new Date("2026-10-26T13:00:00Z"); // segunda, 10h em Brasília
 const FICHA: FichaIa = { tipo: "apartamento", bairro: "Campolim", cidade: "Sorocaba", quartos: "3", suites: "1", vagas: "2", area_util_m2: "80" };

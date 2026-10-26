@@ -20,7 +20,7 @@ if [ "${ROTEIRO:-0}" = "1" ]; then
   $P -d $DB -c "CREATE TABLE IF NOT EXISTS public.exclusive_listing_links (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL, capture_id uuid NOT NULL, listing_code text NOT NULL,
     code_key text GENERATED ALWAYS AS (public.portal_code_key(listing_code)) STORED, status text NOT NULL)"
-  MIGS="$MIGS 20261026140000_leads_ia_roteiro_lais"
+  MIGS="$MIGS 20261026170000_leads_ia_roteiro_lais"
 fi
 for m in $MIGS; do
   $P -d $DB < $W/supabase/migrations/$m.sql
