@@ -6,12 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
-import { previaPrimeiraMensagem, validarIaConfig, type IaConfig } from "@/lib/leads-ia";
-import { lerIaConfig, salvarIaConfig } from "@/lib/leads-db";
+import { PRIMEIRA_MSG_PADRAO, previaPrimeiraMensagem, validarIaConfig, type IaConfig } from "@/lib/leads-ia";
+import { lerIaConfig, nomeImobiliaria, salvarIaConfig, salvarRoteiroIa } from "@/lib/leads-db";
 
-/** IA de atendimento: ligar/desligar, nome e boas-vindas (só administrador; o banco confere). */
+/** IA de atendimento: ligar/desligar, nome, 1ª mensagem e lembretes (só administrador; o banco confere). */
 export function LeadsIaConfig({ open }: { open: boolean }) {
   const [c, setC] = useState<IaConfig | null>(null);
+  const [org, setOrg] = useState<string>("sua imobiliária");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -19,6 +20,9 @@ export function LeadsIaConfig({ open }: { open: boolean }) {
     lerIaConfig()
       .then(setC)
       .catch(() => setC(null));
+    nomeImobiliaria()
+      .then((n) => n && setOrg(n))
+      .catch(() => undefined);
   }, [open]);
 
   if (!c) return null;
@@ -29,6 +33,7 @@ export function LeadsIaConfig({ open }: { open: boolean }) {
     setBusy(true);
     try {
       await salvarIaConfig(c);
+      await salvarRoteiroIa(c);
       toast.success(c.ia_ativa ? "IA de atendimento ligada." : "IA de atendimento salva (desligada).");
     } catch (e) {
       toast.error(errorMessage(e, "Não foi possível salvar a IA."));
@@ -53,9 +58,10 @@ export function LeadsIaConfig({ open }: { open: boolean }) {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Ligada, a IA prepara a 1ª mensagem de todo lead novo e faz a qualificação (comprar ou alugar, prazo,
-        pagamento, faixa de valor e região). Ela não informa preço nem condição e passa ao corretor no fim,
-        quando o cliente pede uma pessoa ou em assunto sensível.{" "}
+        Ligada, a IA manda a 1ª mensagem de todo lead novo, responde as dúvidas com os dados da captação e faz no
+        máximo 3 perguntas (comprar ou alugar, faixa de valor e forma de pagamento). Quando um dado não está na
+        captação, ela avisa que vai confirmar com o corretor: nunca estima preço nem condição. Visita é sempre
+        pré-agendamento, confirmado pelo corretor. Proprietário, parceiro ou fornecedor vai direto para a equipe.{" "}
         {c.ia_canal === "teste"
           ? "Modo teste: nenhuma mensagem é enviada ao cliente. Teste a conversa no detalhe do lead."
           : "Canal WhatsApp (ZionTalk) ligado pela plataforma."}
@@ -70,19 +76,40 @@ export function LeadsIaConfig({ open }: { open: boolean }) {
         />
       </div>
       <div className="grid gap-1">
-        <Label htmlFor="cfg-ia-boas">Texto de boas-vindas (opcional)</Label>
+        <Label htmlFor="cfg-ia-primeira">1ª mensagem (uma só, sem link, terminando com pergunta)</Label>
         <Textarea
-          id="cfg-ia-boas"
+          id="cfg-ia-primeira"
           maxLength={400}
-          value={c.ia_boas_vindas ?? ""}
-          placeholder="Recebi seu contato"
-          onChange={(e) => setC({ ...c, ia_boas_vindas: e.target.value })}
+          value={c.ia_primeira_msg ?? ""}
+          placeholder={PRIMEIRA_MSG_PADRAO}
+          onChange={(e) => setC({ ...c, ia_primeira_msg: e.target.value })}
         />
+        <p className="text-[11px] text-muted-foreground">
+          Deixe vazio para usar o texto padrão. Use {"{nome}"} (cliente), {"{assistente}"} (nome da IA),{" "}
+          {"{imobiliaria}"} e {"{imovel}"} (tipo e bairro da captação).
+        </p>
       </div>
       <p className="rounded-md bg-muted/50 p-2 text-xs">
         <span className="font-medium">Prévia: </span>
-        {previaPrimeiraMensagem(c, "sua imobiliária", "Maria Silva", "apartamento no bairro Centro")}
+        {previaPrimeiraMensagem(c, org, "Maria Silva", "no apartamento do bairro Centro")}
       </p>
+      <div className="flex items-start justify-between gap-2 rounded-md border p-2">
+        <div>
+          <Label htmlFor="cfg-ia-reengajar" className="text-xs font-medium">
+            Lembrete para quem não respondeu
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            2 lembretes: depois de ~24 h, citando o imóvel; depois de ~72 h, com 1 imóvel parecido. Para quando o
+            cliente responde, recusa ou pede SAIR. Respeita o limite diário e o intervalo do chip. Só funciona com o
+            WhatsApp ligado pela plataforma.
+          </p>
+        </div>
+        <Switch
+          id="cfg-ia-reengajar"
+          checked={c.ia_reengajar === true}
+          onCheckedChange={(v) => setC({ ...c, ia_reengajar: v })}
+        />
+      </div>
       <Button size="sm" disabled={busy} onClick={() => void salvar()}>
         Salvar IA
       </Button>

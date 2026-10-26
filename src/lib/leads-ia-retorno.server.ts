@@ -13,7 +13,7 @@
 // LGPD: nunca registrar em log telefone, texto, token ou corpo. Só códigos de resultado.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, temLink } from "./leads-ia-canal";
-import { proximaResposta, respostaMidia, type ContextoIa } from "./leads-ia";
+import { proximaResposta, respostaMidia, type ContextoIa, type ImovelEncontrado } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 
 export const RETORNO_MAX_BYTES = 50_000;
@@ -136,6 +136,8 @@ export type DepsRetorno = {
   reservar: (leadId: string) => Promise<{ data: unknown; error: { code?: string } | null }>;
   resultado: (msgId: string, ok: boolean) => Promise<unknown>;
   registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
+  /** Imóvel pelo código do anúncio que o cliente informou (lead_ia_imovel_por_codigo). Opcional. */
+  buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
   env: Record<string, string | undefined>;
   fetchFn?: typeof fetch;
   esperar?: (ms: number) => Promise<void>;
@@ -283,8 +285,11 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     const r =
       banco.tipo === "midia"
         ? respostaMidia(ctx)
-        : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn));
+        : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
+            buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
+          });
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
+    // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
     const { error } = await deps.aplicar({
       _conversa: c.conversa_id,
       _versao: c.versao,
@@ -293,6 +298,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       _resposta: r.resposta,
       _fim: r.fim,
       _resumo: r.resumo,
+      _resposta_falha: r.resposta_falha,
     });
     if (error) console.error("leads ia retorno: lead_ia_aplicar falhou", error.code ?? "sem_codigo");
   }
@@ -300,7 +306,10 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
 }
 
 /** Envia o que estiver pendente para o lead (o banco confere lista de liberados, opt-out, limites). */
-export async function enviarPendentes(leadId: string, deps: DepsRetorno): Promise<number> {
+export async function enviarPendentes(
+  leadId: string,
+  deps: Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn">,
+): Promise<number> {
   const canal = escolherCanal(deps.env, deps.fetchFn);
   if (canal.nome !== "ziontalk") return 0; // envio real desligado: fica "aguardando envio"
   let enviadas = 0;
@@ -327,6 +336,54 @@ export async function enviarPendentes(leadId: string, deps: DepsRetorno): Promis
   return enviadas;
 }
 
+// --- Reengajamento em 2 toques (t_fc4d9b27) ----------------------------------------------------------
+// DESLIGADO por padrão (lead_config.ia_reengajar = false) e SEM agendamento nesta entrega: ligar = outro "sim"
+// de Denis (agendar a chamada a cada ~5 min). Cada chamada prepara NO MÁXIMO 1 toque (o banco escolhe,
+// respeitando lista de liberados, opt-out, limite diário, horário comercial e intervalo aleatório) e envia
+// pelo mesmo caminho das respostas (enviarPendentes, que exige LEADS_IA_ENVIO_REAL=on + chave própria).
+export const ENV_REENGAJAR_SEGREDO = "LEADS_IA_REENGAJAR_SEGREDO";
+
+export type DepsReengajar = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn"> & {
+  reengajarReservar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+};
+
+/** Prepara e envia no máximo 1 toque. Devolve o que aconteceu (sem telefone nem texto). */
+export async function reengajarUmaVez(deps: DepsReengajar): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; toque?: number }> {
+  const { data, error } = await deps.reengajarReservar();
+  if (error) {
+    console.error("leads ia reengajar: reservar falhou", error.code ?? "sem_codigo");
+    return { r: "erro" };
+  }
+  const t = (data as Array<{ lead_id: string; toque: number }> | null)?.[0];
+  if (!t) return { r: "nada" };
+  const enviadas = await enviarPendentes(t.lead_id, deps);
+  return { r: "preparado", enviadas, toque: t.toque };
+}
+
+/** Comparação em tempo constante (não vaza o segredo pelo tempo de resposta). */
+export function segredoConfere(recebido: string | null, esperado: string | undefined): boolean {
+  if (!esperado || esperado.length < 32 || !recebido) return false;
+  let dif = recebido.length ^ esperado.length;
+  for (let i = 0; i < esperado.length; i++) dif |= (recebido.charCodeAt(i) || 0) ^ esperado.charCodeAt(i);
+  return dif === 0;
+}
+
+export async function receberReengajar(request: Request, deps: DepsReengajar): Promise<Response> {
+  if (request.method !== "POST") return json(405, "metodo");
+  // Sem segredo configurado no servidor = rota desligada.
+  if (!segredoConfere(request.headers.get("x-leads-ia-segredo"), deps.env[ENV_REENGAJAR_SEGREDO]?.trim()))
+    return json(404, "desligado");
+  const r = await reengajarUmaVez(deps).catch(() => ({ r: "erro" as const }));
+  return json(r.r === "erro" ? 503 : 200, r.r);
+}
+
+export async function depsReengajarReais(request: Request): Promise<DepsReengajar> {
+  const base = await depsReais(request);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = supabaseAdmin as unknown as SupabaseClient;
+  return { ...base, reengajarReservar: async () => await db.rpc("lead_ia_reengajar_reservar") };
+}
+
 /** Dependências reais (service_role). Só o servidor importa este arquivo. */
 export async function depsReais(request: Request): Promise<DepsRetorno> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -339,6 +396,10 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     resultado: async (msgId, ok) => await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
     registrarUso: async (orgId, conversaId, u) =>
       await db.from("lead_ia_uso").insert({ organization_id: orgId, conversa_id: conversaId, ...u }),
+    buscarImovel: async (conversaId, codigo) => {
+      const { data, error } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: conversaId, _codigo: codigo });
+      return error ? null : ((data as ImovelEncontrado | null) ?? null);
+    },
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };

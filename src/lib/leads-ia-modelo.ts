@@ -56,7 +56,7 @@ type Chamada = {
 
 const CAMPO: Partial<Record<Passo, string>> = {
   finalidade: '{"finalidade":"comprar"|"alugar"}',
-  pagamento: '{"pagamento":["financiamento"|"à vista"|"FGTS"|"consórcio"]}',
+  pagamento: '{"pagamento":["à vista"|"financiamento"|"permuta"|"FGTS"|"consórcio"]}',
   proximo_passo: '{"proximo_passo":"visita"|"contato"}',
   prazo: '{"prazo":"texto curto"}',
   faixa: '{"faixa":"texto curto, exatamente como o cliente disse"}',
