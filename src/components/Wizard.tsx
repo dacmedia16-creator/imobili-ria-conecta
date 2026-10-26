@@ -70,7 +70,9 @@ export function Wizard({
     <div className="space-y-4">
       {/* Desktop stepper */}
       <div className="hidden md:block print:hidden">
-        <ol className="flex items-center gap-2">
+        {/* flex-wrap: com muitas etapas (ex.: 3 compradores + 2 vendedores nos Documentos) a
+            fileira quebra em mais linhas em vez de passar do limite da tela e esconder abas. */}
+        <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
           {enabled.map((s, i) => {
             const done = i < idx;
             const isActive = s.key === activeKey;
