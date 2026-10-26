@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LeadsIaConfig } from "@/components/leads/LeadsIaConfig";
+import { LeadsIaConfig, type SalvarIaPendente } from "@/components/leads/LeadsIaConfig";
 import { LeadsIaRetornoConfig } from "@/components/leads/LeadsIaRetornoConfig";
 import { errorMessage } from "@/lib/errors";
 import { DISTRIBUICAO_LABEL, urlGrupoOlx, validarConfig, type LeadConfig } from "@/lib/leads";
@@ -41,6 +41,8 @@ export function LeadsConfigDialog({
   const [busy, setBusy] = useState(false);
   // URL com o token novo: só existe na memória desta tela, logo depois de gerar.
   const [urlZap, setUrlZap] = useState("");
+  // Preenchido pela seção da IA quando ela tem alteração não salva (t_71832765).
+  const iaPendente = useRef<SalvarIaPendente | null>(null);
   useEffect(() => {
     if (open) setC(config);
     else setUrlZap("");
@@ -105,6 +107,9 @@ export function LeadsConfigDialog({
     if (erro) return void toast.error(erro);
     setBusy(true);
     try {
+      // Nome/1ª mensagem da IA alterados e não salvos: grava junto. Se a IA falhar, a janela fica aberta.
+      const salvarIa = iaPendente.current;
+      if (salvarIa && !(await salvarIa())) return;
       await salvarConfig(c);
       toast.success("Configuração salva.");
       onSaved();
@@ -283,7 +288,7 @@ export function LeadsConfigDialog({
             </>
           )}
 
-          {admin && <LeadsIaConfig open={open} />}
+          {admin && <LeadsIaConfig open={open} salvarPendenteRef={iaPendente} />}
           <LeadsIaRetornoConfig open={open} admin={admin} />
         </div>
         <DialogFooter>

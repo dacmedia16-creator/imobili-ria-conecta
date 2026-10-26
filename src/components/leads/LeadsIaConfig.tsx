@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MutableRefObject } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,41 +6,80 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
-import { PRIMEIRA_MSG_PADRAO, previaPrimeiraMensagem, validarIaConfig, type IaConfig } from "@/lib/leads-ia";
+import {
+  PRIMEIRA_MSG_PADRAO,
+  iaConfigMudou,
+  previaPrimeiraMensagem,
+  validarIaConfig,
+  type IaConfig,
+} from "@/lib/leads-ia";
 import { lerIaConfig, nomeImobiliaria, salvarIaConfig, salvarRoteiroIa } from "@/lib/leads-db";
 
-/** IA de atendimento: ligar/desligar, nome, 1ª mensagem e lembretes (só administrador; o banco confere). */
-export function LeadsIaConfig({ open }: { open: boolean }) {
+/** Salva a IA se houver alteração pendente. false = não salvou (erro já avisado na tela). */
+export type SalvarIaPendente = () => Promise<boolean>;
+
+/**
+ * IA de atendimento: ligar/desligar, nome, 1ª mensagem e lembretes (só administrador; o banco confere).
+ * `salvarPendenteRef`: a janela de configuração usa para gravar também a IA quando o botão do rodapé é
+ * clicado com alteração pendente aqui (t_71832765: o nome digitado se perdia ao clicar em "Salvar prazos").
+ */
+export function LeadsIaConfig({
+  open,
+  salvarPendenteRef,
+}: {
+  open: boolean;
+  salvarPendenteRef?: MutableRefObject<SalvarIaPendente | null>;
+}) {
   const [c, setC] = useState<IaConfig | null>(null);
+  // Último valor lido/gravado no banco, para saber se há alteração não salva.
+  const [salvo, setSalvo] = useState<IaConfig | null>(null);
   const [org, setOrg] = useState<string>("sua imobiliária");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     lerIaConfig()
-      .then(setC)
-      .catch(() => setC(null));
+      .then((v) => {
+        setC(v);
+        setSalvo(v);
+      })
+      .catch(() => {
+        setC(null);
+        setSalvo(null);
+      });
     nomeImobiliaria()
       .then((n) => n && setOrg(n))
       .catch(() => undefined);
   }, [open]);
 
-  if (!c) return null;
+  const pendente = !!c && !!salvo && iaConfigMudou(salvo, c);
 
-  const salvar = async () => {
+  const salvar = async (): Promise<boolean> => {
+    if (!c) return true;
     const erro = validarIaConfig(c);
-    if (erro) return void toast.error(erro);
+    if (erro) {
+      toast.error(erro);
+      return false;
+    }
     setBusy(true);
     try {
       await salvarIaConfig(c);
       await salvarRoteiroIa(c);
+      setSalvo(c);
       toast.success(c.ia_ativa ? "IA de atendimento ligada." : "IA de atendimento salva (desligada).");
+      return true;
     } catch (e) {
       toast.error(errorMessage(e, "Não foi possível salvar a IA."));
+      return false;
     } finally {
       setBusy(false);
     }
   };
+
+  // Atualizado a cada render: o rodapé chama sempre com o valor que está na tela agora.
+  if (salvarPendenteRef) salvarPendenteRef.current = pendente ? salvar : null;
+
+  if (!c) return null;
 
   return (
     <section className="space-y-2 rounded-lg border p-3 text-sm">
@@ -110,9 +149,16 @@ export function LeadsIaConfig({ open }: { open: boolean }) {
           onCheckedChange={(v) => setC({ ...c, ia_reengajar: v })}
         />
       </div>
-      <Button size="sm" disabled={busy} onClick={() => void salvar()}>
-        Salvar IA
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button size="sm" disabled={busy} onClick={() => void salvar()}>
+          Salvar IA
+        </Button>
+        {pendente && (
+          <span className="text-xs text-amber-700" role="status">
+            Alterações da IA ainda não salvas.
+          </span>
+        )}
+      </div>
     </section>
   );
 }
