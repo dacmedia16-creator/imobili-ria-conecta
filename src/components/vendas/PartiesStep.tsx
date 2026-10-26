@@ -710,7 +710,7 @@ export function PartiesStep({
                   </CardContent>
                 )}
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-0">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {editable && (
                       <>
                         <Button size="sm" variant="outline" onClick={() => addPapel("comprador")}>
