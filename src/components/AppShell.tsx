@@ -20,6 +20,8 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { montarMenuLateral, iniciaisDoEmail, type NavGroup } from "@/lib/menu-lateral";
+import { TourPrimeiroAcesso } from "@/components/TourPrimeiroAcesso";
+import { idDaArea, podeGravarTour } from "@/lib/tour-primeiro-acesso";
 import { AjudaSugestoesBotao } from "@/components/AjudaSugestoes";
 import { MuralCelebrationListener } from "@/components/mural/MuralCelebrationListener";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
@@ -168,7 +170,11 @@ function SidebarNav({
             const visible = group.items.filter((n) => n.show);
             if (visible.length === 0) return null;
             return (
-              <div key={group.label ?? "principal"} className="space-y-0.5">
+              <div
+                key={group.label ?? "principal"}
+                className="space-y-0.5"
+                data-tour={`area-${idDaArea(group.label)}`}
+              >
                 {group.label &&
                   (collapsed ? (
                     <div className="mx-2 mb-1 border-t border-white/10" aria-hidden />
@@ -190,6 +196,7 @@ function SidebarNav({
                     <Link
                       key={n.to}
                       to={n.to}
+                      data-tour={n.to === "/ajuda/wiki" ? "item-guias" : undefined}
                       activeOptions={{ exact: n.to === "/" }}
                       onClick={onNavigate}
                       aria-label={
@@ -278,6 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     platformAdmin,
     platformContext,
     platformReady,
+    loading,
   } = useAuth();
   const userId = user?.id;
   const contextOrgId = platformContext?.organizationId ?? null;
@@ -308,6 +316,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
   const [achievementsVisible, setAchievementsVisible] = useState(false);
   const [leadsVisible, setLeadsVisible] = useState(false);
+  // Módulos já lidos: o tour só monta os passos com o menu completo.
+  const [modulosProntos, setModulosProntos] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
   // Super-admin da PLATAFORMA (Denis) — diferente do super_admin de agência. Vem do useAuth e
   // só controla a tela; a rota, o servidor e as RPCs platform_* repetem a verificação.
@@ -315,23 +325,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     setAgencyBrand(null);
-    exclusiveEnabled().then((enabled) => {
-      if (alive) setExclusiveVisible(enabled);
-    });
-    roomReservationEnabled().then((enabled) => {
-      if (alive) setRoomVisible(enabled);
-    });
-    ownerFeedbackEnabled().then((enabled) => {
-      if (alive) setFeedbackVisible(enabled);
-    });
-    opportunitiesEnabled().then((enabled) => {
-      if (alive) setOpportunitiesVisible(enabled);
-    });
-    achievementsEnabled().then((enabled) => {
-      if (alive) setAchievementsVisible(enabled);
-    });
-    leadsEnabled().then((enabled) => {
-      if (alive) setLeadsVisible(enabled);
+    setModulosProntos(false);
+    void Promise.allSettled([
+      exclusiveEnabled().then((enabled) => {
+        if (alive) setExclusiveVisible(enabled);
+      }),
+      roomReservationEnabled().then((enabled) => {
+        if (alive) setRoomVisible(enabled);
+      }),
+      ownerFeedbackEnabled().then((enabled) => {
+        if (alive) setFeedbackVisible(enabled);
+      }),
+      opportunitiesEnabled().then((enabled) => {
+        if (alive) setOpportunitiesVisible(enabled);
+      }),
+      achievementsEnabled().then((enabled) => {
+        if (alive) setAchievementsVisible(enabled);
+      }),
+      leadsEnabled().then((enabled) => {
+        if (alive) setLeadsVisible(enabled);
+      }),
+    ]).then(() => {
+      if (alive) setModulosProntos(true);
     });
     if (userId) {
       // A agência vem do JWT no banco, nunca de um seletor do navegador.
@@ -559,7 +574,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <AjudaSugestoesBotao compacto />
+          <span data-tour="ajuda-celular" className="inline-flex">
+            <AjudaSugestoesBotao compacto />
+          </span>
           <NotificationBell />
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <Button
@@ -567,6 +584,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               size="icon"
               onClick={() => setMobileNavOpen(true)}
               aria-label="Abrir menu"
+              data-tour="menu-celular"
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -598,13 +616,25 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden items-center justify-end gap-2 md:flex print:hidden">
-            <AjudaSugestoesBotao />
+            <span data-tour="ajuda-computador" className="inline-flex">
+              <AjudaSugestoesBotao />
+            </span>
             <NotificationBell />
           </div>
           {children}
         </div>
       </main>
       <MuralCelebrationListener />
+      <TourPrimeiroAcesso
+        userId={userId}
+        groups={navGroups}
+        pronto={!loading && platformReady && modulosProntos && roles.length > 0}
+        podeGravar={podeGravarTour({
+          impersonando: Boolean(impersonation),
+          emVisaoDaPlataforma: Boolean(platformContext),
+          platformAdmin,
+        })}
+      />
     </div>
   );
 }

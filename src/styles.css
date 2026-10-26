@@ -220,3 +220,74 @@
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
+
+/* Tour guiado de primeiro acesso (t_2e09bc40): balão do driver.js no visual do ADM MAX. */
+.driver-popover.tour-adm-max {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  border-radius: 12px;
+  max-width: 340px;
+  padding: 18px 18px 14px;
+  color: #0f172a;
+}
+.driver-popover.tour-adm-max .driver-popover-title {
+  font-size: 17px;
+  padding-right: 24px;
+}
+.driver-popover.tour-adm-max .driver-popover-description {
+  font-size: 14px;
+  color: #334155;
+}
+.driver-popover.tour-adm-max .driver-popover-footer {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.driver-popover.tour-adm-max .driver-popover-progress-text {
+  order: -1;
+  width: 100%;
+  font-size: 12px;
+  color: #64748b;
+}
+.driver-popover.tour-adm-max .driver-popover-footer-btn {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  text-shadow: none;
+}
+.driver-popover.tour-adm-max .driver-popover-next-btn {
+  background: #3453a4;
+  border-color: #3453a4;
+  color: #fff;
+}
+.driver-popover.tour-adm-max .driver-popover-next-btn:hover,
+.driver-popover.tour-adm-max .driver-popover-next-btn:focus {
+  background: #2a4386;
+}
+.driver-popover.tour-adm-max .driver-popover-close-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  color: #64748b;
+}
+.tour-adm-max-pular {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  color: #64748b;
+  text-decoration: underline;
+  padding: 8px 0;
+}
+.tour-adm-max-pular:focus-visible {
+  outline: 2px solid #3453a4;
+  outline-offset: 2px;
+}
+@media (max-width: 767px) {
+  /* Celular: balão quase da largura da tela, botões maiores para o dedo. */
+  .driver-popover.tour-adm-max {
+    max-width: calc(100vw - 24px);
+    min-width: calc(100vw - 24px);
+  }
+  .driver-popover.tour-adm-max .driver-popover-footer-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+}
