@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 docker exec pgt-3284-db psql -U postgres -qc "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"
 grep -v '^\\restrict\|^\\unrestrict' base.sql | $P -d $DB >/dev/null
 $P -d $DB -c "TRUNCATE public.notifications"
-# ROTEIRO=1 inclui o roteiro novo da Emanuella (t_fc4d9b27). A base de teste não tem a coluna status da
+# ROTEIRO=1 inclui o roteiro novo da Nicole (t_fc4d9b27). A base de teste não tem a coluna status da
 # captação (existe em produção desde 20260925100000): o teste cria igual à produção.
 MIGS="20261025120000_leads_piloto 20261025150000_leads_p2p3_distribuicao 20261025160000_leads_contato_apos_aceite 20261025170000_leads_grupo_olx 20261025180000_leads_ia_atendimento 20261025190000_leads_ia_grant_config 20261025200000_leads_ia_retorno_ziontalk"
 if [ "${ROTEIRO:-0}" = "1" ]; then

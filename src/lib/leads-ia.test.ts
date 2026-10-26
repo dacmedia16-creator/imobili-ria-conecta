@@ -155,7 +155,7 @@ describe("travas do envio futuro por QR Code (ainda desligadas)", () => {
   it("nenhum link na 1ª mensagem", () => {
     for (const x of ["veja https://x.com", "www.imob.com.br", "acesse imob.com.br/ap", "site.app"]) expect(temLink(x)).toBe(true);
     for (const x of ["Recebi seu contato pelo anúncio no ZAP", "R$ 500.000", "Sr. João"]) expect(temLink(x)).toBe(false);
-    expect(validarIaConfig({ ia_nome: "Emanuella", ia_boas_vindas: "veja www.imob.com.br" })).not.toBeNull();
+    expect(validarIaConfig({ ia_nome: "Nicole", ia_boas_vindas: "veja www.imob.com.br" })).not.toBeNull();
     expect(MIG).toMatch(/lead_config_ia_boas_vindas_sem_link/);
   });
 });

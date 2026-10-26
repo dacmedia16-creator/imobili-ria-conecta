@@ -16,7 +16,7 @@ import {
   type RespostaIa,
 } from "./leads-ia";
 
-// Card t_fc4d9b27: roteiro novo da Emanuella (estudo de 1.347 conversas da Lais). Conversas simuladas, modelo
+// Card t_fc4d9b27: roteiro novo da Nicole (estudo de 1.347 conversas da Lais). Conversas simuladas, modelo
 // de linguagem SIMULADO (mock) e nenhuma chamada de rede. O banco (passagem verificável, reengajamento,
 // isolamento) foi testado em PostgreSQL descartável: scripts/leads-ia-test/test_roteiro.sql.
 const MIG = readFileSync("supabase/migrations/20261026170000_leads_ia_roteiro_lais.sql", "utf8");
@@ -31,7 +31,7 @@ const ctx = (p: Partial<ContextoIa> = {}): ContextoIa => ({
   versao: 1,
   passo: "interesse",
   dados: {},
-  ia_nome: "Emanuella",
+  ia_nome: "Nicole",
   lead_nome: "Maria",
   imovel: null,
   org_nome: "Imob A",
@@ -59,16 +59,16 @@ const perguntas = (rs: RespostaIa[]) => rs.reduce((n, r) => n + (/(comprar ou pa
 
 describe("item 1 — 1ª mensagem", () => {
   it("padrão: uma bolha, assistente virtual, imobiliária da org, tipo/bairro e pergunta fechada, sem link", () => {
-    const t = previaPrimeiraMensagem({ ia_nome: "Emanuella", ia_primeira_msg: null }, "Imob A", "Maria Souza", "no apartamento do bairro Campolim");
+    const t = previaPrimeiraMensagem({ ia_nome: "Nicole", ia_primeira_msg: null }, "Imob A", "Maria Souza", "no apartamento do bairro Campolim");
     expect(t).toBe(
-      "Oi, Maria! Aqui é a Emanuella, assistente virtual da Imob A. Vi seu interesse no apartamento do bairro Campolim. Quer saber valores e condições, ou já prefere agendar uma visita?",
+      "Oi, Maria! Aqui é a Nicole, assistente virtual da Imob A. Vi seu interesse no apartamento do bairro Campolim. Quer saber valores e condições, ou já prefere agendar uma visita?",
     );
     expect(t).not.toMatch(/\n|https?:|www\./);
     expect(t).toMatch(/\?$/);
   });
   it("lead sem nome não vira \"Oi, !\"; sem captação usa texto neutro", () => {
-    expect(previaPrimeiraMensagem({ ia_nome: "Emanuella" }, "Imob A", "Lead Grupo ZAP", null)).toMatch(/^Oi! Aqui é a Emanuella/);
-    expect(previaPrimeiraMensagem({ ia_nome: "Emanuella" }, "Imob A", "Ana", null)).toContain("no imóvel que você viu");
+    expect(previaPrimeiraMensagem({ ia_nome: "Nicole" }, "Imob A", "Lead Grupo ZAP", null)).toMatch(/^Oi! Aqui é a Nicole/);
+    expect(previaPrimeiraMensagem({ ia_nome: "Nicole" }, "Imob A", "Ana", null)).toContain("no imóvel que você viu");
   });
   it("texto editável: aceita o personalizado; recusa link e texto que não termina em pergunta", () => {
     expect(previaPrimeiraMensagem({ ia_nome: "E", ia_primeira_msg: "Olá {nome}, da {imobiliaria}. Posso ajudar?" }, "Imob B", "João", null)).toBe(

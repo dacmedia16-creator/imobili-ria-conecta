@@ -1,4 +1,4 @@
-// IA de atendimento dos leads (Emanuella) — cards t_8046ecb0 e t_fc4d9b27 (roteiro novo a partir do estudo
+// IA de atendimento dos leads (Nicole) — cards t_8046ecb0 e t_fc4d9b27 (roteiro novo a partir do estudo
 // de 1.347 conversas da Lais). Lógica pura, sem rede.
 // O banco decide quem vê, opt-out, deduplicação e a passagem ao corretor (migrations 20261025180000 e
 // 20261026170000). Aqui fica o roteiro. Todos os textos que vão ao cliente são FIXOS ou montados SÓ com

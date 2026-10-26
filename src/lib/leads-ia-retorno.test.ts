@@ -31,7 +31,7 @@ const ctx: ContextoIa = {
   versao: 1,
   passo: "interesse",
   dados: {},
-  ia_nome: "Emanuella",
+  ia_nome: "Nicole",
   lead_nome: "Denis",
   imovel: null,
 };

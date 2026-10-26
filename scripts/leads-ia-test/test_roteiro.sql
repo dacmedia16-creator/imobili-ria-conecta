@@ -1,4 +1,4 @@
--- Testes do roteiro novo da Emanuella (t_fc4d9b27) em PostgreSQL descartável: 2 imobiliárias (A e B).
+-- Testes do roteiro novo da Nicole (t_fc4d9b27) em PostgreSQL descartável: 2 imobiliárias (A e B).
 -- Uso: ROTEIRO=1 bash scripts/leads-ia-test/setup.sh tfc4d && docker exec -i pgt-3284-db psql -U postgres -d tfc4d -q < scripts/leads-ia-test/test_roteiro.sql
 \set ON_ERROR_STOP 1
 SET client_min_messages = notice;
@@ -66,10 +66,10 @@ SELECT t.como(:admA);
 SELECT t.ok(t.falha($$SELECT public.lead_ia_roteiro_salvar('Veja www.alfa.com.br?', false)$$), 'P03 1ª mensagem com link recusada');
 SELECT t.ok(t.falha($$SELECT public.lead_ia_roteiro_salvar(repeat('x', 401), false)$$), 'P04 1ª mensagem > 400 recusada');
 SELECT public.lead_ia_roteiro_salvar(NULL, false);
-SELECT public.lead_ia_config_salvar(true, 'Emanuella', NULL);
+SELECT public.lead_ia_config_salvar(true, 'Nicole', NULL);
 SELECT t.ok((SELECT count(*) = 1 FROM public.lead_config), 'P05 admin A vê só a config da A');
 SELECT t.como(:admB);
-SELECT public.lead_ia_config_salvar(true, 'Emanuella', NULL);
+SELECT public.lead_ia_config_salvar(true, 'Nicole', NULL);
 SELECT public.lead_ia_roteiro_salvar('Olá {nome}, da {imobiliaria}, sobre {imovel}. Posso ajudar?', false);
 SELECT t.dono();
 SELECT t.ok((SELECT ia_primeira_msg IS NULL FROM public.lead_config WHERE organization_id = :orgA)
@@ -80,14 +80,14 @@ SELECT t.ok((SELECT ia_primeira_msg IS NULL FROM public.lead_config WHERE organi
 SELECT public.lead_inserir(:orgA, 'Maria Souza', '15981110001', NULL, 'olx', NULL, :capA, NULL, false, NULL, 'ra1') AS la1 \gset
 SELECT id AS cva1 FROM public.lead_conversas WHERE lead_id = :'la1' \gset
 SELECT texto AS m1 FROM public.lead_mensagens WHERE conversa_id = :'cva1' AND autor = 'ia' \gset
-SELECT t.ok(:'m1' = 'Oi, Maria! Aqui é a Emanuella, assistente virtual da Imobiliária Alfa. Vi seu interesse no apartamento do bairro Campolim. Quer saber valores e condições, ou já prefere agendar uma visita?',
+SELECT t.ok(:'m1' = 'Oi, Maria! Aqui é a Nicole, assistente virtual da Imobiliária Alfa. Vi seu interesse no apartamento do bairro Campolim. Quer saber valores e condições, ou já prefere agendar uma visita?',
             'P07 1ª mensagem padrão: assistente virtual, org, tipo e bairro, pergunta fechada');
 SELECT t.ok((SELECT count(*) = 1 FROM public.lead_mensagens WHERE conversa_id = :'cva1' AND autor = 'ia')
             AND :'m1' !~* '(https?://|www\.|SAIR|999999)', 'P08 uma bolha, sem link e sem preço');
 SELECT public.lead_inserir(:orgA, 'Lead Grupo ZAP', '15981110002', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'ra2') AS la2 \gset
 SELECT id AS cva2 FROM public.lead_conversas WHERE lead_id = :'la2' \gset
 SELECT t.ok((SELECT texto FROM public.lead_mensagens WHERE conversa_id = :'cva2' AND autor = 'ia')
-            LIKE 'Oi! Aqui é a Emanuella, assistente virtual da Imobiliária Alfa. Vi seu interesse no imóvel que você viu.%',
+            LIKE 'Oi! Aqui é a Nicole, assistente virtual da Imobiliária Alfa. Vi seu interesse no imóvel que você viu.%',
             'P09 sem nome e sem captação: "Oi!" e texto neutro');
 SELECT public.lead_inserir(:orgB, 'João Lima', '11981110009', NULL, 'olx', NULL, :capB, NULL, false, NULL, 'rb1') AS lb1 \gset
 SELECT id AS cvb1 FROM public.lead_conversas WHERE lead_id = :'lb1' \gset

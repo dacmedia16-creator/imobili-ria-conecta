@@ -1,4 +1,4 @@
-// Retorno ZionTalk -> ADM: a Emanuella responde quando o cliente escreve no WhatsApp. Card t_6f688b4b.
+// Retorno ZionTalk -> ADM: a Nicole responde quando o cliente escreve no WhatsApp. Card t_6f688b4b.
 //
 // Contrato de entrada: a doc oficial da ZionTalk (https://ziontalk.com.br/docs) só descreve o ENVIO. O formato
 // do webhook segue o adaptador já em uso na VPS (relay ZionTalk -> MAX) e a skill max-configurar-numero-ziontalk:

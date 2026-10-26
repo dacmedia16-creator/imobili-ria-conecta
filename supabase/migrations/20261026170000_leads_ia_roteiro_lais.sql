@@ -1,5 +1,5 @@
--- Leads — IA de atendimento (Emanuella): roteiro novo a partir do estudo de 1.347 conversas da Lais.
--- Card t_fc4d9b27; "sim, ajusta a Emanuella", Denis 26/10/2026, tópico 6238. Base: 20261025180000,
+-- Leads — IA de atendimento (Nicole; antes "Emanuella", renomeada por Denis em 26/10): roteiro novo a partir do estudo de 1.347 conversas da Lais.
+-- Card t_fc4d9b27; "sim, ajusta a Emanuella" (IA renomeada para Nicole em 26/10, t_8805c3c7), Denis 26/10/2026, tópico 6238. Base: 20261025180000,
 -- 20261025190000 e 20261025200000.
 --
 -- ADITIVA. Rollback: docs/sql/rollback/20261026170000_leads_ia_roteiro_lais.rollback.sql

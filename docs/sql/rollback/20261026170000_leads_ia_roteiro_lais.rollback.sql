@@ -1,5 +1,5 @@
 -- Rollback de 20261026170000_leads_ia_roteiro_lais (card t_fc4d9b27).
--- Volta a Emanuella ao roteiro publicado em 25/10 (20261025180000 + 20261025200000): 1ª mensagem antiga,
+-- Volta a Nicole ao roteiro publicado em 25/10 (20261025180000 + 20261025200000): 1ª mensagem antiga,
 -- lead_ia_aplicar com 7 argumentos, sem ficha, sem busca por código, sem reengajamento.
 -- Perde: o texto editado da 1ª mensagem, a chave do reengajamento e as marcas de toque das conversas.
 -- ANTES de rodar, publique de novo o servidor anterior (o código novo chama lead_ia_aplicar com 8 argumentos).
