@@ -19,6 +19,7 @@ import {
   type AddressConflict,
   uploadCaptureDocument,
   vendaDaCaptacao,
+  corrigirCaptacaoAprovada,
   virarVenda,
   type VendaDaCaptacao,
 } from "@/lib/exclusive-captures-db";
@@ -129,6 +130,14 @@ import {
 } from "@/lib/captacao-auditoria";
 import { notifyCaptureTransition } from "@/lib/captacao-notifications.functions";
 import {
+  AVISO_VENDA_CORRECAO,
+  CORRECAO_TRAVADOS,
+  lerCorrecao,
+  montarCorrecao,
+  podeCorrigirAprovada,
+  textoMudanca,
+} from "@/lib/captacao-correcao";
+import {
   avisoSemAssinado,
   BLOQUEIO_SEM_ASSINADO,
   captacaoDoProprioGestor,
@@ -172,6 +181,7 @@ import {
   Eye,
   FileCheck2,
   Handshake,
+  Pencil,
   Printer,
   Trash2,
   Upload,
@@ -240,6 +250,8 @@ function ExclusiveDetail() {
   const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
+  // "Corrigir dados" na captação aprovada (t_9f9f0c6a): libera só imóvel, ficha e proprietários.
+  const [corrigindo, setCorrigindo] = useState(false);
   const [conflicts, setConflicts] = useState<AddressConflict[]>([]);
   // "Virou venda": permissão e venda ativa ligada à captação (o banco decide quem pode).
   const [vendaInfo, setVendaInfo] = useState<{
@@ -300,6 +312,26 @@ function ExclusiveDetail() {
   const navigate = useNavigate();
   const archived = !!capture?.archived_at;
   const editable = !archived && (capture?.status === "rascunho" || capture?.status === "devolvida");
+  // Mesma regra do banco (exclusive_corrigir_aprovada); o banco ainda confere liderança e organização.
+  const podeCorrigir =
+    !!capture &&
+    podeCorrigirAprovada({
+      status: capture.status,
+      archived,
+      userId: user?.id,
+      captorId: capture.captor_id,
+      manager,
+    });
+  const corrigindoAtivo = corrigindo && podeCorrigir;
+  // Na aprovada não há salvamento automático: avisa antes de fechar/recarregar com correção pendente.
+  useEffect(() => {
+    if (!corrigindoAtivo || !dirty) return;
+    const aviso = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [corrigindoAtivo, dirty]);
+  // Campos do imóvel, da ficha e dos proprietários: editáveis no rascunho/devolvida ou na correção.
+  const editaDados = editable || corrigindoAtivo;
   const reload = useCallback(async () => {
     const [result, unitList] = await Promise.all([loadCapture(id), listUnits()]);
     setUnits(unitList);
@@ -818,6 +850,8 @@ function ExclusiveDetail() {
     value: string,
     change: (value: string) => void,
     required = false,
+    /** Campo liberado também no "Corrigir dados" da aprovada (imóvel e proprietários). */
+    corrigivel = false,
   ) => (
     <div key={label} className="space-y-1">
       <Label>
@@ -828,7 +862,7 @@ function ExclusiveDetail() {
         aria-label={label}
         value={value ?? ""}
         maxLength={300}
-        disabled={!editable || busy}
+        disabled={!(corrigivel ? editaDados : editable) || busy}
         onChange={(e) => change(e.target.value)}
       />
     </div>
@@ -987,7 +1021,7 @@ function ExclusiveDetail() {
     return (
       <div className="grid gap-3 sm:grid-cols-2">
         {OWNER_FIELDS.map(({ key, label, required }) =>
-          field(label, owner[key], (value) => editOwner(n, key, value), required),
+          field(label, owner[key], (value) => editOwner(n, key, value), required, true),
         )}
       </div>
     );
@@ -1014,6 +1048,37 @@ function ExclusiveDetail() {
   };
   // Mesma regra do banco (exclusive_archive): contrato gerado ou fora do rascunho → arquivar.
   const validity = captureValidity(capture, hojeSaoPaulo());
+  // "Corrigir dados": manda ao banco só o que mudou em imóvel, ficha e proprietários.
+  // Conferência e confirmação FORA do run(): cancelar não recarrega nem apaga o que foi digitado.
+  const salvarCorrecao = () => {
+    if (!form) return;
+    const { payload, mudancas, erro } = montarCorrecao(capture.form_data, form);
+    if (erro) {
+      toast.error(erro);
+      return;
+    }
+    if (!mudancas.length) {
+      toast.info("Nenhuma alteração para salvar.");
+      return;
+    }
+    const lista = mudancas.slice(0, 12).map((m) => `• ${textoMudanca(m)}`);
+    if (mudancas.length > 12) lista.push(`• e mais ${mudancas.length - 12}`);
+    if (!window.confirm(`Salvar a correção? A captação continua aprovada.\n\n${lista.join("\n")}`))
+      return;
+    return run(async () => {
+      const r = await corrigirCaptacaoAprovada(id, payload, capture.updated_at ?? null);
+      setCorrigindo(false);
+      toast.success(
+        `Correção salva (${r.alterados} ${r.alterados === 1 ? "campo" : "campos"}). A captação continua aprovada.`,
+      );
+      if (r.venda_ativa) toast.warning(AVISO_VENDA_CORRECAO, { duration: 12000 });
+    });
+  };
+  const cancelarCorrecao = () => {
+    if (dirty && !window.confirm("Descartar as alterações da correção?")) return;
+    setCorrigindo(false);
+    void run(async () => undefined); // recarrega os dados gravados
+  };
   const saveSignedOn = () =>
     run(async () => {
       await setCaptureSignedOn(id, signedOn);
@@ -1140,7 +1205,7 @@ function ExclusiveDetail() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={busy || !signedOn || signedOn === capture.signed_on}
+                  disabled={busy || corrigindoAtivo || !signedOn || signedOn === capture.signed_on}
                   onClick={saveSignedOn}
                 >
                   Corrigir data
@@ -1166,6 +1231,20 @@ function ExclusiveDetail() {
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
+          {podeCorrigir && !corrigindoAtivo && (
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="corrigir-dados"
+              disabled={busy}
+              onClick={() => {
+                setCorrigindo(true);
+                setStep("dados");
+              }}
+            >
+              <Pencil className="mr-1 h-4 w-4" /> Corrigir dados
+            </Button>
+          )}
           {vendaInfo.pode_virar &&
             !vendaInfo.venda &&
             !archived &&
@@ -1173,7 +1252,7 @@ function ExclusiveDetail() {
               <Button
                 size="sm"
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
-                disabled={busy}
+                disabled={busy || corrigindoAtivo}
                 onClick={virouVenda}
               >
                 <Handshake className="mr-1 h-4 w-4" /> Virou venda
@@ -1208,7 +1287,7 @@ function ExclusiveDetail() {
             <Button
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={busy || corrigindoAtivo}
               onClick={() => lifecycle("arquivar")}
             >
               <Archive className="mr-1 h-4 w-4" /> Arquivar
@@ -1420,6 +1499,40 @@ function ExclusiveDetail() {
       )}
       {step === "dados" && (
         <>
+          {corrigindoAtivo && (
+            <Card className="border-amber-400 bg-amber-50/70" data-testid="faixa-correcao">
+              <CardHeader>
+                <CardTitle className="text-base">Corrigindo dados da captação aprovada</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  Pode corrigir os dados do imóvel, da ficha (área, quartos, suítes, vagas…) e o
+                  cadastro dos proprietários. A captação continua aprovada, no mapa e no alerta de
+                  vencimento. Cada correção fica no histórico com o valor anterior e o novo.
+                </p>
+                <p className="text-muted-foreground">
+                  Não muda por aqui: {CORRECAO_TRAVADOS.join(", ")}. Para isso, use “Devolver ao
+                  corretor”.
+                </p>
+                {vendaInfo.venda && (
+                  <p
+                    role="alert"
+                    className="rounded-md border border-orange-300 bg-orange-50 p-2 text-orange-900"
+                  >
+                    {AVISO_VENDA_CORRECAO}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button disabled={busy || !dirty} onClick={salvarCorrecao}>
+                    Salvar correção
+                  </Button>
+                  <Button variant="outline" disabled={busy} onClick={cancelarCorrecao}>
+                    Cancelar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {manual && (
             <Card className="border-violet-300">
               <CardHeader>
@@ -1501,7 +1614,7 @@ function ExclusiveDetail() {
                         inputMode="numeric"
                         placeholder="R$ 0,00"
                         value={normalizeReais(form.imovel.valor_imovel)}
-                        disabled={!editable || busy}
+                        disabled={!editaDados || busy}
                         onChange={(e) => edit("imovel", "valor_imovel", typeReais(e.target.value))}
                       />
                     </div>
@@ -1517,7 +1630,7 @@ function ExclusiveDetail() {
                             ? form.imovel.tipo_imovel
                             : tipoImovelDoTexto(form.imovel.tipo_imovel)) ?? ""
                         }
-                        disabled={!editable || busy}
+                        disabled={!editaDados || busy}
                         onValueChange={(v) => edit("imovel", "tipo_imovel", v)}
                       >
                         <SelectTrigger aria-label={label}>
@@ -1538,6 +1651,7 @@ function ExclusiveDetail() {
                       form.imovel[key],
                       (v) => edit("imovel", key as PropertyField, v),
                       required,
+                      true,
                     )
                   ),
                 )}
@@ -1564,7 +1678,7 @@ function ExclusiveDetail() {
                       inputMode={area ? "decimal" : "numeric"}
                       maxLength={20}
                       value={form.ficha?.[key] ?? ""}
-                      disabled={!editable || busy}
+                      disabled={!editaDados || busy}
                       onChange={(e) => editFicha(key, e.target.value)}
                     />
                   </div>
@@ -1613,6 +1727,16 @@ function ExclusiveDetail() {
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy || !dirty} onClick={save}>
                 Salvar alterações
+              </Button>
+            </div>
+          )}
+          {corrigindoAtivo && (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy || !dirty} onClick={salvarCorrecao}>
+                Salvar correção
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={cancelarCorrecao}>
+                Cancelar
               </Button>
             </div>
           )}
@@ -2022,16 +2146,34 @@ function ExclusiveDetail() {
               <CardTitle>Histórico auditado</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              {history.map((h) => (
-                <div key={h.id} className="border-b py-1">
-                  Em{" "}
-                  {new Date(h.created_at).toLocaleString("pt-BR", {
-                    timeZone: "America/Sao_Paulo",
-                  })}{" "}
-                  · {h.action} · {autorDoHistorico(h, user?.id)}
-                  {h.detail ? ` · ${h.detail}` : ""}
-                </div>
-              ))}
+              {history.map((h) => {
+                const quando = new Date(h.created_at).toLocaleString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                });
+                if (h.action === "corrigida") {
+                  const c = lerCorrecao(h.detail);
+                  return (
+                    <div key={h.id} className="border-b py-1" data-testid="historico-corrigida">
+                      Em {quando} · dados corrigidos (continua aprovada) ·{" "}
+                      {autorDoHistorico(h, user?.id)}
+                      {c.por ? ` (${c.por})` : ""}
+                      {c.mudancas.length > 0 && (
+                        <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                          {c.mudancas.map((m, i) => (
+                            <li key={i}>{textoMudanca(m)}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={h.id} className="border-b py-1">
+                    Em {quando} · {h.action} · {autorDoHistorico(h, user?.id)}
+                    {h.detail ? ` · ${h.detail}` : ""}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </>

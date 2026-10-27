@@ -203,6 +203,7 @@ export type Capture = {
   broker_creci: string;
   created_on_sp: string;
   created_at: string;
+  updated_at?: string | null;
   archived_at?: string | null;
   signed_on?: string | null;
   /** Cadastro manual de contrato já assinado no papel (sem PDF gerado pelo sistema). */

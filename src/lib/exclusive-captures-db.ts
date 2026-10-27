@@ -11,6 +11,7 @@ import type {
   UnitField,
 } from "./exclusive-captures";
 import { normalizeForm } from "./exclusive-captures";
+import type { PayloadCorrecao } from "./captacao-correcao";
 import { storageOrganizationPath } from "./storage-org";
 
 // Tipos das novas tabelas/RPCs são gerados pelo Supabase somente após a migration.
@@ -100,6 +101,25 @@ export async function saveCapture(id: string, form: CaptureForm, cpf: string, cr
     _broker_creci: creci,
   });
   check(error);
+}
+/**
+ * "Corrigir dados" na captação aprovada (t_9f9f0c6a): o banco confere quem pode, aceita só imóvel,
+ * ficha e proprietários existentes, mantém a captação aprovada e grava o histórico 'corrigida'.
+ */
+export async function corrigirCaptacaoAprovada(
+  id: string,
+  dados: PayloadCorrecao,
+  /** updated_at lido pela tela: se outra pessoa salvou depois, o banco recusa. */
+  lidoEm: string | null,
+): Promise<{ alterados: number; venda_ativa: boolean }> {
+  const { data, error } = await db.rpc("exclusive_corrigir_aprovada", {
+    _id: id,
+    _dados: dados,
+    _lido_em: lidoEm,
+  });
+  check(error);
+  const out = (data ?? {}) as { alterados?: number; venda_ativa?: boolean };
+  return { alterados: Number(out.alterados ?? 0), venda_ativa: out.venda_ativa === true };
 }
 export async function transitionCapture(
   id: string,
