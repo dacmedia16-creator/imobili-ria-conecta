@@ -120,7 +120,47 @@ export type DadosQualificacao = {
   faixa_conferida?: boolean;
   /** A pergunta "Só confirmando: sua faixa é de R$ X?" espera resposta (vale só no turno seguinte). */
   faixa_pendente?: boolean;
+  // Tom humano (t_5b493bc9).
+  /** A Nicole já convidou para a visita ao menos uma vez. */
+  convite_visita?: boolean;
+  /** Pergunta de fecho do último turno, esperando resposta (vale só no turno seguinte). */
+  convite_aberto?: "visita" | "detalhe";
+  /** Os detalhes da ficha já foram mandados (não repete a ficha). */
+  ficha_enviada?: boolean;
+  /** Cliente pediu outras opções e a Nicole precisou perguntar a faixa antes (sem preço de referência). */
+  quer_opcoes?: boolean;
+  /** Já disse "essas são as opções que tenho nessa faixa" (no pedido seguinte, passa ao corretor). */
+  parecidos_fim?: boolean;
+  /** Busca nova no meio da conversa (outro tipo, outra pessoa), sem perder o interesse no imóvel do lead. */
+  busca2?: Busca2;
+  /** Cliente pediu um dia/horário fora das opções oferecidas; a Nicole anotou (t_2aecef49). */
+  visita_livre?: boolean;
+  /** Outras buscas do cliente na mesma conversa (ex.: apartamento para o filho), resumo para o corretor (t_7b59589c). */
+  outras_buscas?: string[];
 };
+
+/** Segunda busca (t_5b493bc9 item 11): ex. "vcs trabalham com apartamento? é para o meu filho". */
+export type Busca2 = {
+  ativa?: boolean;
+  /** Tipo normalizado (apartamento, casa, terreno, cobertura, studio, imóvel comercial); "" = tanto faz. */
+  tipo?: string;
+  /** Para quem (filho, filha, mãe...). */
+  para?: string;
+  finalidade?: "comprar" | "alugar" | "";
+  regiao?: string;
+  faixa?: string;
+  /** Pergunta esperando resposta. */
+  etapa?: EtapaBusca;
+  perguntas?: EtapaBusca[];
+  /** Códigos oferecidos nesta busca (até 3, nunca repete). */
+  ofertados?: string[];
+  /** Código em que o cliente se interessou. */
+  interesse?: string;
+  /** Imóvel da busca mostrado no último turno, esperando a reação do cliente. */
+  atual?: ImovelParecido;
+  repetiu?: boolean;
+};
+export type EtapaBusca = "tipo" | "finalidade" | "regiao" | "faixa";
 
 export type ContextoIa = {
   conversa_id: string;
@@ -196,6 +236,19 @@ export type FiltroParecido = {
   /** Código do imóvel pedido quando ainda não foi gravado na conversa (código informado neste turno). */
   codigo_ref?: string | null;
 };
+/** Filtro da busca nova (t_5b493bc9). tipo null = qualquer tipo. */
+export type FiltroBusca = {
+  tipo: string | null;
+  negocio: NegocioParecido;
+  preco_min?: number | null;
+  preco_max?: number | null;
+  /** Bairro ou cidade dito pelo cliente. */
+  regiao?: string | null;
+  /** Cidade do imóvel do lead (quando a região não é uma cidade). */
+  cidade?: string | null;
+  excluir: string[];
+  limite?: number;
+};
 /** O banco devolve também o que sabe do imóvel PEDIDO, para a regra "o pedido não serve". */
 export type ResultadoParecidos = {
   referencia: { codigo?: string; no_xml?: boolean; saiu?: boolean; tipo?: string; bairro?: string; cidade?: string; preco?: number };
@@ -210,6 +263,9 @@ export type OpcoesRoteiro = {
   /** Procura imóvel parecido no XML da própria imobiliária (servidor: lead_ia_imoveis_parecidos).
    * Sem esta função a Nicole não oferece parecido (comportamento de antes). */
   buscarParecidos?: (filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
+  /** Busca nova no XML da própria imobiliária por tipo/negócio/região/faixa (servidor: lead_ia_imoveis_busca,
+   * t_5b493bc9). Sem esta função, a busca nova termina passando ao corretor. */
+  buscarImoveis?: (filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
 };
 
 export const norm = (s: string) =>
@@ -314,16 +370,8 @@ const RECUSA =
 const SIM = /^(sim|s|tenho|claro|isso|quero|ok|pode|com certeza|tenho sim|sim tenho|ainda tenho|opa|oi|ola|bom dia|boa tarde|boa noite|gostaria|quero sim|pode ser)\b/;
 const QUER_VISITA = /(visit|conhecer|agendar|marcar|ver (o |a )?(imovel|casa|ap|apartamento|terreno)|ver pessoalmente|ir ver|dar uma olhada)/;
 
-export const PERGUNTA: Record<Pergunta, string> = {
-  finalidade: "Você procura para comprar ou para alugar?",
-  faixa: "Para eu já separar o que combina com você: qual faixa de valor você tem em mente?",
-  // t_59ab47d4: sem "permuta" nas opções sugeridas (não dar a entender que o imóvel aceita).
-  pagamento: "E a forma de pagamento seria à vista ou com financiamento?",
-};
-
-const NAO_SEI = "não tenho esse dado confirmado, vou confirmar com o corretor";
 /** Resposta fixa sobre disponibilidade (t_76243950): a IA nunca garante que o imóvel está disponível. */
-export const CONFIRMO_DISPONIBILIDADE = "confirmo a disponibilidade com o corretor";
+export const CONFIRMO_DISPONIBILIDADE = "vou confirmar a disponibilidade e já te falo";
 /** Texto de quem retorna: o banco troca {corretor} só depois de gravar registro e aviso. */
 export const CORRETOR = "{corretor}";
 
@@ -422,9 +470,13 @@ function sanitizar(passo: Passo, d: Partial<DadosQualificacao>): Partial<DadosQu
 }
 
 // --- Dúvidas sobre o imóvel (item 3) ---------------------------------------------------------------
+// t_5b493bc9 (teste real de Denis, 27/10): pergunta objetiva = só aquele dado, 1 ou 2 frases curtas, e
+// 1 pergunta natural para avançar. Não repete a ficha, não fala de proposta sem o cliente puxar, e o que
+// não está no XML vira "vou confirmar e já te falo" (o corretor recebe como pendência no resumo).
 
 export const TEMAS = [
   "preco",
+  "negociacao",
   "disponibilidade",
   "condominio",
   "iptu",
@@ -440,7 +492,8 @@ export const TEMAS = [
 export type Tema = (typeof TEMAS)[number];
 
 const TEMA_RE: Record<Tema, RegExp> = {
-  preco: /(valor|preco|quanto (custa|e|fica|esta|sai)|desconto|negoci|proposta|aceita oferta|condicoes|condicao de pagamento)/,
+  preco: /(valor|preco|aluguel|quanto (custa|e|fica|esta|sai|ta)\b)/,
+  negociacao: /(desconto|negoci|proposta|aceita oferta|faz por|abaix\w* (o )?(valor|preco)|baixa\w* (o )?(valor|preco)|valor final|menor valor)/,
   disponibilidade: /((esta|ta|continua|segue) disponivel|ainda (esta|ta|tem|existe|e) (a venda|disponivel|para alugar|pra alugar)?|ja (foi )?(vendid|alugad)|disponibilidade|ainda (a venda|para alugar)|ainda esta a venda)/,
   condominio: /(condominio|condo\b|taxa condominial)/,
   iptu: /\biptu\b/,
@@ -453,6 +506,8 @@ const TEMA_RE: Record<Tema, RegExp> = {
   area: /(metragem|\bm2\b|m²|metros|tamanho|area (util|construida|total|do terreno|privativa))/,
   localizacao: /(onde fica|endereco|localiza|qual (o )?bairro|qual (a )?rua|que bairro|perto de)/,
 };
+/** "valor do condomínio", "quanto é o IPTU": é a taxa, não o preço do imóvel (t_5b493bc9). */
+const TAXA_RE = /\b(valor|preco|quanto( (e|fica|custa|esta|sai|ta|da))?)( (do|da|de|o|a))? (?=(condominio|condo\b|iptu|taxa))/g;
 
 /** A fala é uma pergunta/pedido de informação (e não uma afirmação como \"vou financiar\")? */
 export function ehPergunta(texto: string): boolean {
@@ -467,12 +522,14 @@ export function ehPergunta(texto: string): boolean {
 /** Temas perguntados pelo cliente (só quando a fala é pergunta). */
 export function detectarTemas(texto: string): Tema[] {
   if (!ehPergunta(texto)) return [];
-  const n = norm(texto);
+  const n = norm(texto).replace(TAXA_RE, "");
   return TEMAS.filter((t) => TEMA_RE[t].test(n));
 }
 
+/** Rótulo da pendência no resumo do corretor. */
 const ROTULO: Record<Tema, string> = {
   preco: "valor",
+  negociacao: "proposta/negociação",
   disponibilidade: "disponibilidade",
   condominio: "condomínio",
   iptu: "IPTU",
@@ -485,95 +542,137 @@ const ROTULO: Record<Tema, string> = {
   area: "metragem",
   localizacao: "localização",
 };
+/** "Vou confirmar <isto> e já te falo." */
+const CONFIRMAR: Record<Tema, string> = {
+  preco: "o valor",
+  negociacao: "a negociação",
+  disponibilidade: "a disponibilidade",
+  condominio: "o valor do condomínio",
+  iptu: "o valor do IPTU",
+  permuta: "se o proprietário aceita permuta",
+  financiamento: "se aceita financiamento",
+  andar: "o andar e a posição",
+  quartos: "os quartos",
+  banheiros: "os banheiros",
+  vagas: "as vagas de garagem",
+  area: "a metragem",
+  localizacao: "a localização",
+};
 
 const plural = (n: string, um: string, varios: string) => `${n} ${n === "1" ? um : varios}`;
+const FEMININO = new Set(["casa", "cobertura", "chácara", "sala", "loja", "kitnet"]);
+const fem = (tipo?: string | null) => !!tipo && FEMININO.has(tipo);
+/** "a casa" / "o apartamento" / "essa casa" / "esse apartamento" (concordância pelo tipo do XML). */
+export function oImovel(tipo?: string | null, demonstrativo = false): string {
+  const t = tipo || "imóvel";
+  return demonstrativo ? `${fem(t) ? "essa" : "esse"} ${t}` : `${fem(t) ? "a" : "o"} ${t}`;
+}
+/** Valor num padrão só: "R$ 420,00" -> "R$ 420" (centavos só quando existem), como o preço "R$ 1.199.000". */
+export const reaisTxt = (s: string) => s.replace(/(R\$\s?\d[\d.]*),00(?!\d)/g, "$1");
+const ehCondominio = (b: string) => /^(condominio|residencial|cond\b)/.test(norm(b));
+/** "no Condominio Ibiti Reserva" / "no bairro Campolim". */
+const noBairro = (b: string) => (ehCondominio(b) ? `no ${b}` : `no bairro ${b}`);
+
+type Parte = { fisico: string } | { frase: string };
 
 /** Resposta de UM tema só com o que está na ficha. null = a ficha não tem o dado. */
-function respostaTema(t: Tema, f: FichaIa | null | undefined): string | null {
+function respostaTema(t: Tema, f: FichaIa | null | undefined, suj: string): Parte | null {
   if (!f) return null;
+  const S = maiuscula(suj);
   switch (t) {
     case "quartos":
       if (!f.quartos) return null;
-      return `tem ${plural(f.quartos, "quarto", "quartos")}${f.suites && f.suites !== "0" ? ` (${plural(f.suites, "suíte", "suítes")})` : ""}`;
+      return { fisico: `${plural(f.quartos, "quarto", "quartos")}${f.suites && f.suites !== "0" ? `, sendo ${plural(f.suites, "suíte", "suítes")}` : ""}` };
     case "banheiros":
-      return f.banheiros ? `tem ${plural(f.banheiros, "banheiro", "banheiros")}` : null;
+      return f.banheiros ? { fisico: plural(f.banheiros, "banheiro", "banheiros") } : null;
     case "vagas":
-      return f.vagas ? (f.vagas === "0" ? "não tem vaga de garagem" : `tem ${plural(f.vagas, "vaga", "vagas")} de garagem`) : null;
-    case "area":
-      if (f.area_util_m2) return `tem ${f.area_util_m2} m² de área útil`;
-      if (f.area_construida_m2) return `tem ${f.area_construida_m2} m² de área construída`;
-      if (f.area_terreno_m2) return `tem ${f.area_terreno_m2} m² de terreno`;
-      return null;
+      if (!f.vagas) return null;
+      return f.vagas === "0" ? { frase: `${S} não tem vaga de garagem.` } : { fisico: `${plural(f.vagas, "vaga", "vagas")} de garagem` };
+    case "area": {
+      const a = f.area_util_m2 ? `${f.area_util_m2} m²` : f.area_construida_m2 ? `${f.area_construida_m2} m² construídos` : null;
+      if (a) return { fisico: f.area_terreno_m2 ? `${a}, num terreno de ${f.area_terreno_m2} m²` : a };
+      return f.area_terreno_m2 ? { fisico: `${f.area_terreno_m2} m² de terreno` } : null;
+    }
     case "localizacao":
-      return f.bairro ? `fica no bairro ${f.bairro}${f.cidade ? `, em ${f.cidade}` : ""} (o endereço exato o corretor passa na visita)` : null;
+      return f.bairro
+        ? { frase: `Fica ${noBairro(f.bairro)}${f.cidade ? `, em ${f.cidade}` : ""}. O endereço certinho eu te passo quando confirmar a visita.` }
+        : null;
     case "condominio":
-      return f.condominio ? `o condomínio é de ${f.condominio}` : null;
+      return f.condominio ? { frase: `O condomínio é de ${reaisTxt(f.condominio)}${/mes|ano/.test(norm(f.condominio)) ? "" : " por mês"}.` } : null;
     case "iptu":
-      return f.iptu ? `o IPTU é de ${f.iptu}` : null;
+      return f.iptu ? { frase: `O IPTU é de ${reaisTxt(f.iptu)}.` } : null;
     case "permuta":
-      return typeof f.aceita_permuta === "boolean" ? (f.aceita_permuta ? "aceita permuta (o corretor avalia o imóvel oferecido)" : "não aceita permuta") : null;
+      return typeof f.aceita_permuta === "boolean"
+        ? { frase: f.aceita_permuta ? "O proprietário aceita avaliar permuta." : "O proprietário não aceita permuta." }
+        : null;
     case "financiamento":
-      return typeof f.aceita_financiamento === "boolean" ? (f.aceita_financiamento ? "aceita financiamento" : "não aceita financiamento") : null;
+      return typeof f.aceita_financiamento === "boolean" ? { frase: f.aceita_financiamento ? "Aceita financiamento, sim." : "Não aceita financiamento." } : null;
     case "andar":
-      return f.andar ? `fica no ${f.andar}` : null;
+      return f.andar ? { frase: `Fica no ${f.andar}.` } : null;
     case "disponibilidade":
-      return null; // nunca garante: tratado em responderDuvidas ("confirmo a disponibilidade com o corretor")
-    case "preco":
-      // t_25fe1197: o valor ANUNCIADO no XML é dito (venda e/ou aluguel). Negociação/desconto: corretor.
-      return valorAnunciado(f);
+      return null; // nunca garante (o XML pode estar até 1 h atrasado): "vou confirmar a disponibilidade"
+    case "negociacao":
+      return null; // tratado no roteiro (passa ao corretor só quando o CLIENTE puxa o assunto)
+    case "preco": {
+      const v = valorAnunciado(f, undefined, suj);
+      return v ? { frase: v } : null;
+    }
   }
 }
 
-/** "está anunciado por R$ 430.000" / "o aluguel anunciado é de R$ 2.500 por mês". null = XML sem valor. */
-export function valorAnunciado(f: FichaIa | null | undefined, finalidade?: string): string | null {
+/** "A casa está anunciada por R$ 430.000." / "O aluguel é de R$ 2.500 por mês." null = XML sem valor. */
+export function valorAnunciado(f: FichaIa | null | undefined, finalidade?: string, sujeito?: string): string | null {
   if (!f) return null;
-  const venda = f.negocio !== "locacao" && f.preco ? `está anunciado por ${f.preco}` : null;
-  const alug = f.aluguel ? `o aluguel anunciado é de ${f.aluguel} por mês` : null;
+  const s = maiuscula(sujeito ?? oImovel(f.tipo));
+  const venda = f.negocio !== "locacao" && f.preco ? `${s} está anunciad${fem(f.tipo) ? "a" : "o"} por ${reaisTxt(f.preco)}.` : null;
+  const alug = f.aluguel ? `O aluguel é de ${reaisTxt(f.aluguel)} por mês.` : null;
   if (finalidade === "alugar") return alug ?? venda;
   if (finalidade === "comprar") return venda ?? alug;
-  return venda && alug ? `${venda}, e ${alug}` : (venda ?? alug);
+  return venda && alug ? `${venda} ${alug}` : (venda ?? alug);
 }
 
-/** Responde as dúvidas do cliente (no máximo uma frase de \"sei\" e uma de \"não sei\"). */
+/** Responde SÓ o que foi perguntado (o que a ficha tem) e diz que confirma o resto. */
 export function responderDuvidas(
   temas: Tema[],
   ficha: FichaIa | null | undefined,
   dados: DadosQualificacao,
+  sujeito?: string,
 ): string {
   if (!temas.length) return "";
-  const sei: string[] = [];
+  const suj = sujeito ?? oImovel(ficha?.tipo);
+  const fisico: string[] = [];
+  const frases: string[] = [];
   const naoSei: Tema[] = [];
   for (const t of temas) {
-    const r = respostaTema(t, ficha);
-    if (r) sei.push(r);
-    else naoSei.push(t);
+    if (t === "negociacao") continue;
+    const r = respostaTema(t, ficha, suj);
+    if (!r) naoSei.push(t);
+    else if ("fisico" in r) fisico.push(r.fisico);
+    else frases.push(r.frase);
   }
   const partes: string[] = [];
-  if (sei.length) partes.push(`${maiuscula(juntar(sei))}.`);
-  // Valor anunciado dito: proposta e negociação continuam com o corretor (t_25fe1197).
-  if (temas.includes("preco") && !naoSei.includes("preco")) partes.push("Proposta e negociação, quem conversa com você é o corretor.");
-  const semPreco = naoSei.filter((t) => t !== "preco" && t !== "disponibilidade");
-  if (naoSei.includes("preco"))
-    partes.push("O valor e as condições de negociação quem confirma é o corretor, para não te passar nada desatualizado.");
-  // Disponibilidade: nunca garante (nem pelo XML, que pode estar até 1 h atrasado).
-  if (naoSei.includes("disponibilidade")) partes.push(`${maiuscula(CONFIRMO_DISPONIBILIDADE)}.`);
-  if (semPreco.length) partes.push(`Sobre ${juntar(semPreco.map((t) => ROTULO[t]))}, ${NAO_SEI}.`);
+  if (fisico.length) partes.push(`${maiuscula(suj)} tem ${juntar(fisico)}.`);
+  partes.push(...frases);
+  if (naoSei.length) partes.push(`Vou confirmar ${juntar(naoSei.map((t) => CONFIRMAR[t]))} e já te falo.`);
   dados.pendentes = [...new Set([...(dados.pendentes ?? []), ...naoSei.map((t) => ROTULO[t])])].slice(0, 12);
   return partes.join(" ");
 }
 
-/** \"É um apartamento de 3 quartos (1 suíte), 2 vagas e 80 m² de área útil, no bairro Campolim.\" */
-export function resumoFicha(f: FichaIa | null | undefined): string {
+/** Detalhes do imóvel, mandados UMA vez quando o cliente pede (a 1ª mensagem já disse tipo, bairro e valor). */
+export function detalhesFicha(f: FichaIa | null | undefined): string {
   if (!f) return "";
-  const caract = [
-    f.quartos ? `${plural(f.quartos, "quarto", "quartos")}${f.suites && f.suites !== "0" ? ` (${plural(f.suites, "suíte", "suítes")})` : ""}` : null,
-    f.vagas && f.vagas !== "0" ? plural(f.vagas, "vaga", "vagas") : null,
-    f.area_util_m2 ? `${f.area_util_m2} m² de área útil` : f.area_terreno_m2 && f.tipo === "terreno" ? `${f.area_terreno_m2} m²` : null,
-  ].filter(Boolean) as string[];
-  if (!f.tipo && !caract.length) return "";
-  const tipo = f.tipo ?? "imóvel";
-  const art = tipo === "casa" || tipo === "cobertura" ? "uma" : "um";
-  return `É ${art} ${tipo}${caract.length ? ` com ${juntar(caract)}` : ""}${f.bairro ? `, no bairro ${f.bairro}` : ""}.`;
+  const suj = oImovel(f.tipo);
+  const fisico = (["quartos", "vagas", "area"] as Tema[])
+    .map((t) => respostaTema(t, f, suj))
+    .filter((r): r is { fisico: string } => !!r && "fisico" in r)
+    .map((r) => r.fisico);
+  const partes = fisico.length ? [`${maiuscula(suj)} tem ${juntar(fisico)}.`] : [];
+  const cond = f.condominio ? `${reaisTxt(f.condominio)} por mês` : null;
+  const iptu = f.iptu ? reaisTxt(f.iptu) : null;
+  if (cond && iptu) partes.push(`O condomínio é de ${cond} e o IPTU, ${iptu}.`);
+  else if (cond) partes.push(`O condomínio é de ${cond}.`);
+  else if (iptu) partes.push(`O IPTU é de ${iptu}.`);
+  return partes.join(" ");
 }
 
 // --- Visita (item 4) -------------------------------------------------------------------------------
@@ -631,10 +730,35 @@ function escolhaVisita(texto: string, opcoes: string[]): string | null {
 const PREFERE_CORRETOR = /(prefiro (falar|conversar|o corretor|que o corretor)|so (o )?corretor|corretor (me )?(chama|liga|fala)|nao (precisa|quero visitar|quero visita)|agora nao|mais pra frente|depois eu vejo)/;
 const OUTRO_DIA = /(segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|hoje|semana que vem|fim de semana|final de semana|\d{1,2}h|\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}|manha|tarde|noite)/;
 
+// t_2aecef49: cliente pede um dia/horário que não está nas 2 opções ("sábado de manhã pode ser?").
+// A Nicole aceita e anota, sem repetir as opções; o corretor confirma pelo resumo.
+const DIA_PEDIDO_RE = /\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
+const MARCAR_RE = /(pode ser|da pra|da para|consigo|posso (ir|passar|visitar)|seria possivel|tem como|visit|agendar|marcar|ir ver|conhecer)/;
+/** "sábado de manhã", "fim de semana", "sexta às 18h" (texto do próprio cliente, normalizado e com acento). */
+export function diaPedido(texto: string): string | null {
+  const n = norm(texto);
+  const d = DIA_PEDIDO_RE.exec(n)?.[1];
+  if (!d) return null;
+  const i = DIAS_N.indexOf(d);
+  const dia = i >= 0 ? DIAS[i] : d === "final de semana" ? "fim de semana" : d;
+  const periodo = /\bmanha\b/.test(n) ? "de manhã" : /\btarde\b/.test(n) ? "à tarde" : /\bnoite\b/.test(n) ? "à noite" : "";
+  const h = /\b(\d{1,2})(?:h|:(\d{2}))\b/.exec(n);
+  const hora = h && Number(h[1]) <= 23 ? `às ${h[1]}h${h[2] && h[2] !== "00" ? h[2] : ""}` : "";
+  return [dia, periodo, hora].filter(Boolean).join(" ");
+}
+/** Pedido de dia fora das opções? `contextoVisita` = já se falou em visita nesta conversa. */
+export function pedidoDiaFora(texto: string, opcoes: string[], contextoVisita: boolean): string | null {
+  const n = norm(texto);
+  if (!DIA_PEDIDO_RE.test(n) || !(contextoVisita || MARCAR_RE.test(n))) return null;
+  if (escolhaVisita(texto, opcoes)) return null;
+  return diaPedido(texto);
+}
+
 // --- Resumo e passagem -------------------------------------------------------------------------------
 
 /** Resumo para o sino do corretor (sem telefone/e-mail; o banco ainda mascara). */
 export function resumoQualificacao(d: DadosQualificacao, ctx?: Pick<ContextoIa, "anuncio_codigo" | "imovel_frase">): string {
+  const b = d.busca2;
   const partes = [
     ctx?.imovel_frase ? `Imóvel: ${ctx.imovel_frase}` : null,
     ctx?.anuncio_codigo ? `anúncio ${ctx.anuncio_codigo}` : d.anuncio_informado ? `código informado pelo cliente: ${d.anuncio_informado}` : null,
@@ -643,11 +767,25 @@ export function resumoQualificacao(d: DadosQualificacao, ctx?: Pick<ContextoIa, 
     d.pagamento?.length ? `pagamento: ${d.pagamento.join(", ")}` : null,
     d.prazo ? `prazo: ${d.prazo}` : null,
     d.regiao ? `região: ${d.regiao}` : null,
-    d.visita ? `PRÉ-AGENDAMENTO: ${d.visita} (confirmar com o cliente ${d.visita_ate ?? ""})`.replace(/ \)$/, ")") : null,
+    d.visita
+      ? `PRÉ-AGENDAMENTO: ${d.visita}${d.visita_livre ? ", dia pedido pelo cliente, fora das opções oferecidas" : ""} (confirmar com o cliente ${d.visita_ate ?? ""})`.replace(/ \)$/, ")")
+      : null,
     d.pendentes?.length ? `confirmar com o cliente: ${d.pendentes.join(", ")}` : null,
     d.alternativa ? `quer detalhes de ${d.alternativa}` : null,
     d.parecido_interesse ? `INTERESSE NO IMÓVEL PARECIDO código ${d.parecido_interesse} (oferecido pela IA a partir do XML; confirmar disponibilidade)` : null,
     d.parecidos?.length ? `parecidos oferecidos pela IA: ${d.parecidos.join(", ")}` : null,
+    b && (b.tipo !== undefined || b.ofertados?.length)
+      ? `SEGUNDA BUSCA${b.para ? ` (para ${b.para})` : ""}: ${[
+          b.tipo || "imóvel",
+          b.finalidade ? `para ${b.finalidade}` : null,
+          b.regiao ? `região ${b.regiao}` : null,
+          b.faixa ? `faixa ${b.faixa}` : null,
+          b.ofertados?.length ? `oferecidos: ${b.ofertados.join(", ")}` : null,
+          b.interesse ? `INTERESSE no código ${b.interesse}` : null,
+        ]
+          .filter(Boolean)
+          .join(", ")}`
+      : null,
   ].filter(Boolean);
   return partes.length ? `${partes.join("; ")}.` : "Sem dados de qualificação.";
 }
@@ -675,33 +813,43 @@ function passar(
   return fim(dados, motivo, `${i}${fimOk}`, `${i}${fimFalha}`, resumo);
 }
 
-const FALHA_PADRAO = "Registrei aqui e estou confirmando o encaminhamento para o corretor. Já te retorno por aqui.";
+/** Texto se o banco NÃO conseguiu gravar a passagem: não afirma que alguém foi avisado. */
+const FALHA_PADRAO = "Anotei tudo aqui e já te retorno por aqui.";
+/** A única menção a outra pessoa: na hora de passar, uma vez, com naturalidade (t_5b493bc9 item 8). */
+const CHAMAR = `Já pedi para ${"{corretor}"} te chamar aqui`;
 
 // --- Imóvel parecido do XML (t_232e13cb, regra tirada das conversas da Laís) ------------------------------
-// Quando: (a) depois da qualificação, PERGUNTA antes se o cliente quer ver uma opção parecida (só se existir);
-// (b) o pedido não serve (venda x locação, acima da faixa, fora do bairro desejado, saiu do XML);
-// (c) o cliente pede outras opções. Parecido = mesma imobiliária, mesmo negócio, tipo e cidade, preferência
-// pelo mesmo condomínio/bairro, preço na faixa do cliente ou ±15% (o banco decide: lead_ia_imoveis_parecidos).
-// 1 por vez, até 3 por conversa, nunca repete. Texto só com dados do XML; disponibilidade, permuta,
-// financiamento e andar ficam com o corretor. Sem parecido: diz com franqueza e passa ao corretor.
+// Quando: (b) o pedido não serve (venda x locação, acima da faixa, fora do bairro desejado, saiu do XML);
+// (c) o cliente pede outras opções (vem antes do roteiro). Parecido = mesma imobiliária, mesmo negócio, tipo e
+// cidade, preferência pelo mesmo condomínio/bairro, preço na faixa do cliente ou ±15% (o banco decide:
+// lead_ia_imoveis_parecidos). 1 por vez, até 3 por conversa, nunca repete. Texto só com dados do XML.
+// t_5b493bc9: tom de atendente (sem código, sem parênteses técnicos); "gostei" leva à visita com a própria Nicole.
 
 export const MAX_PARECIDOS = 3;
-export const PERGUNTA_PARECIDO = "Antes de falarmos da visita: quer que eu te mostre também uma opção parecida com esse imóvel?";
 
-/** Cliente pede outras opções ("tem outras?", "algo parecido", "mais barato"). */
+/** Cliente pede outras opções ("tem outras?", "algo parecido", "mais barato"), tolerando erro de digitação
+ * e espaço no meio da palavra ("tem mais opçõe s?"). */
 export function pedeOutrasOpcoes(texto: string): boolean {
-  return /(outr[ao]s? (opc|imove|casa|apartament|ap\b|apto|alternativ|sugest|unidade|parecid)|outra opcao|mais (opcoes|opcao|imoveis|alguma opcao|algum imovel|sugest)|^(e )?(tem|teria|tens|voce tem|vc tem) (outr[ao]s?|mais)\s*\??$|(algo|algum|alguma|outro|outra|imovel|opcao|casa|apartamento) (parecid|similar|semelhant)|mais (barat|em conta)|alternativa)/.test(
-    norm(texto),
+  const n = norm(texto);
+  if (/(pagament|horario|\bdia\b|\bdata\b|visita)/.test(n)) return false;
+  const j = n.replace(/[^a-z]/g, "");
+  return (
+    /(maisop[cs]|outr[ao]s?op[cs]|maisimove|outr[ao]s?imove|outr[ao]s?casa|outr[ao]s?apart|outr[ao]s?apto|outr[ao]s?sugest|maissugest|outr[ao]s?alternativ|outr[ao]s?unidade|maisalgum[a]?op|maisalgumimove|(algo|algum|alguma|outro|outra|imovel|opcao|casa|apartamento)(parecid|similar|semelhant)|maisbarat|maisemconta|alternativa)/.test(j) ||
+    /^(e)?(tem|teria|tens|vocetem|vctem|temmais|temoutr[ao]s?|tenmais)(outr[ao]s?|mais|opcoes)?$/.test(j)
   );
 }
+/** "nesta mesma faixa", "nesse valor", "parecido com esse": faixa = preço do imóvel do lead (±15%). */
+const MESMA_FAIXA = /(mesm[ao]s? (faixa|valor|preco|padrao)|(nessa|nesta|neste|nesse|desse|dessa) (mesma )?(faixa|valor|preco)|parecid[ao] com (esse|essa|este|esta)|valor parecido|preco parecido)/;
 const NAO_QUER_MAIS = /nao (quero|precisa|preciso|vou querer)( ver)? (outr|mais)/;
 /** Diante de um parecido já mostrado, qualquer "outra/mais uma/próxima" pede o próximo. */
 const MAIS_UM = /\b(outr[ao]s?|mais uma|mais um|proxim[ao]|seguinte)\b/;
-const GOSTOU = /(gostei|me interess|tenho interesse|interessei|quero (esse|essa|este|esta|saber mais|mais detalhes|detalhes|ver (esse|essa|este|esta))|pode (passar|pedir|mandar|ser)|esse (mesmo|ai)|essa (mesma|ai)|manda (mais|os detalhes)|perfeito|gostaria)/;
+const GOSTOU = /(gostei|me interess|tenho interesse|interessei|quero (esse|essa|este|esta|saber mais|mais detalhes|detalhes|ver (esse|essa|este|esta))|pode (passar|pedir|mandar|ser)|esse (mesmo|ai)|essa (mesma|ai)|manda (mais|os detalhes)|perfeito|gostaria|legal|bonit|show)/;
 const NAO_GOSTOU = /^(nao|n|nao obrigad\w*|nao gostei|nao curti|nao me interess\w*|nao (e|eh) (bem )?isso|nenhum|nenhuma)\b/;
-/** "Sim" para a oferta/pergunta do parecido (sem cumprimentos, que no SIM geral contam como interesse). */
-const SIM_P = /^(sim|s|claro|quero|ok|pode|com certeza|quero sim|pode ser|gostaria|isso|opa|manda|mostra)\b/;
+/** "Sim" para a oferta/pergunta (sem cumprimentos, que no SIM geral contam como interesse). */
+const SIM_P = /^(sim|s|claro|quero|ok|pode|com certeza|quero sim|pode ser|gostaria|isso|opa|manda|mostra|bora|vamos)\b/;
 const MAIS_BARATO = /(mais (barat|em conta|acessivel)|menor (valor|preco)|mais em conta)/;
+const AGRADECEU = /(obrigad|valeu|agradec|brigad)/;
+const DETALHES = /(detalh|mais informac|mais info|saber mais|me (fala|conta|passa|manda) mais|caracteristic|fotos?\b|como (e|ela e|ele e) (a|o)?)/;
 
 /**
  * Faixa de valor dita pelo cliente, em reais: "até 500 mil" -> {max}; "entre 400 e 600 mil" -> {min,max};
@@ -755,18 +903,40 @@ const fichaDoParecido = (p: ImovelParecido): FichaIa => ({
   area_terreno_m2: p.area_terreno_m2,
 });
 
-/** Texto da oferta: só dados do XML. Nunca fala de disponibilidade, permuta, financiamento ou andar. */
-export function textoParecido(p: ImovelParecido, jaMostrados: number): string {
-  const r = resumoFicha(fichaDoParecido(p));
-  const desc = r ? r.replace(/^É /, "é ").replace(/\.$/, "") : "é um imóvel";
-  const onde = p.mesmo_condominio ? ", no mesmo condomínio" : "";
-  const preco = p.aluguel ? ` O aluguel anunciado é de ${p.aluguel} por mês.` : p.preco ? ` Está anunciado por ${p.preco}.` : "";
-  const link = p.url ? ` Anúncio: ${p.url}` : "";
-  const fim =
-    jaMostrados < MAX_PARECIDOS
-      ? "Quer que eu peça ao corretor os detalhes desse imóvel, ou prefere ver outra opção?"
-      : "Quer que eu peça ao corretor os detalhes desse imóvel?";
-  return `Tenho uma opção parecida (código ${p.codigo}): ${desc}${onde}.${preco}${link} ${fim}`.replace(/\s+/g, " ").trim();
+/** "3 quartos e 167 m²" (sem "área útil": conversa, não ficha). */
+function caractCurta(p: ImovelParecido): string {
+  const m2 = p.area_util_m2 ?? (p.tipo === "terreno" ? p.area_terreno_m2 : undefined);
+  return juntar([p.quartos && p.quartos !== "0" ? plural(p.quartos, "quarto", "quartos") : null, m2 ? `${m2} m²` : null].filter(Boolean) as string[]);
+}
+const valorCurto = (p: ImovelParecido) => (p.aluguel ? `com aluguel de ${reaisTxt(p.aluguel)} por mês` : p.preco ? `por ${reaisTxt(p.preco)}` : "");
+
+/**
+ * Oferta de um parecido, como atendente: "Tenho sim! Tem outra casa no mesmo condomínio, com 3 quartos e
+ * 167 m², por R$ 1.220.000. Dá uma olhada: <link> Gostou? Se quiser, marco uma visita para você ver as duas."
+ * Só dados do XML. Nunca fala de disponibilidade, permuta, financiamento ou andar.
+ */
+export function textoParecido(p: ImovelParecido, jaMostrados: number, op: { pedido?: boolean; comPedido?: boolean } = {}): string {
+  const tipo = p.tipo || "imóvel";
+  const f = fem(tipo);
+  const abre = op.pedido === false ? "" : jaMostrados <= 1 ? "Tenho sim!" : "";
+  const onde =
+    p.mesmo_condominio || (p.mesmo_bairro && p.bairro && ehCondominio(p.bairro))
+      ? " no mesmo condomínio"
+      : p.mesmo_bairro
+        ? " no mesmo bairro"
+        : p.bairro
+          ? ` ${noBairro(p.bairro)}`
+          : "";
+  const c = caractCurta(p);
+  const v = valorCurto(p);
+  // 1º: "Tem outra casa no mesmo condomínio, ..."; depois: "Tenho mais uma no mesmo condomínio, ..."
+  const desc =
+    jaMostrados <= 1
+      ? `Tem ${f ? "outra" : "outro"} ${tipo}${onde}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}.`
+      : `Tenho mais ${f ? "uma" : "um"}${onde || ` ${tipo}`}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}.`;
+  const link = p.url ? ` Dá uma olhada: ${p.url}` : "";
+  const ambos = op.comPedido && jaMostrados <= 1 ? ` para você ver ${f ? "as duas" : "os dois"}` : "";
+  return `${abre} ${desc}${link} Gostou? Se quiser, marco uma visita${ambos}.`.replace(/\s+/g, " ").trim();
 }
 
 /** Argumentos da RPC lead_ia_imoveis_parecidos (mesma chamada na tela de teste e no WhatsApp). */
@@ -782,6 +952,23 @@ export function argsParecidos(conversaId: string, f: FiltroParecido) {
     _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), MAX_PARECIDOS),
     _mais_barato: f.mais_barato === true,
     _codigo: f.codigo_ref ? f.codigo_ref.trim().slice(0, 60) || null : null,
+  };
+}
+
+/** Argumentos da RPC lead_ia_imoveis_busca (busca nova, t_5b493bc9). */
+export function argsBusca(conversaId: string, f: FiltroBusca) {
+  const valor = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e11 ? Math.round(v) : null);
+  const txt = (s: string | null | undefined, n = 60) => (s && s.trim() ? s.trim().slice(0, n) : null);
+  return {
+    _conversa: conversaId,
+    _tipo: TIPOS_BUSCA.includes(f.tipo ?? "") ? f.tipo : null,
+    _negocio: f.negocio === "locacao" ? "locacao" : "venda",
+    _preco_min: valor(f.preco_min),
+    _preco_max: valor(f.preco_max),
+    _regiao: txt(f.regiao),
+    _cidade: txt(f.cidade),
+    _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), MAX_PARECIDOS),
   };
 }
 
@@ -828,16 +1015,146 @@ export function normalizarParecidos(data: unknown): ResultadoParecidos | null {
   };
 }
 
-// --- Roteiro --------------------------------------------------------------------------------------------
+// --- Busca nova no meio da conversa (t_5b493bc9 item 11) ------------------------------------------------
+// "eu queria ver um imóvel para o meu filho também, vocês trabalham com apartamento?": responde primeiro
+// ("Trabalhamos sim!"), faz 1 pergunta curta por vez (o que faltar: tipo, comprar/alugar, região, até quanto;
+// no máximo 3), procura no XML da própria imobiliária e oferece 1 por vez com valor e link. Sem achar, passa
+// para a equipe procurar. Tudo vai para o resumo do corretor, sem perder o interesse no imóvel do lead.
 
-/** Próxima pergunta de qualificação (no máximo 3, cada uma uma vez). null = qualificação feita. */
-export function proximaPergunta(dados: DadosQualificacao, ctx: Pick<ContextoIa, "transacao">): Pergunta | null {
+/** Tipos que o banco entende (iguais a lead_ia_tipo). */
+export const TIPOS_BUSCA = ["apartamento", "casa", "terreno", "cobertura", "studio", "imóvel comercial"];
+
+export function tipoDe(n: string): string | null {
+  if (/\bcobertura/.test(n)) return "cobertura";
+  if (/\b(studio|estudio|kitnet|kitinete|quitinete)\b/.test(n)) return "studio";
+  if (/\b(apartamento|apartamentos|apto|aptos|ap|aps|ape|apes|apartamentinho)\b/.test(n)) return "apartamento";
+  if (/\b(sala comercial|loja|galpao|barracao|ponto comercial|imovel comercial|escritorio)\b/.test(n)) return "imóvel comercial";
+  if (/\b(casa|casas|sobrado|sobrados|chacara|chacaras)\b/.test(n)) return "casa";
+  if (/\b(terreno|terrenos|lote|lotes)\b/.test(n)) return "terreno";
+  return null;
+}
+const PARA_QUEM = /\bpara (o |a )?(meu|minha|um|uma)? ?(filho|filha|mae|pai|irmao|irma|esposa|marido|namorad[oa]|sogr[oa]|amig[oa]|tio|tia|primo|prima|cunhad[oa]|parente|neto|neta|cliente)\b|\b(pro|pra) (meu|minha) (filho|filha|mae|pai|irmao|irma|esposa|marido|namorad[oa]|sogr[oa]|amig[oa]|tio|tia|primo|prima|cunhad[oa]|neto|neta)\b/;
+const QUER_BUSCA = /(trabalh\w* com|\btem\b|\btens\b|teria|\bvcs\b|voces|procur|busc|queria|quero|gostaria|interess|preciso|vende(m)?|aluga(m)?|mexe(m)? com)/;
+const ELA = new Set(["filha", "mae", "irma", "esposa", "namorada", "sogra", "amiga", "tia", "prima", "cunhada", "neta"]);
+
+/** Começo de uma busca nova? (outro tipo de imóvel, ou para outra pessoa). */
+function novaBusca(n: string, tipoLead: string | undefined): Busca2 | null {
+  const t = tipoDe(n);
+  const para = PARA_QUEM.exec(n);
+  const outraPessoa = !!para && /(tambem|\btb\b|\btbm\b|outr[ao]|mais um|mais uma)/.test(n);
+  const outroTipo = !!t && !!tipoLead && t !== tipoLead && QUER_BUSCA.test(n);
+  if (!outroTipo && !(outraPessoa && QUER_BUSCA.test(n))) return null;
+  const quem = para ? para[3] ?? para[6] : undefined;
+  return { ativa: true, tipo: t ?? "", para: quem ? `${ELA.has(quem) ? "a" : "o"} ${quem === "mae" ? "mãe" : quem === "irmao" ? "irmão" : quem === "irma" ? "irmã" : quem}` : undefined, perguntas: [], ofertados: [] };
+}
+
+/** "Ele/ela/você" para as perguntas da busca. */
+const quemBusca = (b: Busca2) => {
+  const w = b.para?.split(" ")[1];
+  if (!w) return { suj: "você", obj: "você" };
+  return ELA.has(norm(w)) ? { suj: "ela", obj: "ela" } : { suj: "ele", obj: "ele" };
+};
+
+function perguntaBusca(e: EtapaBusca, b: Busca2, cidade?: string | null): string {
+  const q = quemBusca(b);
+  switch (e) {
+    case "tipo":
+      return `Que tipo de imóvel ${q.suj} procura: casa ou apartamento?`;
+    case "finalidade":
+      return "Seria para comprar ou para alugar?";
+    case "regiao":
+      return `E em qual bairro ou região${cidade ? ` de ${cidade}` : ""} ${q.suj === "você" ? "você prefere" : `${q.suj} prefere`}?`;
+    case "faixa":
+      return b.finalidade === "alugar" ? "E até quanto de aluguel por mês?" : `E até quanto ${q.suj === "você" ? "você pensa" : `${q.suj} pensa`} em investir?`;
+  }
+}
+
+/** Próxima pergunta da busca nova (uma por vez, cada uma uma vez, no máximo 3). null = já dá para procurar. */
+function proximaBusca(b: Busca2): EtapaBusca | null {
+  const feitas = b.perguntas ?? [];
+  if (feitas.length >= 3) return null;
+  if (b.tipo === undefined || (b.tipo === "" && !feitas.includes("tipo"))) return "tipo";
+  if (!b.finalidade && b.finalidade !== "" && !feitas.includes("finalidade")) return "finalidade";
+  if (b.regiao === undefined && !feitas.includes("regiao")) return "regiao";
+  if (b.faixa === undefined && !feitas.includes("faixa")) return "faixa";
+  return null;
+}
+
+/** Lê do texto tudo o que serve para a busca nova (o cliente pode responder várias coisas de uma vez). */
+function preencherBusca(b: Busca2, texto: string, etapa: EtapaBusca | undefined): boolean {
+  const n = norm(texto);
+  let leu = false;
+  const t = tipoDe(n);
+  if (t && !b.tipo) {
+    b.tipo = t;
+    leu = true;
+  }
+  const fin = finalidadeDe(n);
+  if (fin && !b.finalidade) {
+    b.finalidade = fin;
+    leu = true;
+  }
+  const fx = valorFaixa(texto) ? curto(texto, 60) : null;
+  if (fx && b.faixa === undefined) {
+    b.faixa = fx;
+    leu = true;
+  }
+  const reg = /\b(?:no|na|em|pelo|pela|perto d[oa])\s+(?:bairro\s+|regiao\s+(?:d[oa]\s+)?|condominio\s+)?([a-z][a-z ]{2,30}?)(?=\s*(?:[,.!?;]|$|\se\s|\sate\s|\spara\s|\spra\s|\scom\s))/.exec(n);
+  if (reg && b.regiao === undefined && !/^(comprar|alugar|torno|faixa|valor)/.test(reg[1])) {
+    b.regiao = reg[1].trim().slice(0, 40);
+    leu = true;
+  }
+  // Resposta à pergunta feita, quando nada acima a reconheceu: "tanto faz" = sem filtro; senão guarda como veio.
+  const tantoFaz = /(tanto faz|qualquer|nao (sei|importa|tem preferencia)|indiferente|sem preferencia|tanto  faz)/.test(n);
+  if (etapa === "tipo" && !b.tipo) b.tipo = tantoFaz ? "" : (t ?? "");
+  if (etapa === "finalidade" && !b.finalidade) b.finalidade = fin ?? "";
+  if (etapa === "regiao" && b.regiao === undefined) b.regiao = tantoFaz ? "" : curto(texto, 40);
+  if (etapa === "faixa" && b.faixa === undefined) b.faixa = tantoFaz ? "" : curto(texto, 60);
+  return leu || !!etapa;
+}
+
+/** Texto da oferta da busca nova: só dados do XML. */
+export function textoBusca(p: ImovelParecido, jaMostrados: number): string {
+  const tipo = p.tipo || "imóvel";
+  const f = fem(tipo);
+  const onde = p.bairro ? ` ${noBairro(p.bairro)}${p.cidade ? `, em ${p.cidade}` : ""}` : "";
+  const c = caractCurta(p);
+  const v = valorCurto(p);
+  const abre = jaMostrados <= 1 ? `Achei ${f ? "uma" : "um"} ${tipo}` : `Tenho também ${f ? "uma" : "um"} ${tipo}`;
+  const link = p.url ? ` Dá uma olhada: ${p.url}` : "";
+  const fecho = jaMostrados < MAX_PARECIDOS ? "O que acha? Se quiser, te mando outra opção." : "O que acha?";
+  return `${abre}${onde}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}.${link} ${fecho}`.replace(/\s+/g, " ").trim();
+}
+
+// --- Roteiro --------------------------------------------------------------------------------------------
+// t_5b493bc9 (teste real de Denis, 27/10): "a ideia é que a pessoa pense que está falando com uma pessoa real".
+// - O pedido do cliente vem antes do roteiro: pergunta, "tem mais opções?", busca nova, visita.
+// - Pergunta objetiva: só o dado + 1 pergunta natural para avançar (visita, ou "mais algum detalhe?").
+// - Faixa de valor só quando o cliente quer outras opções e não há preço de referência. A forma de pagamento
+//   não é perguntada pelo roteiro de regras (é anotada se o cliente disser).
+// - A Nicole conduz sozinha; outra pessoa só aparece na passagem, uma vez ("Já pedi para {corretor} te chamar").
+// Estas regras são também o PLANO B do modelo que escreve as respostas (caminho 2 de Denis).
+
+export const PERGUNTA: Record<Pergunta, string> = {
+  finalidade: "Você procura para comprar ou para alugar?",
+  faixa: "Até quanto você pensa em investir?",
+  // t_59ab47d4: sem "permuta" nas opções sugeridas. Não é perguntada pelo roteiro novo (t_5b493bc9).
+  pagamento: "E você pensa em pagar à vista ou com financiamento?",
+};
+export const PERGUNTA_PARECIDO = "Quer que eu te mostre outras opções parecidas?";
+export const CONVITE_VISITA = "Quer agendar uma visita para conhecer?";
+export const MAIS_DETALHE = "Quer saber mais algum detalhe?";
+
+/** Próxima pergunta de qualificação: só a finalidade, quando nem o portal nem o XML dizem. null = nenhuma. */
+export function proximaPergunta(
+  dados: DadosQualificacao,
+  ctx: Pick<ContextoIa, "transacao">,
+  ficha?: FichaIa | null,
+): Pergunta | null {
   const feitas = dados.perguntas ?? [];
-  const finalidade = dados.finalidade ?? (ctx.transacao === "venda" ? "comprar" : ctx.transacao === "aluguel" ? "alugar" : undefined);
+  const doXml = ficha?.negocio === "venda" ? "comprar" : ficha?.negocio === "locacao" ? "alugar" : undefined;
+  const finalidade = dados.finalidade ?? (ctx.transacao === "venda" ? "comprar" : ctx.transacao === "aluguel" ? "alugar" : doXml);
   if (!finalidade && !feitas.includes("finalidade")) return "finalidade";
-  if (!dados.faixa && !feitas.includes("faixa")) return "faixa";
-  // Aluguel: \"à vista, financiamento ou permuta\" não se aplica.
-  if (finalidade !== "alugar" && !dados.pagamento?.length && !feitas.includes("pagamento")) return "pagamento";
   return null;
 }
 
@@ -846,9 +1163,12 @@ function extrairCodigo(texto: string): string | null {
   return m ? m[0].slice(0, 40) : null;
 }
 
+const junta = (...xs: (string | null | undefined)[]) => xs.filter(Boolean).join(" ");
+
 /**
  * Próxima resposta da IA para a mensagem do cliente. Ordem de prioridade:
- * sensível -> pediu pessoa -> não é lead -> recusa -> roteiro (dúvida primeiro, depois 1 pergunta).
+ * sensível -> pediu pessoa -> robô? -> não é lead -> recusa -> pedido do cliente (busca nova, outras opções,
+ * dúvida, visita) -> convite do turno anterior -> conversa (detalhes, 1 pergunta natural).
  * (Opt-out já foi tratado no banco antes de chegar aqui.)
  */
 export async function proximaResposta(
@@ -858,44 +1178,41 @@ export async function proximaResposta(
   op: OpcoesRoteiro = {},
 ): Promise<RespostaIa> {
   const agora = op.agora ?? new Date();
+  const b0 = ctx.dados.busca2;
   const dados: DadosQualificacao = {
     ...ctx.dados,
     repeticoes: { ...(ctx.dados.repeticoes ?? {}) },
     perguntas: [...(ctx.dados.perguntas ?? [])],
+    ...(b0 ? { busca2: { ...b0, perguntas: [...(b0.perguntas ?? [])], ofertados: [...(b0.ofertados ?? [])] } } : {}),
   };
   const n = norm(texto);
   const parcial = () => resumoQualificacao(dados, ctx);
+  // A pergunta de fecho do turno anterior vale só para esta resposta.
+  const convite = dados.convite_aberto;
+  dados.convite_aberto = undefined;
 
   if (ehSensivel(texto))
     return passar(
       dados,
       "sensivel",
       "Entendi.",
-      `Encaminhei sua mensagem para ${CORRETOR}, que vai cuidar disso com você por aqui.`,
-      "Registrei sua mensagem e estou confirmando o encaminhamento para uma pessoa da nossa equipe. Já te retorno por aqui.",
+      `${CHAMAR} para cuidar disso com você.`,
+      "Registrei sua mensagem e já te retorno por aqui.",
       `Assunto sensível: \"${curto(texto, 160)}\". Atender com prioridade. Dados até aqui: ${parcial()}`,
     );
   // \"Sim\" para a oferta de passar ao corretor feita depois de \"é robô?\": passa (t_25fe1197).
   const ofereceuCorretor = dados.ofereceu_corretor;
   dados.ofereceu_corretor = undefined;
   if (pediuPessoa(texto) || (ofereceuCorretor && SIM_P.test(n) && !detectarTemas(texto).length))
-    return passar(
-      dados,
-      "pediu_pessoa",
-      "Claro!",
-      `Encaminhei seu contato para ${CORRETOR}, que vai falar com você por aqui.`,
-      FALHA_PADRAO,
-      `Cliente pediu para falar com uma pessoa. Dados até aqui: ${parcial()}`,
-    );
-  // \"É robô?\": não mente. Confirma que é assistente virtual e oferece o corretor; a conversa segue (t_25fe1197).
+    return passar(dados, "pediu_pessoa", "Claro!", `${CHAMAR}.`, FALHA_PADRAO, `Cliente pediu para falar com uma pessoa. Dados até aqui: ${parcial()}`);
+  // \"É robô?\": não se apresenta como robô, mas não mente se perguntarem direto (limite decidido com Denis).
   if (perguntouSeRobo(texto)) {
     dados.ofereceu_corretor = true;
-    // Só aqui (pergunta direta) ela diz "assistente virtual"; a apresentação normal nunca usa o termo.
-    const quem = `Sou a ${(ctx.ia_nome || "Nicole").trim()}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""} (não sou uma pessoa).`;
+    const quem = `Sou a ${(ctx.ia_nome || "Nicole").trim()}, assistente${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e respondo por aqui com ajuda de um sistema.`;
     return {
       passo: ctx.passo === "fim" ? "visita" : ctx.passo,
       dados,
-      resposta: `${quem} Se preferir, passo agora para um corretor falar com você. Quer?`,
+      resposta: `${quem} Se preferir falar com um corretor, te passo agora. Quer?`,
       resposta_falha: null,
       fim: null,
       resumo: null,
@@ -908,14 +1225,16 @@ export async function proximaResposta(
     return passar(
       dados,
       "nao_lead",
-      "Entendi, obrigada!",
-      `Encaminhei sua mensagem para ${CORRETOR}, que vai te responder por aqui.`,
-      "Registrei sua mensagem e estou confirmando o encaminhamento para a nossa equipe. Já te retorno por aqui.",
+      "Entendi!",
+      `Já pedi para ${CORRETOR} te responder por aqui.`,
+      "Registrei sua mensagem e já te retorno por aqui.",
       `${quem}, não é comprador nem locatário: \"${curto(texto, 160)}\". Atender sem o roteiro de qualificação.`,
     );
   }
-  const parecidoPendente = !!(dados.parecido_atual || dados.parecido_pergunta);
-  if (RECUSA.test(n) || (ctx.passo === "interesse" && !parecidoPendente && SEM_INTERESSE.test(n) && !SIM.test(n)))
+  const parecidoPendente = !!(dados.parecido_atual || dados.parecido_pergunta || dados.busca2?.ativa);
+  // "não, tudo bem. quantos quartos?" e "não" à oferta do corretor (depois de "é robô?") não são recusa.
+  const recusaSimples = ctx.passo === "interesse" && !dados.interesse && !parecidoPendente && !ofereceuCorretor && SEM_INTERESSE.test(n) && !SIM.test(n) && !ehPergunta(texto);
+  if (RECUSA.test(n) || recusaSimples)
     return fim(
       dados,
       "sem_interesse",
@@ -927,6 +1246,7 @@ export async function proximaResposta(
   // Imóvel: ficha do banco, ou a achada pelo código que o cliente informou (pedido uma única vez).
   let ficha = ctx.ficha ?? null;
   let frase = ctx.imovel_frase ?? null;
+  let achouCodigo = false;
   if (ctx.passo === "codigo") {
     const cod = extrairCodigo(texto);
     if (cod) {
@@ -938,108 +1258,212 @@ export async function proximaResposta(
         if (achou.xml_codigo) dados.imovel_xml_codigo = achou.xml_codigo.slice(0, 60);
         ficha = achou.ficha;
         frase = achou.frase;
+        achouCodigo = true;
       }
     }
   }
 
-  // --- Imóvel parecido do XML (t_232e13cb). Sem op.buscarParecidos: nada muda (comportamento de antes). ---
+  const passoAtual: Passo = ctx.passo === "fim" ? "visita" : ctx.passo;
   const busca = op.buscarParecidos;
-  const passoP: Passo = ctx.passo === "fim" ? "visita" : ctx.passo;
   const negocio = (): NegocioParecido =>
-    dados.finalidade === "alugar" || (!dados.finalidade && ctx.transacao === "aluguel") ? "locacao" : "venda";
-  const continuar = (intro: string, extra: Partial<RespostaIa> = {}): RespostaIa => ({
-    passo: passoP,
+    dados.finalidade === "alugar" || (!dados.finalidade && (ctx.transacao === "aluguel" || ficha?.negocio === "locacao")) ? "locacao" : "venda";
+  const continuar = (resposta: string, passo: Passo = passoAtual === "codigo" ? "interesse" : passoAtual): RespostaIa => ({
+    passo,
     dados,
-    resposta: intro,
+    resposta,
     resposta_falha: null,
     fim: null,
     resumo: null,
-    ...extra,
   });
-  /** Oferece o próximo parecido (1 por vez, até 3, nunca repete) ou diz com franqueza que não há e passa. */
-  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null): Promise<RespostaIa> => {
+  const sujeito = oImovel(ficha?.tipo);
+
+  /** Convida para a visita com 2 opções (a própria Nicole conduz; o corretor só confirma o horário). */
+  const ofereceVisita = (intro: string, alvo?: string): RespostaIa => {
+    const opcoes = opcoesVisita(agora);
+    dados.visita_opcoes = opcoes;
+    dados.convite_visita = true;
+    const para = alvo ?? (ficha?.tipo ? `conhecer ${sujeito}` : frase ? `conhecer ${frase}` : "conhecer o imóvel");
+    return continuar(
+      junta(intro, `Para ${para}, tenho ${opcoes[0]} ou ${opcoes[1]}. Qual fica melhor para você? Te confirmo o horário certinho.`),
+      "visita",
+    );
+  };
+  /** 1 pergunta natural para avançar: visita (uma vez) ou mais algum detalhe. */
+  const fecho = (intro: string): RespostaIa => {
+    if (dados.visita_opcoes && !dados.visita)
+      return continuar(junta(intro, `Sobre a visita: ${dados.visita_opcoes[0]} ou ${dados.visita_opcoes[1]} fica bom para você?`), "visita");
+    if (!dados.convite_visita) {
+      dados.convite_visita = true;
+      dados.convite_aberto = "visita";
+      return continuar(junta(intro, CONVITE_VISITA), "interesse");
+    }
+    dados.convite_aberto = "detalhe";
+    return continuar(junta(intro, MAIS_DETALHE), "interesse");
+  };
+  /** Passa ao corretor (a única menção a outra pessoa). */
+  const passarAo = (intro: string, depois: string, falha = FALHA_PADRAO) =>
+    passar(dados, "qualificado", intro, `${CHAMAR}${depois ? ` ${depois}` : ""}.`, falha, resumoQualificacao(dados, ctx));
+
+  // --- Imóvel parecido do XML (t_232e13cb). Sem op.buscarParecidos: não oferece. ---
+  /** Oferece o próximo parecido (1 por vez, até 3, nunca repete) ou diz com franqueza que não há. */
+  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null, pedido = true): Promise<RespostaIa> => {
     const ja = dados.parecidos ?? [];
     dados.parecido_atual = undefined;
     dados.parecido_pergunta = undefined;
-    const juntarTxt = (...xs: string[]) => xs.filter(Boolean).join(" ");
-    if (ja.length >= MAX_PARECIDOS)
-      return passar(
-        dados,
-        "qualificado",
-        juntarTxt(intro, "Já te mostrei as opções parecidas que separei por aqui."),
-        `Encaminhei seu contato para ${CORRETOR}, que pode procurar mais opções para você por aqui.`,
-        FALHA_PADRAO,
-        resumoQualificacao(dados, ctx),
-      );
+    const fimOpcoes = (t: string) => {
+      dados.parecidos_fim = true;
+      return continuar(junta(intro, t, "Gostou de alguma? Se quiser, marco uma visita."));
+    };
+    if (ja.length >= MAX_PARECIDOS) {
+      if (!dados.parecidos_fim) return fimOpcoes("Essas são as opções que tenho agora nesse perfil.");
+      return passarAo(junta(intro, "Vou procurar mais opções para você."), "com outras opções");
+    }
+    const fx = valorFaixa(dados.faixa ?? "");
     const res =
       pre !== undefined
         ? pre
         : await busca!({
             excluir: ja,
             negocio: negocio(),
-            preco_min: valorFaixa(dados.faixa ?? "")?.min ?? null,
-            preco_max: valorFaixa(dados.faixa ?? "")?.max ?? null,
+            preco_min: fx?.min ?? null,
+            preco_max: fx?.max ?? null,
             codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null,
             ...extra,
           }).catch(() => null);
     const p = res?.itens.find((i) => !ja.includes(i.codigo));
     if (!p) {
+      if (res && ja.length && !dados.parecidos_fim) return fimOpcoes("Por enquanto essas são as opções parecidas que tenho por aqui.");
       const franco = !res
-        ? ""
-        : extra.negocio === "locacao" || negocio() === "locacao"
-          ? "Não encontrei agora uma opção de locação parecida no nosso catálogo, então vou pedir para um corretor entrar em contato com você."
-          : ja.length
-            ? "Não encontrei mais nenhuma opção parecida no nosso catálogo além da que te mostrei."
-            : "No momento não encontrei outra opção parecida com essa no nosso catálogo.";
-      return passar(
-        dados,
-        "qualificado",
-        juntarTxt(intro, franco),
-        `Encaminhei seu contato para ${CORRETOR}, que pode procurar outras opções para você por aqui.`,
-        FALHA_PADRAO,
-        resumoQualificacao(dados, ctx),
-      );
+        ? "Vou separar outras opções para você."
+        : (extra.negocio ?? negocio()) === "locacao"
+          ? "Agora não tenho uma opção de locação parecida por aqui, mas vou procurar para você."
+          : "Agora não tenho outra opção parecida com essa por aqui, mas vou procurar para você.";
+      return passarAo(junta(intro, franco), "com outras opções");
     }
     dados.parecidos = [...ja, p.codigo].slice(0, MAX_PARECIDOS);
     dados.parecido_atual = p;
-    if (passoP === "interesse" || passoP === "codigo") dados.interesse = true;
-    return continuar(juntarTxt(intro, textoParecido(p, dados.parecidos.length)));
+    dados.interesse = true;
+    dados.convite_visita = true;
+    return continuar(junta(intro, textoParecido(p, dados.parecidos.length, { pedido, comPedido: !!ficha?.tipo && p.tipo === ficha.tipo })));
   };
 
-  // Resposta a uma oferta/pergunta de parecido feita no turno anterior.
+  // --- Busca nova no meio da conversa (item 11): outra pessoa, outro tipo. Não perde o imóvel do lead. ---
+  const b2 = dados.busca2;
+  const quemB = (b: Busca2) => (b.para ? b.para.replace(/^o /, "o seu ").replace(/^a /, "a sua ") : null);
+  const perguntarOuBuscar = async (b: Busca2, intro: string, primeira = false): Promise<RespostaIa> => {
+    const e = proximaBusca(b);
+    if (e) {
+      b.perguntas = [...(b.perguntas ?? []), e];
+      b.etapa = e;
+      const q = perguntaBusca(e, b, ficha?.cidade);
+      const para = primeira && quemB(b) ? `Para ${quemB(b)}, ${q[0].toLowerCase()}${q.slice(1)}` : q;
+      return continuar(junta(intro, para));
+    }
+    b.etapa = undefined;
+    const ja = b.ofertados ?? [];
+    const tipoB = b.tipo || "imóvel";
+    const art = `${fem(tipoB) ? "uma" : "um"} ${tipoB}`;
+    const paraQuem = quemB(b) ? `para ${quemB(b)!.replace(/^o seu /, "o seu ").replace(/^a sua /, "a sua ")}` : "para você";
+    if (ja.length >= MAX_PARECIDOS) {
+      b.ativa = false;
+      return passarAo(junta(intro, `Vou procurar mais opções ${paraQuem}.`), "com outras opções");
+    }
+    const fx = valorFaixa(b.faixa ?? "");
+    const res = op.buscarImoveis
+      ? await op
+          .buscarImoveis({
+            tipo: b.tipo || null,
+            negocio: b.finalidade === "alugar" ? "locacao" : "venda",
+            preco_min: fx?.min ?? null,
+            preco_max: fx?.max ?? null,
+            regiao: b.regiao || null,
+            cidade: ficha?.cidade ?? null,
+            excluir: ja,
+            limite: 1,
+          })
+          .catch(() => null)
+      : null;
+    const p = res?.itens.find((i) => !ja.includes(i.codigo));
+    if (!p) {
+      b.ativa = false;
+      const t = ja.length ? `Não achei mais nenhum nesse perfil agora, mas vou procurar ${paraQuem}.` : `Agora não achei ${art} nesse perfil por aqui, mas vou procurar ${paraQuem}.`;
+      return passarAo(junta(intro, t), "com as opções");
+    }
+    b.ofertados = [...ja, p.codigo].slice(0, MAX_PARECIDOS);
+    b.atual = p;
+    return continuar(junta(intro, textoBusca(p, b.ofertados.length)));
+  };
+  if (b2?.ativa) {
+    if (b2.etapa) {
+      // Resposta à pergunta da busca (o cliente pode responder várias coisas de uma vez).
+      const etapa = b2.etapa;
+      b2.etapa = undefined;
+      preencherBusca(b2, texto, etapa);
+      const ok = ["Perfeito!", "Certo!", "Ótimo!"][((b2.perguntas?.length ?? 1) - 1) % 3];
+      return perguntarOuBuscar(b2, AGRADECEU.test(n) ? "Imagina!" : ok);
+    }
+    const p = b2.atual;
+    if (p) {
+      const temasB = detectarTemas(texto);
+      if (NAO_QUER_MAIS.test(n) || (NAO_GOSTOU.test(n) && !MAIS_UM.test(n) && !pedeOutrasOpcoes(texto))) {
+        b2.ativa = false;
+        b2.atual = undefined;
+        return fecho("Tudo bem!");
+      }
+      if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) return perguntarOuBuscar(b2, "");
+      if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
+        b2.interesse = p.codigo;
+        b2.ativa = false;
+        b2.atual = undefined;
+        return passarAo(`Que bom que gostou!`, `para combinar a visita ${fem(p.tipo) ? "dessa" : "desse"} ${p.tipo || "imóvel"}`);
+      }
+      if (temasB.length) return continuar(`${responderDuvidas(temasB, fichaDoParecido(p), {}, oImovel(p.tipo, true))} O que acha?`);
+      b2.ativa = false; // mudou de assunto: volta ao imóvel do lead
+      b2.atual = undefined;
+    }
+  } else {
+    const nb = novaBusca(n, ficha?.tipo);
+    if (nb) {
+      dados.busca2 = nb;
+      preencherBusca(nb, texto, undefined);
+      const abre = /(trabalh|mexe(m)? com)/.test(n) ? "Trabalhamos sim!" : "Claro, te ajudo com isso!";
+      return perguntarOuBuscar(nb, abre, true);
+    }
+  }
+
+  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita, anota e passa; não repete as opções.
+  if (!detectarTemas(texto).length) {
+    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes;
+    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
+    if (pedido) {
+      dados.visita = pedido;
+      dados.visita_ate = prazoConfirmacao(agora);
+      dados.visita_livre = true;
+      const t = "Te confirmo o horário certinho.";
+      return passar(dados, "visita", `${maiuscula(pedido)} anotado!`, t, t, resumoQualificacao(dados, ctx));
+    }
+  }
+
+  // Reação ao parecido mostrado no turno anterior.
   let respParecido = false;
   let abertura: string | null = null;
+  const temas = detectarTemas(texto);
   if (busca && dados.parecido_atual) {
     const p = dados.parecido_atual;
-    const temasP = detectarTemas(texto);
     if (NAO_QUER_MAIS.test(n) || (NAO_GOSTOU.test(n) && !MAIS_UM.test(n) && !pedeOutrasOpcoes(texto))) {
       dados.parecido_atual = undefined;
       respParecido = true;
       abertura = "Tudo bem!";
-    } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) {
+    } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto) || MESMA_FAIXA.test(n)) {
       return ofertar("", { mais_barato: MAIS_BARATO.test(n) });
     } else if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
       dados.parecido_interesse = p.codigo;
       dados.parecido_atual = undefined;
-      const visita = QUER_VISITA.test(n);
-      return passar(
-        dados,
-        "qualificado",
-        "Combinado!",
-        `Encaminhei seu interesse ${visita ? "em visitar o" : "no"} imóvel código ${p.codigo} para ${CORRETOR}, que confirma a disponibilidade e ${visita ? "combina a visita" : "te passa os detalhes"} com você por aqui.`,
-        FALHA_PADRAO,
-        resumoQualificacao(dados, ctx),
-      );
-    } else if (temasP.length) {
-      // Dúvida sobre o parecido: só o que o XML trouxe; o resto é com o corretor (não mistura pendências).
-      const r = responderDuvidas(temasP, fichaDoParecido(p), {});
-      const fimP =
-        (dados.parecidos?.length ?? 0) < MAX_PARECIDOS
-          ? "Quer que eu peça ao corretor os detalhes desse imóvel, ou prefere ver outra opção?"
-          : "Quer que eu peça ao corretor os detalhes desse imóvel?";
-      return continuar(`${r} ${fimP}`);
+      return ofereceVisita("Que bom que gostou!", `conhecer ${oImovel(p.tipo, true)}`);
+    } else if (temas.length) {
+      return continuar(`${responderDuvidas(temas, fichaDoParecido(p), {}, oImovel(p.tipo, true))} ${CONVITE_VISITA.replace("conhecer", "conhecer pessoalmente")}`);
     } else {
-      dados.parecido_atual = undefined; // mudou de assunto: segue o roteiro normal
+      dados.parecido_atual = undefined; // mudou de assunto: segue a conversa normal
     }
   } else if (busca && dados.parecido_pergunta) {
     dados.parecido_pergunta = undefined;
@@ -1049,25 +1473,16 @@ export async function proximaResposta(
     abertura = "Tudo bem!";
   }
 
-  // Alternativa do reengajamento (toque 2): \"sim\" = passa os detalhes ao corretor.
-  if (dados.alternativa && SIM.test(n) && !detectarTemas(texto).length)
-    return passar(
-      dados,
-      "qualificado",
-      "Combinado!",
-      `Encaminhei seu interesse em ${dados.alternativa} para ${CORRETOR}, que vai te passar os detalhes por aqui.`,
-      FALHA_PADRAO,
-      resumoQualificacao(dados, ctx),
-    );
+  // Alternativa do reengajamento (toque 2): \"sim\" = o corretor manda os detalhes.
+  if (dados.alternativa && SIM.test(n) && !temas.length)
+    return passarAo("Combinado!", `para te passar os detalhes de ${dados.alternativa}`);
 
-  const passoAtual: Passo = ctx.passo === "fim" ? "visita" : ctx.passo;
-  const temas = detectarTemas(texto);
-  // Resposta à 1ª mensagem (\"Quer saber valores e condições...?\"): \"valores\" já é a dúvida de preço.
-  if (passoAtual === "interesse" && !temas.length && /(valor|preco|condic|informac)/.test(n)) temas.push("preco");
+  // Resposta à 1ª mensagem (\"Quer saber mais detalhes...?\"): \"valores\" já é a dúvida de preço.
+  const primeira = (passoAtual === "interesse" || passoAtual === "codigo") && !dados.interesse;
+  if (primeira && !temas.length && /(valor|preco|condic)/.test(n) && !MESMA_FAIXA.test(n)) temas.push("preco");
   const ehDuvida = temas.length > 0 || /\?\s*$/.test(texto.trim());
 
-  // Resposta à pergunta do passo (ou dita espontaneamente).
-  const faixaAntes = dados.faixa;
+  // Informação dita pelo cliente (respondendo a uma pergunta ou de forma espontânea): anota sem perguntar de novo.
   const finalidadeAntes = dados.finalidade;
   const fin = finalidadeDe(n);
   if (fin && !dados.finalidade) dados.finalidade = fin;
@@ -1075,15 +1490,15 @@ export async function proximaResposta(
   // \"Aceita financiamento?\" é dúvida, não forma de pagamento; \"vou financiar\" é forma de pagamento.
   if (pag && !dados.pagamento?.length && (passoAtual === "pagamento" || !ehPergunta(texto))) dados.pagamento = pag;
   // Na pergunta da faixa, um número solto (\"120000 aceita financiamento?\") também é a faixa (t_59ab47d4).
+  const faixaAntes = dados.faixa;
   const fx = faixaDe(texto, n, passoAtual === "faixa");
-  // Depois de \"Só confirmando: sua faixa é de R$ X?\", um novo valor substitui o anterior.
-  // Só no turno logo depois da pergunta, uma vez (revisão t_e520a9bb).
   const confirmandoFaixa = passoAtual === "faixa" && !!ctx.dados.faixa_pendente;
   dados.faixa_pendente = undefined;
   if (fx && (!dados.faixa || (confirmandoFaixa && valorFaixa(fx)))) dados.faixa = fx;
-  // "na verdade quero alugar" no passo da faixa muda a finalidade; não vira faixa de valor (t_232e13cb).
+  // \"nesta mesma faixa\" / \"nesse valor\": a faixa é o preço do imóvel do lead (o banco usa ±15%).
+  if (!dados.faixa && passoAtual === "faixa" && MESMA_FAIXA.test(n)) dados.faixa = "mesma faixa do imóvel anunciado";
   const soFinalidade = passoAtual === "faixa" && !!fin && fin !== finalidadeAntes && !fx;
-  if ((passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && !ehDuvida && !respParecido && !soFinalidade) {
+  if ((passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && !ehDuvida && !respParecido && !soFinalidade && !pedeOutrasOpcoes(texto)) {
     const respondeu =
       (passoAtual === "finalidade" && dados.finalidade) || (passoAtual === "faixa" && dados.faixa) || (passoAtual === "pagamento" && dados.pagamento?.length);
     if (!respondeu) {
@@ -1096,96 +1511,125 @@ export async function proximaResposta(
         }
       }
       if (ex) Object.assign(dados, sanitizar(passoAtual, ex));
-      // Não entendeu: anota como veio e segue (sem repetir a pergunta: máximo de 3 perguntas).
+      // Não entendeu: anota como veio e segue (nunca repete a pergunta).
       if (passoAtual === "finalidade" && !dados.finalidade) dados.finalidade = curto(texto, 20);
       if (passoAtual === "pagamento" && !dados.pagamento?.length) dados.pagamento = [curto(texto, 30)];
     }
   }
+  // "Perfeito!" só quando o cliente passou uma informação que foi entendida ("hmm" não conta).
+  const deuInformacao = (!!fin && fin !== finalidadeAntes) || (!!fx && fx !== faixaAntes) || (!!pag && !ctx.dados.pagamento?.length) || (dados.faixa !== faixaAntes && MESMA_FAIXA.test(n));
   // Roteiro antigo (conversa aberta antes do ajuste).
   if ((passoAtual === "prazo" || passoAtual === "regiao") && !ehDuvida && n.length >= 2) dados[passoAtual] = curto(texto);
   if (passoAtual === "proximo_passo") {
     const ex = extrairPorRegras("proximo_passo", texto);
-    if (ex?.proximo_passo === "contato")
-      return passar(dados, "qualificado", "Perfeito, obrigada!", `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`, FALHA_PADRAO, resumoQualificacao(dados, ctx));
+    if (ex?.proximo_passo === "contato") return passarAo("Perfeito!", "");
   }
 
-  const duvida = responderDuvidas(temas, ficha, dados);
+  // A dúvida do cliente vem primeiro: só o que foi perguntado.
+  let duvida = responderDuvidas(temas, ficha, dados, sujeito);
+  if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n) && !DETALHES.test(n)) {
+    // Pergunta que as regras não reconhecem: não ignora (item 11).
+    duvida = "Vou confirmar isso e já te falo.";
+    dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);
+  }
 
-  // Permuta: a Nicole nunca diz se aceita. Registra e passa ao corretor, que avalia (t_59ab47d4).
+  // Permuta: a Nicole nunca diz se aceita. Registra e passa (t_59ab47d4); fala em outra pessoa só aqui.
   if (falaPermuta(n) && !respParecido) {
     dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
-    const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados);
+    const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados, sujeito);
     return passar(
       dados,
       "qualificado",
-      [outras, "Anotei a permuta: quem avalia essa possibilidade é o corretor."].filter(Boolean).join(" "),
-      `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`,
+      junta(outras, "Anotei! Vou ver com o proprietário se ele aceita permuta."),
+      `${CHAMAR} para conversar sobre isso.`,
       FALHA_PADRAO,
       `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
     );
   }
+  // Proposta, desconto, negociação: só quando o CLIENTE puxa o assunto.
+  if (temas.includes("negociacao") && !respParecido) {
+    const outras = responderDuvidas(temas.filter((t) => t !== "negociacao"), ficha, dados, sujeito);
+    return passar(
+      dados,
+      "qualificado",
+      junta(outras, "Sobre proposta e valores,"),
+      `já pedi para ${CORRETOR} te chamar aqui para conversar com você.`,
+      "anotei aqui e já te retorno por aqui.",
+      `Cliente quer falar de PROPOSTA/NEGOCIAÇÃO: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
+    );
+  }
 
-  // Faixa muito longe do valor anunciado no XML (mais que o dobro ou menos da metade): confirma uma vez,
-  // com naturalidade, em vez de aceitar calada (t_59ab47d4). A dúvida do mesmo turno é respondida junto.
-  if (dados.faixa && dados.faixa !== faixaAntes && !dados.faixa_conferida && !respParecido) {
-    const alugar = dados.finalidade === "alugar" || (!dados.finalidade && ctx.transacao === "aluguel");
+  // Faixa muito longe do valor anunciado no XML (mais que o dobro ou menos da metade): confirma uma vez.
+  if (dados.faixa && dados.faixa !== faixaAntes && !dados.faixa_conferida && !respParecido && !MESMA_FAIXA.test(n)) {
+    const alugar = negocio() === "locacao";
     const anunciado = alugar ? ficha?.aluguel_valor : ficha?.preco_valor;
     const longe = faixaLonge(dados.faixa, anunciado);
     if (longe != null && anunciado) {
       dados.faixa_conferida = true;
       dados.faixa_pendente = true;
       if (!dados.perguntas!.includes("faixa")) dados.perguntas!.push("faixa");
-      const ref = alugar ? `O aluguel anunciado é de ${reais(anunciado)} por mês.` : `O imóvel está anunciado por ${reais(anunciado)}.`;
-      return {
-        passo: "faixa",
-        dados,
-        resposta: [duvida, `Só confirmando: sua faixa é de ${reais(longe)}? ${ref}`].filter(Boolean).join(" "),
-        resposta_falha: null,
-        fim: null,
-        resumo: null,
-      };
+      const ref = alugar ? `O aluguel é de ${reais(anunciado)} por mês.` : `${maiuscula(sujeito)} está anunciad${fem(ficha?.tipo) ? "a" : "o"} por ${reais(anunciado)}.`;
+      return continuar(junta(duvida, `Só confirmando: sua faixa é de ${reais(longe)}? ${ref}`), "faixa");
     }
   }
-  // Resposta à confirmação: \"isso\" mantém a faixa; outro valor já substituiu acima. Segue o roteiro.
   if (confirmandoFaixa) dados.faixa_conferida = true;
 
-  // Imóvel parecido: (c) o cliente pede outras opções; (b) o imóvel pedido não serve.
-  // Cada conferência de (b) acontece no máximo uma vez por conversa.
-  if (busca && !respParecido && (dados.parecidos?.length ?? 0) < MAX_PARECIDOS) {
+  // Imóvel parecido: (c) o cliente pede outras opções (antes do roteiro); (b) o imóvel pedido não serve.
+  if (busca && !respParecido) {
+    const doXml = ctx.imovel_fonte === "xml" || !!dados.imovel_xml_codigo;
+    // "nesse valor", "parecido com esse" também pedem opções (a faixa é o preço do imóvel do lead).
+    // Depois de "essas são as opções que tenho", um "outra?" também é novo pedido (aí passa à equipe).
+    const outraDepoisDoFim = !!dados.parecidos_fim && MAIS_UM.test(n);
+    if ((pedeOutrasOpcoes(texto) || outraDepoisDoFim || (MESMA_FAIXA.test(n) && !ehPergunta(texto))) && !NAO_QUER_MAIS.test(n)) {
+      const temRef = doXml || !!ficha?.preco_valor || !!ficha?.aluguel_valor;
+      if (!temRef && !dados.faixa) {
+        // Sem preço de referência: precisa da faixa antes (única hora em que ela é perguntada).
+        dados.quer_opcoes = true;
+        if (!dados.perguntas!.includes("faixa")) dados.perguntas!.push("faixa");
+        return continuar(junta(duvida, `Claro! ${PERGUNTA.faixa}`), "faixa");
+      }
+      return ofertar(duvida, { mais_barato: MAIS_BARATO.test(n) });
+    }
+    if (dados.quer_opcoes && passoAtual === "faixa") {
+      dados.quer_opcoes = undefined;
+      return ofertar(junta(duvida, deuInformacao ? "Perfeito!" : ""));
+    }
     const conferido = dados.parecido_conferido ?? [];
     const conferir = (k: string) => {
       dados.parecido_conferido = [...new Set([...(dados.parecido_conferido ?? []), k])];
     };
-    const doXml = ctx.imovel_fonte === "xml" || !!dados.imovel_xml_codigo;
-    const comDuvida = (t: string) => [duvida, t].filter(Boolean).join(" ");
-    if (pedeOutrasOpcoes(texto) && !NAO_QUER_MAIS.test(n)) return ofertar(duvida, { mais_barato: MAIS_BARATO.test(n) });
-    // Quer alugar e o pedido é só de venda: diz isso e procura uma locação parecida no XML (sem achar, passa).
-    const pedidoSoVenda = ficha?.negocio ? ficha.negocio === "venda" : ctx.transacao === "venda" || doXml;
-    if (dados.finalidade === "alugar" && finalidadeAntes !== "alugar" && pedidoSoVenda && !conferido.includes("locacao")) {
-      conferir("locacao");
-      return ofertar(comDuvida("Esse imóvel está anunciado para venda."), { negocio: "locacao", preco_min: null, preco_max: null });
-    }
-    // Fora do bairro que o cliente quer.
-    const b = bairroDesejado(texto);
-    if (b && ficha?.bairro && !norm(ficha.bairro).includes(b) && !conferido.includes("bairro")) {
-      conferir("bairro");
-      return ofertar(comDuvida(`Esse imóvel fica no bairro ${ficha.bairro}.`), { bairro: b });
-    }
-    // Faixa de valor recém-informada abaixo do preço anunciado do pedido (o banco compara; o número não é dito).
-    const fx = dados.faixa && dados.faixa !== faixaAntes ? valorFaixa(dados.faixa) : null;
-    if (fx?.max && doXml && !conferido.includes("faixa")) {
-      conferir("faixa");
-      const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), preco_min: fx.min ?? null, preco_max: fx.max, codigo_ref: dados.imovel_xml_codigo ?? null }).catch(() => null);
-      if (res?.referencia.preco && res.referencia.preco > fx.max)
-        return ofertar(comDuvida("Esse imóvel está anunciado acima da faixa que você comentou."), {}, res);
-    }
-    // O anúncio pedido saiu do XML (não está mais no catálogo atual).
-    const cod = ctx.anuncio_codigo || dados.anuncio_informado;
-    if ((passoAtual === "interesse" || passoAtual === "codigo") && cod && ctx.imovel_fonte !== "xml" && !dados.imovel_xml_codigo && !conferido.includes("saiu")) {
-      conferir("saiu");
-      const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), codigo_ref: dados.anuncio_informado ?? null }).catch(() => null);
-      if (res?.referencia.saiu)
-        return ofertar(comDuvida("Esse anúncio não está mais no nosso catálogo atual; o corretor confirma a situação dele."), {}, res);
+    const comDuvida = (t: string) => junta(duvida, t);
+    const esse = maiuscula(oImovel(ficha?.tipo, true));
+    const a = fem(ficha?.tipo) ? "a" : "o";
+    if ((dados.parecidos?.length ?? 0) < MAX_PARECIDOS) {
+      // Quer alugar e o pedido é só de venda: diz isso e procura uma locação parecida no XML (sem achar, passa).
+      const pedidoSoVenda = ficha?.negocio ? ficha.negocio === "venda" : ctx.transacao === "venda" || doXml;
+      if (dados.finalidade === "alugar" && finalidadeAntes !== "alugar" && pedidoSoVenda && !conferido.includes("locacao")) {
+        conferir("locacao");
+        return ofertar(comDuvida(`${esse} está anunciad${a} só para venda.`), { negocio: "locacao", preco_min: null, preco_max: null }, undefined, false);
+      }
+      // Fora do bairro que o cliente quer.
+      const bq = bairroDesejado(texto);
+      if (bq && ficha?.bairro && !norm(ficha.bairro).includes(bq) && !conferido.includes("bairro")) {
+        conferir("bairro");
+        return ofertar(comDuvida(`${esse} fica ${noBairro(ficha.bairro)}.`), { bairro: bq }, undefined, false);
+      }
+      // Faixa de valor recém-informada abaixo do preço anunciado do pedido (o banco compara).
+      const fxv = dados.faixa && dados.faixa !== faixaAntes ? valorFaixa(dados.faixa) : null;
+      if (fxv?.max && doXml && !conferido.includes("faixa")) {
+        conferir("faixa");
+        const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), preco_min: fxv.min ?? null, preco_max: fxv.max, codigo_ref: dados.imovel_xml_codigo ?? null }).catch(() => null);
+        if (res?.referencia.preco && res.referencia.preco > fxv.max)
+          return ofertar(comDuvida(`${esse} está anunciad${a} acima da faixa que você comentou.`), {}, res, false);
+      }
+      // O anúncio pedido saiu do XML (não está mais no catálogo atual).
+      const cod = ctx.anuncio_codigo || dados.anuncio_informado;
+      if ((passoAtual === "interesse" || passoAtual === "codigo") && cod && ctx.imovel_fonte !== "xml" && !dados.imovel_xml_codigo && !conferido.includes("saiu")) {
+        conferir("saiu");
+        const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), codigo_ref: dados.anuncio_informado ?? null }).catch(() => null);
+        if (res?.referencia.saiu)
+          return ofertar(comDuvida("Esse anúncio saiu do nosso catálogo, vou confirmar a situação dele e já te falo."), {}, res, false);
+      }
     }
   }
 
@@ -1193,8 +1637,7 @@ export async function proximaResposta(
   if (passoAtual === "visita") {
     const opcoes = dados.visita_opcoes ?? opcoesVisita(agora);
     // \"Não\" para o parecido oferecido durante a visita: volta às 2 opções (não encerra a conversa).
-    if (respParecido)
-      return { passo: "visita", dados, resposta: `${abertura ?? "Tudo bem!"} Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?`, resposta_falha: null, fim: null, resumo: null };
+    if (respParecido) return continuar(`${abertura ?? "Tudo bem!"} Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?`, "visita");
     const escolha = escolhaVisita(texto, opcoes);
     const rep = dados.repeticoes!.visita ?? 0;
     const livre = !escolha && !ehDuvida && OUTRO_DIA.test(n) ? curto(texto, 60) : null;
@@ -1204,100 +1647,91 @@ export async function proximaResposta(
       return passar(
         dados,
         "visita",
-        `Pré-agendamento anotado: ${dados.visita}.`,
-        `Encaminhei para ${CORRETOR}, que confirma com você ${dados.visita_ate}. A visita só fica marcada depois dessa confirmação, combinado?`,
-        "Registrei aqui e estou confirmando o envio ao corretor; assim que ele confirmar o horário, te aviso por aqui. A visita só fica marcada depois dessa confirmação.",
+        `Combinado, ${dados.visita}!`,
+        `${CHAMAR} para confirmar o horário certinho ${dados.visita_ate}.`,
+        "Anotei aqui e já te retorno por aqui para confirmar o horário certinho.",
         resumoQualificacao(dados, ctx),
       );
     }
-    if (PREFERE_CORRETOR.test(n) || (SEM_INTERESSE.test(n) && !ehDuvida))
-      return passar(dados, "qualificado", `${duvida ? `${duvida} ` : ""}Sem problema!`, `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`, FALHA_PADRAO, resumoQualificacao(dados, ctx));
+    if (PREFERE_CORRETOR.test(n) || (SEM_INTERESSE.test(n) && !ehDuvida)) return passarAo(junta(duvida, "Sem problema!"), "");
     if (rep < 1) {
       dados.repeticoes!.visita = rep + 1;
-      const q = ehDuvida
-        ? `Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?`
-        : "Sem problema! Qual dia e período ficam melhores para você?";
-      return { passo: "visita", dados, resposta: [duvida, q].filter(Boolean).join(" "), resposta_falha: null, fim: null, resumo: null };
+      const q = ehDuvida ? `Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?` : "Sem problema! Qual dia e período ficam melhores para você?";
+      return continuar(junta(duvida, q), "visita");
     }
-    return passar(dados, "qualificado", duvida, `Encaminhei suas informações para ${CORRETOR}, que vai combinar a visita com você por aqui.`, FALHA_PADRAO, resumoQualificacao(dados, ctx));
+    return passarAo(duvida, "para combinar a visita");
   }
 
-  // Cliente pediu visita (ou terminou a qualificação): oferece 2 opções.
-  const ofereceVisita = (intro: string): RespostaIa => {
-    const opcoes = opcoesVisita(agora);
-    dados.visita_opcoes = opcoes;
-    const alvo = frase ? ` ${frase}` : " o imóvel";
-    return {
-      passo: "visita",
-      dados,
-      resposta: [intro, `Posso pré-agendar uma visita para você conhecer${alvo}: ${opcoes[0]} ou ${opcoes[1]}? É um pré-agendamento: o corretor confirma o horário com você.`]
-        .filter(Boolean)
-        .join(" "),
-      resposta_falha: null,
-      fim: null,
-      resumo: null,
-    };
-  };
-  if (QUER_VISITA.test(n) || (passoAtual === "proximo_passo" && /visit/.test(n))) return ofereceVisita(duvida);
+  // Cliente pediu visita: oferece 2 opções (depois de responder o que ele perguntou).
+  if (QUER_VISITA.test(n) || (passoAtual === "proximo_passo" && /visit/.test(n))) return ofereceVisita(junta(duvida, duvida ? "" : "Claro!"));
 
   // 1ª resposta sem imóvel identificado e sem código do portal: pede o código UMA vez, com exemplo.
   const semImovel = !ficha && !ctx.tem_captacao && !dados.imovel_capture_id && !ctx.anuncio_codigo;
   if (passoAtual === "interesse" && semImovel && !dados.codigo_pedido) {
     dados.codigo_pedido = true;
     dados.interesse = true;
-    return {
-      passo: "codigo",
-      dados,
-      resposta: [duvida || "Que bom!", "Para eu te passar as informações certas, qual é o código do anúncio? Ele aparece na descrição do anúncio, por exemplo: AP1234."]
-        .filter(Boolean)
-        .join(" "),
-      resposta_falha: null,
-      fim: null,
-      resumo: null,
-    };
+    return continuar(
+      junta(duvida || "Que bom!", "Para eu te passar as informações certas, qual é o código do anúncio? Ele aparece na descrição do anúncio, por exemplo: AP1234."),
+      "codigo",
+    );
   }
-
-  let intro = duvida;
-  if (passoAtual === "interesse" || passoAtual === "codigo") {
+  if (passoAtual === "codigo" && !ficha) {
+    // Código não achado (ou o cliente não sabe): quem confirma o imóvel recebe o atendimento.
     dados.interesse = true;
-    // 1ª resposta: o que a ficha tem sobre o imóvel + a resposta da dúvida (se houve).
-    const r = passoAtual === "codigo" && !ficha ? "Obrigada! Vou pedir ao corretor para confirmar qual é o imóvel." : resumoFicha(ficha);
-    intro = [abertura ?? (duvida ? "" : "Que bom!"), respParecido ? "" : r, duvida].filter(Boolean).join(" ");
-  } else if (abertura) intro = [abertura, intro].filter(Boolean).join(" ");
+    return passarAo(junta(duvida, dados.anuncio_informado ? "Obrigada! Vou confirmar qual é o imóvel." : "Tudo bem!"), "para te passar os detalhes");
+  }
 
-  // Depois da dúvida, a próxima pergunta (uma por turno). Repete a do passo atual no máximo uma vez,
-  // quando o cliente respondeu com outra dúvida.
-  const atualSemResposta =
-    // Também depois de responder a uma oferta de parecido: a pergunta do passo ficou sem resposta.
-    (passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && (ehDuvida || respParecido) &&
-    !((passoAtual === "finalidade" && dados.finalidade) || (passoAtual === "faixa" && dados.faixa) || (passoAtual === "pagamento" && dados.pagamento?.length));
-  if (atualSemResposta && (dados.repeticoes![passoAtual] ?? 0) < 1) {
-    dados.repeticoes![passoAtual] = (dados.repeticoes![passoAtual] ?? 0) + 1;
-    return { passo: passoAtual, dados, resposta: [intro, PERGUNTA[passoAtual as Pergunta]].filter(Boolean).join(" "), resposta_falha: null, fim: null, resumo: null };
-  }
-  const q = proximaPergunta(dados, ctx);
-  if (q) {
-    dados.perguntas!.push(q);
-    return { passo: q, dados, resposta: [intro, PERGUNTA[q]].filter(Boolean).join(" "), resposta_falha: null, fim: null, resumo: null };
-  }
-  // (a) Qualificação feita: ANTES da visita, pergunta se quer ver uma opção parecida (uma vez, só se existir).
-  if (busca && !dados.visita_opcoes && !dados.parecido_perguntado && !(dados.parecidos?.length)) {
-    dados.parecido_perguntado = true;
-    const res = await busca({
-      excluir: [],
-      negocio: negocio(),
-      preco_min: valorFaixa(dados.faixa ?? "")?.min ?? null,
-      preco_max: valorFaixa(dados.faixa ?? "")?.max ?? null,
-      codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null,
-    }).catch(() => null);
-    if (res?.itens.length) {
-      dados.parecido_pergunta = true;
-      return { passo: passoAtual, dados, resposta: [intro ? `${intro} Obrigada!` : "Obrigada!", PERGUNTA_PARECIDO].join(" "), resposta_falha: null, fim: null, resumo: null };
+  // Convite do turno anterior (\"Quer agendar uma visita?\" / \"Quer saber mais algum detalhe?\").
+  if (!ehDuvida && !respParecido && convite) {
+    const sim = SIM_P.test(n) && !NAO_GOSTOU.test(n);
+    const nao = NAO_GOSTOU.test(n) || SEM_INTERESSE.test(n);
+    if (convite === "visita" && sim) return ofereceVisita("Ótimo!");
+    if (convite === "visita" && nao) {
+      if (busca && !(dados.parecidos?.length) && !dados.parecido_perguntado) {
+        dados.parecido_perguntado = true;
+        // Regra t_232e13cb: sem nenhum parecido no XML, nem pergunta.
+        const pre = await busca({ excluir: [], negocio: negocio(), codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null }).catch(() => null);
+        if (pre?.itens.length) {
+          dados.parecido_pergunta = true;
+          return continuar(`Sem problema! ${PERGUNTA_PARECIDO}`, "interesse");
+        }
+      }
+      dados.convite_aberto = "detalhe";
+      return continuar(`Sem problema! ${MAIS_DETALHE}`, "interesse");
+    }
+    if (convite === "detalhe" && nao) return passarAo("Combinado!", "para continuar seu atendimento");
+    if (convite === "detalhe" && sim) {
+      if (!dados.ficha_enviada && detalhesFicha(ficha)) {
+        dados.ficha_enviada = true;
+        return fecho(junta("Claro!", detalhesFicha(ficha)));
+      }
+      dados.convite_aberto = "detalhe";
+      return continuar("Claro! O que você gostaria de saber?", "interesse");
     }
   }
-  // Qualificação feita: oferece a visita (uma vez); se já ofereceu, passa ao corretor.
-  if (!dados.visita_opcoes) return ofereceVisita(abertura ? intro : intro ? `${intro} Obrigada!` : "Obrigada!");
-  return passar(dados, "qualificado", intro, `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`, FALHA_PADRAO, resumoQualificacao(dados, ctx));
+
+  // Conversa: detalhes do imóvel (uma vez, quando o cliente pede), depois 1 pergunta natural.
+  let intro = duvida;
+  if (primeira) dados.interesse = true;
+  const pediuDetalhes = (primeira && !temas.length) || (DETALHES.test(n) && !temas.length) || achouCodigo;
+  if (pediuDetalhes && !dados.ficha_enviada && !respParecido) {
+    const det = detalhesFicha(ficha);
+    if (det) dados.ficha_enviada = true;
+    // Código informado pelo cliente: diz qual imóvel achou (a 1ª mensagem não falou dele).
+    const qual = achouCodigo && ficha?.tipo ? junta(`É ${fem(ficha.tipo) ? "uma" : "um"} ${ficha.tipo}${ficha.bairro ? ` ${noBairro(ficha.bairro)}` : ""}.`, valorAnunciado(ficha)) : "";
+    const abre = achouCodigo ? "Achei!" : AGRADECEU.test(n) ? "Imagina!" : SIM.test(n) || DETALHES.test(n) ? "Claro!" : "";
+    intro = junta(abre, qual, det, intro);
+  } else if (!intro) {
+    intro = abertura ?? (AGRADECEU.test(n) ? "Imagina!" : deuInformacao ? "Perfeito!" : "");
+  } else if (abertura) intro = junta(abertura, intro);
+
+  // Só a finalidade, quando nada diz se é compra ou aluguel (uma vez).
+  const q = proximaPergunta(dados, ctx, ficha);
+  if (q && !ehDuvida) {
+    dados.perguntas!.push(q);
+    return continuar(junta(intro, PERGUNTA[q]), q);
+  }
+  return fecho(intro);
 }
 
 /**
@@ -1311,7 +1745,7 @@ export function respostaMidia(ctx: ContextoIa): RespostaIa {
       dados,
       "pediu_pessoa",
       "",
-      `Encaminhei sua mensagem para ${CORRETOR}, que vai falar com você por aqui.`,
+      `${CHAMAR}.`,
       FALHA_PADRAO,
       `Cliente mandou áudio ou arquivo pelo WhatsApp (a IA não lê anexos). Dados até aqui: ${resumoQualificacao(ctx.dados, ctx)}`,
     );

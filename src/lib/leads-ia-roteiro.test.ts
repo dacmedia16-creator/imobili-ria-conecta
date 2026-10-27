@@ -137,23 +137,25 @@ describe("item 1 — 1ª mensagem", () => {
 });
 
 describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", () => {
-  it("venda vinda do portal: não pergunta finalidade (2 perguntas) e termina na visita", async () => {
+  // t_5b493bc9: faixa e pagamento não são mais perguntados pelo roteiro (só anotados se o cliente disser).
+  it("venda vinda do portal: responde a dúvida e convida para a visita, sem faixa nem pagamento", async () => {
     const r = await conversa(["Quero saber valores", "uns 500 mil", "financiamento"]);
-    expect(r.map((x) => x.passo)).toEqual(["faixa", "pagamento", "visita"]);
-    expect(r[0].resposta).toMatch(/quem confirma é o corretor/); // respondeu a dúvida antes da pergunta
-    expect(r[0].resposta.indexOf("corretor")).toBeLessThan(r[0].resposta.indexOf("faixa de valor"));
-    expect(perguntas(r)).toBe(2);
+    expect(r.map((x) => x.passo)).toEqual(["interesse", "interesse", "interesse"]);
+    expect(r[0].resposta).toBe("Vou confirmar o valor e já te falo. Quer agendar uma visita para conhecer?"); // ficha sem preço
+    expect(perguntas(r)).toBe(0);
     expect(r[2].dados).toMatchObject({ faixa: "uns 500 mil", pagamento: ["financiamento"] });
   });
-  it("sem transação do portal: finalidade, faixa e pagamento (3, uma por turno)", async () => {
+  it("sem transação do portal: só a finalidade é perguntada (1 pergunta, uma vez)", async () => {
     const r = await conversa(["sim", "comprar", "até 400 mil", "à vista"], { transacao: null });
-    expect(r.map((x) => x.passo)).toEqual(["finalidade", "faixa", "pagamento", "visita"]);
+    expect(r.map((x) => x.passo)).toEqual(["finalidade", "interesse", "interesse", "interesse"]);
     for (const x of r) expect((x.resposta.match(/\?/g) ?? []).length).toBeLessThanOrEqual(1);
-    expect(perguntas(r)).toBe(3);
+    expect(perguntas(r)).toBe(1);
+    expect(r[1].resposta).toBe("Perfeito! Quer agendar uma visita para conhecer?");
   });
   it("aluguel: não pergunta forma de pagamento", async () => {
     const r = await conversa(["tenho interesse", "até 3 mil"], { transacao: "aluguel" });
-    expect(r.map((x) => x.passo)).toEqual(["faixa", "visita"]);
+    expect(r.map((x) => x.passo)).toEqual(["interesse", "interesse"]);
+    for (const x of r) expect(x.resposta).not.toMatch(/pagamento|financiamento/);
   });
   it("nunca passa de 3 perguntas, mesmo com respostas confusas", async () => {
     const r = await conversa(["sim", "hmm", "sei lá", "talvez", "não sei", "pode ser"], { transacao: null });
@@ -161,26 +163,30 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
     expect(r.map((x) => x.passo)).not.toContain("prazo");
     expect(r.map((x) => x.passo)).not.toContain("regiao");
   });
-  it("dúvida no meio: responde e repete a pergunta do passo uma vez só", async () => {
+  it("dúvida no meio: responde só o que foi perguntado e não convida para a visita duas vezes", async () => {
     const r = await conversa(["sim", "ainda está disponível?", "e o condomínio?", "500 mil"]);
-    expect(r[1].passo).toBe("faixa");
-    // t_76243950: disponibilidade nunca é garantida; a resposta fixa é "confirmo a disponibilidade com o corretor".
-    expect(r[1].resposta).toMatch(/^Confirmo a disponibilidade com o corretor\. .*faixa de valor/);
-    expect(r[2].resposta).not.toMatch(/faixa de valor/); // não repete a 2ª vez
+    expect(r[1].passo).toBe("interesse");
+    // t_76243950: disponibilidade nunca é garantida.
+    expect(r[1].resposta).toBe("Vou confirmar a disponibilidade e já te falo. Quer saber mais algum detalhe?");
+    expect(r[2].resposta).toBe("Vou confirmar o valor do condomínio e já te falo. Quer saber mais algum detalhe?");
+    for (const x of r) expect(x.resposta).not.toMatch(/faixa de valor|corretor/);
   });
 });
 
 describe("item 3 — respostas só pela ficha da captação", () => {
   it("o que a ficha tem, responde; o que não tem, \"não tenho esse dado confirmado\"", async () => {
     const r = await proximaResposta(ctx({ passo: "faixa" }), "Quantos quartos tem? E tem vaga? Qual o condomínio?", undefined, { agora: AGORA });
-    expect(r.resposta).toMatch(/^Tem 3 quartos \(1 suíte\) e tem 2 vagas de garagem\. Sobre condomínio, não tenho esse dado confirmado, vou confirmar com o corretor\./);
+    expect(r.resposta).toBe(
+      "O apartamento tem 3 quartos, sendo 1 suíte e 2 vagas de garagem. Vou confirmar o valor do condomínio e já te falo. Quer agendar uma visita para conhecer?",
+    );
     expect(r.dados.pendentes).toEqual(expect.arrayContaining(["condomínio"]));
   });
   it("condomínio/IPTU, permuta, financiamento e andar sem dado: nunca estima", async () => {
     for (const t of ["qual o valor do condomínio?", "quanto é o IPTU?", "aceita financiamento?", "qual andar?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
-      expect(r.resposta).toContain("não tenho esse dado confirmado, vou confirmar com o corretor");
-      expect(r.resposta).not.toMatch(/R\$|\d+ ?(mil|reais)|aceita (permuta|financiamento)\b(?! ?\?)|andar \d/);
+      expect(r.resposta).toMatch(/^Vou confirmar .+ e já te falo\. /);
+      // "Vou confirmar se aceita financiamento" não afirma nada; afirmar ("Aceita financiamento, sim") é proibido.
+      expect(r.resposta).not.toMatch(/R\$|\d+ ?(mil|reais)|(?<!se )aceita (permuta|financiamento)\b(?! ?\?)|andar \d/);
       expect(r.fim).toBeNull();
     }
   });
@@ -188,7 +194,7 @@ describe("item 3 — respostas só pela ficha da captação", () => {
     for (const ficha of [FICHA, { ...FICHA, disponivel: true }, { ...FICHA, disponivel: false }]) {
       for (const t of ["ainda está disponível?", "já foi vendido?", "ainda está à venda?"]) {
         const r = await proximaResposta(ctx({ passo: "faixa", ficha }), t, undefined, { agora: AGORA });
-        expect(r.resposta).toContain("Confirmo a disponibilidade com o corretor.");
+        expect(r.resposta).toContain("Vou confirmar a disponibilidade e já te falo.");
         expect(r.resposta).not.toMatch(/está disponível|indisponível|já foi vendido|não está/i);
         expect(r.dados.pendentes).toContain("disponibilidade");
       }
@@ -197,17 +203,22 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   it("quando a ficha passar a ter os campos, responde com eles (sem inventar; disponibilidade continua com o corretor)", async () => {
     const ficha: FichaIa = { ...FICHA, condominio: "R$ 650,00", iptu: "R$ 120,00", aceita_permuta: false, aceita_financiamento: true, andar: "5º andar, frente", disponivel: true };
     const r = await proximaResposta(ctx({ passo: "faixa", ficha }), "aceita financiamento? qual o condomínio e o iptu? qual andar? ainda está disponível?", undefined, { agora: AGORA });
-    for (const x of ["aceita financiamento", "condomínio é de R$ 650,00", "IPTU é de R$ 120,00", "fica no 5º andar, frente", "Confirmo a disponibilidade com o corretor."])
+    for (const x of ["Aceita financiamento, sim.", "condomínio é de R$ 650 por mês", "IPTU é de R$ 120", "Fica no 5º andar, frente", "Vou confirmar a disponibilidade e já te falo."])
       expect(r.resposta).toContain(x);
     expect(r.resposta).not.toContain("não tenho esse dado");
     expect(r.resposta).not.toContain("stá disponível");
   });
-  it("preço e negociação: sempre o corretor, sem número", async () => {
-    for (const t of ["qual o valor?", "quanto custa?", "aceita proposta?"]) {
+  it("preço sem dado no XML: vai confirmar, sem número; proposta só quando o cliente puxa o assunto", async () => {
+    for (const t of ["qual o valor?", "quanto custa?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
-      expect(r.resposta).toMatch(/quem confirma é o corretor/);
-      expect(r.resposta).not.toMatch(/R\$\s*\d/);
+      expect(r.resposta).toBe("Vou confirmar o valor e já te falo. Quer agendar uma visita para conhecer?");
+      expect(r.fim).toBeNull();
     }
+    const p = await proximaResposta(ctx({ passo: "faixa" }), "aceita proposta?", undefined, { agora: AGORA });
+    expect(p.fim).toBe("qualificado");
+    expect(p.resposta).toBe("Sobre proposta e valores, já pedi para {corretor} te chamar aqui para conversar com você.");
+    expect(p.resposta).not.toMatch(/R\$\s*\d/);
+    expect(p.resumo).toMatch(/PROPOSTA\/NEGOCIAÇÃO/);
   });
   it("o resumo do corretor leva os temas a confirmar", async () => {
     const r = await conversa(["aceita permuta?", "500 mil", "à vista", "quero falar com o corretor"]);
@@ -222,19 +233,21 @@ describe("item 3 — respostas só pela ficha da captação", () => {
 });
 
 describe("item 4 — visita com 2 opções, pré-agendamento e prazo", () => {
-  it("oferece 2 opções de dia e período e explica o pré-agendamento", async () => {
+  it("oferece 2 opções de dia e período, sem texto de sistema (t_5b493bc9 item 13)", async () => {
     const r = await proximaResposta(ctx(), "quero agendar uma visita", undefined, { agora: AGORA });
     expect(r.passo).toBe("visita");
     expect(r.dados.visita_opcoes).toEqual(["amanhã (terça, 27/10) de manhã", "quarta (28/10) à tarde"]);
-    expect(r.resposta).toMatch(/amanhã \(terça, 27\/10\) de manhã ou quarta \(28\/10\) à tarde\?/);
-    expect(r.resposta).toMatch(/pré-agendamento: o corretor confirma/);
+    expect(r.resposta).toBe(
+      "Claro! Para conhecer o apartamento, tenho amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde. Qual fica melhor para você? Te confirmo o horário certinho.",
+    );
+    expect(r.resposta).not.toMatch(/pré-agendamento|corretor/);
   });
-  it("escolha: diz que é pré-agendamento, quem confirma e até quando", async () => {
+  it("escolha: confirma o combinado e diz até quando o horário é confirmado", async () => {
     const r = await conversa(["quero agendar uma visita", "a primeira"]);
     const f = r[1];
     expect(f.fim).toBe("visita");
     expect(f.resposta).toBe(
-      "Pré-agendamento anotado: amanhã (terça, 27/10) de manhã. Encaminhei para {corretor}, que confirma com você até as 18h de hoje. A visita só fica marcada depois dessa confirmação, combinado?",
+      "Combinado, amanhã (terça, 27/10) de manhã! Já pedi para {corretor} te chamar aqui para confirmar o horário certinho até as 18h de hoje.",
     );
     expect(f.resumo).toMatch(/PRÉ-AGENDAMENTO: amanhã \(terça, 27\/10\) de manhã \(confirmar com o cliente até as 18h de hoje\)/);
   });
@@ -267,10 +280,10 @@ describe("item 5 — \"encaminhei\" verificável", () => {
     ];
     for (const r of casos) {
       expect(r.fim).not.toBeNull();
-      expect(r.resposta).toMatch(/Encaminhei .*\{corretor\}/);
+      expect(r.resposta).toMatch(/Já pedi para \{corretor\} te (chamar|responder)/);
       expect(r.resposta_falha).toBeTruthy();
-      expect(r.resposta_falha).not.toMatch(/encaminhei|\{corretor\}/i);
-      expect(r.resposta_falha).toMatch(/Registrei/);
+      expect(r.resposta_falha).not.toMatch(/já pedi|encaminhei|\{corretor\}/i);
+      expect(r.resposta_falha).toMatch(/(Registrei|Anotei)/);
     }
   });
   it("recusa não diz que encaminhou", async () => {
@@ -329,7 +342,7 @@ describe("item 7 — código do anúncio", () => {
     expect(r[0].resposta).toMatch(/código do anúncio\? .*por exemplo: AP1234\./);
     expect(buscarImovel).toHaveBeenCalledWith("AP1234");
     expect(r[1].dados.imovel_capture_id).toBe("cap9");
-    expect(r[1].resposta).toMatch(/É uma casa, no bairro Centro/);
+    expect(r[1].resposta).toBe("Achei! É uma casa no bairro Centro. Você procura para comprar ou para alugar?");
     expect(r.slice(1).some((x) => /código do anúncio/.test(x.resposta))).toBe(false);
   });
   it("código informado achado no XML (sem captação): usa a ficha do XML e guarda o código na conversa (t_76243950)", async () => {
@@ -338,19 +351,19 @@ describe("item 7 — código do anúncio", () => {
     const r = await conversa(["oi", "é o VIP0028", "qual o condomínio e o IPTU? ainda está disponível?"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null }, undefined, { buscarImovel });
     expect(r[1].dados.imovel_xml_codigo).toBe("VIP0028");
     expect(r[1].dados.imovel_capture_id).toBeUndefined();
-    expect(r[1].resposta).toMatch(/É um apartamento com 3 quartos \(1 suíte\), 2 vagas e 92 m² de área útil, no bairro Campolim\./);
+    expect(r[1].resposta).toMatch(/^Achei! É um apartamento no bairro Campolim\. O apartamento tem 3 quartos, sendo 1 suíte, 2 vagas de garagem e 92 m²\./);
   });
   it("ficha do XML no contexto: responde condomínio e IPTU, e nunca garante disponibilidade nem deduz permuta/andar", async () => {
     const fichaXml: FichaIa = { tipo: "apartamento", bairro: "Campolim", quartos: "3", condominio: "R$ 720,00", iptu: "R$ 140,00 por mês" };
     const r = await proximaResposta(ctx({ passo: "faixa", ficha: fichaXml }), "qual o condomínio e o IPTU? ainda está disponível? qual andar?", undefined, { agora: AGORA });
-    expect(r.resposta).toContain("condomínio é de R$ 720,00");
-    expect(r.resposta).toContain("IPTU é de R$ 140,00 por mês");
-    expect(r.resposta).toContain("Confirmo a disponibilidade com o corretor.");
-    expect(r.resposta).toMatch(/Sobre andar\/posição, não tenho esse dado confirmado, vou confirmar com o corretor\./);
+    expect(r.resposta).toContain("O condomínio é de R$ 720 por mês.");
+    expect(r.resposta).toContain("O IPTU é de R$ 140 por mês.");
+    expect(r.resposta).toMatch(/Vou confirmar a disponibilidade e o andar e a posição e já te falo\./);
+    expect(r.dados.pendentes).toEqual(["disponibilidade", "andar/posição"]);
   });
   it("cliente não sabe o código: segue sem pedir de novo", async () => {
     const r = await conversa(["oi", "não sei o código", "comprar"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null });
-    expect(r[1].resposta).toMatch(/corretor para confirmar qual é o imóvel/);
+    expect(r[1].resposta).toBe("Tudo bem! Já pedi para {corretor} te chamar aqui para te passar os detalhes.");
     expect(r.slice(1).some((x) => /código do anúncio/.test(x.resposta))).toBe(false);
   });
 });
@@ -393,7 +406,7 @@ describe("mantém o que já existia", () => {
   });
   it("áudio: 1ª vez pede texto repetindo a pergunta; 2ª passa ao corretor", () => {
     const a = respostaMidia(ctx({ passo: "faixa" }));
-    expect(a.resposta).toMatch(/faixa de valor/);
+    expect(a.resposta).toBe("Desculpe, por aqui eu só consigo ler mensagens escritas. Até quanto você pensa em investir?");
     expect(respostaMidia(ctx({ dados: { midias: 1 } })).fim).toBe("pediu_pessoa");
   });
   it("conversa antiga (passo prazo/regiao) não quebra", async () => {
@@ -414,7 +427,7 @@ describe("modelo de linguagem SIMULADO (mock)", () => {
     const r = await proximaResposta(ctx({ passo: "finalidade", transacao: null, dados: { perguntas: ["finalidade"] } }), "tô querendo um cantinho meu", mock);
     expect(mock).toHaveBeenCalledOnce();
     expect(r.dados.finalidade).toBe("comprar");
-    expect(r.resposta).toMatch(/faixa de valor/);
+    expect(r.resposta).toBe("Quer agendar uma visita para conhecer?");
   });
   it("campos fora do passo devolvidos pelo modelo são ignorados", async () => {
     const mock = vi.fn(async () => ({ finalidade: "comprar", faixa: "R$ 1 bilhão" }) as never);
@@ -426,7 +439,8 @@ describe("modelo de linguagem SIMULADO (mock)", () => {
       throw new Error("timeout");
     });
     const r = await proximaResposta(ctx({ passo: "pagamento", dados: { perguntas: ["faixa", "pagamento"], faixa: "x" } }), "xyz", mock, { agora: AGORA });
-    expect(r.passo).toBe("visita");
+    expect(r.fim).toBeNull();
+    expect(r.resposta).toBe("Quer agendar uma visita para conhecer?");
   });
   it("não chama o modelo quando as regras entendem (economia)", async () => {
     const mock = vi.fn(async () => null);
@@ -445,40 +459,38 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
   };
   const c = (p: Partial<ContextoIa> = {}) => ({ ficha: VIP0040, imovel_fonte: "xml" as const, anuncio_codigo: "VIP0040", tem_captacao: false, org_nome: "ZZ Teste Provisionamento", ...p });
 
-  it("com preço no XML, diz o valor anunciado; negociação continua com o corretor", async () => {
+  it("com preço no XML, diz só o valor anunciado (sem falar em proposta sem o cliente puxar)", async () => {
     const r = await proximaResposta(ctx(c({ passo: "faixa" })), "qual o valor?", undefined, { agora: AGORA });
-    expect(r.resposta).toMatch(/[Ee]stá anunciado por R\$ 430\.000/);
-    expect(r.resposta).toContain("Proposta e negociação, quem conversa com você é o corretor.");
+    expect(r.resposta).toBe("O apartamento está anunciado por R$ 430.000. Quer agendar uma visita para conhecer?");
+    expect(r.resposta).not.toMatch(/proposta|negocia|corretor/i);
     expect(r.resposta).not.toMatch(/dispon[ií]vel|aceita permuta|aceita financiamento|andar/i);
   });
   it("condomínio e IPTU do XML são ditos; sem preço no XML, não inventa e fica com o corretor", async () => {
     const r = await proximaResposta(ctx(c({ passo: "faixa" })), "qual o condomínio e o iptu?", undefined, { agora: AGORA });
-    expect(r.resposta).toMatch(/condomínio é de R\$ 478,00 e o IPTU é de R\$ 58,00 por mês/);
+    expect(r.resposta).toBe("O condomínio é de R$ 478 por mês. O IPTU é de R$ 58 por mês. Quer agendar uma visita para conhecer?");
     const semPreco = { ...VIP0040, preco: undefined, preco_valor: undefined };
     const r2 = await proximaResposta(ctx(c({ passo: "faixa", ficha: semPreco })), "quanto custa?", undefined, { agora: AGORA });
-    expect(r2.resposta).toMatch(/quem confirma é o corretor/);
+    expect(r2.resposta).toMatch(/^Vou confirmar o valor e já te falo\./);
     expect(r2.resposta).not.toMatch(/R\$\s*\d/);
   });
   it("locação: diz o aluguel do XML (e o condomínio/IPTU se vierem)", async () => {
     const loc: FichaIa = { tipo: "apartamento", bairro: "Campolim", cidade: "Sorocaba", quartos: "2", negocio: "locacao", aluguel: "R$ 2.500", aluguel_valor: 2500, condominio: "R$ 600,00" };
     const r = await proximaResposta(ctx(c({ passo: "faixa", ficha: loc, transacao: "aluguel" })), "qual o valor do aluguel e do condomínio?", undefined, { agora: AGORA });
-    expect(r.resposta).toMatch(/[Oo] aluguel anunciado é de R\$ 2\.500 por mês/);
-    expect(r.resposta).toContain("condomínio é de R$ 600,00");
+    expect(r.resposta).toBe("O aluguel é de R$ 2.500 por mês. O condomínio é de R$ 600 por mês. Quer agendar uma visita para conhecer?");
   });
 
   it("\"120000 aceita financiamento ?\": registra a faixa e responde o financiamento no mesmo turno (sem repetir a pergunta)", async () => {
     const perto = { ...VIP0040, preco: "R$ 130.000", preco_valor: 130000 };
     const r = await proximaResposta(ctx(c({ passo: "faixa", ficha: perto, dados: { perguntas: ["faixa"] } })), "120000 aceita financiamento ?", undefined, { agora: AGORA });
     expect(r.dados.faixa).toBe("120000 aceita financiamento ?");
-    expect(r.resposta).toMatch(/Sobre financiamento, não tenho esse dado confirmado, vou confirmar com o corretor\./);
-    expect(r.resposta).not.toMatch(/qual faixa de valor/);
-    expect(r.resposta).toMatch(/forma de pagamento seria à vista ou com financiamento\?/);
+    expect(r.resposta).toBe("Vou confirmar se aceita financiamento e já te falo. Quer agendar uma visita para conhecer?");
+    expect(r.resposta).not.toMatch(/faixa de valor|forma de pagamento|à vista ou com financiamento/);
   });
   it("faixa muito longe do preço anunciado: confirma com naturalidade (uma vez) e depois segue", async () => {
     const rs = await conversa(["1.200.000", "isso mesmo", "à vista"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] } });
-    expect(rs[0].resposta).toBe("Só confirmando: sua faixa é de R$ 1.200.000? O imóvel está anunciado por R$ 430.000.");
+    expect(rs[0].resposta).toBe("Só confirmando: sua faixa é de R$ 1.200.000? O apartamento está anunciado por R$ 430.000.");
     expect(rs[0].passo).toBe("faixa");
-    expect(rs[1].resposta).toMatch(/forma de pagamento/);
+    expect(rs[1].resposta).toBe("Quer agendar uma visita para conhecer?");
     expect(rs[1].dados.faixa).toBe("1.200.000");
   });
   it("faixa longe corrigida pelo cliente: o novo valor substitui", async () => {
@@ -517,13 +529,13 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
 
   it("pagamento: \"permuta\" nunca é sugerida; se o cliente falar em permuta, registra e passa ao corretor", async () => {
     const rs = await conversa(["500 mil"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] }, ficha: { ...VIP0040, preco_valor: 480000 } });
-    expect(rs[0].resposta).toMatch(/à vista ou com financiamento\?/);
+    expect(rs[0].resposta).toBe("Perfeito! Quer agendar uma visita para conhecer?"); // pagamento não é mais perguntado
     expect(rs[0].resposta).not.toMatch(/permuta/);
     for (const t of ["aceita permuta?", "posso dar meu carro como parte?", "pago com permuta"]) {
       const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
       expect(r.fim, t).toBe("qualificado");
-      expect(r.resposta).toMatch(/^Anotei a permuta: quem avalia essa possibilidade é o corretor\. Encaminhei/);
-      expect(r.resposta).not.toMatch(/aceita permuta|não aceita/);
+      expect(r.resposta).toBe("Anotei! Vou ver com o proprietário se ele aceita permuta. Já pedi para {corretor} te chamar aqui para conversar sobre isso.");
+      expect(r.resposta).not.toMatch(/(?<!se ele )aceita permuta|não aceita/); // nunca afirma se aceita
       expect(r.dados.pagamento).toContain("permuta");
       expect(r.resumo).toMatch(/PERMUTA/);
     }
@@ -531,9 +543,12 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
 
   it("\"é robô?\": não mente — confirma que é assistente virtual e oferece o corretor; \"sim\" passa", async () => {
     const rs = await conversa(["vc é um robô?", "sim"], c());
-    expect(rs[0].resposta).toBe("Sou a Nicole, assistente virtual da ZZ Teste Provisionamento (não sou uma pessoa). Se preferir, passo agora para um corretor falar com você. Quer?");
+    // Texto de Denis (t_5b493bc9): não mente, sem parênteses técnicos.
+    expect(rs[0].resposta).toBe(
+      "Sou a Nicole, assistente da ZZ Teste Provisionamento, e respondo por aqui com ajuda de um sistema. Se preferir falar com um corretor, te passo agora. Quer?",
+    );
     const h = await proximaResposta(ctx(c()), "você é humano?", undefined, { agora: AGORA });
-    expect(h.resposta).toMatch(/^Sou a Nicole, assistente virtual .*\(não sou uma pessoa\)/); // nunca começa com "Sim,"
+    expect(h.resposta).toMatch(/^Sou a Nicole, assistente .*com ajuda de um sistema\./); // nunca começa com "Sim,"
     // Falso positivo (revisão t_e520a9bb): não é pergunta sobre quem responde.
     for (const t of ["e ia ver amanhã?", "tem robô aspirador no condomínio?", "o proprietário é humano?", "a casa tem bot de portaria?"])
       expect(perguntouSeRobo(t), t).toBe(false);

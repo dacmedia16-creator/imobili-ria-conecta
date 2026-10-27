@@ -43,6 +43,11 @@ export type UsoModelo = {
   tokens_entrada: number | null;
   tokens_saida: number | null;
   custo_usd: number | null;
+  /** "entender" (classificar a resposta, padrão) ou "redigir" (o modelo escreveu a mensagem, t_7b59589c). */
+  uso?: "entender" | "redigir";
+  /** Redação barrada pelo validador (sai o texto fixo). Só o código do motivo, nunca o conteúdo. */
+  bloqueado?: boolean;
+  bloqueio?: string | null;
 };
 
 type Chamada = {

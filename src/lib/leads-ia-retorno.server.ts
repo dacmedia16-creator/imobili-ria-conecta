@@ -14,8 +14,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
 import {
+  argsBusca,
   argsParecidos,
   normalizarParecidos,
+  type FiltroBusca,
   proximaResposta,
   respostaMidia,
   type ContextoIa,
@@ -24,6 +26,7 @@ import {
   type ResultadoParecidos,
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
+import { historicoDb, redacaoLigadaDb, redigirResposta, type FalaHistorico } from "./leads-ia-redacao";
 
 export const RETORNO_MAX_BYTES = 50_000;
 export const RETORNO_TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
@@ -151,6 +154,12 @@ export type DepsRetorno = {
   buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
   /** Imóvel parecido do XML da própria imobiliária (lead_ia_imoveis_parecidos, t_232e13cb). Opcional. */
   buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
+  /** Busca nova no XML da própria imobiliária (lead_ia_imoveis_busca, t_5b493bc9). Opcional. */
+  buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
+  /** Chave da imobiliária: o modelo escreve a resposta (lead_config.ia_redige, padrão desligado, t_7b59589c). */
+  redacaoLigada?: (orgId: string) => Promise<boolean>;
+  /** Últimas falas da conversa (para o modelo; mascaradas antes de sair do servidor). */
+  historico?: (conversaId: string) => Promise<FalaHistorico[]>;
   env: Record<string, string | undefined>;
   fetchFn?: typeof fetch;
   esperar?: (ms: number) => Promise<void>;
@@ -295,13 +304,20 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       modelo: banco.ia_modelo ?? null,
     };
     const usos: UsoModelo[] = [];
-    const r =
+    const buscarParecidos = deps.buscarParecidos ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f) : undefined;
+    let r =
       banco.tipo === "midia"
         ? respostaMidia(ctx)
         : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
             buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
-            buscarParecidos: deps.buscarParecidos ? (f) => deps.buscarParecidos!(c.conversa_id, f) : undefined,
+            buscarParecidos,
+            buscarImoveis: deps.buscarImoveis ? (f) => deps.buscarImoveis!(c.conversa_id, f) : undefined,
           });
+    // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
+    if (banco.tipo !== "midia" && deps.redacaoLigada && (await deps.redacaoLigada(banco.organization_id!).catch(() => false))) {
+      const historico = deps.historico ? await deps.historico(c.conversa_id).catch(() => []) : [];
+      r = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn });
+    }
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
     const { error } = await deps.aplicar({
@@ -421,6 +437,13 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
       const { data, error } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(conversaId, filtro));
       return error ? null : normalizarParecidos(data);
     },
+    // Função nova (migration 20261027110000): enquanto não for aplicada, o erro vira "vou procurar" + passagem.
+    buscarImoveis: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_busca", argsBusca(conversaId, filtro));
+      return error ? null : normalizarParecidos(data);
+    },
+    redacaoLigada: (orgId) => redacaoLigadaDb(db, orgId),
+    historico: (conversaId) => historicoDb(db, conversaId),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };

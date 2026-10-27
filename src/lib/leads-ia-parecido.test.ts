@@ -76,42 +76,52 @@ async function conversa(falas: string[], busca?: ReturnType<typeof buscaFake>, p
   return out;
 }
 const PROIBIDO = /(disponivel|disponível|permuta|financ|andar)/i;
-const ofertas = (rs: RespostaIa[]) => rs.filter((r) => /Tenho uma opção parecida/.test(r.resposta)).length;
+// t_5b493bc9: o parecido sai no tom de atendente ("Tenho sim! Tem outro ... Dá uma olhada: <link> Gostou?").
+const ofertas = (rs: RespostaIa[]) => rs.filter((r) => /(Tem outro|Tenho mais um).* por R\$/.test(r.resposta)).length;
 
 describe("quando oferece (regra 1)", () => {
-  it("(a) depois da qualificação PERGUNTA antes; só oferece se o cliente disser que sim", async () => {
+  it("(a) recusou a visita: PERGUNTA antes; só oferece se o cliente disser que sim", async () => {
     const busca = buscaFake();
-    const rs = await conversa(["quero saber mais", "uns 600 mil", "financiamento", "sim, pode mostrar"], busca);
-    expect(rs[2].resposta).toContain(PERGUNTA_PARECIDO);
-    expect(rs[2].resposta).not.toMatch(/Tenho uma opção parecida/);
-    expect(rs[3].resposta).toMatch(/Tenho uma opção parecida \(código VIP0101\)/);
-    expect(rs[3].fim).toBeNull();
+    const rs = await conversa(["quero saber mais", "não, por enquanto não", "sim, pode mostrar"], busca);
+    expect(rs[0].resposta).toMatch(/Quer agendar uma visita para conhecer\?$/);
+    expect(rs[1].resposta).toBe(`Sem problema! ${PERGUNTA_PARECIDO}`);
+    expect(ofertas(rs.slice(0, 2))).toBe(0);
+    expect(rs[2].resposta).toMatch(/^Tenho sim! Tem outro apartamento no mesmo condomínio/);
+    expect(rs[2].resposta).not.toMatch(/código|\(/);
+    expect(rs[2].fim).toBeNull();
   });
 
-  it("(a) cliente diz que não: volta ao roteiro (visita) sem oferecer", async () => {
-    const rs = await conversa(["quero saber mais", "uns 600 mil", "financiamento", "não, obrigado"], buscaFake());
-    expect(rs[3].resposta).toMatch(/^Tudo bem!/);
-    expect(rs[3].resposta).toMatch(/pré-agendar uma visita/);
-    expect(rs[3].fim).toBeNull();
+  it("(a) cliente diz que não ao parecido: segue a conversa sem oferecer", async () => {
+    const rs = await conversa(["quero saber mais", "não, por enquanto não", "não, obrigado"], buscaFake());
+    expect(rs[2].resposta).toMatch(/^Tudo bem!/);
+    expect(rs[2].fim).toBeNull();
     expect(ofertas(rs)).toBe(0);
   });
 
-  it("(a) sem nenhum parecido no XML, nem pergunta: vai direto para a visita", async () => {
-    const rs = await conversa(["quero saber mais", "uns 600 mil", "financiamento"], buscaFake([]));
-    expect(rs[2].resposta).not.toContain(PERGUNTA_PARECIDO);
-    expect(rs[2].resposta).toMatch(/pré-agendar uma visita/);
+  it("(a) sem nenhum parecido no XML, nem pergunta: segue com 1 pergunta natural", async () => {
+    const rs = await conversa(["quero saber mais", "não, por enquanto não"], buscaFake([]));
+    expect(rs[1].resposta).not.toContain(PERGUNTA_PARECIDO);
+    expect(rs[1].resposta).toBe("Sem problema! Quer saber mais algum detalhe?");
+  });
+
+  it("qualificação: faixa e pagamento ditos pelo cliente são anotados, sem pergunta de pagamento (t_5b493bc9)", async () => {
+    const rs = await conversa(["quero saber mais", "uns 600 mil", "financiamento"], buscaFake());
+    expect(rs[2].dados).toMatchObject({ faixa: "uns 600 mil", pagamento: ["financiamento"] });
+    for (const r of rs) expect(r.resposta).not.toMatch(/forma de pagamento|à vista ou com financiamento|faixa de valor/);
   });
 
   it("(c) cliente pede outras opções: oferece 1", async () => {
     const rs = await conversa(["tem outras opções parecidas?"], buscaFake());
-    expect(rs[0].resposta).toMatch(/Tenho uma opção parecida \(código VIP0101\)/);
+    expect(rs[0].resposta).toBe(
+      "Tenho sim! Tem outro apartamento no mesmo condomínio, com 3 quartos e 88 m², por R$ 640.000. Dá uma olhada: https://imob.exemplo.test/imovel/VIP0101 Gostou? Se quiser, marco uma visita para você ver os dois.",
+    );
     expect(rs[0].dados.parecidos).toEqual(["VIP0101"]);
   });
 
   it("(b) quer alugar e o imóvel é de venda: diz com franqueza que só tem venda e passa ao corretor", async () => {
     const rs = await conversa(["quero saber mais", "na verdade quero alugar"], buscaFake());
-    expect(rs[1].resposta).toMatch(/anunciado para venda/);
-    expect(rs[1].resposta).toMatch(/Não encontrei agora uma opção de locação parecida no nosso catálogo, então vou pedir para um corretor entrar em contato com você\./);
+    expect(rs[1].resposta).toMatch(/^Esse apartamento está anunciado só para venda\./);
+    expect(rs[1].resposta).toMatch(/Agora não tenho uma opção de locação parecida por aqui, mas vou procurar para você\./);
     expect(rs[1].fim).toBe("qualificado");
     expect(rs[1].resposta).toContain("{corretor}");
     expect(rs[1].dados.faixa).toBeUndefined(); // "quero alugar" não vira faixa de valor
@@ -122,14 +132,14 @@ describe("quando oferece (regra 1)", () => {
     const busca = buscaFake(CATALOGO, { codigo: "VIP0028", no_xml: true, preco: 900000 });
     const rs = await conversa(["quero saber mais", "até 700 mil"], busca);
     expect(rs[1].resposta).toMatch(/acima da faixa que você comentou/);
-    expect(rs[1].resposta).toMatch(/Tenho uma opção parecida/);
+    expect(ofertas(rs)).toBe(1);
     expect(busca.mock.calls[0][0]).toMatchObject({ preco_max: 700000 });
     expect(rs[1].resposta).not.toMatch(/900/); // não cita o preço do pedido
   });
 
-  it("(b) faixa compatível com o pedido: não oferece, segue a qualificação", async () => {
+  it("(b) faixa compatível com o pedido: não oferece e não pergunta pagamento", async () => {
     const rs = await conversa(["quero saber mais", "até 700 mil"], buscaFake(CATALOGO, { codigo: "VIP0028", no_xml: true, preco: 600000 }));
-    expect(rs[1].resposta).toMatch(/forma de pagamento/);
+    expect(rs[1].resposta).toBe("Perfeito! Quer saber mais algum detalhe?");
     expect(ofertas(rs)).toBe(0);
   });
 
@@ -137,15 +147,16 @@ describe("quando oferece (regra 1)", () => {
     const busca = buscaFake([P("VIP0200", { bairro: "Jardim Europa" })]);
     const rs = await conversa(["prefiro no bairro Jardim Europa"], busca);
     expect(rs[0].resposta).toMatch(/fica no bairro Campolim/);
-    expect(rs[0].resposta).toMatch(/VIP0200/);
+    expect(rs[0].resposta).toMatch(/Tem outro apartamento no bairro Jardim Europa/);
+    expect(rs[0].dados.parecidos).toEqual(["VIP0200"]);
     expect(busca.mock.calls[0][0]).toMatchObject({ bairro: "jardim europa" });
   });
 
   it("(b) anúncio saiu do XML: avisa e oferece parecido", async () => {
     const busca = buscaFake(CATALOGO, { codigo: "VIP0109", saiu: true, preco: 600000 });
     const rs = await conversa(["oi, quero saber mais"], busca, { ficha: null, imovel_fonte: null, anuncio_codigo: "VIP0109", imovel_frase: null, tem_captacao: false });
-    expect(rs[0].resposta).toMatch(/não está mais no nosso catálogo atual/);
-    expect(rs[0].resposta).toMatch(/Tenho uma opção parecida/);
+    expect(rs[0].resposta).toMatch(/^Esse anúncio saiu do nosso catálogo, vou confirmar a situação dele e já te falo\./);
+    expect(ofertas(rs)).toBe(1);
   });
 
   it("sem buscarParecidos (servidor antigo): comportamento igual ao de antes", async () => {
@@ -156,35 +167,38 @@ describe("quando oferece (regra 1)", () => {
 });
 
 describe("quantos e sem repetir (regra 3)", () => {
-  it("1 por vez, até 3, nunca repete; no 4º pedido passa ao corretor", async () => {
+  it("1 por vez, até 3, nunca repete; no 4º pedido diz que são essas; no 5º passa à equipe", async () => {
     const busca = buscaFake();
-    const rs = await conversa(["tem outras opções?", "tem outra?", "mais uma", "outra"], busca);
+    const rs = await conversa(["tem outras opções?", "tem outra?", "mais uma", "outra", "outra"], busca);
     expect(ofertas(rs)).toBe(3);
     expect(rs[2].dados.parecidos).toEqual(["VIP0101", "VIP0102", "VIP0103"]);
     expect(busca.mock.calls[1][0].excluir).toEqual(["VIP0101"]);
     expect(busca.mock.calls.every((c) => (c[0].limite ?? 1) === 1)).toBe(true);
     expect(rs[2].resposta).not.toMatch(/ver outra opção/); // na 3ª não oferece mais uma
-    expect(rs[3].fim).toBe("qualificado");
-    expect(rs[3].resposta).toMatch(/Já te mostrei as opções parecidas/);
+    expect(rs[3].fim).toBeNull();
+    expect(rs[3].resposta).toBe("Essas são as opções que tenho agora nesse perfil. Gostou de alguma? Se quiser, marco uma visita.");
+    expect(rs[4].fim).toBe("qualificado");
+    expect(rs[4].resposta).toMatch(/^Vou procurar mais opções para você\. Já pedi para \{corretor\} te chamar aqui/);
     expect(MAX_PARECIDOS).toBe(3);
   });
 
-  it("acabaram os parecidos: diz com franqueza e passa ao corretor", async () => {
-    const rs = await conversa(["tem outras opções?", "tem outra?"], buscaFake([P("VIP0101")]));
-    expect(rs[1].resposta).toMatch(/Não encontrei mais nenhuma opção parecida/);
-    expect(rs[1].fim).toBe("qualificado");
+  it("acabaram os parecidos: diz com franqueza; se insistir, passa à equipe", async () => {
+    const rs = await conversa(["tem outras opções?", "tem outra?", "outra"], buscaFake([P("VIP0101")]));
+    expect(rs[1].resposta).toBe("Por enquanto essas são as opções parecidas que tenho por aqui. Gostou de alguma? Se quiser, marco uma visita.");
+    expect(rs[1].fim).toBeNull();
+    expect(rs[2].fim).toBe("qualificado");
   });
 
   it("nenhum parecido: diz com franqueza e passa ao corretor", async () => {
     const rs = await conversa(["tem algo parecido?"], buscaFake([]));
-    expect(rs[0].resposta).toMatch(/não encontrei outra opção parecida/);
+    expect(rs[0].resposta).toMatch(/^Agora não tenho outra opção parecida com essa por aqui, mas vou procurar para você\./);
     expect(rs[0].fim).toBe("qualificado");
   });
 
   it("busca falhou (banco fora): não inventa nada, passa ao corretor", async () => {
     const rs = await conversa(["tem outras opções?"], vi.fn(async () => { throw new Error("x"); }) as never);
     expect(rs[0].fim).toBe("qualificado");
-    expect(rs[0].resposta).not.toMatch(/Tenho uma opção|não encontrei/);
+    expect(rs[0].resposta).not.toMatch(/Tem outro|Tenho mais|não tenho outra/);
   });
 });
 
@@ -192,50 +206,56 @@ describe("conteúdo e passagem (regra 4)", () => {
   it("texto só com dados do XML; nunca disponibilidade, permuta, financiamento ou andar", () => {
     const t = textoParecido(P("VIP0101", { mesmo_condominio: true, url: "https://imob.exemplo.test/imovel/VIP0101", vagas: "2" }), 1);
     expect(t).toBe(
-      "Tenho uma opção parecida (código VIP0101): é um apartamento com 3 quartos, 2 vagas e 88 m² de área útil, no bairro Campolim, no mesmo condomínio. Está anunciado por R$ 640.000,00. Anúncio: https://imob.exemplo.test/imovel/VIP0101 Quer que eu peça ao corretor os detalhes desse imóvel, ou prefere ver outra opção?",
+      "Tenho sim! Tem outro apartamento no mesmo condomínio, com 3 quartos e 88 m², por R$ 640.000. Dá uma olhada: https://imob.exemplo.test/imovel/VIP0101 Gostou? Se quiser, marco uma visita.",
     );
     expect(t).not.toMatch(PROIBIDO);
-    expect(textoParecido(P("X1", { preco: undefined, url: undefined }), 1)).not.toMatch(/anunciado|Anúncio/);
+    // Tom de atendente (itens 8-10): sem código, parênteses, "área útil" nem oferta de "pedir ao corretor".
+    expect(t).not.toMatch(/código|\(|área útil|corretor/);
+    expect(textoParecido(P("X1", { preco: undefined, url: undefined }), 1)).not.toMatch(/R\$|Dá uma olhada|http/);
   });
 
-  it("cliente se interessa: passa ao corretor registrando o código oferecido", async () => {
-    const rs = await conversa(["tem outras opções?", "gostei, quero esse"], buscaFake());
-    expect(rs[1].fim).toBe("qualificado");
-    expect(rs[1].resposta).toMatch(/imóvel código VIP0101 para \{corretor\}, que confirma a disponibilidade/);
+  it("cliente se interessa: a própria Nicole oferece a visita; na escolha, passa ao corretor com o código", async () => {
+    const rs = await conversa(["tem outras opções?", "gostei, quero esse", "a primeira"], buscaFake());
+    expect(rs[1].fim).toBeNull();
+    expect(rs[1].passo).toBe("visita");
+    expect(rs[1].resposta).toBe(
+      "Que bom que gostou! Para conhecer esse apartamento, tenho amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde. Qual fica melhor para você? Te confirmo o horário certinho.",
+    );
     expect(rs[1].dados.parecido_interesse).toBe("VIP0101");
-    expect(rs[1].resumo).toMatch(/INTERESSE NO IMÓVEL PARECIDO código VIP0101/);
-    expect(rs[1].resposta_falha).toBeTruthy();
+    expect(rs[2].fim).toBe("visita");
+    expect(rs[2].resumo).toMatch(/INTERESSE NO IMÓVEL PARECIDO código VIP0101/);
+    expect(rs[2].resposta_falha).toBeTruthy();
   });
 
-  it("quer visitar o parecido: passa ao corretor com o código (visita é com ele)", async () => {
+  it("quer visitar o parecido: oferece 2 horários para ele", async () => {
     const rs = await conversa(["tem outras opções?", "quero visitar"], buscaFake());
-    expect(rs[1].fim).toBe("qualificado");
-    expect(rs[1].resposta).toMatch(/visitar o imóvel código VIP0101/);
+    expect(rs[1].fim).toBeNull();
+    expect(rs[1].passo).toBe("visita");
+    expect(rs[1].resposta).toMatch(/^Que bom que gostou! Para conhecer esse apartamento, tenho amanhã/);
   });
 
-  it("dúvida sobre o parecido: responde só pelo XML; disponibilidade/permuta ficam com o corretor", async () => {
+  it("dúvida sobre o parecido: responde só pelo XML; disponibilidade/permuta ficam para confirmar", async () => {
     const rs = await conversa(["tem outras opções?", "quantos quartos? aceita permuta? está disponível?"], buscaFake());
     expect(rs[1].fim).toBeNull();
-    expect(rs[1].resposta).toMatch(/Tem 3 quartos/);
-    expect(rs[1].resposta).toMatch(/Confirmo a disponibilidade com o corretor/);
-    expect(rs[1].resposta).toMatch(/Sobre permuta, não tenho esse dado confirmado/);
+    expect(rs[1].resposta).toBe(
+      "Esse apartamento tem 3 quartos. Vou confirmar a disponibilidade e se o proprietário aceita permuta e já te falo. Quer agendar uma visita para conhecer pessoalmente?",
+    );
     expect(rs[1].dados.parecido_atual?.codigo).toBe("VIP0101");
     expect(rs[1].dados.pendentes ?? []).toEqual([]); // pendências do pedido não se misturam
   });
 
-  it("não gostou do parecido no meio da qualificação: segue a pergunta do roteiro", async () => {
+  it("não gostou do parecido: segue a conversa com 1 pergunta natural (sem faixa de valor)", async () => {
     const rs = await conversa(["quero saber mais", "tem outras opções?", "não gostei"], buscaFake());
-    expect(rs[2].resposta).toMatch(/^Tudo bem!/);
-    expect(rs[2].resposta).toMatch(/faixa de valor/);
+    expect(rs[2].resposta).toBe("Tudo bem! Quer saber mais algum detalhe?");
     expect(rs[2].fim).toBeNull();
   });
 
   it("não gostou durante a visita: volta às 2 opções de visita do imóvel pedido", async () => {
-    const rs = await conversa(["quero saber mais", "uns 600 mil", "financiamento", "não", "tem outra opção?", "não"], buscaFake());
-    expect(rs[3].passo).toBe("visita");
-    expect(rs[4].resposta).toMatch(/Tenho uma opção parecida/);
-    expect(rs[5].resposta).toMatch(/^Tudo bem! Sobre a visita: amanhã/);
-    expect(rs[5].fim).toBeNull();
+    const rs = await conversa(["quero agendar uma visita", "tem outra opção?", "não"], buscaFake());
+    expect(rs[0].passo).toBe("visita");
+    expect(ofertas([rs[1]])).toBe(1);
+    expect(rs[2].resposta).toBe("Tudo bem! Sobre a visita: amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde fica bom para você?");
+    expect(rs[2].fim).toBeNull();
   });
 
   it("nenhuma resposta da conversa toca em disponibilidade garantida, permuta, financiamento ou andar do parecido", async () => {
