@@ -124,7 +124,7 @@ export type DadosQualificacao = {
   /** A Nicole já convidou para a visita ao menos uma vez. */
   convite_visita?: boolean;
   /** Pergunta de fecho do último turno, esperando resposta (vale só no turno seguinte). */
-  convite_aberto?: "visita" | "detalhe";
+  convite_aberto?: "visita" | "detalhe" | "opcoes";
   /** Os detalhes da ficha já foram mandados (não repete a ficha). */
   ficha_enviada?: boolean;
   /** Cliente pediu outras opções e a Nicole precisou perguntar a faixa antes (sem preço de referência). */
@@ -137,7 +137,39 @@ export type DadosQualificacao = {
   visita_livre?: boolean;
   /** Outras buscas do cliente na mesma conversa (ex.: apartamento para o filho), resumo para o corretor (t_7b59589c). */
   outras_buscas?: string[];
+  /** Característica pedida pelo cliente ("3 suítes"), vale para os próximos pedidos de opção (t_a9f1b447). */
+  filtro_pedido?: FiltroCaracteristica;
+  /** Quantas vezes \"Quer saber mais algum detalhe?\" já foi perguntado (não repete, t_a9f1b447). */
+  detalhe_perguntado?: number;
+  /** Códigos oferecidos pela busca por característica (nunca repete, t_a9f1b447). */
+  ofertados_carac?: string[];
+  /** O cliente já disse \"não\" a uma pergunta de fecho e a Nicole ofereceu seguir (não pergunta de novo). */
+  nao_seguiu?: boolean;
+  /** Filtro um passo abaixo, sugerido quando não havia nada (\"prefere que eu procure com 2 suítes?\"). */
+  carac_relaxar?: FiltroCaracteristica;
 };
+
+/** Característica pedida pelo cliente (t_a9f1b447): vira filtro no XML da própria imobiliária. */
+export type FiltroCaracteristica = {
+  suites?: number;
+  quartos?: number;
+  vagas?: number;
+  /** Área mínima em m². */
+  area?: number;
+  tipo?: string;
+  bairro?: string;
+  finalidade?: "comprar" | "alugar";
+};
+export type FiltroCaracteristicaBusca = FiltroCaracteristica & {
+  negocio: NegocioParecido;
+  preco_min?: number | null;
+  preco_max?: number | null;
+  cidade?: string | null;
+  excluir: string[];
+  limite?: number;
+};
+/** itens = dentro da faixa; proximo = o mais perto fora da faixa (quando não há nenhum dentro). */
+export type ResultadoCaracteristica = { itens: ImovelParecido[]; proximo: ImovelParecido | null };
 
 /** Segunda busca (t_5b493bc9 item 11): ex. "vcs trabalham com apartamento? é para o meu filho". */
 export type Busca2 = {
@@ -194,6 +226,8 @@ export type RespostaIa = {
   resposta_falha: string | null;
   fim: FimConversa | null;
   resumo: string | null;
+  /** Busca por característica feita ANTES do modelo (t_a9f1b447): o modelo recebe estes imóveis. */
+  busca?: { pedido: string; itens: ImovelParecido[]; fora_faixa: boolean };
 };
 
 /** Ajuda opcional de um modelo de linguagem para entender a resposta. Sem modelo = só regras. */
@@ -266,6 +300,9 @@ export type OpcoesRoteiro = {
   /** Busca nova no XML da própria imobiliária por tipo/negócio/região/faixa (servidor: lead_ia_imoveis_busca,
    * t_5b493bc9). Sem esta função, a busca nova termina passando ao corretor. */
   buscarImoveis?: (filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
+  /** Busca por característica (suítes, quartos, vagas, área, tipo, bairro) no XML da própria imobiliária
+   * (servidor: lead_ia_imoveis_caracteristica, t_a9f1b447). Sem ela, o pedido vira \"vou verificar\". */
+  buscarCaracteristica?: (filtro: FiltroCaracteristicaBusca) => Promise<ResultadoCaracteristica | null>;
 };
 
 export const norm = (s: string) =>
@@ -1126,6 +1163,169 @@ export function textoBusca(p: ImovelParecido, jaMostrados: number): string {
   return `${abre}${onde}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}.${link} ${fecho}`.replace(/\s+/g, " ").trim();
 }
 
+// --- Busca por característica (t_a9f1b447, teste ao vivo de Denis 27/10: "Tem alguma opção de 3 suítes?") ----
+// Suítes, quartos, vagas e área (com tipo, bairro e finalidade quando ditos junto) viram filtro no XML da própria
+// imobiliária ANTES do modelo. Sem nada na faixa: diz com honestidade e mostra o mais próximo, com preço e link.
+
+const NUM_PALAVRA: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6 };
+const CARAC_RE =
+  /\b(\d{1,2}|uma|um|duas|dois|tres|quatro|cinco|seis)\s*(?:ou mais\s*)?(suites?|quartos?|dormitorios?|dorms?|vagas?)\b/g;
+/** Quer opções (e não só saber do imóvel do anúncio). */
+const QUER_OPCAO = /(opc|outr[ao]|algum|alguma|queria|quero|procur|busc|preciso|precisa|gostaria|teria|tens\b|vcs tem|voces tem|com \d|mais (suites|quartos|vagas))/;
+
+/** \"Tem alguma opção de 3 suítes?\" -> {suites: 3}. null = não é pedido de característica com número. */
+export function pedidoCaracteristica(texto: string): FiltroCaracteristica | null {
+  const n = norm(texto);
+  const f: FiltroCaracteristica = {};
+  for (const m of n.matchAll(CARAC_RE)) {
+    const v = /^\d+$/.test(m[1]) ? Number(m[1]) : NUM_PALAVRA[m[1]];
+    if (!v || v > 10) continue;
+    if (/^suite/.test(m[2])) f.suites = v;
+    else if (/^(quarto|dormitorio|dorm)/.test(m[2])) f.quartos = v;
+    else f.vagas = v;
+  }
+  const a = /\b(\d{2,4})\s*(m2|m²|metros)/.exec(n);
+  if (a && Number(a[1]) >= 20) f.area = Number(a[1]);
+  if (f.suites === undefined && f.quartos === undefined && f.vagas === undefined && f.area === undefined) return null;
+  const t = tipoDe(n);
+  if (t) f.tipo = t;
+  const fin = finalidadeDe(n);
+  if (fin) f.finalidade = fin;
+  const b = /\b(?:no|na|em)\s+(?:bairro|regiao|condominio)\s+([a-z0-9][a-z0-9 ]{2,38}?)(?=\s*(?:[,.!?;]|$|\se\s|\scom\s))/.exec(n);
+  if (b) f.bairro = b[1].trim().slice(0, 40);
+  return f;
+}
+
+/** O imóvel tem o que foi pedido? (sem dado no XML = não atende). */
+export function atendeCaracteristica(
+  p: { suites?: string; quartos?: string; vagas?: string; area_util_m2?: string; tipo?: string },
+  f: FiltroCaracteristica | undefined,
+): boolean {
+  if (!f) return true;
+  const n = (s?: string) => (s && /^\d+(\.\d+)?$/.test(s.trim()) ? Number(s) : -1);
+  if (f.suites !== undefined && n(p.suites) < f.suites) return false;
+  if (f.quartos !== undefined && n(p.quartos) < f.quartos) return false;
+  if (f.vagas !== undefined && n(p.vagas) < f.vagas) return false;
+  if (f.area !== undefined && n(p.area_util_m2) < f.area) return false;
+  if (f.tipo && p.tipo && p.tipo !== f.tipo) return false;
+  return true;
+}
+
+/** \"3 suítes\", \"4 quartos e 2 vagas\", \"pelo menos 150 m²\" (só o pedido, sem o tipo). */
+export function textoCaracteristica(f: FiltroCaracteristica): string {
+  const p: string[] = [];
+  if (f.suites !== undefined) p.push(plural(String(f.suites), "suíte", "suítes"));
+  if (f.quartos !== undefined) p.push(plural(String(f.quartos), "quarto", "quartos"));
+  if (f.vagas !== undefined) p.push(plural(String(f.vagas), "vaga", "vagas"));
+  if (f.area !== undefined) p.push(`pelo menos ${f.area} m²`);
+  return juntar(p);
+}
+
+/** Um passo abaixo do pedido (\"3 suítes\" -> \"2 suítes\"), para oferecer quando não há nada. */
+function relaxar(f: FiltroCaracteristica): FiltroCaracteristica | null {
+  if (f.suites !== undefined && f.suites > 1) return { ...f, suites: f.suites - 1 };
+  if (f.quartos !== undefined && f.quartos > 1) return { ...f, quartos: f.quartos - 1 };
+  if (f.vagas !== undefined && f.vagas > 1) return { ...f, vagas: f.vagas - 1 };
+  return null;
+}
+
+/** \"3 quartos, 3 suítes e 184 m²\". */
+function caractComSuites(p: ImovelParecido): string {
+  const m2 = p.area_util_m2 ?? (p.tipo === "terreno" ? p.area_terreno_m2 : undefined);
+  return juntar(
+    [
+      p.quartos && p.quartos !== "0" ? plural(p.quartos, "quarto", "quartos") : null,
+      p.suites && p.suites !== "0" ? plural(p.suites, "suíte", "suítes") : null,
+      p.vagas && p.vagas !== "0" ? plural(p.vagas, "vaga", "vagas") : null,
+      m2 ? `${m2} m²` : null,
+    ].filter(Boolean) as string[],
+  );
+}
+function umImovel(p: ImovelParecido): string {
+  const tipo = p.tipo || "imóvel";
+  const onde = p.bairro ? ` ${noBairro(p.bairro)}` : "";
+  return `${fem(tipo) ? "uma" : "um"} ${tipo}${onde}`;
+}
+
+/** Oferta de um imóvel que atende a característica pedida (dentro da faixa). */
+export function textoCaracOferta(p: ImovelParecido, f: FiltroCaracteristica, jaMostrados: number): string {
+  const c = caractComSuites(p);
+  const v = valorCurto(p);
+  const abre = jaMostrados <= 1 ? `Tenho sim! Com ${textoCaracteristica(f)} tem` : "Tenho também";
+  const link = p.url ? ` Dá uma olhada: ${p.url}` : "";
+  return `${abre} ${umImovel(p)}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}.${link} Gostou?`.replace(/\s+/g, " ").trim();
+}
+/** Nada na faixa: diz com honestidade e mostra o mais próximo (preço e link); sugere um passo abaixo. */
+export function textoCaracForaFaixa(
+  p: ImovelParecido | null,
+  f: FiltroCaracteristica,
+  menos: FiltroCaracteristica | null,
+  temFaixa: boolean,
+  jaMostrados = 0,
+): string {
+  const pedido = textoCaracteristica(f);
+  const alt = menos ? `prefere que eu procure com ${textoCaracteristica(menos)}` : null;
+  if (!p) {
+    return junta(
+      jaMostrados ? `Com ${pedido}${temFaixa ? " nessa faixa" : ""} não achei mais nenhuma agora.` : `Com ${pedido}${temFaixa ? " nessa faixa" : ""} não tenho nenhuma opção agora.`,
+      alt ? `Quer que eu procure com ${textoCaracteristica(menos!)}?` : "Quer que eu procure outras opções parecidas?",
+    );
+  }
+  const v = p.preco ? `por ${reaisTxt(p.preco)}` : p.aluguel ? `com aluguel de ${reaisTxt(p.aluguel)} por mês` : "";
+  const link = p.url ? `: ${p.url}` : ".";
+  const c = caractComSuites(p);
+  if (jaMostrados) return junta(`Outra com ${pedido} é ${umImovel(p)}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}${link}`, alt ? `Gostou, ou ${alt}?` : "Gostou?");
+  const abre = temFaixa ? `Com ${pedido}, nessa faixa não tenho.` : `Com ${pedido} tenho poucas opções.`;
+  const desc = `A mais em conta é ${umImovel(p)}${c ? `, com ${c}` : ""}${v ? `, ${v}` : ""}${link}`;
+  return junta(abre, desc, alt ? `Quer dar uma olhada, ou ${alt}?` : "Quer dar uma olhada?");
+}
+
+/** Argumentos da RPC lead_ia_imoveis_caracteristica (t_a9f1b447). */
+export function argsCaracteristica(conversaId: string, f: FiltroCaracteristicaBusca) {
+  const valor = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e11 ? Math.round(v) : null);
+  const cont = (v: number | undefined) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 10 ? v : null);
+  const txt = (s: string | null | undefined) => (s && s.trim() ? s.trim().slice(0, 60) : null);
+  return {
+    _conversa: conversaId,
+    _negocio: f.negocio === "locacao" ? "locacao" : "venda",
+    _suites: cont(f.suites),
+    _quartos: cont(f.quartos),
+    _vagas: cont(f.vagas),
+    _area: typeof f.area === "number" && f.area >= 1 && f.area <= 100000 ? Math.round(f.area) : null,
+    _tipo: TIPOS_BUSCA.includes(f.tipo ?? "") ? f.tipo : null,
+    _bairro: txt(f.bairro),
+    _preco_min: valor(f.preco_min),
+    _preco_max: valor(f.preco_max),
+    _cidade: txt(f.cidade),
+    _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 3), 1), MAX_PARECIDOS),
+  };
+}
+/** Resposta da RPC: só chaves conhecidas (mesma limpeza dos parecidos). */
+export function normalizarCaracteristica(data: unknown): ResultadoCaracteristica | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as { itens?: unknown; proximo?: unknown };
+  const itens = normalizarParecidos({ itens: d.itens })?.itens ?? [];
+  const prox = d.proximo && typeof d.proximo === "object" ? normalizarParecidos({ itens: [d.proximo] })?.itens[0] ?? null : null;
+  return { itens, proximo: prox };
+}
+
+/** O cliente disse que quer visitar? (as datas só aparecem depois disso, t_a9f1b447 item 7). */
+export function querVisitar(ctx: Pick<ContextoIa, "passo" | "dados">, texto: string): boolean {
+  const n = norm(texto);
+  const d = ctx.dados ?? {};
+  if (ctx.passo === "visita" || (d.visita_opcoes?.length && !d.visita)) return true;
+  if (QUER_VISITA.test(n) && !/^(nao|n)\b/.test(n)) return true;
+  return d.convite_aberto === "visita" && SIM_P.test(n) && !NAO_GOSTOU.test(n);
+}
+
+/** Junta o pedido novo ao anterior (\"Não tem outra casa?\" depois de \"3 suítes\" = casa com 3 suítes). */
+export function juntarFiltro(antes: FiltroCaracteristica | undefined, novo: Partial<FiltroCaracteristica>): FiltroCaracteristica {
+  const r: FiltroCaracteristica = { ...(antes ?? {}) };
+  for (const [k, v] of Object.entries(novo)) if (v !== undefined && v !== null && v !== "") (r as Record<string, unknown>)[k] = v;
+  return r;
+}
+
 // --- Roteiro --------------------------------------------------------------------------------------------
 // t_5b493bc9 (teste real de Denis, 27/10): "a ideia é que a pessoa pense que está falando com uma pessoa real".
 // - O pedido do cliente vem antes do roteiro: pergunta, "tem mais opções?", busca nova, visita.
@@ -1297,8 +1497,26 @@ export async function proximaResposta(
       dados.convite_aberto = "visita";
       return continuar(junta(intro, CONVITE_VISITA), "interesse");
     }
-    dados.convite_aberto = "detalhe";
-    return continuar(junta(intro, MAIS_DETALHE), "interesse");
+    // t_a9f1b447: \"Quer saber mais algum detalhe?\" nunca sozinha nem repetida; a reserva reconhece o pedido.
+    const vez = dados.detalhe_perguntado ?? 0;
+    dados.detalhe_perguntado = vez + 1;
+    if (intro && vez === 0) {
+      dados.convite_aberto = "detalhe";
+      return continuar(junta(intro, MAIS_DETALHE), "interesse");
+    }
+    dados.convite_aberto = "opcoes";
+    const f = dados.filtro_pedido;
+    const outras = f ? `outras opções com ${textoCaracteristica(f)}` : "outras opções parecidas";
+    return continuar(junta(intro || "Entendi!", `Quer que eu te mostre ${outras} ou prefere marcar uma visita?`), "interesse");
+  };
+  /** \"Não\" a uma pergunta de fecho: segue a conversa (não passa ao corretor, t_a9f1b447 item 5). */
+  const naoSegue = (): RespostaIa => {
+    if (dados.nao_seguiu) return continuar("Combinado! Qualquer dúvida, é só me chamar por aqui.", "interesse");
+    dados.nao_seguiu = true;
+    dados.convite_aberto = "opcoes";
+    const f = dados.filtro_pedido;
+    const outras = f ? `outras com ${textoCaracteristica(f)}` : "outras opções parecidas";
+    return continuar(`Tranquilo! Quer que eu procure ${outras} ou prefere marcar uma visita?`, "interesse");
   };
   /** Passa ao corretor (a única menção a outra pessoa). */
   const passarAo = (intro: string, depois: string, falha = FALHA_PADRAO) =>
@@ -1330,7 +1548,8 @@ export async function proximaResposta(
             codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null,
             ...extra,
           }).catch(() => null);
-    const p = res?.itens.find((i) => !ja.includes(i.codigo));
+    // Nunca oferece de novo um imóvel que não atende o que o cliente pediu (\"3 suítes\", t_a9f1b447).
+    const p = res?.itens.find((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, dados.filtro_pedido));
     if (!p) {
       if (res && ja.length && !dados.parecidos_fim) return fimOpcoes("Por enquanto essas são as opções parecidas que tenho por aqui.");
       const franco = !res
@@ -1444,6 +1663,70 @@ export async function proximaResposta(
     }
   }
 
+  // --- Busca por característica ANTES do resto (t_a9f1b447): \"Tem alguma opção de 3 suítes?\" ---------
+  const buscaCarac = op.buscarCaracteristica;
+  if (buscaCarac) {
+    const pedidoNovo = pedidoCaracteristica(texto);
+    const ehPedidoNovo = !!pedidoNovo && (QUER_OPCAO.test(n) || pedeOutrasOpcoes(texto) || !atendeCaracteristica(ficha ?? {}, pedidoNovo));
+    // Pedido anterior ainda vale: \"Não tem outra casa?\", \"?\" logo depois, ou \"sim\" para \"procuro com 2 suítes?\".
+    const insistiu = !!dados.filtro_pedido && (pedeOutrasOpcoes(texto) || MAIS_UM.test(n) || /^\?+$/.test(texto.trim()));
+    const aceitouMenos = !!dados.carac_relaxar && convite === "opcoes" && (SIM_P.test(n) || /\b(pode|procura|com \d)/.test(n)) && !NAO_GOSTOU.test(n);
+    if (ehPedidoNovo || insistiu || aceitouMenos) {
+      const tipoNovo = tipoDe(n);
+      // Tipo só quando o cliente diz (\"outra casa\"): \"3 suítes\" sozinho vale para qualquer tipo (exemplo de Denis).
+      const f: FiltroCaracteristica = aceitouMenos
+        ? dados.carac_relaxar!
+        : ehPedidoNovo
+          ? juntarFiltro(pedidoNovo!.tipo ? {} : { tipo: dados.filtro_pedido?.tipo }, pedidoNovo!)
+          : juntarFiltro(dados.filtro_pedido, tipoNovo ? { tipo: tipoNovo } : {});
+      if (ehPedidoNovo && !aceitouMenos) dados.ofertados_carac = [];
+      dados.filtro_pedido = f;
+      dados.carac_relaxar = undefined;
+      dados.parecido_atual = undefined;
+      dados.parecido_pergunta = undefined;
+      dados.interesse = true;
+      if (f.finalidade && !dados.finalidade) dados.finalidade = f.finalidade;
+      const fxv = valorFaixa(dados.faixa ?? "");
+      const ref = negocio() === "locacao" ? ficha?.aluguel_valor : ficha?.preco_valor;
+      const pmin = fxv?.min ?? (fxv?.max ? null : ref ? Math.round(ref * 0.85) : null);
+      const pmax = fxv?.max ?? (ref ? Math.round(ref * 1.15) : null);
+      const ja = [...(dados.ofertados_carac ?? []), ...(dados.parecidos ?? [])];
+      const res = await buscaCarac({ ...f, negocio: negocio(), preco_min: pmin, preco_max: pmax, cidade: ficha?.cidade ?? null, excluir: ja, limite: 3 }).catch(() => null);
+      const pedidoTxt = textoCaracteristica(f);
+      if (!res) {
+        dados.pendentes = [...new Set([...(dados.pendentes ?? []), `quer imóvel com ${pedidoTxt}`])].slice(0, 12);
+        dados.convite_aberto = "opcoes";
+        return continuar(`Vou procurar opções com ${pedidoTxt} e já te mando por aqui. Enquanto isso, quer marcar uma visita nessa?`);
+      }
+      const itens = res.itens.filter((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, f));
+      const p = itens[0];
+      if (p) {
+        dados.ofertados_carac = [...(dados.ofertados_carac ?? []), p.codigo].slice(0, 6);
+        dados.parecidos = [...new Set([...(dados.parecidos ?? []), p.codigo])].slice(0, MAX_PARECIDOS);
+        dados.parecido_atual = p;
+        dados.convite_visita = true;
+        return { ...continuar(textoCaracOferta(p, f, dados.ofertados_carac.length)), busca: { pedido: pedidoTxt, itens, fora_faixa: false } };
+      }
+      const jaCarac = (dados.ofertados_carac ?? []).length;
+      const prox = res.proximo && !ja.includes(res.proximo.codigo) && atendeCaracteristica(res.proximo, f) ? res.proximo : null;
+      const menos = relaxar(f);
+      dados.carac_relaxar = menos ?? undefined;
+      dados.convite_aberto = "opcoes";
+      if (prox) {
+        dados.ofertados_carac = [...(dados.ofertados_carac ?? []), prox.codigo].slice(0, 6);
+        dados.parecido_atual = prox;
+      }
+      // \"Essa casa tem 3 suítes?\": diz primeiro o que o imóvel do anúncio tem (só o que o XML trouxe).
+      const sobreEsse = ehPedidoNovo && /\b(essa|esse|esta|este|ela|ele)\b/.test(n) && ficha && !atendeCaracteristica(ficha, pedidoNovo!)
+        ? responderDuvidas(["quartos"], ficha, dados, oImovel(ficha.tipo, true))
+        : "";
+      return {
+        ...continuar(junta(sobreEsse, textoCaracForaFaixa(prox, f, menos, pmax != null, jaCarac))),
+        busca: { pedido: pedidoTxt, itens: prox ? [prox] : [], fora_faixa: true },
+      };
+    }
+  }
+
   // Reação ao parecido mostrado no turno anterior.
   let respParecido = false;
   let abertura: string | null = null;
@@ -1459,7 +1742,11 @@ export async function proximaResposta(
     } else if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
       dados.parecido_interesse = p.codigo;
       dados.parecido_atual = undefined;
-      return ofereceVisita("Que bom que gostou!", `conhecer ${oImovel(p.tipo, true)}`);
+      if (QUER_VISITA.test(n)) return ofereceVisita("Que bom que gostou!", `conhecer ${oImovel(p.tipo, true)}`);
+      // t_a9f1b447 item 7: primeiro o convite simples; as datas só depois que o cliente quiser visitar.
+      dados.convite_visita = true;
+      dados.convite_aberto = "visita";
+      return continuar(`Que bom que gostou! Quer agendar uma visita para conhecer ${oImovel(p.tipo, true)}?`);
     } else if (temas.length) {
       return continuar(`${responderDuvidas(temas, fichaDoParecido(p), {}, oImovel(p.tipo, true))} ${CONVITE_VISITA.replace("conhecer", "conhecer pessoalmente")}`);
     } else {
@@ -1527,7 +1814,10 @@ export async function proximaResposta(
 
   // A dúvida do cliente vem primeiro: só o que foi perguntado.
   let duvida = responderDuvidas(temas, ficha, dados, sujeito);
-  if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n) && !DETALHES.test(n)) {
+  // Só \"?\" (o cliente cobrando resposta): não é pergunta nova (t_a9f1b447).
+  const cobrou = /^[?!.\s]+$/.test(texto.trim());
+  if (cobrou) duvida = "Oi, estou aqui!";
+  else if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n) && !DETALHES.test(n)) {
     // Pergunta que as regras não reconhecem: não ignora (item 11).
     duvida = "Vou confirmar isso e já te falo.";
     dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);
@@ -1699,7 +1989,10 @@ export async function proximaResposta(
       dados.convite_aberto = "detalhe";
       return continuar(`Sem problema! ${MAIS_DETALHE}`, "interesse");
     }
-    if (convite === "detalhe" && nao) return passarAo("Combinado!", "para continuar seu atendimento");
+    // t_a9f1b447: \"Não\" ao \"quer saber mais algum detalhe?\" não é motivo para passar ao corretor.
+    if ((convite === "detalhe" || convite === "opcoes") && nao) return naoSegue();
+    if (convite === "opcoes" && QUER_VISITA.test(n)) return ofereceVisita("Ótimo!");
+    if (convite === "opcoes" && sim && busca) return ofertar("");
     if (convite === "detalhe" && sim) {
       if (!dados.ficha_enviada && detalhesFicha(ficha)) {
         dados.ficha_enviada = true;
