@@ -261,7 +261,9 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
       ocorrencias: ADMIN_OCORRENCIAS,
       financeiro: ADMIN_FINANCEIRO,
       relatorios: ADMIN_RELATORIOS,
-      leads: ADMIN_LEADS(),
+      leads: ADMIN_LEADS([
+        it("É avisado quando a atendente de IA encontra assunto sensível em um lead da imobiliária."),
+      ]),
       usuarios: area(
         [
           it(
@@ -791,7 +793,7 @@ export const ATENDENTE_IA: string[] = [
   "Não é um usuário: não tem login nem papel e só funciona com o módulo de leads ligado.",
   "Conversa com o lead pelo WhatsApp, entende o que ele procura e passa a conversa para o corretor responsável.",
   "O corretor só vê o resumo e a conversa depois de aceitar o lead.",
-  "Assunto sensível, contato que não é cliente ou lead sem responsável: quem tem o papel Gestor ou Administrador também é avisado.",
+  "Assunto sensível, contato que não é cliente ou lead sem responsável: quem tem o papel Gestor ou Administrador também é avisado. No assunto sensível, o Administrador principal também (cada pessoa recebe 1 aviso só).",
   "O corretor responsável (depois de aceitar), o gestor e o administrador podem parar a IA em um lead.",
   "O nome, a mensagem de boas-vindas e o roteiro são definidos pelo administrador. O canal e os números são definidos pelo Administrador da plataforma.",
 ];
