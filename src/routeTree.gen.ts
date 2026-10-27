@@ -47,6 +47,7 @@ import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './route
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
+import { Route as AuthenticatedAdminRegrasPapeisRouteImport } from './routes/_authenticated/admin.regras-papeis'
 import { Route as AuthenticatedAdminUnidadesCaptacaoRouteImport } from './routes/_authenticated/admin.unidades-captacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAjudaWikiRouteImport } from './routes/_authenticated/ajuda_.wiki'
@@ -273,6 +274,12 @@ const AuthenticatedAdminPosicionamentoRoute =
     path: '/admin/posicionamento',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminRegrasPapeisRoute =
+  AuthenticatedAdminRegrasPapeisRouteImport.update({
+    id: '/admin/regras-papeis',
+    path: '/admin/regras-papeis',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUnidadesCaptacaoRoute =
   AuthenticatedAdminUnidadesCaptacaoRouteImport.update({
     id: '/admin/unidades-captacao',
@@ -402,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/admin/regras-papeis': typeof AuthenticatedAdminRegrasPapeisRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
@@ -457,6 +465,7 @@ export interface FileRoutesByTo {
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/admin/regras-papeis': typeof AuthenticatedAdminRegrasPapeisRoute
   '/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
@@ -514,6 +523,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
+  '/_authenticated/admin/regras-papeis': typeof AuthenticatedAdminRegrasPapeisRoute
   '/_authenticated/admin/unidades-captacao': typeof AuthenticatedAdminUnidadesCaptacaoRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/ajuda_/wiki': typeof AuthenticatedAjudaWikiRoute
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
+    | '/admin/regras-papeis'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
     | '/ajuda/wiki'
@@ -626,6 +637,7 @@ export interface FileRouteTypes {
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
+    | '/admin/regras-papeis'
     | '/admin/unidades-captacao'
     | '/admin/usuarios'
     | '/ajuda/wiki'
@@ -682,6 +694,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
     | '/_authenticated/admin/posicionamento'
+    | '/_authenticated/admin/regras-papeis'
     | '/_authenticated/admin/unidades-captacao'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/ajuda_/wiki'
@@ -984,6 +997,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPosicionamentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/regras-papeis': {
+      id: '/_authenticated/admin/regras-papeis'
+      path: '/admin/regras-papeis'
+      fullPath: '/admin/regras-papeis'
+      preLoaderRoute: typeof AuthenticatedAdminRegrasPapeisRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/unidades-captacao': {
       id: '/_authenticated/admin/unidades-captacao'
       path: '/admin/unidades-captacao'
@@ -1128,6 +1148,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminDadosImobiliariaRoute: typeof AuthenticatedAdminDadosImobiliariaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
+  AuthenticatedAdminRegrasPapeisRoute: typeof AuthenticatedAdminRegrasPapeisRoute
   AuthenticatedAdminUnidadesCaptacaoRoute: typeof AuthenticatedAdminUnidadesCaptacaoRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedAjudaWikiRoute: typeof AuthenticatedAjudaWikiRoute
@@ -1175,6 +1196,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminDadosImobiliariaRoute:
     AuthenticatedAdminDadosImobiliariaRoute,
   AuthenticatedAdminPosicionamentoRoute: AuthenticatedAdminPosicionamentoRoute,
+  AuthenticatedAdminRegrasPapeisRoute: AuthenticatedAdminRegrasPapeisRoute,
   AuthenticatedAdminUnidadesCaptacaoRoute:
     AuthenticatedAdminUnidadesCaptacaoRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
