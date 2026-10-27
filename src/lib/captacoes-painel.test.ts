@@ -33,11 +33,21 @@ describe("painel de contadores", () => {
       em_assinatura: 1,
       devolvidas: 1,
       aprovadas_mes: 1,
+      aprovadas_total: 3,
     });
+  });
+  it("aprovadas (total) ignora data e exclui arquivadas/descartadas", () => {
+    const l = [
+      ...lista,
+      c("aprovada", { archived_at: "2026-10-01T00:00:00Z" }),
+      c("aprovada", { discarded_at: "2026-10-01T00:00:00Z" }),
+    ];
+    expect(contarPainel(l, HOJE).aprovadas_total).toBe(3);
   });
   it("filtro do cartão bate com o contador", () => {
     expect(lista.filter((x) => noCard(x, "aguardando_gestor", HOJE))).toHaveLength(2);
     expect(lista.filter((x) => noCard(x, "aprovadas_mes", HOJE))).toHaveLength(1);
+    expect(lista.filter((x) => noCard(x, "aprovadas_total", HOJE))).toHaveLength(3);
   });
   it("clicar de novo limpa o filtro", () => {
     expect(alternarCard(null, "devolvidas")).toBe("devolvidas");
@@ -59,9 +69,9 @@ describe("avisos de aprovação", () => {
       { action: "enviar", created_at: "2026-10-16T00:00:00Z", actor_nome: "Carla" },
     ];
     expect(textoAprovacao(h)).toBe("Captação aprovada por Bruno em 15/10/2026 às 10:31");
-    expect(textoAprovacao([{ action: "aprovar", created_at: "2026-10-15T13:31:00Z", actor_nome: null }])).toBe(
-      "Captação aprovada por gestor em 15/10/2026 às 10:31",
-    );
+    expect(
+      textoAprovacao([{ action: "aprovar", created_at: "2026-10-15T13:31:00Z", actor_nome: null }]),
+    ).toBe("Captação aprovada por gestor em 15/10/2026 às 10:31");
     expect(textoAprovacao([])).toBe("Captação aprovada");
   });
 });

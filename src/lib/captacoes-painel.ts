@@ -6,7 +6,8 @@
 import type { Capture, CaptureDocument, CaptureEvent, CaptureStatus } from "./exclusive-captures";
 import { hojeSaoPaulo } from "./hoje-sao-paulo";
 
-export type PainelCardKey = "aguardando_gestor" | "em_assinatura" | "devolvidas" | "aprovadas_mes";
+export type PainelCardKey =
+  "aguardando_gestor" | "em_assinatura" | "devolvidas" | "aprovadas_mes" | "aprovadas_total";
 
 export type PainelCard = {
   key: PainelCardKey;
@@ -42,6 +43,13 @@ export const PAINEL_CARDS: PainelCard[] = [
     frase: "Concluídas: exclusividade valendo.",
     classe: "border-emerald-300 bg-emerald-50 text-emerald-900",
   },
+  // Denis 27/10/2026 (t_7a5f8410): total de aprovadas, sem filtro de data.
+  {
+    key: "aprovadas_total",
+    titulo: "Aprovadas (total)",
+    frase: "Exclusividades aprovadas e não arquivadas.",
+    classe: "border-teal-300 bg-teal-50 text-teal-900",
+  },
 ];
 
 type CaptureLike = Pick<Capture, "status" | "archived_at" | "signed_on"> & {
@@ -52,6 +60,7 @@ const STATUS_DO_CARD: Record<Exclude<PainelCardKey, "aprovadas_mes">, CaptureSta
   aguardando_gestor: "enviada",
   em_assinatura: "em_assinatura",
   devolvidas: "devolvida",
+  aprovadas_total: "aprovada",
 };
 
 /** Ativa = não arquivada e não descartada (a lista principal já mostra só essas). */
@@ -73,7 +82,13 @@ export function noCard(c: CaptureLike, key: PainelCardKey, hoje: string): boolea
 }
 
 export function contarPainel(list: CaptureLike[], hoje: string): Record<PainelCardKey, number> {
-  const out = { aguardando_gestor: 0, em_assinatura: 0, devolvidas: 0, aprovadas_mes: 0 };
+  const out = {
+    aguardando_gestor: 0,
+    em_assinatura: 0,
+    devolvidas: 0,
+    aprovadas_mes: 0,
+    aprovadas_total: 0,
+  };
   for (const c of list)
     for (const card of PAINEL_CARDS) if (noCard(c, card.key, hoje)) out[card.key]++;
   return out;
