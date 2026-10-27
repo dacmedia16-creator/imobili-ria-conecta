@@ -247,7 +247,7 @@ export async function lerIaConfig(): Promise<IaConfig> {
   const { data: rot } = await db.from("lead_config").select("ia_primeira_msg,ia_reengajar").maybeSingle();
   return {
     ia_ativa: false,
-    ia_nome: "Assistente virtual",
+    ia_nome: "Nicole",
     ia_boas_vindas: null,
     ia_canal: "teste",
     ia_primeira_msg: null,

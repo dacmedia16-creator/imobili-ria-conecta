@@ -6,7 +6,9 @@
 // Um modelo de linguagem, quando ligado, só ajuda a ENTENDER a resposta do cliente; nunca escreve a resposta.
 //
 // Roteiro (t_fc4d9b27):
-//  1) 1ª mensagem: uma bolha, sem link, assistente virtual + tipo/bairro + pergunta fechada (banco).
+//  1) 1ª mensagem: uma bolha, \"Aqui é a Nicole, da <imobiliária>\" + imóvel do XML (tipo, quartos, bairro,
+//     cidade e valor anunciado) + só o link do anúncio validado + pergunta fechada (banco, t_25fe1197).
+//     Se o cliente perguntar se é robô/IA, ela confirma que é assistente virtual e oferece o corretor.
 //  2) Responde primeiro a dúvida; depois no máximo 3 perguntas, uma por turno: finalidade (só se o anúncio
 //     não disser), faixa de valor e forma de pagamento.
 //  3) Dúvidas respondidas pela ficha da captação; sem o dado: "não tenho esse dado confirmado, vou confirmar
@@ -111,6 +113,10 @@ export type DadosQualificacao = {
   parecido_conferido?: string[];
   /** Código do parecido em que o cliente se interessou (vai para o corretor). */
   parecido_interesse?: string;
+  /** A Nicole confirmou ser assistente virtual e ofereceu o corretor no último turno (t_25fe1197). */
+  ofereceu_corretor?: boolean;
+  /** Faixa muito longe do valor anunciado já foi conferida com o cliente (uma vez por conversa). */
+  faixa_conferida?: boolean;
 };
 
 export type ContextoIa = {
@@ -229,12 +235,26 @@ export function ehSensivel(t: string): boolean {
   );
 }
 
-/** Cliente pede uma pessoa (ou desconfia de robô). */
+/** Cliente pede uma pessoa. */
 export function pediuPessoa(t: string): boolean {
-  return /(falar com (um |uma |o |a )?(corretor|corretora|atendente|humano|pessoa|alguem|gerente|responsavel)|quero (um |uma |falar com )?(pessoa|humano|atendente|corretor)|atendimento humano|me (liga|ligue|ligar)|ligue pra mim|liga pra mim|(e|eh|vc e|voce e) (um )?robo|e uma ia|e bot)/.test(
+  return /(falar com (um |uma |o |a )?(corretor|corretora|atendente|humano|pessoa|alguem|gerente|responsavel)|quero (um |uma |falar com )?(pessoa|humano|atendente|corretor)|atendimento humano|me (liga|ligue|ligar)|ligue pra mim|liga pra mim)/.test(
     norm(t),
   );
 }
+
+/**
+ * Cliente pergunta se está falando com robô/IA (t_25fe1197). A Nicole NÃO mente: confirma que é uma
+ * assistente virtual e oferece passar para um corretor. \"ia\" sozinho não conta (\"eu ia visitar\").
+ */
+export function perguntouSeRobo(t: string): boolean {
+  return /(\brobo\b|\bbot\b|chatbot|inteligencia artificial|\b(e|eh|sou|seria|voce e|vc e|falando com|conversando com) (uma |um )?ia\b|resposta automatica|mensagem automatica|(e|eh) (uma )?pessoa (de verdade|real)|(e|eh) (um )?humano|(e|eh) gente de verdade)/.test(
+    norm(t),
+  );
+}
+
+/** Cliente fala em permuta (dar um bem como parte do pagamento). \"trocar o dia\" não conta. */
+const FALA_PERMUTA =
+  /(permut|\btroca(r)? (por|pelo|pela|com) (o |a )?(meu|minha)|(dar|dou|dando|aceita|aceitam|entrar com|entro com) (o |a )?(meu |minha )?(carro|imovel|apartamento|apto|casa|terreno|moto|lote|sobrado|chacara)\b)/;
 
 /** Pergunta sobre preço/condição/disponibilidade/característica (detector usado também pela tela). */
 export function perguntaComercial(t: string): boolean {
@@ -832,7 +852,10 @@ export async function proximaResposta(
       "Registrei sua mensagem e estou confirmando o encaminhamento para uma pessoa da nossa equipe. Já te retorno por aqui.",
       `Assunto sensível: \"${curto(texto, 160)}\". Atender com prioridade. Dados até aqui: ${parcial()}`,
     );
-  if (pediuPessoa(texto))
+  // \"Sim\" para a oferta de passar ao corretor feita depois de \"é robô?\": passa (t_25fe1197).
+  const ofereceuCorretor = dados.ofereceu_corretor;
+  dados.ofereceu_corretor = undefined;
+  if (pediuPessoa(texto) || (ofereceuCorretor && SIM_P.test(n) && !detectarTemas(texto).length))
     return passar(
       dados,
       "pediu_pessoa",
@@ -841,6 +864,19 @@ export async function proximaResposta(
       FALHA_PADRAO,
       `Cliente pediu para falar com uma pessoa. Dados até aqui: ${parcial()}`,
     );
+  // \"É robô?\": não mente. Confirma que é assistente virtual e oferece o corretor; a conversa segue (t_25fe1197).
+  if (perguntouSeRobo(texto)) {
+    dados.ofereceu_corretor = true;
+    const quem = `${(ctx.ia_nome || "Nicole").trim()}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}`;
+    return {
+      passo: ctx.passo === "fim" ? "visita" : ctx.passo,
+      dados,
+      resposta: `Sim, sou a ${quem}. Se preferir, passo agora para um corretor falar com você. Quer?`,
+      resposta_falha: null,
+      fim: null,
+      resumo: null,
+    };
+  }
   const cat = categoriaNaoLead(texto);
   if (cat) {
     dados.categoria = cat;
@@ -1014,8 +1050,11 @@ export async function proximaResposta(
   const pag = pagamentoDe(n);
   // \"Aceita financiamento?\" é dúvida, não forma de pagamento; \"vou financiar\" é forma de pagamento.
   if (pag && !dados.pagamento?.length && (passoAtual === "pagamento" || !ehPergunta(texto))) dados.pagamento = pag;
-  const fx = faixaDe(texto, n);
-  if (fx && !dados.faixa) dados.faixa = fx;
+  // Na pergunta da faixa, um número solto (\"120000 aceita financiamento?\") também é a faixa (t_59ab47d4).
+  const fx = faixaDe(texto, n, passoAtual === "faixa");
+  // Depois de \"Só confirmando: sua faixa é de R$ X?\", um novo valor substitui o anterior.
+  const confirmandoFaixa = passoAtual === "faixa" && !!ctx.dados.faixa_conferida;
+  if (fx && (!dados.faixa || (confirmandoFaixa && valorFaixa(fx)))) dados.faixa = fx;
   // "na verdade quero alugar" no passo da faixa muda a finalidade; não vira faixa de valor (t_232e13cb).
   const soFinalidade = passoAtual === "faixa" && !!fin && fin !== finalidadeAntes && !fx;
   if ((passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && !ehDuvida && !respParecido && !soFinalidade) {
@@ -1045,6 +1084,43 @@ export async function proximaResposta(
   }
 
   const duvida = responderDuvidas(temas, ficha, dados);
+
+  // Permuta: a Nicole nunca diz se aceita. Registra e passa ao corretor, que avalia (t_59ab47d4).
+  if (FALA_PERMUTA.test(n) && !respParecido) {
+    dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
+    const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados);
+    return passar(
+      dados,
+      "qualificado",
+      [outras, "Anotei a permuta: quem avalia essa possibilidade é o corretor."].filter(Boolean).join(" "),
+      `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`,
+      FALHA_PADRAO,
+      `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
+    );
+  }
+
+  // Faixa muito longe do valor anunciado no XML (mais que o dobro ou menos da metade): confirma uma vez,
+  // com naturalidade, em vez de aceitar calada (t_59ab47d4). A dúvida do mesmo turno é respondida junto.
+  if (dados.faixa && dados.faixa !== faixaAntes && !dados.faixa_conferida && !respParecido) {
+    const alugar = dados.finalidade === "alugar" || (!dados.finalidade && ctx.transacao === "aluguel");
+    const anunciado = alugar ? ficha?.aluguel_valor : ficha?.preco_valor;
+    const longe = faixaLonge(dados.faixa, anunciado);
+    if (longe != null && anunciado) {
+      dados.faixa_conferida = true;
+      if (!dados.perguntas!.includes("faixa")) dados.perguntas!.push("faixa");
+      const ref = alugar ? `O aluguel anunciado é de ${reais(anunciado)} por mês.` : `O imóvel está anunciado por ${reais(anunciado)}.`;
+      return {
+        passo: "faixa",
+        dados,
+        resposta: [duvida, `Só confirmando: sua faixa é de ${reais(longe)}? ${ref}`].filter(Boolean).join(" "),
+        resposta_falha: null,
+        fim: null,
+        resumo: null,
+      };
+    }
+  }
+  // Resposta à confirmação: \"isso\" mantém a faixa; outro valor já substituiu acima. Segue o roteiro.
+  if (confirmandoFaixa) dados.faixa_conferida = true;
 
   // Imóvel parecido: (c) o cliente pede outras opções; (b) o imóvel pedido não serve.
   // Cada conferência de (b) acontece no máximo uma vez por conversa.
@@ -1280,7 +1356,7 @@ export type IaConfig = {
 
 /** Texto padrão da 1ª mensagem (igual a lead_ia_primeira_msg no banco). */
 export const PRIMEIRA_MSG_PADRAO =
-  "Oi, {nome}! Aqui é a {assistente}, assistente virtual da {imobiliaria}. Vi seu interesse {imovel}. Quer saber valores e condições, ou já prefere agendar uma visita?";
+  "Oi, {nome}! Aqui é a {assistente}, da {imobiliaria}. Vi seu interesse {imovel}. {link}Quer saber mais detalhes ou já prefere agendar uma visita?";
 
 export function validarIaConfig(c: Pick<IaConfig, "ia_nome" | "ia_boas_vindas" | "ia_primeira_msg">): string | null {
   const n = c.ia_nome.trim();
@@ -1318,8 +1394,10 @@ export function previaPrimeiraMensagem(
   imobiliaria: string,
   cliente: string,
   imovel: string | null,
+  link: string | null = null,
 ): string {
   let t = c.ia_primeira_msg?.trim() || PRIMEIRA_MSG_PADRAO;
+  const anuncio = link && /^https:\/\//.test(link) && link.length <= 300 ? `Anúncio: ${link} ` : "";
   const nome = /^lead( grupo zap)?$/i.test(cliente.trim()) ? "" : cliente.trim().split(" ")[0];
   if (!nome) t = t.replace(/,?\s*\{nome\}/g, "");
   return t
@@ -1327,6 +1405,7 @@ export function previaPrimeiraMensagem(
     .split("{assistente}").join(c.ia_nome.trim())
     .split("{imobiliaria}").join(imobiliaria || "imobiliária")
     .split("{imovel}").join(imovel || "no imóvel que você viu")
+    .split("{link}").join(anuncio)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 2000);

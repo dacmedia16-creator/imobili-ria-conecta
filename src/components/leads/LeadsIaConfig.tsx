@@ -115,7 +115,7 @@ export function LeadsIaConfig({
         />
       </div>
       <div className="grid gap-1">
-        <Label htmlFor="cfg-ia-primeira">1ª mensagem (uma só, sem link, terminando com pergunta)</Label>
+        <Label htmlFor="cfg-ia-primeira">1ª mensagem (uma só, terminando com pergunta; só o link do anúncio, pelo marcador {"{link}"})</Label>
         <Textarea
           id="cfg-ia-primeira"
           maxLength={400}
@@ -125,12 +125,19 @@ export function LeadsIaConfig({
         />
         <p className="text-[11px] text-muted-foreground">
           Deixe vazio para usar o texto padrão. Use {"{nome}"} (cliente), {"{assistente}"} (nome da IA),{" "}
-          {"{imobiliaria}"} e {"{imovel}"} (tipo e bairro da captação).
+          {"{imobiliaria}"}, {"{imovel}"} (tipo, quartos, bairro, cidade e valor do anúncio no XML, ou da captação) e{" "}
+          {"{link}"} (link do anúncio no site da imobiliária, quando o XML trouxer; nenhum outro link é aceito).
         </p>
       </div>
       <p className="rounded-md bg-muted/50 p-2 text-xs">
         <span className="font-medium">Prévia: </span>
-        {previaPrimeiraMensagem(c, org, "Maria Silva", "no apartamento do bairro Centro")}
+        {previaPrimeiraMensagem(
+          c,
+          org,
+          "Maria Silva",
+          "no apartamento de 2 quartos no bairro Centro, em Sorocaba, anunciado por R$ 430.000",
+          "https://site-da-imobiliaria.com.br/imovel/AP1234",
+        )}
       </p>
       <div className="flex items-start justify-between gap-2 rounded-md border p-2">
         <div>

@@ -12,7 +12,7 @@
 // envia as mensagens pendentes pela ZionTalk (só com LEADS_IA_ENVIO_REAL=on + chave própria).
 // LGPD: nunca registrar em log telefone, texto, token ou corpo. Só códigos de resultado.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { escolherCanal, temLink } from "./leads-ia-canal";
+import { escolherCanal, primeiraComLinkProibido } from "./leads-ia-canal";
 import {
   argsParecidos,
   normalizarParecidos,
@@ -333,7 +333,7 @@ export async function enviarPendentes(
     }
     const m = (data as Array<{ msg_id: string; telefone: string; texto: string; primeira: boolean }> | null)?.[0];
     if (!m) break;
-    if (m.primeira && temLink(m.texto)) {
+    if (m.primeira && primeiraComLinkProibido(m.texto)) { // só o link do anúncio (t_25fe1197)
       await deps.resultado(m.msg_id, false);
       break;
     }

@@ -97,3 +97,16 @@ export const LINK_RE = /(https?:\/\/|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|
 export function temLink(texto: string | null | undefined): boolean {
   return LINK_RE.test(texto ?? "");
 }
+
+/**
+ * Trava da 1ª mensagem (t_25fe1197): o ÚNICO link aceito é o do anúncio, que o banco põe depois de
+ * "Anúncio: " só quando veio do XML da própria imobiliária e passou por xml_url_anuncio_ok (https com nome,
+ * sem usuário/senha, sem porta estranha, até 300 caracteres). Qualquer outro link, ou mais de um, bloqueia.
+ */
+const LINK_ANUNCIO_RE = /Anúncio: https:\/\/[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:443)?\/[^\s<>"'@\\]*/g;
+export function primeiraComLinkProibido(texto: string | null | undefined): boolean {
+  const t = texto ?? "";
+  const anuncios = t.match(LINK_ANUNCIO_RE) ?? [];
+  if (anuncios.length > 1 || anuncios.some((a) => a.length - "Anúncio: ".length > 300)) return true;
+  return temLink(t.replace(LINK_ANUNCIO_RE, "Anúncio:"));
+}

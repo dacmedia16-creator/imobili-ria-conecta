@@ -10,17 +10,22 @@ import {
   proximaResposta,
   respostaMidia,
   validarIaConfig,
+  perguntouSeRobo,
+  pediuPessoa,
+  faixaLonge,
   type ContextoIa,
   type Extrator,
   type FichaIa,
   type RespostaIa,
 } from "./leads-ia";
+import { primeiraComLinkProibido } from "./leads-ia-canal";
 
 // Card t_fc4d9b27: roteiro novo da Nicole (estudo de 1.347 conversas da Lais). Conversas simuladas, modelo
 // de linguagem SIMULADO (mock) e nenhuma chamada de rede. O banco (passagem verificável, reengajamento,
 // isolamento) foi testado em PostgreSQL descartável: scripts/leads-ia-test/test_roteiro.sql.
 const MIG = readFileSync("supabase/migrations/20261026170000_leads_ia_roteiro_lais.sql", "utf8");
 const RB = readFileSync("docs/sql/rollback/20261026170000_leads_ia_roteiro_lais.rollback.sql", "utf8");
+const MIG_XML = readFileSync("supabase/migrations/20261027080000_xml_link_locacao_primeira_msg.sql", "utf8");
 
 const AGORA = new Date("2026-10-26T13:00:00Z"); // segunda, 10h em Brasília
 const FICHA: FichaIa = { tipo: "apartamento", bairro: "Campolim", cidade: "Sorocaba", quartos: "3", suites: "1", vagas: "2", area_util_m2: "80" };
@@ -58,13 +63,46 @@ async function conversa(falas: string[], p: Partial<ContextoIa> = {}, extrator?:
 const perguntas = (rs: RespostaIa[]) => rs.reduce((n, r) => n + (/(comprar ou para alugar|faixa de valor|forma de pagamento)/.test(r.resposta) ? 1 : 0), 0);
 
 describe("item 1 — 1ª mensagem", () => {
-  it("padrão: uma bolha, assistente virtual, imobiliária da org, tipo/bairro e pergunta fechada, sem link", () => {
+  it("padrão: uma bolha, \"Aqui é a Nicole, da <imobiliária>\" (sem \"assistente virtual\"), imóvel e pergunta fechada; sem link quando não há anúncio", () => {
     const t = previaPrimeiraMensagem({ ia_nome: "Nicole", ia_primeira_msg: null }, "Imob A", "Maria Souza", "no apartamento do bairro Campolim");
     expect(t).toBe(
-      "Oi, Maria! Aqui é a Nicole, assistente virtual da Imob A. Vi seu interesse no apartamento do bairro Campolim. Quer saber valores e condições, ou já prefere agendar uma visita?",
+      "Oi, Maria! Aqui é a Nicole, da Imob A. Vi seu interesse no apartamento do bairro Campolim. Quer saber mais detalhes ou já prefere agendar uma visita?",
     );
-    expect(t).not.toMatch(/\n|https?:|www\./);
+    expect(t).not.toMatch(/\n|https?:|www\.|assistente virtual/i);
     expect(t).toMatch(/\?$/);
+  });
+  it("com anúncio do XML (t_25fe1197): imóvel com valor e SÓ o link do anúncio, e termina em pergunta", () => {
+    const t = previaPrimeiraMensagem(
+      { ia_nome: "Nicole", ia_primeira_msg: null },
+      "ZZ Teste Provisionamento",
+      "Denis",
+      "no apartamento de 2 quartos no bairro Jardim São Carlos, em Sorocaba, anunciado por R$ 430.000",
+      "https://vipsevenimoveis.com.br/imovel/VIP0040",
+    );
+    expect(t).toBe(
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse no apartamento de 2 quartos no bairro Jardim São Carlos, em Sorocaba, anunciado por R$ 430.000. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0040 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    );
+    expect(t).not.toMatch(/assistente virtual|dispon|permuta|financ|andar/i);
+    expect(primeiraComLinkProibido(t)).toBe(false); // a trava de envio deixa sair
+    // Link inseguro nunca entra na prévia.
+    expect(previaPrimeiraMensagem({ ia_nome: "Nicole" }, "Imob", "Ana", null, "http://x.com.br/a")).not.toMatch(/http/);
+  });
+  it("trava de envio da 1ª mensagem: só o link do anúncio; qualquer outro link (ou dois) bloqueia", () => {
+    expect(primeiraComLinkProibido("Oi! Quer agendar?")).toBe(false);
+    expect(primeiraComLinkProibido("Oi! Anúncio: https://imob.com.br/imovel/1 Quer agendar?")).toBe(false);
+    for (const t of [
+      "Oi! Veja https://golpe.com/x Quer agendar?",
+      "Oi! Anúncio: https://imob.com.br/1 e www.outro.com Quer?",
+      "Oi! Anúncio: https://imob.com.br/1 Anúncio: https://imob.com.br/2 Quer?",
+      "Oi! Anúncio: http://imob.com.br/1 Quer?",
+      "Oi! Anúncio: https://user:senha@imob.com.br/1 Quer?",
+      `Oi! Anúncio: https://imob.com.br/${"a".repeat(300)} Quer?`,
+      "Oi, joao.com.br! Anúncio: https://imob.com.br/1 Quer?",
+    ])
+      expect(primeiraComLinkProibido(t), t).toBe(true);
+  });
+  it("o marcador {link} não é link: o texto personalizado pode usá-lo", () => {
+    expect(validarIaConfig({ ia_nome: "Nicole", ia_boas_vindas: null, ia_primeira_msg: "Oi {nome}! {link}Quer agendar?" })).toBeNull();
   });
   it("lead sem nome não vira \"Oi, !\"; sem captação usa texto neutro", () => {
     expect(previaPrimeiraMensagem({ ia_nome: "Nicole" }, "Imob A", "Lead Grupo ZAP", null)).toMatch(/^Oi! Aqui é a Nicole/);
@@ -78,8 +116,9 @@ describe("item 1 — 1ª mensagem", () => {
     expect(validarIaConfig({ ia_nome: "E", ia_boas_vindas: null, ia_primeira_msg: "Oi, tudo bem." })).toMatch(/pergunta/);
     expect(validarIaConfig({ ia_nome: "E", ia_boas_vindas: null, ia_primeira_msg: null })).toBeNull();
   });
-  it("banco usa o mesmo texto padrão e trava link na coluna", () => {
-    expect(MIG).toContain(PRIMEIRA_MSG_PADRAO);
+  it("banco usa o mesmo texto padrão (migration t_25fe1197) e continua travando link literal na coluna", () => {
+    expect(MIG_XML).toContain(PRIMEIRA_MSG_PADRAO);
+    expect(MIG_XML).not.toMatch(/assistente virtual da/);
     expect(MIG).toMatch(/lead_config_ia_primeira_msg_sem_link/);
   });
 });
@@ -120,12 +159,12 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
 
 describe("item 3 — respostas só pela ficha da captação", () => {
   it("o que a ficha tem, responde; o que não tem, \"não tenho esse dado confirmado\"", async () => {
-    const r = await proximaResposta(ctx({ passo: "faixa" }), "Quantos quartos tem? E aceita permuta? Qual o condomínio?", undefined, { agora: AGORA });
-    expect(r.resposta).toMatch(/^Tem 3 quartos \(1 suíte\)\. Sobre condomínio e permuta, não tenho esse dado confirmado, vou confirmar com o corretor\./);
-    expect(r.dados.pendentes).toEqual(expect.arrayContaining(["condomínio", "permuta"]));
+    const r = await proximaResposta(ctx({ passo: "faixa" }), "Quantos quartos tem? E tem vaga? Qual o condomínio?", undefined, { agora: AGORA });
+    expect(r.resposta).toMatch(/^Tem 3 quartos \(1 suíte\) e tem 2 vagas de garagem\. Sobre condomínio, não tenho esse dado confirmado, vou confirmar com o corretor\./);
+    expect(r.dados.pendentes).toEqual(expect.arrayContaining(["condomínio"]));
   });
   it("condomínio/IPTU, permuta, financiamento e andar sem dado: nunca estima", async () => {
-    for (const t of ["qual o valor do condomínio?", "quanto é o IPTU?", "aceita permuta?", "aceita financiamento?", "qual andar?"]) {
+    for (const t of ["qual o valor do condomínio?", "quanto é o IPTU?", "aceita financiamento?", "qual andar?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
       expect(r.resposta).toContain("não tenho esse dado confirmado, vou confirmar com o corretor");
       expect(r.resposta).not.toMatch(/R\$|\d+ ?(mil|reais)|aceita (permuta|financiamento)\b(?! ?\?)|andar \d/);
@@ -144,8 +183,8 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   });
   it("quando a ficha passar a ter os campos, responde com eles (sem inventar; disponibilidade continua com o corretor)", async () => {
     const ficha: FichaIa = { ...FICHA, condominio: "R$ 650,00", iptu: "R$ 120,00", aceita_permuta: false, aceita_financiamento: true, andar: "5º andar, frente", disponivel: true };
-    const r = await proximaResposta(ctx({ passo: "faixa", ficha }), "Aceita permuta? aceita financiamento? qual o condomínio e o iptu? qual andar? ainda está disponível?", undefined, { agora: AGORA });
-    for (const x of ["não aceita permuta", "aceita financiamento", "condomínio é de R$ 650,00", "IPTU é de R$ 120,00", "fica no 5º andar, frente", "Confirmo a disponibilidade com o corretor."])
+    const r = await proximaResposta(ctx({ passo: "faixa", ficha }), "aceita financiamento? qual o condomínio e o iptu? qual andar? ainda está disponível?", undefined, { agora: AGORA });
+    for (const x of ["aceita financiamento", "condomínio é de R$ 650,00", "IPTU é de R$ 120,00", "fica no 5º andar, frente", "Confirmo a disponibilidade com o corretor."])
       expect(r.resposta).toContain(x);
     expect(r.resposta).not.toContain("não tenho esse dado");
     expect(r.resposta).not.toContain("stá disponível");
@@ -290,11 +329,11 @@ describe("item 7 — código do anúncio", () => {
   });
   it("ficha do XML no contexto: responde condomínio e IPTU, e nunca garante disponibilidade nem deduz permuta/andar", async () => {
     const fichaXml: FichaIa = { tipo: "apartamento", bairro: "Campolim", quartos: "3", condominio: "R$ 720,00", iptu: "R$ 140,00 por mês" };
-    const r = await proximaResposta(ctx({ passo: "faixa", ficha: fichaXml }), "qual o condomínio e o IPTU? ainda está disponível? aceita permuta? qual andar?", undefined, { agora: AGORA });
+    const r = await proximaResposta(ctx({ passo: "faixa", ficha: fichaXml }), "qual o condomínio e o IPTU? ainda está disponível? qual andar?", undefined, { agora: AGORA });
     expect(r.resposta).toContain("condomínio é de R$ 720,00");
     expect(r.resposta).toContain("IPTU é de R$ 140,00 por mês");
     expect(r.resposta).toContain("Confirmo a disponibilidade com o corretor.");
-    expect(r.resposta).toMatch(/Sobre permuta e andar\/posição, não tenho esse dado confirmado, vou confirmar com o corretor\./);
+    expect(r.resposta).toMatch(/Sobre andar\/posição, não tenho esse dado confirmado, vou confirmar com o corretor\./);
   });
   it("cliente não sabe o código: segue sem pedir de novo", async () => {
     const r = await conversa(["oi", "não sei o código", "comprar"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null });
@@ -381,5 +420,95 @@ describe("modelo de linguagem SIMULADO (mock)", () => {
     await proximaResposta(ctx({ passo: "finalidade", transacao: null }), "alugar", mock);
     await proximaResposta(ctx({ passo: "pagamento" }), "financiamento", mock);
     expect(mock).not.toHaveBeenCalled();
+  });
+});
+
+// Card t_25fe1197 (teste real de Denis com o VIP0040 na ZZ, 26/10) e t_59ab47d4.
+describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
+  const VIP0040: FichaIa = {
+    tipo: "apartamento", bairro: "Jardim São Carlos", cidade: "Sorocaba", quartos: "2", suites: "1", banheiros: "2", vagas: "1",
+    area_util_m2: "59", condominio: "R$ 478,00", iptu: "R$ 58,00 por mês", negocio: "venda", preco: "R$ 430.000", preco_valor: 430000,
+    link: "https://vipsevenimoveis.com.br/imovel/VIP0040",
+  };
+  const c = (p: Partial<ContextoIa> = {}) => ({ ficha: VIP0040, imovel_fonte: "xml" as const, anuncio_codigo: "VIP0040", tem_captacao: false, org_nome: "ZZ Teste Provisionamento", ...p });
+
+  it("com preço no XML, diz o valor anunciado; negociação continua com o corretor", async () => {
+    const r = await proximaResposta(ctx(c({ passo: "faixa" })), "qual o valor?", undefined, { agora: AGORA });
+    expect(r.resposta).toMatch(/[Ee]stá anunciado por R\$ 430\.000/);
+    expect(r.resposta).toContain("Proposta e negociação, quem conversa com você é o corretor.");
+    expect(r.resposta).not.toMatch(/dispon[ií]vel|aceita permuta|aceita financiamento|andar/i);
+  });
+  it("condomínio e IPTU do XML são ditos; sem preço no XML, não inventa e fica com o corretor", async () => {
+    const r = await proximaResposta(ctx(c({ passo: "faixa" })), "qual o condomínio e o iptu?", undefined, { agora: AGORA });
+    expect(r.resposta).toMatch(/condomínio é de R\$ 478,00 e o IPTU é de R\$ 58,00 por mês/);
+    const semPreco = { ...VIP0040, preco: undefined, preco_valor: undefined };
+    const r2 = await proximaResposta(ctx(c({ passo: "faixa", ficha: semPreco })), "quanto custa?", undefined, { agora: AGORA });
+    expect(r2.resposta).toMatch(/quem confirma é o corretor/);
+    expect(r2.resposta).not.toMatch(/R\$\s*\d/);
+  });
+  it("locação: diz o aluguel do XML (e o condomínio/IPTU se vierem)", async () => {
+    const loc: FichaIa = { tipo: "apartamento", bairro: "Campolim", cidade: "Sorocaba", quartos: "2", negocio: "locacao", aluguel: "R$ 2.500", aluguel_valor: 2500, condominio: "R$ 600,00" };
+    const r = await proximaResposta(ctx(c({ passo: "faixa", ficha: loc, transacao: "aluguel" })), "qual o valor do aluguel e do condomínio?", undefined, { agora: AGORA });
+    expect(r.resposta).toMatch(/[Oo] aluguel anunciado é de R\$ 2\.500 por mês/);
+    expect(r.resposta).toContain("condomínio é de R$ 600,00");
+  });
+
+  it("\"120000 aceita financiamento ?\": registra a faixa e responde o financiamento no mesmo turno (sem repetir a pergunta)", async () => {
+    const perto = { ...VIP0040, preco: "R$ 130.000", preco_valor: 130000 };
+    const r = await proximaResposta(ctx(c({ passo: "faixa", ficha: perto, dados: { perguntas: ["faixa"] } })), "120000 aceita financiamento ?", undefined, { agora: AGORA });
+    expect(r.dados.faixa).toBe("120000 aceita financiamento ?");
+    expect(r.resposta).toMatch(/Sobre financiamento, não tenho esse dado confirmado, vou confirmar com o corretor\./);
+    expect(r.resposta).not.toMatch(/qual faixa de valor/);
+    expect(r.resposta).toMatch(/forma de pagamento seria à vista ou com financiamento\?/);
+  });
+  it("faixa muito longe do preço anunciado: confirma com naturalidade (uma vez) e depois segue", async () => {
+    const rs = await conversa(["1.200.000", "isso mesmo", "à vista"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] } });
+    expect(rs[0].resposta).toBe("Só confirmando: sua faixa é de R$ 1.200.000? O imóvel está anunciado por R$ 430.000.");
+    expect(rs[0].passo).toBe("faixa");
+    expect(rs[1].resposta).toMatch(/forma de pagamento/);
+    expect(rs[1].dados.faixa).toBe("1.200.000");
+  });
+  it("faixa longe corrigida pelo cliente: o novo valor substitui", async () => {
+    const rs = await conversa(["120 mil", "desculpa, 420 mil"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] } });
+    expect(rs[0].resposta).toMatch(/^Só confirmando: sua faixa é de R\$ 120\.000\?/);
+    expect(rs[1].dados.faixa).toBe("desculpa, 420 mil");
+    expect(rs[1].resposta).not.toMatch(/Só confirmando/);
+  });
+  it("faixa perto do preço: aceita calada; faixaLonge só acima do dobro ou abaixo da metade", async () => {
+    const r = await proximaResposta(ctx(c({ passo: "faixa", dados: { perguntas: ["faixa"] } })), "uns 400 mil", undefined, { agora: AGORA });
+    expect(r.resposta).not.toMatch(/Só confirmando/);
+    expect(faixaLonge("1.200.000", 430000)).toBe(1200000);
+    expect(faixaLonge("400 mil", 430000)).toBeNull();
+    expect(faixaLonge("400 mil", undefined)).toBeNull();
+  });
+
+  it("pagamento: \"permuta\" nunca é sugerida; se o cliente falar em permuta, registra e passa ao corretor", async () => {
+    const rs = await conversa(["500 mil"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] }, ficha: { ...VIP0040, preco_valor: 480000 } });
+    expect(rs[0].resposta).toMatch(/à vista ou com financiamento\?/);
+    expect(rs[0].resposta).not.toMatch(/permuta/);
+    for (const t of ["aceita permuta?", "posso dar meu carro como parte?", "pago com permuta"]) {
+      const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
+      expect(r.fim, t).toBe("qualificado");
+      expect(r.resposta).toMatch(/^Anotei a permuta: quem avalia essa possibilidade é o corretor\. Encaminhei/);
+      expect(r.resposta).not.toMatch(/aceita permuta|não aceita/);
+      expect(r.dados.pagamento).toContain("permuta");
+      expect(r.resumo).toMatch(/PERMUTA/);
+    }
+  });
+
+  it("\"é robô?\": não mente — confirma que é assistente virtual e oferece o corretor; \"sim\" passa", async () => {
+    const rs = await conversa(["vc é um robô?", "sim"], c());
+    expect(rs[0].resposta).toBe("Sim, sou a Nicole, assistente virtual da ZZ Teste Provisionamento. Se preferir, passo agora para um corretor falar com você. Quer?");
+    expect(rs[0].fim).toBeNull();
+    expect(rs[1].fim).toBe("pediu_pessoa");
+    for (const t of ["é uma IA?", "estou falando com um bot?", "isso é resposta automática?", "é uma pessoa de verdade?", "é inteligência artificial?"])
+      expect(perguntouSeRobo(t), t).toBe(true);
+    for (const t of ["eu ia visitar amanhã", "a bota", "quero visitar", "obrigado"]) expect(perguntouSeRobo(t), t).toBe(false);
+    expect(pediuPessoa("é um robô?")).toBe(false);
+  });
+  it("\"é robô?\" e depois segue a conversa normalmente se não quiser o corretor", async () => {
+    const rs = await conversa(["é robô?", "não precisa, quanto custa?"], { ...c(), passo: "faixa" });
+    expect(rs[1].fim).toBeNull();
+    expect(rs[1].resposta).toMatch(/[Ee]stá anunciado por R\$ 430\.000/);
   });
 });

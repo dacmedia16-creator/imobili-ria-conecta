@@ -111,7 +111,7 @@ describe("quando oferece (regra 1)", () => {
   it("(b) quer alugar e o imóvel é de venda: diz com franqueza que só tem venda e passa ao corretor", async () => {
     const rs = await conversa(["quero saber mais", "na verdade quero alugar"], buscaFake());
     expect(rs[1].resposta).toMatch(/anunciado para venda/);
-    expect(rs[1].resposta).toMatch(/só tenho imóveis à venda/);
+    expect(rs[1].resposta).toMatch(/Não encontrei agora uma opção de locação parecida no nosso catálogo, então vou pedir para um corretor entrar em contato com você\./);
     expect(rs[1].fim).toBe("qualificado");
     expect(rs[1].resposta).toContain("{corretor}");
     expect(rs[1].dados.faixa).toBeUndefined(); // "quero alugar" não vira faixa de valor

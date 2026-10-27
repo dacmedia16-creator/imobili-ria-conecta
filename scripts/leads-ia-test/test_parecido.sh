@@ -15,6 +15,7 @@ ROTEIRO=1 bash "$(dirname "$0")/setup.sh" "$DB" >/dev/null 2>&1
   sed -n '/FUNCTION public.remax_xml_last_ok/,/^\$\$;/p' $M
   sed -n '/FUNCTION public.remax_xml_ingest/,/^END \$\$;/p' $M; } | $P
 $P < "$W/supabase/migrations/20261026190000_xml_feed_imobiliaria_nicole.sql"
+$P < "$W/supabase/migrations/20261027080000_xml_link_locacao_primeira_msg.sql"  # negocio/aluguel/link (t_25fe1197)
 $P < "$NEW"
 echo "migration 20261027090000 ok"
 $P -tA < "$W/scripts/leads-ia-test/test_parecido.sql" 2>&1 | grep -E "RESULTADO|FAIL|ERROR" || true

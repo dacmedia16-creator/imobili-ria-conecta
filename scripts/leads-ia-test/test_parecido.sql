@@ -64,7 +64,7 @@ SELECT id AS cv1 FROM public.lead_conversas WHERE lead_id = :'l1' \gset
 SELECT public.lead_ia_imoveis_parecidos(:'cv1', '{}', NULL, NULL, NULL, 'venda', 3) AS r1 \gset
 SELECT t.ok(t.cods(:'r1') = 'C1,B1,SAI1', 'P01 ordem: mesmo condomínio, depois mesmo bairro, depois quartos e preço mais perto (±15%; "Parque Campolim" não é Campolim)');
 SELECT t.ok(t.cods(:'r1') !~ '(P1|CARO|CASA|VOTO|SEMP|BX1)', 'P02 nunca: o próprio pedido, fora de ±15%, outro tipo, outra cidade, sem preço, outra imobiliária');
-SELECT t.ok((:'r1')::jsonb -> 'itens' -> 0 ->> 'mesmo_condominio' = 'true' AND (:'r1')::jsonb -> 'itens' -> 0 ->> 'preco' = 'R$ 680.000,00'
+SELECT t.ok((:'r1')::jsonb -> 'itens' -> 0 ->> 'mesmo_condominio' = 'true' AND (:'r1')::jsonb -> 'itens' -> 0 ->> 'preco' = 'R$ 680.000'
         AND (:'r1')::jsonb -> 'referencia' ->> 'codigo' = 'P1' AND (:'r1')::jsonb -> 'referencia' ->> 'no_xml' = 'true',
             'P03 item com preço formatado e marca de mesmo condomínio; referência = pedido no XML');
 SELECT t.ok(NOT ((:'r1')::jsonb -> 'itens' -> 0 ?| ARRAY['rua','numero','disponivel','aceita_permuta','aceita_financiamento','andar','corretor_nome','corretor_telefone']),
