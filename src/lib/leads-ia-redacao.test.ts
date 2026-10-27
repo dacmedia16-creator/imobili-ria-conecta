@@ -175,7 +175,7 @@ describe("validador da redação (travas depois do modelo)", () => {
     ).toBeNull();
     expect(
       validarRedacao(
-        s("Vou confirmar a disponibilidade e já te falo. Quer marcar uma visita?"),
+        s("O corretor confirma a disponibilidade com você na visita ou no contato. Quer marcar uma visita?"),
         PERM,
         "",
       ),

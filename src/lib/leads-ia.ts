@@ -1896,7 +1896,7 @@ export async function proximaResposta(
     return passar(
       dados,
       "qualificado",
-      junta(outras, "Anotei! Vou ver com o proprietário se ele aceita permuta."),
+      junta(outras, "Anotei! Se o proprietário aceita permuta, o corretor confirma com você."),
       `${CHAMAR} para conversar sobre isso.`,
       FALHA_PADRAO,
       `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,

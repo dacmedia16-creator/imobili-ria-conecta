@@ -141,7 +141,7 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
   it("venda vinda do portal: responde a dúvida e convida para a visita, sem faixa nem pagamento", async () => {
     const r = await conversa(["Quero saber valores", "uns 500 mil", "financiamento"]);
     expect(r.map((x) => x.passo)).toEqual(["interesse", "interesse", "interesse"]);
-    expect(r[0].resposta).toBe("Vou confirmar o valor e já te falo. Quer agendar uma visita para conhecer?"); // ficha sem preço
+    expect(r[0].resposta).toBe("O corretor confirma o valor com você na visita ou no contato. Quer agendar uma visita para conhecer?"); // ficha sem preço
     expect(perguntas(r)).toBe(0);
     expect(r[2].dados).toMatchObject({ faixa: "uns 500 mil", pagamento: ["financiamento"] });
   });
@@ -167,10 +167,10 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
     const r = await conversa(["sim", "ainda está disponível?", "e o condomínio?", "500 mil"]);
     expect(r[1].passo).toBe("interesse");
     // t_76243950: disponibilidade nunca é garantida.
-    expect(r[1].resposta).toBe("Vou confirmar a disponibilidade e já te falo. Quer saber mais algum detalhe?");
+    expect(r[1].resposta).toBe("O corretor confirma a disponibilidade com você na visita ou no contato. Quer saber mais algum detalhe?");
     // t_a9f1b447 item 6: "Quer saber mais algum detalhe?" não sai repetida.
     expect(r[2].resposta).toBe(
-      "Vou confirmar o valor do condomínio e já te falo. Quer que eu te mostre outras opções parecidas ou prefere marcar uma visita?",
+      "O corretor confirma o valor do condomínio com você na visita ou no contato. Quer que eu te mostre outras opções parecidas ou prefere marcar uma visita?",
     );
     for (const x of r) expect(x.resposta).not.toMatch(/faixa de valor|corretor/);
   });
@@ -180,7 +180,7 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   it("o que a ficha tem, responde; o que não tem, \"não tenho esse dado confirmado\"", async () => {
     const r = await proximaResposta(ctx({ passo: "faixa" }), "Quantos quartos tem? E tem vaga? Qual o condomínio?", undefined, { agora: AGORA });
     expect(r.resposta).toBe(
-      "O apartamento tem 3 quartos, sendo 1 suíte e 2 vagas de garagem. Vou confirmar o valor do condomínio e já te falo. Quer agendar uma visita para conhecer?",
+      "O apartamento tem 3 quartos, sendo 1 suíte e 2 vagas de garagem. O corretor confirma o valor do condomínio com você na visita ou no contato. Quer agendar uma visita para conhecer?",
     );
     expect(r.dados.pendentes).toEqual(expect.arrayContaining(["condomínio"]));
   });
@@ -197,7 +197,7 @@ describe("item 3 — respostas só pela ficha da captação", () => {
     for (const ficha of [FICHA, { ...FICHA, disponivel: true }, { ...FICHA, disponivel: false }]) {
       for (const t of ["ainda está disponível?", "já foi vendido?", "ainda está à venda?"]) {
         const r = await proximaResposta(ctx({ passo: "faixa", ficha }), t, undefined, { agora: AGORA });
-        expect(r.resposta).toContain("Vou confirmar a disponibilidade e já te falo.");
+        expect(r.resposta).toContain("O corretor confirma a disponibilidade com você na visita ou no contato.");
         expect(r.resposta).not.toMatch(/está disponível|indisponível|já foi vendido|não está/i);
         expect(r.dados.pendentes).toContain("disponibilidade");
       }
@@ -206,7 +206,7 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   it("quando a ficha passar a ter os campos, responde com eles (sem inventar; disponibilidade continua com o corretor)", async () => {
     const ficha: FichaIa = { ...FICHA, condominio: "R$ 650,00", iptu: "R$ 120,00", aceita_permuta: false, aceita_financiamento: true, andar: "5º andar, frente", disponivel: true };
     const r = await proximaResposta(ctx({ passo: "faixa", ficha }), "aceita financiamento? qual o condomínio e o iptu? qual andar? ainda está disponível?", undefined, { agora: AGORA });
-    for (const x of ["Aceita financiamento, sim.", "condomínio é de R$ 650 por mês", "IPTU é de R$ 120", "Fica no 5º andar, frente", "Vou confirmar a disponibilidade e já te falo."])
+    for (const x of ["Aceita financiamento, sim.", "condomínio é de R$ 650 por mês", "IPTU é de R$ 120", "Fica no 5º andar, frente", "O corretor confirma a disponibilidade com você na visita ou no contato."])
       expect(r.resposta).toContain(x);
     expect(r.resposta).not.toContain("não tenho esse dado");
     expect(r.resposta).not.toContain("stá disponível");
@@ -214,12 +214,12 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   it("preço sem dado no XML: vai confirmar, sem número; proposta só quando o cliente puxa o assunto", async () => {
     for (const t of ["qual o valor?", "quanto custa?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
-      expect(r.resposta).toBe("Vou confirmar o valor e já te falo. Quer agendar uma visita para conhecer?");
+      expect(r.resposta).toBe("O corretor confirma o valor com você na visita ou no contato. Quer agendar uma visita para conhecer?");
       expect(r.fim).toBeNull();
     }
     const p = await proximaResposta(ctx({ passo: "faixa" }), "aceita proposta?", undefined, { agora: AGORA });
     expect(p.fim).toBe("qualificado");
-    expect(p.resposta).toBe("Sobre proposta e valores, já pedi para {corretor} te chamar aqui para conversar com você.");
+    expect(p.resposta).toBe("Sobre proposta e valores, já pedi para {corretor} continuar seu atendimento por aqui.");
     expect(p.resposta).not.toMatch(/R\$\s*\d/);
     expect(p.resumo).toMatch(/PROPOSTA\/NEGOCIAÇÃO/);
   });
@@ -250,7 +250,7 @@ describe("item 4 — visita com 2 opções, pré-agendamento e prazo", () => {
     const f = r[1];
     expect(f.fim).toBe("visita");
     expect(f.resposta).toBe(
-      "Combinado, amanhã (terça, 27/10) de manhã! Já pedi para {corretor} te chamar aqui para confirmar o horário certinho até as 18h de hoje.",
+      "Combinado, amanhã (terça, 27/10) de manhã! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho até as 18h de hoje.",
     );
     expect(f.resumo).toMatch(/PRÉ-AGENDAMENTO: amanhã \(terça, 27\/10\) de manhã \(confirmar com o cliente até as 18h de hoje\)/);
   });
@@ -366,7 +366,7 @@ describe("item 7 — código do anúncio", () => {
   });
   it("cliente não sabe o código: segue sem pedir de novo", async () => {
     const r = await conversa(["oi", "não sei o código", "comprar"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null });
-    expect(r[1].resposta).toBe("Tudo bem! Já pedi para {corretor} te chamar aqui para te passar os detalhes.");
+    expect(r[1].resposta).toBe("Tudo bem! Já pedi para {corretor} continuar seu atendimento por aqui para te passar os detalhes.");
     expect(r.slice(1).some((x) => /código do anúncio/.test(x.resposta))).toBe(false);
   });
 });
@@ -486,7 +486,7 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
     const perto = { ...VIP0040, preco: "R$ 130.000", preco_valor: 130000 };
     const r = await proximaResposta(ctx(c({ passo: "faixa", ficha: perto, dados: { perguntas: ["faixa"] } })), "120000 aceita financiamento ?", undefined, { agora: AGORA });
     expect(r.dados.faixa).toBe("120000 aceita financiamento ?");
-    expect(r.resposta).toBe("Vou confirmar se aceita financiamento e já te falo. Quer agendar uma visita para conhecer?");
+    expect(r.resposta).toBe("O corretor confirma se aceita financiamento com você na visita ou no contato. Quer agendar uma visita para conhecer?");
     expect(r.resposta).not.toMatch(/faixa de valor|forma de pagamento|à vista ou com financiamento/);
   });
   it("faixa muito longe do preço anunciado: confirma com naturalidade (uma vez) e depois segue", async () => {
@@ -537,7 +537,7 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
     for (const t of ["aceita permuta?", "posso dar meu carro como parte?", "pago com permuta"]) {
       const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
       expect(r.fim, t).toBe("qualificado");
-      expect(r.resposta).toBe("Anotei! Vou ver com o proprietário se ele aceita permuta. Já pedi para {corretor} te chamar aqui para conversar sobre isso.");
+      expect(r.resposta).toBe("Anotei! Se o proprietário aceita permuta, o corretor confirma com você. Já pedi para {corretor} continuar seu atendimento por aqui para conversar sobre isso.");
       expect(r.resposta).not.toMatch(/(?<!se ele )aceita permuta|não aceita/); // nunca afirma se aceita
       expect(r.dados.pagamento).toContain("permuta");
       expect(r.resumo).toMatch(/PERMUTA/);
