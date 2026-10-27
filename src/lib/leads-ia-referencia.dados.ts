@@ -251,6 +251,90 @@ export const REFERENCIA: ConversaReferencia[] = [
       },
     ],
   },
+  // t_82c89141: lead 12f005b4 (DeepSeek ao vivo, 27/10) — itens 1, 2, 3, 4, 5 e 6a.
+  {
+    id: "D",
+    lead: "12f005b4",
+    anuncio: "3975",
+    ficha: ficha({
+      tipo: "casa", bairro: "Jardim Residencial Villa Amato", quartos: "3", suites: "1", banheiros: "3", vagas: "4",
+      area_construida_m2: "261", preco: "R$ 899.000", preco_valor: 899000, iptu: "R$ 167,00 por ano",
+      link: "https://vipsevenimoveis.com.br/imovel/3975",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Jardim Residencial Villa Amato, em Sorocaba, anunciada por R$ 899.000. Anúncio: https://vipsevenimoveis.com.br/imovel/3975 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      {
+        cliente: "quero mais detalhes",
+        esperado: "A casa tem 3 quartos, 1 suíte, 3 banheiros, 4 vagas e 261 m² construídos. O IPTU é de R$ 167 por ano. Quer agendar uma visita?",
+        antes: "Claro! A casa tem 3 banheiros, 4 vagas de garagem e 261 m² de área construida. O IPTU é de R$ 167 por ano. Quer agendar uma visita para conhecer?",
+      },
+      {
+        cliente: "tem mais opções?",
+        esperado: "Tenho sim! Uma casa de condomínio no Cajuru do Sul, 3 quartos, por R$ 870.000: https://vipsevenimoveis.com.br/imovel/VIP0022 Gostou?",
+        antes: "Nessa faixa, essa casa é a opção que tenho agora. Quer agendar uma visita para conhecer?",
+        falha: "disse que não tinha outra (havia 14 casas de condomínio na faixa)",
+      },
+      {
+        cliente: "tem alguma coisa 3 suítes?",
+        esperado: "Casa com 3 suítes nessa faixa não tenho. Tenho um APARTAMENTO com 3 suítes por R$ 975.000 — apartamento serve para você?",
+        antes: "Tenho um apartamento com 3 suítes, 4 quartos e 135 m², por R$ 975.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0015 Gostou?",
+        falha: "ofereceu apartamento a quem viu casa sem perguntar se aceita",
+      },
+      {
+        cliente: "aceita financiamento?",
+        esperado: "O corretor confirma isso com você na visita ou no contato. Quer agendar uma visita?",
+        antes: "Vou confirmar isso e já te falo! Enquanto isso, quer agendar uma visita para conhecer o apartamento?",
+        falha: "prometeu retorno",
+      },
+      {
+        cliente: "pode ser sábado?",
+        esperado: "Anotado, sábado! Fica melhor de manhã ou à tarde?",
+        antes: "Sábado anotado! Te confirmo o horário certinho.",
+        falha: "não perguntou o período e não avisou que o corretor continua",
+      },
+      {
+        cliente: "de manhã",
+        esperado: "Sábado de manhã anotado! Já pedi para o corretor, que vai continuar seu atendimento por aqui.",
+        antes: null,
+      },
+    ],
+  },
+  // t_82c89141: lead 6db2a3f4 (Gemini ao vivo, 27/10) — a conversa boa, para comparar.
+  {
+    id: "E",
+    lead: "6db2a3f4",
+    anuncio: "VIP0131",
+    ficha: ficha({
+      tipo: "casa", bairro: "Jardim Sao Carlos", quartos: "3", suites: "1", banheiros: "4", vagas: "2",
+      area_construida_m2: "94", area_terreno_m2: "140", preco: "R$ 749.970", preco_valor: 749970,
+      condominio: "R$ 550,00", iptu: "R$ 95,00 por mês", link: "https://vipsevenimoveis.com.br/imovel/VIP0131",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Jardim Sao Carlos, em Sorocaba, anunciada por R$ 749.970. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0131 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      {
+        cliente: "quero mais detalhes",
+        esperado: "Ela tem 94 m², 1 suíte, 4 banheiros e 2 vagas. O condomínio é R$ 550 e o IPTU R$ 95 por mês. Quer agendar uma visita?",
+        antes: "Ela tem 94 m² de área construída, terreno de 140 m², 1 suíte, 4 banheiros e 2 vagas. O condomínio fica R$ 550 e o IPTU R$ 95 por mês. Quer agendar uma visita para conhecer de perto?",
+      },
+      {
+        cliente: "tem mais opções ?",
+        esperado: "Tenho sim! Outra casa no Jardim São Carlos, 3 quartos, por R$ 750.000: https://vipsevenimoveis.com.br/imovel/3974 Gostou?",
+        antes: "Tenho sim! Tem outra casa no Jardim São Carlos com 3 quartos, 1 suíte e 116 m² por R$ 845.000. Veja aqui: https://vipsevenimoveis.com.br/imovel/3915 O que achou dessa?",
+      },
+      {
+        cliente: "legal gostaria de uma visita",
+        esperado: "Combinado! Tenho amanhã de manhã ou quinta à tarde. Qual fica melhor?",
+        antes: "Combinado! Para essa casa, temos opções para amanhã, quarta, 28/10, de manhã, ou quinta, 29/10, à tarde. Qual fica melhor para você?",
+      },
+      {
+        cliente: "quarta de manha",
+        esperado: "Quarta de manhã anotado! Já pedi para o corretor, que vai continuar seu atendimento por aqui.",
+        antes: "Perfeito, já anotei aqui para quarta-feira de manhã! Já pedi para o nosso time de corretores, que vai te chamar aqui para confirmar o horário certinho.",
+      },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------

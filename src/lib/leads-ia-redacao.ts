@@ -317,10 +317,11 @@ export type Bloqueio =
   | "retorno"
   | "sem_opcao"
   | "iptu"
-  | "tipo";
+  | "tipo"
+  | "idioma";
 
 /** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
-export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>(["retorno", "sem_opcao", "iptu"]);
+export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>(["retorno", "sem_opcao", "iptu", "idioma"]);
 
 /** Contagens conferidas pela trava "contagem". */
 export type Contagem = "quartos" | "suites" | "vagas" | "banheiros";
@@ -434,7 +435,9 @@ const RE_SEM_OPCAO =
   /(nao (tenho|temos|ha|achei|encontrei) (outr[ao]s?|mais (nenhum|opc|imove|casa|apart)|nenhum[ao]? outr|opc|nada)|(essas|estas) (sao|foram) as (unicas )?opcoes|sao as (unicas )?opcoes que (eu )?tenho|so tenho (essa|esse|essas|esses)|sem (outras|mais) opcoes)/;
 /** Promessa de voltar com a resposta (t_82c89141 item 3): quem confirma é o corretor, na visita ou no contato. */
 const RE_RETORNO =
-  /(ja te (falo|retorno|confirmo|aviso|digo|respondo)|te (retorno|confirmo|aviso|respondo)\b|vou (confirmar|verificar|checar|conferir|ver isso|consultar)|deixa eu (confirmar|verificar|ver|checar)|preciso (confirmar|verificar)|retorno (com|para|pra) (voce|vc)|volto (a falar|com a resposta|com voce))/;
+  /(ja te (falo|retorno|confirmo|aviso|digo|respondo)|te (retorno|confirmo|aviso|respondo)\b|vou (confirmar|verificar|checar|conferir|ver isso|consultar)|deixa eu (confirmar|verificar|ver|checar)|preciso (confirmar|verificar)|retorno (com|para|pra) (voce|vc)|volto (a falar|com a resposta|com voce)|(e|depois|ja) te (mando|envio|passo|trago)\b|vou (separar|procurar|buscar|levantar) (mais|outr|opc|algo|o que))/;
+/** Resposta fora do português (visto no DeepSeek real: "También tengo... ¿Te gusta?"). */
+const RE_IDIOMA = /[¿¡ñ]|\b(tambien|tengo|usted|mira|gusta|ademas|alguna|alguno|algun|aqui tienes|habitaciones|dormitorios con|precio de)\b/;
 /** Unidade do IPTU dita na mensagem (texto normalizado). */
 const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
 /** A única frase com "corretor" que o modelo pode escrever (sem dado, t_82c89141 item 3). */
@@ -546,6 +549,8 @@ export function validarRedacaoDetalhe(
   } else if (linksCand.length > 1) return b("oferta", `${linksCand.length} links de opções`);
 
   const n0 = norm(resto);
+  // Sempre em português do Brasil.
+  if (RE_IDIOMA.test(msg.toLowerCase()) || RE_IDIOMA.test(n0)) return b("idioma", achou(RE_IDIOMA, n0) ?? achou(RE_IDIOMA, msg.toLowerCase()));
   // t_82c89141 item 3: nunca prometer voltar com a resposta.
   if (RE_RETORNO.test(n0)) return b("retorno", achou(RE_RETORNO, n0));
   // Item 1: com candidato (ou sem a busca ter rodado), nunca dizer que não tem outra opção.
@@ -694,9 +699,10 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     oferta: "ofereça só um imóvel de CANDIDATOS ainda não oferecido, com o codigo dele",
     datas: "ainda não ofereça dias nem horários; convide de forma simples para a visita",
     retorno: "não prometa voltar com a resposta; diga que o corretor confirma com você na visita ou no contato",
-    sem_opcao: "não diga que não tem outra opção: há CANDIDATOS em DADOS (ofereça um) ou a busca não rodou (diga que vai separar mais opções)",
+    sem_opcao: "não diga que não tem outra opção: há CANDIDATOS em DADOS (ofereça um) ou a busca não rodou (pergunte o que o cliente procura, como quartos ou bairro, sem prometer mandar depois)",
     iptu: "o período do IPTU só pode ser dito se DADOS trouxer iptu_periodo; senão diga só o valor",
     tipo: "o imóvel oferecido é de outro tipo; diga o tipo dele com todas as letras e pergunte se esse tipo serve",
+    idioma: "responda só em português do Brasil",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
