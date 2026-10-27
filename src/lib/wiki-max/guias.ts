@@ -251,7 +251,7 @@ export const GUIAS: WikiGuia[] = [
       "No quadro <b>Nova captação</b>, clique no botão com o <b>nome da sua unidade</b>. A captação é criada na hora, como rascunho.",
       "Abra a captação, confira os documentos e complete os dados.",
       "Contrato já assinado no papel? Clique em <b>Cadastrar exclusividade já assinada</b> e envie o PDF ou a foto. O gestor confere e aprova.",
-      "Acompanhe pelos contadores: <b>Aguardando gestor</b>, <b>Em assinatura</b>, <b>Devolvidas</b> e <b>Aprovadas no mês</b>.",
+      "Acompanhe pelos contadores: <b>Aguardando gestor</b>, <b>Em assinatura</b>, <b>Devolvidas</b>, <b>Aprovadas no mês</b> e <b>Aprovadas (total)</b>.",
       "Clique em <b>Vencendo</b> para ver as exclusividades perto do fim (ou use o filtro Situação → <b>Vence em até 30 dias</b>).",
       "Em <b>Painel e mapa</b> (ou no menu <b>Mapa de captações</b>) você vê as captações no mapa.",
     ],
