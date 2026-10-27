@@ -120,6 +120,8 @@ export type DadosQualificacao = {
   faixa_conferida?: boolean;
   /** A pergunta "Só confirmando: sua faixa é de R$ X?" espera resposta (vale só no turno seguinte). */
   faixa_pendente?: boolean;
+  /** Outras buscas do cliente na mesma conversa (ex.: apartamento para o filho), resumo para o corretor (t_7b59589c). */
+  outras_buscas?: string[];
 };
 
 export type ContextoIa = {

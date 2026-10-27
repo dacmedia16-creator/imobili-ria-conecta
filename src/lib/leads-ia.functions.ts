@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { argsParecidos, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type ImovelEncontrado } from "./leads-ia";
+import { argsParecidos, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
+import { historicoDb, redacaoLigadaDb, redigirResposta } from "./leads-ia-redacao";
 
 /**
  * Tela de teste da IA (card t_8046ecb0): o gestor responde COMO SE FOSSE o cliente.
@@ -53,17 +54,30 @@ export const responderComoCliente = createServerFn({ method: "POST" })
       process.env as Record<string, string | undefined>,
       (u) => usos.push(u),
     );
-    const r = await proximaResposta({ ...c, dados: c.dados ?? {} }, data.texto, extrator, {
+    // Imóvel parecido do XML da própria imobiliária (t_232e13cb). Erro = sem oferta.
+    const buscarParecidos = async (filtro: FiltroParecido) => {
+      const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(c.conversa_id, filtro));
+      return ep ? null : normalizarParecidos(pr);
+    };
+    const ctxIa: ContextoIa = { ...c, dados: c.dados ?? {} };
+    let r = await proximaResposta(ctxIa, data.texto, extrator, {
       buscarImovel: async (codigo) => {
         const { data: im, error: ei } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: c.conversa_id, _codigo: codigo });
         return ei ? null : ((im as ImovelEncontrado | null) ?? null);
       },
-      // Imóvel parecido do XML da própria imobiliária (t_232e13cb). Erro = sem oferta.
-      buscarParecidos: async (filtro) => {
-        const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(c.conversa_id, filtro));
-        return ep ? null : normalizarParecidos(pr);
-      },
+      buscarParecidos,
     });
+    // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve (mesmo caminho do WhatsApp).
+    if (conf.organization_id && (await redacaoLigadaDb(db, conf.organization_id).catch(() => false))) {
+      const historico = await historicoDb(db, c.conversa_id).catch(() => []);
+      r = await redigirResposta(ctxIa, data.texto, r, {
+        escolha: { provedor: conf.ia_modelo_provedor === "openrouter" ? "openrouter" : "gemini", modelo: conf.ia_modelo ?? null },
+        env: process.env as Record<string, string | undefined>,
+        historico,
+        buscarParecidos,
+        registrar: (u) => usos.push(u),
+      });
+    }
     if (conf.organization_id && usos.length) {
       const { error: eu } = await db
         .from("lead_ia_uso")
