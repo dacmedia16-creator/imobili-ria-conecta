@@ -14,8 +14,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
 import {
+  argsBusca,
   argsParecidos,
   normalizarParecidos,
+  type FiltroBusca,
   proximaResposta,
   respostaMidia,
   type ContextoIa,
@@ -151,6 +153,8 @@ export type DepsRetorno = {
   buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
   /** Imóvel parecido do XML da própria imobiliária (lead_ia_imoveis_parecidos, t_232e13cb). Opcional. */
   buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
+  /** Busca nova no XML da própria imobiliária (lead_ia_imoveis_busca, t_5b493bc9). Opcional. */
+  buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
   env: Record<string, string | undefined>;
   fetchFn?: typeof fetch;
   esperar?: (ms: number) => Promise<void>;
@@ -301,6 +305,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
         : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
             buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
             buscarParecidos: deps.buscarParecidos ? (f) => deps.buscarParecidos!(c.conversa_id, f) : undefined,
+            buscarImoveis: deps.buscarImoveis ? (f) => deps.buscarImoveis!(c.conversa_id, f) : undefined,
           });
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -419,6 +424,11 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     },
     buscarParecidos: async (conversaId, filtro) => {
       const { data, error } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(conversaId, filtro));
+      return error ? null : normalizarParecidos(data);
+    },
+    // Função nova (migration 20261027110000): enquanto não for aplicada, o erro vira "vou procurar" + passagem.
+    buscarImoveis: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_busca", argsBusca(conversaId, filtro));
       return error ? null : normalizarParecidos(data);
     },
     env: process.env as Record<string, string | undefined>,
