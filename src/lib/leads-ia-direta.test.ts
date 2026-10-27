@@ -132,7 +132,7 @@ const ESPERADO = [
   "Perfeito! E em qual bairro ou região de Sorocaba ele prefere?",
   "Certo! E até quanto ele pensa em investir?",
   "Ótimo! Achei um apartamento no bairro Parque Campolim, em Sorocaba, com 1 quarto e 47 m², por R$ 389.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3656 O que acha? Se quiser, te mando outra opção.",
-  "Que bom que gostou! Já pedi para {corretor} te chamar aqui para combinar a visita desse apartamento.",
+  "Que bom que gostou! Já pedi para {corretor} continuar seu atendimento por aqui para combinar a visita desse apartamento.",
 ];
 
 describe("conversa real do lead 4c2e125f (27/10), refeita", () => {
@@ -153,7 +153,7 @@ describe("conversa real do lead 4c2e125f (27/10), refeita", () => {
     // Item 11: a busca nova é registrada para o corretor, sem perder o interesse na casa.
     const fim = out.at(-1)!;
     expect(fim.fim).toBe("qualificado");
-    expect(fim.resposta_falha).toBe("Que bom que gostou! Anotei tudo aqui e já te retorno por aqui.");
+    expect(fim.resposta_falha).toBe("Que bom que gostou! Anotei tudo aqui. Um corretor da nossa equipe vai continuar seu atendimento por aqui.");
     expect(fim.resumo).toMatch(/Imóvel: a casa do bairro Condominio Ibiti Reserva; anúncio VIP0119/);
     expect(fim.resumo).toMatch(/parecidos oferecidos pela IA: 3921, 3920, 2501/);
     expect(fim.resumo).toMatch(/SEGUNDA BUSCA \(para o filho\): apartamento, para comprar, região campolim, faixa até 400 mil, oferecidos: 3656, INTERESSE no código 3656/);
@@ -188,10 +188,10 @@ describe("pergunta objetiva: só o dado, 1 ou 2 frases, e 1 pergunta natural", (
   it("dado que não está no XML: vou confirmar (e vira pendência do corretor)", async () => {
     const semIptu: FichaIa = { ...VIP0119, iptu: undefined };
     const r = await proximaResposta(ctx({ ficha: semIptu }), "e o iptu?", undefined, { agora: AGORA });
-    expect(r.resposta).toBe("Vou confirmar o valor do IPTU e já te falo. Quer agendar uma visita para conhecer?");
+    expect(r.resposta).toBe("O corretor confirma o valor do IPTU com você na visita ou no contato. Quer agendar uma visita para conhecer?");
     expect(r.dados.pendentes).toContain("IPTU");
-    expect(await responde("aceita financiamento?")).toBe("Vou confirmar se aceita financiamento e já te falo. Quer agendar uma visita para conhecer?");
-    expect(await responde("ainda está disponível?")).toBe("Vou confirmar a disponibilidade e já te falo. Quer agendar uma visita para conhecer?");
+    expect(await responde("aceita financiamento?")).toBe("O corretor confirma se aceita financiamento com você na visita ou no contato. Quer agendar uma visita para conhecer?");
+    expect(await responde("ainda está disponível?")).toBe("O corretor confirma a disponibilidade com você na visita ou no contato. Quer agendar uma visita para conhecer?");
   });
   it("2ª pergunta: não repete o convite da visita; pergunta se quer mais algum detalhe", async () => {
     const { out } = await conversa(["qual valor do Condominio ?", "e o iptu?"]);
@@ -207,7 +207,7 @@ describe("pergunta objetiva: só o dado, 1 ou 2 frases, e 1 pergunta natural", (
   it("proposta só quando o cliente puxa o assunto (e aí passa, uma vez, com naturalidade)", async () => {
     const r = await proximaResposta(ctx(), "aceita proposta?", undefined, { agora: AGORA });
     expect(r.fim).toBe("qualificado");
-    expect(r.resposta).toBe("Sobre proposta e valores, já pedi para {corretor} te chamar aqui para conversar com você.");
+    expect(r.resposta).toBe("Sobre proposta e valores, já pedi para {corretor} continuar seu atendimento por aqui.");
     for (const t of ["qual valor do Condominio ?", "qual o valor?", "quanto é o IPTU?"]) expect(await responde(t)).not.toMatch(/proposta|negocia/i);
   });
   it("pedido de detalhes: manda a ficha UMA vez, sem repetir tipo/bairro/valor da 1ª mensagem", async () => {
@@ -248,7 +248,7 @@ describe("item 11: pergunta nova sempre primeiro; busca nova sem perder a casa",
   it("sem achar no XML: diz que vai procurar e passa, sem perder o interesse na casa", async () => {
     const { out } = await conversa(["vcs trabalham com terreno? é pro meu irmão", "comprar", "tanto faz", "até 100 mil"]);
     const fim = out.at(-1)!;
-    expect(fim.resposta).toBe("Ótimo! Agora não achei um terreno nesse perfil por aqui, mas vou procurar para o seu irmão. Já pedi para {corretor} te chamar aqui com as opções.");
+    expect(fim.resposta).toBe("Ótimo! Agora não achei um terreno nesse perfil por aqui, mas vou procurar para o seu irmão. Já pedi para {corretor} continuar seu atendimento por aqui com as opções.");
     expect(fim.resumo).toMatch(/Imóvel: a casa do bairro Condominio Ibiti Reserva.*SEGUNDA BUSCA \(para o irmão\): terreno, para comprar/);
   });
   it("busca nova vai ao banco só com filtros válidos", () => {
