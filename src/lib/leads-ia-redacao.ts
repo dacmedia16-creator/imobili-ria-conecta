@@ -17,6 +17,8 @@ import {
   ENV_OPENROUTER,
   GEMINI_MODELO,
   GEMINI_PRECO_USD_M,
+  opcoesOpenRouter,
+  rotaDe,
   type EscolhaModelo,
   type UsoModelo,
 } from "./leads-ia-modelo";
@@ -46,6 +48,10 @@ import {
 export const REDACAO_TIMEOUT_MS = 12_000;
 /** Modo observar: a 2ª tentativa tem tempo menor (o trabalho em segundo plano do Worker tem ~30 s no total). */
 export const REDACAO_RETRY_TIMEOUT_MS = 6_000;
+/** OpenRouter (DeepSeek sem raciocínio: média ~2 s, pior ~5 s no t_48ddeac0): 1ª chamada 8 s, 2ª 6 s e o Gemini
+ * de reserva 10 s. Pior caso ≈ 24 s + espera humana (até 6 s), dentro dos ~30 s do Worker (t_3ea838d7). */
+export const REDACAO_OR_TIMEOUT_MS = 8_000;
+export const REDACAO_GEMINI_RESERVA_MS = 10_000;
 /** Validador por imobiliária (lead_config.ia_validador_modo, t_3a4bf078): "bloquear" (padrão) troca a mensagem
  * barrada pelo plano B; "observar" envia SEMPRE a mensagem do modelo e só registra o que teria barrado. */
 export type ModoValidador = "bloquear" | "observar";
@@ -625,6 +631,7 @@ type Chamada = {
   tokens_entrada: number | null;
   tokens_saida: number | null;
   custo_usd: number | null;
+  rota?: string | null;
 };
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
 const falha = (erro: string): Chamada => ({
@@ -716,13 +723,8 @@ export async function redigirOpenRouter(
         max_tokens: 1024,
         temperature: 0.4,
         response_format: { type: "json_object" },
-        provider: {
-          data_collection: "deny",
-          zdr: true,
-          allow_fallbacks: true,
-          max_price: { prompt: 3, completion: 15 },
-        },
-        reasoning: { effort: "low", exclude: true },
+        // DeepSeek: só Relace/DeepInfra/Reka e sem raciocínio (t_3ea838d7); os demais como antes.
+        ...opcoesOpenRouter(modelo, { effort: "low", exclude: true }),
         usage: { include: true },
       }),
     });
@@ -731,6 +733,7 @@ export async function redigirOpenRouter(
       choices?: Array<{ message?: { content?: string } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
       error?: { code?: number };
+      provider?: string;
     };
     if (j.error) return falha(`erro_${num(j.error.code) ?? "x"}`);
     return {
@@ -740,6 +743,7 @@ export async function redigirOpenRouter(
       tokens_entrada: num(j.usage?.prompt_tokens),
       tokens_saida: num(j.usage?.completion_tokens),
       custo_usd: num(j.usage?.cost),
+      rota: rotaDe(j.provider),
     };
   } catch (e) {
     return falha((e as Error)?.name === "TimeoutError" ? "timeout" : "rede");
@@ -893,22 +897,32 @@ export async function redigirResposta(
     const m = correcao ? { sistema: msgs.sistema, usuario: `${msgs.usuario}\n\nCORREÇÃO: ${correcao}` } : msgs;
     chamada = null;
     uso = null;
+    let tentReal = tentativa;
     if (usaOr) {
-      chamada = await redigirOpenRouter(orKey!, op.escolha.modelo!, m, fetchFn, tempo);
+      // Plano B do OpenRouter (t_3ea838d7): erro, demora ou provedor fora = tenta 1 vez de novo no mesmo
+      // modelo; se falhar de novo, vai ao Gemini (não à frase pronta). Cada falha fica no lead_ia_uso.
+      const ate = tentativa === 1 ? 2 : 1;
       uso = { provedor: "openrouter", modelo: op.escolha.modelo!, fallback: false };
-      if (!chamada.ok && usaGemini) {
-        op.registrar({
-          ...uso,
-          ...semTexto(chamada),
-          uso: "redigir",
-          bloqueado: false,
-          bloqueio: null,
-        });
+      for (let k = 1; k <= ate; k++) {
+        tentReal = Math.min(2, tentativa + k - 1);
+        if (chamada && !chamada.ok)
+          op.registrar({ ...uso, ...semTexto(chamada), uso: "redigir", bloqueado: false, bloqueio: null, tentativa: tentReal - 1 });
+        chamada = await redigirOpenRouter(
+          orKey!,
+          op.escolha.modelo!,
+          m,
+          fetchFn,
+          tentReal === 1 ? REDACAO_OR_TIMEOUT_MS : REDACAO_RETRY_TIMEOUT_MS,
+        );
+        if (chamada.ok) break;
+      }
+      if (chamada && !chamada.ok && usaGemini) {
+        op.registrar({ ...uso, ...semTexto(chamada), uso: "redigir", bloqueado: false, bloqueio: null, tentativa: tentReal });
         chamada = null;
       }
     }
     if (!chamada && usaGemini) {
-      chamada = await redigirGemini(gKey!, m, fetchFn, tempo);
+      chamada = await redigirGemini(gKey!, m, fetchFn, usaOr ? REDACAO_GEMINI_RESERVA_MS : tempo);
       uso = { provedor: "gemini", modelo: GEMINI_MODELO, fallback: usaOr };
     }
     if (!chamada || !uso) return observar ? semResposta() : plano();
@@ -931,7 +945,7 @@ export async function redigirResposta(
       bloqueado: !!detalhe,
       bloqueio: detalhe?.motivo ?? null,
       bloqueio_trecho: detalhe?.trecho ?? null,
-      tentativa,
+      tentativa: tentReal,
       ...(observar ? { observado } : {}),
     });
     if (saida && !detalhe) break; // aprovada
@@ -945,6 +959,9 @@ export async function redigirResposta(
     }
     // Erro/demora/JSON ruim: só o modo observar tenta de novo.
     if (!observar) break;
+    // OpenRouter: o plano B (2ª chamada + Gemini) já rodou nesta volta; outra volta estouraria o tempo do Worker.
+    // Só uma resposta ruim (JSON) do OpenRouter na 1ª chamada ganha a 2ª volta (que ainda tem o Gemini de reserva).
+    if (usaOr && (!chamada.ok || tentReal >= 2 || uso.provedor === "gemini")) break;
   }
   // Observar: se a 2ª falhou (erro), sai a 1ª resposta legível, mesmo barrada (a trava só registra).
   if (observar && !saida && primeira) {
@@ -1092,5 +1109,6 @@ function semTexto(c: Chamada) {
     tokens_entrada: c.tokens_entrada,
     tokens_saida: c.tokens_saida,
     custo_usd: c.custo_usd,
+    rota: c.rota ?? null,
   };
 }
