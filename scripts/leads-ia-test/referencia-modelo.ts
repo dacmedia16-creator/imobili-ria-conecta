@@ -22,7 +22,7 @@ for (const l of readFileSync(ENVF, "utf8").split("\n")) {
 }
 if (!env.OPENROUTER_API_KEY) throw new Error("sem chave");
 
-type Linha = { conv: string; cliente: string; esperado: string; antes: string | null; depois: string; origem: string; t1: string | null; t2: string | null; custo: number; ms: number };
+type Linha = { conv: string; cliente: string; esperado: string; antes: string | null; depois: string; origem: string; t1: string | null; t2: string | null; custo: number; ms: number; brutos: string[] };
 
 async function main() {
   const linhas: Linha[] = [];
@@ -37,10 +37,19 @@ async function main() {
     for (const f of conv.falas) {
       if (total >= TETO) break;
       const usos: UsoModelo[] = [];
+      // t_91c8cf89: guarda o texto cru de cada tentativa (para ver o que a trava barrou).
+      const brutos: string[] = [];
+      const fetchFn: typeof fetch = async (u, i) => {
+        const res = await fetch(u, i);
+        const j = (await res.clone().json().catch(() => null)) as { choices?: Array<{ message?: { content?: string } }> } | null;
+        brutos.push(j?.choices?.[0]?.message?.content ?? "");
+        return res;
+      };
       const base = await proximaResposta(c, f.cliente, undefined, { agora: AGORA, ...b });
       const t0 = Date.now();
       const r = await redigirResposta(c, f.cliente, base, {
         escolha: { provedor: "openrouter", modelo: MODELO },
+        fetchFn,
         env,
         historico: [...hist],
         buscarParecidos: b.buscarParecidos,
@@ -69,7 +78,7 @@ async function main() {
             ? u2 ? "MODELO (2ª tentativa)" : "MODELO"
             : `FRASE PRONTA (${r.bloqueio ?? u1?.erro ?? "?"})`;
       const tr = (u?: UsoModelo) => (u ? (u.bloqueado ? `${u.bloqueio}: ${u.bloqueio_trecho ?? ""}` : u.ok ? "ok" : `erro ${u.erro}`) : null);
-      linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms });
+      linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms, brutos });
       hist.push({ autor: "cliente", texto: f.cliente }, { autor: "ia", texto: r.resposta });
       if (r.fim) break;
       c = { ...c, passo: r.passo, dados: r.dados, versao: c.versao + 1 };
