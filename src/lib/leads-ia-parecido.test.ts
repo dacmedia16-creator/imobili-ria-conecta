@@ -155,7 +155,7 @@ describe("quando oferece (regra 1)", () => {
   it("(b) anúncio saiu do XML: avisa e oferece parecido", async () => {
     const busca = buscaFake(CATALOGO, { codigo: "VIP0109", saiu: true, preco: 600000 });
     const rs = await conversa(["oi, quero saber mais"], busca, { ficha: null, imovel_fonte: null, anuncio_codigo: "VIP0109", imovel_frase: null, tem_captacao: false });
-    expect(rs[0].resposta).toMatch(/^Esse anúncio saiu do nosso catálogo, vou confirmar a situação dele e já te falo\./);
+    expect(rs[0].resposta).toMatch(/^Esse anúncio saiu do nosso catálogo, o corretor confirma a situação dele com você na visita ou no contato\./);
     expect(ofertas(rs)).toBe(1);
   });
 

@@ -118,7 +118,8 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
     const c = ctx({ passo: "visita", dados: dadosVisita });
     const r = await proximaResposta(c, "sabado de manha pode ser?", undefined, { agora: AGORA, buscarParecidos: buscar });
     expect(r.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
-    expect(r.resposta_falha).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
+    // t_82c89141 item 6a: a falha também avisa que um corretor continua o atendimento.
+    expect(r.resposta_falha).toBe("Sábado de manhã anotado! Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.");
     expect(r.resposta).not.toMatch(/quarta|quinta/i);
     expect(r.fim).toBe("visita");
     expect(r.resumo).toMatch(/PRÉ-AGENDAMENTO: sábado de manhã, dia pedido pelo cliente, fora das opções oferecidas \(confirmar/);
@@ -149,7 +150,8 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
   });
   it("modelo ligado: depois de o modelo convidar para a visita, o pedido de sábado no turno seguinte também é anotado", async () => {
     const { r } = await rodar("e FGTS da pra usar?", {
-      mensagem: "Vou confirmar sobre o uso do FGTS e já te falo! Enquanto isso, quer marcar uma visita para conhecer a casa?",
+      // t_82c89141 item 3: "vou confirmar e já te falo" agora é barrado pela trava "retorno".
+      mensagem: "O corretor confirma o uso do FGTS com você na visita ou no contato. Enquanto isso, quer marcar uma visita para conhecer a casa?",
       acao: "responder",
     });
     expect(r.redigida).toBe(true);

@@ -172,7 +172,8 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
     expect(r[2].resposta).toBe(
       "O corretor confirma o valor do condomínio com você na visita ou no contato. Quer que eu te mostre outras opções parecidas ou prefere marcar uma visita?",
     );
-    for (const x of r) expect(x.resposta).not.toMatch(/faixa de valor|corretor/);
+    // t_82c89141 item 3: "o corretor confirma ... com você" é permitido; nunca pergunta faixa nem cita o corretor fora disso.
+    for (const x of r) expect(x.resposta.replace(/O corretor confirma [^.]+\./g, "")).not.toMatch(/faixa de valor|corretor/);
   });
 });
 
@@ -187,7 +188,9 @@ describe("item 3 — respostas só pela ficha da captação", () => {
   it("condomínio/IPTU, permuta, financiamento e andar sem dado: nunca estima", async () => {
     for (const t of ["qual o valor do condomínio?", "quanto é o IPTU?", "aceita financiamento?", "qual andar?"]) {
       const r = await proximaResposta(ctx({ passo: "faixa" }), t, undefined, { agora: AGORA });
-      expect(r.resposta).toMatch(/^Vou confirmar .+ e já te falo\. /);
+      // t_82c89141 item 3: sem promessa de retorno; o corretor confirma na visita ou no contato.
+      expect(r.resposta).toMatch(/^O corretor confirma .+ com você na visita ou no contato\. /);
+      expect(r.resposta).not.toMatch(/já te falo|te retorno|vou confirmar/i);
       // "Vou confirmar se aceita financiamento" não afirma nada; afirmar ("Aceita financiamento, sim") é proibido.
       expect(r.resposta).not.toMatch(/R\$|\d+ ?(mil|reais)|(?<!se )aceita (permuta|financiamento)\b(?! ?\?)|andar \d/);
       expect(r.fim).toBeNull();
@@ -283,7 +286,8 @@ describe("item 5 — \"encaminhei\" verificável", () => {
     ];
     for (const r of casos) {
       expect(r.fim).not.toBeNull();
-      expect(r.resposta).toMatch(/Já pedi para \{corretor\} te (chamar|responder)/);
+      // t_82c89141 item 6a: a passagem diz que o corretor continua o atendimento.
+      expect(r.resposta).toMatch(/Já pedi para \{corretor\} (te (chamar|responder)|continuar seu atendimento)/);
       expect(r.resposta_falha).toBeTruthy();
       expect(r.resposta_falha).not.toMatch(/já pedi|encaminhei|\{corretor\}/i);
       expect(r.resposta_falha).toMatch(/(Registrei|Anotei)/);
@@ -361,7 +365,7 @@ describe("item 7 — código do anúncio", () => {
     const r = await proximaResposta(ctx({ passo: "faixa", ficha: fichaXml }), "qual o condomínio e o IPTU? ainda está disponível? qual andar?", undefined, { agora: AGORA });
     expect(r.resposta).toContain("O condomínio é de R$ 720 por mês.");
     expect(r.resposta).toContain("O IPTU é de R$ 140 por mês.");
-    expect(r.resposta).toMatch(/Vou confirmar a disponibilidade e o andar e a posição e já te falo\./);
+    expect(r.resposta).toMatch(/O corretor confirma a disponibilidade e o andar e a posição com você na visita ou no contato\./);
     expect(r.dados.pendentes).toEqual(["disponibilidade", "andar/posição"]);
   });
   it("cliente não sabe o código: segue sem pedir de novo", async () => {
@@ -473,7 +477,7 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
     expect(r.resposta).toBe("O condomínio é de R$ 478 por mês. O IPTU é de R$ 58 por mês. Quer agendar uma visita para conhecer?");
     const semPreco = { ...VIP0040, preco: undefined, preco_valor: undefined };
     const r2 = await proximaResposta(ctx(c({ passo: "faixa", ficha: semPreco })), "quanto custa?", undefined, { agora: AGORA });
-    expect(r2.resposta).toMatch(/^Vou confirmar o valor e já te falo\./);
+    expect(r2.resposta).toMatch(/^O corretor confirma o valor com você na visita ou no contato\./);
     expect(r2.resposta).not.toMatch(/R\$\s*\d/);
   });
   it("locação: diz o aluguel do XML (e o condomínio/IPTU se vierem)", async () => {
@@ -538,7 +542,7 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
       const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
       expect(r.fim, t).toBe("qualificado");
       expect(r.resposta).toBe("Anotei! Se o proprietário aceita permuta, o corretor confirma com você. Já pedi para {corretor} continuar seu atendimento por aqui para conversar sobre isso.");
-      expect(r.resposta).not.toMatch(/(?<!se ele )aceita permuta|não aceita/); // nunca afirma se aceita
+      expect(r.resposta).not.toMatch(/(?<![Ss]e (ele|o proprietário) )aceita permuta|não aceita/); // nunca afirma se aceita
       expect(r.dados.pagamento).toContain("permuta");
       expect(r.resumo).toMatch(/PERMUTA/);
     }
