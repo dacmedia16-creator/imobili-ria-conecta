@@ -61,6 +61,26 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number }> = [
   { ...casa({ codigo: "3800", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "1", area_util_m2: "73", preco: "R$ 715.000" }), preco_valor: 715000 },
   { ...casa({ codigo: "2452", tipo: "casa", bairro: "Alphaville Nova Esplanada", cidade: "Votorantim", quartos: "4", suites: "4", vagas: "4", area_util_m2: "297", preco: "R$ 1.870.000" }), preco_valor: 1870000 },
   { ...casa({ codigo: "2100", tipo: "casa", bairro: "Alphaville Nova Esplanada", cidade: "Votorantim", quartos: "3", suites: "3", vagas: "4", area_util_m2: "225", preco: "R$ 1.879.000" }), preco_valor: 1879000 },
+  // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
+  ...(
+    [
+      ["3975", "casa", "Jardim Residencial Villa Amato", "3", "1", "4", "261", 899000],
+      ["VIP0022", "casa-de-condominio", "Cajuru do Sul", "3", "1", "2", "127", 870000],
+      ["VIP0167", "casa-de-condominio", "Vila Lucy", "3", "1", "3", "160", 939000],
+      ["VIP0150", "casa-de-condominio", "Jardim Novo Horizonte", "3", "1", "4", "129", 850000],
+      ["3914", "casa-de-condominio", "Golden Park Residencial", "3", "1", "4", "188", 845000],
+      ["3915", "casa-de-condominio", "Jardim São Carlos", "3", "1", "2", "116", 845000],
+      ["VIP0112", "casa-de-condominio", "Jardim Ibiti do Paço", "3", "1", "4", "235", 990000],
+      ["3980", "casa-de-condominio", "Jardim Pagliato", "3", "1", "2", "128", 799000],
+      ["VIP0131", "casa-de-condominio", "Jardim Sao Carlos", "3", "1", "2", "94", 749970],
+      ["3974", "casa-de-condominio", "Jardim São Carlos", "3", "1", "2", "94", 750000],
+      ["3883", "casa-de-condominio", "Cajuru do Sul", "3", "1", "2", "180", 750000],
+    ] as const
+  ).map(([codigo, tipo_xml, bairro, quartos, suites, vagas, area, v]) => ({
+    ...casa({ codigo, tipo: "casa", bairro, quartos, suites, vagas, area_util_m2: area, preco: `R$ ${v.toLocaleString("pt-BR")}` }),
+    preco_valor: v,
+    tipo_xml,
+  })),
 ];
 
 const ficha = (x: FichaIa): FichaIa => ({ cidade: "Sorocaba", negocio: "venda", ...x });
