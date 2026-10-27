@@ -214,17 +214,17 @@ describe("conteúdo e passagem (regra 4)", () => {
     expect(textoParecido(P("X1", { preco: undefined, url: undefined }), 1)).not.toMatch(/R\$|Dá uma olhada|http/);
   });
 
-  it("cliente se interessa: a própria Nicole oferece a visita; na escolha, passa ao corretor com o código", async () => {
-    const rs = await conversa(["tem outras opções?", "gostei, quero esse", "a primeira"], buscaFake());
+  it("cliente se interessa: convite simples primeiro (t_a9f1b447 item 7); 'sim' traz as datas; na escolha, passa com o código", async () => {
+    const rs = await conversa(["tem outras opções?", "gostei, quero esse", "sim", "a primeira"], buscaFake());
     expect(rs[1].fim).toBeNull();
-    expect(rs[1].passo).toBe("visita");
-    expect(rs[1].resposta).toBe(
-      "Que bom que gostou! Para conhecer esse apartamento, tenho amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde. Qual fica melhor para você? Te confirmo o horário certinho.",
-    );
+    expect(rs[1].resposta).toBe("Que bom que gostou! Quer agendar uma visita para conhecer esse apartamento?");
+    expect(rs[1].resposta).not.toMatch(/\d{2}\/\d{2}|manhã|tarde/);
     expect(rs[1].dados.parecido_interesse).toBe("VIP0101");
-    expect(rs[2].fim).toBe("visita");
-    expect(rs[2].resumo).toMatch(/INTERESSE NO IMÓVEL PARECIDO código VIP0101/);
-    expect(rs[2].resposta_falha).toBeTruthy();
+    expect(rs[2].passo).toBe("visita");
+    expect(rs[2].resposta).toMatch(/amanhã .*manhã|tarde/);
+    expect(rs[3].fim).toBe("visita");
+    expect(rs[3].resumo).toMatch(/INTERESSE NO IMÓVEL PARECIDO código VIP0101/);
+    expect(rs[3].resposta_falha).toBeTruthy();
   });
 
   it("quer visitar o parecido: oferece 2 horários para ele", async () => {

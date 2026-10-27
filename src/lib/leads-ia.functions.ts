@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { argsBusca, argsParecidos, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
+import { argsBusca, argsCaracteristica, argsParecidos, normalizarCaracteristica, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
 import { historicoDb, redacaoLigadaDb, redigirResposta } from "./leads-ia-redacao";
 
@@ -70,6 +70,11 @@ export const responderComoCliente = createServerFn({ method: "POST" })
       buscarImoveis: async (filtro) => {
         const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_busca", argsBusca(c.conversa_id, filtro));
         return ep ? null : normalizarParecidos(pr);
+      },
+      // Busca por característica (t_a9f1b447). Erro (função ainda não aplicada) = "vou procurar".
+      buscarCaracteristica: async (filtro) => {
+        const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_caracteristica", argsCaracteristica(c.conversa_id, filtro));
+        return ep ? null : normalizarCaracteristica(pr);
       },
     });
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve (mesmo caminho do WhatsApp).

@@ -15,8 +15,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
 import {
   argsBusca,
+  argsCaracteristica,
   argsParecidos,
+  normalizarCaracteristica,
   normalizarParecidos,
+  type FiltroCaracteristicaBusca,
+  type ResultadoCaracteristica,
   type FiltroBusca,
   proximaResposta,
   respostaMidia,
@@ -156,6 +160,8 @@ export type DepsRetorno = {
   buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
   /** Busca nova no XML da própria imobiliária (lead_ia_imoveis_busca, t_5b493bc9). Opcional. */
   buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
+  /** Busca por característica (suítes, quartos, vagas...) no XML da própria imobiliária (t_a9f1b447). Opcional. */
+  buscarCaracteristica?: (conversaId: string, filtro: FiltroCaracteristicaBusca) => Promise<ResultadoCaracteristica | null>;
   /** Chave da imobiliária: o modelo escreve a resposta (lead_config.ia_redige, padrão desligado, t_7b59589c). */
   redacaoLigada?: (orgId: string) => Promise<boolean>;
   /** Modo do validador da imobiliária (lead_config.ia_validador_modo, t_3a4bf078). Sem ele ou com erro = "bloquear". */
@@ -317,6 +323,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
             buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
             buscarParecidos,
             buscarImoveis: deps.buscarImoveis ? (f) => deps.buscarImoveis!(c.conversa_id, f) : undefined,
+            buscarCaracteristica: deps.buscarCaracteristica ? (f) => deps.buscarCaracteristica!(c.conversa_id, f) : undefined,
           });
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
     if (banco.tipo !== "midia" && deps.redacaoLigada && (await deps.redacaoLigada(banco.organization_id!).catch(() => false))) {
@@ -455,6 +462,11 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     buscarImoveis: async (conversaId, filtro) => {
       const { data, error } = await db.rpc("lead_ia_imoveis_busca", argsBusca(conversaId, filtro));
       return error ? null : normalizarParecidos(data);
+    },
+    // Função nova (migration 20261027140000): enquanto não for aplicada, o erro vira "vou procurar com 3 suítes".
+    buscarCaracteristica: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_caracteristica", argsCaracteristica(conversaId, filtro));
+      return error ? null : normalizarCaracteristica(data);
     },
     redacaoLigada: (orgId) => redacaoLigadaDb(db, orgId),
     modoValidador: (orgId) => modoValidadorDb(db, orgId),

@@ -89,9 +89,13 @@ async function rodar(texto: string, fetchFn: typeof fetch, modo?: ModoValidador,
 describe("validador: motivo + trecho (sem o texto inteiro)", () => {
   const perm = permitidosDe(FICHA, [], visitaSemParenteses(AGORA));
   const s = (mensagem: string): SaidaModelo => ({ mensagem, acao: "responder", codigo: null, registro: {} });
-  it("contagem: devolve só o número com a unidade", () => {
-    const d = validarRedacaoDetalhe(s("Com 3 suítes nessa faixa não tenho. Quer ver outra?"), perm, "tem com 3 suítes?");
-    expect(d).toEqual({ motivo: "contagem", trecho: "3 suites" });
+  it("contagem: devolve o número com a unidade e de onde a trava aceitaria (sem texto)", () => {
+    const d = validarRedacaoDetalhe(s("Com 4 suítes nessa faixa não tenho. Quer ver outra?"), perm, "tem com 3 suítes?");
+    expect(d).toEqual({ motivo: "contagem", trecho: "4 suites | ficha:1 busca:- cliente:-" });
+  });
+  it("contagem (t_a9f1b447): o número que o CLIENTE pediu não é barrado", () => {
+    const p2 = permitidosDe(FICHA, [], visitaSemParenteses(AGORA), ["tem com 3 suítes?"]);
+    expect(validarRedacaoDetalhe(s("Com 3 suítes nessa faixa não tenho. Quer ver outra?"), p2, "tem com 3 suítes?")).toBeNull();
   });
   it("valor e link: o valor e o link que barraram", () => {
     expect(validarRedacaoDetalhe(s("O condomínio é R$ 350. Quer visitar?"), perm, "x")).toEqual({ motivo: "valor", trecho: "r$ 350" });
@@ -113,13 +117,26 @@ describe("validador: motivo + trecho (sem o texto inteiro)", () => {
 });
 
 describe("modo observar", () => {
-  const barrada = { mensagem: "Com 3 suítes nessa faixa não tenho, mas tenho outras. Quer ver?", acao: "responder" };
-  it("bloquear (padrão): continua trocando pela frase pronta", async () => {
-    const { base, r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(barrada)));
+  // 4 suítes: nem a ficha (1) nem o cliente (3) falaram nisso = número inventado.
+  const barrada = { mensagem: "Com 4 suítes nessa faixa não tenho, mas tenho outras. Quer ver?", acao: "responder" };
+  it("bloquear (padrão): 2 bloqueios seguidos = frase pronta; a 2ª tentativa diz o que estava errado", async () => {
+    const f = sequencia(respostaGemini(barrada), respostaGemini(barrada));
+    const { base, r, usos } = await rodar("tem com 3 suítes?", f);
     expect(r.resposta).toBe(base.resposta);
     expect(r.bloqueio).toBe("contagem");
-    expect(usos).toHaveLength(1);
+    expect(usos.map((u) => u.tentativa)).toEqual([1, 2]);
     expect(usos[0]).not.toHaveProperty("observado");
+    expect(usos[0]).toMatchObject({ bloqueio: "contagem", bloqueio_trecho: "4 suites | ficha:1 busca:- cliente:2,3" });
+    const corpo2 = String((f.mock.calls[1] as [unknown, RequestInit])[1].body);
+    expect(corpo2).toMatch(/CORREÇÃO: Sua resposta anterior foi recusada/);
+    expect(String((f.mock.calls[0] as [unknown, RequestInit])[1].body)).not.toMatch(/CORREÇÃO/);
+  });
+  it("bloquear: a 2ª tentativa corrigida sai no lugar da frase pronta", async () => {
+    const ok = { mensagem: "Com 3 suítes, nessa faixa não tenho. Quer que eu procure com 2 suítes?", acao: "responder" };
+    const { r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(barrada), respostaGemini(ok)));
+    expect(r.resposta).toBe(ok.mensagem);
+    expect(r.redigida).toBe(true);
+    expect(usos.map((u) => [u.tentativa, u.bloqueado])).toEqual([[1, true], [2, false]]);
   });
   it("observar: a mensagem do modelo SAI e o bloqueio é só registrado (motivo + trecho)", async () => {
     const { base, r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(barrada)), "observar");
@@ -127,8 +144,14 @@ describe("modo observar", () => {
     expect(r.resposta).not.toBe(base.resposta);
     expect(r.redigida).toBe(true);
     expect(usos).toHaveLength(1);
-    expect(usos[0]).toMatchObject({ uso: "redigir", bloqueado: true, bloqueio: "contagem", bloqueio_trecho: "3 suites", observado: true, tentativa: 1 });
+    expect(usos[0]).toMatchObject({ uso: "redigir", bloqueado: true, bloqueio: "contagem", bloqueio_trecho: "4 suites | ficha:1 busca:- cliente:2,3", observado: true, tentativa: 1 });
     expect(JSON.stringify(usos)).not.toContain("nessa faixa");
+  });
+  it("observar (t_a9f1b447): '3 suítes' que o cliente pediu NÃO é registrado como bloqueio", async () => {
+    const m = { mensagem: "Com 3 suítes, nessa faixa não tenho. Quer que eu procure com 2 suítes?", acao: "responder" };
+    const { r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(m)), "observar");
+    expect(r.resposta).toBe(m.mensagem);
+    expect(usos[0]).toMatchObject({ bloqueado: false, bloqueio: null, observado: false });
   });
   it("observar sem bloqueio: sai e registra observado=false", async () => {
     const ok = { mensagem: "O condomínio é R$ 550 por mês. Quer agendar uma visita?", acao: "responder" };
