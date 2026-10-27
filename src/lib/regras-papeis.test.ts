@@ -78,17 +78,34 @@ describe("Regras de papéis — texto igual às permissões reais", () => {
     expect(divergencias).toEqual([]);
   });
 
-  it("Administrador principal faz as etapas de gestor e de jurídico; o Administrador não", () => {
+  it("Administrador e Administrador principal fazem as etapas de gestor e de jurídico (t_3c10bab8)", () => {
     const principal = getSaleRoleFlags(["super_admin"], [], undefined);
     const admin = getSaleRoleFlags(["admin"], [], undefined);
-    expect(principal.isAdminPrincipal).toBe(true);
-    expect(admin.isAdminPrincipal || admin.isGestor || admin.isJuridico).toBe(false);
+    expect(principal.cobreGestorEJuridico).toBe(true);
+    expect(admin.cobreGestorEJuridico).toBe(true);
     expect(REGRAS_AUSENCIA.join(" ")).toMatch(
-      /Administrador principal faz sozinho as etapas de gestor/,
+      /o Administrador ou o Administrador principal faz sozinho as etapas de gestor/,
+    );
+    expect(REGRAS_AUSENCIA.join(" ")).not.toMatch(/não substitui o gestor/);
+  });
+
+  it("página do Administrador: os ❌ da venda viraram ✅ (aprovar, contrato, cancelar, registrar)", () => {
+    const admin = REGRAS_PAPEIS.find((r) => r.papel === "admin")!;
+    const principal = REGRAS_PAPEIS.find((r) => r.papel === "super_admin")!;
+    const regras = (p: typeof admin, lado: "pode" | "naoPode") =>
+      AREAS.flatMap((a) => p.areas[a.id][lado].map((i) => i.regra)).filter(Boolean);
+    for (const regra of ["etapas_gestor", "etapas_juridico", "cancelar_venda", "registrar_venda"]) {
+      expect(regras(admin, "pode"), regra).toContain(regra);
+      expect(regras(admin, "naoPode"), regra).not.toContain(regra);
+      expect(regras(principal, "pode"), regra).toContain(regra);
+    }
+    // O cancelamento descreve confirmação, motivo e histórico.
+    expect(admin.areas.aprovacao.pode.map((i) => i.texto).join(" ")).toMatch(
+      /motivo obrigatório.*histórico quem cancelou, quando e o motivo/,
     );
   });
 
-  it('só a plataforma concede "Administrador principal" e cancela venda', () => {
+  it("outros papéis continuam sem cancelar; só a plataforma concede Administrador principal", () => {
     for (const r of ALL_MANAGED_ROLES) expect(grantableRoles([r])).not.toContain("super_admin");
     expect(grantableRoles([], { isPlatformAdmin: true })).toContain("super_admin");
     expect(SO_PLATAFORMA.join(" ")).toMatch(/Dá ou tira o papel "Administrador principal"/);
@@ -96,6 +113,16 @@ describe("Regras de papéis — texto igual às permissões reais", () => {
     expect(podeCancelarVenda(true, "enviada_revisao")).toBe(true);
     expect(podeCancelarVenda(true, "rascunho")).toBe(false);
     expect(SO_PLATAFORMA.join(" ")).toMatch(/Cancela venda/);
+    for (const r of [
+      "corretor",
+      "gestor",
+      "team_leader",
+      "juridico",
+      "financeiro",
+      "lancamento",
+      "staff",
+    ])
+      expect(REGRAS_CONFERIDAS.cancelar_venda(r as ManagedRole), r).toBe(false);
   });
 
   it("menu: Usuários só para admin, administrador principal, gestor e team leader", () => {
@@ -123,7 +150,9 @@ describe("Regras de papéis — texto igual às permissões reais", () => {
     expect(mig).toMatch(/_motivo = 'sensivel' AND r\.role::text = 'super_admin'/);
     expect(mig).toMatch(/SELECT DISTINCT r\.user_id/);
     const leadsDe = (p: ManagedRole) =>
-      REGRAS_PAPEIS.find((r) => r.papel === p)!.areas.leads.pode.map((i) => i.texto).join(" ");
+      REGRAS_PAPEIS.find((r) => r.papel === p)!
+        .areas.leads.pode.map((i) => i.texto)
+        .join(" ");
     for (const p of ["super_admin", "admin", "gestor"] as ManagedRole[])
       expect(leadsDe(p), p).toMatch(/assunto sensível/);
     for (const p of ["corretor", "team_leader"] as ManagedRole[])

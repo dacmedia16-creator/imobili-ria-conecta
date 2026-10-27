@@ -26,24 +26,36 @@ export function canDeleteSale(
   return false;
 }
 
-// Espelha platform_cancel_sale + trigger validate_sale_status_transition (fase 2f): cancelar venda
-// é só do dono da plataforma (platform_admins / is_platform_super_admin), em qualquer etapa depois
-// do rascunho. O super_admin/admin da agência, gestor e team leader não cancelam. Falha fechada:
-// sem confirmação do banco (isPlatformAdmin !== true) ou sem status conhecido, não mostra.
+// Espelha platform_cancel_sale / org_admin_cancel_sale + trigger validate_sale_status_transition:
+// cancelar venda é do dono da plataforma (platform_admins) e, desde 27/10/2026 (t_3c10bab8), do
+// Administrador e do Administrador principal DA IMOBILIÁRIA — em qualquer etapa depois do rascunho.
+// Gestor, team leader, jurídico, financeiro e corretor não cancelam. Falha fechada: sem status
+// conhecido não mostra; o admin da plataforma só vale com confirmação do banco (=== true).
 const STATUS_NAO_CANCELAVEIS = ["rascunho", "cancelada"];
 
 export function canCancelSale(
   isPlatformAdmin: boolean | null | undefined,
   status?: string | null,
+  isOrgAdmin = false,
 ): boolean {
-  if (isPlatformAdmin !== true) return false;
+  if (isPlatformAdmin !== true && isOrgAdmin !== true) return false;
   if (!status || STATUS_NAO_CANCELAVEIS.includes(status)) return false;
   return true;
 }
 
-/** Cancela pela RPC da plataforma (motivo obrigatório; auditoria gravada no banco). */
-export async function cancelSaleAsPlatform(saleId: string, motivo: string): Promise<void> {
-  const { error } = await supabase.rpc("platform_cancel_sale", {
+/** Qual RPC cancela: o dono da plataforma usa a dele (auditoria em platform_sale_cancellations);
+ * o administrador da imobiliária usa org_admin_cancel_sale (histórico com o nome dele). */
+export function rpcDeCancelamento(isPlatformAdmin: boolean | null | undefined) {
+  return isPlatformAdmin === true ? "platform_cancel_sale" : "org_admin_cancel_sale";
+}
+
+/** Cancela a venda (motivo obrigatório; o banco confere o papel e a imobiliária e grava o histórico). */
+export async function cancelSale(
+  saleId: string,
+  motivo: string,
+  isPlatformAdmin: boolean | null | undefined,
+): Promise<void> {
+  const { error } = await supabase.rpc(rpcDeCancelamento(isPlatformAdmin), {
     _sale_id: saleId,
     _motivo: motivo,
   });

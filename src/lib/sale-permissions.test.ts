@@ -11,6 +11,7 @@ import {
   isSaleLocked,
   juridicoPodeEditar,
   podeArquivarVenda,
+  podeCancelarVenda,
   podeDesarquivarVenda,
   podeEditarOcorrencia,
   podeEditarVenda,
@@ -48,6 +49,29 @@ describe("getSaleRoleFlags", () => {
     expect(flags.isJuridico).toBe(true);
     expect(getSaleRoleFlags(["corretor"], CORRETOR_ID, OUTRO_ID).isGestor).toBe(false);
     expect(getSaleRoleFlags(["corretor"], CORRETOR_ID, OUTRO_ID).isJuridico).toBe(false);
+  });
+
+  it("cobreGestorEJuridico: Administrador e Administrador principal; ninguém mais (t_3c10bab8)", () => {
+    expect(getSaleRoleFlags(["admin"], CORRETOR_ID, OUTRO_ID).cobreGestorEJuridico).toBe(true);
+    expect(getSaleRoleFlags(["super_admin"], CORRETOR_ID, OUTRO_ID).cobreGestorEJuridico).toBe(
+      true,
+    );
+    for (const r of [
+      "corretor",
+      "gestor",
+      "team_leader",
+      "juridico",
+      "financeiro",
+      "lancamento",
+      "staff",
+    ] as const)
+      expect(getSaleRoleFlags([r], CORRETOR_ID, OUTRO_ID).cobreGestorEJuridico, r).toBe(false);
+  });
+
+  it("podeCancelarVenda: admin da imobiliária cancela depois do rascunho; corretor não", () => {
+    expect(podeCancelarVenda(false, "enviada_revisao", true)).toBe(true);
+    expect(podeCancelarVenda(false, "rascunho", true)).toBe(false);
+    expect(podeCancelarVenda(false, "enviada_revisao", false)).toBe(false);
   });
 
   it("isAdminPrincipal só para super_admin (Administrador principal), não para admin comum", () => {
