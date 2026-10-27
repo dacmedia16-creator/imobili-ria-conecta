@@ -133,6 +133,8 @@ export type DadosQualificacao = {
   parecidos_fim?: boolean;
   /** Busca nova no meio da conversa (outro tipo, outra pessoa), sem perder o interesse no imóvel do lead. */
   busca2?: Busca2;
+  /** Outras buscas do cliente na mesma conversa (ex.: apartamento para o filho), resumo para o corretor (t_7b59589c). */
+  outras_buscas?: string[];
 };
 
 /** Segunda busca (t_5b493bc9 item 11): ex. "vcs trabalham com apartamento? é para o meu filho". */
