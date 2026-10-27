@@ -185,3 +185,18 @@ describe("item 7 — juntar avisos do mesmo cliente (caso Afonso)", () => {
     expect(RB).toMatch(/leads_juntar_horas/);
   });
 });
+
+describe("achados do DeepSeek real (bloco 4)", () => {
+  const perm = permitidosDe(FICHA, [CASA_COND], VISITA);
+  it("\"vou separar mais opções e te mando por aqui\" é promessa de retorno", () => {
+    expect(validarRedacao(s("Claro! Vou separar mais opções para você e te mando por aqui. Quer agendar uma visita?"), perm, "tem mais opções?")).toBe(
+      "retorno",
+    );
+  });
+  it("resposta em espanhol é barrada (trava firme idioma)", () => {
+    expect(
+      validarRedacao(s("Claro! También tengo otro apartamento en Parque Campolim, con 3 quartos. ¿Te gusta?"), perm, "tem mais opções?"),
+    ).toBe("idioma");
+    expect(validarRedacao(s("Claro! Tenho outra casa no Villagio Milano com 3 quartos por R$ 950.000. Gostou?"), perm, "tem mais opções?")).toBeNull();
+  });
+});
