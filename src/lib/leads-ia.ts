@@ -412,7 +412,7 @@ const SIM = /^(sim|s|tenho|claro|isso|quero|ok|pode|com certeza|tenho sim|sim te
 const QUER_VISITA = /(visit|conhecer|agendar|marcar|ver (o |a )?(imovel|casa|ap|apartamento|terreno)|ver pessoalmente|ir ver|dar uma olhada)/;
 
 /** Resposta fixa sobre disponibilidade (t_76243950): a IA nunca garante que o imóvel está disponível. */
-export const CONFIRMO_DISPONIBILIDADE = "vou confirmar a disponibilidade e já te falo";
+export const CONFIRMO_DISPONIBILIDADE = "o corretor confirma a disponibilidade com você na visita ou no contato";
 /** Texto de quem retorna: o banco troca {corretor} só depois de gravar registro e aviso. */
 export const CORRETOR = "{corretor}";
 
@@ -861,7 +861,7 @@ function passar(
  * corretor continua (t_82c89141 item 6a) e não promete retorno da própria Nicole. */
 export const FALHA_PADRAO = "Anotei tudo aqui. Um corretor da nossa equipe vai continuar seu atendimento por aqui.";
 /** A única menção a outra pessoa: na hora de passar, uma vez, com naturalidade (t_5b493bc9 item 8). */
-const CHAMAR = `Já pedi para ${"{corretor}"} te chamar aqui`;
+const CHAMAR = `Já pedi para ${"{corretor}"} continuar seu atendimento por aqui`;
 
 // --- Período da visita (t_82c89141 item 4) ------------------------------------------------------------
 /** "de manhã" / "à tarde" / "à noite" dito pelo cliente (texto normalizado). null = não disse. */
@@ -1442,7 +1442,7 @@ export async function proximaResposta(
       "sensivel",
       "Entendi.",
       `${CHAMAR} para cuidar disso com você.`,
-      "Registrei sua mensagem e já te retorno por aqui.",
+      FALHA_PADRAO,
       `Assunto sensível: \"${curto(texto, 160)}\". Atender com prioridade. Dados até aqui: ${parcial()}`,
     );
   // \"Sim\" para a oferta de passar ao corretor feita depois de \"é robô?\": passa (t_25fe1197).
@@ -1472,7 +1472,7 @@ export async function proximaResposta(
       "nao_lead",
       "Entendi!",
       `Já pedi para ${CORRETOR} te responder por aqui.`,
-      "Registrei sua mensagem e já te retorno por aqui.",
+      FALHA_PADRAO,
       `${quem}, não é comprador nem locatário: \"${curto(texto, 160)}\". Atender sem o roteiro de qualificação.`,
     );
   }
@@ -1909,8 +1909,8 @@ export async function proximaResposta(
       dados,
       "qualificado",
       junta(outras, "Sobre proposta e valores,"),
-      `já pedi para ${CORRETOR} te chamar aqui para conversar com você.`,
-      "anotei aqui e já te retorno por aqui.",
+      `já pedi para ${CORRETOR} continuar seu atendimento por aqui.`,
+      FALHA_PADRAO,
       `Cliente quer falar de PROPOSTA/NEGOCIAÇÃO: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
     );
   }
@@ -2005,7 +2005,7 @@ export async function proximaResposta(
         "visita",
         `Combinado, ${dados.visita}!`,
         `${CHAMAR} para confirmar o horário certinho ${dados.visita_ate}.`,
-        "Anotei aqui e já te retorno por aqui para confirmar o horário certinho.",
+        "Anotei aqui. Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.",
         resumoQualificacao(dados, ctx),
       );
     }
