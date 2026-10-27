@@ -24,10 +24,10 @@ const log = await runRemaxXmlCollect(
       return r;
     },
     async failed(o, message, started) {
-      await sb.from("remax_xml_runs").insert({ organization_id: o, status: "erro", message: message.slice(0, 300), started_at: started });
+      await sb.rpc("remax_xml_mark_failed", { _org: o, _message: message, _started: started });
     },
   },
-  (u: string) => fetchXmlSeguro(u),
+  (u, init) => fetchXmlSeguro(u, init),
 );
 // Só o resumo (sem link nem dados pessoais).
 console.log(JSON.stringify(log));

@@ -83,13 +83,26 @@ describe("item 1 — 1ª mensagem", () => {
       "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse no apartamento de 2 quartos no bairro Jardim São Carlos, em Sorocaba, anunciado por R$ 430.000. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0040 Quer saber mais detalhes ou já prefere agendar uma visita?",
     );
     expect(t).not.toMatch(/assistente virtual|dispon|permuta|financ|andar/i);
-    expect(primeiraComLinkProibido(t)).toBe(false); // a trava de envio deixa sair
+    expect(primeiraComLinkProibido(t, "https://vipsevenimoveis.com.br/imovel/VIP0040")).toBe(false); // a trava deixa sair
+    expect(primeiraComLinkProibido(t)).toBe(true); // sem o link do XML, nenhum link sai
     // Link inseguro nunca entra na prévia.
     expect(previaPrimeiraMensagem({ ia_nome: "Nicole" }, "Imob", "Ana", null, "http://x.com.br/a")).not.toMatch(/http/);
   });
-  it("trava de envio da 1ª mensagem: só o link do anúncio; qualquer outro link (ou dois) bloqueia", () => {
+  it("trava de envio da 1ª mensagem: só o link do anúncio do próprio imóvel no XML; qualquer outro bloqueia", () => {
+    const L = "https://imob.com.br/imovel/1";
     expect(primeiraComLinkProibido("Oi! Quer agendar?")).toBe(false);
-    expect(primeiraComLinkProibido("Oi! Anúncio: https://imob.com.br/imovel/1 Quer agendar?")).toBe(false);
+    expect(primeiraComLinkProibido("Oi! Anúncio: https://imob.com.br/imovel/1 Quer agendar?", L)).toBe(false);
+    // Revisão t_e520a9bb: "Anúncio: <qualquer domínio>" não vale mais; nem nome com TLD fora da lista.
+    for (const [t, link] of [
+      ["Oi! Anúncio: https://qualquer-dominio.xyz/a Quer?", L],
+      ["Oi! Anúncio: https://imob.com.br/imovel/1 Quer?", null],
+      ["Oi! Anúncio: https://imob.com.br/imovel/1 Anúncio: https://imob.com.br/imovel/1 Quer?", L],
+      ["Oi, golpe.xyz! Anúncio: https://imob.com.br/imovel/1 Quer?", L],
+      ["Oi! Aqui é a t.co/abc, da Imob. Quer?", null],
+      ["Oi! Aqui é a Nicole, da golpe.co. Quer?", null],
+      ["Oi! Fale com x@golpe Quer?", null],
+    ] as const)
+      expect(primeiraComLinkProibido(t, link), t).toBe(true);
     for (const t of [
       "Oi! Veja https://golpe.com/x Quer agendar?",
       "Oi! Anúncio: https://imob.com.br/1 e www.outro.com Quer?",
@@ -482,6 +495,26 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
     expect(faixaLonge("400 mil", undefined)).toBeNull();
   });
 
+  it("permuta com negação ou \"trocar a data\" não é permuta (revisão t_e520a9bb)", async () => {
+    for (const t of ["sem permuta", "não tenho imóvel para permuta", "vou trocar com minha esposa a data", "nada de troca, à vista"]) {
+      const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
+      expect(r.fim, t).toBeNull();
+      expect(r.dados.pagamento ?? [], t).not.toContain("permuta");
+    }
+  });
+  it("faixa: CEP, telefone e \"de entrada\" não viram faixa; a confirmação vale só uma vez (revisão t_e520a9bb)", async () => {
+    // Junto com uma dúvida (quando o número solto é lido como faixa), CEP/telefone/entrada não viram faixa.
+    for (const t of ["meu cep é 18040000, aceita financiamento?", "me liga 98765-4321, aceita financiamento?", "tenho 50000 de entrada, aceita financiamento?", "18040-000 aceita financiamento?"]) {
+      const r = await proximaResposta(ctx(c({ passo: "faixa", dados: { perguntas: ["faixa"] } })), t, undefined, { agora: AGORA });
+      expect(r.dados.faixa, t).toBeUndefined();
+    }
+    // Já confirmou uma vez: um valor dito depois não reabre a confirmação nem troca a faixa.
+    const rs = await conversa(["1.200.000", "isso mesmo", "120000"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] } });
+    expect(rs[0].resposta).toMatch(/^Só confirmando/);
+    expect(rs[2].resposta).not.toMatch(/Só confirmando/);
+    expect(rs[2].dados.faixa).toBe("1.200.000");
+  });
+
   it("pagamento: \"permuta\" nunca é sugerida; se o cliente falar em permuta, registra e passa ao corretor", async () => {
     const rs = await conversa(["500 mil"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] }, ficha: { ...VIP0040, preco_valor: 480000 } });
     expect(rs[0].resposta).toMatch(/à vista ou com financiamento\?/);
@@ -498,7 +531,12 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
 
   it("\"é robô?\": não mente — confirma que é assistente virtual e oferece o corretor; \"sim\" passa", async () => {
     const rs = await conversa(["vc é um robô?", "sim"], c());
-    expect(rs[0].resposta).toBe("Sim, sou a Nicole, assistente virtual da ZZ Teste Provisionamento. Se preferir, passo agora para um corretor falar com você. Quer?");
+    expect(rs[0].resposta).toBe("Sou a Nicole, assistente virtual da ZZ Teste Provisionamento (não sou uma pessoa). Se preferir, passo agora para um corretor falar com você. Quer?");
+    const h = await proximaResposta(ctx(c()), "você é humano?", undefined, { agora: AGORA });
+    expect(h.resposta).toMatch(/^Sou a Nicole, assistente virtual .*\(não sou uma pessoa\)/); // nunca começa com "Sim,"
+    // Falso positivo (revisão t_e520a9bb): não é pergunta sobre quem responde.
+    for (const t of ["e ia ver amanhã?", "tem robô aspirador no condomínio?", "o proprietário é humano?", "a casa tem bot de portaria?"])
+      expect(perguntouSeRobo(t), t).toBe(false);
     expect(rs[0].fim).toBeNull();
     expect(rs[1].fim).toBe("pediu_pessoa");
     for (const t of ["é uma IA?", "estou falando com um bot?", "isso é resposta automática?", "é uma pessoa de verdade?", "é inteligência artificial?"])

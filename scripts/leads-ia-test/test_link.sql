@@ -160,6 +160,30 @@ SELECT t.ok(pg_get_functiondef('public.mapa_anuncios_xml()'::regprocedure) ~ 'l\
 SELECT t.ok((SELECT column_default FROM information_schema.columns WHERE table_name = 'lead_config' AND column_name = 'ia_nome') = '''Nicole''::text',
             'L24 nome padrão da IA para imobiliária nova: Nicole');
 
+-- 4b) Revisão t_e520a9bb ------------------------------------------------------------------------------------
+-- Nome da IA / da imobiliária / do lead com link (qualquer TLD) nunca entra na 1ª mensagem.
+-- (texto padrão: o teste L18 deixou um texto personalizado salvo; aqui fica só dentro da transação)
+BEGIN;
+UPDATE public.lead_config SET ia_nome = 'veja golpe.xyz', ia_primeira_msg = NULL WHERE organization_id = :orgA;
+SELECT public.lead_ia_primeira_msg(l, c, 'Imob t.co/abc') AS m_inj
+  FROM public.leads l, public.lead_config c WHERE l.id = :'l1' AND c.organization_id = :orgA \gset
+ROLLBACK;
+SELECT t.ok(:'m_inj' !~* '(golpe|t\.co)' AND :'m_inj' ~ '^Oi, Denis! Aqui é a Nicole, da imobiliária\.'
+            AND :'m_inj' ~ 'Anúncio: https://vipsevenimoveis\.com\.br/imovel/VIP0040 ',
+            'L26 ia_nome e nome da imobiliária com link caem para "Nicole"/"imobiliária"; só o link do anúncio fica');
+SELECT public.lead_inserir(:orgA, 'golpe.xyz', '15981110009', NULL, 'olx', NULL, NULL, NULL, false, NULL, 'z9') AS l9 \gset
+SELECT texto AS msg9 FROM public.lead_mensagens m JOIN public.lead_conversas cv ON cv.id = m.conversa_id WHERE cv.lead_id = :'l9' \gset
+SELECT t.ok(:'msg9' ~ '^Oi! Aqui é a Nicole' AND :'msg9' !~ 'golpe', 'L27 nome do lead com TLD fora da lista (.xyz) vira "Oi!"');
+-- Mesmo código como venda e como locação no XML: a venda fica (a contagem de venda não perde o imóvel).
+INSERT INTO public.organizations (id, nome) VALUES ('cccccccc-0000-0000-0000-000000000000', 'Org C') ON CONFLICT DO NOTHING;
+SELECT public.remax_xml_ingest('cccccccc-0000-0000-0000-000000000000', '[
+  {"code":"DUP1","tipo":"casa","negocio":"locacao","preco_aluguel":2000},
+  {"code":"DUP1","tipo":"casa","negocio":"venda","preco":300000}
+]'::jsonb, 2, now(), 'generico') AS r9 \gset
+SELECT t.ok((:'r9')::jsonb ->> 'venda' = '1'
+            AND (SELECT negocio FROM public.remax_xml_listings WHERE organization_id = 'cccccccc-0000-0000-0000-000000000000' AND code = 'DUP1') = 'venda',
+            'L28 código repetido venda/locação: a venda vence e continua contando');
+
 -- 5) Permissões ------------------------------------------------------------------------------------------
 SELECT t.como(:admA);
 SELECT t.ok(t.falha($$SELECT public.lead_ia_xml_frase_msg(NULL::public.remax_xml_listings, 'venda')$$)

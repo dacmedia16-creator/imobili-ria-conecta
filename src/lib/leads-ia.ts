@@ -8,7 +8,8 @@
 // Roteiro (t_fc4d9b27):
 //  1) 1ª mensagem: uma bolha, \"Aqui é a Nicole, da <imobiliária>\" + imóvel do XML (tipo, quartos, bairro,
 //     cidade e valor anunciado) + só o link do anúncio validado + pergunta fechada (banco, t_25fe1197).
-//     Se o cliente perguntar se é robô/IA, ela confirma que é assistente virtual e oferece o corretor.
+//     Se o cliente perguntar diretamente se é robô/IA, ela confirma que é assistente virtual e oferece o
+//     corretor. A apresentação normal nunca usa "assistente virtual".
 //  2) Responde primeiro a dúvida; depois no máximo 3 perguntas, uma por turno: finalidade (só se o anúncio
 //     não disser), faixa de valor e forma de pagamento.
 //  3) Dúvidas respondidas pela ficha da captação; sem o dado: "não tenho esse dado confirmado, vou confirmar
@@ -117,6 +118,8 @@ export type DadosQualificacao = {
   ofereceu_corretor?: boolean;
   /** Faixa muito longe do valor anunciado já foi conferida com o cliente (uma vez por conversa). */
   faixa_conferida?: boolean;
+  /** A pergunta "Só confirmando: sua faixa é de R$ X?" espera resposta (vale só no turno seguinte). */
+  faixa_pendente?: boolean;
 };
 
 export type ContextoIa = {
@@ -247,14 +250,31 @@ export function pediuPessoa(t: string): boolean {
  * assistente virtual e oferece passar para um corretor. \"ia\" sozinho não conta (\"eu ia visitar\").
  */
 export function perguntouSeRobo(t: string): boolean {
-  return /(\brobo\b|\bbot\b|chatbot|inteligencia artificial|\b(e|eh|sou|seria|voce e|vc e|falando com|conversando com) (uma |um )?ia\b|resposta automatica|mensagem automatica|(e|eh) (uma )?pessoa (de verdade|real)|(e|eh) (um )?humano|(e|eh) gente de verdade)/.test(
-    norm(t),
-  );
+  const n = norm(t);
+  // Precisa ser pergunta sobre QUEM responde: "robô aspirador", "e ia ver" e "o proprietário é humano?" não contam.
+  if (!ehPergunta(t) || /robo (aspirador|de (limpeza|cozinha|piscina))/.test(n)) return false;
+  return ROBO_RE.test(n);
 }
+const QUEM_ROBO = "(^|voce |vc |isso |aqui |ta |esta |estou |to )";
+const ROBO_RE = new RegExp(
+  `(\\b(falando|conversando) com (uma |um )?(robo|bot|ia|maquina|inteligencia artificial)\\b` +
+    `|${QUEM_ROBO}(e |eh |sou |seria )?(uma |um )?(robo|bot|chatbot|inteligencia artificial)\\b` +
+    // "ia" só como "uma ia" ou "é ia?" no fim: "e ia ver amanhã?" não conta.
+    `|${QUEM_ROBO}(e |eh |seria )?uma ia\\b|${QUEM_ROBO}(e |eh )?ia\\s*\\?` +
+    `|${QUEM_ROBO}(e |eh )?(uma )?(resposta|mensagem) automatica` +
+    `|${QUEM_ROBO}(e |eh )(um |uma )?(humano|humana|pessoa (de verdade|real)|gente de verdade))`,
+);
 
 /** Cliente fala em permuta (dar um bem como parte do pagamento). \"trocar o dia\" não conta. */
-const FALA_PERMUTA =
-  /(permut|\btroca(r)? (por|pelo|pela|com) (o |a )?(meu|minha)|(dar|dou|dando|aceita|aceitam|entrar com|entro com) (o |a )?(meu |minha )?(carro|imovel|apartamento|apto|casa|terreno|moto|lote|sobrado|chacara)\b)/;
+const BENS = "(carro|imovel|apartamento|apto|casa|terreno|moto|lote|sobrado|chacara)";
+const FALA_PERMUTA_RE = new RegExp(
+  `(permut|\\baceita(m)? troca|\\btroca(r)? (por|pelo|pela|com) (o |a )?(meu|minha) ${BENS}|(dar|dou|dando|aceita|aceitam|entrar com|entro com) (o |a )?(meu |minha )?${BENS}\\b)`,
+);
+/** Fala em permuta, sem negação ("sem permuta", "não tenho imóvel para permuta" não contam). Revisão t_e520a9bb. */
+export function falaPermuta(n: string): boolean {
+  if (!FALA_PERMUTA_RE.test(n)) return false;
+  return !/(\bsem\b|\bnao\b|\bnada de\b|\bnenhum)( \S+){0,4} (permut|troca)/.test(n);
+}
 
 /** Pergunta sobre preço/condição/disponibilidade/característica (detector usado também pela tela). */
 export function perguntaComercial(t: string): boolean {
@@ -325,7 +345,7 @@ function pagamentoDe(n: string): string[] | null {
   const p: string[] = [];
   if (/(a vista|avista|dinheiro|recurso proprio)/.test(n)) p.push("à vista");
   if (/financ/.test(n)) p.push("financiamento");
-  if (/(permut|troca)/.test(n)) p.push("permuta");
+  if (falaPermuta(n)) p.push("permuta");
   if (/fgts/.test(n)) p.push("FGTS");
   if (/consorcio/.test(n)) p.push("consórcio");
   return p.length ? p : null;
@@ -335,9 +355,12 @@ function pagamentoDe(n: string): string[] | null {
  * pergunta da faixa foi feita): "120000" sozinho também vale (t_59ab47d4: "120000 aceita financiamento ?").
  */
 function faixaDe(texto: string, n: string, numeroSolto = false): string | null {
+  if (/\bcep\b/.test(n)) return null;
   if (/(\d[\d.,]*\s*(mil|milhao|milhoes|mi\b|k\b|reais)|r\$\s*\d|\bate \d|\d{3}\.\d{3})/.test(n)) return curto(texto);
-  // 5 a 9 dígitos seguidos (10 mil a 999 milhões); telefone (10+ dígitos) e código com letra ficam de fora.
-  return numeroSolto && /(^|[^\w.,])\d{5,9}([^\w.,]|$)/.test(n) ? curto(texto) : null;
+  // Número solto: 5 a 7 dígitos (10 mil a 9,9 milhões). Fora: CEP (8 dígitos), telefone (com hífen ou 8+
+  // dígitos), código com letra e "50000 de entrada" (entrada não é a faixa). Revisão t_e520a9bb.
+  if (!numeroSolto || /entrada/.test(n)) return null;
+  return /(^|[^\w.,-])\d{5,7}(?![\w.,-])/.test(n) ? curto(texto) : null;
 }
 
 /** "R$ 1.200.000" (inteiro, separador de milhar). */
@@ -421,7 +444,7 @@ const TEMA_RE: Record<Tema, RegExp> = {
   disponibilidade: /((esta|ta|continua|segue) disponivel|ainda (esta|ta|tem|existe|e) (a venda|disponivel|para alugar|pra alugar)?|ja (foi )?(vendid|alugad)|disponibilidade|ainda (a venda|para alugar)|ainda esta a venda)/,
   condominio: /(condominio|condo\b|taxa condominial)/,
   iptu: /\biptu\b/,
-  permuta: /(permut|troca|aceita (carro|imovel|terreno|apartamento|casa|moto)|como (parte|entrada))/,
+  permuta: /(permut|aceita(m)? troca|aceita (carro|imovel|terreno|apartamento|casa|moto)|(carro|imovel|moto) como (parte|entrada))/,
   financiamento: /(financ|fgts|aceita banco|minha casa minha vida|\bmcmv\b)/,
   andar: /(\bandar\b|posicao|sol da (manha|tarde)|\bface\b|nascente|poente|elevador|vista (para|pro|pra))/,
   quartos: /(quarto|dormitorio|\bdorms?\b|suite)/,
@@ -867,11 +890,12 @@ export async function proximaResposta(
   // \"É robô?\": não mente. Confirma que é assistente virtual e oferece o corretor; a conversa segue (t_25fe1197).
   if (perguntouSeRobo(texto)) {
     dados.ofereceu_corretor = true;
-    const quem = `${(ctx.ia_nome || "Nicole").trim()}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}`;
+    // Só aqui (pergunta direta) ela diz "assistente virtual"; a apresentação normal nunca usa o termo.
+    const quem = `Sou a ${(ctx.ia_nome || "Nicole").trim()}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""} (não sou uma pessoa).`;
     return {
       passo: ctx.passo === "fim" ? "visita" : ctx.passo,
       dados,
-      resposta: `Sim, sou a ${quem}. Se preferir, passo agora para um corretor falar com você. Quer?`,
+      resposta: `${quem} Se preferir, passo agora para um corretor falar com você. Quer?`,
       resposta_falha: null,
       fim: null,
       resumo: null,
@@ -1053,7 +1077,9 @@ export async function proximaResposta(
   // Na pergunta da faixa, um número solto (\"120000 aceita financiamento?\") também é a faixa (t_59ab47d4).
   const fx = faixaDe(texto, n, passoAtual === "faixa");
   // Depois de \"Só confirmando: sua faixa é de R$ X?\", um novo valor substitui o anterior.
-  const confirmandoFaixa = passoAtual === "faixa" && !!ctx.dados.faixa_conferida;
+  // Só no turno logo depois da pergunta, uma vez (revisão t_e520a9bb).
+  const confirmandoFaixa = passoAtual === "faixa" && !!ctx.dados.faixa_pendente;
+  dados.faixa_pendente = undefined;
   if (fx && (!dados.faixa || (confirmandoFaixa && valorFaixa(fx)))) dados.faixa = fx;
   // "na verdade quero alugar" no passo da faixa muda a finalidade; não vira faixa de valor (t_232e13cb).
   const soFinalidade = passoAtual === "faixa" && !!fin && fin !== finalidadeAntes && !fx;
@@ -1086,7 +1112,7 @@ export async function proximaResposta(
   const duvida = responderDuvidas(temas, ficha, dados);
 
   // Permuta: a Nicole nunca diz se aceita. Registra e passa ao corretor, que avalia (t_59ab47d4).
-  if (FALA_PERMUTA.test(n) && !respParecido) {
+  if (falaPermuta(n) && !respParecido) {
     dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
     const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados);
     return passar(
@@ -1107,6 +1133,7 @@ export async function proximaResposta(
     const longe = faixaLonge(dados.faixa, anunciado);
     if (longe != null && anunciado) {
       dados.faixa_conferida = true;
+      dados.faixa_pendente = true;
       if (!dados.perguntas!.includes("faixa")) dados.perguntas!.push("faixa");
       const ref = alugar ? `O aluguel anunciado é de ${reais(anunciado)} por mês.` : `O imóvel está anunciado por ${reais(anunciado)}.`;
       return {

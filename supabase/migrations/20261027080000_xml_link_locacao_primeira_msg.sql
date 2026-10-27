@@ -64,7 +64,7 @@ BEGIN
       area_util numeric, area_terreno numeric, negocio text, preco_aluguel numeric)
    WHERE CASE WHEN _gen THEN btrim(i.code) ~ '^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$'
               ELSE i.code ~ '^[0-9]{9}-[0-9]{1,6}$' END
-   ORDER BY public.portal_code_key(i.code), i.code;
+   ORDER BY public.portal_code_key(i.code), (CASE WHEN _gen AND i.negocio IN ('locacao', 'venda_locacao') THEN i.negocio ELSE 'venda' END) = 'venda' DESC, i.code;
   -- Contagens da coleta: SÓ venda (como antes; a locação não existia aqui).
   SELECT count(*), count(*) FILTER (WHERE neg = 'venda'),
          count(*) FILTER (WHERE neg = 'venda' AND lat BETWEEN -90 AND 90 AND lon BETWEEN -180 AND 180 AND NOT (lat = 0 AND lon = 0))
@@ -271,7 +271,8 @@ END $$;
 CREATE OR REPLACE FUNCTION public.lead_ia_primeira_msg(_l public.leads, _c public.lead_config, _org_nome text)
 RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _t text; _nome text; _imovel text; _x public.remax_xml_listings; _link text;
-  _re text := '(h[t]tps?://|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|app|site|link)(\M|/))';
+  -- Filtro genérico de link (revisão t_e520a9bb): qualquer "palavra.palavra" (.xyz, .co, t.co), http(s): ou @.
+  _re text := '(h[t]tps?:|www\.|[a-z0-9-]\.[a-z]{2,}|@)'; _assist text; _imob text;
 BEGIN
   _t := coalesce(nullif(btrim(_c.ia_primeira_msg), ''),
     'Oi, {nome}! Aqui é a {assistente}, da {imobiliaria}. Vi seu interesse {imovel}. {link}Quer saber mais detalhes ou já prefere agendar uma visita?');
@@ -297,8 +298,13 @@ BEGIN
     _imovel := public.lead_ia_imovel_frase(_l.capture_id, _l.organization_id, 'em');
   END IF;
   _t := replace(_t, '{nome}', _nome);
-  _t := replace(_t, '{assistente}', btrim(_c.ia_nome));
-  _t := replace(_t, '{imobiliaria}', coalesce(_org_nome, 'imobiliária'));
+  -- Nome da IA e da imobiliária também nunca levam link (o único link possível é o do anúncio).
+  _assist := btrim(_c.ia_nome);
+  IF coalesce(_assist, '') = '' OR _assist ~* _re THEN _assist := 'Nicole'; END IF;
+  _imob := btrim(_org_nome);
+  IF coalesce(_imob, '') = '' OR _imob ~* _re THEN _imob := 'imobiliária'; END IF;
+  _t := replace(_t, '{assistente}', _assist);
+  _t := replace(_t, '{imobiliaria}', _imob);
   _t := replace(_t, '{imovel}', coalesce(_imovel, 'no imóvel que você viu'));
   _t := replace(_t, '{link}', CASE WHEN _link IS NOT NULL THEN 'Anúncio: ' || _link || ' ' ELSE '' END);
   RETURN left(btrim(regexp_replace(_t, '\s+', ' ', 'g')), 2000);

@@ -12,6 +12,8 @@ import {
 import { chamarOpenRouter, mascararContato, montarExtrator, OPENROUTER_URL, type UsoModelo } from "./leads-ia-modelo";
 import { respostaMidia, type ContextoIa } from "./leads-ia";
 import { urlRetornoZionTalk } from "./leads";
+import { linkAnuncioDoLead } from "./leads-ia-canal";
+import { enviarPendentes } from "./leads-ia-retorno.server";
 
 // Card t_6f688b4b. O banco (token, dedup, lista de liberados, SAIR, limites, isolamento) foi testado em
 // PostgreSQL descartável com 2 imobiliárias (scripts/leads-ia-test/test_retorno.sql). Aqui: o handler com o
@@ -410,5 +412,50 @@ describe("reengajamento (t_fc4d9b27): rota desligada sem segredo", () => {
     const { d, reengajarReservar } = dReeng({ LEADS_IA_REENGAJAR_SEGREDO: SEG });
     expect((await receberReengajar(req({ "x-leads-ia-segredo": SEG }, "GET"), d)).status).toBe(405);
     expect(reengajarReservar).not.toHaveBeenCalled();
+  });
+});
+
+describe("trava da 1ª mensagem no envio: só o link do anúncio do próprio imóvel no XML (revisão t_e520a9bb)", () => {
+  const ENV = { LEADS_IA_ENVIO_REAL: "on", ZIONTALK_LEADS_IA_API_KEY: "k" };
+  const LINK = "https://vipsevenimoveis.com.br/imovel/VIP0040";
+  const montar = (texto: string, link: string | null) => {
+    let fila = [{ msg_id: "p1", telefone: TEL, texto, primeira: true }];
+    const resultado = vi.fn(async () => undefined);
+    const zion = vi.fn(async () => new Response("", { status: 201 }));
+    const d = {
+      reservar: vi.fn(async () => {
+        const x = fila;
+        fila = [];
+        return { data: x, error: null };
+      }),
+      resultado,
+      env: ENV,
+      fetchFn: zion as unknown as typeof fetch,
+      linkAnuncio: vi.fn(async () => link),
+    };
+    return { d, resultado, zion };
+  };
+  it("link igual ao do XML sai; outro domínio, ou sem link no XML, é barrado sem enviar", async () => {
+    const ok = montar(`Oi! Anúncio: ${LINK} Quer?`, LINK);
+    expect(await enviarPendentes("l1", ok.d)).toBe(1);
+    expect(ok.zion).toHaveBeenCalledOnce();
+    for (const [t, l] of [
+      ["Oi! Anúncio: https://qualquer-dominio.com.br/x Quer?", LINK],
+      [`Oi! Anúncio: ${LINK} Quer?`, null],
+    ] as const) {
+      const m = montar(t, l);
+      expect(await enviarPendentes("l1", m.d)).toBe(0);
+      expect(m.zion).not.toHaveBeenCalled();
+      expect(m.resultado).toHaveBeenCalledWith("p1", false);
+    }
+  });
+  it("linkAnuncioDoLead: lê o link pela ficha do XML; sem código ou com erro, null", async () => {
+    const db = (lead: unknown, ficha: unknown, erro: unknown = null) => ({
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: lead, error: null }) }) }) }),
+      rpc: vi.fn(async () => ({ data: ficha, error: erro })),
+    });
+    expect(await linkAnuncioDoLead(db({ organization_id: "o", anuncio_codigo: "VIP0040" }, { link: LINK }), "l1")).toBe(LINK);
+    expect(await linkAnuncioDoLead(db({ organization_id: "o", anuncio_codigo: null }, { link: LINK }), "l1")).toBeNull();
+    expect(await linkAnuncioDoLead(db({ organization_id: "o", anuncio_codigo: "X" }, null, { code: "x" }), "l1")).toBeNull();
   });
 });
