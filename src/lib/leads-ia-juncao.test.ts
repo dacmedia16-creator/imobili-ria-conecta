@@ -159,6 +159,13 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
     expect(s.chamou).toBe(0);
     expect(s.r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
   });
+  it("vale mesmo com um parecido recém-oferecido (\"pode ser\" não vira \"gostei do parecido\")", async () => {
+    const c = ctx({ dados: { ...dadosVisita, parecidos: ["2501"], parecido_atual: { ...P3921, codigo: "2501" } } });
+    const { r, chamou } = await rodar("sabado de manha pode ser?", { mensagem: "Pode ser!", acao: "responder" }, c);
+    expect(chamou).toBe(0);
+    expect(r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(r.fim).toBe("visita");
+  });
   it("sem contexto de visita e sem pedido de marcar, dia solto não vira agendamento", async () => {
     const r = await proximaResposta(ctx(), "trabalho de segunda a sexta", undefined, { agora: AGORA });
     expect(r.fim).not.toBe("visita");

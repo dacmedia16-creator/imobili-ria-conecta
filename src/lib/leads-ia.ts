@@ -1431,6 +1431,19 @@ export async function proximaResposta(
     }
   }
 
+  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita, anota e passa; não repete as opções.
+  if (!detectarTemas(texto).length) {
+    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes;
+    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
+    if (pedido) {
+      dados.visita = pedido;
+      dados.visita_ate = prazoConfirmacao(agora);
+      dados.visita_livre = true;
+      const t = "Te confirmo o horário certinho.";
+      return passar(dados, "visita", `${maiuscula(pedido)} anotado!`, t, t, resumoQualificacao(dados, ctx));
+    }
+  }
+
   // Reação ao parecido mostrado no turno anterior.
   let respParecido = false;
   let abertura: string | null = null;
@@ -1463,19 +1476,6 @@ export async function proximaResposta(
   // Alternativa do reengajamento (toque 2): \"sim\" = o corretor manda os detalhes.
   if (dados.alternativa && SIM.test(n) && !temas.length)
     return passarAo("Combinado!", `para te passar os detalhes de ${dados.alternativa}`);
-
-  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita, anota e passa; não repete as opções.
-  if (!respParecido && !temas.length) {
-    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes;
-    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
-    if (pedido) {
-      dados.visita = pedido;
-      dados.visita_ate = prazoConfirmacao(agora);
-      dados.visita_livre = true;
-      const t = "Te confirmo o horário certinho.";
-      return passar(dados, "visita", `${maiuscula(pedido)} anotado!`, t, t, resumoQualificacao(dados, ctx));
-    }
-  }
 
   // Resposta à 1ª mensagem (\"Quer saber mais detalhes...?\"): \"valores\" já é a dúvida de preço.
   const primeira = (passoAtual === "interesse" || passoAtual === "codigo") && !dados.interesse;
