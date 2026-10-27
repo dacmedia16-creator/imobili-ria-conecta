@@ -117,6 +117,19 @@ describe("Regras de papéis — texto igual às permissões reais", () => {
   it("bloco da atendente de IA cita o aceite antes de ver a conversa", () => {
     expect(ATENDENTE_IA.join(" ")).toMatch(/depois de aceitar/);
   });
+
+  it("aviso de assunto sensível: Administrador principal também (igual à migration t_a7be646a)", () => {
+    const mig = ler("../../supabase/migrations/20261027100000_aviso_sensivel_admin_principal.sql");
+    expect(mig).toMatch(/_motivo = 'sensivel' AND r\.role::text = 'super_admin'/);
+    expect(mig).toMatch(/SELECT DISTINCT r\.user_id/);
+    const leadsDe = (p: ManagedRole) =>
+      REGRAS_PAPEIS.find((r) => r.papel === p)!.areas.leads.pode.map((i) => i.texto).join(" ");
+    for (const p of ["super_admin", "admin", "gestor"] as ManagedRole[])
+      expect(leadsDe(p), p).toMatch(/assunto sensível/);
+    for (const p of ["corretor", "team_leader"] as ManagedRole[])
+      expect(leadsDe(p), p).not.toMatch(/assunto sensível/);
+    expect(ATENDENTE_IA.join(" ")).toMatch(/Administrador principal também/);
+  });
 });
 
 describe("Regras de papéis — acesso e só leitura", () => {
