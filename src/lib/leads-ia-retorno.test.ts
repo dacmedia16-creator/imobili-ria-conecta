@@ -199,7 +199,7 @@ describe("retorno: resposta e envio", () => {
     const a = arg(aplicar, 0) as Record<string, unknown>;
     expect(a._fim).toBe("pediu_pessoa");
     expect(a._resposta).toContain("{corretor}");
-    expect(String(a._resposta_falha)).toMatch(/Anotei tudo aqui e já te retorno por aqui/);
+    expect(String(a._resposta_falha)).toMatch(/Anotei tudo aqui\. Um corretor da nossa equipe vai continuar seu atendimento por aqui/);
     expect(String(a._resposta_falha)).not.toMatch(/Encaminhei|já pedi|\{corretor\}/i);
     const { d: d2, aplicar: ap2 } = deps(novo);
     await post(d2);
