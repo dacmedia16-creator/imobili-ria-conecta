@@ -156,17 +156,17 @@ export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, um
 
 REGRAS (todas obrigatórias):
 1. Responda PRIMEIRO exatamente o que o cliente perguntou, em 1 ou 2 frases. Não repita dados que você já mandou no histórico.
-2. No máximo 1 pergunta, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Nunca ofereça "pedir para alguém".
+2. Só 1 pergunta por mensagem, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Para dar escolha, junte tudo numa pergunta só com "ou" ("Quer ver essa ou prefere que eu procure com 2 suítes?"). Nunca faça 2 perguntas seguidas ("Te serve? Quer visitar?" está errado). Nunca ofereça "pedir para alguém".
 3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. IPTU: diga "por mês" ou "por ano" SÓ se DADOS trouxer "iptu_periodo"; sem ele, diga só o valor. Sem o dado: "o corretor confirma com você na visita ou no contato" e registre o assunto em "registro.pendente". Nunca prometa voltar com a resposta ("já te falo", "te retorno", "te confirmo").
 4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
-5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato". Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
+5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato"; nunca diga que o corretor vai ligar, mandar ou responder em algum prazo. Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
-7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", diga que vai separar mais opções e use "acao":"passar" (nunca diga que não tem). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
-8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que vai separar opções e use "acao":"passar". Não perca o interesse no imóvel original.
+7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
+8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que anotou tudo e use "acao":"passar" (sem prometer separar nem mandar opções). Não perca o interesse no imóvel original.
 9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia E período (manhã, tarde ou horário), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
-12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: diga que vai procurar e já manda.
+12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: responda curto que anotou o pedido e use "acao":"passar" (sem prometer procurar nem mandar depois).
 13. "Não", "não precisa" ou "só isso" em resposta a uma pergunta sua NÃO é pedido para encerrar nem para passar: siga a conversa com 1 pergunta útil (outras opções do que ele pediu ou a visita). Use "acao":"passar" só quando o cliente pedir uma pessoa, escolher o dia e o período da visita ou no caso das regras 7 e 8.
 14. Se DADOS trouxer "outros_anuncios", o cliente também viu esses imóveis no portal: pode citar os dois, com os dados de lá.
 
@@ -443,8 +443,47 @@ export const RE_IDIOMA =
   /[¿¡ñ]|\b(tambien|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
 /** Unidade do IPTU dita na mensagem (texto normalizado). */
 const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
-/** A única frase com "corretor" que o modelo pode escrever (sem dado, t_82c89141 item 3). */
+/** A frase com "corretor" para assunto sem dado (t_82c89141 item 3): sai inteira das travas seguintes. */
 const RE_CORRETOR_CONFIRMA = /\bo corretor confirma[^.?!]*/g;
+/** Usos de "corretor" que o roteiro manda (t_91c8cf89). Só a palavra sai; o resto da frase continua passando pelas
+ * travas de promessa, desconto, condição etc. Confirmar/combinar: em qualquer resposta. Continuar o atendimento:
+ * só quando a resposta passa mesmo o atendimento (acao "passar"), para não dizer isso sem passar. */
+const CORRETOR_SUJ = String.raw`\b(?:o|um|nosso|seu|ao|pelo|do|para o|pro|que o) corretor(?: da (?:nossa )?equipe)? (?:ja )?(?:vai )?`;
+const RE_CORRETOR_CONFIRMA_OK = new RegExp(`${CORRETOR_SUJ}(?:confirma|confirme|confirmar|combina|combine|combinar)\\b`, "g");
+const RE_CORRETOR_CONTINUA_OK = new RegExp(
+  `${CORRETOR_SUJ}(?:continua|continue|continuar|segue|siga|seguir|acompanha|acompanhar|te atende|te atender|atende|atender)\\b`,
+  "g",
+);
+/** Promessa em nome do corretor (ligar, mandar, prazo, garantia): continua barrada. */
+const RE_CORRETOR_PROMESSA =
+  /\bcorretor[^.?!]{0,80}?\b(te (liga|ligar|ligue|manda|mandar|mande|envia|enviar|envie|retorna|retornar|chama|chamar|procura|procurar)\b|(liga|ligar|manda|mandar|envia|enviar|retorna|retornar) (pra|para) (voce|vc)|ainda hoje|hoje|agora mesmo|em (ate )?\d+ ?(min|minutos|h|horas?)\b|rapidinho|consegue|vai conseguir)/;
+/** Pergunta curta de confirmação ("sábado de manhã, certo?", "tudo bem?"): não conta na regra de 1 pergunta. */
+const RE_PERG_CONFIRMA =
+  /^(certo|ne|tudo (bem|certo)|ok|combinado|beleza|sabe|viu|entendi|e isso|isso|sim|pode ser|perfeito|tranquilo|ta bom|ta)$/;
+/** Pergunta retórica de apresentação ("Que tal essa casa...?", "Sabe o que é melhor?"): só conta se for a última. */
+const RE_PERG_RETORICA = /^(e )?(que tal|sabe (o que|qual)|adivinha|olha so)\b/;
+
+/**
+ * Quantas perguntas a mensagem faz ao cliente (t_91c8cf89). Não contam: confirmação curta, a alternativa da mesma
+ * pergunta ("Te serve? Ou prefere...?"), "qual prefere?" logo depois de uma pergunta com "ou", "?" repetido e a
+ * pergunta retórica que não é a última. Duas perguntas de verdade ("Gostou? Quer visitar?") continuam contando 2.
+ */
+export function contarPerguntas(msg: string): number {
+  const segs = norm(msg.replace(LINK_RE, " ")).match(/[^?]*\?/g) ?? [];
+  const frases = segs.map((s) => (s.split(/[.!;:]/).pop() ?? "").replace(/\?/g, "").trim());
+  let n = 0;
+  let anterior = "";
+  frases.forEach((f, i) => {
+    const fim = (f.split(",").pop() ?? "").trim();
+    if (!f || RE_PERG_CONFIRMA.test(fim)) return;
+    if (anterior && /^ou\b/.test(f)) return;
+    if (/\bou\b/.test(anterior) && /^(e )?(qual|quais) (voce )?(prefere|fica melhor|seria melhor|e melhor)/.test(f)) return;
+    if (RE_PERG_RETORICA.test(f) && i < frases.length - 1) return;
+    n++;
+    anterior = f;
+  });
+  return n;
+}
 const tipoBase = (t: string | undefined) => {
   const x = norm(t ?? "");
   return /apart|studio|kitnet|flat|cobertura/.test(x) ? "apartamento" : /casa|sobrado/.test(x) ? "casa" : /terreno|lote/.test(x) ? "terreno" : x;
@@ -528,7 +567,7 @@ export function validarRedacaoDetalhe(
   const msg = s.mensagem;
   if (!msg.trim()) return b("vazio");
   if (msg.length > REDACAO_MAX_CHARS) return b("tamanho", `${msg.length} caracteres`);
-  const nPerg = (msg.match(/\?/g) ?? []).length;
+  const nPerg = contarPerguntas(msg);
   if (nPerg > 1) return b("perguntas", `${nPerg} perguntas`);
   if (/[()]/.test(msg)) return b("parenteses", achou(/\([^)]{0,50}\)?|\)/, msg));
   if (/[{}[\]<>]|\*\*|__|^#|\n\s*[-*•]\s/.test(msg)) return b("formato", achou(/[{}[\]<>]|\*\*|__|^#|\n\s*[-*•]\s/, msg));
@@ -582,8 +621,13 @@ export function validarRedacaoDetalhe(
     )
   )
     return b("identidade", achou(RE_IDENTIDADE, n));
-  // Corretor só na frase de passagem, que o código coloca depois.
-  if (/(corretor|corretora|consultor)/.test(n)) return b("corretor", achou(/(corretor|corretora|consultor)\w*/, n));
+  // Corretor: só "confirma com você..." e os usos do roteiro ("o corretor continua seu atendimento"), sem promessa
+  // em nome dele (t_91c8cf89). A palavra sai do texto; o resto da frase segue pelas travas abaixo.
+  if (RE_CORRETOR_PROMESSA.test(n0)) return b("corretor", achou(RE_CORRETOR_PROMESSA, n0));
+  const tira = (m: string) => m.replace("corretor", "responsavel");
+  let nc = n.replace(RE_CORRETOR_CONFIRMA_OK, tira);
+  if (s.acao === "passar") nc = nc.replace(RE_CORRETOR_CONTINUA_OK, tira);
+  if (/(corretor|corretora|consultor)/.test(nc)) return b("corretor", achou(/(corretor|corretora|consultor)\w*/, nc));
   if (/^(obrigad|muito obrigad)/.test(n) && ehPergunta(textoCliente)) return b("obrigada", achou(/^(muito )?obrigad\w*/, n));
 
   // Afirmações proibidas.
@@ -683,7 +727,7 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
   const e: Record<Bloqueio, string> = {
     vazio: "a mensagem veio vazia",
     tamanho: "a mensagem passou de 350 caracteres",
-    perguntas: "havia mais de 1 pergunta; deixe só 1, no fim",
+    perguntas: "havia mais de 1 pergunta; deixe só 1, no fim (para dar escolha, junte numa pergunta só com \"ou\")",
     parenteses: "não use parênteses",
     formato: "responda só com o JSON pedido, sem markdown, lista ou símbolos",
     link: "use só o link exato de um imóvel de DADOS",
@@ -697,7 +741,7 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     desconto: "não fale de desconto nem de negociar o valor",
     promessa: "não faça promessa nem garantia",
     identidade: "não fale de IA, robô, sistema ou assistente",
-    corretor: "não fale de corretor; para passar o atendimento use acao passar",
+    corretor: "corretor só em \"o corretor confirma com você na visita ou no contato\", sem prometer ligação, envio ou prazo; para passar o atendimento use acao passar",
     obrigada: "não comece com Obrigada quando o cliente fez uma pergunta",
     oferta: "ofereça só um imóvel de CANDIDATOS ainda não oferecido, com o codigo dele",
     datas: "ainda não ofereça dias nem horários; convide de forma simples para a visita",
