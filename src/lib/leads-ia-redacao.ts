@@ -1397,6 +1397,15 @@ export async function modoValidadorDb(db: Db, orgId: string): Promise<ModoValida
 }
 
 /** Últimas falas da conversa, da mais antiga para a mais nova (o texto é mascarado em montarMensagens). */
+/** t_37cf21e3: falas do cliente que chegaram juntas, antes da atual e depois da última resposta da Nicole. */
+export function falasSemResposta(h: FalaHistorico[], atual: string): string[] {
+  const fim = [...h];
+  if (fim.length && fim[fim.length - 1].autor === "cliente" && fim[fim.length - 1].texto.trim() === atual.trim()) fim.pop();
+  const out: string[] = [];
+  for (let i = fim.length - 1; i >= 0 && fim[i].autor === "cliente" && out.length < 3; i--) out.unshift(fim[i].texto);
+  return out;
+}
+
 export async function historicoDb(db: Db, conversaId: string): Promise<FalaHistorico[]> {
   const { data, error } = await db
     .from("lead_mensagens")
