@@ -437,7 +437,10 @@ const RE_SEM_OPCAO =
 const RE_RETORNO =
   /(ja te (falo|retorno|confirmo|aviso|digo|respondo)|te (retorno|confirmo|aviso|respondo)\b|vou (confirmar|verificar|checar|conferir|ver isso|consultar)|deixa eu (confirmar|verificar|ver|checar)|preciso (confirmar|verificar)|retorno (com|para|pra) (voce|vc)|volto (a falar|com a resposta|com voce)|(e|depois|ja) te (mando|envio|passo|trago)\b|vou (separar|procurar|buscar|levantar) (mais|outr|opc|algo|o que))/;
 /** Resposta fora do português (visto no DeepSeek real: "También tengo... ¿Te gusta?"). */
-const RE_IDIOMA = /[¿¡ñ]|\b(tambien|tengo|usted|mira|gusta|ademas|alguna|alguno|algun|aqui tienes|habitaciones|dormitorios con|precio de)\b/;
+// t_f7155e0c: ampliada após o "precio" do DeepSeek. Só palavras que NÃO existem em português (testado contra as falas
+// de referência e os bairros/condomínios do XML). Fora de propósito: "el", "y", "pero", "una" soltos (nomes e endereços).
+export const RE_IDIOMA =
+  /[¿¡ñ]|\b(tambien|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
 /** Unidade do IPTU dita na mensagem (texto normalizado). */
 const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
 /** A única frase com "corretor" que o modelo pode escrever (sem dado, t_82c89141 item 3). */

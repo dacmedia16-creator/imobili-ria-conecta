@@ -11,7 +11,9 @@ const SAIDA = process.argv[2] ?? "referencia-modelo.md";
 const MODELO = process.argv[3] ?? "google/gemini-3.8-flash";
 const ENVF = process.argv[4] ?? "/root/.hermes/profiles/max/.env";
 const MODO = (process.env.REF_MODO as ModoValidador) || "bloquear";
-const TETO = 1;
+// t_f7155e0c: REF_CONV=B roda só essa conversa; REF_TETO=0.2 baixa o teto.
+const TETO = Number(process.env.REF_TETO) || 1;
+const SO_CONV = process.env.REF_CONV ?? "";
 const AGORA = new Date("2026-10-27T13:00:00Z");
 const env: Record<string, string> = {};
 for (const l of readFileSync(ENVF, "utf8").split("\n")) {
@@ -28,7 +30,7 @@ async function main() {
   let chamadas1 = 0;
   let bloq1 = 0;
   let bloqFinal = 0;
-  for (const conv of REFERENCIA) {
+  for (const conv of REFERENCIA.filter((x) => !SO_CONV || x.id === SO_CONV)) {
     const b = buscasReferencia(conv);
     let c: ContextoIa = ctxReferencia(conv);
     const hist: FalaHistorico[] = [{ autor: "ia", texto: conv.primeira }];
