@@ -4,15 +4,16 @@
 -- ADITIVA e SÓ LEITURA: cria uma função; não altera tabela, dado, outra função, canal nem o reengajamento.
 -- Rollback: docs/sql/rollback/20261027090000_leads_ia_imovel_parecido.rollback.sql
 -- Depende de 20261016200000 (remax_xml_*), 20261026170000 (lead_ia_tipo/lead_ia_captacao) e
--- 20261026190000 (colunas do modo genérico, lead_ia_num/lead_ia_reais).
+-- 20261026190000 (colunas do modo genérico, lead_ia_num/lead_ia_reais) e 20261027080000 (negocio,
+-- preco_aluguel, xml_url_anuncio_ok, lead_ia_reais_curto): aplicar DEPOIS dela.
 --
 -- lead_ia_imoveis_parecidos(_conversa, _excluir, _preco_min, _preco_max, _bairro, _negocio, _limite,
 --                           _mais_barato, _codigo)
 --   Referência = o imóvel pedido: XML da PRÓPRIA imobiliária pelo código do anúncio do portal ou pelo código
 --   informado na conversa (mesmo que tenha saído do XML: aí 'saiu' = true); sem XML, a captação.
---   Parecido = MESMA imobiliária, última coleta boa, mesmo tipo de negócio (o XML guardado só tem VENDA:
---   locação nunca acha nada), mesmo tipo de imóvel, mesma cidade; preço dentro da faixa do cliente ou, sem
---   faixa, até ±15% do preço do pedido. Preferência: mesmo prédio/condomínio (mesma rua e número), depois
+--   Parecido = MESMA imobiliária, última coleta boa, mesmo tipo de negócio (venda oferece venda; locação
+--   oferece locação e compara o aluguel — locação no XML existe a partir de 20261027080000, t_25fe1197),
+--   mesmo tipo de imóvel, mesma cidade; preço dentro da faixa do cliente ou, sem faixa, até ±15% do pedido. Preferência: mesmo prédio/condomínio (mesma rua e número), depois
 --   mesmo bairro, depois quartos mais perto do pedido, depois o preço mais perto. Nunca devolve o próprio pedido nem os já oferecidos.
 --   Devolve {referencia:{...}, itens:[...]}. Sem rua/número, sem contato, sem disponibilidade, permuta,
 --   financiamento ou andar.
@@ -50,7 +51,10 @@ BEGIN
    LIMIT 1;
   IF _ref.code IS NOT NULL THEN
     _tipo_raw := _ref.tipo; _tipo := public.lead_ia_tipo(_ref.tipo);
-    _bairro_ref := nullif(btrim(_ref.bairro), ''); _cidade := nullif(btrim(_ref.cidade), ''); _preco := _ref.preco;
+    _bairro_ref := nullif(btrim(_ref.bairro), ''); _cidade := nullif(btrim(_ref.cidade), '');
+    -- Locação compara aluguel com aluguel (t_25fe1197); pedido de venda não serve de referência de aluguel.
+    _preco := CASE WHEN _negocio = 'locacao' THEN _ref.preco_aluguel
+                   WHEN _ref.negocio = 'locacao' THEN NULL ELSE _ref.preco END;
   ELSE
     _cap := public.lead_ia_captacao(_l, _cv.dados);
     IF _cap IS NOT NULL THEN
@@ -75,11 +79,15 @@ BEGIN
                 WHEN _preco > 0 AND _preco BETWEEN coalesce(_min, 0) AND coalesce(_max, 1e12) THEN _preco
                 WHEN _max IS NOT NULL AND _min IS NOT NULL THEN (_min + _max) / 2
                 ELSE coalesce(_max, _min) END;
+  -- Locação sem aluguel de referência e sem faixa do cliente (ex.: o pedido era de venda): oferece a locação do
+  -- mesmo tipo e cidade, preferindo bairro e quartos, sem filtro de valor (o aluguel é dito na oferta).
+  IF _negocio = 'locacao' AND _alvo IS NULL AND _min IS NULL AND _max IS NULL THEN _alvo := 0; END IF;
   _ex := ARRAY(SELECT public.portal_code_key(btrim(e)) FROM unnest(coalesce(_excluir, '{}')) e
                 WHERE char_length(btrim(coalesce(e, ''))) BETWEEN 1 AND 60 LIMIT 20);
 
-  -- shortcut: o XML guardado só tem venda (o leitor descarta locação); locação nunca acha parecido.
-  IF _negocio = 'locacao' OR _run IS NULL OR _tipo IS NULL OR _cidade IS NULL OR _alvo IS NULL THEN
+  -- Locação (t_25fe1197): o XML genérico guarda locação (20261027080000); locação só oferece locação,
+  -- comparando o aluguel. Sem locação no XML, nada é achado e a Nicole passa ao corretor.
+  IF _run IS NULL OR _tipo IS NULL OR _cidade IS NULL OR _alvo IS NULL THEN
     RETURN jsonb_build_object('referencia', _refj, 'itens', '[]'::jsonb);
   END IF;
 
@@ -90,7 +98,7 @@ BEGIN
              coalesce(public.lead_ia_norm(btrim(x.bairro)) = public.lead_ia_norm(_bairro_ref), false) DESC,
              -- Só ordem (não filtro): quartos mais perto do pedido; sem dado, depois dos que têm.
              coalesce(abs(x.quartos - _ref.quartos), 99),
-             abs(x.preco - _alvo), x.code) AS ord,
+             abs(x.pv - _alvo), x.code) AS ord,
            jsonb_strip_nulls(jsonb_build_object(
              'codigo', x.code,
              'tipo', public.lead_ia_tipo(x.tipo),
@@ -101,16 +109,19 @@ BEGIN
              'vagas', x.vagas::text,
              'area_util_m2', public.lead_ia_num(x.area_util),
              'area_terreno_m2', public.lead_ia_num(x.area_terreno),
-             'preco', public.lead_ia_reais(x.preco),
-             'url', CASE WHEN x.url ~ '^https://[A-Za-z0-9.-]+/[^[:space:]]*$' THEN left(x.url, 300) END,
+             'preco', CASE WHEN _negocio = 'venda' THEN public.lead_ia_reais_curto(x.pv) END,
+             'aluguel', CASE WHEN _negocio = 'locacao' THEN public.lead_ia_reais_curto(x.pv) END,
+             'url', CASE WHEN public.xml_url_anuncio_ok(x.url) THEN x.url END,
              'mesmo_condominio', CASE WHEN coalesce(_ref.rua IS NOT NULL AND _ref.numero IS NOT NULL
                                        AND x.rua = _ref.rua AND x.numero = _ref.numero, false) THEN true END,
              'mesmo_bairro', CASE WHEN coalesce(public.lead_ia_norm(btrim(x.bairro)) = public.lead_ia_norm(_bairro_ref), false) THEN true END)) AS j
-      FROM public.remax_xml_listings x
-     WHERE x.organization_id = _cv.organization_id
-       AND x.last_run = _run
-       AND x.preco > 0
-       AND x.preco BETWEEN coalesce(_min, 0) AND coalesce(_max, 1e12)
+      FROM (SELECT y.*, CASE WHEN _negocio = 'locacao' THEN y.preco_aluguel ELSE y.preco END AS pv
+              FROM public.remax_xml_listings y
+             WHERE y.organization_id = _cv.organization_id AND y.last_run = _run
+               AND CASE WHEN _negocio = 'locacao' THEN y.negocio IN ('locacao', 'venda_locacao')
+                        ELSE y.negocio IN ('venda', 'venda_locacao') END) x
+     WHERE x.pv > 0
+       AND x.pv BETWEEN coalesce(_min, 0) AND coalesce(_max, 1e12)
        AND public.lead_ia_norm(btrim(x.cidade)) = public.lead_ia_norm(_cidade)
        AND CASE WHEN _tipo_raw IS NOT NULL THEN x.tipo = _tipo_raw ELSE public.lead_ia_tipo(x.tipo) = _tipo END
        AND (_b IS NULL OR public.lead_ia_norm(x.bairro) LIKE '%' || _b || '%')

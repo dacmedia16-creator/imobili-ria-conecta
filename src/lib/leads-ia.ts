@@ -58,6 +58,13 @@ export type FichaIa = {
   /** futuro */ aceita_permuta?: boolean;
   /** futuro */ aceita_financiamento?: boolean;
   /** futuro (ex.: "5º andar, frente") */ andar?: string;
+  // XML (t_25fe1197): negócio, valor anunciado e link do anúncio, só quando vieram do XML.
+  /** "venda" | "locacao" | "venda_locacao" */ negocio?: string;
+  /** Preço de venda anunciado, formatado ("R$ 430.000"). */ preco?: string;
+  /** O mesmo, em número (para conferir a faixa do cliente). */ preco_valor?: number;
+  /** Aluguel mensal anunciado, formatado ("R$ 2.500"). */ aluguel?: string;
+  aluguel_valor?: number;
+  /** Link do anúncio (https, validado no banco). */ link?: string;
 };
 
 export type DadosQualificacao = {
@@ -157,8 +164,10 @@ export type ImovelEncontrado = {
 /** Imóvel parecido vindo do XML da própria imobiliária (lead_ia_imoveis_parecidos). Só dados do XML. */
 export type ImovelParecido = Pick<FichaIa, "tipo" | "bairro" | "cidade" | "quartos" | "suites" | "vagas" | "area_util_m2" | "area_terreno_m2"> & {
   codigo: string;
-  /** Preço anunciado no XML, já formatado ("R$ 640.000,00"). */
+  /** Preço anunciado no XML, já formatado ("R$ 640.000"). */
   preco?: string;
+  /** Aluguel mensal anunciado (parecido de locação, t_25fe1197). */
+  aluguel?: string;
   /** Link do anúncio, só se o XML guardou um link https. */
   url?: string;
   mesmo_condominio?: boolean;
@@ -268,7 +277,8 @@ const QUER_VISITA = /(visit|conhecer|agendar|marcar|ver (o |a )?(imovel|casa|ap|
 export const PERGUNTA: Record<Pergunta, string> = {
   finalidade: "Você procura para comprar ou para alugar?",
   faixa: "Para eu já separar o que combina com você: qual faixa de valor você tem em mente?",
-  pagamento: "E a forma de pagamento seria à vista, financiamento ou permuta?",
+  // t_59ab47d4: sem "permuta" nas opções sugeridas (não dar a entender que o imóvel aceita).
+  pagamento: "E a forma de pagamento seria à vista ou com financiamento?",
 };
 
 const NAO_SEI = "não tenho esse dado confirmado, vou confirmar com o corretor";
@@ -300,9 +310,30 @@ function pagamentoDe(n: string): string[] | null {
   if (/consorcio/.test(n)) p.push("consórcio");
   return p.length ? p : null;
 }
-/** Valor dito pelo cliente: guarda como ele disse (curto), nunca interpreta. */
-function faixaDe(texto: string, n: string): string | null {
-  return /(\d[\d.,]*\s*(mil|milhao|milhoes|mi\b|k\b|reais)|r\$\s*\d|\bate \d|\d{3}\.\d{3})/.test(n) ? curto(texto) : null;
+/**
+ * Valor dito pelo cliente: guarda como ele disse (curto), nunca interpreta. `numeroSolto` (só quando a
+ * pergunta da faixa foi feita): "120000" sozinho também vale (t_59ab47d4: "120000 aceita financiamento ?").
+ */
+function faixaDe(texto: string, n: string, numeroSolto = false): string | null {
+  if (/(\d[\d.,]*\s*(mil|milhao|milhoes|mi\b|k\b|reais)|r\$\s*\d|\bate \d|\d{3}\.\d{3})/.test(n)) return curto(texto);
+  // 5 a 9 dígitos seguidos (10 mil a 999 milhões); telefone (10+ dígitos) e código com letra ficam de fora.
+  return numeroSolto && /(^|[^\w.,])\d{5,9}([^\w.,]|$)/.test(n) ? curto(texto) : null;
+}
+
+/** "R$ 1.200.000" (inteiro, separador de milhar). */
+export const reais = (v: number) => `R$ ${Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+
+/**
+ * Faixa muito longe do valor anunciado (mais que o dobro ou menos da metade)? Devolve o valor do cliente
+ * para a Nicole confirmar com naturalidade; null = perto o bastante (ou sem dado para comparar).
+ */
+export function faixaLonge(faixa: string | undefined, precoAnunciado: number | undefined): number | null {
+  if (!faixa || !precoAnunciado || precoAnunciado <= 0) return null;
+  const v = valorFaixa(faixa);
+  if (!v) return null;
+  const rep = v.min != null && v.max != null ? Math.round((v.min + v.max) / 2) : (v.max ?? v.min ?? null);
+  if (rep == null) return null;
+  return rep > precoAnunciado * 2 || rep < precoAnunciado / 2 ? rep : null;
 }
 
 /** Entende a resposta de cada passo só por regras. null = não entendeu. */
@@ -445,8 +476,19 @@ function respostaTema(t: Tema, f: FichaIa | null | undefined): string | null {
     case "disponibilidade":
       return null; // nunca garante: tratado em responderDuvidas ("confirmo a disponibilidade com o corretor")
     case "preco":
-      return null; // valor e negociação: sempre o corretor
+      // t_25fe1197: o valor ANUNCIADO no XML é dito (venda e/ou aluguel). Negociação/desconto: corretor.
+      return valorAnunciado(f);
   }
+}
+
+/** "está anunciado por R$ 430.000" / "o aluguel anunciado é de R$ 2.500 por mês". null = XML sem valor. */
+export function valorAnunciado(f: FichaIa | null | undefined, finalidade?: string): string | null {
+  if (!f) return null;
+  const venda = f.negocio !== "locacao" && f.preco ? `está anunciado por ${f.preco}` : null;
+  const alug = f.aluguel ? `o aluguel anunciado é de ${f.aluguel} por mês` : null;
+  if (finalidade === "alugar") return alug ?? venda;
+  if (finalidade === "comprar") return venda ?? alug;
+  return venda && alug ? `${venda}, e ${alug}` : (venda ?? alug);
 }
 
 /** Responde as dúvidas do cliente (no máximo uma frase de \"sei\" e uma de \"não sei\"). */
@@ -465,6 +507,8 @@ export function responderDuvidas(
   }
   const partes: string[] = [];
   if (sei.length) partes.push(`${maiuscula(juntar(sei))}.`);
+  // Valor anunciado dito: proposta e negociação continuam com o corretor (t_25fe1197).
+  if (temas.includes("preco") && !naoSei.includes("preco")) partes.push("Proposta e negociação, quem conversa com você é o corretor.");
   const semPreco = naoSei.filter((t) => t !== "preco" && t !== "disponibilidade");
   if (naoSei.includes("preco"))
     partes.push("O valor e as condições de negociação quem confirma é o corretor, para não te passar nada desatualizado.");
@@ -673,7 +717,7 @@ export function textoParecido(p: ImovelParecido, jaMostrados: number): string {
   const r = resumoFicha(fichaDoParecido(p));
   const desc = r ? r.replace(/^É /, "é ").replace(/\.$/, "") : "é um imóvel";
   const onde = p.mesmo_condominio ? ", no mesmo condomínio" : "";
-  const preco = p.preco ? ` Está anunciado por ${p.preco}.` : "";
+  const preco = p.aluguel ? ` O aluguel anunciado é de ${p.aluguel} por mês.` : p.preco ? ` Está anunciado por ${p.preco}.` : "";
   const link = p.url ? ` Anúncio: ${p.url}` : "";
   const fim =
     jaMostrados < MAX_PARECIDOS
@@ -720,6 +764,7 @@ export function normalizarParecidos(data: unknown): ResultadoParecidos | null {
         area_util_m2: txt(i.area_util_m2, 15),
         area_terreno_m2: txt(i.area_terreno_m2, 15),
         preco: txt(i.preco, 30),
+        aluguel: txt(i.aluguel, 30),
         url: url && /^https:\/\/[A-Za-z0-9.-]+\/\S*$/.test(url) ? url : undefined,
         mesmo_condominio: i.mesmo_condominio === true || undefined,
         mesmo_bairro: i.mesmo_bairro === true || undefined,
@@ -882,7 +927,7 @@ export async function proximaResposta(
       const franco = !res
         ? ""
         : extra.negocio === "locacao" || negocio() === "locacao"
-          ? "No catálogo que eu consulto só tenho imóveis à venda, então não tenho uma opção de locação parecida para te mostrar."
+          ? "Não encontrei agora uma opção de locação parecida no nosso catálogo, então vou pedir para um corretor entrar em contato com você."
           : ja.length
             ? "Não encontrei mais nenhuma opção parecida no nosso catálogo além da que te mostrei."
             : "No momento não encontrei outra opção parecida com essa no nosso catálogo.";
@@ -1011,10 +1056,11 @@ export async function proximaResposta(
     const doXml = ctx.imovel_fonte === "xml" || !!dados.imovel_xml_codigo;
     const comDuvida = (t: string) => [duvida, t].filter(Boolean).join(" ");
     if (pedeOutrasOpcoes(texto) && !NAO_QUER_MAIS.test(n)) return ofertar(duvida, { mais_barato: MAIS_BARATO.test(n) });
-    // Quer alugar e o pedido é de venda (o XML guardado só tem venda): diz isso e procura (sem achar, passa).
-    if (dados.finalidade === "alugar" && finalidadeAntes !== "alugar" && (ctx.transacao === "venda" || doXml) && !conferido.includes("locacao")) {
+    // Quer alugar e o pedido é só de venda: diz isso e procura uma locação parecida no XML (sem achar, passa).
+    const pedidoSoVenda = ficha?.negocio ? ficha.negocio === "venda" : ctx.transacao === "venda" || doXml;
+    if (dados.finalidade === "alugar" && finalidadeAntes !== "alugar" && pedidoSoVenda && !conferido.includes("locacao")) {
       conferir("locacao");
-      return ofertar(comDuvida("Esse imóvel está anunciado para venda."), { negocio: "locacao" }, { referencia: {}, itens: [] });
+      return ofertar(comDuvida("Esse imóvel está anunciado para venda."), { negocio: "locacao", preco_min: null, preco_max: null });
     }
     // Fora do bairro que o cliente quer.
     const b = bairroDesejado(texto);
