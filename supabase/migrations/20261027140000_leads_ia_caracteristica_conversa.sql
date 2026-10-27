@@ -1,7 +1,7 @@
 -- Nicole: busca por característica + mensagem nunca sem resposta + conversa certa (card t_a9f1b447, teste ao
 -- vivo de Denis 27/10/2026, lead 59538211, tópico 6238).
 --
--- Rollback: docs/sql/rollback/20261027130000_leads_ia_caracteristica_conversa.rollback.sql
+-- Rollback: docs/sql/rollback/20261027140000_leads_ia_caracteristica_conversa.rollback.sql
 -- Depende de 20261025200000 (lead_ia_retorno_receber), 20261027080000 (negocio, xml_url_anuncio_ok,
 -- lead_ia_reais_curto), 20261026190000 (lead_ia_num), 20261026170000 (lead_ia_tipo). Aplicar DEPOIS delas.
 --

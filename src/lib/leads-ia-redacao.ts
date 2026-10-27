@@ -31,6 +31,7 @@ import {
   pediuPessoa,
   perguntouSeRobo,
   prazoConfirmacao,
+  querVisitar,
   resumoQualificacao,
   type ContextoIa,
   type DadosQualificacao,
@@ -127,6 +128,8 @@ export type EntradaModelo = {
   historico: FalaHistorico[];
   candidatos: ImovelParecido[];
   visita: string[];
+  /** Busca por característica feita antes do modelo (t_a9f1b447): o que o cliente pediu e se ficou fora da faixa. */
+  busca?: { pedido: string; fora_faixa: boolean } | null;
 };
 
 export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, uma imobiliária. Você conversa pelo WhatsApp com um cliente que se interessou por um imóvel. Escreva como uma atendente humana experiente: simpática, direta, frases curtas, tom de conversa (nada de ficha técnica).
@@ -140,9 +143,11 @@ REGRAS (todas obrigatórias):
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se não houver candidato, diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual delas mais gostou ou se quer visitar (sem "passar"); use "acao":"passar" só se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que vai separar opções e use "acao":"passar". Não perca o interesse no imóvel original.
-9. Visita: ofereça só depois de responder o que o cliente perguntou, usando as opções de VISITA. Quando o cliente escolher dia e período, registre em "registro.visita" e use "acao":"passar". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
+9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia e período, registre em "registro.visita" e use "acao":"passar". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
+12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: diga que vai procurar e já manda.
+13. "Não", "não precisa" ou "só isso" em resposta a uma pergunta sua NÃO é pedido para encerrar nem para passar: siga a conversa com 1 pergunta útil (outras opções do que ele pediu ou a visita). Use "acao":"passar" só quando o cliente pedir uma pessoa, escolher o dia da visita ou no caso da regra 8.
 
 Responda SÓ com JSON neste formato:
 {"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou"}}
@@ -178,7 +183,8 @@ export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: s
       pagamento: d.pagamento?.length ? d.pagamento : undefined,
       nova_busca: d.outras_buscas?.length ? d.outras_buscas : undefined,
     }),
-    visita: e.visita,
+    busca: e.busca ?? undefined,
+    visita: e.visita.length ? e.visita : undefined,
   });
   const hist = e.historico
     .filter((m) => m.autor !== "sistema" && m.texto.trim())
@@ -276,7 +282,13 @@ export type Bloqueio =
   | "identidade"
   | "corretor"
   | "obrigada"
-  | "oferta";
+  | "oferta"
+  | "datas";
+
+/** Contagens conferidas pela trava "contagem". */
+export type Contagem = "quartos" | "suites" | "vagas" | "banheiros";
+type PorContagem = Record<Contagem, Set<number>>;
+const porContagem = (): PorContagem => ({ quartos: new Set(), suites: new Set(), vagas: new Set(), banheiros: new Set() });
 
 export type Permitidos = {
   links: Set<string>;
@@ -288,6 +300,8 @@ export type Permitidos = {
   banheiros: Set<number>;
   datas: Set<string>;
   codigos: Map<string, ImovelParecido>;
+  /** De onde vem cada contagem permitida (t_a9f1b447): ficha do lead, imóveis da busca e pedido do cliente. */
+  origem?: { ficha: PorContagem; busca: PorContagem; cliente: PorContagem };
 };
 
 const numBr = (s: string): number => {
@@ -316,6 +330,8 @@ export function permitidosDe(
   ficha: FichaIa | null | undefined,
   parecidos: ImovelParecido[],
   visita: string[],
+  /** Mensagens do cliente (a atual e as anteriores): o número que ELE pediu ("3 suítes") não é invenção. */
+  falasCliente: string[] = [],
 ): Permitidos {
   const p: Permitidos = {
     links: new Set(),
@@ -327,10 +343,26 @@ export function permitidosDe(
     banheiros: new Set(),
     datas: new Set(),
     codigos: new Map(),
+    origem: { ficha: porContagem(), busca: porContagem(), cliente: porContagem() },
   };
   const add = <T>(s: Set<T>, v: T | null) => {
     if (v !== null) s.add(v);
   };
+  const o = p.origem!;
+  for (const [i, alvo] of [[ficha ?? {}, o.ficha], ...parecidos.map((x) => [x, o.busca] as const)] as Array<
+    [Partial<FichaIa>, PorContagem]
+  >) {
+    add(alvo.quartos, inteiro(i.quartos));
+    add(alvo.suites, inteiro(i.suites));
+    add(alvo.vagas, inteiro(i.vagas));
+    add(alvo.banheiros, inteiro(i.banheiros));
+  }
+  // O número do cliente e um a menos ("prefere que eu procure com 2 suítes?", a mesma sugestão do plano B).
+  for (const f of falasCliente)
+    for (const [u, v] of contagensDoTexto(norm(f))) {
+      o.cliente[u].add(v);
+      if (v > 1) o.cliente[u].add(v - 1);
+    }
   const imoveis: Array<Partial<FichaIa> & { url?: string }> = [ficha ?? {}, ...parecidos];
   for (const i of imoveis) {
     if (i.link && /^https:\/\//.test(i.link)) p.links.add(i.link);
@@ -363,6 +395,20 @@ const PALAVRA_NUM: Record<string, number> = {
   sete: 7,
   oito: 8,
 };
+const unidadeContagem = (u: string): Contagem =>
+  /^(quarto|d[oa])/.test(u) ? "quartos" : /^suite/.test(u) ? "suites" : /^vaga/.test(u) ? "vagas" : "banheiros";
+/** "3 suítes", "duas vagas" -> [["suites", 3], ["vagas", 2]] (texto já normalizado). */
+export function contagensDoTexto(n: string): Array<[Contagem, number]> {
+  const r: Array<[Contagem, number]> = [];
+  for (const m of n.matchAll(
+    /\b(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito)\s*(?:ou mais\s*)?(quartos?|d[oa]m?r?m?[a-z]*torios?|dorms?|suites?|vagas?|banheiros?)\b/g,
+  )) {
+    const v = /^\d+$/.test(m[1]) ? Number(m[1]) : PALAVRA_NUM[m[1]];
+    if (v && v <= 20) r.push([unidadeContagem(m[2]), v]);
+  }
+  return r;
+}
+
 const LINK_RE =
   /(https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9-]+\.(?:com|net|org|br|io|app|me|ly|site|link|info)(?:\/[^\s]*)?)/gi;
 /** Confirmação honesta ("vou confirmar", "te confirmo", "vou verificar") libera falar do assunto sem afirmar. */
@@ -511,31 +557,63 @@ export function validarRedacaoDetalhe(
       if (!perto(perm.valores, v, 0.5)) return b("valor", m[0]);
     } else if (/^(m2|m²|metros|m$)/.test(unidade)) {
       if (!perto(perm.areas, v, 0.01)) return b("area", m[0]);
-    } else if (/^(quarto|dormitorio)/.test(unidade)) {
-      if (!perm.quartos.has(v)) return b("contagem", m[0]);
-    } else if (/^suite/.test(unidade)) {
-      if (!perm.suites.has(v)) return b("contagem", m[0]);
-    } else if (/^vaga/.test(unidade)) {
-      if (!perm.vagas.has(v)) return b("contagem", m[0]);
-    } else if (/^banheiro/.test(unidade)) {
-      if (!perm.banheiros.has(v)) return b("contagem", m[0]);
+    } else if (/^(quarto|dormitorio|suite|vaga|banheiro)/.test(unidade)) {
+      const u = unidadeContagem(unidade);
+      if (!contagemOk(perm, u, v)) return b("contagem", `${m[0]} | ${origemContagem(perm, u)}`);
     } else return b("numero", m[0]);
   }
   for (const m of semDatas.matchAll(
     /\b(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito) (quartos?|dormitorios?|suites?|vagas?|banheiros?)\b/g,
   )) {
     const v = PALAVRA_NUM[m[1]];
-    const u = m[2];
-    const set = /^(quarto|dormitorio)/.test(u)
-      ? perm.quartos
-      : /^suite/.test(u)
-        ? perm.suites
-        : /^vaga/.test(u)
-          ? perm.vagas
-          : perm.banheiros;
-    if (!set.has(v)) return b("contagem", m[0]);
+    const u = unidadeContagem(m[2]);
+    if (!contagemOk(perm, u, v)) return b("contagem", `${m[0]} | ${origemContagem(perm, u)}`);
+  }
+  // Datas da visita só depois que o cliente quis visitar (t_a9f1b447 item 7): sem opções, nada de dia/período.
+  if (!perm.datas.size && !/(amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|manha|tarde|noite|\bdia\b|horario)/.test(norm(textoCliente))) {
+    const re = /\b(amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)\b[^.?!]{0,30}\b(manha|tarde|noite)\b/;
+    if (re.test(semDatas)) return b("datas", achou(re, semDatas));
   }
   return null;
+}
+
+/** O número está na ficha, nos imóveis da busca entregues ao modelo ou no que o cliente pediu? */
+function contagemOk(perm: Permitidos, u: Contagem, v: number): boolean {
+  return perm[u].has(v) || !!perm.origem?.busca[u].has(v) || !!perm.origem?.cliente[u].has(v);
+}
+/** "ficha:1 busca:2,4 cliente:-": de onde a trava aceitaria o número (só números, sem texto da conversa). */
+function origemContagem(perm: Permitidos, u: Contagem): string {
+  const l = (s: Set<number> | undefined) => (s && s.size ? [...s].sort((a, b) => a - b).join(",") : "-");
+  const o = perm.origem;
+  return `ficha:${l(o?.ficha[u] ?? perm[u])} busca:${l(o?.busca[u])} cliente:${l(o?.cliente[u])}`;
+}
+
+/** Explicação curta do bloqueio para a 2ª tentativa do modelo (o que estava errado, sem repetir a conversa). */
+export function explicarBloqueio(d: DetalheBloqueio): string {
+  const t = d.trecho ? ` ("${d.trecho}")` : "";
+  const e: Record<Bloqueio, string> = {
+    vazio: "a mensagem veio vazia",
+    tamanho: "a mensagem passou de 350 caracteres",
+    perguntas: "havia mais de 1 pergunta; deixe só 1, no fim",
+    parenteses: "não use parênteses",
+    formato: "responda só com o JSON pedido, sem markdown, lista ou símbolos",
+    link: "use só o link exato de um imóvel de DADOS",
+    valor: "o valor não está em DADOS; use o valor exatamente como em DADOS",
+    area: "a metragem não está em DADOS",
+    contagem: "esse número de quartos/suítes/vagas não está em DADOS nem no que o cliente pediu; use só os números dos imóveis de DADOS",
+    numero: "número solto que não está em DADOS",
+    disponibilidade: "não afirme disponibilidade nem use a palavra disponível",
+    condicao: "não afirme financiamento, FGTS, permuta ou consórcio; diga que vai confirmar",
+    andar: "não fale de andar",
+    desconto: "não fale de desconto nem de negociar o valor",
+    promessa: "não faça promessa nem garantia",
+    identidade: "não fale de IA, robô, sistema ou assistente",
+    corretor: "não fale de corretor; para passar o atendimento use acao passar",
+    obrigada: "não comece com Obrigada quando o cliente fez uma pergunta",
+    oferta: "ofereça só um imóvel de CANDIDATOS ainda não oferecido, com o codigo dele",
+    datas: "ainda não ofereça dias nem horários; convide de forma simples para a visita",
+  };
+  return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
 
 // --- Chamada ao modelo (Gemini direto ou OpenRouter), só texto ---------------------------------------
@@ -683,6 +761,9 @@ export type OpcoesRedacao = {
   modo?: ModoValidador;
 };
 
+/** "Não" curto a uma pergunta da Nicole (não é motivo para passar ao corretor, t_a9f1b447 item 5). */
+const NAO_CURTO = /^(nao|n|nao obrigad\w*|nao precisa|so isso|tudo bem|ta bom|nao,? obrigad\w*)[\s.!]*$/;
+
 /** A mensagem tem que sair com o texto fixo (regras de antes do modelo)? */
 export function exigeTextoFixo(ctx: ContextoIa, texto: string, base: RespostaIa): boolean {
   const n = norm(texto);
@@ -751,15 +832,20 @@ export async function redigirResposta(
   const usaGemini = op.env.LEADS_IA_MODELO === "gemini" && !!gKey;
   if (!usaOr && !usaGemini) return observar ? semResposta() : plano();
 
-  const dadosIn: DadosQualificacao = ctx.dados ?? {};
-  const ja = dadosIn.parecidos ?? [];
+  // Busca por característica feita antes (plano B, t_a9f1b447): o estado dela vale para o modelo também.
+  const busca = base.busca ?? null;
+  const dadosIn: DadosQualificacao = busca
+    ? { ...(ctx.dados ?? {}), ...base.dados, parecido_atual: ctx.dados?.parecido_atual, parecidos: ctx.dados?.parecidos }
+    : (ctx.dados ?? {});
+  const ja = ctx.dados?.parecidos ?? [];
   const negocio =
     dadosIn.finalidade === "alugar" || (!dadosIn.finalidade && ctx.transacao === "aluguel")
       ? "locacao"
       : "venda";
   // Candidatos: até 3 parecidos do XML ainda não oferecidos (o banco aplica as regras de parecido).
-  const res =
-    op.buscarParecidos && ja.length < 3
+  const res = busca
+    ? { referencia: {}, itens: busca.itens }
+    : op.buscarParecidos && ja.length < 3
       ? await op
           .buscarParecidos({
             excluir: ja,
@@ -770,14 +856,21 @@ export async function redigirResposta(
           .catch(() => null)
       : null;
   const candidatos = (res?.itens ?? []).filter((i) => !ja.includes(i.codigo)).slice(0, 3);
-  const visita = visitaSemParenteses(op.agora ?? new Date());
+  // Datas só depois que o cliente disse que quer visitar (item 7); antes, o convite é simples.
+  const visita = querVisitar(ctx, texto) ? visitaSemParenteses(op.agora ?? new Date()) : [];
   const msgs = montarMensagens({
     ctx: { ...ctx, dados: dadosIn },
     texto,
     historico: op.historico,
     candidatos,
     visita,
+    busca: busca ? { pedido: busca.pedido, fora_faixa: busca.fora_faixa } : null,
   });
+  const falasCliente = [
+    texto,
+    ...op.historico.filter((m) => m.autor === "cliente").slice(-4).map((m) => m.texto),
+    ...(dadosIn.filtro_pedido ? [textoFiltro(dadosIn.filtro_pedido)] : []),
+  ];
 
   let saida: SaidaModelo | null = null;
   let uso: Omit<UsoModelo, "ok" | "erro" | "tokens_entrada" | "tokens_saida" | "custo_usd"> | null =
@@ -787,16 +880,21 @@ export async function redigirResposta(
     ctx.ficha,
     [...candidatos, ...(dadosIn.parecido_atual ? [dadosIn.parecido_atual] : [])],
     visita,
+    falasCliente,
   );
-  // Modo observar: erro, demora ou JSON ruim = 1 nova tentativa (t_3a4bf078). Modo bloquear: 1 tentativa (como antes).
-  const tentativas = observar ? 2 : 1;
+  // No máximo 2 chamadas. Modo bloquear: bloqueio do validador = 2ª tentativa dizendo o que estava errado
+  // (t_a9f1b447); só se ela também falhar sai a frase pronta. Modo observar: erro, demora ou JSON ruim = 2ª
+  // tentativa (t_3a4bf078); bloqueio só registra. A trava "contagem" corrigida vale nos dois modos.
   let detalhe: DetalheBloqueio | null = null;
-  for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+  let primeira: { saida: SaidaModelo; detalhe: DetalheBloqueio } | null = null;
+  let correcao: string | null = null;
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
     const tempo = tentativa === 1 ? REDACAO_TIMEOUT_MS : REDACAO_RETRY_TIMEOUT_MS;
+    const m = correcao ? { sistema: msgs.sistema, usuario: `${msgs.usuario}\n\nCORREÇÃO: ${correcao}` } : msgs;
     chamada = null;
     uso = null;
     if (usaOr) {
-      chamada = await redigirOpenRouter(orKey!, op.escolha.modelo!, msgs, fetchFn, tempo);
+      chamada = await redigirOpenRouter(orKey!, op.escolha.modelo!, m, fetchFn, tempo);
       uso = { provedor: "openrouter", modelo: op.escolha.modelo!, fallback: false };
       if (!chamada.ok && usaGemini) {
         op.registrar({
@@ -810,7 +908,7 @@ export async function redigirResposta(
       }
     }
     if (!chamada && usaGemini) {
-      chamada = await redigirGemini(gKey!, msgs, fetchFn, tempo);
+      chamada = await redigirGemini(gKey!, m, fetchFn, tempo);
       uso = { provedor: "gemini", modelo: GEMINI_MODELO, fallback: usaOr };
     }
     if (!chamada || !uso) return observar ? semResposta() : plano();
@@ -823,6 +921,7 @@ export async function redigirResposta(
         : validarRedacaoDetalhe(saida, perm, texto, ja);
     // No modo observar a mensagem sai mesmo barrada; "observado" marca que a trava só registrou.
     const observado = observar && !!saida && !!detalhe;
+    // Trecho (o número/link/palavras, até 60 caracteres) e origem (só números) do bloqueio, nos dois modos.
     op.registrar({
       ...uso,
       ...semTexto(chamada),
@@ -831,13 +930,33 @@ export async function redigirResposta(
       uso: "redigir",
       bloqueado: !!detalhe,
       bloqueio: detalhe?.motivo ?? null,
-      ...(observar ? { bloqueio_trecho: detalhe?.trecho ?? null, observado, tentativa } : {}),
+      bloqueio_trecho: detalhe?.trecho ?? null,
+      tentativa,
+      ...(observar ? { observado } : {}),
     });
-    if (saida) break; // resposta legível: não tenta de novo (bloqueio só registra no modo observar)
+    if (saida && !detalhe) break; // aprovada
+    // Modo observar: a trava só registra, a mensagem sai como veio (sem 2ª tentativa por bloqueio).
+    if (saida && detalhe && observar) break;
+    if (saida && detalhe) {
+      // Bloqueada: tenta 1 vez de novo dizendo o que estava errado.
+      if (!primeira) primeira = { saida, detalhe };
+      correcao = explicarBloqueio(detalhe);
+      continue;
+    }
+    // Erro/demora/JSON ruim: só o modo observar tenta de novo.
+    if (!observar) break;
   }
-  if (!chamada || !saida) return observar ? semResposta() : plano(detalhe?.motivo ?? null);
+  // Observar: se a 2ª falhou (erro), sai a 1ª resposta legível, mesmo barrada (a trava só registra).
+  if (observar && !saida && primeira) {
+    saida = primeira.saida;
+    detalhe = primeira.detalhe;
+  }
+  if (!chamada || !saida) return observar ? semResposta() : plano(detalhe?.motivo ?? primeira?.detalhe.motivo ?? null);
   const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
   if (bloqueio && !observar) return plano(bloqueio);
+  // "Não" a uma pergunta da Nicole não é motivo para passar ao corretor (item 5).
+  if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && NAO_CURTO.test(norm(texto)))
+    saida = { ...saida, acao: "responder" };
   // Observar: limite do banco (2000) e oferta com código fora dos candidatos não vira "oferecido".
   if (observar) saida = { ...saida, mensagem: saida.mensagem.slice(0, 1500) };
   const ofertaValida = saida.acao === "oferecer" && !!saida.codigo && perm.codigos.has(saida.codigo);
@@ -845,6 +964,8 @@ export async function redigirResposta(
   // Aprovada: monta o estado a partir do que a conversa já tinha + o que o cliente disse (registro).
   const dados: DadosQualificacao = {
     ...dadosIn,
+    // Busca por característica: o modelo pode ter mostrado outro candidato que não o do plano B.
+    ...(busca ? { parecido_atual: base.dados.parecido_atual, parecidos: base.dados.parecidos } : {}),
     repeticoes: { ...(dadosIn.repeticoes ?? {}) },
     perguntas: [...(dadosIn.perguntas ?? [])],
   };
@@ -915,6 +1036,15 @@ export async function redigirResposta(
     redigida: true,
     bloqueio,
   };
+}
+
+/** "3 suítes 2 vagas" a partir do filtro guardado (o cliente já pediu antes; o número dele não é invenção). */
+function textoFiltro(f: NonNullable<DadosQualificacao["filtro_pedido"]>): string {
+  return [
+    f.suites !== undefined ? `${f.suites} suites` : "",
+    f.quartos !== undefined ? `${f.quartos} quartos` : "",
+    f.vagas !== undefined ? `${f.vagas} vagas` : "",
+  ].join(" ");
 }
 
 // --- Leitura no banco (servidor, service_role) -----------------------------------------------------------

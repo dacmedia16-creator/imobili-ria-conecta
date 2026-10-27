@@ -1074,14 +1074,17 @@ const PARA_QUEM = /\bpara (o |a )?(meu|minha|um|uma)? ?(filho|filha|mae|pai|irma
 const QUER_BUSCA = /(trabalh\w* com|\btem\b|\btens\b|teria|\bvcs\b|voces|procur|busc|queria|quero|gostaria|interess|preciso|vende(m)?|aluga(m)?|mexe(m)? com)/;
 const ELA = new Set(["filha", "mae", "irma", "esposa", "namorada", "sogra", "amiga", "tia", "prima", "cunhada", "neta"]);
 
+/** "meu filho está procurando", "minha filha quer" (t_a9f1b447, teste ao vivo 27/10, conversa 37db8fc6). */
+const DE_QUEM = /\b(meu|minha) (filho|filha|mae|pai|irmao|irma|esposa|marido|namorad[oa]|sogr[oa]|amig[oa]|neto|neta)\b.{0,25}\b(procur|busc|quer|precis|esta atras)/;
 /** Começo de uma busca nova? (outro tipo de imóvel, ou para outra pessoa). */
 function novaBusca(n: string, tipoLead: string | undefined): Busca2 | null {
   const t = tipoDe(n);
   const para = PARA_QUEM.exec(n);
-  const outraPessoa = !!para && /(tambem|\btb\b|\btbm\b|outr[ao]|mais um|mais uma)/.test(n);
+  const dele = DE_QUEM.exec(n);
+  const outraPessoa = (!!para && /(tambem|\btb\b|\btbm\b|outr[ao]|mais um|mais uma)/.test(n)) || !!dele;
   const outroTipo = !!t && !!tipoLead && t !== tipoLead && QUER_BUSCA.test(n);
   if (!outroTipo && !(outraPessoa && QUER_BUSCA.test(n))) return null;
-  const quem = para ? para[3] ?? para[6] : undefined;
+  const quem = para ? para[3] ?? para[6] : dele?.[2];
   return { ativa: true, tipo: t ?? "", para: quem ? `${ELA.has(quem) ? "a" : "o"} ${quem === "mae" ? "mãe" : quem === "irmao" ? "irmão" : quem === "irma" ? "irmã" : quem}` : undefined, perguntas: [], ofertados: [] };
 }
 
@@ -1169,7 +1172,7 @@ export function textoBusca(p: ImovelParecido, jaMostrados: number): string {
 
 const NUM_PALAVRA: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6 };
 const CARAC_RE =
-  /\b(\d{1,2}|uma|um|duas|dois|tres|quatro|cinco|seis)\s*(?:ou mais\s*)?(suites?|quartos?|dormitorios?|dorms?|vagas?)\b/g;
+  /\b(\d{1,2}|uma|um|duas|dois|tres|quatro|cinco|seis)\s*(?:ou mais\s*)?(suites?|quartos?|d[oa]m?r?m?[a-z]*torios?|dorms?|vagas?)\b/g;
 /** Quer opções (e não só saber do imóvel do anúncio). */
 const QUER_OPCAO = /(opc|outr[ao]|algum|alguma|queria|quero|procur|busc|preciso|precisa|gostaria|teria|tens\b|vcs tem|voces tem|com \d|mais (suites|quartos|vagas))/;
 
@@ -1181,7 +1184,7 @@ export function pedidoCaracteristica(texto: string): FiltroCaracteristica | null
     const v = /^\d+$/.test(m[1]) ? Number(m[1]) : NUM_PALAVRA[m[1]];
     if (!v || v > 10) continue;
     if (/^suite/.test(m[2])) f.suites = v;
-    else if (/^(quarto|dormitorio|dorm)/.test(m[2])) f.quartos = v;
+    else if (/^(quarto|d[oa])/.test(m[2])) f.quartos = v;
     else f.vagas = v;
   }
   const a = /\b(\d{2,4})\s*(m2|m²|metros)/.exec(n);
@@ -1613,7 +1616,10 @@ export async function proximaResposta(
     return continuar(junta(intro, textoBusca(p, b.ofertados.length)));
   };
   if (b2?.ativa) {
-    if (b2.etapa) {
+    if (b2.etapa && /(visitar|agendar|marcar)/.test(n) && QUER_VISITA.test(n)) {
+      b2.etapa = undefined;
+      b2.ativa = false; // o que já disse da busca fica anotado para o corretor
+    } else if (b2.etapa) {
       // Resposta à pergunta da busca (o cliente pode responder várias coisas de uma vez).
       const etapa = b2.etapa;
       b2.etapa = undefined;
@@ -1670,7 +1676,9 @@ export async function proximaResposta(
     const ehPedidoNovo = !!pedidoNovo && (QUER_OPCAO.test(n) || pedeOutrasOpcoes(texto) || !atendeCaracteristica(ficha ?? {}, pedidoNovo));
     // Pedido anterior ainda vale: \"Não tem outra casa?\", \"?\" logo depois, ou \"sim\" para \"procuro com 2 suítes?\".
     const insistiu = !!dados.filtro_pedido && (pedeOutrasOpcoes(texto) || MAIS_UM.test(n) || /^\?+$/.test(texto.trim()));
-    const aceitouMenos = !!dados.carac_relaxar && convite === "opcoes" && (SIM_P.test(n) || /\b(pode|procura|com \d)/.test(n)) && !NAO_GOSTOU.test(n);
+    const aceitouMenos =
+      !!dados.carac_relaxar && convite === "opcoes" && !NAO_GOSTOU.test(n) &&
+      (pedidoNovo ? textoCaracteristica(pedidoNovo) === textoCaracteristica(dados.carac_relaxar) : SIM_P.test(n) || /\b(pode|procura)/.test(n));
     if (ehPedidoNovo || insistiu || aceitouMenos) {
       const tipoNovo = tipoDe(n);
       // Tipo só quando o cliente diz (\"outra casa\"): \"3 suítes\" sozinho vale para qualquer tipo (exemplo de Denis).
@@ -1691,14 +1699,19 @@ export async function proximaResposta(
       const pmin = fxv?.min ?? (fxv?.max ? null : ref ? Math.round(ref * 0.85) : null);
       const pmax = fxv?.max ?? (ref ? Math.round(ref * 1.15) : null);
       const ja = [...(dados.ofertados_carac ?? []), ...(dados.parecidos ?? [])];
-      const res = await buscaCarac({ ...f, negocio: negocio(), preco_min: pmin, preco_max: pmax, cidade: ficha?.cidade ?? null, excluir: ja, limite: 3 }).catch(() => null);
+      const filtroB = { ...f, negocio: negocio(), preco_min: pmin, preco_max: pmax, cidade: ficha?.cidade ?? null, excluir: ja, limite: 3 };
+      // Sem tipo dito pelo cliente: primeiro o mesmo tipo do imóvel dele na faixa; se não houver, qualquer tipo.
+      const doTipo = !f.tipo && ficha?.tipo ? await buscaCarac({ ...filtroB, tipo: ficha.tipo }).catch(() => null) : null;
+      const res = doTipo?.itens.length ? doTipo : await buscaCarac(filtroB).catch(() => null);
       const pedidoTxt = textoCaracteristica(f);
       if (!res) {
         dados.pendentes = [...new Set([...(dados.pendentes ?? []), `quer imóvel com ${pedidoTxt}`])].slice(0, 12);
         dados.convite_aberto = "opcoes";
         return continuar(`Vou procurar opções com ${pedidoTxt} e já te mando por aqui. Enquanto isso, quer marcar uma visita nessa?`);
       }
-      const itens = res.itens.filter((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, f));
+      const itens = res.itens
+        .filter((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, f))
+        .sort((a, b) => Number(b.tipo === ficha?.tipo) - Number(a.tipo === ficha?.tipo));
       const p = itens[0];
       if (p) {
         dados.ofertados_carac = [...(dados.ofertados_carac ?? []), p.codigo].slice(0, 6);
@@ -1735,6 +1748,7 @@ export async function proximaResposta(
     const p = dados.parecido_atual;
     if (NAO_QUER_MAIS.test(n) || (NAO_GOSTOU.test(n) && !MAIS_UM.test(n) && !pedeOutrasOpcoes(texto))) {
       dados.parecido_atual = undefined;
+      if (dados.filtro_pedido && /^(nao|n)[\s.!]*$/.test(n)) return naoSegue();
       respParecido = true;
       abertura = "Tudo bem!";
     } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto) || MESMA_FAIXA.test(n)) {

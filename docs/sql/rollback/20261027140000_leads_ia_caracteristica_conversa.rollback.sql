@@ -1,4 +1,4 @@
--- Rollback de 20261027130000_leads_ia_caracteristica_conversa.sql (card t_a9f1b447).
+-- Rollback de 20261027140000_leads_ia_caracteristica_conversa.sql (card t_a9f1b447).
 -- Remove a busca por característica e devolve lead_ia_retorno_receber EXATAMENTE como na 20261025200000
 -- (copiado de lá: conversa "ativa primeiro" e limite de 2 respostas por minuto na conversa). Nenhum dado é apagado.
 -- Sem a função de característica, a Nicole responde "vou procurar opções com X e já te mando".

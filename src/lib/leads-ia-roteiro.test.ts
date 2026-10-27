@@ -168,7 +168,10 @@ describe("item 2 — dúvida primeiro, no máximo 3 perguntas, uma por turno", (
     expect(r[1].passo).toBe("interesse");
     // t_76243950: disponibilidade nunca é garantida.
     expect(r[1].resposta).toBe("Vou confirmar a disponibilidade e já te falo. Quer saber mais algum detalhe?");
-    expect(r[2].resposta).toBe("Vou confirmar o valor do condomínio e já te falo. Quer saber mais algum detalhe?");
+    // t_a9f1b447 item 6: "Quer saber mais algum detalhe?" não sai repetida.
+    expect(r[2].resposta).toBe(
+      "Vou confirmar o valor do condomínio e já te falo. Quer que eu te mostre outras opções parecidas ou prefere marcar uma visita?",
+    );
     for (const x of r) expect(x.resposta).not.toMatch(/faixa de valor|corretor/);
   });
 });
