@@ -133,7 +133,7 @@ REGRAS (todas obrigatórias):
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se não houver candidato, diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual delas mais gostou ou se quer visitar (sem "passar"); use "acao":"passar" só se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que vai separar opções e use "acao":"passar". Não perca o interesse no imóvel original.
-9. Visita: ofereça só depois de responder o que o cliente perguntou, usando as opções de VISITA. Quando o cliente escolher dia e período, registre em "registro.visita" e use "acao":"passar".
+9. Visita: ofereça só depois de responder o que o cliente perguntou, usando as opções de VISITA. Quando o cliente escolher dia e período, registre em "registro.visita" e use "acao":"passar". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
 
@@ -657,7 +657,9 @@ export function exigeTextoFixo(ctx: ContextoIa, texto: string, base: RespostaIa)
     base.fim === "sensivel" ||
     base.fim === "pediu_pessoa" ||
     base.fim === "nao_lead" ||
-    base.fim === "sem_interesse"
+    base.fim === "sem_interesse" ||
+    // Dia/horário fora das opções: anota com o texto fixo e não repete as opções (t_2aecef49).
+    (base.fim === "visita" && !!base.dados.visita_livre)
   );
 }
 
@@ -794,6 +796,8 @@ export async function redigirResposta(
     !dados.perguntas!.includes("pagamento")
   )
     dados.perguntas!.push("pagamento");
+  // Já falou em visita: "sábado pode ser?" no turno seguinte é pedido de dia (t_2aecef49).
+  if (/visita/.test(norm(saida.mensagem))) dados.convite_visita = true;
   if (saida.acao === "oferecer" && saida.codigo) {
     const c = perm.codigos.get(saida.codigo)!;
     dados.parecidos = [...ja, c.codigo].slice(0, 3);

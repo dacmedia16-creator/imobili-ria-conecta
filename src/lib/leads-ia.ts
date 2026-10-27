@@ -133,6 +133,8 @@ export type DadosQualificacao = {
   parecidos_fim?: boolean;
   /** Busca nova no meio da conversa (outro tipo, outra pessoa), sem perder o interesse no imóvel do lead. */
   busca2?: Busca2;
+  /** Cliente pediu um dia/horário fora das opções oferecidas; a Nicole anotou (t_2aecef49). */
+  visita_livre?: boolean;
   /** Outras buscas do cliente na mesma conversa (ex.: apartamento para o filho), resumo para o corretor (t_7b59589c). */
   outras_buscas?: string[];
 };
@@ -587,7 +589,7 @@ function respostaTema(t: Tema, f: FichaIa | null | undefined, suj: string): Part
       if (!f.vagas) return null;
       return f.vagas === "0" ? { frase: `${S} não tem vaga de garagem.` } : { fisico: `${plural(f.vagas, "vaga", "vagas")} de garagem` };
     case "area": {
-      const a = f.area_util_m2 ? `${f.area_util_m2} m² de área útil` : f.area_construida_m2 ? `${f.area_construida_m2} m² de área construída` : null;
+      const a = f.area_util_m2 ? `${f.area_util_m2} m²` : f.area_construida_m2 ? `${f.area_construida_m2} m² construídos` : null;
       if (a) return { fisico: f.area_terreno_m2 ? `${a}, num terreno de ${f.area_terreno_m2} m²` : a };
       return f.area_terreno_m2 ? { fisico: `${f.area_terreno_m2} m² de terreno` } : null;
     }
@@ -728,6 +730,30 @@ function escolhaVisita(texto: string, opcoes: string[]): string | null {
 const PREFERE_CORRETOR = /(prefiro (falar|conversar|o corretor|que o corretor)|so (o )?corretor|corretor (me )?(chama|liga|fala)|nao (precisa|quero visitar|quero visita)|agora nao|mais pra frente|depois eu vejo)/;
 const OUTRO_DIA = /(segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|hoje|semana que vem|fim de semana|final de semana|\d{1,2}h|\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}|manha|tarde|noite)/;
 
+// t_2aecef49: cliente pede um dia/horário que não está nas 2 opções ("sábado de manhã pode ser?").
+// A Nicole aceita e anota, sem repetir as opções; o corretor confirma pelo resumo.
+const DIA_PEDIDO_RE = /\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
+const MARCAR_RE = /(pode ser|da pra|da para|consigo|posso (ir|passar|visitar)|seria possivel|tem como|visit|agendar|marcar|ir ver|conhecer)/;
+/** "sábado de manhã", "fim de semana", "sexta às 18h" (texto do próprio cliente, normalizado e com acento). */
+export function diaPedido(texto: string): string | null {
+  const n = norm(texto);
+  const d = DIA_PEDIDO_RE.exec(n)?.[1];
+  if (!d) return null;
+  const i = DIAS_N.indexOf(d);
+  const dia = i >= 0 ? DIAS[i] : d === "final de semana" ? "fim de semana" : d;
+  const periodo = /\bmanha\b/.test(n) ? "de manhã" : /\btarde\b/.test(n) ? "à tarde" : /\bnoite\b/.test(n) ? "à noite" : "";
+  const h = /\b(\d{1,2})(?:h|:(\d{2}))\b/.exec(n);
+  const hora = h && Number(h[1]) <= 23 ? `às ${h[1]}h${h[2] && h[2] !== "00" ? h[2] : ""}` : "";
+  return [dia, periodo, hora].filter(Boolean).join(" ");
+}
+/** Pedido de dia fora das opções? `contextoVisita` = já se falou em visita nesta conversa. */
+export function pedidoDiaFora(texto: string, opcoes: string[], contextoVisita: boolean): string | null {
+  const n = norm(texto);
+  if (!DIA_PEDIDO_RE.test(n) || !(contextoVisita || MARCAR_RE.test(n))) return null;
+  if (escolhaVisita(texto, opcoes)) return null;
+  return diaPedido(texto);
+}
+
 // --- Resumo e passagem -------------------------------------------------------------------------------
 
 /** Resumo para o sino do corretor (sem telefone/e-mail; o banco ainda mascara). */
@@ -741,7 +767,9 @@ export function resumoQualificacao(d: DadosQualificacao, ctx?: Pick<ContextoIa, 
     d.pagamento?.length ? `pagamento: ${d.pagamento.join(", ")}` : null,
     d.prazo ? `prazo: ${d.prazo}` : null,
     d.regiao ? `região: ${d.regiao}` : null,
-    d.visita ? `PRÉ-AGENDAMENTO: ${d.visita} (confirmar com o cliente ${d.visita_ate ?? ""})`.replace(/ \)$/, ")") : null,
+    d.visita
+      ? `PRÉ-AGENDAMENTO: ${d.visita}${d.visita_livre ? ", dia pedido pelo cliente, fora das opções oferecidas" : ""} (confirmar com o cliente ${d.visita_ate ?? ""})`.replace(/ \)$/, ")")
+      : null,
     d.pendentes?.length ? `confirmar com o cliente: ${d.pendentes.join(", ")}` : null,
     d.alternativa ? `quer detalhes de ${d.alternativa}` : null,
     d.parecido_interesse ? `INTERESSE NO IMÓVEL PARECIDO código ${d.parecido_interesse} (oferecido pela IA a partir do XML; confirmar disponibilidade)` : null,
@@ -1436,6 +1464,19 @@ export async function proximaResposta(
   if (dados.alternativa && SIM.test(n) && !temas.length)
     return passarAo("Combinado!", `para te passar os detalhes de ${dados.alternativa}`);
 
+  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita, anota e passa; não repete as opções.
+  if (!respParecido && !temas.length) {
+    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes;
+    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
+    if (pedido) {
+      dados.visita = pedido;
+      dados.visita_ate = prazoConfirmacao(agora);
+      dados.visita_livre = true;
+      const t = "Te confirmo o horário certinho.";
+      return passar(dados, "visita", `${maiuscula(pedido)} anotado!`, t, t, resumoQualificacao(dados, ctx));
+    }
+  }
+
   // Resposta à 1ª mensagem (\"Quer saber mais detalhes...?\"): \"valores\" já é a dúvida de preço.
   const primeira = (passoAtual === "interesse" || passoAtual === "codigo") && !dados.interesse;
   if (primeira && !temas.length && /(valor|preco|condic)/.test(n) && !MESMA_FAIXA.test(n)) temas.push("preco");
@@ -1486,7 +1527,7 @@ export async function proximaResposta(
 
   // A dúvida do cliente vem primeiro: só o que foi perguntado.
   let duvida = responderDuvidas(temas, ficha, dados, sujeito);
-  if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n)) {
+  if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n) && !DETALHES.test(n)) {
     // Pergunta que as regras não reconhecem: não ignora (item 11).
     duvida = "Vou confirmar isso e já te falo.";
     dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);

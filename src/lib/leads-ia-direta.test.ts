@@ -168,7 +168,7 @@ describe("pergunta objetiva: só o dado, 1 ou 2 frases, e 1 pergunta natural", (
   it("IPTU, área, vagas, quartos, valor e bairro", async () => {
     const casos: [string, string][] = [
       ["quanto é o IPTU?", "O IPTU é de R$ 100 por mês."],
-      ["qual a metragem?", "A casa tem 150 m² de área útil, num terreno de 250 m²."],
+      ["qual a metragem?", "A casa tem 150 m², num terreno de 250 m²."],
       ["tem garagem?", "A casa tem 4 vagas de garagem."],
       ["quantas vagas?", "A casa tem 4 vagas de garagem."],
       ["quantos quartos?", "A casa tem 3 quartos, sendo 1 suíte."],
@@ -213,7 +213,7 @@ describe("pergunta objetiva: só o dado, 1 ou 2 frases, e 1 pergunta natural", (
   it("pedido de detalhes: manda a ficha UMA vez, sem repetir tipo/bairro/valor da 1ª mensagem", async () => {
     const { out } = await conversa(["quero saber mais detalhes", "me passa mais detalhes"]);
     expect(out[0].resposta).toBe(
-      "Claro! A casa tem 3 quartos, sendo 1 suíte, 4 vagas de garagem e 150 m² de área útil, num terreno de 250 m². O condomínio é de R$ 420 por mês e o IPTU, R$ 100 por mês. Quer agendar uma visita para conhecer?",
+      "Claro! A casa tem 3 quartos, sendo 1 suíte, 4 vagas de garagem e 150 m², num terreno de 250 m². O condomínio é de R$ 420 por mês e o IPTU, R$ 100 por mês. Quer agendar uma visita para conhecer?",
     );
     expect(out[1].resposta).not.toMatch(/3 quartos/);
   });

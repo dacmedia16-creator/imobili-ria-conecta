@@ -351,7 +351,7 @@ describe("item 7 — código do anúncio", () => {
     const r = await conversa(["oi", "é o VIP0028", "qual o condomínio e o IPTU? ainda está disponível?"], { anuncio_codigo: null, tem_captacao: false, ficha: null, imovel_frase: null, transacao: null }, undefined, { buscarImovel });
     expect(r[1].dados.imovel_xml_codigo).toBe("VIP0028");
     expect(r[1].dados.imovel_capture_id).toBeUndefined();
-    expect(r[1].resposta).toMatch(/^Achei! É um apartamento no bairro Campolim\. O apartamento tem 3 quartos, sendo 1 suíte, 2 vagas de garagem e 92 m² de área útil\./);
+    expect(r[1].resposta).toMatch(/^Achei! É um apartamento no bairro Campolim\. O apartamento tem 3 quartos, sendo 1 suíte, 2 vagas de garagem e 92 m²\./);
   });
   it("ficha do XML no contexto: responde condomínio e IPTU, e nunca garante disponibilidade nem deduz permuta/andar", async () => {
     const fichaXml: FichaIa = { tipo: "apartamento", bairro: "Campolim", quartos: "3", condominio: "R$ 720,00", iptu: "R$ 140,00 por mês" };
