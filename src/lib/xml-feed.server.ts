@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertPlatformAdmin } from "./platform-organizations.server";
-import { parseVrsync } from "./remax-xml";
+import { parseVrsync, soVenda } from "./remax-xml";
 import { fetchXmlSeguro, LinkXmlInvalido, validarLinkXml, type ResolverDns } from "./xml-feed-seguro";
 
 const LIMITE_BYTES = 60 * 1024 * 1024;
@@ -79,7 +79,8 @@ export async function baixarEContar(
     const text = await res.text();
     if (text.length > LIMITE_BYTES) return { ok: false, erro: "O XML é grande demais (mais de 60 MB)." };
     const p = parseVrsync(text, "generico");
-    return { ok: true, total: p.total, venda: p.venda.length, aluguel: p.total - p.venda.length };
+    const venda = soVenda(p.venda).length; // t_25fe1197: o genérico agora traz locação também
+    return { ok: true, total: p.total, venda, aluguel: p.total - venda };
   } catch (e) {
     if (e instanceof LinkXmlInvalido) return { ok: false, erro: e.message };
     if (e instanceof Error && /VRSync/.test(e.message))

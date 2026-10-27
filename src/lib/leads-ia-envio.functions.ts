@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { escolherCanal, temLink } from "./leads-ia-canal";
+import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
 
 /**
  * Envio REAL de UMA mensagem pendente da IA pelo WhatsApp (ZionTalk). Card t_5d8c0b63.
@@ -44,7 +44,9 @@ export const enviarMensagemIa = createServerFn({ method: "POST" })
     }
     const m = (rows as Array<{ msg_id: string; telefone: string; texto: string; primeira: boolean }> | null)?.[0];
     if (!m) return { ok: false as const, erro: "nada_a_enviar" };
-    if (m.primeira && temLink(m.texto)) {
+    // Só o link do anúncio do próprio imóvel no XML da imobiliária (t_25fe1197).
+    const link = m.primeira ? await linkAnuncioDoLead(db, data.leadId).catch(() => null) : null;
+    if (m.primeira && primeiraComLinkProibido(m.texto, link)) {
       await db.rpc("lead_ia_envio_resultado", { _msg: m.msg_id, _ok: false });
       return { ok: false as const, erro: "link_na_primeira" };
     }

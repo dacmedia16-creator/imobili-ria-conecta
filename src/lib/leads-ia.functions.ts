@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { proximaResposta, type ContextoIa, type Extrator, type ImovelEncontrado } from "./leads-ia";
+import { argsParecidos, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
 
 /**
@@ -57,6 +57,11 @@ export const responderComoCliente = createServerFn({ method: "POST" })
       buscarImovel: async (codigo) => {
         const { data: im, error: ei } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: c.conversa_id, _codigo: codigo });
         return ei ? null : ((im as ImovelEncontrado | null) ?? null);
+      },
+      // Imóvel parecido do XML da própria imobiliária (t_232e13cb). Erro = sem oferta.
+      buscarParecidos: async (filtro) => {
+        const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(c.conversa_id, filtro));
+        return ep ? null : normalizarParecidos(pr);
       },
     });
     if (conf.organization_id && usos.length) {

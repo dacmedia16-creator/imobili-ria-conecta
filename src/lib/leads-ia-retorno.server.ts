@@ -12,8 +12,17 @@
 // envia as mensagens pendentes pela ZionTalk (só com LEADS_IA_ENVIO_REAL=on + chave própria).
 // LGPD: nunca registrar em log telefone, texto, token ou corpo. Só códigos de resultado.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { escolherCanal, temLink } from "./leads-ia-canal";
-import { proximaResposta, respostaMidia, type ContextoIa, type ImovelEncontrado } from "./leads-ia";
+import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
+import {
+  argsParecidos,
+  normalizarParecidos,
+  proximaResposta,
+  respostaMidia,
+  type ContextoIa,
+  type FiltroParecido,
+  type ImovelEncontrado,
+  type ResultadoParecidos,
+} from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 
 export const RETORNO_MAX_BYTES = 50_000;
@@ -135,9 +144,13 @@ export type DepsRetorno = {
   aplicar: (args: Record<string, unknown>) => Promise<{ data: unknown; error: { code?: string } | null }>;
   reservar: (leadId: string) => Promise<{ data: unknown; error: { code?: string } | null }>;
   resultado: (msgId: string, ok: boolean) => Promise<unknown>;
+  /** Link do anúncio do imóvel do lead no XML da própria imobiliária (trava da 1ª mensagem). Sem = nenhum link. */
+  linkAnuncio?: (leadId: string) => Promise<string | null>;
   registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
   /** Imóvel pelo código do anúncio que o cliente informou (lead_ia_imovel_por_codigo). Opcional. */
   buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
+  /** Imóvel parecido do XML da própria imobiliária (lead_ia_imoveis_parecidos, t_232e13cb). Opcional. */
+  buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
   env: Record<string, string | undefined>;
   fetchFn?: typeof fetch;
   esperar?: (ms: number) => Promise<void>;
@@ -287,6 +300,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
         ? respostaMidia(ctx)
         : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
             buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
+            buscarParecidos: deps.buscarParecidos ? (f) => deps.buscarParecidos!(c.conversa_id, f) : undefined,
           });
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -308,7 +322,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
 /** Envia o que estiver pendente para o lead (o banco confere lista de liberados, opt-out, limites). */
 export async function enviarPendentes(
   leadId: string,
-  deps: Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn">,
+  deps: Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio">,
 ): Promise<number> {
   const canal = escolherCanal(deps.env, deps.fetchFn);
   if (canal.nome !== "ziontalk") return 0; // envio real desligado: fica "aguardando envio"
@@ -321,7 +335,9 @@ export async function enviarPendentes(
     }
     const m = (data as Array<{ msg_id: string; telefone: string; texto: string; primeira: boolean }> | null)?.[0];
     if (!m) break;
-    if (m.primeira && temLink(m.texto)) {
+    // Só o link do anúncio do próprio imóvel no XML da imobiliária (t_25fe1197).
+    const link = m.primeira ? await (deps.linkAnuncio?.(leadId) ?? Promise.resolve(null)).catch(() => null) : null;
+    if (m.primeira && primeiraComLinkProibido(m.texto, link)) {
       await deps.resultado(m.msg_id, false);
       break;
     }
@@ -343,7 +359,7 @@ export async function enviarPendentes(
 // pelo mesmo caminho das respostas (enviarPendentes, que exige LEADS_IA_ENVIO_REAL=on + chave própria).
 export const ENV_REENGAJAR_SEGREDO = "LEADS_IA_REENGAJAR_SEGREDO";
 
-export type DepsReengajar = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn"> & {
+export type DepsReengajar = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
   reengajarReservar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
 };
 
@@ -394,11 +410,16 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     aplicar: async (args) => await db.rpc("lead_ia_aplicar", args),
     reservar: async (leadId) => await db.rpc("lead_ia_envio_reservar", { _lead: leadId }),
     resultado: async (msgId, ok) => await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
+    linkAnuncio: (leadId) => linkAnuncioDoLead(db, leadId),
     registrarUso: async (orgId, conversaId, u) =>
       await db.from("lead_ia_uso").insert({ organization_id: orgId, conversa_id: conversaId, ...u }),
     buscarImovel: async (conversaId, codigo) => {
       const { data, error } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: conversaId, _codigo: codigo });
       return error ? null : ((data as ImovelEncontrado | null) ?? null);
+    },
+    buscarParecidos: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(conversaId, filtro));
+      return error ? null : normalizarParecidos(data);
     },
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,

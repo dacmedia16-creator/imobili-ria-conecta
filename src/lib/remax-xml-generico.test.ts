@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { mapXmlListing, parseVrsync, runRemaxXmlCollect } from "./remax-xml";
+import { mapXmlListing, parseVrsync, runRemaxXmlCollect, soVenda, urlAnuncioSegura } from "./remax-xml";
 
 // Card t_76243950: modo "VRSync genérico" (XML de portal de qualquer imobiliária). Dados 100% fictícios.
 // O modo RE/MAX continua coberto, sem mudança, em remax-xml.test.ts.
@@ -56,7 +56,10 @@ describe("modo genérico — mapXmlListing", () => {
       iptu_periodo: "mensal",
       fotos_qtd: 3,
       titulo: "Apartamento à venda, 3 quartos, Campolim, Sorocaba/SP",
-      url: null,
+      // t_25fe1197: o link do anúncio no site da própria imobiliária agora é guardado (se for seguro).
+      url: "https://imobiliaria-exemplo.test/imovel/42",
+      negocio: "venda",
+      preco_aluguel: null,
     });
   });
   it("NÃO guarda nenhum contato (nem do escritório)", () => {
@@ -65,7 +68,7 @@ describe("modo genérico — mapXmlListing", () => {
     expect(a.corretor_email).toBeNull();
     expect(a.corretor_telefone).toBeNull();
     expect(a.escritorio).toBeNull();
-    expect(JSON.stringify(a)).not.toMatch(/exemplo\.test|1533330000|Escritório Exemplo|99999/);
+    expect(JSON.stringify({ ...a, url: null })).not.toMatch(/exemplo\.test|1533330000|Escritório Exemplo|99999/);
   });
   it("não lê permuta, financiamento nem andar da descrição", () => {
     const a = mapXmlListing(item(), "generico")!;
@@ -79,8 +82,13 @@ describe("modo genérico — mapXmlListing", () => {
     expect(mapXmlListing(item({ iptu: '<Iptu currency="BRL" period="Yearly">1680</Iptu>' }), "generico")).toMatchObject({ iptu: 1680, iptu_periodo: "anual" });
     expect(mapXmlListing(item({ iptu: "" }), "generico")).toMatchObject({ iptu: null, iptu_periodo: null });
   });
-  it("descarta aluguel e código inválido; aceita códigos curtos e com letras", () => {
-    expect(mapXmlListing(item({ tx: "For Rent" }), "generico")).toBeNull();
+  it("locação entra com o negócio e o aluguel (t_25fe1197); negócio desconhecido e código inválido ficam de fora", () => {
+    const rent = item({ tx: "For Rent" }).replace("<ListPrice", '<RentalPrice currency="BRL" period="Monthly">2500</RentalPrice><ListPrice');
+    expect(mapXmlListing(rent, "generico")).toMatchObject({ negocio: "locacao", preco_aluguel: 2500 });
+    expect(mapXmlListing(item({ tx: "Sale/Rent" }).replace("<ListPrice", "<RentalPrice>3000</RentalPrice><ListPrice"), "generico")).toMatchObject({ negocio: "venda_locacao", preco: 650000, preco_aluguel: 3000 });
+    expect(mapXmlListing(item({ tx: "Leilão" }), "generico")).toBeNull();
+    // RE/MAX (Única Escolha) não muda: aluguel continua descartado.
+    expect(mapXmlListing(item({ tx: "For Rent", code: "123456789-12" }))).toBeNull();
     expect(mapXmlListing(item({ code: "" }), "generico")).toBeNull();
     expect(mapXmlListing(item({ code: "AP 42" }), "generico")).toBeNull();
     expect(mapXmlListing(item({ code: "x".repeat(61) }), "generico")).toBeNull();
@@ -98,10 +106,45 @@ describe("modo genérico — mapXmlListing", () => {
 });
 
 describe("modo genérico — parseVrsync e coleta", () => {
-  it("conta tudo e devolve só venda", () => {
+  it("guarda venda e locação; soVenda() devolve só a venda (o que mapa, Feedback e contagens usam)", () => {
     const p = parseVrsync(feed(item(), item({ code: "AL1", tx: "For Rent" }), item({ code: "3610" })), "generico");
     expect(p.total).toBe(3);
-    expect(p.venda.map((v) => v.code)).toEqual(["AP0042", "3610"]);
+    expect(p.venda.map((v) => v.code)).toEqual(["AP0042", "AL1", "3610"]);
+    expect(soVenda(p.venda).map((v) => v.code)).toEqual(["AP0042", "3610"]);
+  });
+  it("link do anúncio: só o domínio que o próprio feed mais usa (o site da imobiliária)", () => {
+    const outro = (code: string, url: string) => item({ code }).replace("https://imobiliaria-exemplo.test/imovel/42", url);
+    const p = parseVrsync(
+      feed(item(), outro("B2", "https://www.imobiliaria-exemplo.test/imovel/B2"), outro("C3", "https://encurta.dor/abc"), outro("D4", "http://imobiliaria-exemplo.test/x")),
+      "generico",
+    );
+    expect(Object.fromEntries(p.venda.map((v) => [v.code, v.url]))).toEqual({
+      AP0042: "https://imobiliaria-exemplo.test/imovel/42",
+      B2: "https://www.imobiliaria-exemplo.test/imovel/B2",
+      C3: null,
+      D4: null,
+    });
+  });
+  it("urlAnuncioSegura: só https com nome, sem usuário/senha, sem porta estranha, até 300 caracteres", () => {
+    expect(urlAnuncioSegura("https://vipsevenimoveis.com.br/imovel/VIP0040")).toBe("https://vipsevenimoveis.com.br/imovel/VIP0040");
+    for (const u of [
+      "http://imob.com.br/1",
+      "https://user:pass@imob.com.br/1",
+      "https://imob.com.br:8443/1",
+      "https://10.0.0.1/1",
+      "https://localhost/1",
+      "javascript:alert(1)",
+      "https://imob.com.br/a b",
+      `https://imob.com.br/${"a".repeat(300)}`,
+      "",
+      null,
+    ])
+      expect(urlAnuncioSegura(u), String(u)).toBeNull();
+  });
+  it("RE/MAX (Única Escolha) continua guardando só link remax.com.br", () => {
+    const r = item({ code: "123456789-12" });
+    expect(mapXmlListing(r)?.url).toBeNull();
+    expect(mapXmlListing(r.replace("https://imobiliaria-exemplo.test/imovel/42", "https://www.remax.com.br/imoveis/x"))?.url).toBe("https://www.remax.com.br/imoveis/x");
   });
   it("a coleta genérica avisa o modo ao banco; a RE/MAX continua com 4 argumentos", async () => {
     const ingest = vi.fn().mockResolvedValue({ status: "ok" });
@@ -123,7 +166,7 @@ describe("modo genérico — parseVrsync e coleta", () => {
         `suites=${conta((v) => v.suites != null)} fotos=${conta((v) => v.fotos_qtd)} titulo=${conta((v) => v.titulo)} ` +
         `outros=${conta((v) => v.tipo === "outros")} contato=${conta((v) => v.corretor_email || v.corretor_telefone || v.corretor_nome || v.escritorio)}`,
     );
-    expect(p.venda.length).toBe(p.total);
+    expect(soVenda(p.venda).length + p.venda.filter((v) => v.negocio !== "venda").length).toBe(p.total);
     expect(conta((v) => v.corretor_email || v.corretor_telefone || v.corretor_nome || v.escritorio)).toBe(0);
     if (process.env.XML_GENERICO_OUT) writeFileSync(process.env.XML_GENERICO_OUT, JSON.stringify(p.venda));
   });

@@ -97,3 +97,40 @@ export const LINK_RE = /(https?:\/\/|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|
 export function temLink(texto: string | null | undefined): boolean {
   return LINK_RE.test(texto ?? "");
 }
+
+/**
+ * Trava da 1ª mensagem (t_25fe1197). O ÚNICO link aceito é o do anúncio do próprio imóvel no XML da
+ * imobiliária (`linkAnuncio`, lido do banco na hora do envio), uma vez só, depois de "Anúncio: ".
+ * Sem `linkAnuncio`, nenhum link passa. O resto do texto passa por um filtro genérico (qualquer
+ * "palavra.palavra", não só a lista de domínios conhecidos): ".xyz", ".co", "t.co" também bloqueiam.
+ */
+const LINK_GENERICO_RE = /(https?:|www\.|[a-z0-9-]\.[a-z]{2,}|@)/i;
+export function primeiraComLinkProibido(texto: string | null | undefined, linkAnuncio?: string | null): boolean {
+  let t = texto ?? "";
+  const link = (linkAnuncio ?? "").trim();
+  if (link && /^https:\/\/[^\s]{1,292}$/.test(link)) {
+    const marca = `Anúncio: ${link}`;
+    if (t.split(marca).length > 2) return true; // o anúncio só pode aparecer uma vez
+    t = t.replace(marca, "Anúncio:");
+  }
+  return temLink(t) || LINK_GENERICO_RE.test(t);
+}
+
+/** O mínimo do cliente Supabase (service_role) que a busca do link usa. */
+type DbLeitura = {
+  from: (t: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  rpc: (f: string, a: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
+};
+/**
+ * Link do anúncio que a 1ª mensagem pode levar: o url do imóvel do lead (anuncio_codigo) no XML da PRÓPRIA
+ * imobiliária, já validado pelo banco (lead_ia_ficha_xml -> link). Qualquer falha = null (nenhum link sai).
+ */
+export async function linkAnuncioDoLead(db: DbLeitura, leadId: string): Promise<string | null> {
+  const { data: l, error } = await db.from("leads").select("organization_id,anuncio_codigo").eq("id", leadId).maybeSingle();
+  const lead = l as { organization_id: string | null; anuncio_codigo: string | null } | null;
+  if (error || !lead?.organization_id || !lead.anuncio_codigo?.trim()) return null;
+  const { data: f, error: e2 } = await db.rpc("lead_ia_ficha_xml", { _org: lead.organization_id, _codigo: lead.anuncio_codigo });
+  const link = !e2 && f && typeof f === "object" ? (f as { link?: unknown }).link : null;
+  return typeof link === "string" && link ? link : null;
+}
+

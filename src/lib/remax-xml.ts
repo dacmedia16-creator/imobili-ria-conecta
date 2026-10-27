@@ -34,6 +34,10 @@ export interface XmlListing {
   fotos_qtd?: number | null;
   area_util?: number | null;
   area_terreno?: number | null;
+  /** Só no genérico (t_25fe1197): venda, locação ou os dois. RE/MAX = sempre venda (campo ausente). */
+  negocio?: "venda" | "locacao" | "venda_locacao";
+  /** Só no genérico: aluguel mensal anunciado (<RentalPrice>). */
+  preco_aluguel?: number | null;
 }
 
 /**
@@ -45,8 +49,13 @@ export type ModoXml = "remax" | "generico";
 export interface XmlParse {
   /** Todos os <Listing> do arquivo (venda + aluguel), só para conferência. */
   total: number;
+  /** Anúncios gravados. RE/MAX: só venda. Genérico: venda E locação (ver `negocio`); conte só venda com
+   * `soVenda(p.venda)`. O nome do campo ficou para não mexer nos chamadores da Única Escolha. */
   venda: XmlListing[];
 }
+
+/** Só os anúncios de venda (o que mapa, Feedback e contagens sempre usaram). */
+export const soVenda = (xs: XmlListing[]) => xs.filter((l) => (l.negocio ?? "venda") === "venda");
 
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 function decode(s: string): string {
@@ -113,17 +122,49 @@ export function tipoXml(propertyType: string | null): string | null {
 /** Código aceito no modo genérico (o banco confere o mesmo padrão em remax_xml_ingest). */
 export const CODIGO_GENERICO_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,59}$/;
 
+/**
+ * Link de anúncio aceito (modo genérico e 1ª mensagem da Nicole, t_25fe1197): só https, com nome (IP é
+ * recusado), sem usuário/senha, porta padrão, sem espaço e com até 300 caracteres (link maior é descartado,
+ * não cortado: cortado ficaria quebrado). Mesma regra do banco (remax_xml_ingest, modo 'generico').
+ */
+export function urlAnuncioSegura(u: string | null | undefined): string | null {
+  const s = (u ?? "").trim();
+  if (!s || s.length > 300 || !/^https:\/\/[A-Za-z0-9.-]+(:443)?\/[^\s<>"'@\\]*$/.test(s)) return null;
+  try {
+    const x = new URL(s);
+    if (x.protocol !== "https:" || x.username || x.password || (x.port && x.port !== "443")) return null;
+    if (/^[0-9.]+$/.test(x.hostname) || !x.hostname.includes(".")) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+const hostDe = (u: string) => new URL(u).hostname.toLowerCase().replace(/^www\./, "");
+
 /** Atributo period="Monthly|Yearly" do <Iptu>. */
 function periodoIptu(details: string): "mensal" | "anual" | null {
   const p = /<Iptu\b[^>]*\bperiod="([^"]*)"/i.exec(details)?.[1]?.toLowerCase();
   return p === "monthly" ? "mensal" : p === "yearly" ? "anual" : null;
 }
 
-/** Converte um <Listing> de venda. null = aluguel ou código fora do padrão do modo (ignorado). */
+/** Negócio do anúncio genérico. RE/MAX: só "For Sale" (como sempre). */
+const NEGOCIO: Record<string, "venda" | "locacao" | "venda_locacao"> = {
+  "for sale": "venda",
+  "for rent": "locacao",
+  "sale/rent": "venda_locacao",
+};
+
+/**
+ * Converte um <Listing>. RE/MAX: só venda (aluguel = null, como sempre). Genérico (t_25fe1197): venda e
+ * locação, com o negócio identificado. null = código fora do padrão do modo ou negócio desconhecido.
+ */
 export function mapXmlListing(item: string, modo: ModoXml = "remax"): XmlListing | null {
-  if (tag(item, "TransactionType") !== "For Sale") return null;
-  const code = (tag(item, "ListingID") ?? "").trim();
   const generico = modo === "generico";
+  const tx = (tag(item, "TransactionType") ?? "").trim();
+  const negocio = generico ? NEGOCIO[tx.toLowerCase()] : tx === "For Sale" ? "venda" : undefined;
+  if (!negocio) return null;
+  const code = (tag(item, "ListingID") ?? "").trim();
   if (!(generico ? CODIGO_GENERICO_RE : /^[0-9]{9}-[0-9]{1,6}$/).test(code)) return null;
   const details = tag(item, "Details") ?? "";
   // <Location> do imóvel vem antes de <ContactInfo> (que tem a própria <Location> do escritório).
@@ -149,7 +190,13 @@ export function mapXmlListing(item: string, modo: ModoXml = "remax"): XmlListing
     banheiros: int(tag(details, "Bathrooms")),
     vagas: int(tag(details, "Garage")),
     preco: num(tag(details, "ListPrice"), 1, 1e11),
-    url: url && /^https?:\/\/(www\.)?remax\.com\.br\//.test(url) ? url.slice(0, 300) : null,
+    // RE/MAX: só remax.com.br (como sempre). Genérico (t_25fe1197): o link do anúncio no site da própria
+    // imobiliária, se for seguro; parseVrsync ainda descarta o que não for do domínio principal do feed.
+    url: generico
+      ? urlAnuncioSegura(url)
+      : url && /^https?:\/\/(www\.)?remax\.com\.br\//.test(url)
+        ? url.slice(0, 300)
+        : null,
   };
   if (!generico)
     return {
@@ -176,6 +223,8 @@ export function mapXmlListing(item: string, modo: ModoXml = "remax"): XmlListing
     fotos_qtd: Math.min(fotos, 999),
     area_util: num(tag(details, "LivingArea"), 0.01, 1e8),
     area_terreno: num(tag(details, "LotArea"), 0.01, 1e8),
+    negocio,
+    preco_aluguel: negocio === "venda" ? null : num(tag(details, "RentalPrice"), 1, 1e9),
   };
 }
 
@@ -246,6 +295,14 @@ export function parseVrsync(xml: string, modo: ModoXml = "remax"): XmlParse {
   for (const it of items) {
     const m = mapXmlListing(it, modo);
     if (m) venda.push(m);
+  }
+  // Genérico: só fica o link do domínio que o próprio feed mais usa (o site da imobiliária). Um anúncio
+  // com link para outro site (portal, encurtador, endereço estranho) fica sem link.
+  if (modo === "generico") {
+    const conta = new Map<string, number>();
+    for (const l of venda) if (l.url) conta.set(hostDe(l.url), (conta.get(hostDe(l.url)) ?? 0) + 1);
+    const principal = [...conta.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+    for (const l of venda) if (l.url && hostDe(l.url) !== principal) l.url = null;
   }
   return { total: items.length, venda };
 }
