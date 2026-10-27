@@ -30,6 +30,9 @@ import {
   falaPermuta,
   norm,
   opcoesVisita,
+  PERGUNTA_PERIODO,
+  periodoDe,
+  temPeriodo,
   pediuPessoa,
   perguntouSeRobo,
   prazoConfirmacao,
@@ -91,9 +94,17 @@ function fichaModelo(f: FichaIa | null | undefined) {
     preco: f.negocio !== "locacao" ? valorCurto(f.preco) : undefined,
     aluguel: valorCurto(f.aluguel),
     condominio: valorCurto(f.condominio),
-    iptu: valorCurto(f.iptu),
+    // t_82c89141 item 2: valor e período separados; o período só existe se o XML trouxe iptu_periodo.
+    ...iptuPartes(f.iptu),
     link: f.link,
   });
+}
+/** "R$ 167,00 por ano" -> { iptu: "R$ 167", iptu_periodo: "por ano" }; sem período no XML, só o valor. */
+export function iptuPartes(s: string | undefined): { iptu?: string; iptu_periodo?: "por mês" | "por ano" } {
+  if (!s) return {};
+  const p = /por m[eê]s/i.test(s) ? "por mês" : /por ano/i.test(s) ? "por ano" : undefined;
+  const v = valorCurto(s.replace(/\s*por (m[eê]s|ano)\s*$/i, "").trim());
+  return p ? { iptu: v, iptu_periodo: p } : { iptu: v };
 }
 function parecidoModelo(p: ImovelParecido) {
   return limpa({
@@ -136,6 +147,9 @@ export type EntradaModelo = {
   visita: string[];
   /** Busca por característica feita antes do modelo (t_a9f1b447): o que o cliente pediu e se ficou fora da faixa. */
   busca?: { pedido: string; fora_faixa: boolean } | null;
+  /** t_82c89141 item 1: sem candidatos, por quê? "sem_resultado" = a busca rodou e não achou nada;
+   * "nao_consultado" = a busca não rodou ou falhou (aí a Nicole NUNCA diz que não tem). */
+  estoque?: "sem_resultado" | "nao_consultado" | null;
 };
 
 export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, uma imobiliária. Você conversa pelo WhatsApp com um cliente que se interessou por um imóvel. Escreva como uma atendente humana experiente: simpática, direta, frases curtas, tom de conversa (nada de ficha técnica).
@@ -143,26 +157,28 @@ export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, um
 REGRAS (todas obrigatórias):
 1. Responda PRIMEIRO exatamente o que o cliente perguntou, em 1 ou 2 frases. Não repita dados que você já mandou no histórico.
 2. No máximo 1 pergunta, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Nunca ofereça "pedir para alguém".
-3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. Sem o dado: "vou confirmar e já te falo".
-4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que vai confirmar e já te retorna, e convide para a visita. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
-5. Não fale em corretor, sistema, robô, IA ou assistente. Não diga que é humana. Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois).
+3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. IPTU: diga "por mês" ou "por ano" SÓ se DADOS trouxer "iptu_periodo"; sem ele, diga só o valor. Sem o dado: "o corretor confirma com você na visita ou no contato" e registre o assunto em "registro.pendente". Nunca prometa voltar com a resposta ("já te falo", "te retorno", "te confirmo").
+4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
+5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato". Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
-7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se não houver candidato, diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual delas mais gostou ou se quer visitar (sem "passar"); use "acao":"passar" só se o cliente insistir em mais opções depois disso.
+7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", diga que vai separar mais opções e use "acao":"passar" (nunca diga que não tem). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que vai separar opções e use "acao":"passar". Não perca o interesse no imóvel original.
-9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia e período, registre em "registro.visita" e use "acao":"passar". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
+9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia E período (manhã, tarde ou horário), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
 12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: diga que vai procurar e já manda.
-13. "Não", "não precisa" ou "só isso" em resposta a uma pergunta sua NÃO é pedido para encerrar nem para passar: siga a conversa com 1 pergunta útil (outras opções do que ele pediu ou a visita). Use "acao":"passar" só quando o cliente pedir uma pessoa, escolher o dia da visita ou no caso da regra 8.
+13. "Não", "não precisa" ou "só isso" em resposta a uma pergunta sua NÃO é pedido para encerrar nem para passar: siga a conversa com 1 pergunta útil (outras opções do que ele pediu ou a visita). Use "acao":"passar" só quando o cliente pedir uma pessoa, escolher o dia e o período da visita ou no caso das regras 7 e 8.
+14. Se DADOS trouxer "outros_anuncios", o cliente também viu esses imóveis no portal: pode citar os dois, com os dados de lá.
 
 Responda SÓ com JSON neste formato:
-{"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou"}}
+{"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou","pendente":"assunto que o corretor precisa confirmar"}}
 Inclua em "registro" só o que o cliente disse nesta conversa.
 
 Exemplos de tom (não copie dados):
 Cliente: "qual o valor do condomínio?" -> "O condomínio é R$ 500 por mês. Quer marcar uma visita para conhecer?"
 Cliente: "tem outras?" -> "Tenho sim! Tem outra casa no mesmo bairro, com 3 quartos e 170 m², por R$ 900.000. Dá uma olhada: https://exemplo/imovel/1 Gostou?"
-Cliente: "aceita financiamento?" -> "Vou confirmar isso e já te falo! Enquanto isso, quer marcar uma visita para conhecer?"`;
+Cliente: "aceita financiamento?" -> "Sobre financiamento, o corretor confirma com você na visita ou no contato. Quer marcar uma visita para conhecer?"
+Cliente: "pode ser sábado?" -> "Anotado, sábado! Fica melhor de manhã ou à tarde?"`;
 
 export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: string } {
   const { ctx } = e;
@@ -190,6 +206,10 @@ export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: s
       nova_busca: d.outras_buscas?.length ? d.outras_buscas : undefined,
     }),
     busca: e.busca ?? undefined,
+    estoque: !e.candidatos.length ? (e.estoque ?? undefined) : undefined,
+    outros_anuncios: ctx.outros_anuncios?.length
+      ? ctx.outros_anuncios.map((o) => fichaModelo(o.ficha)).filter(Boolean)
+      : undefined,
     visita: e.visita.length ? e.visita : undefined,
   });
   const hist = e.historico
@@ -216,6 +236,8 @@ export type SaidaModelo = {
     visita?: string;
     nova_busca?: string;
     interesse?: string;
+    /** t_82c89141 item 3: assunto sem dado que o corretor confirma (vai para o resumo). */
+    pendente?: string;
   };
 };
 
@@ -257,6 +279,7 @@ export function lerSaida(bruto: string | undefined): SaidaModelo | null {
     visita: txt(r.visita, 60),
     nova_busca: txt(r.nova_busca, 160),
     interesse: txt(r.interesse, 60),
+    pendente: txt(r.pendente, 60),
   });
   if (registro.pagamento && !registro.pagamento.length) delete registro.pagamento;
   return {
@@ -289,7 +312,16 @@ export type Bloqueio =
   | "corretor"
   | "obrigada"
   | "oferta"
-  | "datas";
+  | "datas"
+  // t_82c89141
+  | "retorno"
+  | "sem_opcao"
+  | "iptu"
+  | "tipo"
+  | "idioma";
+
+/** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
+export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>(["retorno", "sem_opcao", "iptu", "idioma"]);
 
 /** Contagens conferidas pela trava "contagem". */
 export type Contagem = "quartos" | "suites" | "vagas" | "banheiros";
@@ -308,6 +340,12 @@ export type Permitidos = {
   codigos: Map<string, ImovelParecido>;
   /** De onde vem cada contagem permitida (t_a9f1b447): ficha do lead, imóveis da busca e pedido do cliente. */
   origem?: { ficha: PorContagem; busca: PorContagem; cliente: PorContagem };
+  /** t_82c89141: período do IPTU do XML ("mes" | "ano"); null = o XML não diz (só o valor pode ser dito). */
+  iptuPeriodo?: "mes" | "ano" | null;
+  /** t_82c89141: situação do estoque entregue ao modelo. Sem o campo, a trava "sem_opcao" não roda. */
+  estoque?: "com_candidatos" | "sem_resultado" | "nao_consultado";
+  /** t_82c89141: tipo do imóvel do cliente (trava "tipo"). */
+  tipoRef?: string;
 };
 
 const numBr = (s: string): number => {
@@ -386,8 +424,28 @@ export function permitidosDe(
   }
   for (const x of parecidos) p.codigos.set(x.codigo, x);
   for (const o of visita) for (const d of o.match(/\d{2}\/\d{2}/g) ?? []) p.datas.add(d);
+  const per = iptuPartes(ficha?.iptu).iptu_periodo;
+  p.iptuPeriodo = per === "por mês" ? "mes" : per === "por ano" ? "ano" : null;
+  if (ficha?.tipo) p.tipoRef = ficha.tipo;
   return p;
 }
+
+/** "Não tenho outra", "essas são as opções que tenho" (texto normalizado). */
+const RE_SEM_OPCAO =
+  /(nao (tenho|temos|ha|achei|encontrei) (outr[ao]s?|mais (nenhum|opc|imove|casa|apart)|nenhum[ao]? outr|opc|nada)|(essas|estas) (sao|foram) as (unicas )?opcoes|sao as (unicas )?opcoes que (eu )?tenho|so tenho (essa|esse|essas|esses)|sem (outras|mais) opcoes)/;
+/** Promessa de voltar com a resposta (t_82c89141 item 3): quem confirma é o corretor, na visita ou no contato. */
+const RE_RETORNO =
+  /(ja te (falo|retorno|confirmo|aviso|digo|respondo)|te (retorno|confirmo|aviso|respondo)\b|vou (confirmar|verificar|checar|conferir|ver isso|consultar)|deixa eu (confirmar|verificar|ver|checar)|preciso (confirmar|verificar)|retorno (com|para|pra) (voce|vc)|volto (a falar|com a resposta|com voce)|(e|depois|ja) te (mando|envio|passo|trago)\b|vou (separar|procurar|buscar|levantar) (mais|outr|opc|algo|o que))/;
+/** Resposta fora do português (visto no DeepSeek real: "También tengo... ¿Te gusta?"). */
+const RE_IDIOMA = /[¿¡ñ]|\b(tambien|tengo|usted|mira|gusta|ademas|alguna|alguno|algun|aqui tienes|habitaciones|dormitorios con|precio de)\b/;
+/** Unidade do IPTU dita na mensagem (texto normalizado). */
+const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
+/** A única frase com "corretor" que o modelo pode escrever (sem dado, t_82c89141 item 3). */
+const RE_CORRETOR_CONFIRMA = /\bo corretor confirma[^.?!]*/g;
+const tipoBase = (t: string | undefined) => {
+  const x = norm(t ?? "");
+  return /apart|studio|kitnet|flat|cobertura/.test(x) ? "apartamento" : /casa|sobrado/.test(x) ? "casa" : /terreno|lote/.test(x) ? "terreno" : x;
+};
 
 const PALAVRA_NUM: Record<string, number> = {
   um: 1,
@@ -419,7 +477,7 @@ const LINK_RE =
   /(https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9-]+\.(?:com|net|org|br|io|app|me|ly|site|link|info)(?:\/[^\s]*)?)/gi;
 /** Confirmação honesta ("vou confirmar", "te confirmo", "vou verificar") libera falar do assunto sem afirmar. */
 const CONFIRMA =
-  /(vou (confirmar|verificar|checar|ver)|deixa eu (confirmar|verificar|ver)|preciso (confirmar|verificar)|te confirmo|confirmo (com|e|pra|para|isso)|vou te confirmar|ja te (falo|retorno|confirmo))/;
+  /(quem_confirma|vou (confirmar|verificar|checar|ver)|deixa eu (confirmar|verificar|ver)|preciso (confirmar|verificar)|te confirmo|confirmo (com|e|pra|para|isso)|vou te confirmar|ja te (falo|retorno|confirmo))/;
 const AFIRMA =
   /(\bsim\b|aceita sim|aceitamos|\bpode sim\b|da sim|e possivel|com certeza|claro que)/;
 
@@ -490,7 +548,29 @@ export function validarRedacaoDetalhe(
     if (linksCand.some((x) => x.codigo !== c.codigo)) return b("oferta", linksCand.find((x) => x.codigo !== c.codigo)?.url);
   } else if (linksCand.length > 1) return b("oferta", `${linksCand.length} links de opções`);
 
-  const n = norm(resto);
+  const n0 = norm(resto);
+  // Sempre em português do Brasil.
+  if (RE_IDIOMA.test(msg.toLowerCase()) || RE_IDIOMA.test(n0)) return b("idioma", achou(RE_IDIOMA, n0) ?? achou(RE_IDIOMA, msg.toLowerCase()));
+  // t_82c89141 item 3: nunca prometer voltar com a resposta.
+  if (RE_RETORNO.test(n0)) return b("retorno", achou(RE_RETORNO, n0));
+  // Item 1: com candidato (ou sem a busca ter rodado), nunca dizer que não tem outra opção.
+  if (perm.estoque && perm.estoque !== "sem_resultado" && RE_SEM_OPCAO.test(n0))
+    return b("sem_opcao", `${achou(RE_SEM_OPCAO, n0)} | ${perm.estoque}`);
+  // Item 2: "por mês"/"por ano" do IPTU só a partir do iptu_periodo do XML.
+  const iu = RE_IPTU_UNIDADE.exec(n0);
+  if (iu) {
+    const dita = /(ano|anua)/.test(iu[1]) ? "ano" : "mes";
+    if (perm.iptuPeriodo !== undefined && perm.iptuPeriodo !== dita)
+      return b("iptu", `${iu[0]} | xml:${perm.iptuPeriodo ?? "sem período"}`);
+  }
+  // Item 5: oferta de tipo diferente do imóvel do cliente tem de dizer o tipo.
+  if (s.acao === "oferecer" && perm.tipoRef && s.codigo) {
+    const c = perm.codigos.get(s.codigo);
+    const tc = tipoBase(c?.tipo);
+    if (c?.tipo && tc && tc !== tipoBase(perm.tipoRef) && !n0.includes(tc)) return b("tipo", `${c.tipo} | cliente viu ${perm.tipoRef}`);
+  }
+  // A frase "o corretor confirma com você na visita ou no contato" é permitida (item 3).
+  const n = n0.replace(RE_CORRETOR_CONFIRMA, " quem_confirma ");
   // Identidade: nunca "IA/robô/sistema/assistente virtual" e nunca dizer que é humana (a pergunta direta tem
   // resposta fixa antes do modelo).
   if (
@@ -609,7 +689,7 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     contagem: "esse número de quartos/suítes/vagas não está em DADOS nem no que o cliente pediu; use só os números dos imóveis de DADOS",
     numero: "número solto que não está em DADOS",
     disponibilidade: "não afirme disponibilidade nem use a palavra disponível",
-    condicao: "não afirme financiamento, FGTS, permuta ou consórcio; diga que vai confirmar",
+    condicao: "não afirme financiamento, FGTS, permuta ou consórcio; diga que o corretor confirma com você na visita ou no contato",
     andar: "não fale de andar",
     desconto: "não fale de desconto nem de negociar o valor",
     promessa: "não faça promessa nem garantia",
@@ -618,6 +698,11 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     obrigada: "não comece com Obrigada quando o cliente fez uma pergunta",
     oferta: "ofereça só um imóvel de CANDIDATOS ainda não oferecido, com o codigo dele",
     datas: "ainda não ofereça dias nem horários; convide de forma simples para a visita",
+    retorno: "não prometa voltar com a resposta; diga que o corretor confirma com você na visita ou no contato",
+    sem_opcao: "não diga que não tem outra opção: há CANDIDATOS em DADOS (ofereça um) ou a busca não rodou (pergunte o que o cliente procura, como quartos ou bairro, sem prometer mandar depois)",
+    iptu: "o período do IPTU só pode ser dito se DADOS trouxer iptu_periodo; senão diga só o valor",
+    tipo: "o imóvel oferecido é de outro tipo; diga o tipo dele com todas as letras e pergunte se esse tipo serve",
+    idioma: "responda só em português do Brasil",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
@@ -787,14 +872,17 @@ export function exigeTextoFixo(ctx: ContextoIa, texto: string, base: RespostaIa)
     base.fim === "nao_lead" ||
     base.fim === "sem_interesse" ||
     // Dia/horário fora das opções: anota com o texto fixo e não repete as opções (t_2aecef49).
-    (base.fim === "visita" && !!base.dados.visita_livre)
+    (base.fim === "visita" && !!base.dados.visita_livre) ||
+    // t_82c89141 item 4 (regra fixa do sábado/dia sem período): o roteiro pergunta "manhã ou tarde?".
+    (!base.fim && !!base.dados.visita_dia_pendente)
   );
 }
 
-const PASSAR_OK = `Já pedi para ${CORRETOR}, que vai te chamar aqui para combinar.`;
-const PASSAR_FALHA = "Anotei tudo aqui e já te retorno por aqui.";
-const VISITA_OK = `Já pedi para ${CORRETOR}, que vai te chamar aqui para confirmar o horário certinho.`;
-const VISITA_FALHA = "Anotei aqui e já te confirmo o horário por aqui.";
+// t_82c89141 item 6a: a última mensagem sempre avisa que um corretor continua o atendimento (com ou sem o nome).
+const PASSAR_OK = `Já pedi para ${CORRETOR}, que vai continuar seu atendimento por aqui.`;
+const PASSAR_FALHA = "Um corretor da nossa equipe vai continuar seu atendimento por aqui.";
+const VISITA_OK = `Já pedi para ${CORRETOR}, que vai continuar seu atendimento por aqui para confirmar o horário certinho.`;
+const VISITA_FALHA = "Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.";
 
 /**
  * Resposta com o modelo escrevendo. `base` = o roteiro fixo (plano B), já calculado.
@@ -860,6 +948,8 @@ export async function redigirResposta(
           .catch(() => null)
       : null;
   const candidatos = (res?.itens ?? []).filter((i) => !ja.includes(i.codigo)).slice(0, 3);
+  // t_82c89141 item 1: a Nicole só pode dizer "não tenho outra" se a busca RODOU e voltou vazia.
+  const estoque: Permitidos["estoque"] = candidatos.length ? "com_candidatos" : res ? "sem_resultado" : "nao_consultado";
   // Datas só depois que o cliente disse que quer visitar (item 7); antes, o convite é simples.
   const visita = querVisitar(ctx, texto) ? visitaSemParenteses(op.agora ?? new Date()) : [];
   const msgs = montarMensagens({
@@ -869,6 +959,7 @@ export async function redigirResposta(
     candidatos,
     visita,
     busca: busca ? { pedido: busca.pedido, fora_faixa: busca.fora_faixa } : null,
+    estoque: estoque === "com_candidatos" ? null : estoque,
   });
   const falasCliente = [
     texto,
@@ -886,6 +977,7 @@ export async function redigirResposta(
     visita,
     falasCliente,
   );
+  perm.estoque = estoque;
   // No máximo 2 chamadas. Modo bloquear: bloqueio do validador = 2ª tentativa dizendo o que estava errado
   // (t_a9f1b447); só se ela também falhar sai a frase pronta. Modo observar: erro, demora ou JSON ruim = 2ª
   // tentativa (t_3a4bf078); bloqueio só registra. A trava "contagem" corrigida vale nos dois modos.
@@ -933,8 +1025,10 @@ export async function redigirResposta(
       : !saida
         ? { motivo: "formato", trecho: "JSON inválido" }
         : validarRedacaoDetalhe(saida, perm, texto, ja);
-    // No modo observar a mensagem sai mesmo barrada; "observado" marca que a trava só registrou.
-    const observado = observar && !!saida && !!detalhe;
+    // No modo observar a mensagem sai mesmo barrada; "observado" marca que a trava só registrou. As travas
+    // FIRMES (t_82c89141: retorno, sem_opcao, iptu) barram nos dois modos.
+    const firme = !!detalhe && TRAVAS_FIRMES.has(detalhe.motivo);
+    const observado = observar && !!saida && !!detalhe && !firme;
     // Trecho (o número/link/palavras, até 60 caracteres) e origem (só números) do bloqueio, nos dois modos.
     op.registrar({
       ...uso,
@@ -950,7 +1044,7 @@ export async function redigirResposta(
     });
     if (saida && !detalhe) break; // aprovada
     // Modo observar: a trava só registra, a mensagem sai como veio (sem 2ª tentativa por bloqueio).
-    if (saida && detalhe && observar) break;
+    if (saida && detalhe && observar && !firme) break;
     if (saida && detalhe) {
       // Bloqueada: tenta 1 vez de novo dizendo o que estava errado.
       if (!primeira) primeira = { saida, detalhe };
@@ -964,13 +1058,31 @@ export async function redigirResposta(
     if (usaOr && (!chamada.ok || tentReal >= 2 || uso.provedor === "gemini")) break;
   }
   // Observar: se a 2ª falhou (erro), sai a 1ª resposta legível, mesmo barrada (a trava só registra).
-  if (observar && !saida && primeira) {
+  if (observar && !saida && primeira && !TRAVAS_FIRMES.has(primeira.detalhe.motivo)) {
     saida = primeira.saida;
     detalhe = primeira.detalhe;
   }
-  if (!chamada || !saida) return observar ? semResposta() : plano(detalhe?.motivo ?? primeira?.detalhe.motivo ?? null);
+  if (!chamada || !saida) {
+    // Trava firme barrou as 2 tentativas: o roteiro (plano B) responde, também no modo observar.
+    const m = detalhe?.motivo ?? primeira?.detalhe.motivo ?? null;
+    return observar && !(m && TRAVAS_FIRMES.has(m)) ? semResposta() : plano(m);
+  }
   const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
-  if (bloqueio && !observar) return plano(bloqueio);
+  if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return plano(bloqueio);
+  // t_82c89141 item 4: dia sem período não passa ao corretor; pergunta manhã ou tarde.
+  if (saida.acao === "passar" && saida.registro.visita && !temPeriodo(saida.registro.visita) && !periodoDe(norm(texto))) {
+    const dia = saida.registro.visita;
+    return {
+      passo: ctx.passo === "fim" ? "visita" : ctx.passo,
+      dados: { ...dadosIn, visita_dia_pendente: dia, convite_visita: true },
+      resposta: PERGUNTA_PERIODO(dia),
+      resposta_falha: null,
+      fim: null,
+      resumo: null,
+      redigida: true,
+      bloqueio,
+    };
+  }
   // "Não" a uma pergunta da Nicole não é motivo para passar ao corretor (item 5).
   if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && NAO_CURTO.test(norm(texto)))
     saida = { ...saida, acao: "responder" };
@@ -992,6 +1104,8 @@ export async function redigirResposta(
   if (r.finalidade && !dados.finalidade) dados.finalidade = r.finalidade;
   if (r.faixa) dados.faixa = r.faixa;
   if (r.pagamento?.length) dados.pagamento = r.pagamento;
+  // t_82c89141 item 3: o que ficou sem dado vai como pendência no resumo do corretor.
+  if (r.pendente) dados.pendentes = [...new Set([...(dados.pendentes ?? []), r.pendente])].slice(0, 12);
   if (r.nova_busca)
     dados.outras_buscas = [
       r.nova_busca,

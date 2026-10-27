@@ -117,8 +117,9 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
   it("plano B: aceita, anota, registra no resumo e não repete quarta/quinta", async () => {
     const c = ctx({ passo: "visita", dados: dadosVisita });
     const r = await proximaResposta(c, "sabado de manha pode ser?", undefined, { agora: AGORA, buscarParecidos: buscar });
-    expect(r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
-    expect(r.resposta_falha).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(r.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
+    // t_82c89141 item 6a: a falha também avisa que um corretor continua o atendimento.
+    expect(r.resposta_falha).toBe("Sábado de manhã anotado! Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.");
     expect(r.resposta).not.toMatch(/quarta|quinta/i);
     expect(r.fim).toBe("visita");
     expect(r.resumo).toMatch(/PRÉ-AGENDAMENTO: sábado de manhã, dia pedido pelo cliente, fora das opções oferecidas \(confirmar/);
@@ -127,9 +128,9 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
   it("plano B: também vale logo depois do convite (passo interesse) e com outro horário", async () => {
     const c = ctx({ dados: { convite_visita: true, interesse: true } });
     const a = await proximaResposta(c, "Sábado de manhã pode ser?", undefined, { agora: AGORA });
-    expect(a.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(a.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
     const b = await proximaResposta(ctx({ passo: "visita", dados: dadosVisita }), "consigo sexta às 18h", undefined, { agora: AGORA });
-    expect(b.resposta).toBe("Sexta às 18h anotado! Te confirmo o horário certinho.");
+    expect(b.resposta).toBe("Sexta às 18h anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
     expect(b.resumo).toMatch(/PRÉ-AGENDAMENTO: sexta às 18h/);
   });
   it("plano B: escolher uma das opções continua igual (não vira pedido fora)", async () => {
@@ -144,12 +145,13 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
       acao: "responder",
     }, c);
     expect(chamou).toBe(0);
-    expect(r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(r.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
     expect(r.resumo).toMatch(/sábado de manhã/);
   });
   it("modelo ligado: depois de o modelo convidar para a visita, o pedido de sábado no turno seguinte também é anotado", async () => {
     const { r } = await rodar("e FGTS da pra usar?", {
-      mensagem: "Vou confirmar sobre o uso do FGTS e já te falo! Enquanto isso, quer marcar uma visita para conhecer a casa?",
+      // t_82c89141 item 3: "vou confirmar e já te falo" agora é barrado pela trava "retorno".
+      mensagem: "O corretor confirma o uso do FGTS com você na visita ou no contato. Enquanto isso, quer marcar uma visita para conhecer a casa?",
       acao: "responder",
     });
     expect(r.redigida).toBe(true);
@@ -157,17 +159,38 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
     const c2 = ctx({ passo: r.passo, dados: r.dados, versao: 4 });
     const s = await rodar("sabado de manha pode ser?", { mensagem: "Tenho quarta ou quinta. Qual prefere?", acao: "responder" }, c2);
     expect(s.chamou).toBe(0);
-    expect(s.r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(s.r.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
   });
   it("vale mesmo com um parecido recém-oferecido (\"pode ser\" não vira \"gostei do parecido\")", async () => {
     const c = ctx({ dados: { ...dadosVisita, parecidos: ["2501"], parecido_atual: { ...P3921, codigo: "2501" } } });
     const { r, chamou } = await rodar("sabado de manha pode ser?", { mensagem: "Pode ser!", acao: "responder" }, c);
     expect(chamou).toBe(0);
-    expect(r.resposta).toBe("Sábado de manhã anotado! Te confirmo o horário certinho.");
+    expect(r.resposta).toBe("Sábado de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
     expect(r.fim).toBe("visita");
   });
   it("sem contexto de visita e sem pedido de marcar, dia solto não vira agendamento", async () => {
     const r = await proximaResposta(ctx(), "trabalho de segunda a sexta", undefined, { agora: AGORA });
     expect(r.fim).not.toBe("visita");
+  });
+});
+
+describe("t_82c89141 item 4 — dia sem período: pergunta manhã ou tarde antes de passar", () => {
+  const dadosVisita = { convite_visita: true, visita_opcoes: ["amanhã (quarta, 28/10) de manhã", "quinta (29/10) à tarde"], interesse: true };
+  it("roteiro: \"sábado pode ser?\" -> pergunta o período; a resposta passa avisando que o corretor continua", async () => {
+    const a = await proximaResposta(ctx({ passo: "visita", dados: dadosVisita }), "sabado pode ser?", undefined, { agora: AGORA });
+    expect(a.resposta).toBe("Anotado, sábado! Fica melhor de manhã ou à tarde?");
+    expect(a.fim).toBeNull();
+    expect(a.dados.visita_dia_pendente).toBe("sábado");
+    const b = await proximaResposta(ctx({ passo: a.passo, dados: a.dados }), "de manhã", undefined, { agora: AGORA });
+    expect(b.fim).toBe("visita");
+    expect(b.dados.visita).toMatch(/^sábado de manhã/);
+    expect(b.resposta).toMatch(/continuar seu atendimento por aqui/);
+    expect(b.resposta_falha).toMatch(/Um corretor da nossa equipe vai continuar seu atendimento/);
+  });
+  it("modelo tenta passar com dia sem período: a Nicole pergunta manhã ou tarde em vez de passar", async () => {
+    const c = ctx({ passo: "visita", dados: { convite_visita: true, interesse: true } });
+    const { r } = await rodar("pode ser na sexta", { mensagem: "Combinado!", acao: "passar", registro: { visita: "sexta" } }, c);
+    expect(r.fim).toBeNull();
+    expect(r.resposta).toBe("Anotado, sexta! Fica melhor de manhã ou à tarde?");
   });
 });

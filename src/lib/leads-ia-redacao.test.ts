@@ -165,17 +165,17 @@ describe("validador da redação (travas depois do modelo)", () => {
       "promessa",
     );
   });
-  it("deixa dizer que vai confirmar (sem afirmar)", () => {
+  it("deixa dizer que o corretor confirma (sem afirmar); promessa de retorno é barrada (t_82c89141 item 3)", () => {
     expect(
       validarRedacao(
         s("Vou confirmar o financiamento e já te falo! Quer marcar uma visita enquanto isso?"),
         PERM,
         "aceita financiamento?",
       ),
-    ).toBeNull();
+    ).toBe("retorno");
     expect(
       validarRedacao(
-        s("Vou confirmar a disponibilidade e já te falo. Quer marcar uma visita?"),
+        s("O corretor confirma a disponibilidade com você na visita ou no contato. Quer marcar uma visita?"),
         PERM,
         "",
       ),

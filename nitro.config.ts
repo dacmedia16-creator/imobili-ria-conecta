@@ -8,7 +8,8 @@ export default defineConfig({
   scheduledTasks: {
     // A cada 5 min: lembretes de sala e WhatsApp dos avisos da Clicksign (inclui o lembrete de
     // prazo, que o banco só libera das 9h às 20h de Brasília, 3 dias antes do vencimento).
-    "*/5 * * * *": ["room-reservation-reminders", "clicksign-avisos"],
+    // leads-ia-espera (t_82c89141): resposta de espera da Nicole depois do repasse ao corretor.
+    "*/5 * * * *": ["room-reservation-reminders", "clicksign-avisos", "leads-ia-espera"],
     // Segunda-feira 8h (São Paulo = 11h UTC): vencimentos das exclusividades.
     "0 11 * * 1": ["exclusive-expiry-alerts"],
     // Todo dia 3h20 (São Paulo = 6h20 UTC): anúncios do site RE/MAX. Só coleta com REMAX_SITE_COLLECT=on.

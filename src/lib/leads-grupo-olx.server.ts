@@ -11,12 +11,13 @@ import { GRUPO_OLX_TOKEN_RE } from "@/lib/leads";
 export const GRUPO_OLX_MAX_BYTES = 20_000;
 
 export type ResultadoBanco =
-  "ok" | "duplicado" | "sem_contato" | "token" | "modulo" | "invalido" | "limite";
+  "ok" | "duplicado" | "juntado" | "sem_contato" | "token" | "modulo" | "invalido" | "limite";
 
 /** Código HTTP de cada resultado do banco. */
 export const STATUS_POR_RESULTADO: Record<ResultadoBanco, number> = {
   ok: 200,
   duplicado: 200, // reenvio do Grupo OLX: já temos, confirma para ele parar de tentar
+  juntado: 200, // t_82c89141: outro aviso do MESMO cliente (mesmo telefone) juntado ao lead aberto
   sem_contato: 200, // sem telefone nem e-mail válidos: não há o que atender; não adianta reenviar
   token: 401,
   modulo: 404,

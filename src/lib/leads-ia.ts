@@ -147,6 +147,8 @@ export type DadosQualificacao = {
   nao_seguiu?: boolean;
   /** Filtro um passo abaixo, sugerido quando não havia nada (\"prefere que eu procure com 2 suítes?\"). */
   carac_relaxar?: FiltroCaracteristica;
+  /** Cliente disse só o dia da visita (\"pode ser sábado?\"): a Nicole perguntou manhã ou tarde (t_82c89141 item 4). */
+  visita_dia_pendente?: string;
 };
 
 /** Característica pedida pelo cliente (t_a9f1b447): vira filtro no XML da própria imobiliária. */
@@ -215,6 +217,8 @@ export type ContextoIa = {
   ficha?: FichaIa | null;
   /** De onde veio a ficha (lead_ia_registrar_cliente): o XML guardado só tem imóveis de VENDA. */
   imovel_fonte?: "xml" | "captacao" | null;
+  /** Outros anúncios do MESMO cliente, de avisos do portal juntados a este lead (t_82c89141 item 7). Só XML. */
+  outros_anuncios?: Array<{ codigo: string; ficha: FichaIa | null }> | null;
 };
 
 export type RespostaIa = {
@@ -408,7 +412,7 @@ const SIM = /^(sim|s|tenho|claro|isso|quero|ok|pode|com certeza|tenho sim|sim te
 const QUER_VISITA = /(visit|conhecer|agendar|marcar|ver (o |a )?(imovel|casa|ap|apartamento|terreno)|ver pessoalmente|ir ver|dar uma olhada)/;
 
 /** Resposta fixa sobre disponibilidade (t_76243950): a IA nunca garante que o imóvel está disponível. */
-export const CONFIRMO_DISPONIBILIDADE = "vou confirmar a disponibilidade e já te falo";
+export const CONFIRMO_DISPONIBILIDADE = "o corretor confirma a disponibilidade com você na visita ou no contato";
 /** Texto de quem retorna: o banco troca {corretor} só depois de gravar registro e aviso. */
 export const CORRETOR = "{corretor}";
 
@@ -579,7 +583,10 @@ const ROTULO: Record<Tema, string> = {
   area: "metragem",
   localizacao: "localização",
 };
-/** "Vou confirmar <isto> e já te falo." */
+/** Sem o dado na ficha: a Nicole NÃO promete retorno (ninguém da IA volta a falar disso); o corretor confirma
+ * na visita ou no contato e o tema vai como pendência no resumo dele (t_82c89141 item 3). */
+export const CORRETOR_CONFIRMA = "com você na visita ou no contato";
+/** "O corretor confirma <isto> com você na visita ou no contato." */
 const CONFIRMAR: Record<Tema, string> = {
   preco: "o valor",
   negociacao: "a negociação",
@@ -690,7 +697,7 @@ export function responderDuvidas(
   const partes: string[] = [];
   if (fisico.length) partes.push(`${maiuscula(suj)} tem ${juntar(fisico)}.`);
   partes.push(...frases);
-  if (naoSei.length) partes.push(`Vou confirmar ${juntar(naoSei.map((t) => CONFIRMAR[t]))} e já te falo.`);
+  if (naoSei.length) partes.push(`O corretor confirma ${juntar(naoSei.map((t) => CONFIRMAR[t]))} ${CORRETOR_CONFIRMA}.`);
   dados.pendentes = [...new Set([...(dados.pendentes ?? []), ...naoSei.map((t) => ROTULO[t])])].slice(0, 12);
   return partes.join(" ");
 }
@@ -850,10 +857,45 @@ function passar(
   return fim(dados, motivo, `${i}${fimOk}`, `${i}${fimFalha}`, resumo);
 }
 
-/** Texto se o banco NÃO conseguiu gravar a passagem: não afirma que alguém foi avisado. */
-const FALHA_PADRAO = "Anotei tudo aqui e já te retorno por aqui.";
+/** Texto se o banco NÃO conseguiu gravar a passagem: não afirma que alguém foi avisado, mas avisa que um
+ * corretor continua (t_82c89141 item 6a) e não promete retorno da própria Nicole. */
+export const FALHA_PADRAO = "Anotei tudo aqui. Um corretor da nossa equipe vai continuar seu atendimento por aqui.";
 /** A única menção a outra pessoa: na hora de passar, uma vez, com naturalidade (t_5b493bc9 item 8). */
-const CHAMAR = `Já pedi para ${"{corretor}"} te chamar aqui`;
+const CHAMAR = `Já pedi para ${"{corretor}"} continuar seu atendimento por aqui`;
+
+// --- Período da visita (t_82c89141 item 4) ------------------------------------------------------------
+/** "de manhã" / "à tarde" / "à noite" dito pelo cliente (texto normalizado). null = não disse. */
+export function periodoDe(n: string): string | null {
+  if (/\bmanha\b|\bcedo\b|\bmanhazinha\b/.test(n) && !/\btarde\b/.test(n)) return "de manhã";
+  if (/\btarde(zinha)?\b|depois do almoco/.test(n) && !/\bmanha\b/.test(n)) return "à tarde";
+  if (/\bnoite\b/.test(n)) return "à noite";
+  const h = /\b(\d{1,2})(?:h|:\d{2})\b/.exec(n);
+  if (h && Number(h[1]) <= 23) return Number(h[1]) < 12 ? "de manhã" : Number(h[1]) < 18 ? "à tarde" : "à noite";
+  return null;
+}
+/** O dia anotado já diz o período ou o horário? */
+export const temPeriodo = (visita: string) => /(manhã|manha|tarde|noite|às \d|\d{1,2}h)/i.test(visita);
+/** Pergunta o período antes de passar ao corretor (o cliente só disse o dia). Não promete o dia. */
+export const PERGUNTA_PERIODO = (dia: string) => `Anotado, ${dia}! Fica melhor de manhã ou à tarde?`;
+function perguntaPeriodo(dados: DadosQualificacao, dia: string, passo: Passo): RespostaIa {
+  dados.visita_dia_pendente = dia;
+  dados.convite_visita = true;
+  return { passo, dados, resposta: PERGUNTA_PERIODO(dia), resposta_falha: null, fim: null, resumo: null };
+}
+/** Dia E período escolhidos: anota e passa ao corretor, avisando o cliente que ele continua (item 6a). */
+function passarVisita(dados: DadosQualificacao, ctx: Pick<ContextoIa, "anuncio_codigo" | "imovel_frase">, agora: Date, visita: string): RespostaIa {
+  dados.visita = visita;
+  dados.visita_ate = prazoConfirmacao(agora);
+  dados.visita_livre = true;
+  return passar(
+    dados,
+    "visita",
+    `${maiuscula(visita)} anotado!`,
+    `${CHAMAR} para confirmar o horário certinho.`,
+    "Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.",
+    resumoQualificacao(dados, ctx),
+  );
+}
 
 // --- Imóvel parecido do XML (t_232e13cb, regra tirada das conversas da Laís) ------------------------------
 // Quando: (b) o pedido não serve (venda x locação, acima da faixa, fora do bairro desejado, saiu do XML);
@@ -1400,7 +1442,7 @@ export async function proximaResposta(
       "sensivel",
       "Entendi.",
       `${CHAMAR} para cuidar disso com você.`,
-      "Registrei sua mensagem e já te retorno por aqui.",
+      FALHA_PADRAO,
       `Assunto sensível: \"${curto(texto, 160)}\". Atender com prioridade. Dados até aqui: ${parcial()}`,
     );
   // \"Sim\" para a oferta de passar ao corretor feita depois de \"é robô?\": passa (t_25fe1197).
@@ -1430,7 +1472,7 @@ export async function proximaResposta(
       "nao_lead",
       "Entendi!",
       `Já pedi para ${CORRETOR} te responder por aqui.`,
-      "Registrei sua mensagem e já te retorno por aqui.",
+      FALHA_PADRAO,
       `${quem}, não é comprador nem locatário: \"${curto(texto, 160)}\". Atender sem o roteiro de qualificação.`,
     );
   }
@@ -1656,16 +1698,26 @@ export async function proximaResposta(
     }
   }
 
-  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita, anota e passa; não repete as opções.
+  // t_82c89141 item 4: a Nicole perguntou \"manhã ou tarde?\" no turno anterior; agora fecha e passa ao corretor.
+  const diaPendente = dados.visita_dia_pendente;
+  dados.visita_dia_pendente = undefined;
+  if (diaPendente && !detectarTemas(texto).length && !pedeOutrasOpcoes(texto)) {
+    const p = periodoDe(n);
+    const outroDia = diaPedido(texto);
+    const dia = outroDia && !/^(de manha|a tarde|a noite)/.test(norm(outroDia)) ? outroDia : diaPendente;
+    if (p || /(tanto faz|qualquer|indiferente|tanto  faz|nao sei|voces escolhem|pode escolher)/.test(n)) {
+      return passarVisita(dados, ctx, agora, p ? `${dia.replace(/ (de manhã|à tarde|à noite)$/, "")} ${p}` : `${dia}, período a combinar`);
+    }
+  }
+
+  // Dia/horário fora das opções (\"sábado de manhã pode ser?\"): aceita e anota; sem período, pergunta manhã ou
+  // tarde ANTES de passar (t_82c89141 item 4); com período, passa avisando que o corretor continua (item 6a).
   if (!detectarTemas(texto).length) {
-    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes;
+    const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes || !!diaPendente;
     const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
     if (pedido) {
-      dados.visita = pedido;
-      dados.visita_ate = prazoConfirmacao(agora);
-      dados.visita_livre = true;
-      const t = "Te confirmo o horário certinho.";
-      return passar(dados, "visita", `${maiuscula(pedido)} anotado!`, t, t, resumoQualificacao(dados, ctx));
+      if (!temPeriodo(pedido)) return perguntaPeriodo(dados, pedido, passoAtual === "codigo" ? "interesse" : passoAtual);
+      return passarVisita(dados, ctx, agora, pedido);
     }
   }
 
@@ -1833,7 +1885,7 @@ export async function proximaResposta(
   if (cobrou) duvida = "Oi, estou aqui!";
   else if (ehDuvida && !temas.length && !pedeOutrasOpcoes(texto) && !QUER_VISITA.test(n) && !DETALHES.test(n)) {
     // Pergunta que as regras não reconhecem: não ignora (item 11).
-    duvida = "Vou confirmar isso e já te falo.";
+    duvida = `Isso o corretor confirma ${CORRETOR_CONFIRMA}.`;
     dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);
   }
 
@@ -1844,7 +1896,7 @@ export async function proximaResposta(
     return passar(
       dados,
       "qualificado",
-      junta(outras, "Anotei! Vou ver com o proprietário se ele aceita permuta."),
+      junta(outras, "Anotei! Se o proprietário aceita permuta, o corretor confirma com você."),
       `${CHAMAR} para conversar sobre isso.`,
       FALHA_PADRAO,
       `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
@@ -1857,8 +1909,8 @@ export async function proximaResposta(
       dados,
       "qualificado",
       junta(outras, "Sobre proposta e valores,"),
-      `já pedi para ${CORRETOR} te chamar aqui para conversar com você.`,
-      "anotei aqui e já te retorno por aqui.",
+      `já pedi para ${CORRETOR} continuar seu atendimento por aqui.`,
+      FALHA_PADRAO,
       `Cliente quer falar de PROPOSTA/NEGOCIAÇÃO: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
     );
   }
@@ -1932,7 +1984,7 @@ export async function proximaResposta(
         conferir("saiu");
         const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), codigo_ref: dados.anuncio_informado ?? null }).catch(() => null);
         if (res?.referencia.saiu)
-          return ofertar(comDuvida("Esse anúncio saiu do nosso catálogo, vou confirmar a situação dele e já te falo."), {}, res, false);
+          return ofertar(comDuvida(`Esse anúncio saiu do nosso catálogo, o corretor confirma a situação dele ${CORRETOR_CONFIRMA}.`), {}, res, false);
       }
     }
   }
@@ -1953,7 +2005,7 @@ export async function proximaResposta(
         "visita",
         `Combinado, ${dados.visita}!`,
         `${CHAMAR} para confirmar o horário certinho ${dados.visita_ate}.`,
-        "Anotei aqui e já te retorno por aqui para confirmar o horário certinho.",
+        "Anotei aqui. Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.",
         resumoQualificacao(dados, ctx),
       );
     }

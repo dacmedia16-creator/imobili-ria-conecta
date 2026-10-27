@@ -155,7 +155,7 @@ describe("quando oferece (regra 1)", () => {
   it("(b) anúncio saiu do XML: avisa e oferece parecido", async () => {
     const busca = buscaFake(CATALOGO, { codigo: "VIP0109", saiu: true, preco: 600000 });
     const rs = await conversa(["oi, quero saber mais"], busca, { ficha: null, imovel_fonte: null, anuncio_codigo: "VIP0109", imovel_frase: null, tem_captacao: false });
-    expect(rs[0].resposta).toMatch(/^Esse anúncio saiu do nosso catálogo, vou confirmar a situação dele e já te falo\./);
+    expect(rs[0].resposta).toMatch(/^Esse anúncio saiu do nosso catálogo, o corretor confirma a situação dele com você na visita ou no contato\./);
     expect(ofertas(rs)).toBe(1);
   });
 
@@ -178,7 +178,7 @@ describe("quantos e sem repetir (regra 3)", () => {
     expect(rs[3].fim).toBeNull();
     expect(rs[3].resposta).toBe("Essas são as opções que tenho agora nesse perfil. Gostou de alguma? Se quiser, marco uma visita.");
     expect(rs[4].fim).toBe("qualificado");
-    expect(rs[4].resposta).toMatch(/^Vou procurar mais opções para você\. Já pedi para \{corretor\} te chamar aqui/);
+    expect(rs[4].resposta).toMatch(/^Vou procurar mais opções para você\. Já pedi para \{corretor\} continuar seu atendimento por aqui/);
     expect(MAX_PARECIDOS).toBe(3);
   });
 
@@ -238,7 +238,7 @@ describe("conteúdo e passagem (regra 4)", () => {
     const rs = await conversa(["tem outras opções?", "quantos quartos? aceita permuta? está disponível?"], buscaFake());
     expect(rs[1].fim).toBeNull();
     expect(rs[1].resposta).toBe(
-      "Esse apartamento tem 3 quartos. Vou confirmar a disponibilidade e se o proprietário aceita permuta e já te falo. Quer agendar uma visita para conhecer pessoalmente?",
+      "Esse apartamento tem 3 quartos. O corretor confirma a disponibilidade e se o proprietário aceita permuta com você na visita ou no contato. Quer agendar uma visita para conhecer pessoalmente?",
     );
     expect(rs[1].dados.parecido_atual?.codigo).toBe("VIP0101");
     expect(rs[1].dados.pendentes ?? []).toEqual([]); // pendências do pedido não se misturam
