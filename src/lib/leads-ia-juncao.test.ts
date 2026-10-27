@@ -173,3 +173,24 @@ describe('dia fora das opções ("sábado de manhã pode ser?")', () => {
     expect(r.fim).not.toBe("visita");
   });
 });
+
+describe("t_82c89141 item 4 — dia sem período: pergunta manhã ou tarde antes de passar", () => {
+  const dadosVisita = { convite_visita: true, visita_opcoes: ["amanhã (quarta, 28/10) de manhã", "quinta (29/10) à tarde"], interesse: true };
+  it("roteiro: \"sábado pode ser?\" -> pergunta o período; a resposta passa avisando que o corretor continua", async () => {
+    const a = await proximaResposta(ctx({ passo: "visita", dados: dadosVisita }), "sabado pode ser?", undefined, { agora: AGORA });
+    expect(a.resposta).toBe("Anotado, sábado! Fica melhor de manhã ou à tarde?");
+    expect(a.fim).toBeNull();
+    expect(a.dados.visita_dia_pendente).toBe("sábado");
+    const b = await proximaResposta(ctx({ passo: a.passo, dados: a.dados }), "de manhã", undefined, { agora: AGORA });
+    expect(b.fim).toBe("visita");
+    expect(b.dados.visita).toMatch(/^sábado de manhã/);
+    expect(b.resposta).toMatch(/continuar seu atendimento por aqui/);
+    expect(b.resposta_falha).toMatch(/Um corretor da nossa equipe vai continuar seu atendimento/);
+  });
+  it("modelo tenta passar com dia sem período: a Nicole pergunta manhã ou tarde em vez de passar", async () => {
+    const c = ctx({ passo: "visita", dados: { convite_visita: true, interesse: true } });
+    const { r } = await rodar("pode ser na sexta", { mensagem: "Combinado!", acao: "passar", registro: { visita: "sexta" } }, c);
+    expect(r.fim).toBeNull();
+    expect(r.resposta).toBe("Anotado, sexta! Fica melhor de manhã ou à tarde?");
+  });
+});
