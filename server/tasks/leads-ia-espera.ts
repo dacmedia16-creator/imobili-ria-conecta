@@ -2,7 +2,7 @@ import { defineTask } from "nitro/task";
 import { depsEsperaReais, esperaUmaRodada } from "../../src/lib/leads-ia-retorno.server";
 
 // t_82c89141 item 6b: resposta de espera depois do repasse ao corretor (1 por conversa a cada 2 h, só se ninguém
-// da equipe respondeu em lead_config.ia_espera_min). Se a migration 20261027180000 não estiver aplicada, a RPC
+// da equipe respondeu em lead_config.ia_espera_min). Se a migration 20261027200000 não estiver aplicada, a RPC
 // falha e a tarefa só registra "erro" (nada é enviado).
 export default defineTask({
   meta: {

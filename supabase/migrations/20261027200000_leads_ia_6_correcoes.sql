@@ -10,7 +10,7 @@
 --      lead_config.leads_juntar_horas (padrão 24; 0 = desligado) NÃO cria lead: vira "aviso juntado"
 --      (lead_portal_avisos + evento no histórico), sem 1ª mensagem e sem fila. Dedup por originLeadId mantida.
 --      Leads duplicados que já existem não são juntados nem apagados.
--- Rollback: docs/sql/rollback/20261027180000_leads_ia_6_correcoes.rollback.sql
+-- Rollback: docs/sql/rollback/20261027200000_leads_ia_6_correcoes.rollback.sql
 BEGIN;
 
 -- 1) Configuração por imobiliária -----------------------------------------------------------------------------

@@ -1,4 +1,4 @@
--- Rollback de 20261027180000_leads_ia_6_correcoes (t_82c89141).
+-- Rollback de 20261027200000_leads_ia_6_correcoes (t_82c89141).
 -- Ordem segura: publique ANTES o código anterior (sem a tarefa leads-ia-espera), depois rode este arquivo.
 -- Volta as 4 funções ao corpo anterior (o mesmo das migrations citadas), apaga a função de espera, a tabela de
 -- avisos juntados (o histórico em lead_eventos fica) e as colunas novas. Não toca em leads nem em conversas.
@@ -354,5 +354,5 @@ ALTER TABLE public.lead_portal_recebimentos ADD CONSTRAINT lead_portal_recebimen
   CHECK (resultado IN ('ok', 'duplicado', 'sem_contato', 'invalido', 'limite', 'modulo'));
 ALTER TABLE public.lead_conversas DROP COLUMN IF EXISTS espera_em, DROP COLUMN IF EXISTS equipe_em;
 ALTER TABLE public.lead_config DROP COLUMN IF EXISTS ia_espera_min, DROP COLUMN IF EXISTS leads_juntar_horas;
-DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261027180000';
+DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261027200000';
 COMMIT;
