@@ -112,16 +112,16 @@ describe("cancelar venda: Administrador e Administrador principal da imobiliári
   });
 });
 
-describe("migration 20261027190000_admin_todos_botoes_venda (t_3c10bab8)", () => {
+describe("migration 20261027210000_admin_todos_botoes_venda (t_3c10bab8)", () => {
   const up = readFileSync(
     new URL(
-      "../../supabase/migrations/20261027190000_admin_todos_botoes_venda.sql",
+      "../../supabase/migrations/20261027210000_admin_todos_botoes_venda.sql",
       import.meta.url,
     ),
     "utf8",
   );
   const down = readFileSync(
-    new URL("../../supabase/rollback/20261027190000_admin_todos_botoes_venda.sql", import.meta.url),
+    new URL("../../supabase/rollback/20261027210000_admin_todos_botoes_venda.sql", import.meta.url),
     "utf8",
   );
   it("libera admin nas capacidades de gestor e nas funções do jurídico", () => {

@@ -7,7 +7,7 @@
 -- Sempre na própria imobiliária: has_any_role usa mt_in_ctx_org; current_org_id()/can_view_sale.
 -- Já liberavam admin antes (sem mudança): validate_sale_status_transition (etapas), can_edit_sale_stage,
 -- can_view_sale, policies de sale_documents, corrigir_descricao_matricula. Outros papéis não mudam.
--- Rollback: supabase/rollback/20261027190000_admin_todos_botoes_venda.sql
+-- Rollback: supabase/rollback/20261027210000_admin_todos_botoes_venda.sql
 BEGIN;
 CREATE OR REPLACE FUNCTION public.sale_management_capabilities(_sale_id uuid)
  RETURNS jsonb

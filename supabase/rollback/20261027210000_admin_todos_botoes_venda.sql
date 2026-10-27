@@ -1,4 +1,4 @@
--- ROLLBACK de 20261027190000_admin_todos_botoes_venda (t_3c10bab8): definições de produção lidas em 27/10/2026
+-- ROLLBACK de 20261027210000_admin_todos_botoes_venda (t_3c10bab8): definições de produção lidas em 27/10/2026
 -- (main 06d6d83). Sem perda de dados: vendas já canceladas pelo administrador continuam canceladas.
 BEGIN;
 CREATE OR REPLACE FUNCTION public.sale_management_capabilities(_sale_id uuid)
