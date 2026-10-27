@@ -3816,6 +3816,10 @@ export type Database = {
         Args: { _motivo: string; _sale_id: string };
         Returns: undefined;
       };
+      org_admin_cancel_sale: {
+        Args: { _motivo: string; _sale_id: string };
+        Returns: undefined;
+      };
       platform_set_organization_status: {
         Args: { _id: string; _status: string };
         Returns: undefined;

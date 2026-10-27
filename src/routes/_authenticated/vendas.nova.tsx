@@ -30,7 +30,8 @@ function NewSale() {
   const [tipoPessoaVendedor, setTipoPessoaVendedor] = useState<"fisica" | "juridica">("fisica");
   const [tipoPessoaComprador, setTipoPessoaComprador] = useState<"fisica" | "juridica">("fisica");
   const [loading, setLoading] = useState(false);
-  const allowed = hasAny(["corretor", "gestor", "team_leader"]);
+  // Mesma regra de registrarVendaAction e da policy sales_insert_corretor (t_3c10bab8).
+  const allowed = hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]);
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();

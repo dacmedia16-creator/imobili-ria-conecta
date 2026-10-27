@@ -14,7 +14,11 @@
  */
 import { ROLE_LABEL, type AppRole } from "@/lib/auth";
 import { ALL_MANAGED_ROLES, grantableRoles, type ManagedRole } from "@/lib/user-management-policy";
-import { getSaleRoleFlags, podeFinalizarOcorrencia } from "@/lib/sale-permissions";
+import {
+  getSaleRoleFlags,
+  podeCancelarVenda,
+  podeFinalizarOcorrencia,
+} from "@/lib/sale-permissions";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import {
   podeImprimirOcorrenciasConcluidas,
@@ -64,11 +68,15 @@ export const REGRAS_CONFERIDAS = {
     ["lancamento", "escolher"].includes(registrarVendaAction([r as AppRole])),
   etapas_gestor: (r: ManagedRole) => {
     const f = getSaleRoleFlags([r as AppRole], [], undefined);
-    return f.isGestor || f.isAdminPrincipal;
+    return f.isGestor || f.cobreGestorEJuridico;
   },
   etapas_juridico: (r: ManagedRole) => {
     const f = getSaleRoleFlags([r as AppRole], [], undefined);
-    return f.isJuridico || f.isAdminPrincipal;
+    return f.isJuridico || f.cobreGestorEJuridico;
+  },
+  cancelar_venda: (r: ManagedRole) => {
+    const f = getSaleRoleFlags([r as AppRole], [], undefined);
+    return podeCancelarVenda(false, "enviada_revisao", f.isAdminLike);
   },
   editar_venda_travada: (r: ManagedRole) => {
     const f = getSaleRoleFlags([r as AppRole], [], undefined);
@@ -114,7 +122,30 @@ export type RegraPapel = {
 const it = (texto: string, regra?: RegraId): Item => (regra ? { texto, regra } : { texto });
 const area = (pode: Item[], naoPode: Item[] = []): DetalheArea => ({ pode, naoPode });
 
-const NAO_CANCELA = it("Não cancela venda: só o Administrador da plataforma cancela.");
+const NAO_CANCELA = it(
+  "Não cancela venda: isso é do Administrador, do Administrador principal ou do Administrador da plataforma.",
+  "cancelar_venda",
+);
+// Administrador e Administrador principal (t_3c10bab8, Denis 27/10/2026): mesmos botões na venda.
+const ADMIN_CANCELA = it(
+  "Cancela a venda depois do rascunho, com confirmação e motivo obrigatório. Fica no histórico quem cancelou, quando e o motivo.",
+  "cancelar_venda",
+);
+const ADMIN_APROVACAO = area([
+  it(
+    "Faz sozinho as etapas de gestor em qualquer venda da imobiliária: aprova, devolve para ajuste e confere o contrato. Serve para a imobiliária sem gestor ou quando o gestor está ausente.",
+    "etapas_gestor",
+  ),
+  ADMIN_CANCELA,
+]);
+const ADMIN_CONTRATOS = area([
+  it(
+    "Faz as etapas do jurídico: inicia, monta e anexa o contrato e sobe as certidões. Serve para a imobiliária sem jurídico ou quando o jurídico está ausente.",
+    "etapas_juridico",
+  ),
+  it("Dá o OK no contrato no lugar do corretor."),
+  it("Escolhe como o contrato vai ser assinado e marca o contrato como assinado."),
+]);
 const NADA_CONFIG = area([], [it("Não acessa as configurações da imobiliária.")]);
 const SEM_LEADS = area(
   [],
@@ -182,6 +213,7 @@ const LIDER_FINANCEIRO = area(
 
 const ADMIN_VENDAS = area(
   [
+    it("Registra venda (venda padrão).", "registrar_venda"),
     it("Vê todas as vendas e todas as captações exclusivas da imobiliária."),
     it(
       "Edita a venda em qualquer etapa, mesmo depois de travada pelo financeiro.",
@@ -191,12 +223,7 @@ const ADMIN_VENDAS = area(
       "Exclui venda em rascunho, arquiva em qualquer etapa (mesmo depois de assinada) e desarquiva.",
     ),
   ],
-  [
-    it(
-      "Não registra venda só com este papel (precisa também do papel Corretor, Gestor ou Team leader).",
-      "registrar_venda",
-    ),
-  ],
+  [it("Venda de lançamento continua só com o papel Lançamento.", "registrar_lancamento")],
 );
 const ADMIN_OCORRENCIAS = area([
   it("Edita e conclui ocorrências, como o financeiro.", "concluir_ocorrencia"),
@@ -238,31 +265,18 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
   {
     papel: "super_admin",
     resumo:
-      "O dono da imobiliária no sistema: faz tudo o que o Administrador faz e ainda cobre as etapas de gestor e de jurídico na venda, dá o papel de Administrador e abre as Configurações.",
+      "O dono da imobiliária no sistema: faz tudo o que o Administrador faz (inclusive todos os botões da venda), dá o papel de Administrador e abre as Configurações.",
     areas: {
       vendas: ADMIN_VENDAS,
-      aprovacao: area(
-        [
-          it(
-            "Faz sozinho as etapas de gestor em qualquer venda da imobiliária: aprova, devolve para ajuste e confere o contrato. Serve para a imobiliária sem gestor ou quando o gestor está ausente.",
-            "etapas_gestor",
-          ),
-        ],
-        [NAO_CANCELA],
-      ),
-      contratos: area([
-        it(
-          "Faz as etapas do jurídico: inicia e anexa o contrato e sobe as certidões. Serve para a imobiliária sem jurídico ou quando o jurídico está ausente.",
-          "etapas_juridico",
-        ),
-        it("Dá o OK no contrato no lugar do corretor."),
-        it("Escolhe como o contrato vai ser assinado e marca o contrato como assinado."),
-      ]),
+      aprovacao: ADMIN_APROVACAO,
+      contratos: ADMIN_CONTRATOS,
       ocorrencias: ADMIN_OCORRENCIAS,
       financeiro: ADMIN_FINANCEIRO,
       relatorios: ADMIN_RELATORIOS,
       leads: ADMIN_LEADS([
-        it("É avisado quando a atendente de IA encontra assunto sensível em um lead da imobiliária."),
+        it(
+          "É avisado quando a atendente de IA encontra assunto sensível em um lead da imobiliária.",
+        ),
       ]),
       usuarios: area(
         [
@@ -301,31 +315,11 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
   {
     papel: "admin",
     resumo:
-      "Vê e opera tudo da imobiliária, cadastra usuários e cuida dos dados e dos relatórios. Não faz as etapas de gestor e de jurídico da venda.",
+      "Vê e opera tudo da imobiliária, com todos os botões da venda (gestor, jurídico, cancelar e registrar), cadastra usuários e cuida dos dados e dos relatórios.",
     areas: {
       vendas: ADMIN_VENDAS,
-      aprovacao: area(
-        [],
-        [
-          it(
-            "Na tela da venda, não tem os botões das etapas do gestor (aprovar, devolver e conferir o contrato). Isso é do Gestor, do Team leader ou do Administrador principal.",
-            "etapas_gestor",
-          ),
-          NAO_CANCELA,
-        ],
-      ),
-      contratos: area(
-        [
-          it("Dá o OK no contrato no lugar do corretor."),
-          it("Escolhe como o contrato vai ser assinado e marca o contrato como assinado."),
-        ],
-        [
-          it(
-            "Não monta o contrato (isso é do Jurídico ou do Administrador principal).",
-            "etapas_juridico",
-          ),
-        ],
-      ),
+      aprovacao: ADMIN_APROVACAO,
+      contratos: ADMIN_CONTRATOS,
       ocorrencias: ADMIN_OCORRENCIAS,
       financeiro: ADMIN_FINANCEIRO,
       relatorios: ADMIN_RELATORIOS,
@@ -768,11 +762,10 @@ export const REGRAS_GERAIS: string[] = [
 
 /** O que acontece quando alguém está ausente (regras do banco: is_lead_of e Administrador principal). */
 export const REGRAS_AUSENCIA: string[] = [
-  "Gestor ausente ou imobiliária sem gestor: o Administrador principal faz sozinho as etapas de gestor da venda.",
-  "Jurídico ausente ou imobiliária sem jurídico: o Administrador principal faz as etapas do jurídico.",
+  "Gestor ausente ou imobiliária sem gestor: o Administrador ou o Administrador principal faz sozinho as etapas de gestor da venda.",
+  "Jurídico ausente ou imobiliária sem jurídico: o Administrador ou o Administrador principal faz as etapas do jurídico.",
   "Team leader ausente: o líder auxiliar da equipe e o líder da equipe-mãe (com papel Gestor ou Team leader) também aprovam e conferem as vendas da equipe.",
   "Corretor que não aceita o lead no prazo: o lead passa para o próximo corretor do rodízio.",
-  "O papel Administrador (sem ser o principal) não substitui o gestor nem o jurídico nas etapas da venda.",
 ];
 
 /** Só o Administrador da plataforma (fora da imobiliária). */
@@ -780,7 +773,7 @@ export const SO_PLATAFORMA: string[] = [
   "Cadastra, edita e suspende imobiliárias.",
   "Liga e desliga os módulos de cada imobiliária.",
   'Dá ou tira o papel "Administrador principal".',
-  "Cancela venda, sempre com motivo e só depois do rascunho (rascunho se exclui, não se cancela).",
+  "Cancela venda de qualquer imobiliária, sempre com motivo e só depois do rascunho (dentro da própria imobiliária, o Administrador e o Administrador principal também cancelam).",
   '"Entra como" outro usuário para dar suporte, mas nunca como um Administrador principal.',
   "Define o canal do WhatsApp da atendente de IA, o número do chip e os números liberados para teste.",
   "Cadastra o Link do XML da imobiliária, de onde a IA lê os imóveis.",
