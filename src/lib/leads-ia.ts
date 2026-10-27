@@ -922,8 +922,10 @@ function passarVisita(dados: DadosQualificacao, ctx: Pick<ContextoIa, "anuncio_c
 // lead_ia_imoveis_parecidos). 1 por vez, até 3 por conversa, nunca repete. Texto só com dados do XML.
 // t_5b493bc9: tom de atendente (sem código, sem parênteses técnicos); "gostei" leva à visita com a própria Nicole.
 
-/** t_37cf21e3 item 4 (\"quando o cliente pedir mais opções, mostrar sempre, se houver\"): eram 3 por conversa. */
+
 export const MAX_PARECIDOS = 3;
+/** Por chamada ao banco (as funções do banco devolvem no máximo 3). */
+const LIMITE_BUSCA = 3;
 
 /** Cliente pede outras opções ("tem outras?", "algo parecido", "mais barato"), tolerando erro de digitação
  * e espaço no meio da palavra ("tem mais opçõe s?"). */
@@ -1135,7 +1137,7 @@ export function argsParecidos(conversaId: string, f: FiltroParecido) {
     _preco_max: valor(f.preco_max),
     _bairro: f.bairro ? f.bairro.slice(0, 60) : null,
     _negocio: f.negocio === "locacao" ? "locacao" : "venda",
-    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), MAX_PARECIDOS),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), LIMITE_BUSCA),
     _mais_barato: f.mais_barato === true,
     _codigo: f.codigo_ref ? f.codigo_ref.trim().slice(0, 60) || null : null,
   };
@@ -1154,7 +1156,7 @@ export function argsBusca(conversaId: string, f: FiltroBusca) {
     _regiao: txt(f.regiao),
     _cidade: txt(f.cidade),
     _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
-    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), MAX_PARECIDOS),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), LIMITE_BUSCA),
   };
 }
 
@@ -1166,7 +1168,7 @@ export function normalizarParecidos(data: unknown): ResultadoParecidos | null {
   const ref = d.referencia && typeof d.referencia === "object" ? d.referencia : {};
   const itens = (Array.isArray(d.itens) ? d.itens : [])
     .filter((i): i is Record<string, unknown> => !!i && typeof i === "object" && typeof (i as { codigo?: unknown }).codigo === "string")
-    .slice(0, MAX_PARECIDOS)
+    .slice(0, LIMITE_BUSCA)
     .map((i) => {
       const url = txt(i.url, 300);
       return {
@@ -1469,7 +1471,7 @@ export function argsCaracteristica(conversaId: string, f: FiltroCaracteristicaBu
     _preco_max: valor(f.preco_max),
     _cidade: txt(f.cidade),
     _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
-    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 3), 1), MAX_PARECIDOS),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 3), 1), LIMITE_BUSCA),
   };
 }
 /** Resposta da RPC: só chaves conhecidas (mesma limpeza dos parecidos). */

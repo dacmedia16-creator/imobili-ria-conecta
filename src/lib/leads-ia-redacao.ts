@@ -1167,6 +1167,8 @@ export async function redigirResposta(
   if (pediuFotos(texto)) perm.fotos = { link: (emFoco ? emFoco.url : ctx.ficha?.link) || null };
   if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
+  // Na 2ª busca, a trava "tipo" compara com o tipo pedido para a outra pessoa (não com a casa do cliente).
+  if (perfis?.atual === "segunda" && dadosIn.busca2?.tipo) perm.tipoRef = dadosIn.busca2.tipo;
   perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
   perm.pediuOpcoes = base.intencao === "opcoes";
   void valorFaixa;

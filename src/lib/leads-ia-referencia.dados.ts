@@ -26,6 +26,8 @@ export type FalaReferencia = {
   antes: string | null;
   /** O que saiu errado ao vivo (resumo). */
   falha?: string;
+  /** t_37cf21e3: chegou junto com a próxima (ao vivo não teve resposta própria); vai em falasAntes. */
+  junto?: boolean;
 };
 export type ConversaReferencia = {
   id: string;
@@ -43,7 +45,7 @@ const casa = (x: Partial<ImovelParecido> & { codigo: string }): ImovelParecido =
 });
 
 /** Estoque real da ZZ usado nas conversas (venda). */
-export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number }> = [
+export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?: string }> = [
   { ...casa({ codigo: "3879", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "1", vagas: "2", area_util_m2: "93", preco: "R$ 645.000" }), preco_valor: 645000 },
   { ...casa({ codigo: "3881", tipo: "casa", bairro: "Jardim Piratininga", quartos: "3", vagas: "2", area_util_m2: "114", preco: "R$ 655.000" }), preco_valor: 655000 },
   { ...casa({ codigo: "3882", tipo: "casa", bairro: "Jardim Novo Horizonte", quartos: "3", suites: "1", vagas: "2", area_util_m2: "123", preco: "R$ 665.000" }), preco_valor: 665000 },
@@ -61,6 +63,16 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number }> = [
   { ...casa({ codigo: "3800", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "1", area_util_m2: "73", preco: "R$ 715.000" }), preco_valor: 715000 },
   { ...casa({ codigo: "2452", tipo: "casa", bairro: "Alphaville Nova Esplanada", cidade: "Votorantim", quartos: "4", suites: "4", vagas: "4", area_util_m2: "297", preco: "R$ 1.870.000" }), preco_valor: 1870000 },
   { ...casa({ codigo: "2100", tipo: "casa", bairro: "Alphaville Nova Esplanada", cidade: "Votorantim", quartos: "3", suites: "3", vagas: "4", area_util_m2: "225", preco: "R$ 1.879.000" }), preco_valor: 1879000 },
+  // t_37cf21e3: conversa F (d8907e38, VIP0027). XML real da ZZ lido em 27/10 (só leitura).
+  { ...casa({ codigo: "VIP0027", tipo: "casa", bairro: "Central Parque", quartos: "3", suites: "1", vagas: "4", area_util_m2: "247", preco: "R$ 690.000" }), preco_valor: 690000, tipo_xml: "casa" },
+  { ...casa({ codigo: "VIP0141", tipo: "casa", bairro: "Jardim Residencial Nikkey", quartos: "1", vagas: "4", area_util_m2: "138", preco: "R$ 638.900" }), preco_valor: 638900, tipo_xml: "casa" },
+  { ...casa({ codigo: "3885", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "1", vagas: "3", area_util_m2: "142", preco: "R$ 695.000" }), preco_valor: 695000, tipo_xml: "casa-de-condominio" },
+  { ...casa({ codigo: "VIP0137", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "2", vagas: "2", area_util_m2: "164", preco: "R$ 685.000" }), preco_valor: 685000, tipo_xml: "casa-de-condominio" },
+  { ...casa({ codigo: "VIP0048", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "1", vagas: "2", area_util_m2: "156", preco: "R$ 635.000" }), preco_valor: 635000, tipo_xml: "casa-de-condominio" },
+  { ...casa({ codigo: "3898", tipo: "casa", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "140", preco: "R$ 770.000" }), preco_valor: 770000, tipo_xml: "casa-de-condominio" },
+  { ...casa({ codigo: "VIP0036", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "3", vagas: "3", area_util_m2: "125", preco: "R$ 1.170.000" }), preco_valor: 1170000 },
+  { ...casa({ codigo: "VIP0034", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "3", vagas: "2", area_util_m2: "120", preco: "R$ 1.197.000" }), preco_valor: 1197000 },
+  { ...casa({ codigo: "VIP0162", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "2", vagas: "2", area_util_m2: "118", preco: "R$ 1.100.000" }), preco_valor: 1100000 },
   // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
   ...(
     [
@@ -335,21 +347,60 @@ export const REFERENCIA: ConversaReferencia[] = [
       },
     ],
   },
+  // t_37cf21e3: conversa d8907e38 (lead cc19ea1c, DeepSeek ao vivo, 27/10 17:13-18:35) — os 6 pontos de Denis.
+  {
+    id: "F",
+    lead: "cc19ea1c",
+    anuncio: "VIP0027",
+    ficha: ficha({
+      tipo: "casa", bairro: "Central Parque", quartos: "3", suites: "1", banheiros: "3", vagas: "4",
+      area_construida_m2: "247", area_terreno_m2: "266", preco: "R$ 690.000", preco_valor: 690000,
+      iptu: "R$ 153,00 por mês", link: "https://vipsevenimoveis.com.br/imovel/VIP0027",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Central Parque, em Sorocaba, anunciada por R$ 690.000. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0027 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "Gostaria", esperado: "Claro! O que você gostaria de saber sobre a casa, ou já prefere agendar uma visita?", antes: "Que bom que gostou! A casa tem 3 quartos, 1 suíte, 3 banheiros e 4 vagas, em 247 m² de área construída. O IPTU é R$ 153 por mês. Quer agendar uma visita para conhecer pessoalmente?", falha: "item 5: 'Que bom que gostou!' para 'Gostaria'" },
+      { cliente: "Teria  mais opções ?", esperado: "Tenho sim! Uma casa no Horto Florestal, 3 quartos, por R$ 685.000: https://vipsevenimoveis.com.br/imovel/VIP0137 Gostou?", antes: "Tenho sim! Tem outra casa no Jardim Residencial Nikkey, com 1 quarto e 4 vagas, por R$ 638.900. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0141 Gostou?", falha: "item 1: casa de 1 quarto para quem viu casa de 3" },
+      { cliente: "oq mais vc tem nesta região ?", esperado: "No Central Parque não tenho outra casa nessa faixa agora. A mais perto do que você procura fica no Horto Florestal: ... Te serve, mesmo sendo em outro bairro?", antes: "Nessa região, tenho uma casa no Horto Florestal, com 3 quartos, 1 suíte e 3 vagas, por R$ 695.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3885 Gostou?", falha: "item 2: outro bairro como se fosse 'nessa região'" },
+      { cliente: "meu filho esta procurando apartamento vcs tb trabalha com apartamento ?", esperado: "Trabalhamos sim! Para o seu filho, seria para comprar ou para alugar?", antes: "Trabalhamos sim com apartamentos! Ele busca comprar ou alugar?" },
+      { cliente: "comprar", esperado: "E em qual bairro ou região de Sorocaba ele prefere?", antes: "Entendi! Ele busca comprar um apartamento. Qual região ele prefere?" },
+      { cliente: "campolim", esperado: "E até quanto ele pensa em investir?", antes: "Sim, trabalhamos com apartamentos no Campolim! Ele busca quantos quartos?" },
+      { cliente: "3 suites ate 1200", esperado: "Achei um apartamento no Parque Campolim, 3 suítes, por R$ 1.170.000: https://vipsevenimoveis.com.br/imovel/VIP0036 O que acha?", antes: "Entendi, ele busca apartamento com 3 suítes no Campolim até R$ 1.200.000. Nessa faixa, o mais em conta que tenho é um apartamento no Centro, com 4 quartos, 3 suítes e 2 vagas, por R$ 975.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0015 Quer ver esse ou prefere que eu procure com um pouco menos?", falha: "item 2/3: Centro em vez de Campolim, e a faixa do filho virou a do pai" },
+      { cliente: "Quartos, metragem, vagas e andar ?", esperado: "Ele tem 3 quartos (3 suítes), 125 m² e 3 vagas. O andar o corretor confirma. O que acha?", antes: "Esse apartamento tem 4 quartos, 3 suítes, 2 vagas e 135 m². Sobre o andar, o corretor confirma com você na visita ou no contato. Quer agendar uma visita?" },
+      { cliente: "sabe  se aceita permuta ?", esperado: "Permuta o corretor confirma com o proprietário. Quer agendar uma visita?", antes: "O corretor confirma se o proprietário aceita permuta com você na visita ou no contato. Quer agendar uma visita para conhecer pessoalmente?" },
+      { cliente: "quem vai visitar e meu filho o ap é para ele", esperado: "Combinado, anotei que a visita ao apartamento é do seu filho.", antes: "Perfeito, então a visita é para o seu filho! Anotei que o apartamento é para ele. Quer agendar a visita para amanhã de manhã ou quinta à tarde?" },
+      { cliente: "qual endereço desse ao ?", esperado: "O endereço exato o corretor passa na hora de combinar a visita.", antes: "O endereço exato o corretor confirma com você na visita ou no contato. Quer agendar a visita para amanhã de manhã ou quinta à tarde?" },
+      { cliente: "vou passar seu contato para ele", junto: true, esperado: "(chegou junto com as 2 próximas)", antes: null },
+      { cliente: "sobre a casa q eu to vendo para mim", junto: true, esperado: "(chegou junto com a próxima)", antes: null },
+      { cliente: "vc tem mais opções ?", esperado: "Tenho sim! Outra casa, no Horto Florestal, 3 quartos, por R$ ...: <link> Gostou?", antes: "Sobre a casa que você está vendo, tenho sim! Tem um apartamento na Vila Independência, com 4 quartos, 4 suítes e 157 m², por R$ 1.037.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0047. Como é apartamento, te serve ou prefere continuar com casas?", falha: "item 3: apartamento (perfil do filho) para a casa do pai" },
+      { cliente: "não quero casa mesmo", esperado: "Só para eu entender certo: você quer ver casas, certo?", antes: "Entendi! Então seguimos com o apartamento. Quer agendar uma visita para conhecer?", falha: "item 4: frase ambígua entendida ao contrário" },
+      { cliente: "disse q quero casa", esperado: "Combinado, casas então! Outra casa ...: <link> Gostou?", antes: "Ah, desculpa! Então seguimos com a casa que você viu, no Central Parque. Quer agendar uma visita para conhecê-la?", falha: "item 4: não mostrou as outras casas pedidas" },
+      { cliente: "quero sim", esperado: "Combinado! Quer agendar uma visita?", antes: "Que ótimo! Então vamos agendar sua visita à casa do Central Parque. Fica melhor de manhã ou à tarde?" },
+      { cliente: "mas qual casa vamos visita ?", esperado: "A casa do ... (a última que você gostou): <link>", antes: "A casa que vamos visitar é a do Central Parque, com 3 quartos, 1 suíte e 247 m², por R$ 690.000. Fica melhor de manhã ou à tarde?" },
+      { cliente: "me manda mais fotos", esperado: "As fotos estão todas no anúncio: <link do imóvel em questão>", antes: "Claro, te mando mais fotos da casa do Central Parque! O corretor confirma com você na visita ou no contato. Quer agendar a visita para conhecer?", falha: "item 6: promessa de fotos, sem link" },
+      { cliente: "me manda as fotos primeiro", esperado: "As fotos estão todas no anúncio: <link>", antes: "As fotos da casa do Central Parque o corretor confirma com você na visita ou no contato. Quer agendar a visita para conhecê-la?", falha: "item 6: sem link" },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------
 
-const sem = (x: ImovelParecido & { preco_valor?: number }): ImovelParecido => {
-  const { preco_valor: _p, ...r } = x;
+const sem = (x: ImovelParecido & { preco_valor?: number; tipo_xml?: string }): ImovelParecido => {
+  const { preco_valor: _p, tipo_xml: _t, ...r } = x as typeof x & { tipo_xml?: string };
   return r;
 };
 const num = (s?: string) => (s && /^\d+$/.test(s) ? Number(s) : 0);
+const sN = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 /** lead_ia_imoveis_parecidos: mesmo tipo e cidade do anúncio, ±15% do preço, mais perto do preço primeiro. */
 export function buscasReferencia(c: ConversaReferencia) {
   const ref = ESTOQUE_ZZ.find((x) => x.codigo === c.anuncio);
   const pref = c.ficha.preco_valor ?? ref?.preco_valor ?? 0;
   const fora = (cod: string, ex: string[]) => cod === c.anuncio || ex.includes(cod);
+  const qref = num(c.ficha.quartos);
+  const tref = ref?.tipo_xml ?? ref?.tipo;
+  const mesmoB = (a?: string, b?: string | null) => !!a && !!b && sN(a) === sN(b);
   return {
     buscarParecidos: async (f: FiltroParecido): Promise<ResultadoParecidos> => ({
       referencia: { codigo: c.anuncio, no_xml: true, tipo: c.ficha.tipo, bairro: c.ficha.bairro, cidade: c.ficha.cidade, preco: pref },
@@ -360,9 +411,18 @@ export function buscasReferencia(c: ConversaReferencia) {
           x.cidade === c.ficha.cidade &&
           x.preco_valor >= (f.preco_min ?? pref * 0.85) &&
           x.preco_valor <= (f.preco_max ?? pref * 1.15) &&
-          (!f.mais_barato || x.preco_valor < pref),
+          (!f.mais_barato || x.preco_valor < pref) &&
+          // t_37cf21e3 (migration 20261028000000): quartos ±1 e filtro de bairro.
+          (!qref || (num(x.quartos) > 0 && Math.abs(num(x.quartos) - qref) <= 1)) &&
+          (!f.bairro || mesmoB(x.bairro, f.bairro)),
       )
-        .sort((a, b) => Math.abs(a.preco_valor - pref) - Math.abs(b.preco_valor - pref))
+        .sort(
+          (a, b) =>
+            Number(mesmoB(b.bairro, c.ficha.bairro)) - Number(mesmoB(a.bairro, c.ficha.bairro)) ||
+            Math.abs(num(a.quartos) - qref) - Math.abs(num(b.quartos) - qref) ||
+            Number((b.tipo_xml ?? b.tipo) === tref) - Number((a.tipo_xml ?? a.tipo) === tref) ||
+            Math.abs(a.preco_valor - pref) - Math.abs(b.preco_valor - pref),
+        )
         .slice(0, f.limite ?? 1)
         .map(sem),
     }),
@@ -375,6 +435,7 @@ export function buscasReferencia(c: ConversaReferencia) {
           (f.vagas === undefined || num(x.vagas) >= f.vagas) &&
           (f.area === undefined || num(x.area_util_m2) >= f.area) &&
           (!f.tipo || x.tipo === f.tipo) &&
+          (!f.bairro || sN(x.bairro ?? "").includes(sN(f.bairro))) &&
           (!f.cidade || x.cidade === f.cidade),
       ).sort((a, b) => a.preco_valor - b.preco_valor);
       const min = f.preco_min ?? 0;
