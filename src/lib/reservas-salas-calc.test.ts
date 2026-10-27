@@ -6,6 +6,7 @@ import {
   getRoomReservationPeriodTimes,
   hasRoomReservationConflict,
   intervalsOverlap,
+  isRoomReservationBlocked,
   ROOM_RESERVATION_PURPOSES,
   timeToMinutes,
 } from "./reservas-salas-calc";
@@ -59,6 +60,32 @@ describe("reservas de salas — regras de horário", () => {
         true,
       ),
     ).toContain("até 01/10/2026");
+  });
+
+  it("staff nunca aparece bloqueado, mesmo com bloqueio antigo no registro", () => {
+    const now = new Date("2026-10-27T12:00:00Z");
+    const status = {
+      lateCancellationCount: 3,
+      remainingCancellations: 0,
+      blockedUntil: "2026-11-02T12:57:00Z",
+    };
+    expect(isRoomReservationBlocked(status, true, now)).toBe(false);
+    expect(isRoomReservationBlocked(status, false, now)).toBe(true);
+    expect(isRoomReservationBlocked(null, false, now)).toBe(false);
+    expect(
+      isRoomReservationBlocked({ ...status, blockedUntil: "2026-10-20T00:00:00Z" }, false, now),
+    ).toBe(false);
+  });
+
+  it("staff não recebe aviso de cancelamentos restantes nem de bloqueio", () => {
+    const msg = getRoomReservationCancellationNotice(
+      { lateCancellationCount: 3, remainingCancellations: 0, blockedUntil: "2026-11-02T12:00:00Z" },
+      true,
+      true,
+    );
+    expect(msg).toContain("Staff não tem limite");
+    expect(msg).not.toContain("Faltam");
+    expect(msg).not.toContain("bloqueado para novas reservas");
   });
 
   it("informa quando o cancelamento ocorreu na primeira hora", () => {

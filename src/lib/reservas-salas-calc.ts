@@ -21,10 +21,24 @@ export type RoomReservationCancellationStatus = {
   blockedUntil: string | null;
 };
 
+/** Staff nunca fica bloqueado (regra de Denis 27/10/2026); o banco confere pelo papel atual. */
+export function isRoomReservationBlocked(
+  status: RoomReservationCancellationStatus | null,
+  isStaff: boolean,
+  now: Date = new Date(),
+): boolean {
+  if (isStaff || !status?.blockedUntil) return false;
+  return new Date(status.blockedUntil) > now;
+}
+
 export function getRoomReservationCancellationNotice(
   status: RoomReservationCancellationStatus,
   wasLateCancellation: boolean,
+  isStaff = false,
 ): string {
+  if (isStaff) {
+    return "Reserva cancelada. Staff não tem limite de cancelamentos nem bloqueio.";
+  }
   if (!wasLateCancellation) {
     return "Reserva cancelada. Como o cancelamento ocorreu na primeira hora, ele não contou para a penalidade.";
   }
