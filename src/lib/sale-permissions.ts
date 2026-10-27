@@ -74,6 +74,10 @@ export function getSaleRoleFlags(
     // comum não entra aqui. O banco confere de novo (sale_management_capabilities etc.), sempre na
     // própria imobiliária.
     isAdminPrincipal: roles.includes("super_admin"),
+    // Administrador E Administrador principal da imobiliária têm TODOS os botões da venda (t_3c10bab8,
+    // Denis 27/10/2026): etapas de gestor e de jurídico. O banco confere de novo
+    // (sale_management_capabilities, funções do jurídico), sempre na própria imobiliária.
+    cobreGestorEJuridico: roles.some((r) => (["admin", "super_admin"] as AppRole[]).includes(r)),
   };
 }
 
@@ -170,12 +174,20 @@ export function podeDesarquivarVenda(args: {
   return args.isAdminLike || args.isCriador || args.isGestorDaVenda;
 }
 
-/** Cancelar venda (regra de Denis, 28/09/2026): só o dono da plataforma (platform_admins), e só
- * depois do rascunho — rascunho se exclui, não se cancela. Espelha o bloco "cancelada" do trigger
- * validate_sale_status_transition, que é a autoridade. */
-export function podeCancelarVenda(isPlatformAdmin: boolean, status: SaleStatus): boolean {
+/** Cancelar venda: o dono da plataforma (platform_admins, regra de 28/09/2026) e, desde 27/10/2026
+ * (t_3c10bab8), o Administrador e o Administrador principal da imobiliária. Só depois do rascunho —
+ * rascunho se exclui, não se cancela. Espelha o bloco "cancelada" do trigger
+ * validate_sale_status_transition e as RPCs platform_cancel_sale / org_admin_cancel_sale (autoridade). */
+export function podeCancelarVenda(
+  isPlatformAdmin: boolean,
+  status: SaleStatus,
+  isAdminLike = false,
+): boolean {
   return (
-    isPlatformAdmin && status !== "rascunho" && status !== "cancelada" && status !== "arquivada"
+    (isPlatformAdmin || isAdminLike) &&
+    status !== "rascunho" &&
+    status !== "cancelada" &&
+    status !== "arquivada"
   );
 }
 

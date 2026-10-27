@@ -16,7 +16,15 @@ describe("registrarVendaAction", () => {
     expect(registrarVendaAction(["lancamento"])).toBe("lancamento");
   });
 
+  it("Administrador e Administrador principal registram venda padrão (t_3c10bab8)", () => {
+    expect(registrarVendaAction(["admin"])).toBe("venda_padrao");
+    expect(registrarVendaAction(["super_admin"])).toBe("venda_padrao");
+    expect(registrarVendaAction(["admin", "lancamento"])).toBe("escolher");
+  });
+
   it("não oferece registro a perfis sem permissão", () => {
+    expect(registrarVendaAction(["financeiro"])).toBe("nenhuma");
+    expect(registrarVendaAction(["staff"])).toBe("nenhuma");
     expect(registrarVendaAction(["juridico"])).toBe("nenhuma");
     expect(registrarVendaAction([])).toBe("nenhuma");
   });

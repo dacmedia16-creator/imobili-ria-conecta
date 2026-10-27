@@ -118,7 +118,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { canCancelSale, canDeleteSale, cancelSaleAsPlatform } from "@/lib/permissions";
+import { canCancelSale, canDeleteSale, cancelSale } from "@/lib/permissions";
 import { excluirVenda } from "@/lib/excluir-venda.functions";
 import { podeBaixarDocumentosVenda } from "@/lib/document-access";
 import { VendaOrigemCaptacao } from "@/components/VendaOrigemCaptacao";
@@ -541,7 +541,8 @@ function SaleDetail() {
     fetchLedMemberIds(user.id).then(setTeamIds);
   }, [user]);
 
-  // Cancelar venda é só do dono da plataforma (fase 2f). O banco confirma; erro ou dúvida = não.
+  // Dono da plataforma? Decide qual RPC cancela (platform_cancel_sale x org_admin_cancel_sale, t_3c10bab8).
+  // O banco confirma; erro ou dúvida = não.
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   useEffect(() => {
     if (!user) return;
@@ -1398,13 +1399,13 @@ function SaleDetail() {
     isAdminLike,
     isGestor: hasGestorRole,
     isJuridico: hasJuridicoRole,
-    isAdminPrincipal,
+    cobreGestorEJuridico,
   } = getSaleRoleFlags(roles, responsaveisDaVenda(sale, commissionExtras), user?.id);
-  // Administrador principal faz as ações de gestor E de jurídico (t_c6638199). As de gestor seguem
-  // passando por sale_management_capabilities (o banco agora inclui super_admin); vínculo de equipe
-  // (managesOwner/isGestorDaVenda) continua só de quem lidera de verdade.
-  const hasManagerRole = hasGestorRole || isAdminPrincipal;
-  const isJuridico = hasJuridicoRole || isAdminPrincipal;
+  // Administrador e Administrador principal fazem as ações de gestor E de jurídico (t_c6638199 e
+  // t_3c10bab8). As de gestor seguem passando por sale_management_capabilities (o banco inclui
+  // admin/super_admin); vínculo de equipe (managesOwner/isGestorDaVenda) continua só de quem lidera.
+  const hasManagerRole = hasGestorRole || cobreGestorEJuridico;
+  const isJuridico = hasJuridicoRole || cobreGestorEJuridico;
   const managementCurrent = management.saleId === id && management.userId === user?.id;
   const isGestor =
     hasManagerRole && managementCurrent && management.canManage && management.canEdit;
@@ -1438,7 +1439,7 @@ function SaleDetail() {
   const locked = isSaleLocked(status, aceitaFin);
   const canDelete = canDeleteSale(user?.id, hasAny, sale, teamIds);
   // Arquivar (reunião 08/10/2026): quem vê a venda, antes da assinatura do contrato; admin em
-  // qualquer etapa. Cancelar: só o dono da plataforma (canCancelSale).
+  // qualquer etapa. Cancelar: dono da plataforma e administradores da imobiliária (canCancelSale).
   const canCloseSale = podeArquivarVenda(isAdminLike, status);
   // Desarquivar (Denis 09/10/2026): admin, quem criou a venda ou o gestor/TL que a lidera. Volta
   // para a etapa em que estava ao ser arquivada (history vem do mais recente para o mais antigo).
@@ -1461,7 +1462,7 @@ function SaleDetail() {
     await changeStatus(etapaAntesDeArquivar, `Desarquivada: ${unarchiveMotivo.trim()}`);
     setUnarchiveOpen(false);
   };
-  const canCancel = canCancelSale(isPlatformAdmin, status);
+  const canCancel = canCancelSale(isPlatformAdmin, status, isAdminLike);
 
   const onConfirmDelete = async () => {
     setDeleting(true);
@@ -2182,11 +2183,12 @@ function SaleDetail() {
       return;
     }
     if (archiveTarget === "cancelada") {
-      // Caminho único do cancelamento (dono da plataforma, auditado no banco). A RPC antiga
+      // Cancelamento pela RPC própria (plataforma ou administrador da imobiliária; motivo e histórico
+      // gravados no banco). A RPC antiga
       // change_sale_status recusa 'cancelada' desde a fase 2f.
       if (!(await flushAllDirty())) return;
       try {
-        await cancelSaleAsPlatform(id, archiveMotivo.trim());
+        await cancelSale(id, archiveMotivo.trim(), isPlatformAdmin);
       } catch (err: unknown) {
         toast.error(errorMessage(err, "Falha ao cancelar venda"));
         load();

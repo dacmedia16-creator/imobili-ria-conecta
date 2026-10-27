@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-import { canCancelSale, canDeleteSale } from "./permissions";
+import { canCancelSale, canDeleteSale, rpcDeCancelamento } from "./permissions";
 import type { AppRole } from "@/lib/auth";
 
 // Decisão de Denis (28/09/2026): excluir venda SOMENTE em rascunho, por quem pode editá-la;
@@ -78,18 +78,86 @@ describe("canCancelSale — só o dono da plataforma, depois do rascunho (fase 2
     for (const s of ["rascunho", "cancelada", undefined, null, ""])
       expect(canCancelSale(true, s)).toBe(false);
   });
-  it("a tela usa o banco (is_platform_super_admin) e a RPC platform_cancel_sale, não o papel da agência", () => {
+  it("a tela usa o banco (is_platform_super_admin) para escolher a RPC e mostra o botão ao admin da imobiliária", () => {
     const tela = readFileSync(
       new URL("../routes/_authenticated/vendas.$id.tsx", import.meta.url),
       "utf8",
     );
     expect(tela).toContain('supabase.rpc("is_platform_super_admin")');
-    expect(tela).toContain("canCancelSale(isPlatformAdmin, status)");
-    expect(tela).toContain("cancelSaleAsPlatform(");
-    // O botão Cancelar não depende mais de canCloseSale (admin/gestor).
+    expect(tela).toContain("canCancelSale(isPlatformAdmin, status, isAdminLike)");
+    expect(tela).toContain("cancelSale(id, archiveMotivo.trim(), isPlatformAdmin)");
+    // O botão Cancelar não depende de canCloseSale (arquivar).
     expect(tela).toMatch(/\{canCancel && \(\s*<Button/);
-    const lib = readFileSync(new URL("./permissions.ts", import.meta.url), "utf8");
-    expect(lib).toContain('rpc("platform_cancel_sale"');
+    // Confirmação com motivo obrigatório continua (diálogo + botão desabilitado sem motivo).
+    expect(tela).toMatch(
+      /if \(!archiveMotivo\.trim\(\)\) \{\s*toast\.error\("Motivo é obrigatório"\)/,
+    );
+    expect(tela).toContain("disabled={!archiveMotivo.trim()}");
+  });
+});
+
+describe("cancelar venda: Administrador e Administrador principal da imobiliária (t_3c10bab8)", () => {
+  it("admin da imobiliária vê Cancelar depois do rascunho; os outros papéis não", () => {
+    expect(canCancelSale(false, "enviada_revisao", true)).toBe(true);
+    expect(canCancelSale(false, "contrato_assinado", true)).toBe(true);
+    expect(canCancelSale(false, "enviada_revisao", false)).toBe(false);
+    expect(canCancelSale(undefined, "enviada_revisao")).toBe(false);
+    for (const s of ["rascunho", "cancelada", undefined, null, ""])
+      expect(canCancelSale(false, s, true)).toBe(false);
+  });
+  it("cada um cancela pela própria RPC (plataforma x imobiliária)", () => {
+    expect(rpcDeCancelamento(true)).toBe("platform_cancel_sale");
+    expect(rpcDeCancelamento(false)).toBe("org_admin_cancel_sale");
+    expect(rpcDeCancelamento(undefined)).toBe("org_admin_cancel_sale");
+  });
+});
+
+describe("migration 20261027190000_admin_todos_botoes_venda (t_3c10bab8)", () => {
+  const up = readFileSync(
+    new URL(
+      "../../supabase/migrations/20261027190000_admin_todos_botoes_venda.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const down = readFileSync(
+    new URL("../../supabase/rollback/20261027190000_admin_todos_botoes_venda.sql", import.meta.url),
+    "utf8",
+  );
+  it("libera admin nas capacidades de gestor e nas funções do jurídico", () => {
+    expect(up).toContain("ARRAY['gestor','team_leader','admin','super_admin']::public.app_role[]");
+    expect(
+      up.match(/ARRAY\['juridico','admin','super_admin'\]::public\.app_role\[\]/g),
+    ).toHaveLength(2);
+  });
+  it("cancelar: RPC confere papel, imobiliária, motivo, rascunho e grava histórico com o autor", () => {
+    expect(up).toContain(
+      "CREATE OR REPLACE FUNCTION public.org_admin_cancel_sale(_sale_id uuid, _motivo text)",
+    );
+    expect(up).toContain("ARRAY['admin','super_admin']::public.app_role[]");
+    expect(up).toContain("_org IS DISTINCT FROM public.current_org_id()");
+    expect(up).toContain("Informe o motivo para cancelar a venda.");
+    expect(up).toContain("Venda em rascunho não é cancelada");
+    expect(up).toMatch(
+      /INSERT INTO public\.sale_status_history \(sale_id, de, para, autor_id, motivo, organization_id\)\s*VALUES \(_sale_id, _prev::public\.sale_status, 'cancelada', _actor, _motivo_limpo, _org\)/,
+    );
+    expect(up).toContain(
+      "REVOKE ALL ON FUNCTION public.org_admin_cancel_sale(uuid, text) FROM PUBLIC, anon;",
+    );
+    // O gatilho só aceita 'cancelada' com a marca local da RPC e na própria imobiliária.
+    expect(up).toContain("current_setting('mt.org_cancel_sale', true) = old.id::text");
+    expect(up).toContain("old.organization_id = public.current_org_id()");
+  });
+  it("registrar: policy de INSERT inclui admin/super_admin, sempre com corretor_id = quem cria", () => {
+    expect(up).toMatch(
+      /CREATE POLICY sales_insert_corretor[\s\S]*corretor_id = \( SELECT auth\.uid\(\) AS uid\)[\s\S]*'admin'::app_role, 'super_admin'::app_role/,
+    );
+  });
+  it("rollback volta às definições anteriores e remove a RPC", () => {
+    expect(down).toContain("DROP FUNCTION IF EXISTS public.org_admin_cancel_sale(uuid, text);");
+    expect(down).toContain("ARRAY['gestor','team_leader','super_admin']::public.app_role[]");
+    expect(down).not.toContain("mt.org_cancel_sale");
+    expect(down).toContain("ARRAY['gestor'::app_role, 'team_leader'::app_role]) AS has_any_role)");
   });
 });
 
