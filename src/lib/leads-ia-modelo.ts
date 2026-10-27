@@ -48,6 +48,12 @@ export type UsoModelo = {
   /** Redação barrada pelo validador (sai o texto fixo). Só o código do motivo, nunca o conteúdo. */
   bloqueado?: boolean;
   bloqueio?: string | null;
+  /** Modo observar (t_3a4bf078): trecho curto que teria barrado (número, link ou palavras; nunca o texto todo). */
+  bloqueio_trecho?: string | null;
+  /** Modo observar: a mensagem saiu mesmo com o bloqueio (a trava só registrou). */
+  observado?: boolean;
+  /** Modo observar: 1 = 1ª chamada, 2 = nova tentativa depois de erro/demora/JSON ruim. */
+  tentativa?: number;
 };
 
 type Chamada = {
