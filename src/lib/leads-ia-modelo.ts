@@ -34,6 +34,34 @@ export const MODELOS_SUGERIDOS = [
 
 export type Provedor = "gemini" | "openrouter";
 
+/**
+ * DeepSeek (t_3ea838d7): só provedores de fora da China, nesta ordem (doc OpenRouter, provider routing:
+ * `only` limita a lista e `order` define a preferência). Conferido em 27/10/2026 na lista de endpoints do
+ * deepseek-v4-flash-0731. Se nenhum responder, o erro cai no plano B (nova tentativa e depois o Gemini).
+ */
+export const DEEPSEEK_PROVEDORES = ["relace", "deepinfra", "reka"] as const;
+
+/** Opções de roteamento e de raciocínio do OpenRouter por modelo (mesmas regras de LGPD para todos). */
+export function opcoesOpenRouter(modelo: string, reasoningPadrao: Record<string, unknown>) {
+  const deepseek = modelo.startsWith("deepseek/");
+  return {
+    provider: {
+      data_collection: "deny",
+      zdr: true,
+      allow_fallbacks: true,
+      max_price: { prompt: 3, completion: 15 },
+      ...(deepseek ? { only: [...DEEPSEEK_PROVEDORES], order: [...DEEPSEEK_PROVEDORES] } : {}),
+    },
+    // DeepSeek no "modo rápido": sem raciocínio (o modo normal ficou lento e cortou respostas, t_48ddeac0).
+    reasoning: deepseek ? { enabled: false } : reasoningPadrao,
+  };
+}
+
+/** Nome curto do provedor que respondeu (campo `provider` da resposta do OpenRouter), para o lead_ia_uso. */
+export function rotaDe(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim().slice(0, 40) : null;
+}
+
 export type UsoModelo = {
   provedor: Provedor;
   modelo: string;
@@ -54,6 +82,8 @@ export type UsoModelo = {
   observado?: boolean;
   /** Modo observar: 1 = 1ª chamada, 2 = nova tentativa depois de erro/demora/JSON ruim. */
   tentativa?: number;
+  /** Provedor que de fato respondeu no OpenRouter (ex.: "Relace"); null no Gemini direto ou em erro (t_3ea838d7). */
+  rota?: string | null;
 };
 
 type Chamada = {
@@ -63,6 +93,7 @@ type Chamada = {
   tokens_entrada: number | null;
   tokens_saida: number | null;
   custo_usd: number | null;
+  rota?: string | null;
 };
 
 const CAMPO: Partial<Record<Passo, string>> = {
@@ -167,8 +198,7 @@ export async function chamarOpenRouter(
         response_format: { type: "json_object" },
         // LGPD: só provedores que não guardam/treinam com os dados e com retenção zero.
         // Teto de preço (US$ por milhão de tokens): modelo caro demais não é usado (cai para o Gemini).
-        provider: { data_collection: "deny", zdr: true, allow_fallbacks: true, max_price: { prompt: 3, completion: 15 } },
-        reasoning: { exclude: true },
+        ...opcoesOpenRouter(modelo, { exclude: true }),
         usage: { include: true },
       }),
     });
@@ -178,6 +208,7 @@ export async function chamarOpenRouter(
       choices?: Array<{ message?: { content?: string } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
       error?: { code?: number };
+      provider?: string;
     };
     if (j.error) return falha(`erro_${num(j.error.code) ?? "x"}`);
     return {
@@ -187,6 +218,7 @@ export async function chamarOpenRouter(
       tokens_entrada: num(j.usage?.prompt_tokens),
       tokens_saida: num(j.usage?.completion_tokens),
       custo_usd: num(j.usage?.cost),
+      rota: rotaDe(j.provider),
     };
   } catch (e) {
     return falha((e as Error)?.name === "TimeoutError" ? "timeout" : "rede");
@@ -234,5 +266,6 @@ function semDados(r: Chamada) {
     tokens_entrada: r.tokens_entrada,
     tokens_saida: r.tokens_saida,
     custo_usd: r.custo_usd,
+    rota: r.rota ?? null,
   };
 }
