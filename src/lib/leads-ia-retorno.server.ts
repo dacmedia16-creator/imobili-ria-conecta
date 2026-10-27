@@ -26,7 +26,7 @@ import {
   type ResultadoParecidos,
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
-import { historicoDb, redacaoLigadaDb, redigirResposta, type FalaHistorico } from "./leads-ia-redacao";
+import { AVISO_SEM_RESPOSTA, historicoDb, modoValidadorDb, redacaoLigadaDb, redigirResposta, type FalaHistorico, type ModoValidador } from "./leads-ia-redacao";
 
 export const RETORNO_MAX_BYTES = 50_000;
 export const RETORNO_TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
@@ -158,6 +158,10 @@ export type DepsRetorno = {
   buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
   /** Chave da imobiliária: o modelo escreve a resposta (lead_config.ia_redige, padrão desligado, t_7b59589c). */
   redacaoLigada?: (orgId: string) => Promise<boolean>;
+  /** Modo do validador da imobiliária (lead_config.ia_validador_modo, t_3a4bf078). Sem ele ou com erro = "bloquear". */
+  modoValidador?: (orgId: string) => Promise<ModoValidador>;
+  /** Modo observar: o modelo falhou 2 vezes. Grava o aviso "Sem resposta da IA" na conversa (não vai ao cliente). */
+  avisoSemResposta?: (orgId: string, conversaId: string) => Promise<unknown>;
   /** Últimas falas da conversa (para o modelo; mascaradas antes de sair do servidor). */
   historico?: (conversaId: string) => Promise<FalaHistorico[]>;
   env: Record<string, string | undefined>;
@@ -304,6 +308,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       modelo: banco.ia_modelo ?? null,
     };
     const usos: UsoModelo[] = [];
+    let semResposta = false;
     const buscarParecidos = deps.buscarParecidos ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f) : undefined;
     let r =
       banco.tipo === "midia"
@@ -316,7 +321,12 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
     if (banco.tipo !== "midia" && deps.redacaoLigada && (await deps.redacaoLigada(banco.organization_id!).catch(() => false))) {
       const historico = deps.historico ? await deps.historico(c.conversa_id).catch(() => []) : [];
-      r = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn });
+      const modo: ModoValidador = deps.modoValidador
+        ? await deps.modoValidador(banco.organization_id!).catch(() => "bloquear" as const)
+        : "bloquear";
+      const red = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn, modo });
+      semResposta = !!red.sem_resposta;
+      r = red;
     }
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -331,6 +341,10 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       _resposta_falha: r.resposta_falha,
     });
     if (error) console.error("leads ia retorno: lead_ia_aplicar falhou", error.code ?? "sem_codigo");
+    else if (semResposta && deps.avisoSemResposta)
+      await deps.avisoSemResposta(banco.organization_id!, c.conversa_id).catch(() => {
+        console.error("leads ia retorno: aviso sem resposta falhou");
+      });
   }
   await enviarPendentes(leadId, deps);
 }
@@ -443,6 +457,17 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
       return error ? null : normalizarParecidos(data);
     },
     redacaoLigada: (orgId) => redacaoLigadaDb(db, orgId),
+    modoValidador: (orgId) => modoValidadorDb(db, orgId),
+    avisoSemResposta: async (orgId, conversaId) => {
+      const { error } = await db.from("lead_mensagens").insert({
+        organization_id: orgId,
+        conversa_id: conversaId,
+        autor: "sistema",
+        texto: AVISO_SEM_RESPOSTA,
+        status: "nao_enviada",
+      });
+      if (error) throw new Error(error.code ?? "erro");
+    },
     historico: (conversaId) => historicoDb(db, conversaId),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,

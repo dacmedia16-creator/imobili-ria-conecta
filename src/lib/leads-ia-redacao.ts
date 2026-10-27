@@ -43,6 +43,13 @@ import {
 
 /** Tempo máximo do modelo para escrever (curto: depois disso sai o plano B, sem deixar o cliente esperando). */
 export const REDACAO_TIMEOUT_MS = 12_000;
+/** Modo observar: a 2ª tentativa tem tempo menor (o trabalho em segundo plano do Worker tem ~30 s no total). */
+export const REDACAO_RETRY_TIMEOUT_MS = 6_000;
+/** Validador por imobiliária (lead_config.ia_validador_modo, t_3a4bf078): "bloquear" (padrão) troca a mensagem
+ * barrada pelo plano B; "observar" envia SEMPRE a mensagem do modelo e só registra o que teria barrado. */
+export type ModoValidador = "bloquear" | "observar";
+/** Aviso na conversa (não vai ao cliente) quando, no modo observar, o modelo falha 2 vezes. */
+export const AVISO_SEM_RESPOSTA = "Sem resposta da IA: o modelo falhou 2 vezes nesta mensagem do cliente. Responda o cliente por aqui.";
 export const REDACAO_MAX_CHARS = 400;
 const HISTORICO_MAX = 10;
 
@@ -374,19 +381,51 @@ export function validarRedacao(
   textoCliente: string,
   jaOferecidos: string[] = [],
 ): Bloqueio | null {
+  return validarRedacaoDetalhe(s, perm, textoCliente, jaOferecidos)?.motivo ?? null;
+}
+
+const RE_IDENTIDADE =
+  /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um )?(pessoa|humana|humano|gente)|de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/;
+const RE_DISPONIB =
+  /(disponiv|ja (foi )?(vendid|alugad)|ainda (esta|ta|tem|e) a venda|continua a venda|nao foi vendid|livre para)/;
+const RE_CONDICAO =
+  /(financ|fgts|permut|\btroca\b|consorcio|carta de credito|minha casa minha vida|\bmcmv\b)/;
+const RE_DESCONTO =
+  /(desconto|abaix\w* o (valor|preco)|baixar o (valor|preco)|negociavel|aceita (proposta|oferta)|faz por|fazer por|menor valor|preco especial|condicao especial)/;
+const RE_PROMESSA =
+  /(garant|prometo|promessa|sem duvida|com certeza (vai|fica|consegue|da)|fica pronto|entrega (em|ate)|chaves? em|em ate \d+ dias|hoje mesmo|aprovad|liberad|isento|sem custo|de graca|gratis)/;
+/** Trecho que motivou o bloqueio (o número, o link ou as palavras), curto e sem telefone/e-mail. */
+export const TRECHO_MAX = 60;
+const trechoCurto = (t: string | null | undefined): string | null => {
+  const x = mascararContato((t ?? "").replace(/\s+/g, " ").trim()).slice(0, TRECHO_MAX).trim();
+  return x || null;
+};
+
+export type DetalheBloqueio = { motivo: Bloqueio; trecho: string | null };
+
+/** Igual a validarRedacao, mas diz também QUAL trecho barrou (modo observar, t_3a4bf078). */
+export function validarRedacaoDetalhe(
+  s: SaidaModelo,
+  perm: Permitidos,
+  textoCliente: string,
+  jaOferecidos: string[] = [],
+): DetalheBloqueio | null {
+  const b = (motivo: Bloqueio, trecho?: string | null): DetalheBloqueio => ({ motivo, trecho: trechoCurto(trecho) });
+  const achou = (re: RegExp, t: string) => re.exec(t)?.[0] ?? null;
   const msg = s.mensagem;
-  if (!msg.trim()) return "vazio";
-  if (msg.length > REDACAO_MAX_CHARS) return "tamanho";
-  if ((msg.match(/\?/g) ?? []).length > 1) return "perguntas";
-  if (/[()]/.test(msg)) return "parenteses";
-  if (/[{}[\]<>]|\*\*|__|^#|\n\s*[-*•]\s/.test(msg)) return "formato";
+  if (!msg.trim()) return b("vazio");
+  if (msg.length > REDACAO_MAX_CHARS) return b("tamanho", `${msg.length} caracteres`);
+  const nPerg = (msg.match(/\?/g) ?? []).length;
+  if (nPerg > 1) return b("perguntas", `${nPerg} perguntas`);
+  if (/[()]/.test(msg)) return b("parenteses", achou(/\([^)]{0,50}\)?|\)/, msg));
+  if (/[{}[\]<>]|\*\*|__|^#|\n\s*[-*•]\s/.test(msg)) return b("formato", achou(/[{}[\]<>]|\*\*|__|^#|\n\s*[-*•]\s/, msg));
 
   // Links: só o url exato do XML da própria imobiliária (ficha ou parecidos fornecidos).
   let resto = msg;
   const links = msg.match(LINK_RE) ?? [];
   for (const bruto of links) {
     const l = bruto.replace(/[.,;:!?]+$/, "");
-    if (!perm.links.has(l)) return "link";
+    if (!perm.links.has(l)) return b("link", l);
     resto = resto.split(l).join(" ");
   }
   // Oferta: o código tem que ser de um candidato fornecido, ainda não oferecido; link de candidato = esse código.
@@ -395,55 +434,55 @@ export function validarRedacao(
   );
   if (s.acao === "oferecer") {
     const c = s.codigo ? perm.codigos.get(s.codigo) : undefined;
-    if (!c || jaOferecidos.includes(c.codigo)) return "oferta";
-    if (linksCand.some((x) => x.codigo !== c.codigo)) return "oferta";
-  } else if (linksCand.length > 1) return "oferta";
+    if (!c || jaOferecidos.includes(c.codigo)) return b("oferta", s.codigo ?? "sem código");
+    if (linksCand.some((x) => x.codigo !== c.codigo)) return b("oferta", linksCand.find((x) => x.codigo !== c.codigo)?.url);
+  } else if (linksCand.length > 1) return b("oferta", `${linksCand.length} links de opções`);
 
   const n = norm(resto);
   // Identidade: nunca "IA/robô/sistema/assistente virtual" e nunca dizer que é humana (a pergunta direta tem
   // resposta fixa antes do modelo).
   if (
-    /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um )?(pessoa|humana|humano|gente)|de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/.test(
+    RE_IDENTIDADE.test(
       n,
     )
   )
-    return "identidade";
+    return b("identidade", achou(RE_IDENTIDADE, n));
   // Corretor só na frase de passagem, que o código coloca depois.
-  if (/(corretor|corretora|consultor)/.test(n)) return "corretor";
-  if (/^(obrigad|muito obrigad)/.test(n) && ehPergunta(textoCliente)) return "obrigada";
+  if (/(corretor|corretora|consultor)/.test(n)) return b("corretor", achou(/(corretor|corretora|consultor)\w*/, n));
+  if (/^(obrigad|muito obrigad)/.test(n) && ehPergunta(textoCliente)) return b("obrigada", achou(/^(muito )?obrigad\w*/, n));
 
   // Afirmações proibidas.
   const confirma = CONFIRMA.test(n);
   if (
-    /(disponiv|ja (foi )?(vendid|alugad)|ainda (esta|ta|tem|e) a venda|continua a venda|nao foi vendid|livre para)/.test(
+    RE_DISPONIB.test(
       n,
     ) &&
     !(/disponibilidade/.test(n) && confirma && !/(esta|ta|continua|segue) disponivel/.test(n))
   )
-    return "disponibilidade";
+    return b("disponibilidade", achou(RE_DISPONIB, n));
   const condicao =
-    /(financ|fgts|permut|\btroca\b|consorcio|carta de credito|minha casa minha vida|\bmcmv\b)/.test(
+    RE_CONDICAO.test(
       n,
     );
   if (condicao) {
     const perguntaAoCliente =
       /\?/.test(msg) && /(voce|vc|seria|pretende|vai|prefere)/.test(n) && !/aceit/.test(n);
-    if (!(confirma && !AFIRMA.test(n)) && !perguntaAoCliente) return "condicao";
+    if (!(confirma && !AFIRMA.test(n)) && !perguntaAoCliente) return b("condicao", achou(RE_CONDICAO, n));
   }
-  if (/\bandar(es)?\b|\d+\s*o? andar|cobertura duplex/.test(n) && !confirma) return "andar";
+  if (/\bandar(es)?\b|\d+\s*o? andar|cobertura duplex/.test(n) && !confirma) return b("andar", achou(/\d*\s*o? ?andar(es)?|cobertura duplex/, n));
   if (
-    /(desconto|abaix\w* o (valor|preco)|baixar o (valor|preco)|negociavel|aceita (proposta|oferta)|faz por|fazer por|menor valor|preco especial|condicao especial)/.test(
+    RE_DESCONTO.test(
       n,
     ) &&
     !confirma
   )
-    return "desconto";
+    return b("desconto", achou(RE_DESCONTO, n));
   if (
-    /(garant|prometo|promessa|sem duvida|com certeza (vai|fica|consegue|da)|fica pronto|entrega (em|ate)|chaves? em|em ate \d+ dias|hoje mesmo|aprovad|liberad|isento|sem custo|de graca|gratis)/.test(
+    RE_PROMESSA.test(
       n,
     )
   )
-    return "promessa";
+    return b("promessa", achou(RE_PROMESSA, n));
 
   // Números: todo valor, área e contagem tem que existir nos dados fornecidos. Número solto = bloqueia.
   let semDatas = n;
@@ -456,7 +495,7 @@ export function validarRedacao(
           .join("/"),
       )
     )
-      return "numero";
+      return b("numero", d);
     semDatas = semDatas.split(d).join(" ");
   }
   const perto = (xs: number[], v: number, tol: number) => xs.some((x) => Math.abs(x - v) <= tol);
@@ -465,22 +504,22 @@ export function validarRedacao(
   for (const m of semDatas.matchAll(NUM_RE)) {
     const unidade = m[3] ?? "";
     let v = numBr(m[2].replace(/[.,]$/, ""));
-    if (!Number.isFinite(v)) return "numero";
+    if (!Number.isFinite(v)) return b("numero", m[0]);
     if (m[1] || /^(mil|milhao|milhoes|reais)/.test(unidade)) {
       if (unidade === "mil") v *= 1e3;
       else if (unidade.startsWith("milh")) v *= 1e6;
-      if (!perto(perm.valores, v, 0.5)) return "valor";
+      if (!perto(perm.valores, v, 0.5)) return b("valor", m[0]);
     } else if (/^(m2|m²|metros|m$)/.test(unidade)) {
-      if (!perto(perm.areas, v, 0.01)) return "area";
+      if (!perto(perm.areas, v, 0.01)) return b("area", m[0]);
     } else if (/^(quarto|dormitorio)/.test(unidade)) {
-      if (!perm.quartos.has(v)) return "contagem";
+      if (!perm.quartos.has(v)) return b("contagem", m[0]);
     } else if (/^suite/.test(unidade)) {
-      if (!perm.suites.has(v)) return "contagem";
+      if (!perm.suites.has(v)) return b("contagem", m[0]);
     } else if (/^vaga/.test(unidade)) {
-      if (!perm.vagas.has(v)) return "contagem";
+      if (!perm.vagas.has(v)) return b("contagem", m[0]);
     } else if (/^banheiro/.test(unidade)) {
-      if (!perm.banheiros.has(v)) return "contagem";
-    } else return "numero";
+      if (!perm.banheiros.has(v)) return b("contagem", m[0]);
+    } else return b("numero", m[0]);
   }
   for (const m of semDatas.matchAll(
     /\b(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito) (quartos?|dormitorios?|suites?|vagas?|banheiros?)\b/g,
@@ -494,7 +533,7 @@ export function validarRedacao(
         : /^vaga/.test(u)
           ? perm.vagas
           : perm.banheiros;
-    if (!set.has(v)) return "contagem";
+    if (!set.has(v)) return b("contagem", m[0]);
   }
   return null;
 }
@@ -525,11 +564,12 @@ export async function redigirGemini(
   apiKey: string,
   m: { sistema: string; usuario: string },
   fetchFn: typeof fetch = fetch,
+  timeoutMs: number = REDACAO_TIMEOUT_MS,
 ): Promise<Chamada> {
   try {
     const res = await fetchFn(GEMINI_URL, {
       method: "POST",
-      signal: AbortSignal.timeout(REDACAO_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: m.sistema }] },
@@ -577,12 +617,13 @@ export async function redigirOpenRouter(
   modelo: string,
   m: { sistema: string; usuario: string },
   fetchFn: typeof fetch = fetch,
+  timeoutMs: number = REDACAO_TIMEOUT_MS,
 ): Promise<Chamada> {
   if (!MODELO_RE.test(modelo)) return falha("modelo_invalido");
   try {
     const res = await fetchFn(OPENROUTER_URL, {
       method: "POST",
-      signal: AbortSignal.timeout(REDACAO_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -638,6 +679,8 @@ export type OpcoesRedacao = {
   registrar: (u: UsoModelo) => void;
   fetchFn?: typeof fetch;
   agora?: Date;
+  /** Padrão "bloquear". */
+  modo?: ModoValidador;
 };
 
 /** A mensagem tem que sair com o texto fixo (regras de antes do modelo)? */
@@ -677,8 +720,22 @@ export async function redigirResposta(
   texto: string,
   base: RespostaIa,
   op: OpcoesRedacao,
-): Promise<RespostaIa & { redigida: boolean; bloqueio: Bloqueio | null }> {
+): Promise<RespostaIa & { redigida: boolean; bloqueio: Bloqueio | null; sem_resposta?: boolean }> {
   const plano = (bloqueio: Bloqueio | null = null) => ({ ...base, redigida: false, bloqueio });
+  const observar = op.modo === "observar";
+  // Modo observar: sem frase pronta. Se o modelo não responder, nada vai ao cliente (o servidor registra o aviso).
+  // O estado da conversa fica como estava (o plano B não "aconteceu" para o cliente).
+  const semResposta = () => ({
+    passo: ctx.passo === "fim" ? ("visita" as const) : ctx.passo,
+    dados: ctx.dados ?? {},
+    resposta: "",
+    resposta_falha: null,
+    fim: null,
+    resumo: null,
+    redigida: false,
+    bloqueio: null,
+    sem_resposta: true,
+  });
   if (perguntouSeRobo(texto) && !base.fim)
     return { ...base, resposta: textoRobo(ctx), redigida: false, bloqueio: null };
   if (exigeTextoFixo(ctx, texto, base)) return plano();
@@ -692,7 +749,7 @@ export async function redigirResposta(
     MODELO_RE.test(op.escolha.modelo);
   const gKey = op.env.GEMINI_API_KEY?.trim();
   const usaGemini = op.env.LEADS_IA_MODELO === "gemini" && !!gKey;
-  if (!usaOr && !usaGemini) return plano();
+  if (!usaOr && !usaGemini) return observar ? semResposta() : plano();
 
   const dadosIn: DadosQualificacao = ctx.dados ?? {};
   const ja = dadosIn.parecidos ?? [];
@@ -726,47 +783,64 @@ export async function redigirResposta(
   let uso: Omit<UsoModelo, "ok" | "erro" | "tokens_entrada" | "tokens_saida" | "custo_usd"> | null =
     null;
   let chamada: Chamada | null = null;
-  if (usaOr) {
-    chamada = await redigirOpenRouter(orKey!, op.escolha.modelo!, msgs, fetchFn);
-    uso = { provedor: "openrouter", modelo: op.escolha.modelo!, fallback: false };
-    if (!chamada.ok && usaGemini) {
-      op.registrar({
-        ...uso,
-        ...semTexto(chamada),
-        uso: "redigir",
-        bloqueado: false,
-        bloqueio: null,
-      });
-      chamada = null;
-    }
-  }
-  if (!chamada && usaGemini) {
-    chamada = await redigirGemini(gKey!, msgs, fetchFn);
-    uso = { provedor: "gemini", modelo: GEMINI_MODELO, fallback: usaOr };
-  }
-  if (!chamada || !uso) return plano();
-  saida = chamada.ok ? lerSaida(chamada.texto ?? undefined) : null;
   const perm = permitidosDe(
     ctx.ficha,
     [...candidatos, ...(dadosIn.parecido_atual ? [dadosIn.parecido_atual] : [])],
     visita,
   );
-  // Último oferecido pode ser citado de novo, mas não "oferecido" outra vez.
-  const bloqueio: Bloqueio | null = !chamada.ok
-    ? null
-    : !saida
-      ? "formato"
-      : validarRedacao(saida, perm, texto, ja);
-  op.registrar({
-    ...uso,
-    ...semTexto(chamada),
-    ok: chamada.ok && !!saida,
-    erro: chamada.ok ? (saida ? null : "json") : chamada.erro,
-    uso: "redigir",
-    bloqueado: !!bloqueio,
-    bloqueio,
-  });
-  if (!chamada.ok || !saida || bloqueio) return plano(bloqueio);
+  // Modo observar: erro, demora ou JSON ruim = 1 nova tentativa (t_3a4bf078). Modo bloquear: 1 tentativa (como antes).
+  const tentativas = observar ? 2 : 1;
+  let detalhe: DetalheBloqueio | null = null;
+  for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+    const tempo = tentativa === 1 ? REDACAO_TIMEOUT_MS : REDACAO_RETRY_TIMEOUT_MS;
+    chamada = null;
+    uso = null;
+    if (usaOr) {
+      chamada = await redigirOpenRouter(orKey!, op.escolha.modelo!, msgs, fetchFn, tempo);
+      uso = { provedor: "openrouter", modelo: op.escolha.modelo!, fallback: false };
+      if (!chamada.ok && usaGemini) {
+        op.registrar({
+          ...uso,
+          ...semTexto(chamada),
+          uso: "redigir",
+          bloqueado: false,
+          bloqueio: null,
+        });
+        chamada = null;
+      }
+    }
+    if (!chamada && usaGemini) {
+      chamada = await redigirGemini(gKey!, msgs, fetchFn, tempo);
+      uso = { provedor: "gemini", modelo: GEMINI_MODELO, fallback: usaOr };
+    }
+    if (!chamada || !uso) return observar ? semResposta() : plano();
+    saida = chamada.ok ? lerSaida(chamada.texto ?? undefined) : null;
+    // Último oferecido pode ser citado de novo, mas não "oferecido" outra vez.
+    detalhe = !chamada.ok
+      ? null
+      : !saida
+        ? { motivo: "formato", trecho: "JSON inválido" }
+        : validarRedacaoDetalhe(saida, perm, texto, ja);
+    // No modo observar a mensagem sai mesmo barrada; "observado" marca que a trava só registrou.
+    const observado = observar && !!saida && !!detalhe;
+    op.registrar({
+      ...uso,
+      ...semTexto(chamada),
+      ok: chamada.ok && !!saida,
+      erro: chamada.ok ? (saida ? null : "json") : chamada.erro,
+      uso: "redigir",
+      bloqueado: !!detalhe,
+      bloqueio: detalhe?.motivo ?? null,
+      ...(observar ? { bloqueio_trecho: detalhe?.trecho ?? null, observado, tentativa } : {}),
+    });
+    if (saida) break; // resposta legível: não tenta de novo (bloqueio só registra no modo observar)
+  }
+  if (!chamada || !saida) return observar ? semResposta() : plano(detalhe?.motivo ?? null);
+  const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
+  if (bloqueio && !observar) return plano(bloqueio);
+  // Observar: limite do banco (2000) e oferta com código fora dos candidatos não vira "oferecido".
+  if (observar) saida = { ...saida, mensagem: saida.mensagem.slice(0, 1500) };
+  const ofertaValida = saida.acao === "oferecer" && !!saida.codigo && perm.codigos.has(saida.codigo);
 
   // Aprovada: monta o estado a partir do que a conversa já tinha + o que o cliente disse (registro).
   const dados: DadosQualificacao = {
@@ -798,9 +872,9 @@ export async function redigirResposta(
     dados.perguntas!.push("pagamento");
   // Já falou em visita: "sábado pode ser?" no turno seguinte é pedido de dia (t_2aecef49).
   if (/visita/.test(norm(saida.mensagem))) dados.convite_visita = true;
-  if (saida.acao === "oferecer" && saida.codigo) {
-    const c = perm.codigos.get(saida.codigo)!;
-    dados.parecidos = [...ja, c.codigo].slice(0, 3);
+  if (ofertaValida) {
+    const c = perm.codigos.get(saida.codigo!)!;
+    dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, 3);
     dados.parecido_atual = c;
   }
   // shortcut: o passo do roteiro fica como estava (o modelo conduz); se o modelo falhar no próximo turno, o
@@ -828,7 +902,7 @@ export async function redigirResposta(
       fim: visitaEscolhida ? "visita" : "qualificado",
       resumo: resumo.slice(0, 1000),
       redigida: true,
-      bloqueio: null,
+      bloqueio,
     };
   }
   return {
@@ -839,7 +913,7 @@ export async function redigirResposta(
     fim: null,
     resumo: null,
     redigida: true,
-    bloqueio: null,
+    bloqueio,
   };
 }
 
@@ -855,6 +929,18 @@ export async function redacaoLigadaDb(db: Db, orgId: string): Promise<boolean> {
     .eq("organization_id", orgId)
     .maybeSingle();
   return !error && (data as { ia_redige?: boolean } | null)?.ia_redige === true;
+}
+
+/** Modo do validador (lead_config.ia_validador_modo). Coluna ausente, erro ou valor estranho = "bloquear". */
+export async function modoValidadorDb(db: Db, orgId: string): Promise<ModoValidador> {
+  const { data, error } = await db
+    .from("lead_config")
+    .select("ia_validador_modo")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return !error && (data as { ia_validador_modo?: string } | null)?.ia_validador_modo === "observar"
+    ? "observar"
+    : "bloquear";
 }
 
 /** Últimas falas da conversa, da mais antiga para a mais nova (o texto é mascarado em montarMensagens). */
