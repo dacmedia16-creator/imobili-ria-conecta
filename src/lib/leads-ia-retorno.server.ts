@@ -13,7 +13,16 @@
 // LGPD: nunca registrar em log telefone, texto, token ou corpo. Só códigos de resultado.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, temLink } from "./leads-ia-canal";
-import { proximaResposta, respostaMidia, type ContextoIa, type ImovelEncontrado } from "./leads-ia";
+import {
+  argsParecidos,
+  normalizarParecidos,
+  proximaResposta,
+  respostaMidia,
+  type ContextoIa,
+  type FiltroParecido,
+  type ImovelEncontrado,
+  type ResultadoParecidos,
+} from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 
 export const RETORNO_MAX_BYTES = 50_000;
@@ -138,6 +147,8 @@ export type DepsRetorno = {
   registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
   /** Imóvel pelo código do anúncio que o cliente informou (lead_ia_imovel_por_codigo). Opcional. */
   buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
+  /** Imóvel parecido do XML da própria imobiliária (lead_ia_imoveis_parecidos, t_232e13cb). Opcional. */
+  buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
   env: Record<string, string | undefined>;
   fetchFn?: typeof fetch;
   esperar?: (ms: number) => Promise<void>;
@@ -287,6 +298,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
         ? respostaMidia(ctx)
         : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
             buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
+            buscarParecidos: deps.buscarParecidos ? (f) => deps.buscarParecidos!(c.conversa_id, f) : undefined,
           });
     for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -399,6 +411,10 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     buscarImovel: async (conversaId, codigo) => {
       const { data, error } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: conversaId, _codigo: codigo });
       return error ? null : ((data as ImovelEncontrado | null) ?? null);
+    },
+    buscarParecidos: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(conversaId, filtro));
+      return error ? null : normalizarParecidos(data);
     },
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,

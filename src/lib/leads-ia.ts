@@ -91,6 +91,19 @@ export type DadosQualificacao = {
   repeticoes?: Partial<Record<Passo, number>>;
   /** Áudios/arquivos recebidos pelo WhatsApp (2º = passa ao corretor). */
   midias?: number;
+  // Imóvel parecido do XML (t_232e13cb). Nada disso vai ao cliente além do que o XML trouxe.
+  /** Códigos dos parecidos já oferecidos nesta conversa (nunca repete; no máximo 3). */
+  parecidos?: string[];
+  /** Parecido oferecido no último turno, esperando a reação do cliente. */
+  parecido_atual?: ImovelParecido;
+  /** A Nicole já perguntou "quer ver uma opção parecida?" (uma vez por conversa). */
+  parecido_perguntado?: boolean;
+  /** A pergunta acima está esperando resposta. */
+  parecido_pergunta?: boolean;
+  /** Conferências de "o pedido não serve" já feitas (cada uma no máximo uma vez): locacao, saiu, faixa, bairro. */
+  parecido_conferido?: string[];
+  /** Código do parecido em que o cliente se interessou (vai para o corretor). */
+  parecido_interesse?: string;
 };
 
 export type ContextoIa = {
@@ -112,6 +125,8 @@ export type ContextoIa = {
   /** "o apartamento do bairro Campolim" */
   imovel_frase?: string | null;
   ficha?: FichaIa | null;
+  /** De onde veio a ficha (lead_ia_registrar_cliente): o XML guardado só tem imóveis de VENDA. */
+  imovel_fonte?: "xml" | "captacao" | null;
 };
 
 export type RespostaIa = {
@@ -139,11 +154,44 @@ export type ImovelEncontrado = {
   ficha: FichaIa | null;
 };
 
+/** Imóvel parecido vindo do XML da própria imobiliária (lead_ia_imoveis_parecidos). Só dados do XML. */
+export type ImovelParecido = Pick<FichaIa, "tipo" | "bairro" | "cidade" | "quartos" | "suites" | "vagas" | "area_util_m2" | "area_terreno_m2"> & {
+  codigo: string;
+  /** Preço anunciado no XML, já formatado ("R$ 640.000,00"). */
+  preco?: string;
+  /** Link do anúncio, só se o XML guardou um link https. */
+  url?: string;
+  mesmo_condominio?: boolean;
+  mesmo_bairro?: boolean;
+};
+export type NegocioParecido = "venda" | "locacao";
+export type FiltroParecido = {
+  /** Códigos que não podem voltar (já oferecidos). */
+  excluir: string[];
+  preco_min?: number | null;
+  preco_max?: number | null;
+  bairro?: string | null;
+  negocio: NegocioParecido;
+  limite?: number;
+  /** Cliente pediu algo mais barato: só abaixo do preço do pedido. */
+  mais_barato?: boolean;
+  /** Código do imóvel pedido quando ainda não foi gravado na conversa (código informado neste turno). */
+  codigo_ref?: string | null;
+};
+/** O banco devolve também o que sabe do imóvel PEDIDO, para a regra "o pedido não serve". */
+export type ResultadoParecidos = {
+  referencia: { codigo?: string; no_xml?: boolean; saiu?: boolean; tipo?: string; bairro?: string; cidade?: string; preco?: number };
+  itens: ImovelParecido[];
+};
+
 export type OpcoesRoteiro = {
   /** Relógio (testes). */
   agora?: Date;
   /** Procura a captação pelo código que o cliente informou (servidor: lead_ia_imovel_por_codigo). */
   buscarImovel?: (codigo: string) => Promise<ImovelEncontrado | null>;
+  /** Procura imóvel parecido no XML da própria imobiliária (servidor: lead_ia_imoveis_parecidos).
+   * Sem esta função a Nicole não oferece parecido (comportamento de antes). */
+  buscarParecidos?: (filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
 };
 
 export const norm = (s: string) =>
@@ -511,6 +559,8 @@ export function resumoQualificacao(d: DadosQualificacao, ctx?: Pick<ContextoIa, 
     d.visita ? `PRÉ-AGENDAMENTO: ${d.visita} (confirmar com o cliente ${d.visita_ate ?? ""})`.replace(/ \)$/, ")") : null,
     d.pendentes?.length ? `confirmar com o cliente: ${d.pendentes.join(", ")}` : null,
     d.alternativa ? `quer detalhes de ${d.alternativa}` : null,
+    d.parecido_interesse ? `INTERESSE NO IMÓVEL PARECIDO código ${d.parecido_interesse} (oferecido pela IA a partir do XML; confirmar disponibilidade)` : null,
+    d.parecidos?.length ? `parecidos oferecidos pela IA: ${d.parecidos.join(", ")}` : null,
   ].filter(Boolean);
   return partes.length ? `${partes.join("; ")}.` : "Sem dados de qualificação.";
 }
@@ -539,6 +589,156 @@ function passar(
 }
 
 const FALHA_PADRAO = "Registrei aqui e estou confirmando o encaminhamento para o corretor. Já te retorno por aqui.";
+
+// --- Imóvel parecido do XML (t_232e13cb, regra tirada das conversas da Laís) ------------------------------
+// Quando: (a) depois da qualificação, PERGUNTA antes se o cliente quer ver uma opção parecida (só se existir);
+// (b) o pedido não serve (venda x locação, acima da faixa, fora do bairro desejado, saiu do XML);
+// (c) o cliente pede outras opções. Parecido = mesma imobiliária, mesmo negócio, tipo e cidade, preferência
+// pelo mesmo condomínio/bairro, preço na faixa do cliente ou ±15% (o banco decide: lead_ia_imoveis_parecidos).
+// 1 por vez, até 3 por conversa, nunca repete. Texto só com dados do XML; disponibilidade, permuta,
+// financiamento e andar ficam com o corretor. Sem parecido: diz com franqueza e passa ao corretor.
+
+export const MAX_PARECIDOS = 3;
+export const PERGUNTA_PARECIDO = "Antes de falarmos da visita: quer que eu te mostre também uma opção parecida com esse imóvel?";
+
+/** Cliente pede outras opções ("tem outras?", "algo parecido", "mais barato"). */
+export function pedeOutrasOpcoes(texto: string): boolean {
+  return /(outr[ao]s? (opc|imove|casa|apartament|ap\b|apto|alternativ|sugest|unidade|parecid)|outra opcao|mais (opcoes|opcao|imoveis|alguma opcao|algum imovel|sugest)|^(e )?(tem|teria|tens|voce tem|vc tem) (outr[ao]s?|mais)\s*\??$|(algo|algum|alguma|outro|outra|imovel|opcao|casa|apartamento) (parecid|similar|semelhant)|mais (barat|em conta)|alternativa)/.test(
+    norm(texto),
+  );
+}
+const NAO_QUER_MAIS = /nao (quero|precisa|preciso|vou querer)( ver)? (outr|mais)/;
+/** Diante de um parecido já mostrado, qualquer "outra/mais uma/próxima" pede o próximo. */
+const MAIS_UM = /\b(outr[ao]s?|mais uma|mais um|proxim[ao]|seguinte)\b/;
+const GOSTOU = /(gostei|me interess|tenho interesse|interessei|quero (esse|essa|este|esta|saber mais|mais detalhes|detalhes|ver (esse|essa|este|esta))|pode (passar|pedir|mandar|ser)|esse (mesmo|ai)|essa (mesma|ai)|manda (mais|os detalhes)|perfeito|gostaria)/;
+const NAO_GOSTOU = /^(nao|n|nao obrigad\w*|nao gostei|nao curti|nao me interess\w*|nao (e|eh) (bem )?isso|nenhum|nenhuma)\b/;
+/** "Sim" para a oferta/pergunta do parecido (sem cumprimentos, que no SIM geral contam como interesse). */
+const SIM_P = /^(sim|s|claro|quero|ok|pode|com certeza|quero sim|pode ser|gostaria|isso|opa|manda|mostra)\b/;
+const MAIS_BARATO = /(mais (barat|em conta|acessivel)|menor (valor|preco)|mais em conta)/;
+
+/**
+ * Faixa de valor dita pelo cliente, em reais: "até 500 mil" -> {max}; "entre 400 e 600 mil" -> {min,max};
+ * "a partir de 1 milhão" -> {min}; "uns 500 mil" -> ±15%. null = não deu para entender (não chuta).
+ */
+export function valorFaixa(texto: string): { min?: number; max?: number } | null {
+  const n = norm(texto).replace(/r\$\s*/g, "");
+  const UN = "(milhoes|milhao|mi\\b|mil\\b|k\\b)";
+  const mult = (u?: string) => (!u ? 1 : u.startsWith("mi") && u !== "mil" ? 1e6 : 1e3);
+  const num = (s: string) => {
+    const t = /^\d{1,3}([.,]\d{3})+$/.test(s) ? s.replace(/[.,]/g, "") : /^\d{1,3}(\.\d{3})+,\d+$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(",", ".");
+    const v = Number(t);
+    return Number.isFinite(v) ? v : NaN;
+  };
+  const ok = (v: number) => Number.isFinite(v) && v >= 1000 && v < 1e11;
+  const r = new RegExp(`(\\d[\\d.,]*)\\s*${UN}?\\s*(?:a|e|ate|-)\\s*(\\d[\\d.,]*)\\s*${UN}?`).exec(n);
+  if (r) {
+    const u2 = r[4];
+    const a = num(r[1]) * mult(r[2] ?? u2);
+    const b = num(r[3]) * mult(u2);
+    if (ok(a) && ok(b)) return { min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  for (const m of n.matchAll(new RegExp(`(\\d[\\d.,]*)\\s*${UN}?`, "g"))) {
+    const v = num(m[1]) * mult(m[2]);
+    if (!ok(v) || (!m[2] && v < 10_000)) continue; // "3 quartos", "2 vagas": não é valor
+    const antes = n.slice(0, m.index);
+    if (/(ate|no maximo|maximo de|teto|limite|nao passar de|abaixo de|menos de)\s*(uns |umas |de )?$/.test(antes)) return { max: v };
+    if (/(a partir de|acima de|minimo de|pelo menos|mais de)\s*(uns |umas )?$/.test(antes)) return { min: v };
+    return { min: Math.round(v * 0.85), max: Math.round(v * 1.15) };
+  }
+  return null;
+}
+
+/** "prefiro no bairro Campolim", "queria em condomínio X" -> "campolim" (normalizado, curto). */
+export function bairroDesejado(texto: string): string | null {
+  const n = norm(texto);
+  if (!/(prefir|preferencia|queria|quero|procuro|busco|gostaria|precisa ser|tem que ser|teria)/.test(n)) return null;
+  const m = /\b(?:no|na|em|do|da|pelo|pela)\s+(?:bairro|regiao|condominio)\s+(?:d[oa]s?\s+)?([a-z0-9][a-z0-9 ]{2,38}?)(?=\s*(?:[,.!?;]|$|\se\s|\sou\s|\smas\s|\sporque\s|\spor\s))/.exec(n);
+  return m ? m[1].trim().slice(0, 40) : null;
+}
+
+/** Ficha (só o que o XML trouxe) do parecido, para descrever e responder dúvidas sobre ele. */
+const fichaDoParecido = (p: ImovelParecido): FichaIa => ({
+  tipo: p.tipo,
+  bairro: p.bairro,
+  cidade: p.cidade,
+  quartos: p.quartos,
+  suites: p.suites,
+  vagas: p.vagas,
+  area_util_m2: p.area_util_m2,
+  area_terreno_m2: p.area_terreno_m2,
+});
+
+/** Texto da oferta: só dados do XML. Nunca fala de disponibilidade, permuta, financiamento ou andar. */
+export function textoParecido(p: ImovelParecido, jaMostrados: number): string {
+  const r = resumoFicha(fichaDoParecido(p));
+  const desc = r ? r.replace(/^É /, "é ").replace(/\.$/, "") : "é um imóvel";
+  const onde = p.mesmo_condominio ? ", no mesmo condomínio" : "";
+  const preco = p.preco ? ` Está anunciado por ${p.preco}.` : "";
+  const link = p.url ? ` Anúncio: ${p.url}` : "";
+  const fim =
+    jaMostrados < MAX_PARECIDOS
+      ? "Quer que eu peça ao corretor os detalhes desse imóvel, ou prefere ver outra opção?"
+      : "Quer que eu peça ao corretor os detalhes desse imóvel?";
+  return `Tenho uma opção parecida (código ${p.codigo}): ${desc}${onde}.${preco}${link} ${fim}`.replace(/\s+/g, " ").trim();
+}
+
+/** Argumentos da RPC lead_ia_imoveis_parecidos (mesma chamada na tela de teste e no WhatsApp). */
+export function argsParecidos(conversaId: string, f: FiltroParecido) {
+  const valor = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e11 ? Math.round(v) : null);
+  return {
+    _conversa: conversaId,
+    _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
+    _preco_min: valor(f.preco_min),
+    _preco_max: valor(f.preco_max),
+    _bairro: f.bairro ? f.bairro.slice(0, 60) : null,
+    _negocio: f.negocio === "locacao" ? "locacao" : "venda",
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 1), 1), MAX_PARECIDOS),
+    _mais_barato: f.mais_barato === true,
+    _codigo: f.codigo_ref ? f.codigo_ref.trim().slice(0, 60) || null : null,
+  };
+}
+
+/** Só aceita do banco as chaves conhecidas, como texto curto (nada inesperado chega ao cliente). */
+export function normalizarParecidos(data: unknown): ResultadoParecidos | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as { referencia?: Record<string, unknown>; itens?: unknown };
+  const txt = (v: unknown, n = 60) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);
+  const ref = d.referencia && typeof d.referencia === "object" ? d.referencia : {};
+  const itens = (Array.isArray(d.itens) ? d.itens : [])
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object" && typeof (i as { codigo?: unknown }).codigo === "string")
+    .slice(0, MAX_PARECIDOS)
+    .map((i) => {
+      const url = txt(i.url, 300);
+      return {
+        codigo: (i.codigo as string).trim().slice(0, 60),
+        tipo: txt(i.tipo, 30),
+        bairro: txt(i.bairro),
+        cidade: txt(i.cidade),
+        quartos: txt(i.quartos, 3),
+        suites: txt(i.suites, 3),
+        vagas: txt(i.vagas, 3),
+        area_util_m2: txt(i.area_util_m2, 15),
+        area_terreno_m2: txt(i.area_terreno_m2, 15),
+        preco: txt(i.preco, 30),
+        url: url && /^https:\/\/[A-Za-z0-9.-]+\/\S*$/.test(url) ? url : undefined,
+        mesmo_condominio: i.mesmo_condominio === true || undefined,
+        mesmo_bairro: i.mesmo_bairro === true || undefined,
+      } satisfies ImovelParecido;
+    })
+    .map((p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) as ImovelParecido);
+  return {
+    referencia: {
+      codigo: txt(ref.codigo),
+      no_xml: ref.no_xml === true,
+      saiu: ref.saiu === true,
+      tipo: txt(ref.tipo, 30),
+      bairro: txt(ref.bairro),
+      cidade: txt(ref.cidade),
+      preco: typeof ref.preco === "number" && Number.isFinite(ref.preco) ? ref.preco : undefined,
+    },
+    itens,
+  };
+}
 
 // --- Roteiro --------------------------------------------------------------------------------------------
 
@@ -609,7 +809,8 @@ export async function proximaResposta(
       `${quem}, não é comprador nem locatário: \"${curto(texto, 160)}\". Atender sem o roteiro de qualificação.`,
     );
   }
-  if (RECUSA.test(n) || (ctx.passo === "interesse" && SEM_INTERESSE.test(n) && !SIM.test(n)))
+  const parecidoPendente = !!(dados.parecido_atual || dados.parecido_pergunta);
+  if (RECUSA.test(n) || (ctx.passo === "interesse" && !parecidoPendente && SEM_INTERESSE.test(n) && !SIM.test(n)))
     return fim(
       dados,
       "sem_interesse",
@@ -636,6 +837,113 @@ export async function proximaResposta(
     }
   }
 
+  // --- Imóvel parecido do XML (t_232e13cb). Sem op.buscarParecidos: nada muda (comportamento de antes). ---
+  const busca = op.buscarParecidos;
+  const passoP: Passo = ctx.passo === "fim" ? "visita" : ctx.passo;
+  const negocio = (): NegocioParecido =>
+    dados.finalidade === "alugar" || (!dados.finalidade && ctx.transacao === "aluguel") ? "locacao" : "venda";
+  const continuar = (intro: string, extra: Partial<RespostaIa> = {}): RespostaIa => ({
+    passo: passoP,
+    dados,
+    resposta: intro,
+    resposta_falha: null,
+    fim: null,
+    resumo: null,
+    ...extra,
+  });
+  /** Oferece o próximo parecido (1 por vez, até 3, nunca repete) ou diz com franqueza que não há e passa. */
+  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null): Promise<RespostaIa> => {
+    const ja = dados.parecidos ?? [];
+    dados.parecido_atual = undefined;
+    dados.parecido_pergunta = undefined;
+    const juntarTxt = (...xs: string[]) => xs.filter(Boolean).join(" ");
+    if (ja.length >= MAX_PARECIDOS)
+      return passar(
+        dados,
+        "qualificado",
+        juntarTxt(intro, "Já te mostrei as opções parecidas que separei por aqui."),
+        `Encaminhei seu contato para ${CORRETOR}, que pode procurar mais opções para você por aqui.`,
+        FALHA_PADRAO,
+        resumoQualificacao(dados, ctx),
+      );
+    const res =
+      pre !== undefined
+        ? pre
+        : await busca!({
+            excluir: ja,
+            negocio: negocio(),
+            preco_min: valorFaixa(dados.faixa ?? "")?.min ?? null,
+            preco_max: valorFaixa(dados.faixa ?? "")?.max ?? null,
+            codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null,
+            ...extra,
+          }).catch(() => null);
+    const p = res?.itens.find((i) => !ja.includes(i.codigo));
+    if (!p) {
+      const franco = !res
+        ? ""
+        : extra.negocio === "locacao" || negocio() === "locacao"
+          ? "No catálogo que eu consulto só tenho imóveis à venda, então não tenho uma opção de locação parecida para te mostrar."
+          : ja.length
+            ? "Não encontrei mais nenhuma opção parecida no nosso catálogo além da que te mostrei."
+            : "No momento não encontrei outra opção parecida com essa no nosso catálogo.";
+      return passar(
+        dados,
+        "qualificado",
+        juntarTxt(intro, franco),
+        `Encaminhei seu contato para ${CORRETOR}, que pode procurar outras opções para você por aqui.`,
+        FALHA_PADRAO,
+        resumoQualificacao(dados, ctx),
+      );
+    }
+    dados.parecidos = [...ja, p.codigo].slice(0, MAX_PARECIDOS);
+    dados.parecido_atual = p;
+    if (passoP === "interesse" || passoP === "codigo") dados.interesse = true;
+    return continuar(juntarTxt(intro, textoParecido(p, dados.parecidos.length)));
+  };
+
+  // Resposta a uma oferta/pergunta de parecido feita no turno anterior.
+  let respParecido = false;
+  let abertura: string | null = null;
+  if (busca && dados.parecido_atual) {
+    const p = dados.parecido_atual;
+    const temasP = detectarTemas(texto);
+    if (NAO_QUER_MAIS.test(n) || (NAO_GOSTOU.test(n) && !MAIS_UM.test(n) && !pedeOutrasOpcoes(texto))) {
+      dados.parecido_atual = undefined;
+      respParecido = true;
+      abertura = "Tudo bem!";
+    } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) {
+      return ofertar("", { mais_barato: MAIS_BARATO.test(n) });
+    } else if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
+      dados.parecido_interesse = p.codigo;
+      dados.parecido_atual = undefined;
+      const visita = QUER_VISITA.test(n);
+      return passar(
+        dados,
+        "qualificado",
+        "Combinado!",
+        `Encaminhei seu interesse ${visita ? "em visitar o" : "no"} imóvel código ${p.codigo} para ${CORRETOR}, que confirma a disponibilidade e ${visita ? "combina a visita" : "te passa os detalhes"} com você por aqui.`,
+        FALHA_PADRAO,
+        resumoQualificacao(dados, ctx),
+      );
+    } else if (temasP.length) {
+      // Dúvida sobre o parecido: só o que o XML trouxe; o resto é com o corretor (não mistura pendências).
+      const r = responderDuvidas(temasP, fichaDoParecido(p), {});
+      const fimP =
+        (dados.parecidos?.length ?? 0) < MAX_PARECIDOS
+          ? "Quer que eu peça ao corretor os detalhes desse imóvel, ou prefere ver outra opção?"
+          : "Quer que eu peça ao corretor os detalhes desse imóvel?";
+      return continuar(`${r} ${fimP}`);
+    } else {
+      dados.parecido_atual = undefined; // mudou de assunto: segue o roteiro normal
+    }
+  } else if (busca && dados.parecido_pergunta) {
+    dados.parecido_pergunta = undefined;
+    if ((SIM_P.test(n) || pedeOutrasOpcoes(texto) || MAIS_UM.test(n)) && !NAO_QUER_MAIS.test(n) && !NAO_GOSTOU.test(n))
+      return ofertar("", { mais_barato: MAIS_BARATO.test(n) });
+    respParecido = true;
+    abertura = "Tudo bem!";
+  }
+
   // Alternativa do reengajamento (toque 2): \"sim\" = passa os detalhes ao corretor.
   if (dados.alternativa && SIM.test(n) && !detectarTemas(texto).length)
     return passar(
@@ -654,6 +962,8 @@ export async function proximaResposta(
   const ehDuvida = temas.length > 0 || /\?\s*$/.test(texto.trim());
 
   // Resposta à pergunta do passo (ou dita espontaneamente).
+  const faixaAntes = dados.faixa;
+  const finalidadeAntes = dados.finalidade;
   const fin = finalidadeDe(n);
   if (fin && !dados.finalidade) dados.finalidade = fin;
   const pag = pagamentoDe(n);
@@ -661,7 +971,9 @@ export async function proximaResposta(
   if (pag && !dados.pagamento?.length && (passoAtual === "pagamento" || !ehPergunta(texto))) dados.pagamento = pag;
   const fx = faixaDe(texto, n);
   if (fx && !dados.faixa) dados.faixa = fx;
-  if ((passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && !ehDuvida) {
+  // "na verdade quero alugar" no passo da faixa muda a finalidade; não vira faixa de valor (t_232e13cb).
+  const soFinalidade = passoAtual === "faixa" && !!fin && fin !== finalidadeAntes && !fx;
+  if ((passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && !ehDuvida && !respParecido && !soFinalidade) {
     const respondeu =
       (passoAtual === "finalidade" && dados.finalidade) || (passoAtual === "faixa" && dados.faixa) || (passoAtual === "pagamento" && dados.pagamento?.length);
     if (!respondeu) {
@@ -689,9 +1001,51 @@ export async function proximaResposta(
 
   const duvida = responderDuvidas(temas, ficha, dados);
 
+  // Imóvel parecido: (c) o cliente pede outras opções; (b) o imóvel pedido não serve.
+  // Cada conferência de (b) acontece no máximo uma vez por conversa.
+  if (busca && !respParecido && (dados.parecidos?.length ?? 0) < MAX_PARECIDOS) {
+    const conferido = dados.parecido_conferido ?? [];
+    const conferir = (k: string) => {
+      dados.parecido_conferido = [...new Set([...(dados.parecido_conferido ?? []), k])];
+    };
+    const doXml = ctx.imovel_fonte === "xml" || !!dados.imovel_xml_codigo;
+    const comDuvida = (t: string) => [duvida, t].filter(Boolean).join(" ");
+    if (pedeOutrasOpcoes(texto) && !NAO_QUER_MAIS.test(n)) return ofertar(duvida, { mais_barato: MAIS_BARATO.test(n) });
+    // Quer alugar e o pedido é de venda (o XML guardado só tem venda): diz isso e procura (sem achar, passa).
+    if (dados.finalidade === "alugar" && finalidadeAntes !== "alugar" && (ctx.transacao === "venda" || doXml) && !conferido.includes("locacao")) {
+      conferir("locacao");
+      return ofertar(comDuvida("Esse imóvel está anunciado para venda."), { negocio: "locacao" }, { referencia: {}, itens: [] });
+    }
+    // Fora do bairro que o cliente quer.
+    const b = bairroDesejado(texto);
+    if (b && ficha?.bairro && !norm(ficha.bairro).includes(b) && !conferido.includes("bairro")) {
+      conferir("bairro");
+      return ofertar(comDuvida(`Esse imóvel fica no bairro ${ficha.bairro}.`), { bairro: b });
+    }
+    // Faixa de valor recém-informada abaixo do preço anunciado do pedido (o banco compara; o número não é dito).
+    const fx = dados.faixa && dados.faixa !== faixaAntes ? valorFaixa(dados.faixa) : null;
+    if (fx?.max && doXml && !conferido.includes("faixa")) {
+      conferir("faixa");
+      const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), preco_min: fx.min ?? null, preco_max: fx.max, codigo_ref: dados.imovel_xml_codigo ?? null }).catch(() => null);
+      if (res?.referencia.preco && res.referencia.preco > fx.max)
+        return ofertar(comDuvida("Esse imóvel está anunciado acima da faixa que você comentou."), {}, res);
+    }
+    // O anúncio pedido saiu do XML (não está mais no catálogo atual).
+    const cod = ctx.anuncio_codigo || dados.anuncio_informado;
+    if ((passoAtual === "interesse" || passoAtual === "codigo") && cod && ctx.imovel_fonte !== "xml" && !dados.imovel_xml_codigo && !conferido.includes("saiu")) {
+      conferir("saiu");
+      const res = await busca({ excluir: dados.parecidos ?? [], negocio: negocio(), codigo_ref: dados.anuncio_informado ?? null }).catch(() => null);
+      if (res?.referencia.saiu)
+        return ofertar(comDuvida("Esse anúncio não está mais no nosso catálogo atual; o corretor confirma a situação dele."), {}, res);
+    }
+  }
+
   // Visita: escolha entre as 2 opções oferecidas.
   if (passoAtual === "visita") {
     const opcoes = dados.visita_opcoes ?? opcoesVisita(agora);
+    // \"Não\" para o parecido oferecido durante a visita: volta às 2 opções (não encerra a conversa).
+    if (respParecido)
+      return { passo: "visita", dados, resposta: `${abertura ?? "Tudo bem!"} Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?`, resposta_falha: null, fim: null, resumo: null };
     const escolha = escolhaVisita(texto, opcoes);
     const rep = dados.repeticoes!.visita ?? 0;
     const livre = !escolha && !ehDuvida && OUTRO_DIA.test(n) ? curto(texto, 60) : null;
@@ -759,13 +1113,14 @@ export async function proximaResposta(
     dados.interesse = true;
     // 1ª resposta: o que a ficha tem sobre o imóvel + a resposta da dúvida (se houve).
     const r = passoAtual === "codigo" && !ficha ? "Obrigada! Vou pedir ao corretor para confirmar qual é o imóvel." : resumoFicha(ficha);
-    intro = [duvida ? "" : "Que bom!", r, duvida].filter(Boolean).join(" ");
-  }
+    intro = [abertura ?? (duvida ? "" : "Que bom!"), respParecido ? "" : r, duvida].filter(Boolean).join(" ");
+  } else if (abertura) intro = [abertura, intro].filter(Boolean).join(" ");
 
   // Depois da dúvida, a próxima pergunta (uma por turno). Repete a do passo atual no máximo uma vez,
   // quando o cliente respondeu com outra dúvida.
   const atualSemResposta =
-    (passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && ehDuvida &&
+    // Também depois de responder a uma oferta de parecido: a pergunta do passo ficou sem resposta.
+    (passoAtual === "finalidade" || passoAtual === "faixa" || passoAtual === "pagamento") && (ehDuvida || respParecido) &&
     !((passoAtual === "finalidade" && dados.finalidade) || (passoAtual === "faixa" && dados.faixa) || (passoAtual === "pagamento" && dados.pagamento?.length));
   if (atualSemResposta && (dados.repeticoes![passoAtual] ?? 0) < 1) {
     dados.repeticoes![passoAtual] = (dados.repeticoes![passoAtual] ?? 0) + 1;
@@ -776,8 +1131,23 @@ export async function proximaResposta(
     dados.perguntas!.push(q);
     return { passo: q, dados, resposta: [intro, PERGUNTA[q]].filter(Boolean).join(" "), resposta_falha: null, fim: null, resumo: null };
   }
+  // (a) Qualificação feita: ANTES da visita, pergunta se quer ver uma opção parecida (uma vez, só se existir).
+  if (busca && !dados.visita_opcoes && !dados.parecido_perguntado && !(dados.parecidos?.length)) {
+    dados.parecido_perguntado = true;
+    const res = await busca({
+      excluir: [],
+      negocio: negocio(),
+      preco_min: valorFaixa(dados.faixa ?? "")?.min ?? null,
+      preco_max: valorFaixa(dados.faixa ?? "")?.max ?? null,
+      codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null,
+    }).catch(() => null);
+    if (res?.itens.length) {
+      dados.parecido_pergunta = true;
+      return { passo: passoAtual, dados, resposta: [intro ? `${intro} Obrigada!` : "Obrigada!", PERGUNTA_PARECIDO].join(" "), resposta_falha: null, fim: null, resumo: null };
+    }
+  }
   // Qualificação feita: oferece a visita (uma vez); se já ofereceu, passa ao corretor.
-  if (!dados.visita_opcoes) return ofereceVisita(intro ? `${intro} Obrigada!` : "Obrigada!");
+  if (!dados.visita_opcoes) return ofereceVisita(abertura ? intro : intro ? `${intro} Obrigada!` : "Obrigada!");
   return passar(dados, "qualificado", intro, `Encaminhei suas informações para ${CORRETOR}, que vai falar com você por aqui.`, FALHA_PADRAO, resumoQualificacao(dados, ctx));
 }
 
