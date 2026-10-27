@@ -199,11 +199,12 @@ describe("retorno: resposta e envio", () => {
     const a = arg(aplicar, 0) as Record<string, unknown>;
     expect(a._fim).toBe("pediu_pessoa");
     expect(a._resposta).toContain("{corretor}");
-    expect(String(a._resposta_falha)).toMatch(/estou confirmando/);
-    expect(String(a._resposta_falha)).not.toMatch(/Encaminhei/);
+    expect(String(a._resposta_falha)).toMatch(/Anotei tudo aqui e já te retorno por aqui/);
+    expect(String(a._resposta_falha)).not.toMatch(/Encaminhei|já pedi|\{corretor\}/i);
     const { d: d2, aplicar: ap2 } = deps(novo);
     await post(d2);
-    expect(arg(ap2, 0)).toMatchObject({ _passo: "faixa", _resposta_falha: null });
+    // t_5b493bc9: sem pergunta de faixa no roteiro; segue no passo "interesse" com 1 pergunta natural.
+    expect(arg(ap2, 0)).toMatchObject({ _passo: "interesse", _resposta_falha: null });
   });
 
   it("envio ligado: espera humana, responde e envia 1 mensagem pela ZionTalk (fetch falso)", async () => {

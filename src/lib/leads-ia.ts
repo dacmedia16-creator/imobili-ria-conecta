@@ -1646,8 +1646,12 @@ export async function proximaResposta(
     if (convite === "visita" && nao) {
       if (busca && !(dados.parecidos?.length) && !dados.parecido_perguntado) {
         dados.parecido_perguntado = true;
-        dados.parecido_pergunta = true;
-        return continuar(`Sem problema! ${PERGUNTA_PARECIDO}`, "interesse");
+        // Regra t_232e13cb: sem nenhum parecido no XML, nem pergunta.
+        const pre = await busca({ excluir: [], negocio: negocio(), codigo_ref: dados.imovel_xml_codigo ?? dados.anuncio_informado ?? null }).catch(() => null);
+        if (pre?.itens.length) {
+          dados.parecido_pergunta = true;
+          return continuar(`Sem problema! ${PERGUNTA_PARECIDO}`, "interesse");
+        }
       }
       dados.convite_aberto = "detalhe";
       return continuar(`Sem problema! ${MAIS_DETALHE}`, "interesse");

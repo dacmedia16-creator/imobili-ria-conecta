@@ -72,7 +72,9 @@ BEGIN
        AND x.pv BETWEEN coalesce(_preco_min, 0) AND coalesce(_preco_max, 1e12)
        AND (_tipo IS NULL OR public.lead_ia_tipo(x.tipo) = _tipo)
        -- Região: bairro OU cidade dita pelo cliente; sem região, a cidade do imóvel do lead.
-       AND CASE WHEN _r IS NOT NULL THEN public.lead_ia_norm(x.bairro) LIKE '%' || _r || '%'
+       -- Bairro dito pelo cliente vale dentro da cidade do lead (há "Campolim" em Sorocaba e em Votorantim).
+       AND CASE WHEN _r IS NOT NULL THEN (public.lead_ia_norm(x.bairro) LIKE '%' || _r || '%'
+                                          AND (_c IS NULL OR public.lead_ia_norm(btrim(x.cidade)) = _c))
                                          OR public.lead_ia_norm(btrim(x.cidade)) = _r
                 WHEN _c IS NOT NULL THEN public.lead_ia_norm(btrim(x.cidade)) = _c
                 ELSE true END
