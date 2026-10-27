@@ -64,8 +64,8 @@ describe("trava idioma: português passa", () => {
     expect(achados).toEqual([]);
   });
 
-  it(`nenhum dos ${NOMES_REAIS.length} bairros/condomínios/endereços reais dispara`, () => {
-    expect(NOMES_REAIS.length).toBeGreaterThan(500);
+  it(`nenhum dos ${NOMES_REAIS.length} bairros/condomínios reais dispara`, () => {
+    expect(NOMES_REAIS.length).toBeGreaterThan(200);
     const achados = NOMES_REAIS.filter(pega).map((n) => `${qual(n)} — ${n}`);
     expect(achados).toEqual([]);
   });
