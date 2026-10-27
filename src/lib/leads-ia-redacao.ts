@@ -28,7 +28,13 @@ import {
   ehPergunta,
   ehSensivel,
   falaPermuta,
+  MAX_PARECIDOS,
+  DISSE_QUE_GOSTOU,
+  imovelEmFoco,
   norm,
+  pediuFotos,
+  quartosParecidos,
+  valorFaixa,
   opcoesVisita,
   PERGUNTA_PERIODO,
   periodoDe,
@@ -150,7 +156,48 @@ export type EntradaModelo = {
   /** t_82c89141 item 1: sem candidatos, por quê? "sem_resultado" = a busca rodou e não achou nada;
    * "nao_consultado" = a busca não rodou ou falhou (aí a Nicole NUNCA diz que não tem). */
   estoque?: "sem_resultado" | "nao_consultado" | null;
+  /** t_37cf21e3: perfil de cada busca (a do cliente e a 2ª, ex.: do filho) e qual está valendo agora. */
+  buscas?: PerfisBusca | null;
+  /** t_37cf21e3: bairro pedido em que não há nada; o candidato fica em outro bairro (avisar). */
+  fora_regiao?: string | null;
+  /** t_37cf21e3: imóvel de que se fala agora, quando não é o do anúncio nem o último oferecido. */
+  em_foco?: ImovelParecido | null;
 };
+
+/** t_37cf21e3 item 3: o perfil de cada busca, separado (quem procura, tipo, região, quartos e faixa). */
+export type PerfisBusca = {
+  atual: "cliente" | "segunda";
+  cliente: Record<string, string | number>;
+  segunda?: Record<string, string | number>;
+};
+export function perfisBusca(ctx: Pick<ContextoIa, "ficha">, d: DadosQualificacao): PerfisBusca | null {
+  const b = d.busca2;
+  const f = ctx.ficha;
+  const segunda =
+    b && b.tipo !== undefined
+      ? limpa({
+          quem: b.para ? `${b.para} do cliente` : "outra pessoa",
+          tipo: b.tipo || undefined,
+          finalidade: b.finalidade || undefined,
+          regiao: b.regiao || undefined,
+          suites: b.suites,
+          quartos: b.quartos,
+          faixa: b.faixa || undefined,
+        })
+      : undefined;
+  if (!segunda) return null;
+  return {
+    atual: b?.ativa ? "segunda" : "cliente",
+    cliente: limpa({
+      quem: "o próprio cliente",
+      tipo: f?.tipo,
+      bairro: f?.bairro,
+      quartos: f?.quartos,
+      faixa: d.faixa ?? (f?.preco ? `perto de ${valorCurto(f.preco)}` : undefined),
+    }) as Record<string, string | number>,
+    segunda: segunda as Record<string, string | number>,
+  };
+}
 
 export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, uma imobiliária. Você conversa pelo WhatsApp com um cliente que se interessou por um imóvel. Escreva como uma atendente humana experiente: simpática, direta, frases curtas, tom de conversa (nada de ficha técnica).
 
@@ -169,6 +216,10 @@ REGRAS (todas obrigatórias):
 12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: responda curto que anotou o pedido e use "acao":"passar" (sem prometer procurar nem mandar depois).
 13. "Não", "não precisa" ou "só isso" em resposta a uma pergunta sua NÃO é pedido para encerrar nem para passar: siga a conversa com 1 pergunta útil (outras opções do que ele pediu ou a visita). Use "acao":"passar" só quando o cliente pedir uma pessoa, escolher o dia e o período da visita ou no caso das regras 7 e 8.
 14. Se DADOS trouxer "outros_anuncios", o cliente também viu esses imóveis no portal: pode citar os dois, com os dados de lá.
+15. Duas buscas: se DADOS trouxer "buscas", cada uma tem o seu perfil (quem procura, tipo, região, quartos, faixa) e "buscas.atual" diz de qual o cliente está falando agora. Use só o perfil atual: nunca ofereça para a busca do cliente um imóvel do perfil da outra pessoa, nem o contrário. "para mim", "a casa que eu estou vendo" = busca do cliente; "para o meu filho", "para ele" = a outra.
+16. Região: se o cliente pediu um bairro e DADOS trouxer "fora_regiao", diga PRIMEIRO, com clareza, que nesse bairro não tem agora, e só então mostre o candidato dizendo que ele fica em outro bairro (diga qual). Nunca mostre imóvel de outro bairro como se fosse do bairro pedido.
+17. Fotos ou vídeo: mande de novo o link do anúncio do imóvel de que vocês estão falando ("As fotos estão todas no anúncio: <link>"). Nunca prometa mandar fotos ("te mando as fotos"). Sem link em DADOS, diga só que o corretor te envia as fotos por aqui.
+18. Só diga "que bom que gostou" se o cliente disse que gostou. "Gostaria", "quero" ou "sim" sozinhos são resposta à sua pergunta: pergunte o que ele gostaria de saber ou se prefere agendar a visita.
 
 Responda SÓ com JSON neste formato:
 {"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou","pendente":"assunto que o corretor precisa confirmar"}}
@@ -206,6 +257,9 @@ export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: s
       nova_busca: d.outras_buscas?.length ? d.outras_buscas : undefined,
     }),
     busca: e.busca ?? undefined,
+    buscas: e.buscas ?? undefined,
+    fora_regiao: e.fora_regiao ?? undefined,
+    imovel_em_foco: e.em_foco ? parecidoModelo(e.em_foco) : undefined,
     estoque: !e.candidatos.length ? (e.estoque ?? undefined) : undefined,
     outros_anuncios: ctx.outros_anuncios?.length
       ? ctx.outros_anuncios.map((o) => fichaModelo(o.ficha)).filter(Boolean)
@@ -318,10 +372,20 @@ export type Bloqueio =
   | "sem_opcao"
   | "iptu"
   | "tipo"
-  | "idioma";
+  | "idioma"
+  // t_37cf21e3
+  | "fotos"
+  | "regiao"
+  | "perfil"
+  | "gostou"
+  | "sem_oferta";
 
 /** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
-export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>(["retorno", "sem_opcao", "iptu", "idioma"]);
+// t_37cf21e3: fotos (promessa sem link), regiao (outro bairro sem avisar) e perfil (oferta do perfil errado)
+// também são firmes: no modo observar, a fala errada não chega ao cliente.
+export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>([
+  "retorno", "sem_opcao", "iptu", "idioma", "fotos", "regiao", "perfil", "sem_oferta", "gostou",
+]);
 
 /** Contagens conferidas pela trava "contagem". */
 export type Contagem = "quartos" | "suites" | "vagas" | "banheiros";
@@ -346,6 +410,17 @@ export type Permitidos = {
   estoque?: "com_candidatos" | "sem_resultado" | "nao_consultado";
   /** t_82c89141: tipo do imóvel do cliente (trava "tipo"). */
   tipoRef?: string;
+  // t_37cf21e3 (conversa d8907e38). Sem o campo, a trava correspondente não roda.
+  /** O cliente pediu fotos/vídeo: a mensagem tem de levar o link do imóvel em foco (se houver). */
+  fotos?: { link: string | null };
+  /** Bairro pedido pelo cliente: imóvel de outro bairro só com aviso claro. */
+  regiao?: string | null;
+  /** Há duas buscas: tipo (base) do perfil que vale agora. */
+  perfilTipo?: string | null;
+  /** O cliente disse que gostou (\"que bom que gostou\" só nesse caso). */
+  clienteGostou?: boolean;
+  /** O cliente pediu mais opções e há candidatos: a mensagem tem de mostrar um. */
+  pediuOpcoes?: boolean;
 };
 
 const numBr = (s: string): number => {
@@ -457,6 +532,15 @@ const RE_CORRETOR_CONTINUA_OK = new RegExp(
 /** Promessa em nome do corretor (ligar, mandar, prazo, garantia): continua barrada. */
 const RE_CORRETOR_PROMESSA =
   /\bcorretor[^.?!]{0,80}?\b(te (liga|ligar|ligue|manda|mandar|mande|envia|enviar|envie|retorna|retornar|chama|chamar|procura|procurar)\b|(liga|ligar|manda|mandar|envia|enviar|retorna|retornar) (pra|para) (voce|vc)|ainda hoje|hoje|agora mesmo|em (ate )?\d+ ?(min|minutos|h|horas?)\b|rapidinho|consegue|vai conseguir)/;
+/** t_37cf21e3 item 6: promessa de mandar fotos/vídeo (a Nicole não manda arquivos; manda o link do anúncio). */
+const RE_FOTOS_PROMESSA =
+  /\b((te |lhe )?(mando|envio|passo|encaminho)|vou (te |lhe )?(mandar|enviar|passar|encaminhar)|posso (te )?(mandar|enviar)|ja (te )?(mando|envio))( (mais|as|umas|algumas|outras|o|os))? (fotos?|videos?|imagens?)\b/;
+/** Fala de fotos sem link: \"as fotos ... o corretor confirma\" (sem sentido) também não serve. */
+const RE_FOTOS = /\b(fotos?|videos?|imagens?)\b/;
+/** Aviso de que o bairro pedido não tem e o imóvel é de outro bairro. */
+const RE_AVISO_REGIAO = /(nao (tenho|temos|achei|encontrei|ha|tem)|sem (opc|imove))[^.?!]{0,80}|outro bairro|outra regiao|fica (no|na|em) |bairro vizinho|bem perto d/;
+/** \"que bom que gostou\" (e variações). */
+const RE_GOSTOU = /\bque (bom|otimo|legal|bacana) que (voce |vc )?gost(ou|a)\b/;
 /** Pergunta curta de confirmação ("sábado de manhã, certo?", "tudo bem?"): não conta na regra de 1 pergunta. */
 const RE_PERG_CONFIRMA =
   /^(certo|ne|tudo (bem|certo)|ok|combinado|beleza|sabe|viu|entendi|e isso|isso|sim|pode ser|perfeito|tranquilo|ta bom|ta)$/;
@@ -484,7 +568,13 @@ export function contarPerguntas(msg: string): number {
   });
   return n;
 }
-const tipoBase = (t: string | undefined) => {
+/** O bairro do candidato é o bairro pedido? (\"campolim\" = \"Parque Campolim\"). */
+const mesmoBairroTxt = (bairro: string | undefined, regiao: string) => {
+  const a = norm(bairro ?? "");
+  const r = norm(regiao);
+  return !!a && (a.includes(r) || r.includes(a));
+};
+export const tipoBase = (t: string | undefined) => {
   const x = norm(t ?? "");
   return /apart|studio|kitnet|flat|cobertura/.test(x) ? "apartamento" : /casa|sobrado/.test(x) ? "casa" : /terreno|lote/.test(x) ? "terreno" : x;
 };
@@ -595,8 +685,29 @@ export function validarRedacaoDetalhe(
   if (RE_IDIOMA.test(msg.toLowerCase()) || RE_IDIOMA.test(n0)) return b("idioma", achou(RE_IDIOMA, n0) ?? achou(RE_IDIOMA, msg.toLowerCase()));
   // t_82c89141 item 3: nunca prometer voltar com a resposta.
   if (RE_RETORNO.test(n0)) return b("retorno", achou(RE_RETORNO, n0));
-  // Item 1: com candidato (ou sem a busca ter rodado), nunca dizer que não tem outra opção.
-  if (perm.estoque && perm.estoque !== "sem_resultado" && RE_SEM_OPCAO.test(n0))
+  // t_37cf21e3 item 6: fotos = o link do anúncio. Nunca \"te mando as fotos\"; pedido de fotos sem o link = barra.
+  if (RE_FOTOS_PROMESSA.test(n0)) return b("fotos", achou(RE_FOTOS_PROMESSA, n0));
+  if (perm.fotos && perm.fotos.link && !links.some((l) => l.replace(/[.,;:!?]+$/, "") === perm.fotos!.link))
+    return b("fotos", RE_FOTOS.test(n0) ? `${achou(RE_FOTOS, n0)} sem o link` : "pediu fotos, sem o link");
+  // t_37cf21e3 item 2: imóvel de outro bairro só com aviso claro de que o bairro pedido não tem.
+  const ofertados = [...perm.codigos.values()].filter(
+    (c) => (s.acao === "oferecer" && c.codigo === s.codigo) || (!!c.url && links.some((l) => l.replace(/[.,;:!?]+$/, "") === c.url)),
+  );
+  const foraDoBairro = perm.regiao ? ofertados.filter((c) => !mesmoBairroTxt(c.bairro, perm.regiao!)) : [];
+  if (foraDoBairro.length && !RE_AVISO_REGIAO.test(n0)) return b("regiao", `${foraDoBairro[0].bairro ?? "?"} | pediu ${perm.regiao}`);
+  // t_37cf21e3 item 3: com duas buscas, a oferta tem de ser do perfil que vale agora.
+  if (perm.perfilTipo) {
+    const errado = ofertados.find((c) => c.tipo && tipoBase(c.tipo) !== perm.perfilTipo);
+    if (errado) return b("perfil", `${errado.tipo} | perfil ${perm.perfilTipo}`);
+  }
+  // t_37cf21e3 item 4: pediu mais opções e há candidato = mostra um (nunca volta só para o imóvel original).
+  if (perm.pediuOpcoes && perm.estoque === "com_candidatos" && !ofertados.length) return b("sem_oferta", "pediu opções e não mostrou nenhuma");
+  // t_37cf21e3 item 5: \"Que bom que gostou!\" só se o cliente disse que gostou.
+  if (perm.clienteGostou === false && RE_GOSTOU.test(n0)) return b("gostou", achou(RE_GOSTOU, n0));
+  // Item 1: com candidato (ou sem a busca ter rodado), nunca dizer que não tem outra opção. Com o aviso de
+  // região (o bairro pedido não tem, e a mensagem mostra um de outro bairro), dizer que \"não tem lá\" é correto.
+  const avisoRegiao = !!perm.regiao && foraDoBairro.length > 0;
+  if (perm.estoque && perm.estoque !== "sem_resultado" && RE_SEM_OPCAO.test(n0) && !avisoRegiao)
     return b("sem_opcao", `${achou(RE_SEM_OPCAO, n0)} | ${perm.estoque}`);
   // Item 2: "por mês"/"por ano" do IPTU só a partir do iptu_periodo do XML.
   const iu = RE_IPTU_UNIDADE.exec(n0);
@@ -750,6 +861,11 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     iptu: "o período do IPTU só pode ser dito se DADOS trouxer iptu_periodo; senão diga só o valor",
     tipo: "o imóvel oferecido é de outro tipo; diga o tipo dele com todas as letras e pergunte se esse tipo serve",
     idioma: "responda só em português do Brasil",
+    fotos: "não prometa mandar fotos; mande o link do anúncio do imóvel de que vocês estão falando (\"As fotos estão todas no anúncio: <link>\")",
+    regiao: "o imóvel fica em outro bairro: diga primeiro que no bairro pedido não tem agora e depois que esse fica em outro bairro (diga qual)",
+    perfil: "esse imóvel é do perfil da outra busca; ofereça só um candidato do tipo da busca de que o cliente fala agora (veja buscas.atual)",
+    sem_oferta: "o cliente pediu mais opções e há CANDIDATOS: ofereça um deles com acao oferecer, tipo, valor e link",
+    gostou: "o cliente não disse que gostou; pergunte o que ele gostaria de saber ou se prefere agendar a visita",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
@@ -971,11 +1087,27 @@ export async function redigirResposta(
   const usaGemini = op.env.LEADS_IA_MODELO === "gemini" && !!gKey;
   if (!usaOr && !usaGemini) return observar ? semResposta() : plano();
 
+  // t_37cf21e3: respostas que o roteiro decidiu com texto fixo (confirmação de frase ambígua, \"Gostaria\",
+  // perguntas da 2ª busca, fotos sem link) saem como estão.
+  if (base.fixo) return plano();
   // Busca por característica feita antes (plano B, t_a9f1b447): o estado dela vale para o modelo também.
   const busca = base.busca ?? null;
+  // t_37cf21e3 item 3: o perfil da 2ª busca (do filho etc.) e a troca de perfil vêm SEMPRE do roteiro; antes
+  // eram descartados a cada turno e a fala do filho virava filtro e faixa da busca do pai.
+  const baseD = base.dados ?? {};
   const dadosIn: DadosQualificacao = busca
-    ? { ...(ctx.dados ?? {}), ...base.dados, parecido_atual: ctx.dados?.parecido_atual, parecidos: ctx.dados?.parecidos }
-    : (ctx.dados ?? {});
+    ? { ...(ctx.dados ?? {}), ...baseD, parecido_atual: ctx.dados?.parecido_atual, parecidos: ctx.dados?.parecidos }
+    : {
+        ...(ctx.dados ?? {}),
+        busca2: baseD.busca2 ?? ctx.dados?.busca2,
+        outras_buscas: baseD.outras_buscas ?? ctx.dados?.outras_buscas,
+        confirmar_tipo: baseD.confirmar_tipo,
+        filtro_pedido: baseD.busca2?.ativa ? ctx.dados?.filtro_pedido : (baseD.filtro_pedido ?? ctx.dados?.filtro_pedido),
+        faixa: baseD.faixa ?? ctx.dados?.faixa,
+      };
+  const perfis = perfisBusca(ctx, dadosIn);
+  const emFoco = imovelEmFoco(dadosIn);
+  const segundaAtiva = !!dadosIn.busca2?.ativa;
   const ja = ctx.dados?.parecidos ?? [];
   const negocio =
     dadosIn.finalidade === "alugar" || (!dadosIn.finalidade && ctx.transacao === "aluguel")
@@ -984,7 +1116,7 @@ export async function redigirResposta(
   // Candidatos: até 3 parecidos do XML ainda não oferecidos (o banco aplica as regras de parecido).
   const res = busca
     ? { referencia: {}, itens: busca.itens }
-    : op.buscarParecidos && ja.length < 3
+    : op.buscarParecidos && ja.length < MAX_PARECIDOS && !segundaAtiva
       ? await op
           .buscarParecidos({
             excluir: ja,
@@ -994,7 +1126,10 @@ export async function redigirResposta(
           })
           .catch(() => null)
       : null;
-  const candidatos = (res?.itens ?? []).filter((i) => !ja.includes(i.codigo)).slice(0, 3);
+  // t_37cf21e3 item 1: só parecidos de verdade (quartos ±1 do imóvel do cliente, quando não há pedido próprio).
+  const candidatos = (res?.itens ?? [])
+    .filter((i) => !ja.includes(i.codigo) && (busca ? true : quartosParecidos(i, ctx.ficha, dadosIn.filtro_pedido)))
+    .slice(0, 3);
   // t_82c89141 item 1: a Nicole só pode dizer "não tenho outra" se a busca RODOU e voltou vazia.
   const estoque: Permitidos["estoque"] = candidatos.length ? "com_candidatos" : res ? "sem_resultado" : "nao_consultado";
   // Datas só depois que o cliente disse que quer visitar (item 7); antes, o convite é simples.
@@ -1007,6 +1142,9 @@ export async function redigirResposta(
     visita,
     busca: busca ? { pedido: busca.pedido, fora_faixa: busca.fora_faixa } : null,
     estoque: estoque === "com_candidatos" ? null : estoque,
+    buscas: perfis,
+    fora_regiao: busca?.fora_regiao ?? null,
+    em_foco: emFoco,
   });
   const falasCliente = [
     texto,
@@ -1020,11 +1158,18 @@ export async function redigirResposta(
   let chamada: Chamada | null = null;
   const perm = permitidosDe(
     ctx.ficha,
-    [...candidatos, ...(dadosIn.parecido_atual ? [dadosIn.parecido_atual] : [])],
+    [...candidatos, ...(dadosIn.parecido_atual ? [dadosIn.parecido_atual] : []), ...(emFoco && emFoco !== dadosIn.parecido_atual ? [emFoco] : [])],
     visita,
     falasCliente,
   );
   perm.estoque = estoque;
+  // t_37cf21e3: travas da conversa d8907e38.
+  if (pediuFotos(texto)) perm.fotos = { link: (emFoco ? emFoco.url : ctx.ficha?.link) || null };
+  if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
+  if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
+  perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
+  perm.pediuOpcoes = base.intencao === "opcoes";
+  void valorFaixa;
   // No máximo 2 chamadas. Modo bloquear: bloqueio do validador = 2ª tentativa dizendo o que estava errado
   // (t_a9f1b447); só se ela também falhar sai a frase pronta. Modo observar: erro, demora ou JSON ruim = 2ª
   // tentativa (t_3a4bf078); bloqueio só registra. A trava "contagem" corrigida vale nos dois modos.
