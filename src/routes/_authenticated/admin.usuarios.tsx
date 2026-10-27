@@ -20,6 +20,7 @@ import {
   type Decision,
   type ManagedRole,
 } from "@/lib/user-management-policy";
+import { podeVerRegrasPapeis } from "@/lib/regras-papeis";
 import {
   finalizeOperationalImpersonation,
   restoreOperationalImpersonation,
@@ -74,6 +75,7 @@ import {
   LogIn,
   Pencil,
   RefreshCcw,
+  ScrollText,
   Search,
   UserPlus,
   Users,
@@ -761,6 +763,14 @@ function AdminUsers() {
         }
         actions={
           <>
+            {/* Regras de papéis (t_37becd0c): só para administradores (Denis, 27/10/2026). */}
+            {podeVerRegrasPapeis(myRoles) && (
+              <Button asChild variant="outline" className="gap-2">
+                <Link to="/admin/regras-papeis">
+                  <ScrollText className="h-4 w-4" /> Regras de papéis
+                </Link>
+              </Button>
+            )}
             {tlWithoutTeam && (
               <p className="max-w-xs text-xs text-muted-foreground" data-testid="tl-sem-equipe">
                 Você ainda não lidera nenhuma equipe. Peça a um administrador para criar a sua
