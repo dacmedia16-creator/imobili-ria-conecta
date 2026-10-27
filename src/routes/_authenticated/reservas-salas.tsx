@@ -43,6 +43,7 @@ import {
   getRoomReservationDateRangeConflicts,
   getRoomReservationPeriodTimes,
   intervalsOverlap,
+  isRoomReservationBlocked,
   ROOM_RESERVATION_PURPOSES,
   timeToMinutes,
 } from "@/lib/reservas-salas-calc";
@@ -225,6 +226,8 @@ function RoomReservationsPage() {
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [roomError, setRoomError] = useState(false);
   const canManageRooms = hasAny(["admin", "super_admin"]);
+  // Staff nunca fica bloqueado por cancelamento (Denis 27/10/2026); o banco confere pelo papel.
+  const isStaff = hasAny(["staff"]);
   useEffect(() => {
     let active = true;
     void listAgencyRooms()
@@ -408,10 +411,7 @@ function RoomReservationsPage() {
       toast.error("Escolha uma sala ativa da sua imobiliária.");
       return;
     }
-    if (
-      cancellationStatus?.blockedUntil &&
-      new Date(cancellationStatus.blockedUntil) > new Date()
-    ) {
+    if (isRoomReservationBlocked(cancellationStatus, isStaff) && cancellationStatus?.blockedUntil) {
       toast.error(
         `Você está bloqueado para novas reservas até ${new Date(cancellationStatus.blockedUntil).toLocaleDateString("pt-BR")}.`,
       );
@@ -506,7 +506,9 @@ function RoomReservationsPage() {
     };
     setCancellationStatus(nextStatus);
     await loadReservations();
-    toast.success(getRoomReservationCancellationNotice(nextStatus, data.was_late_cancellation));
+    toast.success(
+      getRoomReservationCancellationNotice(nextStatus, data.was_late_cancellation, isStaff),
+    );
   };
 
   const reservationForSlot = (room: string, slot: string) =>
@@ -541,7 +543,8 @@ function RoomReservationsPage() {
           momento pelo responsável; gestores e team leaders, as reservas da própria equipe; staff,
           administradores e administradores principais, qualquer reserva da imobiliária. Cancelamentos
           feitos pelo responsável depois da primeira hora contam para a regra de bloqueio: ao
-          atingir 3, o usuário fica 7 dias corridos sem poder reservar.
+          atingir 3, o usuário fica 7 dias corridos sem poder reservar. Staff não tem limite de
+          cancelamentos nem bloqueio.
         </AlertDescription>
       </Alert>
       {roomError && (
@@ -576,8 +579,8 @@ function RoomReservationsPage() {
         </Alert>
       )}
 
-      {cancellationStatus?.blockedUntil &&
-        new Date(cancellationStatus.blockedUntil) > new Date() && (
+      {isRoomReservationBlocked(cancellationStatus, isStaff) &&
+        cancellationStatus?.blockedUntil && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
             <AlertTitle>Novas reservas bloqueadas</AlertTitle>
