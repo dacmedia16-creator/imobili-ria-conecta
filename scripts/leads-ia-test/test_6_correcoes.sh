@@ -1,5 +1,5 @@
 #!/bin/bash
-# Migration 20261027180000 (t_82c89141) em banco descartável (só 127.0.0.1): setup -> migrations anteriores ->
+# Migration 20261027200000 (t_82c89141) em banco descartável (só 127.0.0.1): setup -> migrations anteriores ->
 # migration -> testes -> rollback -> confere volta ao original -> reaplicação.
 # Uso: bash scripts/leads-ia-test/test_6_correcoes.sh t82c8
 set -e
@@ -7,8 +7,8 @@ DB=${1:-t82c8}
 W=$(cd "$(dirname "$0")/../.." && pwd)
 P="docker exec -i pgt-3284-db psql -U postgres -v ON_ERROR_STOP=1 -q -d $DB"
 M=$W/supabase/migrations/20261016200000_remax_xml_feed.sql
-NEW=$W/supabase/migrations/20261027180000_leads_ia_6_correcoes.sql
-RB=$W/docs/sql/rollback/20261027180000_leads_ia_6_correcoes.rollback.sql
+NEW=$W/supabase/migrations/20261027200000_leads_ia_6_correcoes.sql
+RB=$W/docs/sql/rollback/20261027200000_leads_ia_6_correcoes.rollback.sql
 ROTEIRO=1 bash "$(dirname "$0")/setup.sh" "$DB" >/dev/null 2>&1
 { sed -n '/CREATE TABLE IF NOT EXISTS public.remax_xml_runs/,/^);/p' $M
   sed -n '/CREATE TABLE IF NOT EXISTS public.remax_xml_listings/,/^);/p' $M
@@ -22,7 +22,7 @@ FN="lead_ia_imoveis_parecidos(uuid,text[],numeric,numeric,text,text,integer,bool
 hashes() { for f in $FN; do $P -tAc "SELECT md5(pg_get_functiondef('public.$f'::regprocedure))"; done | tr '\n' ' '; }
 ANTES=$(hashes)
 $P < "$NEW"
-echo "migration 20261027180000 ok"
+echo "migration 20261027200000 ok"
 $P -tA < "$W/scripts/leads-ia-test/test_6_correcoes.sql" 2>&1 | grep -E "RESULTADO|FAIL|ERROR" || true
 $P < "$RB"
 DEPOIS=$(hashes)

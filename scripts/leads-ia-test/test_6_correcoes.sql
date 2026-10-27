@@ -1,4 +1,4 @@
--- Testes da migration 20261027180000 (t_82c89141): parecidos por tipo normalizado, resposta de espera depois do
+-- Testes da migration 20261027200000 (t_82c89141): parecidos por tipo normalizado, resposta de espera depois do
 -- repasse e avisos da OLX juntados (caso Afonso). PostgreSQL descartável, 2 imobiliárias, dados 100% fictícios.
 -- Uso: bash scripts/leads-ia-test/test_6_correcoes.sh
 \set ON_ERROR_STOP 1
