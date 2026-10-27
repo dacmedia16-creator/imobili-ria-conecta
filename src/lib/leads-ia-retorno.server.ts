@@ -413,6 +413,44 @@ export async function reengajarUmaVez(deps: DepsReengajar): Promise<{ r: "nada" 
   return { r: "preparado", enviadas, toque: t.toque };
 }
 
+// --- Resposta de espera depois do repasse (t_82c89141 item 6b) ---------------------------------------------
+// O banco (lead_ia_espera_preparar) escolhe as conversas já passadas ao corretor em que o cliente escreveu e
+// ninguém da equipe respondeu em lead_config.ia_espera_min (padrão 10; 0 = desligado), no máximo 1 a cada 2 h,
+// grava a resposta curta (pendente) e avisa o corretor de novo pelo sininho. Aqui só envia pelo MESMO caminho
+// das respostas (enviarPendentes: lista de liberados, opt-out e LEADS_IA_ENVIO_REAL=on). Fila e WhatsApp dos
+// corretores não mudam.
+export type DepsEspera = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
+  esperaPreparar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+};
+
+export async function esperaUmaRodada(
+  deps: DepsEspera,
+): Promise<{ r: "nada" | "erro" | "preparado"; leads?: number; enviadas?: number }> {
+  const { data, error } = await deps.esperaPreparar();
+  if (error) {
+    console.error("leads ia espera: preparar falhou", error.code ?? "sem_codigo");
+    return { r: "erro" };
+  }
+  const leads = [...new Set(((data as Array<{ lead_id: string }> | null) ?? []).map((x) => x.lead_id))];
+  if (!leads.length) return { r: "nada" };
+  let enviadas = 0;
+  for (const l of leads) enviadas += await enviarPendentes(l, deps).catch(() => 0);
+  return { r: "preparado", leads: leads.length, enviadas };
+}
+
+/** Dependências reais da espera (service_role). */
+export async function depsEsperaReais(): Promise<DepsEspera> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = supabaseAdmin as unknown as SupabaseClient;
+  return {
+    reservar: async (leadId) => await db.rpc("lead_ia_envio_reservar", { _lead: leadId }),
+    resultado: async (msgId, ok) => await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
+    linkAnuncio: (leadId) => linkAnuncioDoLead(db, leadId),
+    env: process.env as Record<string, string | undefined>,
+    esperaPreparar: async () => await db.rpc("lead_ia_espera_preparar"),
+  };
+}
+
 /** Comparação em tempo constante (não vaza o segredo pelo tempo de resposta). */
 export function segredoConfere(recebido: string | null, esperado: string | undefined): boolean {
   if (!esperado || esperado.length < 32 || !recebido) return false;
