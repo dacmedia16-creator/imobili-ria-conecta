@@ -196,6 +196,15 @@ describe("ajustes do DeepSeek real (conversa H)", () => {
     const { usos } = await rodarGemini({}, "Tem cannes ??", [{ mensagem: ruim, acao: "responder" }, { mensagem: ruim, acao: "responder" }], "observar", true);
     expect(usos[0].bloqueio).toBe("sem_oferta");
   });
+  it("2 tentativas barradas com o condomínio achado: a reserva mostra o imóvel achado com os dados do XML", async () => {
+    const ruim = "Sobre Cannes, o corretor confirma com você na visita ou no contato. Quer agendar uma visita?";
+    const { r, usos } = await rodarGemini({ faixa: "até 900 mil", nome_busca: "cannes" }, "Qual valor do cannes ?", [{ mensagem: ruim, acao: "responder" }, { mensagem: ruim, acao: "responder" }], "observar", true);
+    if (process.env.DBG) console.log(JSON.stringify(usos.map((u) => [u.tentativa, u.bloqueio, u.bloqueio_trecho, u.erro])));
+    expect(r.resposta).toBe("No Cannes tenho um apartamento com 3 quartos, por R$ 999.000: https://vipsevenimoveis.com.br/imovel/VIP0136 Fica fora da faixa que você comentou. Quer ver?");
+    expect(r.bloqueio).toBe("sem_oferta");
+    expect(r.dados.mostrados?.map((x) => x.codigo)).toContain("VIP0136");
+    expect(r.fim).toBeNull();
+  });
 });
 
 describe("ponto 4 — limite da conversa (migration, NÃO aplicada)", () => {

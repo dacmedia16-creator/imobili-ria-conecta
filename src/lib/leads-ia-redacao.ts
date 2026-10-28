@@ -1494,13 +1494,27 @@ export async function redigirResposta(
     saida = primeira.saida;
     detalhe = primeira.detalhe;
   }
+  // t_228659f0 (DeepSeek real, conversa H): com o condomínio achado pelo nome, a reserva mostra o 1º imóvel achado com
+  // os dados do XML (o roteiro não conhece a busca por nome e respondia \"o corretor confirma o valor\").
+  const reserva = (m: Bloqueio | null) => {
+    const c = itensNome[0];
+    if (!c || !buscaNome) return plano(m);
+    const tipo = c.tipo === "apartamento" ? "um apartamento" : c.tipo ? `uma ${c.tipo}` : "um imóvel";
+    const valor = c.preco ?? c.aluguel;
+    const fora = buscaNome.fora_faixa ? " Fica fora da faixa que você comentou." : "";
+    const resposta = `No ${buscaNome.nome.replace(/\b\w/g, (x) => x.toUpperCase())} tenho ${tipo}${c.quartos ? ` com ${c.quartos} quartos` : ""}${valor ? `, por ${valor}` : ""}: ${c.url}${fora} Quer ver?`;
+    if (!c.url || resposta.length > REDACAO_MAX_CHARS) return plano(m);
+    const dados = { ...base.dados, nome_busca: buscaNome.nome, parecido_atual: c, ultimo_parecido: c };
+    dados.mostrados = guardarMostrado(dados, c);
+    return { ...base, passo: ctx.passo, dados, resposta, resposta_falha: null, fim: null, resumo: null, redigida: false, bloqueio: m };
+  };
   if (!chamada || !saida) {
     // Trava firme barrou as 2 tentativas: o roteiro (plano B) responde, também no modo observar.
     const m = detalhe?.motivo ?? primeira?.detalhe.motivo ?? null;
-    return observar && !(m && TRAVAS_FIRMES.has(m)) ? semResposta() : plano(m);
+    return observar && !(m && TRAVAS_FIRMES.has(m)) ? semResposta() : reserva(m);
   }
   const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
-  if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return plano(bloqueio);
+  if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return reserva(bloqueio);
   // t_82c89141 item 4: dia sem período não passa ao corretor; pergunta manhã ou tarde.
   if (saida.acao === "passar" && saida.registro.visita && !temPeriodo(saida.registro.visita) && !periodoDe(norm(texto))) {
     const dia = saida.registro.visita;
