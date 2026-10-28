@@ -43,7 +43,13 @@ export function TransferirCaptacaoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Modo avulso: a captação da ficha (captor_id = corretor atual). */
-  avulsa?: { id: string; captorId: string; captorNome: string; endereco: string; item: ItemPrevia | null };
+  avulsa?: {
+    id: string;
+    captorId: string;
+    captorNome: string;
+    endereco: string;
+    item: ItemPrevia | null;
+  };
   /** Modo lote: corretores que têm captação. */
   origens?: { id: string; nome: string }[];
   onDone: () => void;
@@ -136,9 +142,14 @@ export function TransferirCaptacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" data-testid="transferir-dialog">
+      <DialogContent
+        className="max-h-[90vh] max-w-2xl overflow-y-auto"
+        data-testid="transferir-dialog"
+      >
         <DialogHeader>
-          <DialogTitle>{avulsa ? "Transferir captação" : "Transferir captações de um corretor"}</DialogTitle>
+          <DialogTitle>
+            {avulsa ? "Transferir captação" : "Transferir captações de um corretor"}
+          </DialogTitle>
           <DialogDescription>
             O imóvel, quem vê e edita, os alertas e os próximos leads e vendas passam para o novo
             corretor. Vendas fechadas, comissões já lançadas e o contrato já assinado não mudam. Nos
@@ -156,7 +167,12 @@ export function TransferirCaptacaoDialog({
             ) : (
               <div className="space-y-1">
                 <Label htmlFor="transf-de">1. De quem? (corretor que saiu)</Label>
-                <select id="transf-de" className={SELECT} value={de} onChange={(e) => setDe(e.target.value)}>
+                <select
+                  id="transf-de"
+                  className={SELECT}
+                  value={de}
+                  onChange={(e) => setDe(e.target.value)}
+                >
                   <option value="">— escolha —</option>
                   {origens.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -168,8 +184,15 @@ export function TransferirCaptacaoDialog({
             )}
 
             <div className="space-y-1">
-              <Label htmlFor="transf-para">{avulsa ? "Para quem? (novo corretor)" : "2. Para quem? (novo corretor)"}</Label>
-              <select id="transf-para" className={SELECT} value={para} onChange={(e) => setPara(e.target.value)}>
+              <Label htmlFor="transf-para">
+                {avulsa ? "Para quem? (novo corretor)" : "2. Para quem? (novo corretor)"}
+              </Label>
+              <select
+                id="transf-para"
+                className={SELECT}
+                value={para}
+                onChange={(e) => setPara(e.target.value)}
+              >
                 <option value="">— escolha —</option>
                 {destinosValidos.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -177,7 +200,9 @@ export function TransferirCaptacaoDialog({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground">Só aparecem corretores ativos desta imobiliária.</p>
+              <p className="text-xs text-muted-foreground">
+                Só aparecem corretores ativos desta imobiliária.
+              </p>
             </div>
 
             {avulsa ? (
@@ -201,9 +226,14 @@ export function TransferirCaptacaoDialog({
                 ) : previa === null ? (
                   <p className="text-muted-foreground">Carregando…</p>
                 ) : previa.length === 0 ? (
-                  <p className="text-muted-foreground">Esse corretor não tem captações que você possa transferir.</p>
+                  <p className="text-muted-foreground">
+                    Esse corretor não tem captações que você possa transferir.
+                  </p>
                 ) : (
-                  <ul className="max-h-64 divide-y overflow-y-auto rounded-md border" data-testid="transferir-previa">
+                  <ul
+                    className="max-h-64 divide-y overflow-y-auto rounded-md border"
+                    data-testid="transferir-previa"
+                  >
                     {previa.map((i) => (
                       <li key={i.id} className="flex items-start gap-2 p-2">
                         <Checkbox
@@ -218,7 +248,9 @@ export function TransferirCaptacaoDialog({
                           {i.arquivada ? " · arquivada" : ""}
                           <span className="block text-xs text-muted-foreground">
                             {i.bloqueio ?? TEXTO_CONTRATO[i.contrato]}
-                            {i.leads_abertos > 0 ? ` · ${i.leads_abertos} lead(s) aberto(s) vão junto` : ""}
+                            {i.leads_abertos > 0
+                              ? ` · ${i.leads_abertos} lead(s) aberto(s) vão junto`
+                              : ""}
                           </span>
                         </label>
                       </li>
@@ -228,14 +260,18 @@ export function TransferirCaptacaoDialog({
                 {previa && previa.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {resumo.total} de {previa.length} marcada(s)
-                    {resumo.bloqueadas ? ` · ${resumo.bloqueadas} em assinatura (não podem ir agora)` : ""}
+                    {resumo.bloqueadas
+                      ? ` · ${resumo.bloqueadas} em assinatura (não podem ir agora)`
+                      : ""}
                   </p>
                 )}
               </div>
             )}
 
             <div className="space-y-1">
-              <Label htmlFor="transf-motivo">{avulsa ? "Motivo (obrigatório)" : "4. Motivo (obrigatório)"}</Label>
+              <Label htmlFor="transf-motivo">
+                {avulsa ? "Motivo (obrigatório)" : "4. Motivo (obrigatório)"}
+              </Label>
               <select
                 id="transf-motivo"
                 className={SELECT}
@@ -264,15 +300,21 @@ export function TransferirCaptacaoDialog({
         ) : (
           <div className="space-y-2 text-sm" data-testid="transferir-confirmacao">
             <p>
-              Transferir <strong>{resumo.total === 1 ? "1 captação" : `${resumo.total} captações`}</strong> de{" "}
+              Transferir{" "}
+              <strong>{resumo.total === 1 ? "1 captação" : `${resumo.total} captações`}</strong> de{" "}
               <strong>{nomeDe}</strong> para <strong>{nomePara}</strong>.
             </p>
             <ul className="list-disc pl-5">
               {resumo.atualizados > 0 && (
-                <li>{resumo.atualizados} com contrato ainda não assinado: passa a sair no nome de {nomePara}.</li>
+                <li>
+                  {resumo.atualizados} com contrato ainda não assinado: passa a sair no nome de{" "}
+                  {nomePara}.
+                </li>
               )}
               {resumo.mantidos > 0 && (
-                <li>{resumo.mantidos} com contrato assinado: o PDF fica no nome de quem assinou.</li>
+                <li>
+                  {resumo.mantidos} com contrato assinado: o PDF fica no nome de quem assinou.
+                </li>
               )}
               {resumo.leads > 0 && <li>{resumo.leads} lead(s) aberto(s) vão junto.</li>}
               <li>Motivo: {motivo.trim()}</li>

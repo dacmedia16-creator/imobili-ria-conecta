@@ -32,7 +32,11 @@ import {
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { CaptureSummaryDialog } from "@/components/exclusividades/CaptureSummaryDialog";
 import { TransferirCaptacaoDialog } from "@/components/exclusividades/TransferirCaptacaoDialog";
-import { origensDoLote, papelPodeTransferir } from "@/lib/captacao-transferencia";
+import {
+  destinosTransferencia,
+  origensDoLote,
+  papelPodeTransferir,
+} from "@/lib/captacao-transferencia";
 import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
@@ -88,6 +92,14 @@ function ExclusiveList() {
   // Transferência em lote (t_997545e5): só dono/gestor; o banco confere de novo.
   const podeTransferirLote = papelPodeTransferir(hasAny);
   const [transferindoLote, setTransferindoLote] = useState(false);
+  // Nomes atuais dos corretores ativos (o nome do contrato não serve depois de uma transferência).
+  const [nomesCorretores, setNomesCorretores] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!transferindoLote) return;
+    destinosTransferencia()
+      .then((l) => setNomesCorretores(new Map(l.map((d) => [d.id, d.nome]))))
+      .catch(() => undefined);
+  }, [transferindoLote]);
   const today = hojeSaoPaulo();
   const contagem = contarPainel(captures, today);
   const archivedCount = captures.filter((c) => c.archived_at).length;
@@ -446,7 +458,7 @@ function ExclusiveList() {
           onOpenChange={setTransferindoLote}
           origens={origensDoLote(
             captures.filter((c) => !c.archived_at),
-            new Map(),
+            nomesCorretores,
           )}
           onDone={() => void carregar(true)}
         />

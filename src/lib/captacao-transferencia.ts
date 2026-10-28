@@ -33,11 +33,11 @@ export function contratoNaTransferencia(
 }
 
 export const TEXTO_CONTRATO: Record<ContratoNaTransferencia, string> = {
-  atualizado: "O contrato ainda não foi assinado: passa a sair com nome, CPF e CRECI do novo corretor.",
+  atualizado:
+    "O contrato ainda não foi assinado: passa a sair com nome, CPF e CRECI do novo corretor.",
   mantido:
     "O contrato já assinado continua como está, no nome de quem assinou. Só a responsabilidade muda.",
-  bloqueado:
-    "Contrato em assinatura na Clicksign: conclua ou cancele o envio antes de transferir.",
+  bloqueado: "Contrato em assinatura na Clicksign: conclua ou cancele o envio antes de transferir.",
 };
 
 /** Motivo: escolhido da lista ou "Outro" com texto livre. Devolve o erro ou null. */
@@ -117,7 +117,9 @@ export function textoTransferencia(d: DetalheTransferencia): string {
       : d.contrato === "atualizado"
         ? " · contrato passa a sair no nome do novo corretor"
         : "";
-  const leads = d.leads ? ` · ${d.leads} lead${d.leads === 1 ? "" : "s"} aberto${d.leads === 1 ? "" : "s"} transferido${d.leads === 1 ? "" : "s"}` : "";
+  const leads = d.leads
+    ? ` · ${d.leads} lead${d.leads === 1 ? "" : "s"} aberto${d.leads === 1 ? "" : "s"} transferido${d.leads === 1 ? "" : "s"}`
+    : "";
   return `Transferida de ${d.de_nome} para ${d.para_nome} · motivo: ${d.motivo}${contrato}${leads}`;
 }
 
@@ -153,7 +155,9 @@ export function origensDoLote(
     if (nome) porId.set(c.captor_id, nome);
     else if (!porId.has(c.captor_id)) porId.set(c.captor_id, "Corretor sem nome");
   }
-  return [...porId].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  return [...porId]
+    .map(([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 // ---- chamadas ao banco ------------------------------------------------------------------------
@@ -183,7 +187,12 @@ export async function transferirCaptacoes(
   ids: string[],
   destino: string,
   motivo: string,
-): Promise<{ transferidas: number; contratos_atualizados: number; contratos_mantidos: number; leads: number }> {
+): Promise<{
+  transferidas: number;
+  contratos_atualizados: number;
+  contratos_mantidos: number;
+  leads: number;
+}> {
   const { data, error } = await db.rpc("exclusive_transferir", {
     _ids: ids,
     _destino: destino,
