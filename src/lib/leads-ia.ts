@@ -153,7 +153,52 @@ export type DadosQualificacao = {
   confirmar_tipo?: string;
   /** t_37cf21e3 item 6: último parecido mostrado (fica depois do \"gostei\", para as fotos irem do imóvel certo). */
   ultimo_parecido?: ImovelParecido;
+  /** t_228659f0 item 1: imóveis já mostrados com link (até 5): o modelo e a trava conferem valor e suítes por eles. */
+  mostrados?: ImovelParecido[];
+  /** t_228659f0 item 2: nome de condomínio/empreendimento que o cliente citou (\"cannes\"). */
+  nome_busca?: string;
 };
+
+/** t_228659f0 item 2: busca por nome de condomínio/empreendimento (título e descrição do XML). */
+export type FiltroNome = { nome: string; negocio: NegocioParecido; excluir?: string[]; limite?: number };
+
+// Palavras comuns que não são nome de condomínio (\"tem casa?\", \"tem mais?\").
+const NAO_NOME = new Set(
+  ("casa casas apartamento apartamentos apto ap aps mais outra outras outro outros opcao opcoes sim nao isso esse essa " +
+    "visita terreno terrenos sobrado foto fotos video valor valores preco iptu condominio condominios permuta financiamento suite " +
+    "suites quarto quartos dormitorio dormitorios vaga vagas garagem piscina quintal area churrasqueira varanda elevador portaria " +
+    "academia disponivel desconto horario endereco bairro regiao centro algum alguma nada tudo como onde quando quanto qual " +
+    "mesmo ainda agora hoje amanha cobertura studio kitnet lote lotes comercial sala salas loja galpao chacara sitio aluguel " +
+    "venda mobiliado planejados pet escola mercado manha tarde noite certeza duvida interesse corretor corretora gente ai la " +
+    "aqui perto longe barato barata caro cara novo nova usado usada pronto pronta planta obra entrada parcela parcelas fgts " +
+    "proposta segunda terca quarta quinta sexta sabado domingo semana").split(" "),
+);
+const NOME_KW =
+  /\b(?:condominio|cond|residencial|edificio|ed|predio|empreendimento|torre|loteamento)\.?\s+(?:d[oa]s?\s+)?([a-z0-9][a-z0-9 ]{2,30}?)(?=\s*(?:[,.!?;]|$|\s(?:e|ou|que|q|tem|vc|voce|com|por|no|na|de|do|da|pra|para|perto)\b))/;
+/**
+ * Nome de condomínio/empreendimento citado (\"Tem no condomínio cannes\", \"Tem cannes??\"). Também vale o nome
+ * citado antes (`anterior`) quando ele aparece de novo (\"qual valor do cannes?\"). null = não citou.
+ */
+export function nomeCitado(texto: string, anterior?: string | null): string | null {
+  const n = norm(texto);
+  const kw = NOME_KW.exec(n)?.[1]?.trim();
+  if (kw && !NAO_NOME.has(kw)) return kw.slice(0, 40);
+  const solto = /^(?:e |mas )?(?:tem|teria|tinha|voces tem|vcs tem|vc tem)\s+(?:o |a |no |na |do |da |algum[a]? (?:no |na )?)?([a-z]{4,20})\s*[?!.]*$/.exec(n)?.[1];
+  if (solto && !NAO_NOME.has(solto)) return solto;
+  const ant = anterior ? norm(anterior) : "";
+  if (ant && new RegExp(`\\b${ant.replace(/[^a-z0-9 ]/g, "")}\\b`).test(n)) return ant;
+  return null;
+}
+/** Argumentos da RPC lead_ia_imoveis_nome (migration 20261028100000). */
+export function argsNome(conversaId: string, f: FiltroNome) {
+  return {
+    _conversa: conversaId,
+    _nome: norm(f.nome).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40),
+    _negocio: f.negocio === "locacao" ? "locacao" : "venda",
+    _excluir: (f.excluir ?? []).filter((c) => typeof c === "string" && c.trim()).slice(0, 20).map((c) => c.trim().slice(0, 60)),
+    _limite: Math.min(Math.max(Math.trunc(f.limite ?? 3), 1), 3),
+  };
+}
 
 /** Característica pedida pelo cliente (t_a9f1b447): vira filtro no XML da própria imobiliária. */
 export type FiltroCaracteristica = {
@@ -804,7 +849,7 @@ const OUTRO_DIA = /(segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|hoje
 
 // t_2aecef49: cliente pede um dia/horário que não está nas 2 opções ("sábado de manhã pode ser?").
 // A Nicole aceita e anota, sem repetir as opções; o corretor confirma pelo resumo.
-const DIA_PEDIDO_RE = /\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
+const DIA_PEDIDO_RE = /\b(amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
 const MARCAR_RE = /(pode ser|da pra|da para|consigo|posso (ir|passar|visitar)|seria possivel|tem como|visit|agendar|marcar|ir ver|conhecer)/;
 /** "sábado de manhã", "fim de semana", "sexta às 18h" (texto do próprio cliente, normalizado e com acento). */
 export function diaPedido(texto: string): string | null {
@@ -812,7 +857,7 @@ export function diaPedido(texto: string): string | null {
   const d = DIA_PEDIDO_RE.exec(n)?.[1];
   if (!d) return null;
   const i = DIAS_N.indexOf(d);
-  const dia = i >= 0 ? DIAS[i] : d === "final de semana" ? "fim de semana" : d;
+  const dia = i >= 0 ? DIAS[i] : d === "final de semana" ? "fim de semana" : d === "amanha" ? "amanhã" : d;
   const periodo = /\bmanha\b/.test(n) ? "de manhã" : /\btarde\b/.test(n) ? "à tarde" : /\bnoite\b/.test(n) ? "à noite" : "";
   const h = /\b(\d{1,2})(?:h|:(\d{2}))\b/.exec(n);
   const hora = h && Number(h[1]) <= 23 ? `às ${h[1]}h${h[2] && h[2] !== "00" ? h[2] : ""}` : "";
@@ -1666,15 +1711,12 @@ export async function proximaResposta(
   const sujeito = oImovel(ficha?.tipo);
 
   /** Convida para a visita com 2 opções (a própria Nicole conduz; o corretor só confirma o horário). */
+  // t_228659f0 item 5 (7ebaa6bb): a Nicole não tem agenda. Antes oferecia 2 dias/períodos como se estivessem
+  // livres (\"tenho amanhã de manhã ou sexta à tarde\"); agora pergunta a preferência e o corretor confirma.
   const ofereceVisita = (intro: string, alvo?: string): RespostaIa => {
-    const opcoes = opcoesVisita(agora);
-    dados.visita_opcoes = opcoes;
     dados.convite_visita = true;
     const para = alvo ?? (ficha?.tipo ? `conhecer ${sujeito}` : frase ? `conhecer ${frase}` : "conhecer o imóvel");
-    return continuar(
-      junta(intro, `Para ${para}, tenho ${opcoes[0]} ou ${opcoes[1]}. Qual fica melhor para você? Te confirmo o horário certinho.`),
-      "visita",
-    );
+    return continuar(junta(intro, `Para ${para}, qual dia e período ficam melhores para você? O corretor confirma o horário com você.`), "visita");
   };
   /** 1 pergunta natural para avançar: visita (uma vez) ou mais algum detalhe. */
   const fecho = (intro: string): RespostaIa => {
@@ -1961,7 +2003,7 @@ export async function proximaResposta(
   // tarde ANTES de passar (t_82c89141 item 4); com período, passa avisando que o corretor continua (item 6a).
   if (!detectarTemas(texto).length) {
     const ctxVisita = passoAtual === "visita" || !!dados.convite_visita || !!dados.visita_opcoes || !!diaPendente;
-    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? opcoesVisita(agora), ctxVisita);
+    const pedido = pedidoDiaFora(texto, dados.visita_opcoes ?? [], ctxVisita);
     if (pedido) {
       if (!temPeriodo(pedido)) return perguntaPeriodo(dados, pedido, passoAtual === "codigo" ? "interesse" : passoAtual);
       return passarVisita(dados, ctx, agora, pedido);
@@ -2238,9 +2280,11 @@ export async function proximaResposta(
 
   // Visita: escolha entre as 2 opções oferecidas.
   if (passoAtual === "visita") {
-    const opcoes = dados.visita_opcoes ?? opcoesVisita(agora);
-    // \"Não\" para o parecido oferecido durante a visita: volta às 2 opções (não encerra a conversa).
-    if (respParecido) return continuar(`${abertura ?? "Tudo bem!"} Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?`, "visita");
+    // t_228659f0 item 5: só conversas antigas têm opções guardadas; as novas não oferecem dia.
+    const opcoes = dados.visita_opcoes ?? [];
+    const qualDia = opcoes.length ? `Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?` : "Sobre a visita: qual dia e período ficam melhores para você?";
+    // \"Não\" para o parecido oferecido durante a visita: volta à visita (não encerra a conversa).
+    if (respParecido) return continuar(`${abertura ?? "Tudo bem!"} ${qualDia}`, "visita");
     const escolha = escolhaVisita(texto, opcoes);
     const rep = dados.repeticoes!.visita ?? 0;
     const livre = !escolha && !ehDuvida && OUTRO_DIA.test(n) ? curto(texto, 60) : null;
@@ -2259,7 +2303,7 @@ export async function proximaResposta(
     if (PREFERE_CORRETOR.test(n) || (SEM_INTERESSE.test(n) && !ehDuvida)) return passarAo(junta(duvida, "Sem problema!"), "");
     if (rep < 1) {
       dados.repeticoes!.visita = rep + 1;
-      const q = ehDuvida ? `Sobre a visita: ${opcoes[0]} ou ${opcoes[1]} fica bom para você?` : "Sem problema! Qual dia e período ficam melhores para você?";
+      const q = ehDuvida ? qualDia : "Sem problema! Qual dia e período ficam melhores para você?";
       return continuar(junta(duvida, q), "visita");
     }
     return passarAo(duvida, "para combinar a visita");

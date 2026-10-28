@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { argsBusca, argsCaracteristica, argsParecidos, normalizarCaracteristica, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
+import { argsBusca, argsNome, argsCaracteristica, argsParecidos, normalizarCaracteristica, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
 import { historicoDb, redacaoLigadaDb, redigirResposta } from "./leads-ia-redacao";
 
@@ -85,6 +85,11 @@ export const responderComoCliente = createServerFn({ method: "POST" })
         env: process.env as Record<string, string | undefined>,
         historico,
         buscarParecidos,
+        // t_228659f0: busca pelo nome do condomínio (migration 20261028100000; antes dela, erro = não consultado).
+        buscarNome: async (f) => {
+          const { data: pr, error: ep } = await db.rpc("lead_ia_imoveis_nome", argsNome(c.conversa_id, f));
+          return ep ? null : normalizarParecidos(pr);
+        },
         registrar: (u) => usos.push(u),
       });
     }

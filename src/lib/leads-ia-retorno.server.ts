@@ -15,6 +15,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
 import {
   argsBusca,
+  argsNome,
+  type FiltroNome,
   argsCaracteristica,
   argsParecidos,
   normalizarCaracteristica,
@@ -162,6 +164,8 @@ export type DepsRetorno = {
   buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
   /** Busca por característica (suítes, quartos, vagas...) no XML da própria imobiliária (t_a9f1b447). Opcional. */
   buscarCaracteristica?: (conversaId: string, filtro: FiltroCaracteristicaBusca) => Promise<ResultadoCaracteristica | null>;
+  /** t_228659f0: busca pelo nome do condomínio (lead_ia_imoveis_nome). Erro (migration não aplicada) = null. */
+  buscarNome?: (conversaId: string, filtro: FiltroNome) => Promise<ResultadoParecidos | null>;
   /** Chave da imobiliária: o modelo escreve a resposta (lead_config.ia_redige, padrão desligado, t_7b59589c). */
   redacaoLigada?: (orgId: string) => Promise<boolean>;
   /** Modo do validador da imobiliária (lead_config.ia_validador_modo, t_3a4bf078). Sem ele ou com erro = "bloquear". */
@@ -333,7 +337,8 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       const modo: ModoValidador = deps.modoValidador
         ? await deps.modoValidador(banco.organization_id!).catch(() => "bloquear" as const)
         : "bloquear";
-      const red = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn, modo });
+      const buscarNome = deps.buscarNome ? (f: FiltroNome) => deps.buscarNome!(c.conversa_id, f) : undefined;
+      const red = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, buscarNome, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn, modo });
       semResposta = !!red.sem_resposta;
       r = red;
     }
@@ -507,6 +512,12 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     buscarCaracteristica: async (conversaId, filtro) => {
       const { data, error } = await db.rpc("lead_ia_imoveis_caracteristica", argsCaracteristica(conversaId, filtro));
       return error ? null : normalizarCaracteristica(data);
+    },
+    // Função nova (migration 20261028100000, ainda não aplicada): enquanto isso, o erro vira null e a Nicole diz
+    // que o corretor confirma se há unidade no condomínio (nunca \"não temos\").
+    buscarNome: async (conversaId, filtro) => {
+      const { data, error } = await db.rpc("lead_ia_imoveis_nome", argsNome(conversaId, filtro));
+      return error ? null : normalizarParecidos(data);
     },
     redacaoLigada: (orgId) => redacaoLigadaDb(db, orgId),
     modoValidador: (orgId) => modoValidadorDb(db, orgId),

@@ -38,6 +38,28 @@ export interface XmlListing {
   negocio?: "venda" | "locacao" | "venda_locacao";
   /** Só no genérico: aluguel mensal anunciado (<RentalPrice>). */
   preco_aluguel?: number | null;
+  /** t_228659f0: título + descrição, minúsculos e sem acento, SEM link, e-mail nem telefone (busca por nome do
+   * condomínio: \"Residencial Cannes\" só aparece na descrição). Só no genérico. */
+  busca_texto?: string | null;
+}
+
+/** Texto de busca do anúncio (t_228659f0): sem link, e-mail, telefone nem número longo; até 600 caracteres. */
+export function textoBusca(...partes: Array<string | null | undefined>): string | null {
+  const t = partes
+    .filter(Boolean)
+    .join(" ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/https?:\/\/\S+|www\.\S+|\S+@\S+/gi, " ")
+    .replace(/\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}/g, " ")
+    .replace(/\d{6,}/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ,./-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 600);
+  return t || null;
 }
 
 /**
@@ -225,6 +247,7 @@ export function mapXmlListing(item: string, modo: ModoXml = "remax"): XmlListing
     area_terreno: num(tag(details, "LotArea"), 0.01, 1e8),
     negocio,
     preco_aluguel: negocio === "venda" ? null : num(tag(details, "RentalPrice"), 1, 1e9),
+    busca_texto: textoBusca(titulo, tag(details, "Description") ?? tag(semContato, "Description")),
   };
 }
 
