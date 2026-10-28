@@ -1697,15 +1697,24 @@ export async function proximaResposta(
 
   // --- Imóvel parecido do XML (t_232e13cb). Sem op.buscarParecidos: não oferece. ---
   /** Oferece o próximo parecido (1 por vez, até 3, nunca repete) ou diz com franqueza que não há. */
-  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null, pedido = true): Promise<RespostaIa> => {
+  // t_0c590c55 item 1: \"extraUm\" = o cliente corrigiu o tipo (\"disse q quero casa\") depois das 3 opções; ganha
+  // mais 1 opção desse tipo (com link) ou, sem nenhuma, a última que viu de novo com o link.
+  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null, pedido = true, extraUm = false): Promise<RespostaIa> => {
     const ja = dados.parecidos ?? [];
+    const limite = MAX_PARECIDOS + (extraUm ? 1 : 0);
+    const ultimo = dados.ultimo_parecido;
     dados.parecido_atual = undefined;
     dados.parecido_pergunta = undefined;
     const fimOpcoes = (t: string) => {
       dados.parecidos_fim = true;
       return continuar(junta(intro, t, "Gostou de alguma? Se quiser, marco uma visita."));
     };
-    if (ja.length >= MAX_PARECIDOS) {
+    const deNovo = () =>
+      ultimo?.url
+        ? continuar(junta(intro, `A última ${ultimo.tipo || "opção"} que te mostrei${ultimo.bairro ? ` fica ${noBairro(ultimo.bairro)}` : ""}${valorCurto(ultimo) ? `, ${valorCurto(ultimo)}` : ""}: ${ultimo.url} Quer ver essa ou prefere agendar a visita?`))
+        : null;
+    if (ja.length >= limite) {
+      if (extraUm) return deNovo() ?? fimOpcoes("Essas são as opções que tenho agora nesse perfil.");
       if (!dados.parecidos_fim) return fimOpcoes("Essas são as opções que tenho agora nesse perfil.");
       return passarAo(junta(intro, "Vou procurar mais opções para você."), "com outras opções");
     }
@@ -1731,6 +1740,10 @@ export async function proximaResposta(
       if (p) foraRegiao = extra.bairro;
     }
     if (!p) {
+      if (extraUm) {
+        const r0 = deNovo();
+        if (r0) return r0;
+      }
       if (res && ja.length && !dados.parecidos_fim) return fimOpcoes("Por enquanto essas são as opções parecidas que tenho por aqui.");
       const franco = !res
         ? "Vou separar outras opções para você."
@@ -1739,11 +1752,18 @@ export async function proximaResposta(
           : "Agora não tenho outra opção parecida com essa por aqui, mas vou procurar para você.";
       return passarAo(junta(intro, franco), "com outras opções");
     }
-    dados.parecidos = [...ja, p.codigo].slice(0, MAX_PARECIDOS);
+    dados.parecidos = [...ja, p.codigo].slice(0, limite);
     dados.parecido_atual = p;
     dados.ultimo_parecido = p;
     dados.interesse = true;
     dados.convite_visita = true;
+    // O modelo recebe esta casa como candidata (a busca normal para depois de 3 opções).
+    if (extraUm && !extra.bairro)
+      return {
+        ...continuar(junta(intro, textoParecido(p, dados.parecidos.length, { pedido, comPedido: false }))),
+        intencao: "opcoes",
+        busca: { pedido: `outras opções do tipo ${p.tipo || "pedido"}`, itens: [p], fora_faixa: false },
+      };
     const r: RespostaIa = {
       ...continuar(
         junta(intro, foraRegiao ? textoForaRegiao(p, foraRegiao, ficha?.tipo) : textoParecido(p, dados.parecidos.length, { pedido, comPedido: !!ficha?.tipo && p.tipo === ficha.tipo })),
@@ -1847,7 +1867,8 @@ export async function proximaResposta(
   if (tipoDito && busca && ficha?.tipo === tipoDito) {
     if (b2?.ativa) b2.ativa = false;
     if (dados.filtro_pedido?.tipo && dados.filtro_pedido.tipo !== tipoDito) dados.filtro_pedido = { ...dados.filtro_pedido, tipo: tipoDito };
-    return { ...(await ofertar(`Combinado, ${PLURAL_TIPO[tipoDito] ?? tipoDito} então!`, {}, undefined, false)), intencao: "opcoes" };
+    // t_0c590c55 item 1: mostra uma casa (com link), mesmo depois das 3 opções; a intenção vem do ofertar.
+    return ofertar(`Combinado, ${PLURAL_TIPO[tipoDito] ?? tipoDito} então!`, {}, undefined, false, true);
   }
   if (tipoDito && b2 && b2.tipo === tipoDito && b2.tipo !== ficha?.tipo) {
     b2.ativa = true;
