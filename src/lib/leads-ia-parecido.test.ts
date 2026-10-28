@@ -215,23 +215,24 @@ describe("conteúdo e passagem (regra 4)", () => {
   });
 
   it("cliente se interessa: convite simples primeiro (t_a9f1b447 item 7); 'sim' traz as datas; na escolha, passa com o código", async () => {
-    const rs = await conversa(["tem outras opções?", "gostei, quero esse", "sim", "a primeira"], buscaFake());
+    const rs = await conversa(["tem outras opções?", "gostei, quero esse", "sim", "sexta à tarde"], buscaFake());
     expect(rs[1].fim).toBeNull();
     expect(rs[1].resposta).toBe("Que bom que gostou! Quer agendar uma visita para conhecer esse apartamento?");
     expect(rs[1].resposta).not.toMatch(/\d{2}\/\d{2}|manhã|tarde/);
     expect(rs[1].dados.parecido_interesse).toBe("VIP0101");
     expect(rs[2].passo).toBe("visita");
-    expect(rs[2].resposta).toMatch(/amanhã .*manhã|tarde/);
+    expect(rs[2].resposta).toMatch(/qual dia e período/); // t_228659f0 item 5: sem agenda inventada
+    expect(rs[2].resposta).not.toMatch(/amanhã|tenho/);
     expect(rs[3].fim).toBe("visita");
     expect(rs[3].resumo).toMatch(/INTERESSE NO IMÓVEL PARECIDO código VIP0101/);
     expect(rs[3].resposta_falha).toBeTruthy();
   });
 
-  it("quer visitar o parecido: oferece 2 horários para ele", async () => {
+  it("quer visitar o parecido: pergunta dia e período para ele (t_228659f0 item 5)", async () => {
     const rs = await conversa(["tem outras opções?", "quero visitar"], buscaFake());
     expect(rs[1].fim).toBeNull();
     expect(rs[1].passo).toBe("visita");
-    expect(rs[1].resposta).toMatch(/^Que bom que gostou! Para conhecer esse apartamento, tenho amanhã/);
+    expect(rs[1].resposta).toMatch(/^Que bom que gostou! Para conhecer esse apartamento, qual dia e período/);
   });
 
   it("dúvida sobre o parecido: responde só pelo XML; disponibilidade/permuta ficam para confirmar", async () => {
@@ -254,7 +255,7 @@ describe("conteúdo e passagem (regra 4)", () => {
     const rs = await conversa(["quero agendar uma visita", "tem outra opção?", "não"], buscaFake());
     expect(rs[0].passo).toBe("visita");
     expect(ofertas([rs[1]])).toBe(1);
-    expect(rs[2].resposta).toBe("Tudo bem! Sobre a visita: amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde fica bom para você?");
+    expect(rs[2].resposta).toBe("Tudo bem! Sobre a visita: qual dia e período ficam melhores para você?");
     expect(rs[2].fim).toBeNull();
   });
 

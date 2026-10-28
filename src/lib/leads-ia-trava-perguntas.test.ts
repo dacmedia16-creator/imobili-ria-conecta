@@ -64,7 +64,7 @@ describe("trava perguntas: barra 2 perguntas de verdade, deixa as legítimas", (
   ])("barra: %s", (m) => expect(v(m)).toBe("perguntas"));
   it.each([
     "Entendo, você quer 3 suítes. Nessa faixa não temos, mas o apartamento no Centro com 3 suítes é o mais em conta, por R$ 975.000. Te serve? Ou prefere ver algo com um pouco menos?",
-    "Claro! Que tal amanhã de manhã ou quinta à tarde? Qual prefere?",
+    "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário.",
     "Anotado, quarta de manhã, certo? Quer que eu anote mais alguma coisa?",
   ])("deixa: %s", (m) => expect(v(m)).toBeNull());
 });
