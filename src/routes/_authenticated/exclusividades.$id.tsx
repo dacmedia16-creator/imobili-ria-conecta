@@ -180,6 +180,7 @@ import {
   Download,
   Eye,
   FileCheck2,
+  ArrowRightLeft,
   Handshake,
   Pencil,
   Printer,
@@ -187,6 +188,16 @@ import {
   Upload,
 } from "lucide-react";
 import { ListSkeleton } from "@/components/visual/base";
+import { TransferirCaptacaoDialog } from "@/components/exclusividades/TransferirCaptacaoDialog";
+import {
+  avisoContratoOutroCorretor,
+  contratoNaTransferencia,
+  lerTransferencia,
+  papelPodeTransferir,
+  podeTransferir,
+  textoTransferencia,
+  TEXTO_CONTRATO,
+} from "@/lib/captacao-transferencia";
 
 export const Route = createFileRoute("/_authenticated/exclusividades/$id")({
   beforeLoad: guardExclusiveRoute,
@@ -323,6 +334,47 @@ function ExclusiveDetail() {
       manager,
     });
   const corrigindoAtivo = corrigindo && podeCorrigir;
+  // Transferir para outro corretor (t_997545e5): só dono/gestor; o banco confere de novo.
+  const [transferindo, setTransferindo] = useState(false);
+  const [podeTransf, setPodeTransf] = useState(false);
+  const papelTransfere = papelPodeTransferir(hasAny);
+  useEffect(() => {
+    if (!capture?.id || !user?.id || !papelTransfere) {
+      setPodeTransf(false);
+      return;
+    }
+    let vivo = true;
+    void podeTransferir(capture.id, user.id).then((ok) => vivo && setPodeTransf(ok));
+    return () => {
+      vivo = false;
+    };
+  }, [capture?.id, capture?.captor_id, user?.id, papelTransfere]);
+  const transfAvulsa = useMemo(() => {
+    if (!capture) return undefined;
+    const contrato = contratoNaTransferencia(capture, clicksignModo.envelopeAtivo);
+    const i = capture.form_data?.imovel;
+    const endereco = [i?.endereco, i?.complemento].filter((x) => x?.trim()).join(", ");
+    const ultima = history.find((h) => h.action === "transferida");
+    return {
+      id: capture.id,
+      captorId: capture.captor_id,
+      // broker_name fica no nome antigo quando o contrato já foi assinado; o histórico tem o atual.
+      captorNome: ultima ? lerTransferencia(ultima.detail).para_nome : capture.broker_name || "—",
+      endereco,
+      item: {
+        id: capture.id,
+        endereco: endereco || "—",
+        bairro: i?.bairro ?? null,
+        status: capture.status,
+        manual: !!capture.manual,
+        arquivada: !!capture.archived_at,
+        bloqueio: contrato === "bloqueado" ? TEXTO_CONTRATO.bloqueado : null,
+        contrato,
+        leads_abertos: 0,
+      },
+    };
+  }, [capture, history, clicksignModo.envelopeAtivo]);
+  const avisoTransferida = capture ? avisoContratoOutroCorretor(capture, history) : null;
   // Na aprovada não há salvamento automático: avisa antes de fechar/recarregar com correção pendente.
   useEffect(() => {
     if (!corrigindoAtivo || !dirty) return;
@@ -1230,7 +1282,27 @@ function ExclusiveDetail() {
             Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
           </p>
         )}
+        {avisoTransferida && (
+          <p
+            role="status"
+            data-testid="aviso-transferida"
+            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          >
+            {avisoTransferida}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
+          {podeTransf && !corrigindoAtivo && (
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="transferir-captacao"
+              disabled={busy}
+              onClick={() => setTransferindo(true)}
+            >
+              <ArrowRightLeft className="mr-1 h-4 w-4" /> Transferir
+            </Button>
+          )}
           {podeCorrigir && !corrigindoAtivo && (
             <Button
               size="sm"
@@ -2150,6 +2222,14 @@ function ExclusiveDetail() {
                 const quando = new Date(h.created_at).toLocaleString("pt-BR", {
                   timeZone: "America/Sao_Paulo",
                 });
+                if (h.action === "transferida") {
+                  return (
+                    <div key={h.id} className="border-b py-1" data-testid="historico-transferida">
+                      Em {quando} · {textoTransferencia(lerTransferencia(h.detail))} ·{" "}
+                      {autorDoHistorico(h, user?.id)}
+                    </div>
+                  );
+                }
                 if (h.action === "corrigida") {
                   const c = lerCorrecao(h.detail);
                   return (
@@ -2222,6 +2302,16 @@ function ExclusiveDetail() {
           Próximo <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
+      {podeTransf && (
+        <TransferirCaptacaoDialog
+          open={transferindo}
+          onOpenChange={setTransferindo}
+          avulsa={transfAvulsa}
+          onDone={() => {
+            void reload().catch(() => undefined);
+          }}
+        />
+      )}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
