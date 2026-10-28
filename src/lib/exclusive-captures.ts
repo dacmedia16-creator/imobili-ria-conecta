@@ -193,6 +193,8 @@ export type CaptureForm = {
 export type Capture = {
   id: string;
   captor_id: string;
+  /** Quem captou, gravado na 1ª transferência entre corretores (t_997545e5); null = nunca transferida. */
+  captador_original_id?: string | null;
   template: Template;
   /** Unidade escolhida na criação; nulo nas captações anteriores ao cadastro de unidades. */
   unit_id?: string | null;

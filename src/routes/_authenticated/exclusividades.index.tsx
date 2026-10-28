@@ -31,6 +31,12 @@ import {
 } from "@/lib/exclusive-captures-dashboard";
 import { CapturesFilters } from "@/components/exclusividades/CapturesFilters";
 import { CaptureSummaryDialog } from "@/components/exclusividades/CaptureSummaryDialog";
+import { TransferirCaptacaoDialog } from "@/components/exclusividades/TransferirCaptacaoDialog";
+import {
+  destinosTransferencia,
+  origensDoLote,
+  papelPodeTransferir,
+} from "@/lib/captacao-transferencia";
 import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
@@ -53,6 +59,7 @@ import {
   House,
   MapPinned,
   Trash2,
+  UserRoundCog,
 } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
@@ -82,6 +89,17 @@ function ExclusiveList() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   // Cartão do painel de contadores selecionado (filtra a lista; clicar de novo limpa).
   const [card, setCard] = useState<PainelCardKey | null>(null);
+  // Transferência em lote (t_997545e5): só dono/gestor; o banco confere de novo.
+  const podeTransferirLote = papelPodeTransferir(hasAny);
+  const [transferindoLote, setTransferindoLote] = useState(false);
+  // Nomes atuais dos corretores ativos (o nome do contrato não serve depois de uma transferência).
+  const [nomesCorretores, setNomesCorretores] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!transferindoLote) return;
+    destinosTransferencia()
+      .then((l) => setNomesCorretores(new Map(l.map((d) => [d.id, d.nome]))))
+      .catch(() => undefined);
+  }, [transferindoLote]);
   const today = hojeSaoPaulo();
   const contagem = contarPainel(captures, today);
   const archivedCount = captures.filter((c) => c.archived_at).length;
@@ -270,6 +288,11 @@ function ExclusiveList() {
                 {onlyExpiring ? "Ver todas" : `Vencendo (${expiringCount})`}
               </Button>
             )}
+            {podeTransferirLote && !showArchived && (
+              <Button variant="outline" size="sm" onClick={() => setTransferindoLote(true)}>
+                <UserRoundCog className="mr-1 h-4 w-4" /> Transferir captações
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
               <Archive className="mr-1 h-4 w-4" />
               {showArchived ? "Voltar para ativas" : `Arquivadas (${archivedCount})`}
@@ -429,6 +452,17 @@ function ExclusiveList() {
         onClose={() => setSummary(null)}
         units={units}
       />
+      {podeTransferirLote && (
+        <TransferirCaptacaoDialog
+          open={transferindoLote}
+          onOpenChange={setTransferindoLote}
+          origens={origensDoLote(
+            captures.filter((c) => !c.archived_at),
+            nomesCorretores,
+          )}
+          onDone={() => void carregar(true)}
+        />
+      )}
     </div>
   );
 }
