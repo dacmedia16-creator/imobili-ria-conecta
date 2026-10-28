@@ -28,18 +28,22 @@ import {
  * Envelope em assinatura (gestor/jurídico/ADM): mostra quem já assinou, reenvia o aviso a quem falta
  * (espera de 10 min entre reenvios) e corrige nome/e-mail de quem ainda não assinou. Tudo passa pela
  * edge function clicksign-manage, que confere papel, envelope e allowlist de novo no servidor.
+ * canManage=false (corretor que só acompanha, t_82e51349): lista, "faltam N" e Atualizar, sem
+ * Editar nem Reenviar aviso. O servidor também nega essas ações a quem não gerencia.
  */
 export function ClicksignGestaoEnvelope({
   db,
   captureId,
   envelope,
   testMode,
+  canManage = true,
   onChanged,
 }: {
   db: SupabaseClient;
   captureId: string;
   envelope: ClicksignEnvelopeInfo;
   testMode: boolean;
+  canManage?: boolean;
   onChanged: () => Promise<unknown> | void;
 }) {
   const [signers, setSigners] = useState<ManagedSigner[] | null>(null);
@@ -143,7 +147,7 @@ export function ClicksignGestaoEnvelope({
               </div>
               <div className="flex items-center gap-2">
                 <SignerStatusBadge signer={s} />
-                {s.editable && (
+                {canManage && s.editable && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -159,26 +163,35 @@ export function ClicksignGestaoEnvelope({
           ))}
         </ul>
       )}
-      <p className="text-xs text-muted-foreground">
-        Dá para corrigir nome e e-mail de proprietário e testemunha que ainda não assinou. Corretor
-        e imobiliária vêm do cadastro: corrija lá.
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy || wait > 0 || pendentes === 0}
-          onClick={() => void reenviar()}
-        >
-          <Send className="mr-1 h-4 w-4" /> Reenviar aviso
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          {wait > 0
-            ? `Aviso reenviado há pouco; libera em ${wait} min.`
-            : "Manda de novo o e-mail para quem ainda não assinou."}
-        </span>
-      </div>
-      <Dialog open={!!editing} onOpenChange={(o) => !busy && !o && setEditing(null)}>
+      {canManage ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Dá para corrigir nome e e-mail de proprietário e testemunha que ainda não assinou.
+            Corretor e imobiliária vêm do cadastro: corrija lá.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || wait > 0 || pendentes === 0}
+              onClick={() => void reenviar()}
+            >
+              <Send className="mr-1 h-4 w-4" /> Reenviar aviso
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {wait > 0
+                ? `Aviso reenviado há pouco; libera em ${wait} min.`
+                : "Manda de novo o e-mail para quem ainda não assinou."}
+            </span>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Você acompanha quem já abriu e assinou. Reenviar aviso e corrigir signatário ficam com o
+          gestor, o team leader, o jurídico ou o ADM.
+        </p>
+      )}
+      <Dialog open={canManage && !!editing} onOpenChange={(o) => !busy && !o && setEditing(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar signatário: {editing?.label}</DialogTitle>

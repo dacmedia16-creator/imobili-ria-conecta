@@ -87,9 +87,17 @@ Deno.serve(async (req) => {
         : "",
     ).catch((e) => {
       console.error("clicksign-manage internal", e instanceof Error ? e.message : "erro");
-      return { status: 500, body: { error: "Falha interna. Atualize a página e confira o status." } };
+      return {
+        status: 500,
+        body: { error: "Falha interna. Atualize a página e confira o status." },
+      };
     });
-    console.log("clicksign-manage", "reconcile", res.status, (res.body as { result?: string }).result ?? "");
+    console.log(
+      "clicksign-manage",
+      "reconcile",
+      res.status,
+      (res.body as { result?: string }).result ?? "",
+    );
     return json(res.body, res.status);
   }
   const result = await handleManage(
@@ -102,6 +110,16 @@ Deno.serve(async (req) => {
         const d = (data ?? {}) as { org?: string; envelope?: string };
         if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
         return { org: d.org, envelope: d.envelope };
+      },
+      // Só a ação "status": quem já vê a captação acompanha (t_82e51349).
+      async authorizeView(captureId) {
+        const { data, error } = await user.rpc("clicksign_capture_view_authorize", {
+          _id: captureId,
+        });
+        if (error) throw new Error(error.message);
+        const d = (data ?? {}) as { org?: string; envelope?: string; can_manage?: boolean };
+        if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
+        return { org: d.org, envelope: d.envelope, canManage: d.can_manage === true };
       },
       async loadContext(org, envelopeRow) {
         const [env, settings, token] = await Promise.all([

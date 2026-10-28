@@ -338,8 +338,9 @@ function GestaoVenda({
   const [email, setEmail] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
+  // Quem só acompanha (corretor, t_82e51349) também carrega a lista; o servidor devolve tudo como
+  // não editável e continua negando reenviar/editar a quem não gerencia.
   const load = useCallback(async () => {
-    if (!canAct) return;
     setLoadError(null);
     try {
       setSigners(await saleSignersStatus(db, saleId));
@@ -347,7 +348,7 @@ function GestaoVenda({
       setSigners(null);
       setLoadError(errorMessage(e, "Não foi possível consultar a Clicksign agora."));
     }
-  }, [db, saleId, canAct]);
+  }, [db, saleId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -355,15 +356,6 @@ function GestaoVenda({
     const t = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(t);
   }, []);
-
-  if (!canAct) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        O gestor, o team leader, o jurídico ou o ADM acompanham quem já abriu e assinou. Você será avisado quando o
-        contrato assinado for anexado.
-      </p>
-    );
-  }
 
   const wait = notifyWaitMinutes({ notify_available_at: notifyAvailableAt } as never, now);
   const pendentes = signers?.filter((s) => !s.signed).length ?? null;
@@ -434,7 +426,7 @@ function GestaoVenda({
               </div>
               <div className="flex items-center gap-2">
                 <SignerStatusBadge signer={s} />
-                {s.editable && (
+                {canAct && s.editable && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -454,22 +446,30 @@ function GestaoVenda({
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy || wait > 0 || pendentes === 0}
-          onClick={() => void reenviar()}
-        >
-          <Send className="mr-1 h-4 w-4" /> Reenviar aviso
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          {wait > 0
-            ? `Aviso reenviado há pouco; libera em ${wait} min.`
-            : "Manda de novo o e-mail para quem ainda não assinou."}
-        </span>
-      </div>
-      <Dialog open={!!editing} onOpenChange={(o) => !busy && !o && setEditing(null)}>
+      {canAct ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || wait > 0 || pendentes === 0}
+            onClick={() => void reenviar()}
+          >
+            <Send className="mr-1 h-4 w-4" /> Reenviar aviso
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {wait > 0
+              ? `Aviso reenviado há pouco; libera em ${wait} min.`
+              : "Manda de novo o e-mail para quem ainda não assinou."}
+          </span>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Você acompanha quem já abriu e assinou. Reenviar aviso e corrigir signatário ficam com o
+          gestor, o team leader, o jurídico ou o ADM. Você será avisado quando o contrato assinado
+          for anexado.
+        </p>
+      )}
+      <Dialog open={canAct && !!editing} onOpenChange={(o) => !busy && !o && setEditing(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar signatário: {editing?.label}</DialogTitle>

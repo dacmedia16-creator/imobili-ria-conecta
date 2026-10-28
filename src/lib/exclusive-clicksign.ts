@@ -337,6 +337,15 @@ export function canManageEnvelope(config: ClicksignCaptureConfig): boolean {
 }
 
 /**
+ * Pode acompanhar a lista de signatários (só leitura, t_82e51349): quem recebe a config ligada já
+ * vê a captação (o banco só liga para quem gerencia ou tem exclusive_can_view) e o envelope está
+ * rodando. Editar/Reenviar continuam em canManageEnvelope.
+ */
+export function canFollowEnvelope(config: ClicksignCaptureConfig): boolean {
+  return config.enabled && config.envelope?.status === "running";
+}
+
+/**
  * Minutos que faltam para liberar "Reenviar aviso" (0 = liberado). O servidor confere de novo;
  * aqui só evita o clique inútil.
  */

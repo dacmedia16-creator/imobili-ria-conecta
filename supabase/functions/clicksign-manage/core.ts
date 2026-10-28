@@ -67,6 +67,12 @@ export type ManageContext = {
 export type ManageDeps = {
   /** RPC de autorização com o JWT do usuário; lança Error com mensagem clara. */
   authorize(id: string): Promise<{ org: string; envelope: string }>;
+  /**
+   * Só a ação "status" (t_82e51349): leitura para quem já vê a captação/venda (corretor dono), com o
+   * JWT do usuário. canManage = false deixa todos os signatários não editáveis. Ausente = usa
+   * authorize (só quem gerencia), como antes.
+   */
+  authorizeView?(id: string): Promise<{ org: string; envelope: string; canManage: boolean }>;
   loadContext(org: string, envelopeRow: string): Promise<ManageContext>;
   /** Trava curta contra duplo clique/duas abas; "cooldown" = aviso reenviado há menos de 10 min. */
   lock(envelopeRow: string, kind: "notify" | "edit"): Promise<"ok" | "busy" | "cooldown">;
@@ -154,9 +160,16 @@ export async function handleManage(
   if (action === "cancel_papel" && !deps.markCanceledPapel) return fail(501, "Ação indisponível");
   const editable = EDITABLE[kind];
 
-  let auth: { org: string; envelope: string };
+  // Leitura (status) aceita quem só acompanha; escrita (notify/edit/cancel) segue no authorize.
+  // Se a leitura falhar (ex.: RPC nova ainda não aplicada), tenta o authorize de quem gerencia, que
+  // é mais restrito: quem gerencia nunca perde a lista; quem só acompanha recebe 403.
+  let auth: { org: string; envelope: string; canManage: boolean };
   try {
-    auth = await deps.authorize(id);
+    const manage = async () => ({ ...(await deps.authorize(id)), canManage: true });
+    auth =
+      action === "status" && deps.authorizeView
+        ? await deps.authorizeView(id).catch(manage)
+        : await manage();
   } catch (e) {
     return fail(403, e instanceof Error ? e.message : "Ação não autorizada");
   }
@@ -181,7 +194,7 @@ export async function handleManage(
             opened: s.opened,
             status: s.status,
             found: !!s.signerId,
-            editable: !s.signed && !!s.signerId && editable.has(s.papel),
+            editable: auth.canManage && !s.signed && !!s.signerId && editable.has(s.papel),
           })),
         },
       };

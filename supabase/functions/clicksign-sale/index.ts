@@ -204,6 +204,14 @@ Deno.serve(async (req) => {
         if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
         return { org: d.org, envelope: d.envelope };
       },
+      // Só a ação "status": quem já vê a venda acompanha (t_82e51349).
+      async authorizeView(saleId) {
+        const { data, error } = await user.rpc("clicksign_sale_view_authorize", { _id: saleId });
+        if (error) throw new Error(error.message);
+        const d = (data ?? {}) as { org?: string; envelope?: string; can_manage?: boolean };
+        if (!d.org || !d.envelope) throw new Error("Envelope não disponível");
+        return { org: d.org, envelope: d.envelope, canManage: d.can_manage === true };
+      },
       async loadContext(org, envelopeRow) {
         const [env, settings, token] = await Promise.all([
           admin
