@@ -1,5 +1,6 @@
 // DeepSeek só na ZZ (t_3ea838d7): provedor fora da China, sem raciocínio, plano B = 2ª chamada e depois Gemini.
 import { readFileSync } from "node:fs";
+import { semConviteVisita } from "./leads-ia";
 import { describe, expect, it, vi } from "vitest";
 import { proximaResposta, type ContextoIa, type FichaIa, type ResultadoParecidos } from "./leads-ia";
 import { DEEPSEEK_PROVEDORES, OPENROUTER_URL, opcoesOpenRouter, type UsoModelo } from "./leads-ia-modelo";
@@ -109,7 +110,7 @@ describe("DeepSeek: plano B (observar, como a ZZ)", () => {
   it("1ª chamada ok: 1 chamada, registra modelo e provedor que respondeu", async () => {
     const f = rede([resOr(OK, "DeepInfra")], []);
     const { r, usos } = await rodar(f);
-    expect(r.resposta).toBe(OK.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(OK.mensagem));
     expect(f.mock.calls).toHaveLength(1);
     expect(resumo(usos)).toEqual([["openrouter", 1, true, null, "DeepInfra", false]]);
     expect(usos[0].modelo).toBe(DS);
@@ -117,7 +118,7 @@ describe("DeepSeek: plano B (observar, como a ZZ)", () => {
   it("erro e depois ok: tenta 1 vez de novo no DeepSeek e usa a 2ª", async () => {
     const f = rede([503, resOr(OK)], []);
     const { r, usos } = await rodar(f);
-    expect(r.resposta).toBe(OK.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(OK.mensagem));
     expect(resumo(usos)).toEqual([
       ["openrouter", 1, false, "http_503", null, false],
       ["openrouter", 2, true, null, "Relace", false],
@@ -127,7 +128,7 @@ describe("DeepSeek: plano B (observar, como a ZZ)", () => {
     const t = Object.assign(new Error("t"), { name: "TimeoutError" });
     const f = rede([t, t], [resGemini(OK)]);
     const { r, usos } = await rodar(f);
-    expect(r.resposta).toBe(OK.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(OK.mensagem));
     expect(r.sem_resposta).toBeFalsy();
     expect(resumo(usos)).toEqual([
       ["openrouter", 1, false, "timeout", null, false],
@@ -145,7 +146,7 @@ describe("DeepSeek: plano B (observar, como a ZZ)", () => {
   it("JSON ruim no DeepSeek: 2ª volta no DeepSeek e responde", async () => {
     const f = rede([new Response(JSON.stringify({ provider: "Reka", choices: [{ message: { content: "oi" } }] })), resOr(OK)], []);
     const { r, usos } = await rodar(f);
-    expect(r.resposta).toBe(OK.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(OK.mensagem));
     expect(usos.map((u) => [u.tentativa, u.bloqueio])).toEqual([[1, "formato"], [2, null]]);
   });
   it("a 1ª chamada tem tempo próprio (8 s)", () => {

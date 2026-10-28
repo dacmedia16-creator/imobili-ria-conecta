@@ -2,6 +2,7 @@
 // 1) Quando o validador bloqueia o modelo, a reserva (plano B) é a frase pronta NOVA do t_5b493bc9.
 // 2) Dia/horário fora das opções ("sábado de manhã pode ser?"): aceita, anota e não repete as opções,
 //    tanto no plano B quanto com o modelo ligado.
+import { semConviteVisita } from "./leads-ia";
 import { describe, expect, it } from "vitest";
 import { proximaResposta, type ContextoIa, type FichaIa, type ImovelParecido, type ResultadoParecidos } from "./leads-ia";
 import type { UsoModelo } from "./leads-ia-modelo";
@@ -105,7 +106,8 @@ describe("reserva do validador = frase pronta NOVA (casos bloqueados do resultad
       expect(r.redigida).toBe(false);
       expect(r.bloqueio).toBe(motivo);
       expect(usos[0]).toMatchObject({ bloqueado: true, bloqueio: motivo });
-      expect(r.resposta).toBe(base.resposta);
+      // t_66ad4609: financiamento é sinal de interesse (o convite fica); nos outros casos o convite sai.
+      expect(r.resposta).toBe(/financ/.test(fala) ? base.resposta : semConviteVisita(base.resposta));
       expect(r.resposta, r.resposta).not.toMatch(ANTIGO);
       expect(r.resposta).not.toMatch(/R\$ [\d.]+,00/);
     });

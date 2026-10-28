@@ -46,7 +46,7 @@ const casa = (x: Partial<ImovelParecido> & { codigo: string }): ImovelParecido =
 });
 
 /** Estoque real da ZZ usado nas conversas (venda). */
-export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?: string; busca_texto?: string }> = [
+export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?: string; busca_texto?: string; so_anuncio?: string }> = [
   { ...casa({ codigo: "3879", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "1", vagas: "2", area_util_m2: "93", preco: "R$ 645.000" }), preco_valor: 645000 },
   { ...casa({ codigo: "3881", tipo: "casa", bairro: "Jardim Piratininga", quartos: "3", vagas: "2", area_util_m2: "114", preco: "R$ 655.000" }), preco_valor: 655000 },
   { ...casa({ codigo: "3882", tipo: "casa", bairro: "Jardim Novo Horizonte", quartos: "3", suites: "1", vagas: "2", area_util_m2: "123", preco: "R$ 665.000" }), preco_valor: 665000 },
@@ -98,6 +98,22 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?
   // t_33fb109d: conversa J (75957c60, apto 3691 no Parque Campolim). XML real da ZZ lido em 28/10 (só leitura).
   { ...casa({ codigo: "3691", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "85", preco: "R$ 850.000" }), preco_valor: 850000 },
   { ...casa({ codigo: "3693", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "85", preco: "R$ 860.000" }), preco_valor: 860000 },
+  // t_66ad4609: conversa K (e3db2183, apto 3806 no Jardim Vera Cruz). XML real da ZZ lido em 28/10 (só leitura).
+  ...(
+    [
+      ["3806", "80", 665000],
+      ["3805", "80", 685000],
+      ["3810", "81", 645000],
+      ["VIP0130", "84", 710000],
+      ["3822", "80", 595000],
+      ["3816", "80", 585000],
+    ] as const
+  ).map(([codigo, area, v]) => ({
+    ...casa({ codigo, tipo: "apartamento", bairro: "Jardim Vera Cruz", quartos: "3", suites: "1", vagas: "2", area_util_m2: area, preco: `R$ ${v.toLocaleString("pt-BR")}` }),
+    preco_valor: v,
+    // Só nas conversas do 3806 (K e L): não muda o resultado das conversas antigas.
+    so_anuncio: "3806",
+  })),
   // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
   ...(
     [
@@ -120,6 +136,7 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?
   })),
 ];
 
+const ESTOQUE_TODO = ESTOQUE_ZZ;
 const ficha = (x: FichaIa): FichaIa => ({ cidade: "Sorocaba", negocio: "venda", ...x });
 
 export const REFERENCIA: ConversaReferencia[] = [
@@ -511,12 +528,57 @@ export const REFERENCIA: ConversaReferencia[] = [
       { cliente: "me manda casas", esperado: "Mais uma casa na faixa, com link.", antes: null, falha: "ficou sem resposta (conversa já passada)" },
     ],
   },
+  // t_66ad4609: conversa e3db2183 (lead b96ee207, teste t_616ba97d, 28/10 15:01-15:09 BRT). Denis: a Nicole oferece
+  // visita em quase toda resposta (ao vivo: 3 de 7 respostas, fora a 1ª mensagem).
+  {
+    id: "K",
+    lead: "b96ee207",
+    anuncio: "3806",
+    ficha: ficha({
+      tipo: "apartamento", bairro: "Jardim Vera Cruz", quartos: "3", suites: "1", banheiros: "2", vagas: "2", area_util_m2: "80",
+      preco: "R$ 665.000", preco_valor: 665000, condominio: "R$ 550,00", iptu: "R$ 54,00 por mês",
+      link: "https://vipsevenimoveis.com.br/imovel/3806",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse no apartamento de 3 quartos no bairro Jardim Vera Cruz, em Sorocaba, anunciado por R$ 665.000. Anúncio: https://vipsevenimoveis.com.br/imovel/3806 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "me passa mais Detalhes", esperado: "Ficha do 3806, sem convite de visita.", antes: "Claro! O apartamento tem 3 quartos, 1 suíte, 2 banheiros e 2 vagas, com 80 m². O condominio é R$ 550 e o IPTU R$ 54 por mês. Quer agendar uma visita para conhecer?", falha: "convite de visita sem sinal de interesse" },
+      { cliente: "esta disponivel ?", esperado: "O corretor confirma a disponibilidade, sem convite de visita.", antes: "Sobre a disponibilidade, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?", falha: "convite de visita de novo, logo na resposta seguinte" },
+      { cliente: "vc tem mais opções ?", esperado: "Outro apartamento parecido, com link.", antes: "Tenho outra opção no mesmo bairro, também apartamento com 3 quartos e 1 suíte, por R$ 685.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3805 Gostou?" },
+      { cliente: "vc tem casas neste valor ?", esperado: "Uma casa perto de R$ 665.000, com link.", antes: "Tenho uma casa com 3 quartos, 1 suíte e 123 m², por R$ 665.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3882 Gostou?" },
+      { cliente: "e no mesmo bairro do ap ?", esperado: "No Jardim Vera Cruz só há apartamentos nessa faixa.", antes: "Nessa faixa, no mesmo bairro, só tenho apartamentos. A casa que te mostrei fica no Jardim Novo Horizonte. Quer ver essa casa ou prefere seguir com os apartamentos?" },
+      { cliente: "me manda mais ap", esperado: "Outro apartamento no Jardim Vera Cruz, com link.", antes: "Claro! Aqui vai outro apartamento no Jardim Vera Cruz, com 3 quartos e 1 suíte, por R$ 645.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3810 Gostou?" },
+      { cliente: "quando podemos visitar ?", esperado: "Qual dia e período ficam melhores? O corretor confirma o horário.", antes: "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário com você." },
+    ],
+  },
+  // t_66ad4609: roteiro de teste (não é conversa ao vivo) para as regras 2 a 5 de Denis: sinal de interesse, \"agora
+  // não\", não voltar a oferecer sem o cliente puxar o assunto e marcar na hora quando ele pede.
+  {
+    id: "L",
+    lead: "teste-recusa",
+    anuncio: "3806",
+    ficha: ficha({
+      tipo: "apartamento", bairro: "Jardim Vera Cruz", quartos: "3", suites: "1", banheiros: "2", vagas: "2", area_util_m2: "80",
+      preco: "R$ 665.000", preco_valor: 665000, condominio: "R$ 550,00", iptu: "R$ 54,00 por mês",
+      link: "https://vipsevenimoveis.com.br/imovel/3806",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse no apartamento de 3 quartos no bairro Jardim Vera Cruz, em Sorocaba, anunciado por R$ 665.000. Anúncio: https://vipsevenimoveis.com.br/imovel/3806 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "qual o valor do condominio?", esperado: "R$ 550, sem convite de visita.", antes: null },
+      { cliente: "gostei, tem quantas vagas?", esperado: "2 vagas; pode convidar para a visita (gostou + vaga).", antes: null },
+      { cliente: "agora nao, e o iptu?", esperado: "IPTU R$ 54, sem convite.", antes: null },
+      { cliente: "aceita financiamento?", esperado: "O corretor confirma; sem convite (o cliente recusou).", antes: null },
+      { cliente: "gostei bastante do ap", esperado: "Sem convite (o cliente recusou e não puxou o assunto).", antes: null },
+      { cliente: "quero visitar sabado de manha", esperado: "Anota sábado de manhã e passa ao corretor.", antes: null },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------
 
-const sem = (x: ImovelParecido & { preco_valor?: number; tipo_xml?: string; busca_texto?: string }): ImovelParecido => {
-  const { preco_valor: _p, tipo_xml: _t, busca_texto: _b, ...r } = x as typeof x & { tipo_xml?: string; busca_texto?: string };
+const sem = (x: ImovelParecido & { preco_valor?: number; tipo_xml?: string; busca_texto?: string; so_anuncio?: string }): ImovelParecido => {
+  const { preco_valor: _p, tipo_xml: _t, busca_texto: _b, so_anuncio: _s, ...r } = x;
   return r;
 };
 const num = (s?: string) => (s && /^\d+$/.test(s) ? Number(s) : 0);
@@ -524,6 +586,7 @@ const sN = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toL
 
 /** lead_ia_imoveis_parecidos: mesmo tipo e cidade do anúncio, ±15% do preço, mais perto do preço primeiro. */
 export function buscasReferencia(c: ConversaReferencia) {
+  const ESTOQUE_ZZ = ESTOQUE_TODO.filter((x) => !x.so_anuncio || x.so_anuncio === c.anuncio);
   const ref = ESTOQUE_ZZ.find((x) => x.codigo === c.anuncio);
   const pref = c.ficha.preco_valor ?? ref?.preco_valor ?? 0;
   const fora = (cod: string, ex: string[]) => cod === c.anuncio || ex.includes(cod);

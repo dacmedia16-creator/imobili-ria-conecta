@@ -1,5 +1,6 @@
 // Nicole em MODO OBSERVAÇÃO (t_3a4bf078): a resposta do modelo sempre sai, a trava só registra; sem frase pronta.
 import { readFileSync } from "node:fs";
+import { semConviteVisita } from "./leads-ia";
 import { describe, expect, it, vi } from "vitest";
 import { proximaResposta, type ContextoIa, type FichaIa, type ResultadoParecidos } from "./leads-ia";
 import type { UsoModelo } from "./leads-ia-modelo";
@@ -122,7 +123,7 @@ describe("modo observar", () => {
   it("bloquear (padrão): 2 bloqueios seguidos = frase pronta; a 2ª tentativa diz o que estava errado", async () => {
     const f = sequencia(respostaGemini(barrada), respostaGemini(barrada));
     const { base, r, usos } = await rodar("tem com 3 suítes?", f);
-    expect(r.resposta).toBe(base.resposta);
+    expect(r.resposta).toBe(semConviteVisita(base.resposta));
     expect(r.bloqueio).toBe("contagem");
     expect(usos.map((u) => u.tentativa)).toEqual([1, 2]);
     expect(usos[0]).not.toHaveProperty("observado");
@@ -134,14 +135,14 @@ describe("modo observar", () => {
   it("bloquear: a 2ª tentativa corrigida sai no lugar da frase pronta", async () => {
     const ok = { mensagem: "Com 3 suítes, nessa faixa não tenho. Quer que eu procure com 2 suítes?", acao: "responder" };
     const { r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(barrada), respostaGemini(ok)));
-    expect(r.resposta).toBe(ok.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(ok.mensagem));
     expect(r.redigida).toBe(true);
     expect(usos.map((u) => [u.tentativa, u.bloqueado])).toEqual([[1, true], [2, false]]);
   });
   it("observar: a mensagem do modelo SAI e o bloqueio é só registrado (motivo + trecho)", async () => {
     const { base, r, usos } = await rodar("tem com 3 suítes?", sequencia(respostaGemini(barrada)), "observar");
     expect(r.resposta).toBe(barrada.mensagem);
-    expect(r.resposta).not.toBe(base.resposta);
+    expect(r.resposta).not.toBe(semConviteVisita(base.resposta));
     expect(r.redigida).toBe(true);
     expect(usos).toHaveLength(1);
     expect(usos[0]).toMatchObject({ uso: "redigir", bloqueado: true, bloqueio: "contagem", bloqueio_trecho: "4 suites | ficha:1 busca:- cliente:2,3", observado: true, tentativa: 1 });
@@ -156,7 +157,7 @@ describe("modo observar", () => {
   it("observar sem bloqueio: sai e registra observado=false", async () => {
     const ok = { mensagem: "O condomínio é R$ 550 por mês. Quer agendar uma visita?", acao: "responder" };
     const { r, usos } = await rodar("qual o condomínio?", sequencia(respostaGemini(ok)), "observar");
-    expect(r.resposta).toBe(ok.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(ok.mensagem));
     expect(usos[0]).toMatchObject({ bloqueado: false, bloqueio: null, bloqueio_trecho: null, observado: false });
   });
   it("erro do modelo: tenta 1 vez de novo e usa a 2ª resposta", async () => {
@@ -164,7 +165,7 @@ describe("modo observar", () => {
     const f = sequencia(503, respostaGemini(ok));
     const { r, usos } = await rodar("qual o condomínio?", f, "observar");
     expect(f.mock.calls).toHaveLength(2);
-    expect(r.resposta).toBe(ok.mensagem);
+    expect(r.resposta).toBe(semConviteVisita(ok.mensagem));
     expect(usos.map((u) => [u.tentativa, u.ok, u.erro])).toEqual([[1, false, "http_503"], [2, true, null]]);
   });
   it("tempo estourado 2 vezes: nenhuma frase pronta, resposta vazia e sem_resposta", async () => {
@@ -190,7 +191,7 @@ describe("modo observar", () => {
     const f = sequencia(503, 503);
     const { base, r } = await rodar("qual o condomínio?", f);
     expect(f.mock.calls).toHaveLength(1);
-    expect(r.resposta).toBe(base.resposta);
+    expect(r.resposta).toBe(semConviteVisita(base.resposta));
   });
   it("regras antes do modelo continuam: sensível, pediu pessoa e é robô? não chamam o modelo", async () => {
     for (const t of ["quero falar com um corretor", "você é um robô?", "meu advogado vai entrar em contato sobre o processo"]) {
@@ -198,7 +199,7 @@ describe("modo observar", () => {
       const { base, r } = await rodar(t, f, "observar");
       expect(f.mock.calls).toHaveLength(0);
       expect(r.resposta).toBeTruthy();
-      if (!/robô/.test(t)) expect(r.resposta).toBe(base.resposta);
+      if (!/robô/.test(t)) expect(r.resposta).toBe(semConviteVisita(base.resposta));
     }
   });
   it("oferta com código fora dos candidatos: sai, mas não vira \"oferecido\"", async () => {

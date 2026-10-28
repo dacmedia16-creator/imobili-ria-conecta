@@ -157,6 +157,8 @@ export type DadosQualificacao = {
   mostrados?: ImovelParecido[];
   /** t_228659f0 item 2: nome de condomínio/empreendimento que o cliente citou (\"cannes\"). */
   nome_busca?: string;
+  /** t_66ad4609: o cliente ignorou o convite para a visita ou disse \"agora não\"; só volta se ele puxar o assunto. */
+  visita_recusada?: boolean;
 };
 
 /** t_228659f0 item 2: busca por nome de condomínio/empreendimento (título e descrição do XML). */
@@ -1559,6 +1561,122 @@ export function querVisitar(ctx: Pick<ContextoIa, "passo" | "dados">, texto: str
   if (ctx.passo === "visita" || (d.visita_opcoes?.length && !d.visita)) return true;
   if (QUER_VISITA.test(n) && !/^(nao|n)\b/.test(n)) return true;
   return d.convite_aberto === "visita" && SIM_P.test(n) && !NAO_GOSTOU.test(n);
+}
+
+// --- Quando convidar para a visita (t_66ad4609, regra aprovada por Denis em 28/10) ------------------------
+// 1) Responder só o que o cliente perguntou, sem convite por padrão. 2) Convidar só com sinal de interesse (gostou,
+// endereço, vaga, financiamento, fotos, ou ele falou de visita). 3) Depois de convidar, pelo menos 3 respostas da
+// Nicole sem convite (a não ser que o cliente puxe o assunto). 4) Ignorou o convite ou disse \"agora não\": não
+// convida mais até ele puxar o assunto. 5) Pediu visita: marca na hora (como antes).
+// A 1ª mensagem (fixa: \"detalhes ou já prefere agendar uma visita?\") não conta como convite.
+
+/** Convite para a visita dentro de uma frase da Nicole (pergunta ou \"se quiser, marco uma visita\"). */
+const CONVITE_FRASE =
+  /(\b(quer|queira|gostaria|prefere|bora|vamos|podemos|posso|que tal|se quiser|topa|marco|agendo|agendar|marcar)\b[^.?!]{0,60}\b(visita|visitar|conhecer pessoalmente)\b|\b(agendar|marcar) (uma |a )?visita\b|\bquer (vir )?conhecer\b)/;
+/** Frase padrão \"o corretor confirma com você na visita ou no contato\" não é convite. */
+const SEM_FRASE_PADRAO = (n: string) => n.replace(/[^.?!]*\bo corretor confirma[^.?!]*[.?!]?/g, " ");
+/** A mensagem da Nicole convida para a visita? */
+export function temConviteVisita(msg: string): boolean {
+  return CONVITE_FRASE.test(SEM_FRASE_PADRAO(norm(msg)));
+}
+/** O cliente puxou o assunto da visita (pedido ou pergunta). */
+const CLIENTE_FALA_VISITA = /(\bvisit|\bagendar\b|\bmarcar\b|ver pessoalmente|ir ver|conhecer (o |a )?(imovel|ap|apartamento|casa|pessoalmente)|dar uma olhada pessoalmente)/;
+/** \"Agora não\" e parecidos (recusa do convite, não da conversa). */
+const RECUSA_VISITA =
+  /(agora nao|agr nao|agora n\b|por enquanto nao|ainda nao|mais pra frente|mais para frente|depois eu (vejo|vejo isso|marco|aviso)|outra hora|outro dia eu|nao quero (visitar|visita|agendar|marcar)|nao precisa (de )?visita|sem visita|nao (vou|posso) (visitar|ir)|nao tenho tempo)/;
+/** Sinais de interesse (regra 2). */
+const SINAL_INTERESSE =
+  /(\bgost(ei|ou|o)\b|adorei|amei|curti|me interess|tenho interesse|interessei|lind[oa]|perfeit|maravilh|quero (ver )?(essa|esse|este|esta)\b|\bendereco\b|onde fica|localizacao|\bqual (a )?rua\b|\bvagas?\b|garagem|financ|\bfgts\b|\bfotos?\b|\bvideos?\b|imagens?)/;
+const ACEITE = /^(sim|s|claro|quero|ok|pode|com certeza|quero sim|pode ser|bora|vamos|opa|isso|beleza|blz|show|fechado|combinado)\b/;
+
+export type PoliticaVisita = {
+  /** A Nicole pode convidar para a visita nesta resposta. */
+  pode: boolean;
+  motivo: "pedido" | "agenda" | "sinal" | "sem_sinal" | "intervalo" | "recusou";
+  /** Recusa guardada para os próximos turnos (true = recusou agora; false = o cliente puxou o assunto e liberou). */
+  recusada?: boolean;
+};
+/** Respostas da Nicole desde o último convite; null = não convidou nas falas do histórico. */
+function respostasDesdeConvite(falasIa: string[]): number | null {
+  for (let i = falasIa.length - 1, k = 0; i >= 0; i--, k++) if (temConviteVisita(falasIa[i])) return k;
+  return null;
+}
+/**
+ * Pode convidar para a visita agora? `historico` = falas da conversa (mais antiga primeiro, a 1ª é a mensagem
+ * inicial da Nicole); `texto` = fala atual do cliente. Conta os convites pelo histórico e guarda a recusa em
+ * `dados.visita_recusada` (o histórico lido é curto).
+ */
+export function politicaVisita(
+  ctx: Pick<ContextoIa, "passo" | "dados">,
+  texto: string,
+  historico: Array<{ autor: string; texto: string }>,
+): PoliticaVisita {
+  const n = norm(texto);
+  const d = ctx.dados ?? {};
+  const h = historico.filter((m) => m.autor !== "sistema" && m.texto.trim());
+  // Tira do histórico a fala atual, se já veio gravada.
+  if (h.length && h[h.length - 1].autor === "cliente" && h[h.length - 1].texto.trim() === texto.trim()) h.pop();
+  // A 1ª mensagem (a fixa, no início do histórico) não conta: só os convites das respostas. Com o histórico
+  // cortado (só as últimas falas), a 1ª fala já é uma resposta antiga, longe o bastante para não mudar o intervalo.
+  const falasIa = h.filter((m, i) => m.autor === "ia" && !(i === 0 && h.length < 12)).map((m) => m.texto);
+  const ultimaIa = h.length && h[h.length - 1].autor === "ia" ? h[h.length - 1].texto : [...h].reverse().find((m) => m.autor === "ia")?.texto ?? "";
+  const convidouAgora = falasIa.length > 0 && falasIa[falasIa.length - 1] === ultimaIa && temConviteVisita(ultimaIa);
+  if (RECUSA_VISITA.test(n)) return { pode: false, motivo: "recusou", recusada: true };
+  // Agendamento em andamento (dia sem período, opções oferecidas, passo da visita): segue.
+  if (ctx.passo === "visita" || d.visita_dia_pendente || (d.visita_opcoes?.length && !d.visita))
+    return { pode: true, motivo: "agenda" };
+  // Cliente puxou o assunto: libera (também depois de uma recusa) e marca na hora.
+  if (CLIENTE_FALA_VISITA.test(n) && !/^(nao|n)\b/.test(n)) return { pode: true, motivo: "pedido", recusada: false };
+  if (convidouAgora) {
+    // Aceitou o convite da última resposta.
+    if (ACEITE.test(n) && !/^(nao|n)\b/.test(n)) return { pode: true, motivo: "pedido", recusada: false };
+    // Ignorou o convite (falou de outra coisa) ou disse não: para de convidar.
+    return { pode: false, motivo: "recusou", recusada: true };
+  }
+  if (d.visita_recusada) return { pode: false, motivo: "recusou" };
+  const desde = respostasDesdeConvite(falasIa);
+  if (desde !== null && desde < 3) return { pode: false, motivo: "intervalo" };
+  return SINAL_INTERESSE.test(n) ? { pode: true, motivo: "sinal" } : { pode: false, motivo: "sem_sinal" };
+}
+
+/** A mensagem sem o convite para a visita (igual, se não houver convite). */
+export const semConviteVisita = (msg: string) => (temConviteVisita(msg) ? tirarConviteVisita(msg) : msg);
+
+/**
+ * Tira o convite para a visita da mensagem (quando a política não deixa). Só tira texto: frase de convite inteira;
+ * numa pergunta \"A ou visita?\" fica só a parte A. Sobrando só um cumprimento curto, fecha com uma pergunta neutra.
+ */
+export function tirarConviteVisita(msg: string): string {
+  // Frases: separa no ponto final e também logo depois de um link (\"...: <link> Quer conhecer?\").
+  const partes = msg.trim().split(/(?<=[.!?])\s+|(?<=https?:\/\/\S+)\s+/);
+  const out: string[] = [];
+  for (const p of partes) {
+    const np = norm(p);
+    // Nunca apaga trecho com link (\"toda oferta leva o link\") nem a frase padrão do corretor.
+    if (/https?:\/\//.test(p) || /\bo corretor confirma\b/.test(np) || !CONVITE_FRASE.test(np)) {
+      out.push(p);
+      continue;
+    }
+    // \"Quer ver essa ou prefere agendar a visita?\" -> \"Quer ver essa?\"
+    const ou = /^(.*?\S)\s*,?\s+ou\s+(.*)$/.exec(p);
+    if (ou && p.trim().endsWith("?")) {
+      const [a, b] = [ou[1], ou[2]];
+      if (!CONVITE_FRASE.test(norm(a)) && !/\b(visita|visitar)\b/.test(norm(a))) {
+        out.push(`${a.replace(/[?.!,\s]+$/, "")}?`);
+        continue;
+      }
+      if (!CONVITE_FRASE.test(norm(b)) && !/\b(visita|visitar)\b/.test(norm(b))) {
+        // \"Prefere visitar ou ver outra opção?\" -> \"Quer ver outra opção?\"
+        const resto = b.replace(/[?.!,\s]+$/, "").trim();
+        out.push(/^(prefere|quer)\b/i.test(resto) ? `${resto.replace(/^\w/, (x) => x.toUpperCase())}?` : `Quer ${resto}?`);
+        continue;
+      }
+    }
+  }
+  let r = out.join(" ").replace(/\s{2,}/g, " ").trim();
+  const conteudo = norm(r).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean).length;
+  if (conteudo < 5) r = `${r ? `${r} ` : ""}Quer saber mais algum detalhe?`.trim();
+  return r;
 }
 
 /** Junta o pedido novo ao anterior (\"Não tem outra casa?\" depois de \"3 suítes\" = casa com 3 suítes). */

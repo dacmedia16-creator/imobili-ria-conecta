@@ -1,4 +1,5 @@
 // Nicole redige com travas (t_7b59589c): validador determinístico + plano B + chave desligada.
+import { semConviteVisita } from "./leads-ia";
 import { describe, expect, it } from "vitest";
 import {
   proximaResposta,
@@ -294,7 +295,7 @@ describe("redigirResposta", () => {
       }),
     );
     expect(r.redigida).toBe(true);
-    expect(r.resposta).toBe("O condomínio é R$ 420 por mês. Quer marcar uma visita para conhecer?");
+    expect(r.resposta).toBe("O condomínio é R$ 420 por mês."); // t_66ad4609: sem convite sem sinal de interesse
     expect(usos).toHaveLength(1);
     expect(usos[0]).toMatchObject({
       uso: "redigir",
@@ -311,15 +312,15 @@ describe("redigirResposta", () => {
     );
     expect(r.redigida).toBe(false);
     expect(r.bloqueio).toBe("valor");
-    expect(r.resposta).toBe(base.resposta);
+    expect(r.resposta).toBe(semConviteVisita(base.resposta));
     expect(usos[0]).toMatchObject({ bloqueado: true, bloqueio: "valor" });
   });
   it("modelo fora do ar ou JSON ruim: plano B", async () => {
     const a = await rodar("qual valor do Condominio ?", fetchModelo({}, 503));
-    expect(a.r.resposta).toBe(a.base.resposta);
+    expect(a.r.resposta).toBe(semConviteVisita(a.base.resposta));
     expect(a.usos[0]).toMatchObject({ ok: false, erro: "http_503", bloqueado: false });
     const b = await rodar("qual valor do Condominio ?", fetchModelo("isso não é json"));
-    expect(b.r.resposta).toBe(b.base.resposta);
+    expect(b.r.resposta).toBe(semConviteVisita(b.base.resposta));
     expect(b.usos[0]).toMatchObject({ bloqueado: true, bloqueio: "formato" });
   });
   it("sem chave de modelo no servidor: plano B, sem chamada", async () => {
@@ -337,7 +338,7 @@ describe("redigirResposta", () => {
       fetchFn: f,
     });
     expect(chamou).toBe(false);
-    expect(r.resposta).toBe(base.resposta);
+    expect(r.resposta).toBe(semConviteVisita(base.resposta));
   });
   it("sensível, opt-out (banco), pedido de pessoa e permuta continuam fixos ANTES do modelo", async () => {
     let chamou = false;
@@ -359,7 +360,7 @@ describe("redigirResposta", () => {
         registrar: () => undefined,
         fetchFn: f,
       });
-      expect(r.resposta).toBe(base.resposta);
+      expect(r.resposta).toBe(semConviteVisita(base.resposta));
     }
     expect(chamou).toBe(false);
   });
