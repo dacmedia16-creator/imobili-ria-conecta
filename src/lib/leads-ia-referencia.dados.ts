@@ -12,6 +12,7 @@ import type {
   FichaIa,
   FiltroBusca,
   FiltroCaracteristicaBusca,
+  FiltroNome,
   FiltroParecido,
   ImovelParecido,
   ResultadoCaracteristica,
@@ -45,7 +46,7 @@ const casa = (x: Partial<ImovelParecido> & { codigo: string }): ImovelParecido =
 });
 
 /** Estoque real da ZZ usado nas conversas (venda). */
-export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?: string }> = [
+export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?: string; busca_texto?: string }> = [
   { ...casa({ codigo: "3879", tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "1", vagas: "2", area_util_m2: "93", preco: "R$ 645.000" }), preco_valor: 645000 },
   { ...casa({ codigo: "3881", tipo: "casa", bairro: "Jardim Piratininga", quartos: "3", vagas: "2", area_util_m2: "114", preco: "R$ 655.000" }), preco_valor: 655000 },
   { ...casa({ codigo: "3882", tipo: "casa", bairro: "Jardim Novo Horizonte", quartos: "3", suites: "1", vagas: "2", area_util_m2: "123", preco: "R$ 665.000" }), preco_valor: 665000 },
@@ -73,6 +74,9 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?
   { ...casa({ codigo: "VIP0036", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "3", vagas: "3", area_util_m2: "125", preco: "R$ 1.170.000" }), preco_valor: 1170000 },
   { ...casa({ codigo: "VIP0034", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "3", vagas: "2", area_util_m2: "120", preco: "R$ 1.197.000" }), preco_valor: 1197000 },
   { ...casa({ codigo: "VIP0162", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "2", vagas: "2", area_util_m2: "118", preco: "R$ 1.100.000" }), preco_valor: 1100000 },
+  // t_228659f0: conversa H (7ebaa6bb). Residencial Cannes: o nome só aparece na descrição do XML (lido em 28/10).
+  { ...casa({ codigo: "VIP0136", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "97", preco: "R$ 999.000" }), preco_valor: 999000, busca_texto: "residencial cannes" },
+  { ...casa({ codigo: "822", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "97", preco: "R$ 1.100.000" }), preco_valor: 1100000, busca_texto: "condominio cannes" },
   // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
   ...(
     [
@@ -401,12 +405,48 @@ export const REFERENCIA: ConversaReferencia[] = [
       { cliente: "vc não é corretora ?", esperado: "Sou a Nicole, assistente virtual da ZZ, e um corretor da equipe continua seu atendimento e acompanha a visita. Quer agendar uma visita para conhecer?", antes: null, falha: "item 5: ficou sem resposta (conversa já passada)" },
     ],
   },
+  // t_228659f0: conversa 7ebaa6bb (lead 4b41f454, VIP0137, DeepSeek ao vivo, 28/10 05:53-06:14) — preço inventado,
+  // Cannes não achado, presa no assunto, horário inventado e corte por limite sem aviso.
+  {
+    id: "H",
+    lead: "4b41f454",
+    anuncio: "VIP0137",
+    ficha: ficha({
+      tipo: "casa", bairro: "Horto Florestal", quartos: "3", suites: "2", banheiros: "4", vagas: "2",
+      area_util_m2: "164", area_terreno_m2: "157", preco: "R$ 685.000", preco_valor: 685000, condominio: "R$ 290,00",
+      iptu: "R$ 120,00 por mês", link: "https://vipsevenimoveis.com.br/imovel/VIP0137",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Horto Florestal, em Sorocaba, anunciada por R$ 685.000. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0137 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "Mais detalhes", esperado: "A casa tem 3 quartos, 2 suítes, 2 vagas e 164 m². Quer agendar uma visita?", antes: "Claro! A casa tem 3 quartos, 2 suítes, 4 banheiros, 2 vagas, 164 m² de área construida e 157 m² de terreno. O condominio é R$ 290 e o IPTU R$ 120 por mês. Quer agendar uma visita?" },
+      { cliente: "Tem mais opções ?", esperado: "Outra casa no mesmo bairro, com link.", antes: "Claro! Tem outra casa no mesmo bairro, com 3 quartos, 1 suíte e 3 vagas, por R$ 695.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3885 Gostou?" },
+      { cliente: "Aceita permuta ?", esperado: "O corretor confirma a permuta com você. Quer agendar uma visita?", antes: "O corretor confirma se o proprietário aceita permuta com você na visita ou no contato. Quer agendar uma visita para conhecer pessoalmente?" },
+      { cliente: "Então vc não sabe se está disponível ?", esperado: "A disponibilidade o corretor confirma com você. Quer agendar uma visita?", antes: "Sobre disponibilidade, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?" },
+      { cliente: "Oq mas vcs tem nessa região ?", esperado: "Outra casa no Horto Florestal, com link.", antes: "Nessa região, tenho outra casa no Horto Florestal, com 3 quartos, 1 suíte e 2 vagas, por R$ 645.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3879 Gostou?" },
+      { cliente: "Vc tb tem apartamento ?", esperado: "Temos sim! Para comprar ou alugar?", antes: "Sim, também trabalhamos com apartamentos! Você busca para comprar ou alugar?" },
+      { cliente: "Comprar", esperado: "Em que bairro?", antes: "Entendido, comprar! E em que região ou bairro está procurando o apartamento?" },
+      { cliente: "Campolim", esperado: "Quantos quartos?", antes: "Anotado, Campolim! E quantos quartos está buscando no apartamento?" },
+      { cliente: "3 suítes", esperado: "Apartamento no Campolim com 3 suítes: VIP0036 por R$ 1.170.000, com link.", antes: "Nessa faixa, no Campolim, não temos apartamento com 3 suítes. O mais em conta que temos é um apartamento com 3 suítes por R$ 1.170.000, em Parque Campolim. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0036 Quer ver esse ou prefere que eu procure com menos suítes?" },
+      { cliente: "Não tem nada perto de 900 mil ?", esperado: "Com 3 suítes perto de R$ 900 mil não tenho; quer que eu procure com menos suítes?", antes: "Entendi, você busca perto de R$ 900.000. Nessa faixa, no Campolim, o que temos é o apartamento com 3 suítes que te mostrei. Quer ver esse ou prefere que eu procure com menos suítes?" },
+      { cliente: "Menos suítes", esperado: "2 ou 1 suíte?", antes: "Entendi! Vou procurar com menos suítes. E para essa busca, você prefere 2 suítes ou 1 suíte?" },
+      { cliente: "O tiver perto de 900 mil", esperado: "Um apartamento real do XML perto de R$ 900 mil, com os dados certos e o link dele.", antes: "Entendi, perto de R$ 900.000. Nessa faixa, no Campolim, temos um apartamento com 2 suítes por R$ 850.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0036 Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "item 1: VIP0036 com 2 suítes e R$ 850.000 (o anúncio tem 3 suítes e R$ 1.170.000)" },
+      { cliente: "Tem cannes ??", esperado: "No Residencial Cannes tenho um apartamento de 3 quartos por R$ 999.000: <link VIP0136>. Fica um pouco acima dos R$ 900 mil.", antes: "Entendi! No Campolim, perto de R$ 900.000, temos o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 2 e 3: ignorou o Cannes e repetiu" },
+      { cliente: "Tem no condomínio cannes", esperado: "Tenho sim: <VIP0136 com preço e link>.", antes: "No Campolim, perto de R$ 900.000, não temos apartamento no condomínio Cannes. O que temos é o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "item 2: disse que não tinha Cannes" },
+      { cliente: "Qual valor do cannes q vc tem ?", esperado: "R$ 999.000 (VIP0136) e R$ 1.100.000 (822).", antes: "Sobre o condomínio Cannes, não temos apartamento disponível nessa faixa. O que temos é o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 2 e 3" },
+      { cliente: "Qual valor do cannes ?", esperado: "O do Cannes sai por R$ 999.000: <link>.", antes: "Sobre o condomínio Cannes, não temos apartamento nessa faixa. O que temos é o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 2 e 3" },
+      { cliente: "Já entendi q não tem desse valor no cannes mas qual o preço do cannes q vc tem ??", esperado: "O do Cannes sai por R$ 999.000: <link>.", antes: "Entendido! No Campolim, perto de R$ 900.000, temos um apartamento com 2 suítes por R$ 850.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/VIP0036 Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 1, 3 e 6: preço inventado de novo" },
+      { cliente: "Me manda o cannes q vc tem", esperado: "<link VIP0136>", antes: "Sobre o condomínio Cannes, não temos apartamento nessa faixa. O que temos é o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 2 e 3" },
+      { cliente: "Dá para visitar ?", esperado: "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário.", antes: "Claro! Temos visita amanhã de manhã ou sexta à tarde. Qual prefere?", falha: "item 5: horário inventado" },
+      { cliente: "Amanhã a tarde não tem como ?", esperado: "Amanhã à tarde anotado! O corretor confirma o horário com você.", antes: null, falha: "item 4: cortada pelo limite, sem aviso" },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------
 
-const sem = (x: ImovelParecido & { preco_valor?: number; tipo_xml?: string }): ImovelParecido => {
-  const { preco_valor: _p, tipo_xml: _t, ...r } = x as typeof x & { tipo_xml?: string };
+const sem = (x: ImovelParecido & { preco_valor?: number; tipo_xml?: string; busca_texto?: string }): ImovelParecido => {
+  const { preco_valor: _p, tipo_xml: _t, busca_texto: _b, ...r } = x as typeof x & { tipo_xml?: string; busca_texto?: string };
   return r;
 };
 const num = (s?: string) => (s && /^\d+$/.test(s) ? Number(s) : 0);
@@ -470,6 +510,20 @@ export function buscasReferencia(c: ConversaReferencia) {
             return d(a.preco_valor) - d(b.preco_valor);
           })[0] ?? null;
       return { itens: dentro.slice(0, f.limite ?? 3).map(sem), proximo: prox ? sem(prox) : null };
+    },
+    // t_228659f0: lead_ia_imoveis_nome (migration 20261028100000): nome inteiro no título/descrição/bairro, sem
+    // distinguir maiúsculas nem acentos, mais barato primeiro, até 3.
+    buscarNome: async (f: FiltroNome): Promise<ResultadoParecidos> => {
+      const n = ` ${sN(f.nome).replace(/[^a-z0-9]+/g, " ").trim()} `;
+      return {
+        referencia: {},
+        itens: ESTOQUE_ZZ.filter(
+          (x) => !(f.excluir ?? []).includes(x.codigo) && ` ${sN(`${x.busca_texto ?? ""} ${x.bairro ?? ""}`).replace(/[^a-z0-9]+/g, " ")} `.includes(n),
+        )
+          .sort((a, b) => a.preco_valor - b.preco_valor)
+          .slice(0, f.limite ?? 3)
+          .map(sem),
+      };
     },
     buscarImoveis: async (f: FiltroBusca): Promise<ResultadoParecidos> => ({
       referencia: {},
