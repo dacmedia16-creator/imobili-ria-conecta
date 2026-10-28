@@ -17,6 +17,7 @@ import {
 import { errorMessage } from "@/lib/errors";
 import { ClicksignGestaoEnvelope } from "@/components/exclusividades/ClicksignGestaoEnvelope";
 import {
+  canFollowEnvelope,
   canManageEnvelope,
   canStartEnvelope,
   CLICKSIGN_DISABLED,
@@ -218,12 +219,13 @@ export function ClicksignEnvio({
             Conferir na Clicksign
           </Button>
         )}
-        {envelope && canManageEnvelope(config) && (
+        {envelope && canFollowEnvelope(config) && (
           <ClicksignGestaoEnvelope
             db={db}
             captureId={captureId}
             envelope={envelope}
             testMode={config.test_mode}
+            canManage={canManageEnvelope(config)}
             onChanged={refresh}
           />
         )}
