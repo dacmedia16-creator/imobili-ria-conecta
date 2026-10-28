@@ -73,7 +73,7 @@ export function TransferirCaptacaoDialog({
     setMarcados(avulsa?.item && !avulsa.item.bloqueio ? new Set([avulsa.id]) : new Set());
     destinosTransferencia()
       .then(setDestinos)
-      .catch((e) => setErro(errorMessage(e)));
+      .catch((e) => setErro(errorMessage(e, "Não foi possível concluir a transferência.")));
   }, [open, avulsa]);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export function TransferirCaptacaoDialog({
         setPrevia(itens);
         setMarcados(marcadosIniciais(itens));
       })
-      .catch((e) => vivo && setErro(errorMessage(e)));
+      .catch((e) => vivo && setErro(errorMessage(e, "Não foi possível concluir a transferência.")));
     return () => {
       vivo = false;
     };
@@ -118,7 +118,7 @@ export function TransferirCaptacaoDialog({
       onOpenChange(false);
       onDone();
     } catch (e) {
-      setErro(errorMessage(e));
+      setErro(errorMessage(e, "Não foi possível concluir a transferência."));
       setConfirmando(false);
     } finally {
       setBusy(false);

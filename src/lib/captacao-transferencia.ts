@@ -16,8 +16,8 @@ export const MOTIVO_MAX = 500;
 export const LOTE_MAX = 500;
 
 /** Mesma regra do banco (papel): gestor, admin ou super_admin. Team leader sozinho não transfere. */
-export function papelPodeTransferir(hasAny: (roles: string[]) => boolean): boolean {
-  return hasAny(["gestor", "admin", "super_admin"]);
+export function papelPodeTransferir<R extends string>(hasAny: (roles: R[]) => boolean): boolean {
+  return hasAny(["gestor", "admin", "super_admin"] as R[]);
 }
 
 export type ContratoNaTransferencia = "atualizado" | "mantido" | "bloqueado";
