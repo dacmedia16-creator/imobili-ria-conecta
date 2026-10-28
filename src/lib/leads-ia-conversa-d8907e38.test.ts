@@ -118,6 +118,10 @@ describe("trava região (item 2)", () => {
     const d = validarRedacaoDetalhe(s(`No Campolim não tenho com 3 suítes agora. Um apartamento parecido fica no Centro, em outro bairro, por R$ 975.000: ${CENTRO.url} Te serve?`, "oferecer", "VIP0015"), perm([CENTRO], { regiao: "campolim", estoque: "com_candidatos" }), "3 suites ate 1200");
     expect(d).toBeNull();
   });
+  it("aceita quando diz os dois bairros com todas as letras (DeepSeek real)", () => {
+    const d = validarRedacaoDetalhe(s(`No Campolim, essa é a que tenho agora. Mas tenho um apartamento parecido no Centro, por R$ 975.000: ${CENTRO.url} Gostou?`, "oferecer", "VIP0015"), perm([CENTRO], { regiao: "campolim", estoque: "com_candidatos", tipoRef: "apartamento" }), "3 suites ate 1200");
+    expect(d).toBeNull();
+  });
   it("imóvel do próprio bairro pedido passa sem aviso", () => {
     expect(validarRedacaoDetalhe(s(`Achei um apartamento no Parque Campolim por R$ 1.170.000: ${CAMPOLIM.url} O que acha?`, "oferecer", "VIP0036"), perm([CAMPOLIM], { regiao: "campolim" }), "3 suites ate 1200")).toBeNull();
   });

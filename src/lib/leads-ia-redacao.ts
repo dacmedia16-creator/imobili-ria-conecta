@@ -412,7 +412,7 @@ export type Permitidos = {
   tipoRef?: string;
   // t_37cf21e3 (conversa d8907e38). Sem o campo, a trava correspondente não roda.
   /** O cliente pediu fotos/vídeo: a mensagem tem de levar o link do imóvel em foco (se houver). */
-  fotos?: { link: string | null };
+  fotos?: { link: string | null; outros?: string[] };
   /** Bairro pedido pelo cliente: imóvel de outro bairro só com aviso claro. */
   regiao?: string | null;
   /** Há duas buscas: tipo (base) do perfil que vale agora. */
@@ -687,14 +687,18 @@ export function validarRedacaoDetalhe(
   if (RE_RETORNO.test(n0)) return b("retorno", achou(RE_RETORNO, n0));
   // t_37cf21e3 item 6: fotos = o link do anúncio. Nunca \"te mando as fotos\"; pedido de fotos sem o link = barra.
   if (RE_FOTOS_PROMESSA.test(n0)) return b("fotos", achou(RE_FOTOS_PROMESSA, n0));
-  if (perm.fotos && perm.fotos.link && !links.some((l) => l.replace(/[.,;:!?]+$/, "") === perm.fotos!.link))
+  // Vale o link do imóvel em foco ou o de outro imóvel desta conversa (anúncio, último mostrado).
+  const linksFotos = perm.fotos ? [perm.fotos.link, ...(perm.fotos.outros ?? [])].filter(Boolean) : [];
+  if (perm.fotos && perm.fotos.link && !links.some((l) => linksFotos.includes(l.replace(/[.,;:!?]+$/, ""))))
     return b("fotos", RE_FOTOS.test(n0) ? `${achou(RE_FOTOS, n0)} sem o link` : "pediu fotos, sem o link");
   // t_37cf21e3 item 2: imóvel de outro bairro só com aviso claro de que o bairro pedido não tem.
   const ofertados = [...perm.codigos.values()].filter(
     (c) => (s.acao === "oferecer" && c.codigo === s.codigo) || (!!c.url && links.some((l) => l.replace(/[.,;:!?]+$/, "") === c.url)),
   );
   const foraDoBairro = perm.regiao ? ofertados.filter((c) => !mesmoBairroTxt(c.bairro, perm.regiao!)) : [];
-  if (foraDoBairro.length && !RE_AVISO_REGIAO.test(n0)) return b("regiao", `${foraDoBairro[0].bairro ?? "?"} | pediu ${perm.regiao}`);
+  // Também vale dizer os DOIS bairros com todas as letras ("no Central Parque é essa; outra no Jardim Piratininga").
+  const doisBairros = foraDoBairro.every((c) => !!c.bairro && n0.includes(norm(c.bairro))) && n0.includes(norm(perm.regiao ?? "-"));
+  if (foraDoBairro.length && !RE_AVISO_REGIAO.test(n0) && !doisBairros) return b("regiao", `${foraDoBairro[0].bairro ?? "?"} | pediu ${perm.regiao}`);
   // t_37cf21e3 item 3: com duas buscas, a oferta tem de ser do perfil que vale agora.
   if (perm.perfilTipo) {
     const errado = ofertados.find((c) => c.tipo && tipoBase(c.tipo) !== perm.perfilTipo);
@@ -1164,14 +1168,22 @@ export async function redigirResposta(
   );
   perm.estoque = estoque;
   // t_37cf21e3: travas da conversa d8907e38.
-  if (pediuFotos(texto)) perm.fotos = { link: (emFoco ? emFoco.url : ctx.ficha?.link) || null };
+  if (pediuFotos(texto))
+    perm.fotos = {
+      link: (emFoco ? emFoco.url : ctx.ficha?.link) || null,
+      outros: [ctx.ficha?.link, dadosIn.parecido_atual?.url, dadosIn.ultimo_parecido?.url].filter((x): x is string => !!x),
+    };
   if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
   // Na 2ª busca, a trava "tipo" compara com o tipo pedido para a outra pessoa (não com a casa do cliente).
   if (perfis?.atual === "segunda" && dadosIn.busca2?.tipo) perm.tipoRef = dadosIn.busca2.tipo;
   perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
   perm.pediuOpcoes = base.intencao === "opcoes";
-  void valorFaixa;
+  // A faixa que o próprio cliente disse ("até 1200" = R$ 1.200.000) pode ser repetida (trava "valor").
+  for (const fx of [dadosIn.faixa, dadosIn.busca2?.faixa, texto]) {
+    const v = fx ? valorFaixa(fx, true) : null;
+    for (const x of [v?.min, v?.max]) if (typeof x === "number" && x >= 1000) perm.valores.push(x);
+  }
   // No máximo 2 chamadas. Modo bloquear: bloqueio do validador = 2ª tentativa dizendo o que estava errado
   // (t_a9f1b447); só se ela também falhar sai a frase pronta. Modo observar: erro, demora ou JSON ruim = 2ª
   // tentativa (t_3a4bf078); bloqueio só registra. A trava "contagem" corrigida vale nos dois modos.
@@ -1288,7 +1300,7 @@ export async function redigirResposta(
   const dados: DadosQualificacao = {
     ...dadosIn,
     // Busca por característica: o modelo pode ter mostrado outro candidato que não o do plano B.
-    ...(busca ? { parecido_atual: base.dados.parecido_atual, parecidos: base.dados.parecidos } : {}),
+    ...(busca ? { parecido_atual: base.dados.parecido_atual, parecidos: base.dados.parecidos, busca2: base.dados.busca2 ?? dadosIn.busca2 } : {}),
     repeticoes: { ...(dadosIn.repeticoes ?? {}) },
     perguntas: [...(dadosIn.perguntas ?? [])],
   };
@@ -1320,8 +1332,14 @@ export async function redigirResposta(
   if (/visita/.test(norm(saida.mensagem))) dados.convite_visita = true;
   if (ofertaValida) {
     const c = perm.codigos.get(saida.codigo!)!;
-    dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, 3);
-    dados.parecido_atual = c;
+    if (busca?.perfil === "segunda" && dados.busca2) {
+      // t_37cf21e3 item 3: oferta da 2ª busca (ex.: o apartamento do filho) fica na 2ª busca; antes virava o
+      // "parecido atual" do cliente e as fotos e as "outras opções" da casa dele passavam a vir do apartamento.
+      dados.busca2 = { ...dados.busca2, atual: c, ofertados: [...new Set([...(dados.busca2.ofertados ?? []), c.codigo])].slice(0, 3) };
+    } else {
+      dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, 3);
+      dados.parecido_atual = c;
+    }
   }
   // shortcut: o passo do roteiro fica como estava (o modelo conduz); se o modelo falhar no próximo turno, o
   // roteiro fixo continua de onde a conversa estava.
