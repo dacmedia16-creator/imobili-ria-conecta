@@ -42,6 +42,7 @@ import {
   periodoDe,
   temPeriodo,
   tipoDe,
+  tipoPedido,
   pediuPessoa,
   perguntouSeRobo,
   prazoConfirmacao,
@@ -1459,7 +1460,7 @@ export async function redigirResposta(
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
   // t_6667db44 (f3837c14, 09:24): o tipo dito na ÚLTIMA mensagem (\"manda mais opções de ap\") manda na trava \"perfil\"
   // (firme): antes valia o perfil antigo (casa) e a casa 2544 passou.
-  const tipoDaFala = tipoDe(norm(texto));
+  const tipoDaFala = tipoPedido(texto);
   if (tipoDaFala) perm.perfilTipo = tipoBase(tipoDaFala);
   // t_228659f0 (DeepSeek real, conversa H): o cliente pediu o condomínio PELO NOME. O que a busca achou vale, seja
   // casa ou apartamento (a trava "perfil" barrava os apartamentos do Cannes). E ele tem de ver um deles ("sem_oferta").
@@ -1576,13 +1577,13 @@ export async function redigirResposta(
   // os dados do XML (o roteiro não conhece a busca por nome e respondia \"o corretor confirma o valor\").
   // t_6667db44 (f3837c14, 09:24): a reserva nunca mostra um tipo diferente do que o cliente pediu na última
   // mensagem (\"manda mais opções de ap\" -> saiu a casa 2544). Sem imóvel do tipo pedido, diz isso.
-  const tipoPedido = tipoDe(norm(texto)) ?? (dadosIn.busca2?.ativa && !dadosIn.busca2.para ? dadosIn.busca2.tipo || null : null);
+  const tipoPedidoAgora = tipoPedido(texto) ?? (dadosIn.busca2?.ativa && !dadosIn.busca2.para ? dadosIn.busca2.tipo || null : null);
   const tipoCerto = <T extends { resposta: string; dados: DadosQualificacao }>(r: T): T => {
-    if (!tipoPedido) return r;
+    if (!tipoPedidoAgora) return r;
     const imoveis = [...perm.codigos.values(), r.dados?.parecido_atual, r.dados?.busca2?.atual].filter((x): x is ImovelParecido => !!x?.url);
-    const errado = imoveis.find((i) => r.resposta.includes(i.url!) && !!i.tipo && tipoBase(i.tipo) !== tipoBase(tipoPedido));
+    const errado = imoveis.find((i) => r.resposta.includes(i.url!) && !!i.tipo && tipoBase(i.tipo) !== tipoBase(tipoPedidoAgora));
     if (!errado) return r;
-    const plural = tipoBase(tipoPedido) === "apartamento" ? "apartamento" : tipoBase(tipoPedido);
+    const plural = tipoBase(tipoPedidoAgora);
     return {
       ...r,
       dados: ctx.dados ?? {},
