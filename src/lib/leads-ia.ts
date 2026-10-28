@@ -1846,8 +1846,18 @@ export async function proximaResposta(
   // --- Busca nova no meio da conversa (item 11): outra pessoa, outro tipo. Não perde o imóvel do lead. ---
   const b2 = dados.busca2;
   const quemB = (b: Busca2) => (b.para ? b.para.replace(/^o /, "o seu ").replace(/^a /, "a sua ") : null);
-  const perguntarOuBuscar = async (b: Busca2, intro: string, primeira = false, pediu = false): Promise<RespostaIa> => {
-    const e = proximaBusca(b);
+  // t_33fb109d (75957c60): busca do PRÓPRIO cliente com o tipo já dito e um valor (\"casa neste valor\") ou o tipo
+  // pedido de novo (\"veja se tem casas\", \"me manda casas\"): procura já, com o que se sabe (compra/aluguel da conversa,
+  // faixa dita ou o valor do anúncio ±15%). Antes seguia perguntando e a 2ª tentativa passou ao corretor sem casa.
+  const completarBusca = (b: Busca2) => {
+    if (!b.finalidade) b.finalidade = dados.finalidade === "alugar" || negocio() === "locacao" ? "alugar" : "comprar";
+    const ref = negocio() === "locacao" ? ficha?.aluguel_valor : ficha?.preco_valor;
+    if (b.faixa === undefined || b.faixa === "") b.faixa = dados.faixa && valorFaixa(dados.faixa, true) ? dados.faixa : ref ? `perto de ${reais(ref)}` : "";
+    if (b.regiao === undefined) b.regiao = "";
+    b.etapa = undefined;
+  };
+  const perguntarOuBuscar = async (b: Busca2, intro: string, primeira = false, pediu = false, ja_buscar = false): Promise<RespostaIa> => {
+    const e = ja_buscar ? null : proximaBusca(b);
     if (e) {
       b.perguntas = [...(b.perguntas ?? []), e];
       b.etapa = e;
@@ -1962,10 +1972,19 @@ export async function proximaResposta(
     return { ...continuar(`As fotos o corretor te envia por aqui. ${fecha}`), fixo: true };
   }
 
+  // t_33fb109d: o próprio cliente pede de novo o tipo desta busca (\"veja se tem casas\", \"me manda casas\").
+  const pedeTipoB = !!b2 && !b2.para && !!b2.tipo && tipoPedido(texto) === b2.tipo;
   if (b2?.ativa) {
     if (b2.etapa && /(visitar|agendar|marcar)/.test(n) && QUER_VISITA.test(n)) {
       b2.etapa = undefined;
       b2.ativa = false; // o que já disse da busca fica anotado para o corretor
+    } else if (b2.etapa && pedeTipoB) {
+      // Insistiu no tipo em vez de responder à pergunta: procura já (não pergunta de novo nem passa sem mostrar).
+      const etapa = b2.etapa;
+      b2.etapa = undefined;
+      preencherBusca(b2, texto, etapa === "regiao" || etapa === "faixa" ? undefined : etapa);
+      completarBusca(b2);
+      return perguntarOuBuscar(b2, "", false, true, true);
     } else if (b2.etapa) {
       // Resposta à pergunta da busca (o cliente pode responder várias coisas de uma vez).
       const etapa = b2.etapa;
@@ -1982,7 +2001,7 @@ export async function proximaResposta(
         b2.atual = undefined;
         return fecho("Tudo bem!");
       }
-      if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) return perguntarOuBuscar(b2, "", false, true);
+      if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto) || pedeTipoB) return perguntarOuBuscar(b2, "", false, true, pedeTipoB);
       if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
         b2.interesse = p.codigo;
         b2.ativa = false;
@@ -1998,6 +2017,9 @@ export async function proximaResposta(
       }
     } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) {
       return perguntarOuBuscar(b2, "", false, true); // voltou a pedir opções para a outra pessoa
+    } else if (pedeTipoB) {
+      completarBusca(b2); // t_33fb109d: \"me manda casas\" com a busca já montada = procura já
+      return perguntarOuBuscar(b2, "", false, true, true);
     }
   } else {
     const nb = novaBusca(n, ficha?.tipo);
@@ -2005,6 +2027,12 @@ export async function proximaResposta(
       dados.busca2 = nb;
       preencherBusca(nb, texto, undefined);
       const abre = /(trabalh|mexe(m)? com)/.test(n) ? "Trabalhamos sim!" : "Claro, te ajudo com isso!";
+      // t_33fb109d: \"tem casa neste valor?\" (para ele mesmo, tipo + valor) = procura já, na faixa do anúncio ou na dita.
+      if (!nb.para && nb.tipo && (MESMA_FAIXA.test(n) || nb.faixa)) {
+        if (MESMA_FAIXA.test(n) && !nb.faixa) nb.faixa = "";
+        completarBusca(nb);
+        return perguntarOuBuscar(nb, "", true, true, true);
+      }
       return perguntarOuBuscar(nb, abre, true);
     }
   }
