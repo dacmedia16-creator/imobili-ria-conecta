@@ -1,6 +1,6 @@
 import { Landmark } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { detalheFinanciada, ehFinanciada } from "@/lib/vendas-pagamento-filtro";
+import { detalheFinanciada, rotuloFinanciada } from "@/lib/vendas-pagamento-filtro";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,14 +12,18 @@ export function FinanciadaBadge({
   tipo,
   banco,
   correspondente,
+  obaCredito,
   className,
 }: {
   tipo: string | null | undefined;
+  /** sale_payment.oba_credito: com financiamento, a etiqueta vira "Financiada · Obah" (t_1e3dda48). */
+  obaCredito?: boolean | null;
   banco?: string | null;
   correspondente?: string | null;
   className?: string;
 }) {
-  if (!ehFinanciada(tipo)) return null;
+  const rotulo = rotuloFinanciada(tipo, obaCredito);
+  if (!rotulo) return null;
   const detalhe = detalheFinanciada(banco, correspondente);
   const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
@@ -37,7 +41,7 @@ export function FinanciadaBadge({
           )}
         >
           <Landmark className="h-3 w-3" aria-hidden />
-          Financiada
+          {rotulo}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto max-w-xs p-2 text-xs" onClick={parar}>

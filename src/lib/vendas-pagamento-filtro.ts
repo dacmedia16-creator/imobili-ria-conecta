@@ -6,9 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
  * (tipo_pagamento é NOT NULL, então "sem tipo" não existe no banco).
  */
 export const PAGAMENTO_NAO_INFORMADO = "__nao_informado__";
+/** Financiada com Obah marcada (tipo financiamento + sale_payment.oba_credito = true) — t_1e3dda48. */
+export const PAGAMENTO_FINANCIADA_OBAH = "financiamento_obah";
 
 export const PAGAMENTO_FILTER_OPTIONS: { key: string; label: string }[] = [
   { key: "financiamento", label: "Financiada" },
+  { key: PAGAMENTO_FINANCIADA_OBAH, label: "Financiada pela Obah" },
   { key: "vista", label: "À vista" },
   { key: "consorcio", label: "Consórcio" },
   { key: PAGAMENTO_NAO_INFORMADO, label: "Não informado" },
@@ -40,7 +43,11 @@ export async function fetchSelecaoPorPagamento(f: string): Promise<SelecaoPagame
   const LOTE = 1000;
   for (let de = 0; ; de += LOTE) {
     const base = supabase.from("sale_payment").select("sale_id");
-    const filtrada = naoInformado ? base : base.eq("tipo_pagamento", f);
+    const filtrada = naoInformado
+      ? base
+      : f === PAGAMENTO_FINANCIADA_OBAH
+        ? base.eq("tipo_pagamento", "financiamento").eq("oba_credito", true)
+        : base.eq("tipo_pagamento", f);
     const { data, error } = await filtrada.order("sale_id").range(de, de + LOTE - 1);
     if (error) throw error;
     for (const r of data ?? []) ids.add(r.sale_id);
@@ -70,4 +77,13 @@ export function detalheFinanciada(
 
 export function ehFinanciada(tipo: string | null | undefined): boolean {
   return tipo === "financiamento";
+}
+
+/** Texto da etiqueta: "Financiada · Obah" só para financiada com Oba Crédito marcado. */
+export function rotuloFinanciada(
+  tipo: string | null | undefined,
+  obaCredito: boolean | null | undefined,
+): string | null {
+  if (!ehFinanciada(tipo)) return null;
+  return obaCredito === true ? "Financiada · Obah" : "Financiada";
 }

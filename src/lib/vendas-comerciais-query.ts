@@ -26,6 +26,8 @@ export type VendaComercialPaginada = {
   pagamento_tipo?: string | null;
   pagamento_banco?: string | null;
   pagamento_correspondente?: string | null;
+  /** sale_payment.oba_credito (financiada pela Obah); null = não informado. */
+  pagamento_oba?: boolean | null;
   /** Corretores participantes (atribuição). `corretor_id` é só quem cadastrou. */
   corretores_ids?: string[];
 };

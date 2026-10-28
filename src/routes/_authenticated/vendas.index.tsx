@@ -130,6 +130,7 @@ type SalesListRow = RawSale & {
   pagamento_tipo?: string | null;
   pagamento_banco?: string | null;
   pagamento_correspondente?: string | null;
+  pagamento_oba?: boolean | null;
 };
 
 /** Nomes dos corretores participantes (não de quem cadastrou a venda). */
@@ -1275,6 +1276,7 @@ function SalesList() {
                           tipo={s.pagamento_tipo}
                           banco={s.pagamento_banco}
                           correspondente={s.pagamento_correspondente}
+                          obaCredito={s.pagamento_oba}
                         />
                         {minhaVez && (
                           <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
@@ -1355,6 +1357,7 @@ function SalesList() {
                                 tipo={s.pagamento_tipo}
                                 banco={s.pagamento_banco}
                                 correspondente={s.pagamento_correspondente}
+                                obaCredito={s.pagamento_oba}
                               />
                               {minhaVez && (
                                 <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
