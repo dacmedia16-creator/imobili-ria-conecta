@@ -205,7 +205,7 @@ REGRAS (todas obrigatórias):
 1. Responda PRIMEIRO exatamente o que o cliente perguntou, em 1 ou 2 frases. Não repita dados que você já mandou no histórico.
 2. Só 1 pergunta por mensagem, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Para dar escolha, junte tudo numa pergunta só com "ou" ("Quer ver essa ou prefere que eu procure com 2 suítes?"). Nunca faça 2 perguntas seguidas ("Te serve? Quer visitar?" está errado). Nunca ofereça "pedir para alguém".
 3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. IPTU: diga "por mês" ou "por ano" SÓ se DADOS trouxer "iptu_periodo"; sem ele, diga só o valor. Sem o dado: "o corretor confirma com você na visita ou no contato" e registre o assunto em "registro.pendente". Nunca prometa voltar com a resposta ("já te falo", "te retorno", "te confirmo").
-4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
+4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Isso NÃO é motivo para "acao":"passar": anote e siga o atendimento. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
 5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato"; nunca diga que o corretor vai ligar, mandar ou responder em algum prazo. Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Toda oferta de imóvel leva o link dele ("Dá uma olhada: <link>"), sem exceção. Quando o cliente corrigir o tipo que quer ("disse que quero casa") e houver CANDIDATOS, peça desculpa em poucas palavras e já mostre um deles com o link. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
@@ -631,7 +631,7 @@ export function validarRedacao(
 }
 
 const RE_IDENTIDADE =
-  /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um )?(pessoa|humana|humano|gente)|de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/;
+  /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um |a |o )?(pessoa|humana|humano|gente|corretora|corretor)\b|\bsou (a |sua |tua )?(corretora|corretor) |de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/;
 const RE_DISPONIB =
   /(disponiv|ja (foi )?(vendid|alugad)|ainda (esta|ta|tem|e) a venda|continua a venda|nao foi vendid|livre para)/;
 const RE_CONDICAO =
@@ -1030,6 +1030,9 @@ export type OpcoesRedacao = {
 };
 
 /** "Não" curto a uma pergunta da Nicole (não é motivo para passar ao corretor, t_a9f1b447 item 5). */
+/** t_0c590c55 item 4: assuntos que o corretor confirma (anotar e seguir, sem passar). */
+const TEMA_CONFIRMA = /(permut|financ|fgts|consorcio|disponiv|ainda (esta|ta) a venda|\bandar\b)/;
+const curtoTxt = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 60);
 const NAO_CURTO = /^(nao|n|nao obrigad\w*|nao precisa|so isso|tudo bem|ta bom|nao,? obrigad\w*)[\s.!]*$/;
 
 /** A mensagem tem que sair com o texto fixo (regras de antes do modelo)? */
@@ -1307,6 +1310,11 @@ export async function redigirResposta(
   // "Não" a uma pergunta da Nicole não é motivo para passar ao corretor (item 5).
   if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && NAO_CURTO.test(norm(texto)))
     saida = { ...saida, acao: "responder" };
+  // t_0c590c55 item 4: assunto que \"o corretor confirma\" (permuta, financiamento, FGTS, disponibilidade, andar)
+  // vira pendência e o atendimento SEGUE; passar só com visita combinada, pedido de pessoa ou busca nova.
+  if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && TEMA_CONFIRMA.test(norm(texto))) {
+    saida = { ...saida, acao: "responder", registro: { ...saida.registro, pendente: saida.registro.pendente ?? curtoTxt(texto) } };
+  }
   // Observar: limite do banco (2000) e oferta com código fora dos candidatos não vira "oferecido".
   if (observar) saida = { ...saida, mensagem: saida.mensagem.slice(0, 1500) };
   const ofertaValida = saida.acao === "oferecer" && !!saida.codigo && perm.codigos.has(saida.codigo);

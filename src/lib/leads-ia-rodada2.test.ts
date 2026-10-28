@@ -3,7 +3,7 @@
 // 2. toda oferta de imóvel leva o link do anúncio, se ele existir (trava "sem_link");
 // 3. trava "sem_opcao" sem falso positivo (limite de 3 opções e mensagem que mostra imóvel).
 import { describe, expect, it } from "vitest";
-import { proximaResposta, type ContextoIa, type ImovelParecido } from "./leads-ia";
+import { perguntouSeCorretora, proximaResposta, type ContextoIa, type ImovelParecido } from "./leads-ia";
 import { permitidosDe, TRAVAS_FIRMES, validarRedacao, explicarBloqueio, type SaidaModelo } from "./leads-ia-redacao";
 import { buscasReferencia, ctxReferencia, REFERENCIA } from "./leads-ia-referencia.dados";
 
@@ -96,6 +96,59 @@ describe("2. toda oferta leva o link do anúncio (trava sem_link)", () => {
   it("é trava firme e explica a correção ao modelo", () => {
     expect(TRAVAS_FIRMES.has("sem_link")).toBe(true);
     expect(explicarBloqueio({ motivo: "sem_link", trecho: "3885" })).toMatch(/link/);
+  });
+});
+
+/** Roda a conversa G (b00303f0) só no roteiro; devolve todas as respostas. */
+async function roteiroG() {
+  const conv = REFERENCIA.find((x) => x.id === "G")!;
+  const b = buscasReferencia(conv);
+  let c: ContextoIa = ctxReferencia(conv);
+  const out = [];
+  for (const f of conv.falas) {
+    const r = await proximaResposta(c, f.cliente, undefined, { agora: AGORA, ...b });
+    out.push(r);
+    c = { ...c, passo: r.passo, dados: r.dados, versao: c.versao + 1 };
+  }
+  return out;
+}
+
+describe("4. permuta (e outros assuntos que o corretor confirma) não passa a conversa", () => {
+  it("b00303f0: ANTES \"aceita permuta ?\" passou ao corretor. DEPOIS anota e convida para a visita", async () => {
+    const [, , permuta, corretora] = await roteiroG();
+    expect(permuta.fim).toBeNull();
+    expect(permuta.resposta).not.toMatch(/\{corretor\}|já pedi/i);
+    expect(permuta.resposta).toMatch(/corretor confirma/);
+    expect(permuta.dados.pagamento).toContain("permuta");
+    expect(permuta.dados.pendentes?.some((p) => /permuta/.test(p))).toBe(true);
+    // a conversa segue: a pergunta seguinte é respondida
+    expect(corretora.resposta.length).toBeGreaterThan(0);
+  });
+  it("disponibilidade não passa", async () => {
+    const [disp] = await roteiroG();
+    expect(disp.fim).toBeNull();
+  });
+});
+
+describe("5. \"vc não é corretora ?\": responde com sinceridade e retoma", () => {
+  it("roteiro: assistente virtual + corretor continua, 1 pergunta, sem dizer que é corretora/pessoa", async () => {
+    const r = (await roteiroG())[3];
+    expect(r.fim).toBeNull();
+    expect(r.fixo).toBe(true);
+    expect(r.resposta).toMatch(/assistente virtual/);
+    expect(r.resposta).toMatch(/corretor da equipe continua/);
+    expect(r.resposta).not.toMatch(/sou (a |uma )?(corretora|pessoa)/i);
+    expect((r.resposta.match(/\?/g) ?? []).length).toBe(1);
+  });
+  it("reconhece as variações e não confunde com outra coisa", () => {
+    for (const t of ["vc não é corretora ?", "você é a corretora?", "vc é corretora?", "Você não é corretor?"]) expect(perguntouSeCorretora(t), t).toBe(true);
+    for (const t of ["quem é o corretor?", "qual corretor vai me atender?", "sou corretora", "a corretora é boa"]) expect(perguntouSeCorretora(t), t).toBe(false);
+  });
+  it("trava identidade barra \"sou corretora\" e \"sou uma pessoa\"", () => {
+    const perm = permitidosDe(null, [], []);
+    expect(validarRedacao(s("Sou corretora sim! Quer agendar uma visita?"), perm, "vc não é corretora ?")).toBe("identidade");
+    expect(validarRedacao(s("Sou a corretora da equipe. Quer agendar uma visita?"), perm, "vc não é corretora ?")).toBe("identidade");
+    expect(validarRedacao(s("Sou uma pessoa de verdade. Quer agendar uma visita?"), perm, "vc não é corretora ?")).toBe("identidade");
   });
 });
 

@@ -382,6 +382,25 @@ export const REFERENCIA: ConversaReferencia[] = [
       { cliente: "me manda as fotos primeiro", esperado: "As fotos estão todas no anúncio: <link>", antes: "As fotos da casa do Central Parque o corretor confirma com você na visita ou no contato. Quer agendar a visita para conhecê-la?", falha: "item 6: sem link" },
     ],
   },
+  // t_0c590c55: conversa b00303f0 (lead 13f9b512, VIP0144, DeepSeek ao vivo, 28/10 21:40-21:43) — permuta e "corretora?".
+  {
+    id: "G",
+    lead: "13f9b512",
+    anuncio: "VIP0144",
+    ficha: ficha({
+      tipo: "casa", bairro: "Residencial Horto Florestal Villagio", quartos: "3", suites: "2", banheiros: "2", vagas: "2",
+      area_util_m2: "113", preco: "R$ 699.000", preco_valor: 699000, condominio: "R$ 280,00", iptu: "R$ 100,00 por mês",
+      link: "https://vipsevenimoveis.com.br/imovel/VIP0144",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Residencial Horto Florestal Villagio, em Sorocaba, anunciada por R$ 699.000. Anúncio: https://vipsevenimoveis.com.br/imovel/VIP0144 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "esta disponível ?", esperado: "Sobre a disponibilidade, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?", antes: "Sobre a disponibilidade, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?" },
+      { cliente: "me manda mais detalhes", esperado: "A casa tem 3 quartos, 2 suítes, 2 vagas e 113 m². Quer agendar uma visita?", antes: "Claro! A casa tem 3 quartos, 2 suítes, 2 banheiros, 2 vagas de garagem e 113 m². O condomínio é R$ 280 e o IPTU R$ 100 por mês. Quer agendar uma visita para ver tudo de perto?" },
+      { cliente: "aceita permuta ?", esperado: "Anotei! Se o proprietário aceita permuta, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?", antes: "Anotei! Se o proprietário aceita permuta, o corretor confirma com você. Já pedi para o nosso time de corretores continuar seu atendimento por aqui para conversar sobre isso.", falha: "item 4: permuta passou a conversa ao corretor (cedo demais)" },
+      { cliente: "vc não é corretora ?", esperado: "Sou a Nicole, assistente virtual da ZZ, e um corretor da equipe continua seu atendimento e acompanha a visita. Quer agendar uma visita para conhecer?", antes: null, falha: "item 5: ficou sem resposta (conversa já passada)" },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------

@@ -378,6 +378,18 @@ const ROBO_RE = new RegExp(
     `|${QUEM_ROBO}(e |eh )(um |uma )?(humano|humana|pessoa (de verdade|real)|gente de verdade))`,
 );
 
+/** t_0c590c55 item 5 (b00303f0): \"vc não é corretora?\", \"você é a corretora?\", \"é atendente?\". */
+const CORRETORA_RE = /(^|\b(voce|vc|tu|cê|ce)\s+)(nao\s+)?(e|eh|seria|sera)\s+(a\s+|o\s+|uma\s+|um\s+)?(corretora|corretor|atendente|consultora)\b/;
+export function perguntouSeCorretora(t: string): boolean {
+  const n = norm(t);
+  return ehPergunta(t) && CORRETORA_RE.test(n) && !/\b(quem|qual|como)\b/.test(n);
+}
+/** Resposta sincera em 1 frase + 1 pergunta para retomar. Nunca diz que é corretora nem pessoa. */
+export function textoCorretora(ctx: Pick<ContextoIa, "ia_nome" | "org_nome">): string {
+  const nome = (ctx.ia_nome || "Nicole").trim();
+  return `Sou a ${nome}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e um corretor da equipe continua seu atendimento e acompanha a visita. Quer agendar uma visita para conhecer?`;
+}
+
 /** Cliente fala em permuta (dar um bem como parte do pagamento). \"trocar o dia\" não conta. */
 const BENS = "(carro|imovel|apartamento|apto|casa|terreno|moto|lote|sobrado|chacara)";
 const FALA_PERMUTA_RE = new RegExp(
@@ -1591,6 +1603,9 @@ export async function proximaResposta(
       resumo: null,
     };
   }
+  // t_0c590c55 item 5: \"vc não é corretora?\" = resposta sincera e segue (antes do \"não é lead\": \"corretora\").
+  if (perguntouSeCorretora(texto))
+    return { passo: ctx.passo === "fim" ? "visita" : ctx.passo, dados, resposta: textoCorretora(ctx), resposta_falha: null, fim: null, resumo: null, fixo: true };
   const cat = categoriaNaoLead(texto);
   if (cat) {
     dados.categoria = cat;
@@ -2124,18 +2139,14 @@ export async function proximaResposta(
     dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);
   }
 
-  // Permuta: a Nicole nunca diz se aceita. Registra e passa (t_59ab47d4); fala em outra pessoa só aqui.
+  // Permuta: a Nicole nunca diz se aceita. t_0c590c55 item 4 (b00303f0): antes registrava e PASSAVA (encerrava
+  // cedo, antes da visita); agora anota para o corretor (pagamento + pendência) e segue o atendimento.
   if (falaPermuta(n) && !respParecido) {
     dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
+    dados.pendentes = [...new Set([...(dados.pendentes ?? []), `permuta: \"${curto(texto, 60)}\"`])].slice(0, 12);
     const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados, sujeito);
-    return passar(
-      dados,
-      "qualificado",
-      junta(outras, "Anotei! Se o proprietário aceita permuta, o corretor confirma com você."),
-      `${CHAMAR} para conversar sobre isso.`,
-      FALHA_PADRAO,
-      `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
-    );
+    const fecha = dados.visita_opcoes && !dados.visita ? `Sobre a visita: ${dados.visita_opcoes[0]} ou ${dados.visita_opcoes[1]} fica bom para você?` : CONVITE_VISITA;
+    return continuar(junta(outras, `Anotei! Se o proprietário aceita permuta, o corretor confirma ${CORRETOR_CONFIRMA}.`, fecha));
   }
   // Proposta, desconto, negociação: só quando o CLIENTE puxa o assunto.
   if (temas.includes("negociacao") && !respParecido) {
