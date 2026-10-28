@@ -2639,6 +2639,8 @@ export type IaConfig = {
   ia_primeira_msg?: string | null;
   /** Reengajamento em 2 toques (~24 h e ~72 h). Desligado por padrão. */
   ia_reengajar?: boolean;
+  /** Lembrete rápido de 15 min quando o cliente para no meio da conversa (t_b3f753a5). Desligado por padrão. */
+  ia_toque15?: boolean;
 };
 
 /** Texto padrão da 1ª mensagem (igual a lead_ia_primeira_msg no banco). */
@@ -2663,15 +2665,16 @@ export function validarIaConfig(c: Pick<IaConfig, "ia_nome" | "ia_boas_vindas" |
  * administrador edita, do mesmo jeito que o banco grava (nome sem espaços nas pontas, texto vazio = padrão).
  */
 export function iaConfigMudou(
-  salvo: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar">,
-  atual: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar">,
+  salvo: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar" | "ia_toque15">,
+  atual: Pick<IaConfig, "ia_ativa" | "ia_nome" | "ia_primeira_msg" | "ia_reengajar" | "ia_toque15">,
 ): boolean {
   const txt = (s: string | null | undefined) => (s ?? "").trim();
   return (
     salvo.ia_ativa !== atual.ia_ativa ||
     txt(salvo.ia_nome) !== txt(atual.ia_nome) ||
     txt(salvo.ia_primeira_msg) !== txt(atual.ia_primeira_msg) ||
-    (salvo.ia_reengajar === true) !== (atual.ia_reengajar === true)
+    (salvo.ia_reengajar === true) !== (atual.ia_reengajar === true) ||
+    (salvo.ia_toque15 === true) !== (atual.ia_toque15 === true)
   );
 }
 
