@@ -83,7 +83,8 @@ BEGIN
     CASE WHEN _gen AND preco_aluguel > 0 AND preco_aluguel < 1e9 THEN preco_aluguel END,
     -- t_228659f0: título + descrição normalizados, sem link, e-mail nem telefone (busca pelo nome do condomínio).
     CASE WHEN _gen THEN nullif(left(btrim(regexp_replace(regexp_replace(public.lead_ia_norm(busca_texto),
-      '(https?://|www\.)\S+|\S+@\S+|\(?[0-9]{2}\)?[ .-]?[0-9]{4,5}[ .-]?[0-9]{4}|[0-9]{6,}', ' ', 'g'), '\s+', ' ', 'g')), 600), '') END,
+      '(https?://|www\.)\S+|\S+@\S+|\(?[0-9]{2}\)?[ .-]?[0-9]{4,5}[ .-]?[0-9]{4}|[0-9]{6,}|\m(permut|financ|fgts|consorcio|andar|desconto|aceita)\w*',
+      ' ', 'g'), '\s+', ' ', 'g')), 600), '') END,
     _hoje, _hoje, _run
     FROM _x
   ON CONFLICT (organization_id, code_key) DO UPDATE SET code = EXCLUDED.code, agent_id = EXCLUDED.agent_id,

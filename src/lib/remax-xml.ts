@@ -55,6 +55,8 @@ export function textoBusca(...partes: Array<string | null | undefined>): string 
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    // Condição de venda e andar não ficam guardados (a Nicole nunca afirma isso; o corretor confirma).
+    .replace(/\b(permut|financ|fgts|consorcio|andar|desconto|aceita)\w*/g, " ")
     .replace(/[^a-z0-9 ,./-]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
