@@ -7,10 +7,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const chamadas: { tabela?: string; metodo: string; args: unknown[] }[] = [];
-let linhasPagamento: { sale_id: string; tipo_pagamento: string }[] = [];
+let linhasPagamento: { sale_id: string; tipo_pagamento: string; oba_credito?: boolean }[] = [];
 vi.mock("@/integrations/supabase/client", () => {
   const builder = (tabela: string) => {
-    let tipo: string | null = null;
+    const filtros: Record<string, unknown> = {};
     const b: Record<string, unknown> = {};
     for (const m of ["select", "order"]) {
       b[m] = (...args: unknown[]) => {
@@ -20,13 +20,17 @@ vi.mock("@/integrations/supabase/client", () => {
     }
     b.eq = (...args: unknown[]) => {
       chamadas.push({ tabela, metodo: "eq", args });
-      tipo = String(args[1]);
+      filtros[String(args[0])] = args[1];
       return b;
     };
     b.range = (...args: unknown[]) => {
       chamadas.push({ tabela, metodo: "range", args });
       const data = linhasPagamento
-        .filter((l) => tipo === null || l.tipo_pagamento === tipo)
+        .filter((l) =>
+          Object.entries(filtros).every(
+            ([col, val]) => ((l as Record<string, unknown>)[col] ?? false) === val,
+          ),
+        )
         .map((l) => ({ sale_id: l.sale_id }));
       return Promise.resolve({ data, error: null });
     };
@@ -40,8 +44,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import {
   PAGAMENTO_FILTER_OPTIONS,
+  PAGAMENTO_FINANCIADA_OBAH,
   PAGAMENTO_NAO_INFORMADO,
   detalheFinanciada,
+  rotuloFinanciada,
   ehFinanciada,
   fetchSelecaoPorPagamento,
   filtrarPorPagamento,
@@ -56,24 +62,27 @@ const norm = (s: string) => s.replace(/--.*$/gm, "").replace(/\s+/g, " ").toLowe
 beforeEach(() => {
   chamadas.length = 0;
   linhasPagamento = [
-    { sale_id: "fin-1", tipo_pagamento: "financiamento" },
-    { sale_id: "fin-2", tipo_pagamento: "financiamento" },
-    { sale_id: "vis-1", tipo_pagamento: "vista" },
+    { sale_id: "fin-1", tipo_pagamento: "financiamento", oba_credito: true },
+    { sale_id: "fin-2", tipo_pagamento: "financiamento", oba_credito: false },
+    // Oba marcado em venda à vista (não acontece hoje em produção): não pode virar "Obah".
+    { sale_id: "vis-1", tipo_pagamento: "vista", oba_credito: true },
     { sale_id: "con-1", tipo_pagamento: "consorcio" },
   ];
 });
 afterEach(() => cleanup());
 
 describe("filtro Pagamento — opções e valores", () => {
-  it("tem Financiada, À vista, Consórcio e Não informado, nessa ordem", () => {
+  it("tem Financiada, Financiada pela Obah, À vista, Consórcio e Não informado, nessa ordem", () => {
     expect(PAGAMENTO_FILTER_OPTIONS.map((o) => o.label)).toEqual([
       "Financiada",
+      "Financiada pela Obah",
       "À vista",
       "Consórcio",
       "Não informado",
     ]);
     expect(PAGAMENTO_FILTER_OPTIONS.map((o) => o.key)).toEqual([
       "financiamento",
+      PAGAMENTO_FINANCIADA_OBAH,
       "vista",
       "consorcio",
       PAGAMENTO_NAO_INFORMADO,
@@ -81,7 +90,14 @@ describe("filtro Pagamento — opções e valores", () => {
   });
 
   it("aceita só valores conhecidos (URL/sessão adulterada vira 'todas')", () => {
-    for (const k of ["todas", "financiamento", "vista", "consorcio", PAGAMENTO_NAO_INFORMADO])
+    for (const k of [
+      "todas",
+      "financiamento",
+      PAGAMENTO_FINANCIADA_OBAH,
+      "vista",
+      "consorcio",
+      PAGAMENTO_NAO_INFORMADO,
+    ])
       expect(pagamentoFilterValido(k)).toBe(true);
     for (const k of ["", "Financiada", "boleto", null, undefined, "' or 1=1"])
       expect(pagamentoFilterValido(k)).toBe(false);
@@ -131,6 +147,7 @@ describe("filtro Pagamento — cartão de efetivadas (totais filtrados)", () => 
 
   it.each([
     ["financiamento", ["fin-1", "fin-2"], 300],
+    [PAGAMENTO_FINANCIADA_OBAH, ["fin-1"], 100],
     ["vista", ["vis-1"], 300],
     ["consorcio", ["con-1"], 400],
     [PAGAMENTO_NAO_INFORMADO, ["sem-1"], 500],
@@ -141,10 +158,11 @@ describe("filtro Pagamento — cartão de efetivadas (totais filtrados)", () => 
     expect(soma(r)).toBe(total);
   });
 
-  it("as 4 opções somam o total geral (nenhuma venda some ou conta duas vezes)", async () => {
+  it("as 4 opções de tipo somam o total geral (nenhuma venda some ou conta duas vezes)", async () => {
     let n = 0;
     let v = 0;
-    for (const o of PAGAMENTO_FILTER_OPTIONS) {
+    // "Financiada pela Obah" é um recorte de "Financiada", não um tipo a mais.
+    for (const o of PAGAMENTO_FILTER_OPTIONS.filter((x) => x.key !== PAGAMENTO_FINANCIADA_OBAH)) {
       const r = filtrarPorPagamento(efetivadas, await fetchSelecaoPorPagamento(o.key));
       n += r.length;
       v += soma(r);
@@ -160,6 +178,23 @@ describe("filtro Pagamento — cartão de efetivadas (totais filtrados)", () => 
     chamadas.length = 0;
     await fetchSelecaoPorPagamento(PAGAMENTO_NAO_INFORMADO);
     expect(chamadas.some((c) => c.metodo === "eq")).toBe(false);
+    chamadas.length = 0;
+    await fetchSelecaoPorPagamento(PAGAMENTO_FINANCIADA_OBAH);
+    expect(chamadas.filter((c) => c.metodo === "eq").map((c) => c.args)).toEqual([
+      ["tipo_pagamento", "financiamento"],
+      ["oba_credito", true],
+    ]);
+  });
+
+  it("Obah é recorte de Financiada: Financiada continua com todas, com e sem Obah", async () => {
+    const fin = filtrarPorPagamento(efetivadas, await fetchSelecaoPorPagamento("financiamento"));
+    const obah = filtrarPorPagamento(
+      efetivadas,
+      await fetchSelecaoPorPagamento(PAGAMENTO_FINANCIADA_OBAH),
+    );
+    expect(fin.map((x) => x.saleId)).toEqual(["fin-1", "fin-2"]);
+    expect(obah.every((x) => fin.includes(x))).toBe(true);
+    expect(obah.map((x) => x.saleId)).not.toContain("vis-1"); // Oba em venda à vista não entra
   });
 });
 
@@ -205,6 +240,106 @@ describe("etiqueta Financiada", () => {
     );
     fireEvent.click(botao);
     expect(abrirVenda).not.toHaveBeenCalled();
+  });
+});
+
+describe("etiqueta Financiada · Obah (t_1e3dda48)", () => {
+  it("rótulo: Obah só em financiada com oba_credito = true", () => {
+    expect(rotuloFinanciada("financiamento", true)).toBe("Financiada · Obah");
+    expect(rotuloFinanciada("financiamento", false)).toBe("Financiada");
+    expect(rotuloFinanciada("financiamento", null)).toBe("Financiada");
+    expect(rotuloFinanciada("financiamento", undefined)).toBe("Financiada");
+    for (const t of ["vista", "consorcio", null, undefined]) {
+      expect(rotuloFinanciada(t, true)).toBeNull();
+      expect(rotuloFinanciada(t, false)).toBeNull();
+    }
+  });
+
+  it("mostra 'Financiada · Obah' e o balão de banco/correspondente não muda", () => {
+    render(
+      createElement(FinanciadaBadge, {
+        tipo: "financiamento",
+        banco: "Caixa",
+        correspondente: "Correspondente X",
+        obaCredito: true,
+      }),
+    );
+    const botao = screen.getByRole("button", { name: /Financiada/ });
+    expect(botao.textContent).toBe("Financiada · Obah");
+    expect(botao.getAttribute("title")).toBe(
+      "Financiada · Banco: Caixa · Correspondente: Correspondente X",
+    );
+  });
+
+  it.each([
+    ["financiamento", false, "Financiada"],
+    ["vista", true, ""],
+    ["consorcio", true, ""],
+    [null, true, ""],
+  ])("tipo %s + oba %s -> '%s'", (tipo, obaCredito, texto) => {
+    const { container } = render(createElement(FinanciadaBadge, { tipo, obaCredito }));
+    expect(container.textContent).toBe(texto);
+  });
+
+  it("lista e detalhe passam o oba_credito para a etiqueta", () => {
+    const lista = ler("src/routes/_authenticated/vendas.index.tsx");
+    expect(lista.match(/obaCredito=\{s\.pagamento_oba\}/g)).toHaveLength(2);
+    const det = ler("src/routes/_authenticated/vendas.$id.tsx");
+    expect(det).toContain("obaCredito={payment?.oba_credito}");
+  });
+
+  it("RPC: a opção Obah vai como _pagamento = 'financiamento_obah'", async () => {
+    const rpc = vi.mocked(supabase.rpc);
+    rpc.mockClear();
+    await fetchVendasComerciaisPaginadas({
+      page: 0,
+      pageSize: 10,
+      pagamento: pagamentoFilterParam(PAGAMENTO_FINANCIADA_OBAH),
+    });
+    expect(rpc.mock.calls[0][1]).toMatchObject({ _pagamento: "financiamento_obah" });
+  });
+});
+
+describe("migration 20261028233000 (Obah) — contrato", () => {
+  const up = norm(ler("supabase/migrations/20261028233000_vendas_filtro_pagamento_obah.sql"));
+  const down = norm(
+    ler("docs/sql/rollback/20261028233000_vendas_filtro_pagamento_obah.rollback.sql"),
+  );
+  const atual = norm(ler("supabase/migrations/20261028200000_vendas_filtro_pagamento.sql"));
+
+  it("as duas RPCs ganham a opção Obah e o campo pagamento_oba, sem mudar a assinatura", () => {
+    expect(
+      up.match(
+        /or \(_pagamento = 'financiamento_obah' and sp\.tipo_pagamento = 'financiamento' and sp\.oba_credito\)/g,
+      ),
+    ).toHaveLength(2);
+    expect(up.match(/sp\.oba_credito as pagamento_oba/g)).toHaveLength(2);
+    expect(up).not.toContain("drop function");
+    expect(up).not.toContain("security definer");
+    expect(up.match(/_pagamento text default null::text\)/g)).toHaveLength(2);
+    // "Financiada" segue igual: tipo_pagamento = _pagamento (com e sem Obah)
+    expect(up.match(/or sp\.tipo_pagamento = _pagamento\)/g)).toHaveLength(2);
+  });
+
+  it("permissões iguais às de hoje (authenticated/service_role; anon e public revogados)", () => {
+    const sig = "(integer, integer, text, text[], date, date, text, uuid[], text, text)";
+    for (const n of ["list_vendas_comerciais_paginadas", "list_vendas_comerciais_paginadas_fila"]) {
+      for (const sql of [up, down]) {
+        expect(sql).toContain(`revoke all on function public.${n}${sig} from public, anon`);
+        expect(sql).toContain(
+          `grant execute on function public.${n}${sig} to authenticated, service_role`,
+        );
+      }
+    }
+  });
+
+  it("rollback = definição de hoje (sem Obah), mesma assinatura", () => {
+    expect(down).not.toContain("financiamento_obah");
+    expect(down).not.toContain("pagamento_oba");
+    expect(down).not.toContain("drop function");
+    const corpo = (s: string) =>
+      s.slice(s.indexOf("create or replace function"), s.indexOf("revoke all"));
+    expect(corpo(down)).toBe(corpo(atual));
   });
 });
 

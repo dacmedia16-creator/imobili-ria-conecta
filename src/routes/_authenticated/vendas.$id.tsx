@@ -4375,6 +4375,7 @@ function SaleDetail() {
               tipo={payment?.tipo_pagamento}
               banco={payment?.financiamento_banco}
               correspondente={payment?.financiamento_correspondente}
+              obaCredito={payment?.oba_credito}
               className="text-xs"
             />
           </div>
