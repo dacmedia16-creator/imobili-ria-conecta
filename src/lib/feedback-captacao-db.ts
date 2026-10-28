@@ -149,6 +149,8 @@ export interface FeedbackCaptacao {
   proprietario: string | null;
   creci: string | null;
   corretor: string | null;
+  /** Preenchido quando o código aberto é o ANTIGO e a captação já está no código novo. */
+  codigo_atual?: string | null;
 }
 /** Captação ligada ao anúncio (null = sem ligação ou sem permissão). Falha = null, sem travar a tela. */
 export async function feedbackCaptacao(code: string): Promise<FeedbackCaptacao | null> {

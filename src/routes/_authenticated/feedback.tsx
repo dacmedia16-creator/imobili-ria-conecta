@@ -1,5 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { codeKey, ownerPlan, ownerPlanText, type PlanItem } from "@/lib/feedback-captacao";
+import {
+  codeKey,
+  corretorDoFeedback,
+  mesclarHistorico,
+  ownerPlan,
+  ownerPlanText,
+  type PlanItem,
+} from "@/lib/feedback-captacao";
 import {
   feedbackCaptacao,
   planView,
@@ -100,7 +107,8 @@ function FeedbackPage() {
             .gte("collected_on", since)
             .order("id")
             .range(from, from + 999);
-          if (!isManager) q = q.eq("broker_id", user.id);
+          // Sem filtro por broker_id: o banco (RLS) entrega os anúncios do responsável — com captação
+          // ligada, o captador ATUAL (migration 20261028160000), mesmo que o anúncio seja de outro ID RE/MAX.
           const { data, error } = await q;
           if (error) throw error;
           all.push(...((data ?? []) as Snapshot[]));
@@ -297,7 +305,7 @@ function FeedbackPage() {
 
 function Review({
   listing,
-  brokerName,
+  brokerName: brokerNameAnuncio,
   onBack,
 }: {
   listing: ListingFeedback;
@@ -311,6 +319,7 @@ function Review({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [actions, setActions] = useState<FeedbackAction[]>([]);
   const [doneAt, setDoneAt] = useState<Record<string, string>>({});
+  const [doneCodes, setDoneCodes] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [cap, setCap] = useState<FeedbackCaptacao | null>(null);
   const [plan, setPlan] = useState<PlanItem[]>([]);
@@ -347,28 +356,41 @@ function Review({
     [cap, plan, hoje],
   );
   const imovel = cap ? [cap.tipo, cap.bairro].filter(Boolean).join(" · ") || null : null;
+  // Com captação ligada, quem fala com o proprietário é o captador atual (pode ter sido transferida).
+  const brokerName = corretorDoFeedback(cap, brokerNameAnuncio);
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [a, d] = await Promise.all([
+        const [a, h] = await Promise.all([
           db
             .from("owner_feedback_actions")
             .select("id,list,category,label,weight,sort")
             .eq("active", true)
             .order("sort"),
-          db
-            .from("owner_feedback_action_done")
-            .select("action_id,done_at")
-            .eq("listing_code", listing.code),
+          // Histórico da captação (código aberto + códigos antigos trocados), migration 20261028160000.
+          db.rpc("owner_feedback_historico", { _code: listing.code }),
         ]);
         if (a.error) throw a.error;
-        if (d.error) throw d.error;
+        let rows = (h.data ?? []) as Array<{
+          action_id: string;
+          done_at: string;
+          listing_code: string;
+        }>;
+        if (h.error) {
+          // Banco ainda sem a função: comportamento antigo (só o código aberto).
+          const d = await db
+            .from("owner_feedback_action_done")
+            .select("action_id,done_at,listing_code")
+            .eq("listing_code", listing.code);
+          if (d.error) throw d.error;
+          rows = (d.data ?? []) as typeof rows;
+        }
         if (!alive) return;
         setActions((a.data ?? []) as FeedbackAction[]);
-        const m: Record<string, string> = {};
-        for (const r of d.data ?? []) m[r.action_id as string] = r.done_at as string;
-        setDoneAt(m);
+        const hist = mesclarHistorico(rows);
+        setDoneAt(hist.doneAt);
+        setDoneCodes(hist.codigos);
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar o plano de marketing."));
       }
@@ -397,10 +419,11 @@ function Review({
         if (error) throw error;
         setDoneAt((m) => ({ ...m, [id]: (data?.done_at as string) ?? new Date().toISOString() }));
       } else {
+        // Desmarca onde estiver gravada (código aberto ou código antigo da mesma captação).
         const { error } = await db
           .from("owner_feedback_action_done")
           .delete()
-          .eq("listing_code", listing.code)
+          .in("listing_code", [...new Set([listing.code, ...(doneCodes[id] ?? [])])])
           .eq("action_id", id);
         if (error) throw error;
         setDoneAt((m) => {
@@ -410,7 +433,12 @@ function Review({
         });
       }
     } catch (e) {
-      toast.error(errorMessage(e, "Não foi possível salvar. Só o corretor do imóvel pode marcar."));
+      toast.error(
+        errorMessage(
+          e,
+          "Não foi possível salvar. Só o corretor responsável pelo imóvel (o captador atual, quando há captação ligada), o gestor dele ou a administração podem marcar.",
+        ),
+      );
     } finally {
       setSaving(null);
     }
@@ -484,7 +512,7 @@ function Review({
         >
           <span>
             {cap.link_status === "ativo"
-              ? `Ligado à captação exclusiva${cap.proprietario ? ` de ${cap.proprietario}` : ""}${cap.corretor ? ` · captador ${cap.corretor}` : ""}. O Plano de Marketing abaixo vem da captação.`
+              ? `Ligado à captação exclusiva${cap.proprietario ? ` de ${cap.proprietario}` : ""}${cap.corretor ? ` · captador ${cap.corretor}` : ""}.${cap.codigo_atual ? ` Código antigo do anúncio: a captação agora está no código ${cap.codigo_atual}; o histórico dos dois aparece junto.` : ""} O Plano de Marketing abaixo vem da captação.`
               : "Captação ligada aguardando confirmação do gestor. O Plano entra no Feedback depois da confirmação."}
           </span>
           <Button asChild size="sm" variant="outline">

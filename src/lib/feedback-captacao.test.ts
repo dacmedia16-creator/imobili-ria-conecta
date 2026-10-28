@@ -3,6 +3,8 @@ import {
   agruparPendencias,
   checkState,
   codeKey,
+  corretorDoFeedback,
+  mesclarHistorico,
   codigoValido,
   finalDigitado,
   montarCodigo,
@@ -146,5 +148,39 @@ describe("painel do gestor", () => {
     expect(g.atrasada.map((x) => x.prazo)).toEqual(["2026-10-01", "2026-10-05"]);
     expect(g.confirmar).toHaveLength(1);
     expect(g.nao_coletado).toHaveLength(0);
+  });
+});
+
+describe("corretorDoFeedback", () => {
+  it("captação ligada ativa: usa o captador atual, não o do anúncio", () => {
+    expect(
+      corretorDoFeedback({ link_status: "ativo", corretor: "Bruno Novo" }, "Carlos Saiu"),
+    ).toBe("Bruno Novo");
+  });
+  it("sem captação, aguardando gestor ou sem nome: mantém o corretor do anúncio", () => {
+    expect(corretorDoFeedback(null, "Carlos Saiu")).toBe("Carlos Saiu");
+    expect(
+      corretorDoFeedback(
+        { link_status: "aguardando_gestor", corretor: "Bruno Novo" },
+        "Carlos Saiu",
+      ),
+    ).toBe("Carlos Saiu");
+    expect(corretorDoFeedback({ link_status: "ativo", corretor: "  " }, "Carlos Saiu")).toBe(
+      "Carlos Saiu",
+    );
+    expect(corretorDoFeedback(null, undefined)).toBeUndefined();
+  });
+});
+
+describe("mesclarHistorico", () => {
+  it("junta código antigo e novo da mesma captação, com a data mais antiga e onde cada ação está", () => {
+    const h = mesclarHistorico([
+      { action_id: "a", done_at: "2026-10-20T10:00:00Z", listing_code: "630699001-1" },
+      { action_id: "a", done_at: "2026-10-27T10:00:00Z", listing_code: "630699002-7" },
+      { action_id: "b", done_at: "2026-10-28T10:00:00Z", listing_code: "630699002-7" },
+    ]);
+    expect(h.doneAt).toEqual({ a: "2026-10-20T10:00:00Z", b: "2026-10-28T10:00:00Z" });
+    expect(h.codigos).toEqual({ a: ["630699001-1", "630699002-7"], b: ["630699002-7"] });
+    expect(mesclarHistorico([])).toEqual({ doneAt: {}, codigos: {} });
   });
 });
