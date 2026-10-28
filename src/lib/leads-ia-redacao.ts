@@ -825,7 +825,11 @@ export function travasAnuncioRepeticao(msg: string, perm: Permitidos): DetalheBl
   const novo = !!perm.linksMandados && linksMsg.some((l) => !perm.linksMandados!.has(l));
   // Cliente perguntou de novo (o mesmo valor, o mesmo condomínio, \"me manda de novo\", fotos): o dado é o mesmo; só
   // a cópia quase literal barra.
-  const lim = perm.reperguntou ? REPETICAO_REPERGUNTA : REPETICAO_MIN;
+  // Só vale se a resposta ENTREGA o dado de um imóvel (o preço do anúncio ou o link dele). A 7ebaa6bb (\"perto de
+  // R$ 900.000… prefere com 1 suíte?\", a faixa do cliente, sem dado do Cannes) continua barrada.
+  const precos = [...perm.codigos.values()].map((c) => valorDe(c.preco) ?? valorDe(c.aluguel)).filter((v): v is number => v !== null);
+  const entrega = linksMsg.some((l) => perm.links.has(l)) || valoresDoTexto(msg).some((v) => precos.includes(v));
+  const lim = perm.reperguntou && entrega ? REPETICAO_REPERGUNTA : REPETICAO_MIN;
   for (const a of novo ? [] : (perm.anteriores ?? [])) {
     const s = semelhancaResposta(msg, a);
     if (s >= lim) return ret("repeticao", `${Math.round(s * 100)}% igual a uma resposta anterior`);
@@ -1443,8 +1447,7 @@ export async function redigirResposta(
   const ultimaCliente = op.historico.filter((m) => m.autor === "cliente" && m.texto.trim() !== texto.trim()).slice(-1)[0]?.texto;
   perm.reperguntou =
     RE_REPERGUNTA.test(norm(texto)) ||
-    (!!nome && !!ultimaCliente && nomeCitado(ultimaCliente, undefined) === nome) ||
-    (!!ultimaCliente && semelhanca(texto, ultimaCliente) >= 0.5);
+    (!!nome && !!ultimaCliente && nomeCitado(ultimaCliente, undefined) === nome);
   if (buscaNome?.achou) perm.achouNome = buscaNome.achou;
   // t_37cf21e3: travas da conversa d8907e38.
   if (pediuFotos(texto))
