@@ -95,6 +95,9 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?
     preco_valor: v,
     tipo_xml: tipo === "casa" ? "casa-de-condominio" : undefined,
   })),
+  // t_33fb109d: conversa J (75957c60, apto 3691 no Parque Campolim). XML real da ZZ lido em 28/10 (só leitura).
+  { ...casa({ codigo: "3691", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "85", preco: "R$ 850.000" }), preco_valor: 850000 },
+  { ...casa({ codigo: "3693", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "85", preco: "R$ 860.000" }), preco_valor: 860000 },
   // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
   ...(
     [
@@ -488,6 +491,26 @@ export const REFERENCIA: ConversaReferencia[] = [
       { cliente: "ap", esperado: "Outro apartamento de 3 quartos no Campolim, com link.", antes: "Entendi, você quer apartamento! Essas são as opções que tenho nessa faixa agora. Quer visitar o apartamento do Campolim ou prefere ver a casa também?" },
     ],
   },
+  // t_33fb109d: conversa 75957c60 (lead d0d9b70b, teste t_0a635ef5). Denis pediu casas 3 vezes e não recebeu nenhuma.
+  {
+    id: "J",
+    lead: "d0d9b70b",
+    anuncio: "3691",
+    ficha: ficha({
+      tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", banheiros: "2", vagas: "2", area_util_m2: "85",
+      preco: "R$ 850.000", preco_valor: 850000, condominio: "R$ 550,00", iptu: "R$ 80,00 por mês",
+      link: "https://vipsevenimoveis.com.br/imovel/3691",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse no apartamento de 3 quartos no bairro Parque Campolim, em Sorocaba, anunciado por R$ 850.000. Anúncio: https://vipsevenimoveis.com.br/imovel/3691 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "queria ter detaljes", esperado: "Ficha do 3691 e convite.", antes: "Claro! O apartamento tem 3 quartos, 1 suíte, 2 banheiros, 2 vagas e 85 m². O condomínio é R$ 550 e o IPTU R$ 80 por mês. Quer agendar uma visita para conhecer?" },
+      { cliente: "tem mais opções ?", esperado: "Outro apartamento parecido, com link.", antes: "Tenho sim! Tem outro apartamento no mesmo bairro, com 3 quartos, 1 suíte e 85 m², por R$ 860.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3693 Gostou?" },
+      { cliente: "tem alguma opção de casa neste valor ?", esperado: "Uma casa perto de R$ 850.000, com link.", antes: "Entendido, você quer uma casa nessa faixa. Nesse momento, as opções que tenho são apartamentos. Quer ver este apartamento de 3 quartos por R$ 860.000 ou prefere que eu procure uma casa com características parecidas?", falha: "disse que só tinha apartamentos (a busca de casa nem rodou; o XML tem ~25 casas na faixa)" },
+      { cliente: "veja se tem casas", esperado: "Outra casa na faixa, com link.", antes: "Entendi, você quer uma casa. Vou anotar isso para a equipe. Quer seguir vendo o apartamento de 3 quartos por R$ 860.000 ou prefere esperar novidades? Já pedi para o nosso time de corretores, que vai continuar seu atendimento por aqui.", falha: "passou ao corretor sem mostrar casa (1ª tentativa barrada por repeticao; 2ª com acao passar)" },
+      { cliente: "me manda casas", esperado: "Mais uma casa na faixa, com link.", antes: null, falha: "ficou sem resposta (conversa já passada)" },
+    ],
+  },
 ];
 
 // --- Buscas simuladas sobre o ESTOQUE_ZZ (mesmas regras das funções do banco, em memória) ---------------
@@ -572,18 +595,25 @@ export function buscasReferencia(c: ConversaReferencia) {
           .map(sem),
       };
     },
-    buscarImoveis: async (f: FiltroBusca): Promise<ResultadoParecidos> => ({
-      referencia: {},
-      itens: ESTOQUE_ZZ.filter(
-        (x) =>
-          !fora(x.codigo, f.excluir) &&
-          (!f.tipo || x.tipo === f.tipo) &&
-          (!f.regiao || `${x.bairro} ${x.cidade}`.toLowerCase().includes(f.regiao.toLowerCase().slice(0, 6))) &&
-          (!f.preco_max || x.preco_valor <= f.preco_max),
-      )
-        .slice(0, f.limite ?? 1)
-        .map(sem),
-    }),
+    // lead_ia_imoveis_busca: faixa min/max, tipo, região; mais perto do meio da faixa primeiro (t_33fb109d: antes
+    // ignorava o preço mínimo e a ordem, e a simulação mostrava casa de R$ 645 mil para "casa perto de R$ 850 mil").
+    buscarImoveis: async (f: FiltroBusca): Promise<ResultadoParecidos> => {
+      const alvo = f.preco_min != null && f.preco_max != null ? (f.preco_min + f.preco_max) / 2 : (f.preco_max ?? f.preco_min ?? null);
+      return {
+        referencia: {},
+        itens: ESTOQUE_ZZ.filter(
+          (x) =>
+            !fora(x.codigo, f.excluir) &&
+            (!f.tipo || x.tipo === f.tipo) &&
+            (!f.regiao || `${x.bairro} ${x.cidade}`.toLowerCase().includes(f.regiao.toLowerCase().slice(0, 6))) &&
+            (!f.preco_min || x.preco_valor >= f.preco_min) &&
+            (!f.preco_max || x.preco_valor <= f.preco_max),
+        )
+          .sort((a, b) => (alvo == null ? 0 : Math.abs(a.preco_valor - alvo) - Math.abs(b.preco_valor - alvo)))
+          .slice(0, f.limite ?? 1)
+          .map(sem),
+      };
+    },
   };
 }
 
