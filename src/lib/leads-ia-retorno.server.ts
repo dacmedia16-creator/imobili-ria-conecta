@@ -30,7 +30,7 @@ import {
   type ResultadoParecidos,
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
-import { AVISO_SEM_RESPOSTA, historicoDb, modoValidadorDb, redacaoLigadaDb, redigirResposta, type FalaHistorico, type ModoValidador } from "./leads-ia-redacao";
+import { AVISO_SEM_RESPOSTA, falasSemResposta, historicoDb, modoValidadorDb, redacaoLigadaDb, redigirResposta, type FalaHistorico, type ModoValidador } from "./leads-ia-redacao";
 
 export const RETORNO_MAX_BYTES = 50_000;
 export const RETORNO_TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
@@ -316,6 +316,8 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     const usos: UsoModelo[] = [];
     let semResposta = false;
     const buscarParecidos = deps.buscarParecidos ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f) : undefined;
+    // t_37cf21e3: histórico lido 1 vez; as falas do cliente que chegaram juntas (sem resposta) dizem de qual busca ele fala.
+    const historico = banco.tipo !== "midia" && deps.historico ? await deps.historico(c.conversa_id).catch(() => []) : [];
     let r =
       banco.tipo === "midia"
         ? respostaMidia(ctx)
@@ -324,10 +326,10 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
             buscarParecidos,
             buscarImoveis: deps.buscarImoveis ? (f) => deps.buscarImoveis!(c.conversa_id, f) : undefined,
             buscarCaracteristica: deps.buscarCaracteristica ? (f) => deps.buscarCaracteristica!(c.conversa_id, f) : undefined,
+            falasAntes: falasSemResposta(historico, msg.texto),
           });
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
     if (banco.tipo !== "midia" && deps.redacaoLigada && (await deps.redacaoLigada(banco.organization_id!).catch(() => false))) {
-      const historico = deps.historico ? await deps.historico(c.conversa_id).catch(() => []) : [];
       const modo: ModoValidador = deps.modoValidador
         ? await deps.modoValidador(banco.organization_id!).catch(() => "bloquear" as const)
         : "bloquear";

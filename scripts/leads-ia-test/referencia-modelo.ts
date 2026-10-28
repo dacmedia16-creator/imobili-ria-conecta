@@ -34,8 +34,17 @@ async function main() {
     const b = buscasReferencia(conv);
     let c: ContextoIa = ctxReferencia(conv);
     const hist: FalaHistorico[] = [{ autor: "ia", texto: conv.primeira }];
+    let juntas: string[] = [];
     for (const f of conv.falas) {
       if (total >= TETO) break;
+      // t_37cf21e3: mensagens que chegaram juntas (ao vivo, 1 resposta só) entram em falasAntes da próxima.
+      if (f.junto) {
+        juntas.push(f.cliente);
+        hist.push({ autor: "cliente", texto: f.cliente });
+        continue;
+      }
+      const falasAntes = juntas;
+      juntas = [];
       const usos: UsoModelo[] = [];
       // t_91c8cf89: guarda o texto cru de cada tentativa (para ver o que a trava barrou).
       const brutos: string[] = [];
@@ -45,7 +54,7 @@ async function main() {
         brutos.push(j?.choices?.[0]?.message?.content ?? "");
         return res;
       };
-      const base = await proximaResposta(c, f.cliente, undefined, { agora: AGORA, ...b });
+      const base = await proximaResposta(c, f.cliente, undefined, { agora: AGORA, ...b, falasAntes });
       const t0 = Date.now();
       const r = await redigirResposta(c, f.cliente, base, {
         escolha: { provedor: "openrouter", modelo: MODELO },
@@ -78,9 +87,10 @@ async function main() {
             ? u2 ? "MODELO (2ª tentativa)" : "MODELO"
             : `FRASE PRONTA (${r.bloqueio ?? u1?.erro ?? "?"})`;
       const tr = (u?: UsoModelo) => (u ? (u.bloqueado ? `${u.bloqueio}: ${u.bloqueio_trecho ?? ""}` : u.ok ? "ok" : `erro ${u.erro}`) : null);
-      linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms, brutos });
+      linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: falasAntes.length ? `${falasAntes.join(" / ")} / ${f.cliente}` : f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms, brutos });
       hist.push({ autor: "cliente", texto: f.cliente }, { autor: "ia", texto: r.resposta });
-      if (r.fim) break;
+      // t_37cf21e3: na F (d8907e38) Denis seguiu conversando depois; segue para refazer todas as falas.
+      if (r.fim && conv.id !== "F") break;
       c = { ...c, passo: r.passo, dados: r.dados, versao: c.versao + 1 };
     }
   }
