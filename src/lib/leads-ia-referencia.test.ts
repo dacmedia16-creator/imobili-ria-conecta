@@ -71,7 +71,7 @@ describe("referência A (lead 4c2e125f) — plano B", () => {
     expect(rs.length).toBeGreaterThanOrEqual(7);
     expect(rs[0].resposta).toMatch(/R\$ 420/);
     for (const r of rs.slice(1, 4)) expect(r.resposta).not.toMatch(/pagamento|à vista|faixa de valor/);
-    expect(rs[6].resposta).toMatch(/manhã|tarde/);
+    expect(rs[6].resposta).toMatch(/qual dia e período/); // t_228659f0 item 5
   });
 });
 

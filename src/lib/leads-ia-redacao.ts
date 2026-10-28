@@ -29,6 +29,8 @@ import {
   ehSensivel,
   falaPermuta,
   MAX_PARECIDOS,
+  nomeCitado,
+  type FiltroNome,
   DISSE_QUE_GOSTOU,
   imovelEmFoco,
   norm,
@@ -162,7 +164,25 @@ export type EntradaModelo = {
   fora_regiao?: string | null;
   /** t_37cf21e3: imóvel de que se fala agora, quando não é o do anúncio nem o último oferecido. */
   em_foco?: ImovelParecido | null;
+  /** t_228659f0 item 2: busca pelo nome do condomínio/empreendimento citado. */
+  busca_nome?: BuscaNome | null;
 };
+
+/** t_228659f0 item 2: resultado da busca por nome que vai ao modelo (sem texto do anúncio). */
+export type BuscaNome = { nome: string; consultado: boolean; achou: number; fora_faixa?: boolean; faixa?: string };
+
+/** t_228659f0 item 1: imóveis já mostrados nesta conversa (para citar de novo com os dados certos). */
+export function mostradosDe(d: DadosQualificacao): ImovelParecido[] {
+  const todos = [...(d.mostrados ?? []), d.parecido_atual, d.ultimo_parecido, d.busca2?.atual].filter(
+    (x): x is ImovelParecido => !!x && !!x.codigo,
+  );
+  const vistos = new Set<string>();
+  return todos.filter((x) => (vistos.has(x.codigo) ? false : (vistos.add(x.codigo), true))).slice(0, 6);
+}
+/** Guarda o imóvel mostrado (o mais recente por último, no máximo 5). */
+export function guardarMostrado(d: DadosQualificacao, c: ImovelParecido): ImovelParecido[] {
+  return [...(d.mostrados ?? []).filter((x) => x.codigo !== c.codigo), c].slice(-5);
+}
 
 /** t_37cf21e3 item 3: o perfil de cada busca, separado (quem procura, tipo, região, quartos e faixa). */
 export type PerfisBusca = {
@@ -210,7 +230,7 @@ REGRAS (todas obrigatórias):
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Toda oferta de imóvel leva o link dele ("Dá uma olhada: <link>"), sem exceção. Quando o cliente corrigir o tipo que quer ("disse que quero casa") e houver CANDIDATOS, peça desculpa em poucas palavras e já mostre um deles com o link. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que anotou tudo e use "acao":"passar" (sem prometer separar nem mandar opções). Não perca o interesse no imóvel original.
-9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia E período (manhã, tarde ou horário), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
+9. Visita: convide de forma simples ("Quer agendar uma visita?"). Você NÃO tem a agenda: nunca ofereça dia, data, período ou horário como se estivesse livre ("tenho amanhã de manhã", "temos sexta à tarde", "amanhã à tarde tem sim" estão errados). Quando o cliente quiser visitar, pergunte qual dia e período ficam melhores para ele e diga que o corretor confirma o horário com ele. Quando o cliente disser dia E período (manhã, tarde ou horário), anote ("Amanhã à tarde anotado!"), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?".
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
 12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: responda curto que anotou o pedido e use "acao":"passar" (sem prometer procurar nem mandar depois).
@@ -220,6 +240,9 @@ REGRAS (todas obrigatórias):
 16. Região: se o cliente pediu um bairro e DADOS trouxer "fora_regiao", diga PRIMEIRO, com clareza, que nesse bairro não tem agora, e só então mostre o candidato dizendo que ele fica em outro bairro (diga qual). Nunca mostre imóvel de outro bairro como se fosse do bairro pedido.
 17. Fotos ou vídeo: mande de novo o link do anúncio do imóvel de que vocês estão falando ("As fotos estão todas no anúncio: <link>"). Nunca prometa mandar fotos ("te mando as fotos"). Sem link em DADOS, diga só que o corretor te envia as fotos por aqui.
 18. Só diga "que bom que gostou" se o cliente disse que gostou. "Gostaria", "quero" ou "sim" sozinhos são resposta à sua pergunta: pergunte o que ele gostaria de saber ou se prefere agendar a visita.
+19. A última fala do cliente manda: se ele mudou de assunto ou fez uma pergunta nova, responda ESSA pergunta primeiro e esqueça a pergunta antiga. Nunca mande de novo, quase igual, uma mensagem que você já mandou no histórico (mesma oferta, mesma pergunta): se não tiver nada novo, diga isso em outras palavras e faça outra pergunta.
+20. Imóvel já mostrado: para falar de um imóvel que você já mandou, use os dados dele em "mostrados" (ou em CANDIDATOS), exatamente como estão. Valor, quartos e suítes ditos junto do link têm de ser os desse imóvel. Nunca descreva um imóvel com dados de outro.
+21. Condomínio ou empreendimento pelo nome: se DADOS trouxer "busca_nome", é o resultado da busca pelo nome que o cliente citou. Com "achou" maior que 0, os CANDIDATOS são os imóveis desse condomínio: mostre um, com tipo, valor e link, e responda o valor que o cliente perguntou. Se "fora_faixa" for true, avise com naturalidade que fica acima (ou abaixo) da faixa que ele disse. Com "achou" 0, diga que nesse condomínio não tem nada anunciado agora. Com "consultado" false, diga que o corretor confirma com você se há unidade nesse condomínio e registre em "registro.pendente". Nunca diga que não tem um condomínio que está em CANDIDATOS.
 
 Responda SÓ com JSON neste formato:
 {"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou","pendente":"assunto que o corretor precisa confirmar"}}
@@ -229,7 +252,8 @@ Exemplos de tom (não copie dados):
 Cliente: "qual o valor do condomínio?" -> "O condomínio é R$ 500 por mês. Quer marcar uma visita para conhecer?"
 Cliente: "tem outras?" -> "Tenho sim! Tem outra casa no mesmo bairro, com 3 quartos e 170 m², por R$ 900.000. Dá uma olhada: https://exemplo/imovel/1 Gostou?"
 Cliente: "aceita financiamento?" -> "Sobre financiamento, o corretor confirma com você na visita ou no contato. Quer marcar uma visita para conhecer?"
-Cliente: "pode ser sábado?" -> "Anotado, sábado! Fica melhor de manhã ou à tarde?"`;
+Cliente: "pode ser sábado?" -> "Anotado, sábado! Fica melhor de manhã ou à tarde?"
+Cliente: "dá para visitar?" -> "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário com você."`;
 
 export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: string } {
   const { ctx } = e;
@@ -244,6 +268,12 @@ export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: s
     candidatos: e.candidatos.map(parecidoModelo),
     ultimo_oferecido: atual,
     ja_oferecidos: d.parecidos?.length ? d.parecidos : undefined,
+    // t_228659f0 item 1: imóveis já mandados, com os dados do XML (o modelo inventava valor e suítes).
+    mostrados: (() => {
+      const m = mostradosDe(d).filter((x) => x.codigo !== d.parecido_atual?.codigo);
+      return m.length ? m.map(parecidoModelo) : undefined;
+    })(),
+    busca_nome: e.busca_nome ?? undefined,
     qualificacao: limpa({
       finalidade:
         d.finalidade ??
@@ -380,7 +410,11 @@ export type Bloqueio =
   | "gostou"
   | "sem_oferta"
   // t_0c590c55
-  | "sem_link";
+  | "sem_link"
+  // t_228659f0
+  | "anuncio"
+  | "repeticao"
+  | "agenda";
 
 /** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
 // t_37cf21e3: fotos (promessa sem link), regiao (outro bairro sem avisar) e perfil (oferta do perfil errado)
@@ -389,6 +423,9 @@ export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>([
   "retorno", "sem_opcao", "iptu", "idioma", "fotos", "regiao", "perfil", "sem_oferta", "gostou",
   // t_0c590c55: oferta sem o link do anúncio (quando ele existe) também não chega ao cliente.
   "sem_link",
+  // t_228659f0 (7ebaa6bb): valor/suítes que não batem com o anúncio do link, link que não é de DADOS, resposta
+  // quase igual a uma das 2 anteriores e oferta de dia/horário como livre não chegam ao cliente.
+  "anuncio", "link", "repeticao", "agenda",
 ]);
 
 /** Contagens conferidas pela trava "contagem". */
@@ -425,6 +462,14 @@ export type Permitidos = {
   clienteGostou?: boolean;
   /** O cliente pediu mais opções e há candidatos: a mensagem tem de mostrar um. */
   pediuOpcoes?: boolean;
+  /** t_228659f0 item 1: link -> dados do anúncio (valor e suítes/quartos ditos junto do link têm de bater). */
+  porLink?: Map<string, Partial<FichaIa> & { url?: string; codigo?: string }>;
+  /** Valores da faixa dita pelo cliente (podem aparecer perto do link: \"perto de R$ 900.000\"). */
+  faixa?: number[];
+  /** Contagens ditas pelo próprio cliente, exatas (sem o \"um a menos\"). */
+  clienteExato?: PorContagem;
+  /** t_228659f0 item 3: as 2 últimas respostas da Nicole (anti-repetição). */
+  anteriores?: string[];
 };
 
 const numBr = (s: string): number => {
@@ -481,15 +526,24 @@ export function permitidosDe(
     add(alvo.banheiros, inteiro(i.banheiros));
   }
   // O número do cliente e um a menos ("prefere que eu procure com 2 suítes?", a mesma sugestão do plano B).
+  p.clienteExato = porContagem();
   for (const f of falasCliente)
     for (const [u, v] of contagensDoTexto(norm(f))) {
       o.cliente[u].add(v);
+      p.clienteExato[u].add(v);
       if (v > 1) o.cliente[u].add(v - 1);
     }
-  const imoveis: Array<Partial<FichaIa> & { url?: string }> = [ficha ?? {}, ...parecidos];
+  p.porLink = new Map();
+  const imoveis: Array<Partial<FichaIa> & { url?: string; codigo?: string }> = [ficha ?? {}, ...parecidos];
   for (const i of imoveis) {
-    if (i.link && /^https:\/\//.test(i.link)) p.links.add(i.link);
-    if (i.url && /^https:\/\//.test(i.url)) p.links.add(i.url);
+    if (i.link && /^https:\/\//.test(i.link)) {
+      p.links.add(i.link);
+      p.porLink.set(i.link, i);
+    }
+    if (i.url && /^https:\/\//.test(i.url)) {
+      p.links.add(i.url);
+      p.porLink.set(i.url, i);
+    }
     for (const v of [i.preco, i.aluguel, i.condominio, i.iptu].map(valorDe))
       if (v !== null) p.valores.push(v);
     if (typeof i.preco_valor === "number") p.valores.push(i.preco_valor);
@@ -519,7 +573,7 @@ const RE_RETORNO =
 // t_f7155e0c: ampliada após o "precio" do DeepSeek. Só palavras que NÃO existem em português (testado contra as falas
 // de referência e os bairros/condomínios do XML). Fora de propósito: "el", "y", "pero", "una" soltos (nomes e endereços).
 export const RE_IDIOMA =
-  /[¿¡ñ]|\b(tambien|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
+  /[¿¡ñ]|\b(tambien|trabajamos|trabajo con|alquiler|alquilar|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
 /** Unidade do IPTU dita na mensagem (texto normalizado). */
 const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
 /** A frase com "corretor" para assunto sem dado (t_82c89141 item 3): sai inteira das travas seguintes. */
@@ -617,6 +671,115 @@ const CONFIRMA =
 const AFIRMA =
   /(\bsim\b|aceita sim|aceitamos|\bpode sim\b|da sim|e possivel|com certeza|claro que)/;
 
+// --- t_228659f0 (conversa 7ebaa6bb): anúncio do link, repetição e agenda ---------------------------------
+
+/** Valores em reais citados num texto (\"R$ 850.000\", \"900 mil\", \"1,1 milhão\"), já em número. */
+export function valoresDoTexto(t: string): number[] {
+  const n = norm(t.replace(LINK_RE, " "));
+  const out: number[] = [];
+  for (const m of n.matchAll(/(r\$\s*)?(\d+(?:[.,]\d+)*)\s*(milhoes|milhao|mi\b|mil\b|reais)?/g)) {
+    if (!m[1] && !m[3]) continue;
+    let v = numBr(m[2].replace(/[.,]$/, ""));
+    if (!Number.isFinite(v)) continue;
+    if (m[3] === "mil") v *= 1e3;
+    else if (m[3] && m[3] !== "reais") v *= 1e6;
+    out.push(v);
+  }
+  return out;
+}
+
+/** Valores próprios de um anúncio (preço, aluguel, condomínio, IPTU). */
+const valoresDoImovel = (i: Partial<FichaIa> & { aluguel?: string }) =>
+  [i.preco, i.aluguel, i.condominio, i.iptu].map(valorDe).filter((v): v is number => v !== null).concat(
+    typeof i.preco_valor === "number" ? [i.preco_valor] : [],
+  );
+
+/**
+ * Palavras da mensagem para comparar repetição (sem link, sem pontuação). As frases padrão do roteiro (\"o corretor
+ * confirma ... na visita ou no contato\", o convite para a visita) saem: duas respostas sobre assuntos diferentes
+ * (permuta x disponibilidade) não são repetição só por terminarem igual (DeepSeek real, conversa H).
+ */
+const palavrasRep = (t: string) =>
+  norm(t.replace(LINK_RE, " link "))
+    .replace(/[^.?!]*\bo corretor confirma[^.?!]*[.?!]?/g, " ")
+    .replace(/[^.?!]*\bquer (agendar|marcar) uma visita[^.?!]*\??/g, " ")
+    .replace(/[^a-z0-9$ ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+/** Semelhança (Dice de pares de palavras, 0 a 1) entre duas mensagens. */
+export function semelhanca(a: string, b: string): number {
+  const pares = (t: string) => {
+    const p = palavrasRep(t);
+    const s = new Map<string, number>();
+    for (let i = 0; i < p.length - 1; i++) s.set(`${p[i]} ${p[i + 1]}`, (s.get(`${p[i]} ${p[i + 1]}`) ?? 0) + 1);
+    return s;
+  };
+  const x = pares(a);
+  const y = pares(b);
+  let tx = 0;
+  let ty = 0;
+  let comum = 0;
+  for (const v of x.values()) tx += v;
+  for (const v of y.values()) ty += v;
+  for (const [k, v] of x) comum += Math.min(v, y.get(k) ?? 0);
+  return tx + ty ? (2 * comum) / (tx + ty) : 0;
+}
+/** A partir daqui, a resposta é \"quase igual\" a uma anterior (7ebaa6bb: 0,62 a 0,86; respostas boas ≤ 0,45). */
+export const REPETICAO_MIN = 0.6;
+
+/** Oferta de dia/período como livre (\"tenho amanhã de manhã\", \"temos visita amanhã de manhã ou sexta à tarde\"). */
+const DIA_RE = String.raw`(amanha|depois de amanha|hoje|segunda|terca|quarta|quinta|sexta|sabado|domingo|\d{1,2}\/\d{1,2})`;
+const PER_RE = String.raw`(de manha|a tarde|a noite|pela manha|pela tarde|\d{1,2} ?h\b|\d{1,2}:\d{2})`;
+const RE_AGENDA_OFERTA = new RegExp(
+  String.raw`\b(tenho|temos|tem|ha|teria|posso|podemos|consigo|livre|vaga|horarios?|agenda)\b[^.?!]{0,40}\b${DIA_RE}\b` +
+    String.raw`|\b${DIA_RE}\b[^.?!]{0,25}\b(tem sim|da sim|pode sim|consigo|esta livre|ta livre|fica livre|disponivel|temos|tenho)\b` +
+    String.raw`|\b${DIA_RE}\b[^.?!]{0,15}${PER_RE}[^.?!]{0,10}\bou\b[^.?!]{0,10}\b${DIA_RE}\b`,
+);
+
+/**
+ * Travas firmes da conversa 7ebaa6bb (antes das demais, nos dois modos):
+ *  - link: só o link exato de um imóvel de DADOS;
+ *  - anuncio: valor e suítes/quartos ditos no trecho de cada link têm de ser os do anúncio daquele link;
+ *  - repeticao: resposta quase igual a uma das 2 anteriores;
+ *  - agenda: oferecer dia/período como livre (a Nicole não tem agenda).
+ */
+export function travasAnuncioRepeticao(msg: string, perm: Permitidos): DetalheBloqueio | null {
+  const ret = (motivo: Bloqueio, trecho: string | null): DetalheBloqueio => ({ motivo, trecho: trechoCurto(trecho) });
+  let fim = 0;
+  for (const m of msg.matchAll(LINK_RE)) {
+    const l = m[0].replace(/[.,;:!?]+$/, "");
+    if (!perm.links.has(l)) return ret("link", l);
+    const im = perm.porLink?.get(l);
+    // Só as 2 frases antes do link (\"...3 vagas, por R$ 695.000. Dá uma olhada: <link>\"): a ficha do cliente
+    // citada mais cedo na mesma mensagem não é do anúncio do link.
+    const trecho = msg.slice(fim, m.index).split(/(?<=[.!?])\s+/).slice(-2).join(" ");
+    fim = (m.index ?? 0) + m[0].length;
+    if (!im) continue;
+    const proprios = valoresDoImovel(im);
+    const faixa = perm.faixa ?? [];
+    for (const v of valoresDoTexto(trecho)) {
+      const ok = proprios.some((x) => Math.abs(x - v) <= 0.5) || faixa.some((x) => Math.abs(x - v) <= 0.5);
+      if (!ok) return ret("anuncio", `R$ ${v.toLocaleString("pt-BR")} | anúncio ${im.preco ?? "?"}`);
+    }
+    const nt = norm(trecho);
+    const nega = /\b(nao (tenho|temos|achei|encontrei|ha|tem)|sem)\b/.test(nt);
+    for (const [u, v] of contagensDoTexto(nt)) {
+      if (u !== "suites" && u !== "quartos") continue;
+      const dele = inteiro((im as Record<string, string | undefined>)[u]);
+      if (dele === null || dele === v) continue;
+      if (nega && perm.clienteExato?.[u].has(v)) continue; // \"com 3 suítes não tenho; o mais perto tem 2: <link>\"
+      return ret("anuncio", `${v} ${u} | anúncio ${dele}`);
+    }
+  }
+  for (const a of perm.anteriores ?? []) {
+    const s = semelhanca(msg, a);
+    if (s >= REPETICAO_MIN) return ret("repeticao", `${Math.round(s * 100)}% igual a uma resposta anterior`);
+  }
+  const ag = RE_AGENDA_OFERTA.exec(norm(msg.replace(LINK_RE, " ")));
+  if (ag) return ret("agenda", ag[0]);
+  return null;
+}
+
 /**
  * Confere a mensagem do modelo. Devolve o motivo do bloqueio (código curto, sem conteúdo) ou null = pode enviar.
  * `textoCliente` só serve para a regra do "Obrigada" em resposta a pergunta.
@@ -660,6 +823,10 @@ export function validarRedacaoDetalhe(
   const achou = (re: RegExp, t: string) => re.exec(t)?.[0] ?? null;
   const msg = s.mensagem;
   if (!msg.trim()) return b("vazio");
+  // t_228659f0: travas FIRMES da conversa 7ebaa6bb rodam primeiro. No modo observar, uma trava leve antes
+  // delas (ex.: \"valor\", \"perguntas\") deixava a mensagem sair sem conferir o anúncio nem a repetição.
+  const firme = travasAnuncioRepeticao(msg, perm);
+  if (firme) return b(firme.motivo, firme.trecho);
   if (msg.length > REDACAO_MAX_CHARS) return b("tamanho", `${msg.length} caracteres`);
   const nPerg = contarPerguntas(msg);
   if (nPerg > 1) return b("perguntas", `${nPerg} perguntas`);
@@ -882,6 +1049,9 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     sem_oferta: "o cliente pediu mais opções e há CANDIDATOS: ofereça um deles com acao oferecer, tipo, valor e link",
     gostou: "o cliente não disse que gostou; pergunte o que ele gostaria de saber ou se prefere agendar a visita",
     sem_link: "toda oferta de imóvel leva o link exato dele, de CANDIDATOS (\"Dá uma olhada: <link>\")",
+    anuncio: "o valor ou as suítes/quartos ditos junto do link não são os desse imóvel; use exatamente os dados dele em DADOS (candidatos ou mostrados)",
+    repeticao: "a resposta ficou quase igual a uma que você já mandou; responda a última pergunta do cliente com algo novo (se ele citou um condomínio, use busca_nome) e faça outra pergunta",
+    agenda: "você não tem a agenda: não ofereça dia nem horário; pergunte qual dia e período ficam melhores para o cliente e diga que o corretor confirma o horário",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
@@ -1022,6 +1192,8 @@ export type OpcoesRedacao = {
   historico: FalaHistorico[];
   /** Busca parecidos no XML da própria imobiliária (mesma RPC do roteiro). Sem ela, não há candidatos. */
   buscarParecidos?: (f: FiltroParecido) => Promise<ResultadoParecidos | null>;
+  /** t_228659f0 item 2: busca pelo nome do condomínio (título/descrição do XML). null = não consultou. */
+  buscarNome?: (f: FiltroNome) => Promise<ResultadoParecidos | null>;
   registrar: (u: UsoModelo) => void;
   fetchFn?: typeof fetch;
   agora?: Date;
@@ -1132,10 +1304,29 @@ export async function redigirResposta(
     dadosIn.finalidade === "alugar" || (!dadosIn.finalidade && ctx.transacao === "aluguel")
       ? "locacao"
       : "venda";
+  // t_228659f0 item 2: condomínio/empreendimento citado pelo nome (\"tem cannes?\") = busca por nome no XML (título e
+  // descrição), sem distinguir maiúsculas nem acentos. O resultado vale mais que os parecidos neste turno.
+  const nome = nomeCitado(texto, ctx.dados?.nome_busca);
+  let buscaNome: { nome: string; consultado: boolean; achou: number; fora_faixa?: boolean; faixa?: string } | null = null;
+  let itensNome: ImovelParecido[] = [];
+  if (nome) {
+    const rn = op.buscarNome ? await op.buscarNome({ nome, negocio, limite: 3 }).catch(() => null) : null;
+    itensNome = rn?.itens ?? [];
+    const fx = dadosIn.faixa ?? dadosIn.busca2?.faixa;
+    const v = fx ? valorFaixa(fx, true) : null;
+    const precoN = (i: ImovelParecido) => Number((i.preco ?? i.aluguel ?? "").replace(/[^\d]/g, "")) || null;
+    const fora = !!v && itensNome.length > 0 && itensNome.every((i) => {
+      const p = precoN(i);
+      return p !== null && ((v.max !== undefined && p > v.max) || (v.min !== undefined && p < v.min));
+    });
+    buscaNome = { nome, consultado: !!rn, achou: itensNome.length, ...(fora ? { fora_faixa: true, faixa: fx } : {}) };
+  }
   // Candidatos: até 3 parecidos do XML ainda não oferecidos (o banco aplica as regras de parecido).
-  const res = busca
+  const res = itensNome.length
+    ? { referencia: {}, itens: itensNome }
+    : busca
     ? { referencia: {}, itens: busca.itens }
-    : op.buscarParecidos && ja.length < MAX_PARECIDOS && !segundaAtiva
+    : op.buscarParecidos && ja.length < MAX_PARECIDOS && !segundaAtiva && !nome
       ? await op
           .buscarParecidos({
             excluir: ja,
@@ -1146,8 +1337,9 @@ export async function redigirResposta(
           .catch(() => null)
       : null;
   // t_37cf21e3 item 1: só parecidos de verdade (quartos ±1 do imóvel do cliente, quando não há pedido próprio).
+  // Busca por nome: o que achou é o que o cliente pediu (mesmo já mostrado ou com outro nº de quartos).
   const candidatos = (res?.itens ?? [])
-    .filter((i) => !ja.includes(i.codigo) && (busca ? true : quartosParecidos(i, ctx.ficha, dadosIn.filtro_pedido)))
+    .filter((i) => itensNome.length || (!ja.includes(i.codigo) && (busca ? true : quartosParecidos(i, ctx.ficha, dadosIn.filtro_pedido))))
     .slice(0, 3);
   // t_82c89141 item 1: a Nicole só pode dizer "não tenho outra" se a busca RODOU e voltou vazia.
   // t_0c590c55 item 3: já mostrou as 3 opções (a busca não roda de novo) = \"sem_resultado\": dizer \"essas são as
@@ -1167,6 +1359,7 @@ export async function redigirResposta(
     buscas: perfis,
     fora_regiao: busca?.fora_regiao ?? null,
     em_foco: emFoco,
+    busca_nome: buscaNome,
   });
   const falasCliente = [
     texto,
@@ -1178,13 +1371,16 @@ export async function redigirResposta(
   let uso: Omit<UsoModelo, "ok" | "erro" | "tokens_entrada" | "tokens_saida" | "custo_usd"> | null =
     null;
   let chamada: Chamada | null = null;
-  const perm = permitidosDe(
-    ctx.ficha,
-    [...candidatos, ...(dadosIn.parecido_atual ? [dadosIn.parecido_atual] : []), ...(emFoco && emFoco !== dadosIn.parecido_atual ? [emFoco] : [])],
-    visita,
-    falasCliente,
+  // t_228659f0 item 1: os imóveis já mostrados também entram (link e dados do XML): citar de novo a VIP0036 com
+  // \"2 suítes por R$ 850.000\" agora barra (\"anuncio\"); antes o link nem era conhecido e a trava não era firme.
+  const vistos = new Set(candidatos.map((c) => c.codigo));
+  const extras = [dadosIn.parecido_atual, emFoco, ...mostradosDe(dadosIn)].filter(
+    (x): x is ImovelParecido => !!x && !vistos.has(x.codigo) && (vistos.add(x.codigo), true),
   );
+  const perm = permitidosDe(ctx.ficha, [...candidatos, ...extras], visita, falasCliente);
   perm.estoque = estoque;
+  // t_228659f0 item 3: anti-repetição contra as 2 últimas respostas da Nicole.
+  perm.anteriores = op.historico.filter((m) => m.autor === "ia" && m.texto.trim()).slice(-2).map((m) => m.texto);
   // t_37cf21e3: travas da conversa d8907e38.
   if (pediuFotos(texto))
     perm.fotos = {
@@ -1193,14 +1389,26 @@ export async function redigirResposta(
     };
   if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
+  // t_228659f0 (DeepSeek real, conversa H): o cliente pediu o condomínio PELO NOME. O que a busca achou vale, seja
+  // casa ou apartamento (a trava "perfil" barrava os apartamentos do Cannes). E ele tem de ver um deles ("sem_oferta").
+  if (itensNome.length) {
+    perm.perfilTipo = null;
+    perm.estoque = "com_candidatos";
+  }
   // Na 2ª busca, a trava "tipo" compara com o tipo pedido para a outra pessoa (não com a casa do cliente).
   if (perfis?.atual === "segunda" && dadosIn.busca2?.tipo) perm.tipoRef = dadosIn.busca2.tipo;
   perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
-  perm.pediuOpcoes = base.intencao === "opcoes";
+  perm.pediuOpcoes = base.intencao === "opcoes" || itensNome.length > 0;
   // A faixa que o próprio cliente disse ("até 1200" = R$ 1.200.000) pode ser repetida (trava "valor").
-  for (const fx of [dadosIn.faixa, dadosIn.busca2?.faixa, texto]) {
+  perm.faixa = [];
+  for (const fx of [dadosIn.faixa, dadosIn.busca2?.faixa, texto, ...falasCliente]) {
     const v = fx ? valorFaixa(fx, true) : null;
     for (const x of [v?.min, v?.max]) if (typeof x === "number" && x >= 1000) perm.valores.push(x);
+    // O valor que o cliente disse (\"perto de 900 mil\") pode ser repetido; a faixa ±15% não vira preço do anúncio.
+    for (const x of fx ? valoresDoTexto(fx) : []) if (x >= 1000) {
+      perm.faixa.push(x);
+      perm.valores.push(x);
+    }
   }
   // No máximo 2 chamadas. Modo bloquear: bloqueio do validador = 2ª tentativa dizendo o que estava errado
   // (t_a9f1b447); só se ela também falhar sai a frase pronta. Modo observar: erro, demora ou JSON ruim = 2ª
@@ -1286,13 +1494,27 @@ export async function redigirResposta(
     saida = primeira.saida;
     detalhe = primeira.detalhe;
   }
+  // t_228659f0 (DeepSeek real, conversa H): com o condomínio achado pelo nome, a reserva mostra o 1º imóvel achado com
+  // os dados do XML (o roteiro não conhece a busca por nome e respondia \"o corretor confirma o valor\").
+  const reserva = (m: Bloqueio | null) => {
+    const c = itensNome[0];
+    if (!c || !buscaNome) return plano(m);
+    const tipo = c.tipo === "apartamento" ? "um apartamento" : c.tipo ? `uma ${c.tipo}` : "um imóvel";
+    const valor = c.preco ?? c.aluguel;
+    const fora = buscaNome.fora_faixa ? " Fica fora da faixa que você comentou." : "";
+    const resposta = `No ${buscaNome.nome.replace(/\b\w/g, (x) => x.toUpperCase())} tenho ${tipo}${c.quartos ? ` com ${c.quartos} quartos` : ""}${valor ? `, por ${valor}` : ""}: ${c.url}${fora} Quer ver?`;
+    if (!c.url || resposta.length > REDACAO_MAX_CHARS) return plano(m);
+    const dados = { ...base.dados, nome_busca: buscaNome.nome, parecido_atual: c, ultimo_parecido: c };
+    dados.mostrados = guardarMostrado(dados, c);
+    return { ...base, passo: ctx.passo, dados, resposta, resposta_falha: null, fim: null, resumo: null, redigida: false, bloqueio: m };
+  };
   if (!chamada || !saida) {
     // Trava firme barrou as 2 tentativas: o roteiro (plano B) responde, também no modo observar.
     const m = detalhe?.motivo ?? primeira?.detalhe.motivo ?? null;
-    return observar && !(m && TRAVAS_FIRMES.has(m)) ? semResposta() : plano(m);
+    return observar && !(m && TRAVAS_FIRMES.has(m)) ? semResposta() : reserva(m);
   }
   const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
-  if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return plano(bloqueio);
+  if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return reserva(bloqueio);
   // t_82c89141 item 4: dia sem período não passa ao corretor; pergunta manhã ou tarde.
   if (saida.acao === "passar" && saida.registro.visita && !temPeriodo(saida.registro.visita) && !periodoDe(norm(texto))) {
     const dia = saida.registro.visita;
@@ -1353,6 +1575,11 @@ export async function redigirResposta(
     dados.perguntas!.push("pagamento");
   // Já falou em visita: "sábado pode ser?" no turno seguinte é pedido de dia (t_2aecef49).
   if (/visita/.test(norm(saida.mensagem))) dados.convite_visita = true;
+  // t_228659f0: todo imóvel cujo link saiu nesta mensagem fica guardado com os dados do XML (item 1), e o nome
+  // de condomínio citado fica para as perguntas seguintes (\"qual valor do cannes?\", item 2).
+  for (const c of perm.codigos.values())
+    if (c.url && saida.mensagem.includes(c.url)) dados.mostrados = guardarMostrado(dados, c);
+  if (nome) dados.nome_busca = nome;
   if (ofertaValida) {
     const c = perm.codigos.get(saida.codigo!)!;
     if (busca?.perfil === "segunda" && dados.busca2) {

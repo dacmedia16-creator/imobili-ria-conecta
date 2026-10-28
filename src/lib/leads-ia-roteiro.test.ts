@@ -239,23 +239,21 @@ describe("item 3 — respostas só pela ficha da captação", () => {
 });
 
 describe("item 4 — visita com 2 opções, pré-agendamento e prazo", () => {
-  it("oferece 2 opções de dia e período, sem texto de sistema (t_5b493bc9 item 13)", async () => {
+  it("pergunta dia e período preferidos, sem oferecer horário (t_228659f0 item 5)", async () => {
     const r = await proximaResposta(ctx(), "quero agendar uma visita", undefined, { agora: AGORA });
     expect(r.passo).toBe("visita");
-    expect(r.dados.visita_opcoes).toEqual(["amanhã (terça, 27/10) de manhã", "quarta (28/10) à tarde"]);
-    expect(r.resposta).toBe(
-      "Claro! Para conhecer o apartamento, tenho amanhã (terça, 27/10) de manhã ou quarta (28/10) à tarde. Qual fica melhor para você? Te confirmo o horário certinho.",
-    );
-    expect(r.resposta).not.toMatch(/pré-agendamento|corretor/);
+    expect(r.dados.visita_opcoes).toBeUndefined();
+    expect(r.resposta).toBe("Claro! Para conhecer o apartamento, qual dia e período ficam melhores para você? O corretor confirma o horário com você.");
+    expect(r.resposta).not.toMatch(/pré-agendamento|amanhã|tenho/);
   });
   it("escolha: confirma o combinado e diz até quando o horário é confirmado", async () => {
-    const r = await conversa(["quero agendar uma visita", "a primeira"]);
+    const r = await conversa(["quero agendar uma visita", "amanhã de manhã"]);
     const f = r[1];
     expect(f.fim).toBe("visita");
-    expect(f.resposta).toBe(
-      "Combinado, amanhã (terça, 27/10) de manhã! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho até as 18h de hoje.",
-    );
-    expect(f.resumo).toMatch(/PRÉ-AGENDAMENTO: amanhã \(terça, 27\/10\) de manhã \(confirmar com o cliente até as 18h de hoje\)/);
+    // t_228659f0 item 5: o dia/período vem do cliente; o corretor confirma.
+    expect(f.resposta).toBe("Amanhã de manhã anotado! Já pedi para {corretor} continuar seu atendimento por aqui para confirmar o horário certinho.");
+    expect(f.resumo).toMatch(/PRÉ-AGENDAMENTO: amanhã de manhã/i);
+    expect(f.resumo).toMatch(/até as 18h de hoje/);
   });
   it("outro dia que o cliente propõe também vira pré-agendamento", async () => {
     const r = await conversa(["quero agendar uma visita", "quinta à tarde"]);
@@ -281,7 +279,7 @@ describe("item 5 — \"encaminhei\" verificável", () => {
       await proximaResposta(ctx(), "quero falar com um corretor"),
       await proximaResposta(ctx(), "paguei o sinal e ninguém respondeu"),
       await proximaResposta(ctx(), "Quero vender o meu apartamento"),
-      (await conversa(["quero agendar uma visita", "a primeira"]))[1],
+      (await conversa(["quero agendar uma visita", "amanhã de manhã"]))[1],
       respostaMidia(ctx({ dados: { midias: 1 } })),
     ];
     for (const r of casos) {
@@ -290,7 +288,7 @@ describe("item 5 — \"encaminhei\" verificável", () => {
       expect(r.resposta).toMatch(/Já pedi para \{corretor\} (te (chamar|responder)|continuar seu atendimento)/);
       expect(r.resposta_falha).toBeTruthy();
       expect(r.resposta_falha).not.toMatch(/já pedi|encaminhei|\{corretor\}/i);
-      expect(r.resposta_falha).toMatch(/(Registrei|Anotei)/);
+      expect(r.resposta_falha).toMatch(/(Registrei|Anotei|anotado!)/);
     }
   });
   it("recusa não diz que encaminhou", async () => {

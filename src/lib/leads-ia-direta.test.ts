@@ -197,11 +197,11 @@ describe("pergunta objetiva: só o dado, 1 ou 2 frases, e 1 pergunta natural", (
     const { out } = await conversa(["qual valor do Condominio ?", "e o iptu?"]);
     expect(out[1].resposta).toBe("O IPTU é de R$ 100 por mês. Quer saber mais algum detalhe?");
   });
-  it("\"sim\" ao convite: oferece 2 horários, como atendente", async () => {
+  it("\"sim\" ao convite: pergunta dia e período, sem inventar horário (t_228659f0 item 5)", async () => {
     const { out } = await conversa(["qual valor do Condominio ?", "sim"]);
     expect(out[1].passo).toBe("visita");
     expect(out[1].resposta).toBe(
-      "Ótimo! Para conhecer a casa, tenho amanhã (quarta, 28/10) de manhã ou quinta (29/10) à tarde. Qual fica melhor para você? Te confirmo o horário certinho.",
+      "Ótimo! Para conhecer a casa, qual dia e período ficam melhores para você? O corretor confirma o horário com você.",
     );
   });
   it("proposta só quando o cliente puxa o assunto (e aí passa, uma vez, com naturalidade)", async () => {
