@@ -22,6 +22,10 @@ export type VendaComercialPaginada = {
   modalidade: string;
   data_assinatura: string | null;
   data_venda: string;
+  /** sale_payment.tipo_pagamento ('vista' | 'financiamento' | 'consorcio'); null = não informado. */
+  pagamento_tipo?: string | null;
+  pagamento_banco?: string | null;
+  pagamento_correspondente?: string | null;
   /** Corretores participantes (atribuição). `corretor_id` é só quem cadastrou. */
   corretores_ids?: string[];
 };
@@ -50,6 +54,8 @@ export async function fetchVendasComerciaisPaginadas(params: {
   soMinhaVez?: boolean;
   /** Mídia da venda; "__sem_midia__" = sem mídia. Só é enviado quando há filtro. */
   midia?: string;
+  /** Tipo de pagamento; "__nao_informado__" = sem pagamento. Só é enviado quando há filtro. */
+  pagamento?: string;
   /** Cancela a requisição HTTP quando o filtro muda antes da resposta chegar. */
   signal?: AbortSignal;
 }): Promise<VendasComerciaisPaginadas> {
@@ -67,6 +73,7 @@ export async function fetchVendasComerciaisPaginadas(params: {
       _q: params.q?.trim() || null,
       _corretor_ids: params.corretorIds ?? null,
       ...(params.midia ? { _midia: params.midia } : {}),
+      ...(params.pagamento ? { _pagamento: params.pagamento } : {}),
     } as never,
   );
   const { data, error } = await (params.signal ? consulta.abortSignal(params.signal) : consulta);
