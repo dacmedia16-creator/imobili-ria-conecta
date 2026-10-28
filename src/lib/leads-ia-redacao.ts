@@ -41,6 +41,7 @@ import {
   PERGUNTA_PERIODO,
   periodoDe,
   temPeriodo,
+  tipoDe,
   pediuPessoa,
   perguntouSeRobo,
   prazoConfirmacao,
@@ -240,9 +241,11 @@ REGRAS (todas obrigatórias):
 16. Região: se o cliente pediu um bairro e DADOS trouxer "fora_regiao", diga PRIMEIRO, com clareza, que nesse bairro não tem agora, e só então mostre o candidato dizendo que ele fica em outro bairro (diga qual). Nunca mostre imóvel de outro bairro como se fosse do bairro pedido.
 17. Fotos ou vídeo: mande de novo o link do anúncio do imóvel de que vocês estão falando ("As fotos estão todas no anúncio: <link>"). Nunca prometa mandar fotos ("te mando as fotos"). Sem link em DADOS, diga só que o corretor te envia as fotos por aqui.
 18. Só diga "que bom que gostou" se o cliente disse que gostou. "Gostaria", "quero" ou "sim" sozinhos são resposta à sua pergunta: pergunte o que ele gostaria de saber ou se prefere agendar a visita.
-19. A última fala do cliente manda: se ele mudou de assunto ou fez uma pergunta nova, responda ESSA pergunta primeiro e esqueça a pergunta antiga. Nunca mande de novo, quase igual, uma mensagem que você já mandou no histórico (mesma oferta, mesma pergunta): se não tiver nada novo, diga isso em outras palavras e faça outra pergunta.
+19. A última fala do cliente manda: se ele mudou de assunto ou fez uma pergunta nova, responda ESSA pergunta primeiro e esqueça a pergunta antiga. Nunca mande de novo, quase igual, uma mensagem que você já mandou no histórico (mesma oferta, mesma pergunta): se não tiver nada novo, diga isso em outras palavras e faça outra pergunta. Se o cliente perguntar de novo um dado que você já deu (o valor, o link), responda o dado de novo, curto e com outras palavras, sem copiar a frase anterior, e termine com uma pergunta diferente da última que você fez.
 20. Imóvel já mostrado: para falar de um imóvel que você já mandou, use os dados dele em "mostrados" (ou em CANDIDATOS), exatamente como estão. Valor, quartos e suítes ditos junto do link têm de ser os desse imóvel. Nunca descreva um imóvel com dados de outro.
-21. Condomínio ou empreendimento pelo nome: se DADOS trouxer "busca_nome", é o resultado da busca pelo nome que o cliente citou. Com "achou" maior que 0, os CANDIDATOS são os imóveis desse condomínio: mostre um, com tipo, valor e link, e responda o valor que o cliente perguntou. Se "fora_faixa" for true, avise com naturalidade que fica acima (ou abaixo) da faixa que ele disse. Com "achou" 0, diga que nesse condomínio não tem nada anunciado agora. Com "consultado" false, diga que o corretor confirma com você se há unidade nesse condomínio e registre em "registro.pendente". Nunca diga que não tem um condomínio que está em CANDIDATOS.
+21. Condomínio ou empreendimento pelo nome: se DADOS trouxer "busca_nome", é o resultado da busca pelo nome que o cliente citou. Com "achou" maior que 0, os CANDIDATOS são os imóveis desse condomínio: mostre um, com tipo, valor e link, e responda o valor que o cliente perguntou. Se "fora_faixa" for true, avise com naturalidade que fica acima (ou abaixo) da faixa que ele disse. Com "achou" 0, diga que nesse condomínio não tem nada anunciado agora. Com "consultado" false, diga que o corretor confirma com você se há unidade nesse condomínio e registre em "registro.pendente". Nunca diga que não tem um condomínio que está em CANDIDATOS. Diga quantos achou só se for o número de \"achou\".
+22. Reclamação ou \"por quê?\" (\"pq mandou várias opções?\", \"por que me mandou casa?\", \"não pedi isso\"): explique em 1 frase, com honestidade, o que você fez e por quê (\"Te mandei outras casas porque você pediu mais opções.\"), peça desculpa se errou e pergunte como ele prefere seguir. Não mostre imóvel novo nessa resposta.
+23. Uma pergunta só, escrita uma vez: nunca repita a mesma frase na mesma mensagem e não junte \"Gostou?\" com outra pergunta.
 
 Responda SÓ com JSON neste formato:
 {"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou","pendente":"assunto que o corretor precisa confirmar"}}
@@ -253,7 +256,8 @@ Cliente: "qual o valor do condomínio?" -> "O condomínio é R$ 500 por mês. Qu
 Cliente: "tem outras?" -> "Tenho sim! Tem outra casa no mesmo bairro, com 3 quartos e 170 m², por R$ 900.000. Dá uma olhada: https://exemplo/imovel/1 Gostou?"
 Cliente: "aceita financiamento?" -> "Sobre financiamento, o corretor confirma com você na visita ou no contato. Quer marcar uma visita para conhecer?"
 Cliente: "pode ser sábado?" -> "Anotado, sábado! Fica melhor de manhã ou à tarde?"
-Cliente: "dá para visitar?" -> "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário com você."`;
+Cliente: "dá para visitar?" -> "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário com você."
+Cliente: "pq enviou várias opções?" -> "Te mandei outras opções porque você pediu mais. Prefere seguir só com apartamentos no Campolim?"`;
 
 export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: string } {
   const { ctx } = e;
@@ -470,6 +474,12 @@ export type Permitidos = {
   clienteExato?: PorContagem;
   /** t_228659f0 item 3: as 2 últimas respostas da Nicole (anti-repetição). */
   anteriores?: string[];
+  /** t_6667db44: links que a Nicole já mandou nesta conversa (link fora daqui = imóvel novo, não é repetição). */
+  linksMandados?: Set<string>;
+  /** t_6667db44: o cliente pediu de novo o mesmo dado (limite da repetição sobe para a cópia quase literal). */
+  reperguntou?: boolean;
+  /** t_6667db44: quantos imóveis a busca pelo nome achou (\"encontrei 2 no Cannes\" não é número solto). */
+  achouNome?: number;
 };
 
 const numBr = (s: string): number => {
@@ -726,6 +736,44 @@ export function semelhanca(a: string, b: string): number {
 }
 /** A partir daqui, a resposta é \"quase igual\" a uma anterior (7ebaa6bb: 0,62 a 0,86; respostas boas ≤ 0,45). */
 export const REPETICAO_MIN = 0.6;
+/** t_6667db44: o cliente perguntou de novo a mesma coisa: só barra a cópia quase literal. */
+export const REPETICAO_REPERGUNTA = 0.9;
+/** Pergunta final da mensagem (\"Gostou?\", \"Quer agendar uma visita?\"): é o fecho de sempre, não o conteúdo. */
+const semFecho = (t: string) => t.replace(LINK_RE, " link ").replace(/[^.!?]*\?[\s?]*$/, "").trim();
+/**
+ * Semelhança entre duas respostas sem contar a pergunta final, quando as duas têm conteúdo antes dela (5+ palavras).
+ * Duas respostas com o mesmo corpo continuam iguais; o mesmo fecho com conteúdo diferente não é repetição.
+ */
+export function semelhancaResposta(a: string, b: string): number {
+  const ca = semFecho(a);
+  const cb = semFecho(b);
+  return palavrasRep(ca).length >= 5 && palavrasRep(cb).length >= 5 ? semelhanca(ca, cb) : semelhanca(a, b);
+}
+/** \"me manda de novo\", \"manda o link\", fotos, \"qual o valor/preço\": o cliente quer o mesmo dado outra vez. */
+export const RE_REPERGUNTA =
+  /\b(de novo|novamente|outra vez|me (manda|mande|envia|passa)|manda (o|a|esse|essa|ele|ela)\b|qual (o |e o )?(valor|preco)|quanto (custa|e|sai|fica)|fotos?|videos?)\b/;
+
+/**
+ * t_6667db44 (f3837c14, 07:58): limpeza da mensagem do modelo ANTES das travas. Tira frase repetida dentro da mesma
+ * mensagem (\"Quer ver essa...? Quer ver essa...?\") e o \"Gostou?\" curto quando vem outra pergunta depois. Só tira
+ * texto: nunca acrescenta nada.
+ */
+export function limparMensagem(msg: string): string {
+  const chave = (p: string) => norm(p).replace(/[^a-z0-9/:. ]/g, "").replace(/\s+/g, " ").trim();
+  const vistas = new Set<string>();
+  const partes = msg.trim().split(/(?<=[.!?])\s+/).filter((p) => {
+    const k = chave(p);
+    if (!k || k.length < 3) return true;
+    if (vistas.has(k)) return false;
+    vistas.add(k);
+    return true;
+  });
+  return partes
+    .join(" ")
+    .replace(/(^|\s)(Gostou|O que achou|Curtiu|Que tal|O que acha)\?(?=\s[^?]*\?)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 /** Oferta de dia/período como livre (\"tenho amanhã de manhã\", \"temos visita amanhã de manhã ou sexta à tarde\"). */
 const DIA_RE = String.raw`(amanha|depois de amanha|hoje|segunda|terca|quarta|quinta|sexta|sabado|domingo|\d{1,2}\/\d{1,2})`;
@@ -771,9 +819,16 @@ export function travasAnuncioRepeticao(msg: string, perm: Permitidos): DetalheBl
       return ret("anuncio", `${v} ${u} | anúncio ${dele}`);
     }
   }
-  for (const a of perm.anteriores ?? []) {
-    const s = semelhanca(msg, a);
-    if (s >= REPETICAO_MIN) return ret("repeticao", `${Math.round(s * 100)}% igual a uma resposta anterior`);
+  // t_6667db44: imóvel NOVO (link que a Nicole nunca mandou nesta conversa) não é repetição, mesmo com a frase de
+  // sempre (\"Tem outra casa..., por R$ X. Dá uma olhada: <link> Gostou?\"): 13 das 20 barradas da rodada \"antes\".
+  const linksMsg = (msg.match(LINK_RE) ?? []).map((l) => l.replace(/[.,;:!?]+$/, ""));
+  const novo = !!perm.linksMandados && linksMsg.some((l) => !perm.linksMandados!.has(l));
+  // Cliente perguntou de novo (o mesmo valor, o mesmo condomínio, \"me manda de novo\", fotos): o dado é o mesmo; só
+  // a cópia quase literal barra.
+  const lim = perm.reperguntou ? REPETICAO_REPERGUNTA : REPETICAO_MIN;
+  for (const a of novo ? [] : (perm.anteriores ?? [])) {
+    const s = semelhancaResposta(msg, a);
+    if (s >= lim) return ret("repeticao", `${Math.round(s * 100)}% igual a uma resposta anterior`);
   }
   const ag = RE_AGENDA_OFERTA.exec(norm(msg.replace(LINK_RE, " ")));
   if (ag) return ret("agenda", ag[0]);
@@ -986,7 +1041,8 @@ export function validarRedacaoDetalhe(
     } else if (/^(quarto|dormitorio|suite|vaga|banheiro)/.test(unidade)) {
       const u = unidadeContagem(unidade);
       if (!contagemOk(perm, u, v)) return b("contagem", `${m[0]} | ${origemContagem(perm, u)}`);
-    } else return b("numero", m[0]);
+    } else if (!(perm.achouNome && v === perm.achouNome)) return b("numero", m[0]);
+    // t_6667db44: \"encontrei 2 no Cannes\" = quantos a busca pelo nome achou (dado real, não número solto).
   }
   for (const m of semDatas.matchAll(
     /\b(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito) (quartos?|dormitorios?|suites?|vagas?|banheiros?)\b/g,
@@ -1381,6 +1437,15 @@ export async function redigirResposta(
   perm.estoque = estoque;
   // t_228659f0 item 3: anti-repetição contra as 2 últimas respostas da Nicole.
   perm.anteriores = op.historico.filter((m) => m.autor === "ia" && m.texto.trim()).slice(-2).map((m) => m.texto);
+  // t_6667db44: links já mandados (imóvel novo não é repetição) e pergunta repetida do cliente (o dado é o mesmo).
+  const falasIa = op.historico.filter((m) => m.autor === "ia").map((m) => m.texto);
+  perm.linksMandados = new Set(falasIa.flatMap((t) => (t.match(LINK_RE) ?? []).map((l) => l.replace(/[.,;:!?]+$/, ""))));
+  const ultimaCliente = op.historico.filter((m) => m.autor === "cliente" && m.texto.trim() !== texto.trim()).slice(-1)[0]?.texto;
+  perm.reperguntou =
+    RE_REPERGUNTA.test(norm(texto)) ||
+    (!!nome && !!ultimaCliente && nomeCitado(ultimaCliente, undefined) === nome) ||
+    (!!ultimaCliente && semelhanca(texto, ultimaCliente) >= 0.5);
+  if (buscaNome?.achou) perm.achouNome = buscaNome.achou;
   // t_37cf21e3: travas da conversa d8907e38.
   if (pediuFotos(texto))
     perm.fotos = {
@@ -1389,6 +1454,10 @@ export async function redigirResposta(
     };
   if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
+  // t_6667db44 (f3837c14, 09:24): o tipo dito na ÚLTIMA mensagem (\"manda mais opções de ap\") manda na trava \"perfil\"
+  // (firme): antes valia o perfil antigo (casa) e a casa 2544 passou.
+  const tipoDaFala = tipoDe(norm(texto));
+  if (tipoDaFala) perm.perfilTipo = tipoBase(tipoDaFala);
   // t_228659f0 (DeepSeek real, conversa H): o cliente pediu o condomínio PELO NOME. O que a busca achou vale, seja
   // casa ou apartamento (a trava "perfil" barrava os apartamentos do Cannes). E ele tem de ver um deles ("sem_oferta").
   if (itensNome.length) {
@@ -1398,7 +1467,10 @@ export async function redigirResposta(
   // Na 2ª busca, a trava "tipo" compara com o tipo pedido para a outra pessoa (não com a casa do cliente).
   if (perfis?.atual === "segunda" && dadosIn.busca2?.tipo) perm.tipoRef = dadosIn.busca2.tipo;
   perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
-  perm.pediuOpcoes = base.intencao === "opcoes" || itensNome.length > 0;
+  // t_6667db44: condomínio pelo nome JÁ mostrado (\"qual valor do cannes?\" depois do link): responder o valor sem
+  // mandar o link de novo é certo; \"sem_oferta\" só quando o achado ainda não foi mostrado (6 de 6 eram falsos).
+  const nomeNovo = itensNome.length > 0 && !itensNome.some((i) => !!i.url && perm.linksMandados!.has(i.url));
+  perm.pediuOpcoes = base.intencao === "opcoes" || nomeNovo;
   // A faixa que o próprio cliente disse ("até 1200" = R$ 1.200.000) pode ser repetida (trava "valor").
   perm.faixa = [];
   for (const fx of [dadosIn.faixa, dadosIn.busca2?.faixa, texto, ...falasCliente]) {
@@ -1451,6 +1523,9 @@ export async function redigirResposta(
     }
     if (!chamada || !uso) return observar ? semResposta() : plano();
     saida = chamada.ok ? lerSaida(chamada.texto ?? undefined) : null;
+    // t_6667db44 (f3837c14 07:58): a frase repetida dentro da mesma resposta veio do MODELO (1 tentativa, trava
+    // \"perguntas\" só registrou no modo observar). A limpeza corta a frase duplicada antes das travas.
+    if (saida) saida = { ...saida, mensagem: limparMensagem(saida.mensagem) };
     // Último oferecido pode ser citado de novo, mas não "oferecido" outra vez.
     detalhe = !chamada.ok
       ? null
@@ -1496,14 +1571,46 @@ export async function redigirResposta(
   }
   // t_228659f0 (DeepSeek real, conversa H): com o condomínio achado pelo nome, a reserva mostra o 1º imóvel achado com
   // os dados do XML (o roteiro não conhece a busca por nome e respondia \"o corretor confirma o valor\").
+  // t_6667db44 (f3837c14, 09:24): a reserva nunca mostra um tipo diferente do que o cliente pediu na última
+  // mensagem (\"manda mais opções de ap\" -> saiu a casa 2544). Sem imóvel do tipo pedido, diz isso.
+  const tipoPedido = tipoDe(norm(texto)) ?? (dadosIn.busca2?.ativa && !dadosIn.busca2.para ? dadosIn.busca2.tipo || null : null);
+  const tipoCerto = <T extends { resposta: string; dados: DadosQualificacao }>(r: T): T => {
+    if (!tipoPedido) return r;
+    const imoveis = [...perm.codigos.values(), r.dados?.parecido_atual, r.dados?.busca2?.atual].filter((x): x is ImovelParecido => !!x?.url);
+    const errado = imoveis.find((i) => r.resposta.includes(i.url!) && !!i.tipo && tipoBase(i.tipo) !== tipoBase(tipoPedido));
+    if (!errado) return r;
+    const plural = tipoBase(tipoPedido) === "apartamento" ? "apartamento" : tipoBase(tipoPedido);
+    return {
+      ...r,
+      dados: ctx.dados ?? {},
+      resposta: `Agora não tenho outro ${plural} nesse perfil para te mostrar. Quer rever o que te mandei ou prefere ajustar a busca, como o bairro ou a faixa de valor?`,
+      fim: null,
+      resumo: null,
+      resposta_falha: null,
+    };
+  };
   const reserva = (m: Bloqueio | null) => {
-    const c = itensNome[0];
-    if (!c || !buscaNome) return plano(m);
+    const c0 = itensNome[0];
+    if (!c0 || !buscaNome) return tipoCerto(plano(m));
+    // t_6667db44: a reserva não repete a mesma frase quando o cliente pergunta do condomínio várias vezes. Já
+    // mostrou o 1º? Mostra o 2º achado (se houver) ou responde o valor com outras palavras.
+    const vezes = falasIa.filter((t) => itensNome.some((i) => !!i.url && t.includes(i.url))).length;
+    const c = vezes && itensNome[1] && !perm.linksMandados!.has(itensNome[1].url ?? "-") ? itensNome[1] : c0;
     const tipo = c.tipo === "apartamento" ? "um apartamento" : c.tipo ? `uma ${c.tipo}` : "um imóvel";
     const valor = c.preco ?? c.aluguel;
     const fora = buscaNome.fora_faixa ? " Fica fora da faixa que você comentou." : "";
-    const resposta = `No ${buscaNome.nome.replace(/\b\w/g, (x) => x.toUpperCase())} tenho ${tipo}${c.quartos ? ` com ${c.quartos} quartos` : ""}${valor ? `, por ${valor}` : ""}: ${c.url}${fora} Quer ver?`;
-    if (!c.url || resposta.length > REDACAO_MAX_CHARS) return plano(m);
+    const Nome = buscaNome.nome.replace(/\b\w/g, (x) => x.toUpperCase());
+    const q = c.quartos ? ` com ${c.quartos} quartos` : "";
+    const v = valor ? `, por ${valor}` : "";
+    const opcoesTxt = [
+      `No ${Nome} tenho ${tipo}${q}${v}: ${c.url}${fora} Quer ver?`,
+      c !== c0
+        ? `No ${Nome} também tenho outro${tipo.startsWith("uma") ? "a" : ""}${q}${v}: ${c.url}${fora} Quer conhecer algum dos dois?`
+        : `O do ${Nome} sai${v.replace(/^, /, " ")}. O anúncio é este: ${c.url}${fora} Quer agendar uma visita para conhecer?`,
+      `Sobre o ${Nome}: ${tipo.replace(/^uma? /, "")}${q}${v}. Link: ${c.url}${fora} Prefere visitar ou ver outra opção?`,
+    ];
+    const resposta = opcoesTxt[Math.min(vezes, opcoesTxt.length - 1)];
+    if (!c.url || resposta.length > REDACAO_MAX_CHARS) return tipoCerto(plano(m));
     const dados = { ...base.dados, nome_busca: buscaNome.nome, parecido_atual: c, ultimo_parecido: c };
     dados.mostrados = guardarMostrado(dados, c);
     return { ...base, passo: ctx.passo, dados, resposta, resposta_falha: null, fim: null, resumo: null, redigida: false, bloqueio: m };

@@ -1909,6 +1909,12 @@ export async function proximaResposta(
     b2.etapa = undefined;
   } else if (b2 && !b2.ativa && b2.tipo !== undefined && PARA_ELE.test(n) && !PARA_MIM.test(n) && (MAIS_UM.test(n) || pedeOutrasOpcoes(texto) || detectarTemas(texto).length)) {
     b2.ativa = true;
+  } else if (b2 && !b2.ativa && !b2.para && !!b2.tipo && tipoDe(n) === b2.tipo && !PARA_ELE.test(n)) {
+    // t_6667db44 (f3837c14): o MESMO cliente trocou de casa para apartamento. \"manda mais opções de ap\" volta ao
+    // perfil novo (apartamento, Campolim, 3 quartos); antes caía no perfil casa e a reserva mandava uma casa.
+    b2.ativa = true;
+  } else if (b2?.ativa && !b2.para && !b2.etapa && !!ficha?.tipo && tipoDe(n) === tipoDe(norm(ficha.tipo)) && b2.tipo !== tipoDe(norm(ficha.tipo))) {
+    b2.ativa = false; // o cliente voltou a pedir o tipo do anúncio (\"e casa, tem outra?\")
   }
 
   // t_37cf21e3 item 4: frase com dois sentidos (\"não quero casa mesmo\"): confirma em 1 pergunta curta.
@@ -1972,8 +1978,12 @@ export async function proximaResposta(
         return passarAo(DISSE_QUE_GOSTOU.test(n) ? "Que bom que gostou!" : "Combinado!", `para combinar a visita ${fem(p.tipo) ? "dessa" : "desse"} ${p.tipo || "imóvel"}`);
       }
       if (temasB.length) return continuar(`${responderDuvidas(temasB, fichaDoParecido(p), {}, oImovel(p.tipo, true))} O que acha?`);
-      b2.ativa = false; // mudou de assunto: volta ao imóvel do lead
-      b2.atual = undefined;
+      // t_6667db44 (f3837c14): busca do PRÓPRIO cliente (sem \"para o filho\"): o perfil novo continua valendo
+      // depois de uma pergunta solta (\"pq enviou várias opções?\"). Só a busca de outra pessoa volta ao lead.
+      if (b2.para) {
+        b2.ativa = false; // mudou de assunto: volta ao imóvel do lead
+        b2.atual = undefined;
+      }
     } else if (MAIS_UM.test(n) || pedeOutrasOpcoes(texto)) {
       return perguntarOuBuscar(b2, "", false, true); // voltou a pedir opções para a outra pessoa
     }

@@ -77,6 +77,24 @@ export const ESTOQUE_ZZ: Array<ImovelParecido & { preco_valor: number; tipo_xml?
   // t_228659f0: conversa H (7ebaa6bb). Residencial Cannes: o nome só aparece na descrição do XML (lido em 28/10).
   { ...casa({ codigo: "VIP0136", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "97", preco: "R$ 999.000" }), preco_valor: 999000, busca_texto: "residencial cannes" },
   { ...casa({ codigo: "822", tipo: "apartamento", bairro: "Parque Campolim", quartos: "3", suites: "1", vagas: "2", area_util_m2: "97", preco: "R$ 1.100.000" }), preco_valor: 1100000, busca_texto: "condominio cannes" },
+  // t_6667db44: conversa I (f3837c14, casa 2542, Ibiti Royal Park). XML real da ZZ lido em 28/10 (só leitura).
+  ...(
+    [
+      ["2542", "casa", "Ibiti Royal Park", "3", "1", "4", "268", 1490000],
+      ["2538", "casa", "Ibiti Royal Park", "3", "3", "4", "236", 1450000],
+      ["2545", "casa", "Ibiti Royal Park", "3", "3", "4", "265", 1440000],
+      ["2544", "casa", "Ibiti Royal Park", "3", "3", "4", "226", 1420000],
+      ["2549", "casa", "Ibiti Royal Park", "3", "1", "4", "200", 1399000],
+      ["3968", "apartamento", "Parque Campolim", "3", "1", "1", "68", 468000],
+      ["3830", "apartamento", "Parque Campolim", "3", "1", "2", "84", 569000],
+      ["VIP0054", "apartamento", "Parque Campolim", "3", "1", "2", "83", 724000],
+      ["3677", "apartamento", "Parque Campolim", "3", "1", "2", "85", 760000],
+    ] as const
+  ).map(([codigo, tipo, bairro, quartos, suites, vagas, area, v]) => ({
+    ...casa({ codigo, tipo, bairro, quartos, suites, vagas, area_util_m2: area, preco: `R$ ${v.toLocaleString("pt-BR")}` }),
+    preco_valor: v,
+    tipo_xml: tipo === "casa" ? "casa-de-condominio" : undefined,
+  })),
   // t_82c89141: casas de condomínio de Sorocaba (no XML o tipo é "casa-de-condominio"; para a Nicole é "casa").
   ...(
     [
@@ -439,6 +457,35 @@ export const REFERENCIA: ConversaReferencia[] = [
       { cliente: "Me manda o cannes q vc tem", esperado: "<link VIP0136>", antes: "Sobre o condomínio Cannes, não temos apartamento nessa faixa. O que temos é o apartamento com 2 suítes que te mostrei. Quer ver esse ou prefere que eu procure com 1 suíte?", falha: "itens 2 e 3" },
       { cliente: "Dá para visitar ?", esperado: "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário.", antes: "Claro! Temos visita amanhã de manhã ou sexta à tarde. Qual prefere?", falha: "item 5: horário inventado" },
       { cliente: "Amanhã a tarde não tem como ?", esperado: "Amanhã à tarde anotado! O corretor confirma o horário com você.", antes: null, falha: "item 4: cortada pelo limite, sem aviso" },
+    ],
+  },
+  // t_6667db44: conversa f3837c14 (casa 2542, DeepSeek ao vivo, 28/10 06:15-09:29 BRT) — pergunta duplicada na
+  // mesma mensagem, \"por quê?\" sem resposta e a CASA 2544 mandada a quem pediu \"mais opções de ap\".
+  {
+    id: "I",
+    lead: "f3837c14",
+    anuncio: "2542",
+    ficha: ficha({
+      tipo: "casa", bairro: "Ibiti Royal Park", quartos: "3", suites: "1", vagas: "4", area_util_m2: "268",
+      preco: "R$ 1.490.000", preco_valor: 1490000, condominio: "R$ 400,00", iptu: "R$ 167,00 por mês",
+      link: "https://vipsevenimoveis.com.br/imovel/2542",
+    }),
+    primeira:
+      "Oi, Denis! Aqui é a Nicole, da ZZ Teste Provisionamento. Vi seu interesse na casa de 3 quartos no bairro Ibiti Royal Park, em Sorocaba, anunciada por R$ 1.490.000. Anúncio: https://vipsevenimoveis.com.br/imovel/2542 Quer saber mais detalhes ou já prefere agendar uma visita?",
+    falas: [
+      { cliente: "Tem outras ?", esperado: "Outra casa no Ibiti Royal Park, com link.", antes: "Tenho sim! Tem outra casa no Ibiti Royal Park, com 3 suítes e 236 m², por R$ 1.450.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/2538 Gostou?" },
+      { cliente: "Quero ver essa", esperado: "Quer agendar a visita? Qual dia e período?", antes: "Claro! Essa casa tem 3 suítes, 4 vagas e 236 m², por R$ 1.450.000. Quer agendar uma visita para conhecer?" },
+      { cliente: "Sim", esperado: "Qual dia e período ficam melhores?", antes: "Que bom! Quer agendar a visita para essa casa de 3 suítes?" },
+      { cliente: "Sin", esperado: "Qual dia e período ficam melhores?", antes: "Perfeito! Me diz que dia te fica melhor para visitar e se prefere de manhã ou à tarde." },
+      { cliente: "Tem mais opções ?", esperado: "Outra casa no Ibiti Royal Park, com link, 1 pergunta só.", antes: "Entendi! Tem outra casa no Ibiti Royal Park, com 3 suítes e 265 m², por R$ 1.440.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/2545 Gostou? Quer ver essa ou prefere agendar a visita na outra? Quer ver essa ou prefere agendar a visita na outra?", falha: "ponto 1: pergunta duplicada na mesma mensagem" },
+      { cliente: "É apartamento vc tem ?", esperado: "Temos sim! Para comprar ou alugar?", antes: "Trabalhamos com apartamentos sim! Você procura comprar ou alugar?" },
+      { cliente: "Comprar mesmo", esperado: "Em qual bairro?", antes: "Entendi, comprar! E para apartamento, tem alguma região ou bairro que você prefere?" },
+      { cliente: "Campolim", esperado: "Quantos quartos?", antes: "Anotado, Campolim! E para apartamento, quantos quartos você busca?" },
+      { cliente: "3 dormitórios", esperado: "Apartamento de 3 quartos no Campolim, com link.", antes: "Achei um apartamento com 3 quartos no Parque Campolim, por R$ 468.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/3968. Gostou?" },
+      { cliente: "pq enviou varios opçoes ?", esperado: "Te mandei outras opções porque você pediu mais. Prefere seguir só com apartamentos no Campolim?", antes: "Você pediu apartamento e eu te mostrei um! A casa que você viu antes continua de pé, se quiser retomar. Quer ver esse apartamento ou prefere voltar para a casa?", falha: "ponto 2: não entendeu a reclamação" },
+      { cliente: "manda mais opções de ap", esperado: "Outro apartamento de 3 quartos no Campolim, com link.", antes: "Tenho mais uma no mesmo bairro, com 3 quartos e 226 m², por R$ 1.420.000. Dá uma olhada: https://vipsevenimoveis.com.br/imovel/2544 Gostou? Se quiser, marco uma visita.", falha: "ponto 3 (GRAVE): mandou a CASA 2544 a quem pediu apartamento" },
+      { cliente: "isso casa q vc mandou", esperado: "Desculpe, era uma casa. Quer que eu mostre outro apartamento no Campolim?", antes: "Você tem razão, essa é uma casa! Peço desculpas. Quer que eu procure mais apartamentos ou prefere ver essa casa?" },
+      { cliente: "ap", esperado: "Outro apartamento de 3 quartos no Campolim, com link.", antes: "Entendi, você quer apartamento! Essas são as opções que tenho nessa faixa agora. Quer visitar o apartamento do Campolim ou prefere ver a casa também?" },
     ],
   },
 ];

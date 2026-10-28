@@ -92,7 +92,7 @@ async function main() {
       linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: falasAntes.length ? `${falasAntes.join(" / ")} / ${f.cliente}` : f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms, brutos });
       hist.push({ autor: "cliente", texto: f.cliente }, { autor: "ia", texto: r.resposta });
       // t_37cf21e3: na F (d8907e38) Denis seguiu conversando depois; segue para refazer todas as falas.
-      if (r.fim && conv.id !== "F" && conv.id !== "H") break;
+      if (r.fim && !["F", "H", "I"].includes(conv.id)) break;
       c = { ...c, passo: r.passo, dados: r.dados, versao: c.versao + 1 };
     }
   }
