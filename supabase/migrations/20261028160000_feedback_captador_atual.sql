@@ -47,6 +47,31 @@ $$;
 REVOKE ALL ON FUNCTION public.owner_feedback_responsavel_ok(text, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.owner_feedback_responsavel_ok(text, uuid) TO authenticated, service_role;
 
+-- Chaves (portal_code_key) dos códigos ligados a captações na imobiliária da sessão: todas (_meus = false)
+-- ou só as que o usuário logado pode cuidar (captador atual, gestor/TL dele). Mesma regra de
+-- owner_feedback_responsavel_ok, mas calculada UMA vez por consulta (policy usa (SELECT ...) = initplan),
+-- e não linha a linha nas coletas. A tabela de vínculos é pequena (dezenas de linhas por imobiliária).
+CREATE OR REPLACE FUNCTION public.owner_feedback_chaves(_meus boolean) RETURNS text[]
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  WITH s AS (SELECT auth.uid() AS uid, public.current_org_id() AS org),
+  lig AS (
+    SELECT k.key, c.captor_id AS resp
+      FROM s
+      CROSS JOIN LATERAL (SELECT DISTINCT l.code_key AS key FROM public.exclusive_listing_links l
+                           WHERE l.organization_id = s.org) k
+      JOIN public.exclusive_captures c ON c.id = public.owner_feedback_captura(s.org, k.key)
+     WHERE c.captor_id IS NOT NULL)
+  SELECT coalesce(array_agg(lig.key), '{}'::text[]) FROM lig, s
+   WHERE s.uid IS NOT NULL AND s.org IS NOT NULL
+     AND (NOT _meus
+          OR lig.resp = s.uid
+          OR (lig.resp IS NOT NULL
+              AND public.has_any_role(s.uid, ARRAY['gestor','team_leader']::public.app_role[])
+              AND public.is_lead_of(s.uid, lig.resp)))
+$$;
+REVOKE ALL ON FUNCTION public.owner_feedback_chaves(boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.owner_feedback_chaves(boolean) TO authenticated, service_role;
+
 -- Marcar/ler/apagar ações (policies de owner_feedback_action_done usam esta função; elas não mudam).
 CREATE OR REPLACE FUNCTION public.owner_feedback_can_edit(_code text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
@@ -64,8 +89,17 @@ GRANT EXECUTE ON FUNCTION public.owner_feedback_can_edit(text) TO authenticated,
 DROP POLICY IF EXISTS portal_snap_read ON public.portal_listing_snapshots;
 CREATE POLICY portal_snap_read ON public.portal_listing_snapshots FOR SELECT TO authenticated
   USING (
-    public.has_any_role((SELECT auth.uid()), ARRAY['admin','super_admin']::public.app_role[])
-    OR public.owner_feedback_responsavel_ok(listing_code, broker_id)
+    (SELECT public.has_any_role((SELECT auth.uid()), ARRAY['admin','super_admin']::public.app_role[]))
+    OR CASE
+      -- Ligado a captação: só quem cuida da captação (captador atual / gestor-TL dele).
+      WHEN public.portal_code_key(listing_code) = ANY ((SELECT public.owner_feedback_chaves(false))::text[])
+        THEN public.portal_code_key(listing_code) = ANY ((SELECT public.owner_feedback_chaves(true))::text[])
+      -- Sem captação: regra de antes (broker_id do anúncio e gestor/TL dele).
+      ELSE broker_id IS NOT NULL
+        AND (broker_id = (SELECT auth.uid())
+             OR ((SELECT public.has_any_role((SELECT auth.uid()), ARRAY['gestor','team_leader']::public.app_role[]))
+                 AND public.is_lead_of((SELECT auth.uid()), broker_id)))
+    END
   );
 
 -- Histórico de ações da MESMA captação: o código aberto + códigos antigos trocados (somente leitura).
@@ -96,24 +130,31 @@ RETURNS TABLE(code text, code_key text, agent_id text, broker_id uuid, corretor_
   bairro text, cidade text, preco numeric, url text, coleta timestamptz)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE _uid uuid := auth.uid(); _org uuid := public.current_org_id(); _run public.remax_xml_runs%ROWTYPE;
-  _admin boolean;
+  _admin boolean; _lead boolean;
 BEGIN
   IF NOT public.remax_xml_can_read() THEN RAISE EXCEPTION 'Ação não permitida' USING ERRCODE = '42501'; END IF;
   IF NOT coalesce(public.owner_feedback_enabled(), false) THEN RETURN; END IF;
   _run := public.remax_xml_last_ok(_org);
   IF _run.id IS NULL THEN RETURN; END IF;
   _admin := public.has_any_role(_uid, ARRAY['admin','super_admin']::public.app_role[]);
+  _lead := public.has_any_role(_uid, ARRAY['gestor','team_leader']::public.app_role[]);
   RETURN QUERY
+  -- Captador atual de cada código ligado: calculado uma vez (poucas linhas), depois só um JOIN.
+  WITH lig AS MATERIALIZED (
+    SELECT k.key, c.captor_id
+      FROM (SELECT DISTINCT el.code_key AS key FROM public.exclusive_listing_links el
+             WHERE el.organization_id = _org) k
+      JOIN public.exclusive_captures c ON c.id = public.owner_feedback_captura(_org, k.key))
   SELECT x.code, x.code_key, x.agent_id, x.resp,
          CASE WHEN _admin AND x.resp IS NULL THEN nullif(btrim(x.corretor_nome), '') END,
          x.tipo, x.bairro, x.cidade, x.preco, x.url, _run.finished_at
-    FROM (SELECT l.*, coalesce((SELECT c.captor_id FROM public.exclusive_captures c
-                                 WHERE c.id = public.owner_feedback_captura(_org, l.code)), m.profile_id) AS resp,
-                 m.profile_id AS xml_broker
+    FROM (SELECT l.*, coalesce(g.captor_id, m.profile_id) AS resp
             FROM public.remax_xml_listings l
             LEFT JOIN public.remax_xml_broker_match(_org) m ON m.agent_id = l.agent_id
+            LEFT JOIN lig g ON g.key = public.portal_code_key(l.code)
            WHERE l.organization_id = _org AND l.last_run = _run.id AND l.negocio = 'venda') x
-   WHERE _admin OR public.owner_feedback_responsavel_ok(x.code, x.xml_broker)
+   WHERE _admin OR (_uid IS NOT NULL AND x.resp IS NOT NULL
+                    AND (x.resp = _uid OR (_lead AND public.is_lead_of(_uid, x.resp))))
    ORDER BY x.code;
 END $$;
 REVOKE ALL ON FUNCTION public.feedback_xml_base() FROM PUBLIC, anon;
