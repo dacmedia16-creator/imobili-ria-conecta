@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
+import { FinanciadaBadge } from "@/components/FinanciadaBadge";
 import { AgingBadge } from "@/components/AgingBadge";
 import {
   STATUS_LABEL,
@@ -4370,6 +4371,12 @@ function SaleDetail() {
               {sale.imovel_id || sale.codigo_interno || `Venda #${sale.id.slice(0, 8)}`}
             </h1>
             <StatusBadge status={status} label={rotuloAssinatura} />
+            <FinanciadaBadge
+              tipo={payment?.tipo_pagamento}
+              banco={payment?.financiamento_banco}
+              correspondente={payment?.financiamento_correspondente}
+              className="text-xs"
+            />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}

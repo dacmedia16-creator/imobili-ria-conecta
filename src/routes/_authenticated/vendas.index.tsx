@@ -89,6 +89,14 @@ import {
   midiaFilterParam,
   midiaFilterValido,
 } from "@/lib/vendas-midia-filtro";
+import {
+  PAGAMENTO_FILTER_OPTIONS,
+  fetchSelecaoPorPagamento,
+  filtrarPorPagamento,
+  pagamentoFilterParam,
+  pagamentoFilterValido,
+} from "@/lib/vendas-pagamento-filtro";
+import { FinanciadaBadge } from "@/components/FinanciadaBadge";
 import { datasDaVendaNaLista, type DatasVendaLista } from "@/lib/vendas-lista-datas";
 
 /** "Criada em …" + "Assinada em …" / "Ainda não assinada" (legenda de cada data). */
@@ -116,7 +124,13 @@ type RawSale = Pick<
   | "modalidade"
   | "data_assinatura"
 >;
-type SalesListRow = RawSale & { data_venda: string; corretores_ids?: string[] | null };
+type SalesListRow = RawSale & {
+  data_venda: string;
+  corretores_ids?: string[] | null;
+  pagamento_tipo?: string | null;
+  pagamento_banco?: string | null;
+  pagamento_correspondente?: string | null;
+};
 
 /** Nomes dos corretores participantes (não de quem cadastrou a venda). */
 function nomesCorretores(s: SalesListRow, profileName: Record<string, string>): string {
@@ -164,6 +178,7 @@ type SalesListState = {
   soMinhaVez: boolean;
   equipeFilter: string;
   midiaFilter: string;
+  pagamentoFilter: string;
 };
 
 function markSalesListForReturn() {
@@ -218,6 +233,8 @@ function readSalesFiltersFromUrl(): Partial<SalesListState> | null {
   if (equipe && /^[0-9a-f-]{36}$/i.test(equipe)) result.equipeFilter = equipe;
   const midia = params.get("midia");
   if (midiaFilterValido(midia)) result.midiaFilter = midia;
+  const pagamento = params.get("pagamento");
+  if (pagamentoFilterValido(pagamento)) result.pagamentoFilter = pagamento;
   return result;
 }
 
@@ -263,6 +280,10 @@ function SalesList() {
     const salvo = savedListState?.midiaFilter;
     return midiaFilterValido(salvo) ? salvo : "todas";
   });
+  const [pagamentoFilter, setPagamentoFilter] = useState<string>(() => {
+    const salvo = savedListState?.pagamentoFilter;
+    return pagamentoFilterValido(salvo) ? salvo : "todas";
+  });
   // Esteira: todas as vendas abertas antes da assinatura, carregadas inteiras para ordenar por
   // dias parados e somar por etapa (são poucas dezenas; a paginação passa a ser local).
   const [esteiraRows, setEsteiraRows] = useState<SalesListRow[]>([]);
@@ -289,6 +310,7 @@ function SalesList() {
     if (soMinhaVez) params.set("minhaVez", "1");
     if (equipeFilter !== "todas" && canFilterByTeam) params.set("equipe", equipeFilter);
     if (midiaFilter !== "todas") params.set("midia", midiaFilter);
+    if (pagamentoFilter !== "todas") params.set("pagamento", pagamentoFilter);
     url.search = params.toString();
     if (window.location.href !== url.href)
       window.history.replaceState(window.history.state, "", url);
@@ -302,6 +324,7 @@ function SalesList() {
     equipeFilter,
     canFilterByTeam,
     midiaFilter,
+    pagamentoFilter,
   ]);
 
   useEffect(() => {
@@ -318,6 +341,7 @@ function SalesList() {
           soMinhaVez,
           equipeFilter,
           midiaFilter,
+          pagamentoFilter,
         } satisfies SalesListState),
       );
     } catch {
@@ -333,6 +357,7 @@ function SalesList() {
     soMinhaVez,
     equipeFilter,
     midiaFilter,
+    pagamentoFilter,
   ]);
 
   const aplicarPeriodo = (periodo: { de: string; ate: string }) => {
@@ -445,6 +470,7 @@ function SalesList() {
       q?: string;
       corretorIds?: string[];
       midia?: string;
+      pagamento?: string;
     } = {};
     if (statusFilter === ESTEIRA_FILTER) {
       const daVez =
@@ -478,6 +504,7 @@ function SalesList() {
     }
     filters.q = q.replace(/[,()]/g, "").trim() || undefined;
     filters.midia = midiaFilterParam(midiaFilter);
+    filters.pagamento = pagamentoFilterParam(pagamentoFilter);
     return filters;
   }, [
     statusFilter,
@@ -489,6 +516,7 @@ function SalesList() {
     equipeFilter,
     membrosEquipeFiltro,
     midiaFilter,
+    pagamentoFilter,
   ]);
 
   const fetchSales = useCallback(
@@ -524,15 +552,22 @@ function SalesList() {
           Promise.all([
             cache.buscar("bundle", fetchFinanceiroBundle),
             cache.buscar(`midia:${midiaFilter}`, () => fetchSaleIdsPorMidia(midiaFilter)),
-          ]).then(([bundle, idsDaMidia]) => {
-            // O cartão de efetivadas também segue o filtro de Mídia (só restringe o que já é visível).
-            const efetivadas = filtrarPorSaleIds(
-              aplicarFiltrosEfetivacao(bundle.efetivadas, {
-                ...filtrosPadraoFinanceiro(),
-                dataDe,
-                dataAte,
-              }),
-              idsDaMidia,
+            cache.buscar(`pagamento:${pagamentoFilter}`, () =>
+              fetchSelecaoPorPagamento(pagamentoFilter),
+            ),
+          ]).then(([bundle, idsDaMidia, selecaoPagamento]) => {
+            // O cartão de efetivadas também segue os filtros de Mídia e Pagamento (só restringem o
+            // que já é visível).
+            const efetivadas = filtrarPorPagamento(
+              filtrarPorSaleIds(
+                aplicarFiltrosEfetivacao(bundle.efetivadas, {
+                  ...filtrosPadraoFinanceiro(),
+                  dataDe,
+                  dataAte,
+                }),
+                idsDaMidia,
+              ),
+              selecaoPagamento,
             );
             const resumo = calcularResumo({
               parcelas: [],
@@ -557,7 +592,7 @@ function SalesList() {
           }),
         )
       : Promise.resolve(null);
-  }, [dataDe, dataAte, esteira, midiaFilter]);
+  }, [dataDe, dataAte, esteira, midiaFilter, pagamentoFilter]);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[], requestId: number, signal?: AbortSignal) => {
@@ -674,6 +709,7 @@ function SalesList() {
     soMinhaVez,
     equipeFilter,
     midiaFilter,
+    pagamentoFilter,
   ].join("|");
   const previousFilterKeyRef = useRef(filterKey);
   // Na esteira a paginação é local: trocar de página não recarrega do banco.
@@ -961,6 +997,19 @@ function SalesList() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={pagamentoFilter} onValueChange={setPagamentoFilter}>
+              <SelectTrigger aria-label="Pagamento" className="md:w-56">
+                <SelectValue placeholder="Pagamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todos os pagamentos</SelectItem>
+                {PAGAMENTO_FILTER_OPTIONS.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"
@@ -1222,6 +1271,11 @@ function SalesList() {
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <StatusBadge status={s.status as SaleStatus} />
                         <VezDeAgirBadge status={s.status as SaleStatus} />
+                        <FinanciadaBadge
+                          tipo={s.pagamento_tipo}
+                          banco={s.pagamento_banco}
+                          correspondente={s.pagamento_correspondente}
+                        />
                         {minhaVez && (
                           <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
                             Sua vez
@@ -1297,6 +1351,11 @@ function SalesList() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <StatusBadge status={s.status as SaleStatus} />
+                              <FinanciadaBadge
+                                tipo={s.pagamento_tipo}
+                                banco={s.pagamento_banco}
+                                correspondente={s.pagamento_correspondente}
+                              />
                               {minhaVez && (
                                 <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
                                   Sua vez
