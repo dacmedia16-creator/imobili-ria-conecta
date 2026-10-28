@@ -47,14 +47,14 @@ INSERT INTO public.organization_modules (organization_id, module, enabled) VALUE
   (:'org_a', 'captacao_exclusiva', true), (:'org_b', 'captacao_exclusiva', true),
   (:'org_a', 'feedback_proprietario', true), (:'org_b', 'feedback_proprietario', true);
 INSERT INTO auth.users (id) SELECT unnest(ARRAY[:'admin', :'g1', :'g2', :'c1', :'c2', :'c3', :'gb']::uuid[]);
-INSERT INTO public.profiles (id, nome, email, ativo, organization_id) VALUES
-  (:'admin', 'Dona Exemplo', 'dona@exemplo.test', true, :'org_a'),
-  (:'g1', 'Gestor Antigo', 'g1@exemplo.test', true, :'org_a'),
-  (:'g2', 'Gestor Novo', 'g2@exemplo.test', true, :'org_a'),
-  (:'c1', 'Carlos Saiu', 'c1@exemplo.test', true, :'org_a'),
-  (:'c2', 'Bruno Novo', 'c2@exemplo.test', true, :'org_a'),
-  (:'c3', 'Outro Corretor', 'c3@exemplo.test', true, :'org_a'),
-  (:'gb', 'Gestor B', 'gb@exemplo.test', true, :'org_b');
+INSERT INTO public.profiles (id, nome, email, ativo, organization_id, remax_id) VALUES
+  (:'admin', 'Dona Exemplo', 'dona@exemplo.test', true, :'org_a', NULL),
+  (:'g1', 'Gestor Antigo', 'g1@exemplo.test', true, :'org_a', NULL),
+  (:'g2', 'Gestor Novo', 'g2@exemplo.test', true, :'org_a', NULL),
+  (:'c1', 'Carlos Saiu', 'c1@exemplo.test', true, :'org_a', '630699001'),
+  (:'c2', 'Bruno Novo', 'c2@exemplo.test', true, :'org_a', '630699002'),
+  (:'c3', 'Outro Corretor', 'c3@exemplo.test', true, :'org_a', NULL),
+  (:'gb', 'Gestor B', 'gb@exemplo.test', true, :'org_b', NULL);
 INSERT INTO public.organization_members (organization_id, user_id, ativo) VALUES
   (:'org_a', :'admin', true), (:'org_a', :'g1', true), (:'org_a', :'g2', true), (:'org_a', :'c1', true),
   (:'org_a', :'c2', true), (:'org_a', :'c3', true), (:'org_b', :'gb', true);
@@ -172,7 +172,7 @@ SELECT pg_temp.ok(pg_temp.snaps('630699001-2') = 0, 'admin/gestor da B não vê 
 SELECT pg_temp.ok(pg_temp.snaps('630699001-1') = 1, 'B vê só o próprio anúncio de mesmo código');
 SELECT pg_temp.ok(pg_temp.err(format('INSERT INTO public.owner_feedback_action_done (organization_id, listing_code, action_id) VALUES (%L, %L, %L)',
   :'org_a', '630699001-1', :'act')) LIKE '42501%', 'B não marca no anúncio da A');
-SELECT pg_temp.ok(public.owner_feedback_captador(:'org_b', '630699001-1') IS NULL, 'captação da A não vale para o código da B');
+SELECT pg_temp.ok(public.owner_feedback_responsavel_ok('630699001-1', :'gb'::uuid), 'captação da A não vale para o mesmo código na B (B segue a regra própria)');
 SELECT pg_temp.ok(pg_temp.err(format('INSERT INTO public.owner_feedback_action_done (listing_code, action_id) VALUES (%L, %L)',
   '630699001-1', :'act_b')) IS NULL, 'B (admin) marca no próprio anúncio');
 SELECT pg_temp.as_user(:'c2');
@@ -186,5 +186,68 @@ SELECT pg_temp.ok((SELECT md5(string_agg(broker_id::text || views || contacts, '
 SELECT pg_temp.ok((SELECT captor_id FROM public.exclusive_captures WHERE id = :'cap1') = :'c2'::uuid
   AND (SELECT broker_name FROM public.exclusive_captures WHERE id = :'cap1') = 'Carlos Saiu', 'captação e contrato intactos');
 
+
+-- 8) Portal passa a mostrar o novo corretor ----------------------------------------------------------------
+-- 8a) Mesmo código, broker_id trocado pelo relink (remax_id): acesso continua só com o novo, sem duplicar.
+UPDATE public.portal_listing_snapshots SET broker_id = :'c2' WHERE organization_id = :'org_a' AND listing_code = '630699001-1';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'c2');
+SELECT pg_temp.ok(public.owner_feedback_can_edit('630699001-1') AND pg_temp.snaps('630699001-1') = 1,
+  'relink: novo corretor continua com acesso e vê 1 linha (sem duplicar)');
+SELECT pg_temp.ok(pg_temp.marcas('630699001-1') = 2, 'relink: histórico intacto (2 marcações)');
+SELECT pg_temp.as_user(:'c1');
+SELECT pg_temp.ok(NOT public.owner_feedback_can_edit('630699001-1') AND pg_temp.snaps('630699001-1') = 0,
+  'relink: corretor antigo continua sem acesso');
+RESET ROLE;
+-- O código antigo deixa de ser coletado; as coletas antigas ficam como estavam (broker_id do antigo).
+UPDATE public.portal_listing_snapshots SET broker_id = :'c1' WHERE organization_id = :'org_a' AND listing_code = '630699001-1';
+
+-- 8b) O anúncio ganha CÓDIGO NOVO com o prefixo do novo corretor (630699002-…), e há outros anúncios.
+INSERT INTO public.portal_listing_snapshots (organization_id, portal, collected_on, listing_code, broker_id, window_kind, views, contacts) VALUES
+  (:'org_a', 'zap', current_date, '630699002-7', :'c2', 'last30', 5, 0),
+  (:'org_a', 'zap', current_date, '630699002-8', :'c2', 'last30', 9, 0),
+  (:'org_a', 'zap', current_date, '630699001-9', :'c1', 'last30', 7, 0);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'c2');
+-- O captador liga o código novo na captação (mesma tela de hoje). Prefixo = remax_id dele -> 'ativo' direto.
+SELECT pg_temp.ok(public.exclusive_listing_link(:'cap1', '630699002-7') = 'ativo', 'código novo ligado à MESMA captação (ativo)');
+SELECT pg_temp.ok((public.owner_feedback_captacao('630699002-7')->>'capture_id')::uuid = :'cap1'::uuid,
+  'código novo: tela mostra "Ligado à captação" da mesma captação');
+SELECT pg_temp.ok((public.owner_feedback_captacao('630699001-1')->>'capture_id')::uuid = :'cap1'::uuid
+  AND (public.owner_feedback_captacao('630699001-1')->>'codigo_atual') = '630699002-7',
+  'código antigo: continua ligado à captação e aponta o código novo');
+SELECT pg_temp.ok((SELECT count(*) FROM public.owner_feedback_historico('630699002-7')
+                    WHERE listing_code = '630699001-1') = 2,
+  'código novo: histórico do código antigo aparece junto (2 marcações)');
+SELECT pg_temp.ok(public.owner_feedback_can_edit('630699001-1'), 'código antigo (trocado): captador atual continua podendo');
+SELECT pg_temp.ok(public.owner_feedback_captacao('630699002-8') IS NULL
+  AND (SELECT count(*) FROM public.owner_feedback_historico('630699002-8')) = 0,
+  'outro imóvel do novo corretor: sem captação e sem histórico emprestado');
+SELECT pg_temp.ok(NOT public.owner_feedback_can_edit('630699001-9'), 'outro imóvel do antigo (mesmo prefixo, sem captação): novo não acessa');
+-- Como a tela: desmarca nos códigos onde a ação está gravada (aberto + antigo). Confere em outro comando.
+DELETE FROM public.owner_feedback_action_done WHERE listing_code IN ('630699002-7', '630699001-1') AND action_id = :'act2';
+SELECT pg_temp.ok((SELECT count(*) FROM public.owner_feedback_historico('630699002-7') WHERE action_id = :'act2') = 0,
+  'código novo: desmarcar apaga a marcação gravada no código antigo');
+SELECT pg_temp.as_user(:'c1');
+SELECT pg_temp.ok(NOT public.owner_feedback_can_edit('630699001-1') AND NOT public.owner_feedback_can_edit('630699002-7')
+  AND (SELECT count(*) FROM public.owner_feedback_historico('630699001-1')) = 0,
+  'corretor antigo: sem acesso ao código antigo, ao novo e ao histórico');
+SELECT pg_temp.ok(public.owner_feedback_can_edit('630699001-9'), 'corretor antigo mantém o outro imóvel dele (sem captação)');
+SELECT pg_temp.as_user(:'g2');
+SELECT pg_temp.ok(public.owner_feedback_can_edit('630699001-1') AND public.owner_feedback_can_edit('630699002-7'),
+  'líder do captador atual: acesso aos dois códigos');
+SELECT pg_temp.as_user(:'gb');
+SELECT pg_temp.ok(NOT public.owner_feedback_responsavel_ok('630699002-7', NULL)
+  AND (SELECT count(*) FROM public.owner_feedback_historico('630699002-7')) = 0
+  AND public.owner_feedback_captacao('630699001-1') IS NULL,
+  'outra imobiliária: não usa a captação nem o histórico da A');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.owner_feedback_captura(%L, %L)', :'org_a', '630699001-1')) LIKE '42501%',
+  'função interna (captação por código) bloqueada para usuários');
+-- 8c) Gestor desliga a captação do anúncio (sem trocar): volta a regra antiga nos dois códigos.
+SELECT pg_temp.as_user(:'admin');
+SELECT public.exclusive_listing_unlink(:'cap1', 'Teste: desligar');
+SELECT pg_temp.as_user(:'c1');
+SELECT pg_temp.ok(public.owner_feedback_can_edit('630699001-1'), 'desligado: código antigo volta ao dono do anúncio (regra antiga)');
+RESET ROLE;
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA ' END || msg FROM r;
 SELECT 'TOTAL=' || count(*) FILTER (WHERE ok) || '/' || count(*) FROM r;

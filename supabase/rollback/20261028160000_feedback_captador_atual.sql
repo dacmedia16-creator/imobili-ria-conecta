@@ -67,7 +67,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
      LIMIT 1) x
 $$;
 
-DROP FUNCTION IF EXISTS public.owner_feedback_responsavel_ok(uuid, uuid, text, uuid);
-DROP FUNCTION IF EXISTS public.owner_feedback_captador(uuid, text);
+DROP FUNCTION IF EXISTS public.owner_feedback_historico(text);
+DROP FUNCTION IF EXISTS public.owner_feedback_responsavel_ok(text, uuid);
+DROP FUNCTION IF EXISTS public.owner_feedback_captura(uuid, text);
 
 COMMIT;

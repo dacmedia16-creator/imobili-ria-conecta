@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   codeKey,
   corretorDoFeedback,
+  mesclarHistorico,
   ownerPlan,
   ownerPlanText,
   type PlanItem,
@@ -318,6 +319,7 @@ function Review({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [actions, setActions] = useState<FeedbackAction[]>([]);
   const [doneAt, setDoneAt] = useState<Record<string, string>>({});
+  const [doneCodes, setDoneCodes] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [cap, setCap] = useState<FeedbackCaptacao | null>(null);
   const [plan, setPlan] = useState<PlanItem[]>([]);
@@ -360,24 +362,35 @@ function Review({
     let alive = true;
     (async () => {
       try {
-        const [a, d] = await Promise.all([
+        const [a, h] = await Promise.all([
           db
             .from("owner_feedback_actions")
             .select("id,list,category,label,weight,sort")
             .eq("active", true)
             .order("sort"),
-          db
-            .from("owner_feedback_action_done")
-            .select("action_id,done_at")
-            .eq("listing_code", listing.code),
+          // Histórico da captação (código aberto + códigos antigos trocados), migration 20261028160000.
+          db.rpc("owner_feedback_historico", { _code: listing.code }),
         ]);
         if (a.error) throw a.error;
-        if (d.error) throw d.error;
+        let rows = (h.data ?? []) as Array<{
+          action_id: string;
+          done_at: string;
+          listing_code: string;
+        }>;
+        if (h.error) {
+          // Banco ainda sem a função: comportamento antigo (só o código aberto).
+          const d = await db
+            .from("owner_feedback_action_done")
+            .select("action_id,done_at,listing_code")
+            .eq("listing_code", listing.code);
+          if (d.error) throw d.error;
+          rows = (d.data ?? []) as typeof rows;
+        }
         if (!alive) return;
         setActions((a.data ?? []) as FeedbackAction[]);
-        const m: Record<string, string> = {};
-        for (const r of d.data ?? []) m[r.action_id as string] = r.done_at as string;
-        setDoneAt(m);
+        const hist = mesclarHistorico(rows);
+        setDoneAt(hist.doneAt);
+        setDoneCodes(hist.codigos);
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar o plano de marketing."));
       }
@@ -406,10 +419,11 @@ function Review({
         if (error) throw error;
         setDoneAt((m) => ({ ...m, [id]: (data?.done_at as string) ?? new Date().toISOString() }));
       } else {
+        // Desmarca onde estiver gravada (código aberto ou código antigo da mesma captação).
         const { error } = await db
           .from("owner_feedback_action_done")
           .delete()
-          .eq("listing_code", listing.code)
+          .in("listing_code", [...new Set([listing.code, ...(doneCodes[id] ?? [])])])
           .eq("action_id", id);
         if (error) throw error;
         setDoneAt((m) => {
@@ -498,7 +512,7 @@ function Review({
         >
           <span>
             {cap.link_status === "ativo"
-              ? `Ligado à captação exclusiva${cap.proprietario ? ` de ${cap.proprietario}` : ""}${cap.corretor ? ` · captador ${cap.corretor}` : ""}. O Plano de Marketing abaixo vem da captação.`
+              ? `Ligado à captação exclusiva${cap.proprietario ? ` de ${cap.proprietario}` : ""}${cap.corretor ? ` · captador ${cap.corretor}` : ""}.${cap.codigo_atual ? ` Código antigo do anúncio: a captação agora está no código ${cap.codigo_atual}; o histórico dos dois aparece junto.` : ""} O Plano de Marketing abaixo vem da captação.`
               : "Captação ligada aguardando confirmação do gestor. O Plano entra no Feedback depois da confirmação."}
           </span>
           <Button asChild size="sm" variant="outline">

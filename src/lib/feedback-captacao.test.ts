@@ -4,6 +4,7 @@ import {
   checkState,
   codeKey,
   corretorDoFeedback,
+  mesclarHistorico,
   codigoValido,
   finalDigitado,
   montarCodigo,
@@ -168,5 +169,18 @@ describe("corretorDoFeedback", () => {
       "Carlos Saiu",
     );
     expect(corretorDoFeedback(null, undefined)).toBeUndefined();
+  });
+});
+
+describe("mesclarHistorico", () => {
+  it("junta código antigo e novo da mesma captação, com a data mais antiga e onde cada ação está", () => {
+    const h = mesclarHistorico([
+      { action_id: "a", done_at: "2026-10-20T10:00:00Z", listing_code: "630699001-1" },
+      { action_id: "a", done_at: "2026-10-27T10:00:00Z", listing_code: "630699002-7" },
+      { action_id: "b", done_at: "2026-10-28T10:00:00Z", listing_code: "630699002-7" },
+    ]);
+    expect(h.doneAt).toEqual({ a: "2026-10-20T10:00:00Z", b: "2026-10-28T10:00:00Z" });
+    expect(h.codigos).toEqual({ a: ["630699001-1", "630699002-7"], b: ["630699002-7"] });
+    expect(mesclarHistorico([])).toEqual({ doneAt: {}, codigos: {} });
   });
 });

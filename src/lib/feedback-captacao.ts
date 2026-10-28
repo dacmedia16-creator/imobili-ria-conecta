@@ -280,6 +280,24 @@ export function agruparPendencias(rows: Pendencia[]): Record<PendenciaKind, Pend
 }
 
 /**
+ * Junta as ações feitas no código aberto e nos códigos antigos da mesma captação (anúncio que ganhou código
+ * novo com o prefixo do novo corretor). Vale a data mais antiga de cada ação; `codigos` diz onde cada uma está
+ * gravada, para desmarcar no código certo.
+ */
+export function mesclarHistorico(
+  rows: Array<{ action_id: string; done_at: string; listing_code: string }>,
+): { doneAt: Record<string, string>; codigos: Record<string, string[]> } {
+  const doneAt: Record<string, string> = {};
+  const codigos: Record<string, string[]> = {};
+  for (const r of rows) {
+    if (!doneAt[r.action_id] || r.done_at < doneAt[r.action_id]) doneAt[r.action_id] = r.done_at;
+    const c = (codigos[r.action_id] ??= []);
+    if (!c.includes(r.listing_code)) c.push(r.listing_code);
+  }
+  return { doneAt, codigos };
+}
+
+/**
  * Corretor que assina o Feedback ao proprietário: com captação ligada e confirmada, o captador ATUAL
  * (muda na transferência); senão, o corretor do anúncio (ID RE/MAX). Mesma regra do banco (20261028160000).
  */
