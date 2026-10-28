@@ -14,6 +14,7 @@ const MODO = (process.env.REF_MODO as ModoValidador) || "bloquear";
 // t_f7155e0c: REF_CONV=B roda só essa conversa; REF_TETO=0.2 baixa o teto.
 const TETO = Number(process.env.REF_TETO) || 1;
 const SO_CONV = process.env.REF_CONV ?? "";
+const PAUSA = Number(process.env.REF_PAUSA) || 0;
 const AGORA = new Date("2026-10-27T13:00:00Z");
 const env: Record<string, string> = {};
 for (const l of readFileSync(ENVF, "utf8").split("\n")) {
@@ -49,11 +50,18 @@ async function main() {
       // t_91c8cf89: guarda o texto cru de cada tentativa (para ver o que a trava barrou).
       const brutos: string[] = [];
       const fetchFn: typeof fetch = async (u, i) => {
-        const res = await fetch(u, i);
+        let res = await fetch(u, i);
+        // Só no teste: 429 do OpenRouter é limite do provedor, não da trava; tenta de novo até 3x.
+        for (let k = 0; k < 3 && res.status === 429; k++) {
+          await new Promise((ok) => setTimeout(ok, 8000));
+          res = await fetch(u, { ...i, signal: AbortSignal.timeout(20000) });
+        }
         const j = (await res.clone().json().catch(() => null)) as { choices?: Array<{ message?: { content?: string } }> } | null;
         brutos.push(j?.choices?.[0]?.message?.content ?? "");
         return res;
       };
+      // t_6667db44: REF_PAUSA (ms) espera antes de cada fala (fora do tempo-limite da chamada), para não tomar 429.
+      if (PAUSA) await new Promise((ok) => setTimeout(ok, PAUSA));
       const base = await proximaResposta(c, f.cliente, undefined, { agora: AGORA, ...b, falasAntes });
       const t0 = Date.now();
       const r = await redigirResposta(c, f.cliente, base, {
@@ -92,7 +100,7 @@ async function main() {
       linhas.push({ conv: `${conv.id} (lead ${conv.lead})`, cliente: falasAntes.length ? `${falasAntes.join(" / ")} / ${f.cliente}` : f.cliente, esperado: f.esperado, antes: f.antes, depois: r.resposta, origem, t1: tr(u1), t2: tr(u2), custo, ms, brutos });
       hist.push({ autor: "cliente", texto: f.cliente }, { autor: "ia", texto: r.resposta });
       // t_37cf21e3: na F (d8907e38) Denis seguiu conversando depois; segue para refazer todas as falas.
-      if (r.fim && conv.id !== "F" && conv.id !== "H") break;
+      if (r.fim && !["F", "H", "I"].includes(conv.id)) break;
       c = { ...c, passo: r.passo, dados: r.dados, versao: c.versao + 1 };
     }
   }
