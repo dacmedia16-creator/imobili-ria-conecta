@@ -52,6 +52,56 @@ describe("texto fixo do toque de 15 min", () => {
   });
 });
 
+describe("toque de 15 min NÃO convida para visita (ajuste de Denis, t_5335cd2b)", () => {
+  const ultimas = [
+    "Tenho uma casa com 3 quartos por R$ 665.000. Dá uma olhada: https://site.com.br/imovel/3882 Gostou?",
+    "Claro! Qual dia e período ficam melhores para você? O corretor confirma.",
+    "O apartamento tem 3 quartos, 2 vagas e 80 m². O condomínio é R$ 550.",
+    "Você procura comprar ou alugar?",
+    "Anotado.",
+  ];
+  it.each(ultimas)("frase fixa sem visita/agendamento/horário: %s", (txt) => {
+    for (const nome of ["Denis", ""]) {
+      const t = textoFixoToque15(nome, txt, "me manda casas");
+      expect(t).not.toMatch(/visit|agend|hor[aá]rio|conhecer o im[oó]vel|marcar/i);
+      expect(validarToque15(t)).toBeNull();
+    }
+  });
+  it("frase fixa nova do exemplo de Denis", () => {
+    expect(textoFixoToque15("Denis", "O apartamento tem 3 quartos e 2 vagas.", "me manda casas")).toBe(
+      "Denis, fico por aqui. Se quiser, te mando mais casas nessa faixa ou tiro alguma dúvida sobre o imóvel.",
+    );
+  });
+  it.each([
+    "Fico por aqui, Denis. Quando quiser, posso adiantar um pré-agendamento de visita.",
+    "Fico por aqui. Se quiser, já vejo um horário para você conhecer o imóvel.",
+    "Fico por aqui. Quer agendar uma visita para ver de perto?",
+    "Fico por aqui. Se quiser, posso marcar com o corretor para você ver.",
+    "Fico por aqui. Se quiser conhecer a casa, é só me falar.",
+    "Fico por aqui. Que tal visitarmos o apartamento juntos?",
+    "Fico por aqui. Se preferir, a gente vê o imóvel pessoalmente.",
+    "Fico por aqui, posso fazer o AGENDAMENTO pra você quando quiser.",
+  ])("trava barra convite de visita: %s", (t) => {
+    expect(validarToque15(t)).toBe("visita");
+  });
+  it("modelo convida para visita: trava barra e sai a frase fixa (sem visita)", async () => {
+    const f = respostaOr("Fico por aqui, Denis. Quando quiser, posso adiantar um pré-agendamento de visita.");
+    const usos: Array<{ bloqueio?: string | null }> = [];
+    const r = await textoToque15({ ...base(f as unknown as typeof fetch), registrar: (u) => usos.push(u) });
+    expect(r.origem).toBe("fixo");
+    expect(r.texto).not.toMatch(/visit|agend|hor[aá]rio/i);
+    expect(usos[0].bloqueio).toBe("toque_visita");
+  });
+  it("prompt proíbe convite de visita e não sugere mais horário de visita", () => {
+    const m = montarMensagensToque15({ ia_nome: "Nicole", org_nome: "ZZ", cliente: "Denis" }, hist("Gostou?"));
+    expect(m.sistema).toContain("NÃO convide para visita");
+    expect(m.sistema).not.toMatch(/ver um horário de visita|pré-agendamento que o corretor confirma/);
+  });
+  it("banco também recusa convite de visita no toque", () => {
+    expect(MIG).toContain("Toque com convite de visita");
+  });
+});
+
 describe("trava do toque", () => {
   it.each([
     ["oi?", "tamanho"],

@@ -47,7 +47,8 @@ export function nomeToque15(cliente: string): string {
   return /^[\p{L}][\p{L}'-]{0,29}$/u.test(n) && !/^lead$/i.test(n) ? n : "";
 }
 
-/** Frase fixa (plano B): sem número, sem link, sem preço; termina com convite leve, não com cobrança. */
+/** Frase fixa (plano B): sem número, sem link, sem preço e SEM convite de visita/agendamento (regra de Denis,
+ * t_5335cd2b): só retoma o assunto e oferece ajuda (mais opções ou tirar dúvida). */
 export function textoFixoToque15(cliente: string, ultimaIa: string, ultimoCliente = ""): string {
   const nome = nomeToque15(cliente);
   const oi = nome ? `${nome}, ` : "";
@@ -56,17 +57,20 @@ export function textoFixoToque15(cliente: string, ultimaIa: string, ultimoClient
   const mais = tipo ? `mais ${tipo}` : "mais opções parecidas";
   switch (assuntoToque15(ultimaIa)) {
     case "opcao":
-      return cap(`${oi}fico por aqui. Se quiser, te mando ${mais} nessa faixa ou já vejo um horário de visita.`);
-    case "visita":
-      return cap(`${oi}fico por aqui. Quando puder, me diz o melhor dia e período que eu adianto o pré-agendamento da visita.`);
     case "detalhes":
-      return cap(`${oi}fico por aqui. Se quiser, te mando ${mais} nessa faixa ou já vejo um horário para você conhecer o imóvel.`);
+      return cap(`${oi}fico por aqui. Se quiser, te mando ${mais} nessa faixa ou tiro alguma dúvida sobre o imóvel.`);
+    case "visita":
+      return cap(`${oi}fico por aqui. Se ficou alguma dúvida sobre o imóvel, é só me chamar que eu te ajudo.`);
     default:
       return cap(`${oi}fico por aqui. Quando puder, é só me responder que eu continuo te ajudando com o imóvel.`);
   }
 }
 
-export type BloqueioToque15 = "vazio" | "tamanho" | "link" | "numero" | "seco" | "perguntas" | "promessa" | "robo";
+export type BloqueioToque15 = "vazio" | "tamanho" | "link" | "numero" | "seco" | "perguntas" | "promessa" | "visita" | "robo";
+
+/** O toque de 15 min NÃO convida para visita nem oferece (pré-)agendamento/horário (t_5335cd2b). Texto já normalizado. */
+export const TOQUE15_VISITA_RE =
+  /(visit|agend|marcar|marcamos|horario|conhecer (o|a|esse|essa|este|esta) (imovel|casa|apartamento|ap|apto|lugar)|pessoalmente|ir ate (o imovel|la))/;
 
 /** Trava do texto do toque (vale para o modelo; a frase fixa passa por ela nos testes). */
 export function validarToque15(texto: string): BloqueioToque15 | null {
@@ -83,17 +87,19 @@ export function validarToque15(texto: string): BloqueioToque15 | null {
   if ((t.match(/\?/g) ?? []).length > 1) return "perguntas";
   // Não promete o que só o corretor confirma (desconto, reserva, disponibilidade, horário marcado).
   if (/(desconto|reservad|garant|ja (esta|ta) marcad|confirmad[oa] para|esta disponivel)/.test(n)) return "promessa";
+  if (TOQUE15_VISITA_RE.test(n)) return "visita";
   if (/(sou (um|uma) (robo|ia|inteligencia)|como (um|uma) ia)/.test(n)) return "robo";
   return null;
 }
 
-export const INSTRUCAO_TOQUE15 = `Você é {NOME}, da equipe de atendimento da {ORG}, uma imobiliária. O cliente parou de responder no meio da conversa pelo WhatsApp há uns 15 minutos. Escreva UMA mensagem curta (1 ou 2 frases, até 200 caracteres) que retome exatamente o ponto em que a conversa parou e ofereça o próximo passo útil (ex.: mandar mais opções parecidas, ver um horário de visita, tirar uma dúvida).
+export const INSTRUCAO_TOQUE15 = `Você é {NOME}, da equipe de atendimento da {ORG}, uma imobiliária. O cliente parou de responder no meio da conversa pelo WhatsApp há uns 15 minutos. Escreva UMA mensagem curta (1 ou 2 frases, até 200 caracteres) que retome exatamente o ponto em que a conversa parou e ofereça ajuda (ex.: mandar mais opções parecidas ou tirar uma dúvida sobre o imóvel).
 Regras:
 - Não é cobrança: nada de "oi?", "sumiu?", "ainda está aí?". Tom leve, de quem está à disposição. Pode começar com "Fico por aqui." ou parecido.
 - NÃO escreva nenhum número: sem preço, valor, metragem, quantidade de quartos, data, hora ou telefone.
 - NÃO cite nome de bairro, condomínio, rua ou cidade: fale só do tipo (casa, apartamento) e de "nessa faixa" / "parecidos".
 - NÃO coloque link. NÃO repita o anúncio nem a ficha.
-- Não prometa desconto, disponibilidade, reserva nem horário confirmado; visita é pré-agendamento que o corretor confirma.
+- NÃO convide para visita e NÃO ofereça agendamento, pré-agendamento, horário nem "conhecer o imóvel": este lembrete só retoma o assunto e oferece ajuda. Não use as palavras visita, visitar, agendar, agendamento, marcar, horário nem pessoalmente.
+- Não prometa desconto, disponibilidade nem reserva.
 - No máximo 1 pergunta. Use o primeiro nome do cliente só se ele for informado.
 Responda só JSON: {"mensagem":"..."}`;
 

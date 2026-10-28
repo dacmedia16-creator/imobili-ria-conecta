@@ -210,6 +210,23 @@ DO $$ BEGIN PERFORM public.lead_ia_toque15_gravar((SELECT id FROM public.lead_co
   gen_random_uuid(), 'Fico por aqui. Tenho uma casa com ３ quartos para você.'); RAISE EXCEPTION 'passou';
 EXCEPTION WHEN invalid_parameter_value THEN NULL; END $$;
 SELECT t.ok(true, 'T1 banco recusa link, preço/número (até dígito largo) e texto curto demais ("oi?")');
+-- t_5335cd2b: o toque não convida para visita nem oferece agendamento/horário.
+DO $$ DECLARE _x text; BEGIN
+  FOREACH _x IN ARRAY ARRAY[
+    'Fico por aqui, Denis. Quando quiser, posso adiantar um pré-agendamento de visita.',
+    'Denis, fico por aqui. Se quiser, já vejo um horário para você conhecer o imóvel.',
+    'Fico por aqui. Quer AGENDAR para ver o apartamento de perto?',
+    'Fico por aqui. Se quiser conhecer a casa, é só me falar.'] LOOP
+    BEGIN
+      PERFORM public.lead_ia_toque15_gravar((SELECT id FROM public.lead_conversas WHERE organization_id = 'bbbbbbbb-0000-0000-0000-000000000000' LIMIT 1),
+        gen_random_uuid(), _x);
+      RAISE EXCEPTION 'passou: %', _x;
+    EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+  END LOOP; END $$;
+SELECT t.ok(true, 'T2 banco recusa convite de visita/agendamento/horário/conhecer o imóvel');
+SELECT t.ok(public.lead_ia_toque15_gravar((SELECT id FROM public.lead_conversas WHERE organization_id = 'bbbbbbbb-0000-0000-0000-000000000000' LIMIT 1),
+  gen_random_uuid(), 'Denis, fico por aqui. Se quiser, te mando mais opções nessa faixa ou tiro alguma dúvida sobre o imóvel.') IS NULL,
+  'T3 frase fixa nova passa pela trava do banco (conversa sem condição: nada gravado, sem erro)');
 
 -- Permissões -------------------------------------------------------------------------------------------------------
 SELECT t.ok(NOT has_function_privilege('authenticated', 'public.lead_ia_toque15_candidatas()', 'EXECUTE')

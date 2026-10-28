@@ -141,6 +141,10 @@ BEGIN
   IF _t ~* '(h[t]tps?://|www\.|[a-z0-9-]+\.(com|net|org|br|me|ly|io|app|site|link)(\M|/))' OR _t ~ '[[:digit:]０-９]' OR _t ~* 'r\$' THEN
     RAISE EXCEPTION 'Toque com link ou numero' USING ERRCODE = '22023';
   END IF;
+  -- Nunca convite de visita, agendamento ou horário no toque (t_5335cd2b): o servidor confere; o banco confere de novo.
+  IF _t ~* '(visit|agend|marcar|marcamos|hor[aá]rio|conhecer (o|a|esse|essa|este|esta) (im[oó]vel|casa|apartamento|ap|apto|lugar)|pessoalmente)' THEN
+    RAISE EXCEPTION 'Toque com convite de visita' USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO _cv FROM public.lead_conversas WHERE id = _conversa FOR UPDATE;
   IF _cv.id IS NULL THEN RETURN NULL; END IF;
   SELECT * INTO _c FROM public.lead_config WHERE organization_id = _cv.organization_id FOR UPDATE;
