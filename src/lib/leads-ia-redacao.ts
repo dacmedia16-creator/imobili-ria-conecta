@@ -1339,6 +1339,8 @@ export async function redigirResposta(
     } else {
       dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, 3);
       dados.parecido_atual = c;
+      // Fica depois do "quero sim" (o roteiro limpa parecido_atual): fotos e endereço seguem desse imóvel.
+      dados.ultimo_parecido = c;
     }
   }
   // shortcut: o passo do roteiro fica como estava (o modelo conduz); se o modelo falhar no próximo turno, o
