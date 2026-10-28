@@ -573,7 +573,7 @@ const RE_RETORNO =
 // t_f7155e0c: ampliada após o "precio" do DeepSeek. Só palavras que NÃO existem em português (testado contra as falas
 // de referência e os bairros/condomínios do XML). Fora de propósito: "el", "y", "pero", "una" soltos (nomes e endereços).
 export const RE_IDIOMA =
-  /[¿¡ñ]|\b(tambien|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
+  /[¿¡ñ]|\b(tambien|trabajamos|trabajo con|alquiler|alquilar|tengo|tienes?|usted|mira|gusta|gustaria|ademas|alguna|alguno|algun|ninguna?|ningun|aqui tienes|habitacion|habitaciones|dormitorios con|precios?|banos?|cocheras?|garaje|estacionamiento|cocina|cuartos?|barrio|propiedad|propiedades|inmuebles?|ubicad[oa]s?|ubicacion|metros cuadrados|puedo|puedes|puede|quieres|quiere|muy|ahora|manana|hola|gracias|visitar(la|lo)|visitar el|una (casa|cita|visita|opcion|propiedad)|con (un|una|el|la) )\b|\bcon \d/;
 /** Unidade do IPTU dita na mensagem (texto normalizado). */
 const RE_IPTU_UNIDADE = /iptu[^.?!]{0,40}?(por mes|por ano|mensa(l|is)|anua(l|is)|ao mes|ao ano|\/mes|\/ano|no ano|no mes|cada mes|cada ano)/;
 /** A frase com "corretor" para assunto sem dado (t_82c89141 item 3): sai inteira das travas seguintes. */
@@ -694,9 +694,15 @@ const valoresDoImovel = (i: Partial<FichaIa> & { aluguel?: string }) =>
     typeof i.preco_valor === "number" ? [i.preco_valor] : [],
   );
 
-/** Palavras da mensagem para comparar repetição (sem link, sem pontuação). */
+/**
+ * Palavras da mensagem para comparar repetição (sem link, sem pontuação). As frases padrão do roteiro (\"o corretor
+ * confirma ... na visita ou no contato\", o convite para a visita) saem: duas respostas sobre assuntos diferentes
+ * (permuta x disponibilidade) não são repetição só por terminarem igual (DeepSeek real, conversa H).
+ */
 const palavrasRep = (t: string) =>
   norm(t.replace(LINK_RE, " link "))
+    .replace(/[^.?!]*\bo corretor confirma[^.?!]*[.?!]?/g, " ")
+    .replace(/[^.?!]*\bquer (agendar|marcar) uma visita[^.?!]*\??/g, " ")
     .replace(/[^a-z0-9$ ]/g, " ")
     .split(/\s+/)
     .filter(Boolean);
@@ -1383,10 +1389,16 @@ export async function redigirResposta(
     };
   if (busca?.fora_regiao) perm.regiao = busca.fora_regiao;
   if (perfis) perm.perfilTipo = tipoBase(perfis.atual === "segunda" ? dadosIn.busca2?.tipo : ctx.ficha?.tipo) || null;
+  // t_228659f0 (DeepSeek real, conversa H): o cliente pediu o condomínio PELO NOME. O que a busca achou vale, seja
+  // casa ou apartamento (a trava "perfil" barrava os apartamentos do Cannes). E ele tem de ver um deles ("sem_oferta").
+  if (itensNome.length) {
+    perm.perfilTipo = null;
+    perm.estoque = "com_candidatos";
+  }
   // Na 2ª busca, a trava "tipo" compara com o tipo pedido para a outra pessoa (não com a casa do cliente).
   if (perfis?.atual === "segunda" && dadosIn.busca2?.tipo) perm.tipoRef = dadosIn.busca2.tipo;
   perm.clienteGostou = DISSE_QUE_GOSTOU.test(norm(texto));
-  perm.pediuOpcoes = base.intencao === "opcoes";
+  perm.pediuOpcoes = base.intencao === "opcoes" || itensNome.length > 0;
   // A faixa que o próprio cliente disse ("até 1200" = R$ 1.200.000) pode ser repetida (trava "valor").
   perm.faixa = [];
   for (const fx of [dadosIn.faixa, dadosIn.busca2?.faixa, texto, ...falasCliente]) {

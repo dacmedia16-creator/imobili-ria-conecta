@@ -174,6 +174,30 @@ describe("ponto 3 — presa no assunto (anti-repetição)", () => {
   });
 });
 
+describe("ajustes do DeepSeek real (conversa H)", () => {
+  it("permuta x disponibilidade com a mesma frase padrão do corretor não é repetição", () => {
+    const p = permH();
+    p.anteriores = ["O corretor confirma se o proprietário aceita permuta com você na visita ou no contato. Quer agendar uma visita para conhecer pessoalmente?"];
+    expect(travasAnuncioRepeticao("O corretor confirma a disponibilidade com você na visita ou no contato. Quer agendar uma visita para conhecer pessoalmente?", p)).toBeNull();
+  });
+  it("espanhol visto no DeepSeek ('Trabajamos', 'alquiler') barra", () => {
+    const d = validarRedacaoDetalhe(s("Trabajamos com apartamentos também! Para compra ou alquiler?"), permH(), "Vc tb tem apartamento ?");
+    expect(d?.motivo).toBe("idioma");
+  });
+  it("condomínio pedido pelo nome: o apartamento achado passa mesmo com o anúncio original sendo casa (sem 'perfil')", async () => {
+    const ok = "No condomínio Cannes tenho um apartamento de 3 quartos por R$ 999.000: https://vipsevenimoveis.com.br/imovel/VIP0136 Quer ver?";
+    const ctxPerfil = { faixa: "perto de 900 mil", busca2: { ativa: true, tipo: "apartamento" } };
+    const { r, usos } = await rodarGemini(ctxPerfil, "Tem no condomínio cannes", [{ mensagem: ok, acao: "oferecer", codigo: "VIP0136" }], "observar", true);
+    expect(usos[0].bloqueio ?? null).toBeNull();
+    expect(r.resposta).toBe(ok);
+  });
+  it("condomínio achado e a resposta não mostra nenhum = 'sem_oferta' (não diz só 'o corretor confirma')", async () => {
+    const ruim = "Sobre Cannes, o corretor confirma com você na visita ou no contato. Quer agendar uma visita?";
+    const { usos } = await rodarGemini({}, "Tem cannes ??", [{ mensagem: ruim, acao: "responder" }, { mensagem: ruim, acao: "responder" }], "observar", true);
+    expect(usos[0].bloqueio).toBe("sem_oferta");
+  });
+});
+
 describe("ponto 4 — limite da conversa (migration, NÃO aplicada)", () => {
   const mig = readFileSync("supabase/migrations/20261028100000_leads_ia_nome_limite.sql", "utf8");
   const rb = readFileSync("docs/sql/rollback/20261028100000_leads_ia_nome_limite.rollback.sql", "utf8");
