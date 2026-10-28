@@ -13,7 +13,7 @@ import {
   validarIaConfig,
   type IaConfig,
 } from "@/lib/leads-ia";
-import { lerIaConfig, nomeImobiliaria, salvarIaConfig, salvarRoteiroIa } from "@/lib/leads-db";
+import { lerIaConfig, nomeImobiliaria, salvarIaConfig, salvarRoteiroIa, salvarToque15Ia } from "@/lib/leads-db";
 
 /** Salva a IA se houver alteração pendente. false = não salvou (erro já avisado na tela). */
 export type SalvarIaPendente = () => Promise<boolean>;
@@ -65,6 +65,7 @@ export function LeadsIaConfig({
     try {
       await salvarIaConfig(c);
       await salvarRoteiroIa(c);
+      if ((c.ia_toque15 === true) !== (salvo?.ia_toque15 === true)) await salvarToque15Ia(c.ia_toque15 === true);
       setSalvo(c);
       toast.success(c.ia_ativa ? "IA de atendimento ligada." : "IA de atendimento salva (desligada).");
       return true;
@@ -154,6 +155,24 @@ export function LeadsIaConfig({
           id="cfg-ia-reengajar"
           checked={c.ia_reengajar === true}
           onCheckedChange={(v) => setC({ ...c, ia_reengajar: v })}
+        />
+      </div>
+      <div className="flex items-start justify-between gap-2 rounded-md border p-2">
+        <div>
+          <Label htmlFor="cfg-ia-toque15" className="text-xs font-medium">
+            Lembrete rápido (15 min) quando o cliente para de responder
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            1 mensagem curta, só 1 vez por conversa, para quem já respondeu e parou no meio. Retoma o assunto (ex.:
+            mandar mais opções ou ver a visita), sem link nem valor. Fora do horário comercial espera a abertura e nunca
+            sai junto com o lembrete de ~24 h (que, se ligado, continua valendo depois). Para quando o cliente responde,
+            recusa, pede SAIR ou o corretor assume.
+          </p>
+        </div>
+        <Switch
+          id="cfg-ia-toque15"
+          checked={c.ia_toque15 === true}
+          onCheckedChange={(v) => setC({ ...c, ia_toque15: v })}
         />
       </div>
       <div className="flex items-center gap-2">

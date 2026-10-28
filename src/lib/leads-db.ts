@@ -245,6 +245,8 @@ export async function lerIaConfig(): Promise<IaConfig> {
   if (error) falha(error);
   // Roteiro novo (migration 20261026170000): lido à parte para a tela seguir funcionando sem ela.
   const { data: rot } = await db.from("lead_config").select("ia_primeira_msg,ia_reengajar").maybeSingle();
+  // Lembrete de 15 min (migration 20261028190000, t_b3f753a5): lido à parte; sem a coluna, fica desligado.
+  const { data: t15 } = await db.from("lead_config").select("ia_toque15").maybeSingle();
   return {
     ia_ativa: false,
     ia_nome: "Nicole",
@@ -252,8 +254,10 @@ export async function lerIaConfig(): Promise<IaConfig> {
     ia_canal: "teste",
     ia_primeira_msg: null,
     ia_reengajar: false,
+    ia_toque15: false,
     ...((data ?? {}) as Partial<IaConfig>),
     ...((rot ?? {}) as Partial<IaConfig>),
+    ...((t15 ?? {}) as Partial<IaConfig>),
   };
 }
 
@@ -263,6 +267,12 @@ export async function salvarRoteiroIa(c: Pick<IaConfig, "ia_primeira_msg" | "ia_
     _primeira_msg: c.ia_primeira_msg?.trim() || null,
     _reengajar: c.ia_reengajar === true,
   });
+  if (error) falha(error);
+}
+
+/** Lembrete de 15 min (só administrador; o banco confere). Só chama se mudou, para a tela seguir sem a migration. */
+export async function salvarToque15Ia(ligado: boolean) {
+  const { error } = await db.rpc("lead_ia_toque15_salvar", { _ligado: ligado });
   if (error) falha(error);
 }
 

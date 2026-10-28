@@ -47,6 +47,10 @@ import {
   perguntouSeRobo,
   prazoConfirmacao,
   querVisitar,
+  politicaVisita,
+  semConviteVisita,
+  temConviteVisita,
+  type PoliticaVisita,
   resumoQualificacao,
   type ContextoIa,
   type DadosQualificacao,
@@ -168,6 +172,8 @@ export type EntradaModelo = {
   em_foco?: ImovelParecido | null;
   /** t_228659f0 item 2: busca pelo nome do condomínio/empreendimento citado. */
   busca_nome?: BuscaNome | null;
+  /** t_66ad4609: pode convidar para a visita nesta resposta (regra 24). undefined = não informado. */
+  convite_visita?: boolean;
 };
 
 /** t_228659f0 item 2: resultado da busca por nome que vai ao modelo (sem texto do anúncio). */
@@ -225,9 +231,9 @@ export const INSTRUCAO = `Você é {NOME}, da equipe de atendimento da {ORG}, um
 
 REGRAS (todas obrigatórias):
 1. Responda PRIMEIRO exatamente o que o cliente perguntou, em 1 ou 2 frases. Não repita dados que você já mandou no histórico.
-2. Só 1 pergunta por mensagem, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Para dar escolha, junte tudo numa pergunta só com "ou" ("Quer ver essa ou prefere que eu procure com 2 suítes?"). Nunca faça 2 perguntas seguidas ("Te serve? Quer visitar?" está errado). Nunca ofereça "pedir para alguém".
+2. No máximo 1 pergunta por mensagem, no fim, e só quando ajudar: "gostou?", "quer ver mais alguma?" (convite para visita só pela regra 24). Para dar escolha, junte tudo numa pergunta só com "ou" ("Quer ver essa ou prefere que eu procure com 2 suítes?"). Nunca faça 2 perguntas seguidas ("Te serve? Quer visitar?" está errado). Nunca ofereça "pedir para alguém".
 3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. IPTU: diga "por mês" ou "por ano" SÓ se DADOS trouxer "iptu_periodo"; sem ele, diga só o valor. Sem o dado: "o corretor confirma com você na visita ou no contato" e registre o assunto em "registro.pendente". Nunca prometa voltar com a resposta ("já te falo", "te retorno", "te confirmo").
-4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Isso NÃO é motivo para "acao":"passar": anote e siga o atendimento. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
+4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e siga. Isso NÃO é motivo para "acao":"passar": anote e siga o atendimento. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
 5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato"; nunca diga que o corretor vai ligar, mandar ou responder em algum prazo. Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Toda oferta de imóvel leva o link dele ("Dá uma olhada: <link>"), sem exceção. Quando o cliente corrigir o tipo que quer ("disse que quero casa") e houver CANDIDATOS, peça desculpa em poucas palavras e já mostre um deles com o link. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
@@ -247,15 +253,16 @@ REGRAS (todas obrigatórias):
 21. Condomínio ou empreendimento pelo nome: se DADOS trouxer "busca_nome", é o resultado da busca pelo nome que o cliente citou. Com "achou" maior que 0, os CANDIDATOS são os imóveis desse condomínio: mostre um, com tipo, valor e link, e responda o valor que o cliente perguntou. Se "fora_faixa" for true, avise com naturalidade que fica acima (ou abaixo) da faixa que ele disse. Com "achou" 0, diga que nesse condomínio não tem nada anunciado agora. Com "consultado" false, diga que o corretor confirma com você se há unidade nesse condomínio e registre em "registro.pendente". Nunca diga que não tem um condomínio que está em CANDIDATOS. Diga quantos achou só se for o número de \"achou\".
 22. Reclamação ou \"por quê?\" (\"pq mandou várias opções?\", \"por que me mandou casa?\", \"não pedi isso\"): explique em 1 frase, com honestidade, o que você fez e por quê (\"Te mandei outras casas porque você pediu mais opções.\"), peça desculpa se errou e pergunte como ele prefere seguir. Não mostre imóvel novo nessa resposta.
 23. Uma pergunta só, escrita uma vez: nunca repita a mesma frase na mesma mensagem e não junte \"Gostou?\" com outra pergunta.
+24. Convite para visita: NÃO termine as respostas com convite para visita por padrão. Só convide se DADOS trouxer "convite_visita":"pode" (o cliente mostrou interesse: gostou, perguntou endereço, vaga ou financiamento, pediu fotos ou falou de visita). Com "convite_visita":"nao", não fale em agendar nem marcar visita: responda só o que o cliente perguntou (pode terminar sem pergunta). Se o cliente pedir a visita ou disser sim ao seu convite, siga a regra 9 na hora (pergunte qual dia e período ficam melhores), sem convidar de novo.
 
 Responda SÓ com JSON neste formato:
 {"mensagem":"texto ao cliente","acao":"responder"|"oferecer"|"passar","codigo":null ou "codigo do candidato oferecido","registro":{"finalidade":"comprar"|"alugar","faixa":"como o cliente disse","pagamento":["à vista"|"financiamento"|"FGTS"|"consórcio"],"visita":"dia e período escolhidos","nova_busca":"resumo curto","interesse":"codigo do imóvel em que o cliente se interessou","pendente":"assunto que o corretor precisa confirmar"}}
 Inclua em "registro" só o que o cliente disse nesta conversa.
 
 Exemplos de tom (não copie dados):
-Cliente: "qual o valor do condomínio?" -> "O condomínio é R$ 500 por mês. Quer marcar uma visita para conhecer?"
+Cliente: "qual o valor do condomínio?" -> "O condomínio é R$ 500 por mês."
 Cliente: "tem outras?" -> "Tenho sim! Tem outra casa no mesmo bairro, com 3 quartos e 170 m², por R$ 900.000. Dá uma olhada: https://exemplo/imovel/1 Gostou?"
-Cliente: "aceita financiamento?" -> "Sobre financiamento, o corretor confirma com você na visita ou no contato. Quer marcar uma visita para conhecer?"
+Cliente: "aceita financiamento?" (com "convite_visita":"pode") -> "Sobre financiamento, o corretor confirma com você na visita ou no contato. Quer marcar uma visita para conhecer?"
 Cliente: "pode ser sábado?" -> "Anotado, sábado! Fica melhor de manhã ou à tarde?"
 Cliente: "dá para visitar?" -> "Claro! Qual dia e período ficam melhores para você? O corretor confirma o horário com você."
 Cliente: "pq enviou várias opções?" -> "Te mandei outras opções porque você pediu mais. Prefere seguir só com apartamentos no Campolim?"`;
@@ -300,6 +307,7 @@ export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: s
       ? ctx.outros_anuncios.map((o) => fichaModelo(o.ficha)).filter(Boolean)
       : undefined,
     visita: e.visita.length ? e.visita : undefined,
+    convite_visita: e.convite_visita === undefined ? undefined : e.convite_visita ? "pode" : "nao",
   });
   const hist = e.historico
     .filter((m) => m.autor !== "sistema" && m.texto.trim())
@@ -1309,6 +1317,29 @@ export async function redigirResposta(
   base: RespostaIa,
   op: OpcoesRedacao,
 ): Promise<RespostaIa & { redigida: boolean; bloqueio: Bloqueio | null; sem_resposta?: boolean }> {
+  // t_66ad4609: quando convidar para a visita (regra de Denis 28/10). Vale para o modelo, a reserva e o texto fixo.
+  const pol = politicaVisita(ctx, texto, op.historico);
+  return aplicarPoliticaVisita(await redigirRespostaBase(ctx, texto, base, op, pol), pol);
+}
+
+/**
+ * t_66ad4609: sem permissão para convidar, tira o convite da mensagem (só tira texto; passagem ao corretor e
+ * "sem resposta" não mudam). A recusa ("agora não" / convite ignorado) fica em dados.visita_recusada.
+ */
+export function aplicarPoliticaVisita<T extends RespostaIa & { sem_resposta?: boolean }>(r: T, pol: PoliticaVisita): T {
+  if (r.sem_resposta) return r;
+  const dados = pol.recusada === undefined ? r.dados : { ...r.dados, visita_recusada: pol.recusada || undefined };
+  if (pol.pode || r.fim || !r.resposta) return { ...r, dados };
+  return { ...r, dados, resposta: semConviteVisita(r.resposta) };
+}
+
+async function redigirRespostaBase(
+  ctx: ContextoIa,
+  texto: string,
+  base: RespostaIa,
+  op: OpcoesRedacao,
+  pol: PoliticaVisita,
+): Promise<RespostaIa & { redigida: boolean; bloqueio: Bloqueio | null; sem_resposta?: boolean }> {
   const plano = (bloqueio: Bloqueio | null = null) => ({ ...base, redigida: false, bloqueio });
   const observar = op.modo === "observar";
   // Modo observar: sem frase pronta. Se o modelo não responder, nada vai ao cliente (o servidor registra o aviso).
@@ -1408,7 +1439,8 @@ export async function redigirResposta(
   const limiteOpcoes = !busca && !segundaAtiva && ja.length >= MAX_PARECIDOS;
   const estoque: Permitidos["estoque"] = candidatos.length ? "com_candidatos" : res || limiteOpcoes ? "sem_resultado" : "nao_consultado";
   // Datas só depois que o cliente disse que quer visitar (item 7); antes, o convite é simples.
-  const visita = querVisitar(ctx, texto) ? visitaSemParenteses(op.agora ?? new Date()) : [];
+  // t_66ad4609: \"sim\" ao convite da última resposta (contado pelo histórico) também é querer visitar (regra 5).
+  const visita = querVisitar(ctx, texto) || pol.motivo === "pedido" ? visitaSemParenteses(op.agora ?? new Date()) : [];
   const msgs = montarMensagens({
     ctx: { ...ctx, dados: dadosIn },
     texto,
@@ -1421,6 +1453,7 @@ export async function redigirResposta(
     fora_regiao: busca?.fora_regiao ?? null,
     em_foco: emFoco,
     busca_nome: buscaNome,
+    convite_visita: pol.pode,
   });
   const falasCliente = [
     texto,
@@ -1530,6 +1563,9 @@ export async function redigirResposta(
     // t_6667db44 (f3837c14 07:58): a frase repetida dentro da mesma resposta veio do MODELO (1 tentativa, trava
     // \"perguntas\" só registrou no modo observar). A limpeza corta a frase duplicada antes das travas.
     if (saida) saida = { ...saida, mensagem: limparMensagem(saida.mensagem) };
+    // t_66ad4609: convite sem permissão sai antes das travas (a trava confere a mensagem que vai ao cliente).
+    if (saida && !pol.pode && saida.acao !== "passar" && temConviteVisita(saida.mensagem))
+      saida = { ...saida, mensagem: semConviteVisita(saida.mensagem) };
     // Último oferecido pode ser citado de novo, mas não "oferecido" outra vez.
     detalhe = !chamada.ok
       ? null

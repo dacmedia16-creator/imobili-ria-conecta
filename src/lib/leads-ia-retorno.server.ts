@@ -32,6 +32,7 @@ import {
   type ResultadoParecidos,
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
+import { textoToque15 } from "./leads-ia-toque15";
 import { AVISO_SEM_RESPOSTA, falasSemResposta, historicoDb, modoValidadorDb, redacaoLigadaDb, redigirResposta, type FalaHistorico, type ModoValidador } from "./leads-ia-redacao";
 
 export const RETORNO_MAX_BYTES = 50_000;
@@ -405,7 +406,73 @@ export const ENV_REENGAJAR_SEGREDO = "LEADS_IA_REENGAJAR_SEGREDO";
 
 export type DepsReengajar = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
   reengajarReservar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+  /** Lembrete de 15 min (t_b3f753a5). Sem estas funções (ou com a migration ausente) o toque não roda. */
+  toque15?: DepsToque15;
 };
+
+// --- Lembrete rápido de 15 min (t_b3f753a5) ------------------------------------------------------------------
+// Roda na MESMA chamada do reengajamento (rota /api/leads/reengajar, que o pg_cron já chama a cada 5 min): não há
+// agendador novo. O banco escolhe as conversas e confere tudo de novo ao gravar (chave ia_toque15 desligada por
+// padrão, horário comercial, 1 vez por conversa, lista de liberados, opt-out, limite diário e intervalo do chip).
+// O envio é o mesmo das respostas (enviarPendentes). No máximo 1 toque por chamada (intervalo do chip).
+export type CandidataToque15 = {
+  conversa_id: string;
+  lead_id: string;
+  organization_id: string;
+  ultima_id: string;
+  cliente: string;
+  ia_nome: string;
+  org_nome: string;
+  redige: boolean;
+  provedor: "gemini" | "openrouter";
+  modelo: string | null;
+};
+export type DepsToque15 = {
+  candidatas: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+  gravar: (conversaId: string, ultimaId: string, texto: string) => Promise<{ data: unknown; error: { code?: string } | null }>;
+  historico: (conversaId: string) => Promise<FalaHistorico[]>;
+  registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
+};
+
+export async function toque15UmaVez(
+  deps: Pick<DepsReengajar, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & { toque15: DepsToque15 },
+): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; origem?: "modelo" | "fixo" }> {
+  const t = deps.toque15;
+  const { data, error } = await t.candidatas();
+  if (error) {
+    console.error("leads ia toque15: candidatas falhou", error.code ?? "sem_codigo");
+    return { r: "erro" };
+  }
+  // O banco já manda no máximo 1 por imobiliária (e só quem tem limite no dia); aqui no máximo 2 tentativas por
+  // chamada, para caber no tempo da rota mesmo com o modelo lento (2 x 10 s).
+  for (const c of ((data as CandidataToque15[] | null) ?? []).slice(0, 2)) {
+    const historico = await t.historico(c.conversa_id).catch(() => [] as FalaHistorico[]);
+    if (!historico.length || historico[historico.length - 1].autor !== "ia") continue; // mudou desde a lista
+    const usos: UsoModelo[] = [];
+    const txt = await textoToque15({
+      ia_nome: c.ia_nome,
+      org_nome: c.org_nome,
+      cliente: c.cliente,
+      historico,
+      redige: c.redige === true,
+      escolha: { provedor: c.provedor === "openrouter" ? "openrouter" : "gemini", modelo: c.modelo ?? null },
+      env: deps.env,
+      registrar: (u) => usos.push(u),
+      fetchFn: deps.fetchFn,
+    });
+    for (const u of usos) await t.registrarUso(c.organization_id, c.conversa_id, u).catch(() => undefined);
+    const g = await t.gravar(c.conversa_id, c.ultima_id, txt.texto);
+    if (g.error) {
+      console.error("leads ia toque15: gravar falhou", g.error.code ?? "sem_codigo");
+      continue;
+    }
+    const lead = typeof g.data === "string" ? g.data : null;
+    if (!lead) continue; // o banco recusou (cliente respondeu, corretor assumiu, limite, intervalo...)
+    const enviadas = await enviarPendentes(lead, deps);
+    return { r: "preparado", enviadas, origem: txt.origem };
+  }
+  return { r: "nada" };
+}
 
 /** Prepara e envia no máximo 1 toque. Devolve o que aconteceu (sem telefone nem texto). */
 export async function reengajarUmaVez(deps: DepsReengajar): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; toque?: number }> {
@@ -472,6 +539,8 @@ export async function receberReengajar(request: Request, deps: DepsReengajar): P
   if (!segredoConfere(request.headers.get("x-leads-ia-segredo"), deps.env[ENV_REENGAJAR_SEGREDO]?.trim()))
     return json(404, "desligado");
   const r = await reengajarUmaVez(deps).catch(() => ({ r: "erro" as const }));
+  // t_b3f753a5: o lembrete de 15 min vem depois, na mesma chamada. Erro nele não muda a resposta do reengajamento.
+  if (deps.toque15) await toque15UmaVez({ ...deps, toque15: deps.toque15 }).catch(() => ({ r: "erro" as const }));
   return json(r.r === "erro" ? 503 : 200, r.r);
 }
 
@@ -479,7 +548,18 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
   const base = await depsReais(request);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as unknown as SupabaseClient;
-  return { ...base, reengajarReservar: async () => await db.rpc("lead_ia_reengajar_reservar") };
+  return {
+    ...base,
+    reengajarReservar: async () => await db.rpc("lead_ia_reengajar_reservar"),
+    // Migration 20261028190000: enquanto não for aplicada, a RPC falha e o toque só registra "erro" (nada sai).
+    toque15: {
+      candidatas: async () => await db.rpc("lead_ia_toque15_candidatas"),
+      gravar: async (conversaId, ultimaId, texto) =>
+        await db.rpc("lead_ia_toque15_gravar", { _conversa: conversaId, _ultima: ultimaId, _texto: texto }),
+      historico: (conversaId) => historicoDb(db, conversaId),
+      registrarUso: base.registrarUso,
+    },
+  };
 }
 
 /** Dependências reais (service_role). Só o servidor importa este arquivo. */
