@@ -3,6 +3,7 @@ import {
   agruparPendencias,
   checkState,
   codeKey,
+  corretorDoFeedback,
   codigoValido,
   finalDigitado,
   montarCodigo,
@@ -146,5 +147,26 @@ describe("painel do gestor", () => {
     expect(g.atrasada.map((x) => x.prazo)).toEqual(["2026-10-01", "2026-10-05"]);
     expect(g.confirmar).toHaveLength(1);
     expect(g.nao_coletado).toHaveLength(0);
+  });
+});
+
+describe("corretorDoFeedback", () => {
+  it("captação ligada ativa: usa o captador atual, não o do anúncio", () => {
+    expect(
+      corretorDoFeedback({ link_status: "ativo", corretor: "Bruno Novo" }, "Carlos Saiu"),
+    ).toBe("Bruno Novo");
+  });
+  it("sem captação, aguardando gestor ou sem nome: mantém o corretor do anúncio", () => {
+    expect(corretorDoFeedback(null, "Carlos Saiu")).toBe("Carlos Saiu");
+    expect(
+      corretorDoFeedback(
+        { link_status: "aguardando_gestor", corretor: "Bruno Novo" },
+        "Carlos Saiu",
+      ),
+    ).toBe("Carlos Saiu");
+    expect(corretorDoFeedback({ link_status: "ativo", corretor: "  " }, "Carlos Saiu")).toBe(
+      "Carlos Saiu",
+    );
+    expect(corretorDoFeedback(null, undefined)).toBeUndefined();
   });
 });

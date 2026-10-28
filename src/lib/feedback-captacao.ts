@@ -278,3 +278,15 @@ export function agruparPendencias(rows: Pendencia[]): Record<PendenciaKind, Pend
   out.atrasada.sort((a, b) => (a.prazo ?? "").localeCompare(b.prazo ?? ""));
   return out;
 }
+
+/**
+ * Corretor que assina o Feedback ao proprietário: com captação ligada e confirmada, o captador ATUAL
+ * (muda na transferência); senão, o corretor do anúncio (ID RE/MAX). Mesma regra do banco (20261028160000).
+ */
+export function corretorDoFeedback(
+  cap: { link_status: string; corretor: string | null } | null | undefined,
+  corretorAnuncio: string | null | undefined,
+): string | undefined {
+  const atual = cap?.link_status === "ativo" ? cap.corretor?.trim() : "";
+  return atual || corretorAnuncio?.trim() || undefined;
+}

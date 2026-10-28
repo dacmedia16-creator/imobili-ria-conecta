@@ -1,5 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { codeKey, ownerPlan, ownerPlanText, type PlanItem } from "@/lib/feedback-captacao";
+import {
+  codeKey,
+  corretorDoFeedback,
+  ownerPlan,
+  ownerPlanText,
+  type PlanItem,
+} from "@/lib/feedback-captacao";
 import {
   feedbackCaptacao,
   planView,
@@ -100,7 +106,8 @@ function FeedbackPage() {
             .gte("collected_on", since)
             .order("id")
             .range(from, from + 999);
-          if (!isManager) q = q.eq("broker_id", user.id);
+          // Sem filtro por broker_id: o banco (RLS) entrega os anúncios do responsável — com captação
+          // ligada, o captador ATUAL (migration 20261028160000), mesmo que o anúncio seja de outro ID RE/MAX.
           const { data, error } = await q;
           if (error) throw error;
           all.push(...((data ?? []) as Snapshot[]));
@@ -297,7 +304,7 @@ function FeedbackPage() {
 
 function Review({
   listing,
-  brokerName,
+  brokerName: brokerNameAnuncio,
   onBack,
 }: {
   listing: ListingFeedback;
@@ -347,6 +354,8 @@ function Review({
     [cap, plan, hoje],
   );
   const imovel = cap ? [cap.tipo, cap.bairro].filter(Boolean).join(" · ") || null : null;
+  // Com captação ligada, quem fala com o proprietário é o captador atual (pode ter sido transferida).
+  const brokerName = corretorDoFeedback(cap, brokerNameAnuncio);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -410,7 +419,12 @@ function Review({
         });
       }
     } catch (e) {
-      toast.error(errorMessage(e, "Não foi possível salvar. Só o corretor do imóvel pode marcar."));
+      toast.error(
+        errorMessage(
+          e,
+          "Não foi possível salvar. Só o corretor responsável pelo imóvel (o captador atual, quando há captação ligada), o gestor dele ou a administração podem marcar.",
+        ),
+      );
     } finally {
       setSaving(null);
     }
