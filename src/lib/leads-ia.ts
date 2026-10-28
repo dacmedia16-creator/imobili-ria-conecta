@@ -378,6 +378,18 @@ const ROBO_RE = new RegExp(
     `|${QUEM_ROBO}(e |eh )(um |uma )?(humano|humana|pessoa (de verdade|real)|gente de verdade))`,
 );
 
+/** t_0c590c55 item 5 (b00303f0): \"vc não é corretora?\", \"você é a corretora?\", \"é atendente?\". */
+const CORRETORA_RE = /(^|\b(voce|vc|tu|cê|ce)\s+)(nao\s+)?(e|eh|seria|sera)\s+(a\s+|o\s+|uma\s+|um\s+)?(corretora|corretor|atendente|consultora)\b/;
+export function perguntouSeCorretora(t: string): boolean {
+  const n = norm(t);
+  return ehPergunta(t) && CORRETORA_RE.test(n) && !/\b(quem|qual|como)\b/.test(n);
+}
+/** Resposta sincera em 1 frase + 1 pergunta para retomar. Nunca diz que é corretora nem pessoa. */
+export function textoCorretora(ctx: Pick<ContextoIa, "ia_nome" | "org_nome">): string {
+  const nome = (ctx.ia_nome || "Nicole").trim();
+  return `Sou a ${nome}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e um corretor da equipe continua seu atendimento e acompanha a visita. Quer agendar uma visita para conhecer?`;
+}
+
 /** Cliente fala em permuta (dar um bem como parte do pagamento). \"trocar o dia\" não conta. */
 const BENS = "(carro|imovel|apartamento|apto|casa|terreno|moto|lote|sobrado|chacara)";
 const FALA_PERMUTA_RE = new RegExp(
@@ -1591,6 +1603,9 @@ export async function proximaResposta(
       resumo: null,
     };
   }
+  // t_0c590c55 item 5: \"vc não é corretora?\" = resposta sincera e segue (antes do \"não é lead\": \"corretora\").
+  if (perguntouSeCorretora(texto))
+    return { passo: ctx.passo === "fim" ? "visita" : ctx.passo, dados, resposta: textoCorretora(ctx), resposta_falha: null, fim: null, resumo: null, fixo: true };
   const cat = categoriaNaoLead(texto);
   if (cat) {
     dados.categoria = cat;
@@ -1697,15 +1712,24 @@ export async function proximaResposta(
 
   // --- Imóvel parecido do XML (t_232e13cb). Sem op.buscarParecidos: não oferece. ---
   /** Oferece o próximo parecido (1 por vez, até 3, nunca repete) ou diz com franqueza que não há. */
-  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null, pedido = true): Promise<RespostaIa> => {
+  // t_0c590c55 item 1: \"extraUm\" = o cliente corrigiu o tipo (\"disse q quero casa\") depois das 3 opções; ganha
+  // mais 1 opção desse tipo (com link) ou, sem nenhuma, a última que viu de novo com o link.
+  const ofertar = async (intro: string, extra: Partial<FiltroParecido> = {}, pre?: ResultadoParecidos | null, pedido = true, extraUm = false): Promise<RespostaIa> => {
     const ja = dados.parecidos ?? [];
+    const limite = MAX_PARECIDOS + (extraUm ? 1 : 0);
+    const ultimo = dados.ultimo_parecido;
     dados.parecido_atual = undefined;
     dados.parecido_pergunta = undefined;
     const fimOpcoes = (t: string) => {
       dados.parecidos_fim = true;
       return continuar(junta(intro, t, "Gostou de alguma? Se quiser, marco uma visita."));
     };
-    if (ja.length >= MAX_PARECIDOS) {
+    const deNovo = () =>
+      ultimo?.url
+        ? continuar(junta(intro, `A última ${ultimo.tipo || "opção"} que te mostrei${ultimo.bairro ? ` fica ${noBairro(ultimo.bairro)}` : ""}${valorCurto(ultimo) ? `, ${valorCurto(ultimo)}` : ""}: ${ultimo.url} Quer ver essa ou prefere agendar a visita?`))
+        : null;
+    if (ja.length >= limite) {
+      if (extraUm) return deNovo() ?? fimOpcoes("Essas são as opções que tenho agora nesse perfil.");
       if (!dados.parecidos_fim) return fimOpcoes("Essas são as opções que tenho agora nesse perfil.");
       return passarAo(junta(intro, "Vou procurar mais opções para você."), "com outras opções");
     }
@@ -1731,6 +1755,10 @@ export async function proximaResposta(
       if (p) foraRegiao = extra.bairro;
     }
     if (!p) {
+      if (extraUm) {
+        const r0 = deNovo();
+        if (r0) return r0;
+      }
       if (res && ja.length && !dados.parecidos_fim) return fimOpcoes("Por enquanto essas são as opções parecidas que tenho por aqui.");
       const franco = !res
         ? "Vou separar outras opções para você."
@@ -1739,11 +1767,18 @@ export async function proximaResposta(
           : "Agora não tenho outra opção parecida com essa por aqui, mas vou procurar para você.";
       return passarAo(junta(intro, franco), "com outras opções");
     }
-    dados.parecidos = [...ja, p.codigo].slice(0, MAX_PARECIDOS);
+    dados.parecidos = [...ja, p.codigo].slice(0, limite);
     dados.parecido_atual = p;
     dados.ultimo_parecido = p;
     dados.interesse = true;
     dados.convite_visita = true;
+    // O modelo recebe esta casa como candidata (a busca normal para depois de 3 opções).
+    if (extraUm && !extra.bairro)
+      return {
+        ...continuar(junta(intro, textoParecido(p, dados.parecidos.length, { pedido, comPedido: false }))),
+        intencao: "opcoes",
+        busca: { pedido: `outras opções do tipo ${p.tipo || "pedido"}`, itens: [p], fora_faixa: false },
+      };
     const r: RespostaIa = {
       ...continuar(
         junta(intro, foraRegiao ? textoForaRegiao(p, foraRegiao, ficha?.tipo) : textoParecido(p, dados.parecidos.length, { pedido, comPedido: !!ficha?.tipo && p.tipo === ficha.tipo })),
@@ -1847,7 +1882,8 @@ export async function proximaResposta(
   if (tipoDito && busca && ficha?.tipo === tipoDito) {
     if (b2?.ativa) b2.ativa = false;
     if (dados.filtro_pedido?.tipo && dados.filtro_pedido.tipo !== tipoDito) dados.filtro_pedido = { ...dados.filtro_pedido, tipo: tipoDito };
-    return { ...(await ofertar(`Combinado, ${PLURAL_TIPO[tipoDito] ?? tipoDito} então!`, {}, undefined, false)), intencao: "opcoes" };
+    // t_0c590c55 item 1: mostra uma casa (com link), mesmo depois das 3 opções; a intenção vem do ofertar.
+    return ofertar(`Combinado, ${PLURAL_TIPO[tipoDito] ?? tipoDito} então!`, {}, undefined, false, true);
   }
   if (tipoDito && b2 && b2.tipo === tipoDito && b2.tipo !== ficha?.tipo) {
     b2.ativa = true;
@@ -2103,18 +2139,14 @@ export async function proximaResposta(
     dados.pendentes = [...new Set([...(dados.pendentes ?? []), `pergunta: \"${curto(texto, 60)}\"`])].slice(0, 12);
   }
 
-  // Permuta: a Nicole nunca diz se aceita. Registra e passa (t_59ab47d4); fala em outra pessoa só aqui.
+  // Permuta: a Nicole nunca diz se aceita. t_0c590c55 item 4 (b00303f0): antes registrava e PASSAVA (encerrava
+  // cedo, antes da visita); agora anota para o corretor (pagamento + pendência) e segue o atendimento.
   if (falaPermuta(n) && !respParecido) {
     dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
+    dados.pendentes = [...new Set([...(dados.pendentes ?? []), `permuta: \"${curto(texto, 60)}\"`])].slice(0, 12);
     const outras = responderDuvidas(temas.filter((t) => t !== "permuta"), ficha, dados, sujeito);
-    return passar(
-      dados,
-      "qualificado",
-      junta(outras, "Anotei! Se o proprietário aceita permuta, o corretor confirma com você."),
-      `${CHAMAR} para conversar sobre isso.`,
-      FALHA_PADRAO,
-      `Cliente falou em PERMUTA: \"${curto(texto, 160)}\". ${resumoQualificacao(dados, ctx)}`,
-    );
+    const fecha = dados.visita_opcoes && !dados.visita ? `Sobre a visita: ${dados.visita_opcoes[0]} ou ${dados.visita_opcoes[1]} fica bom para você?` : CONVITE_VISITA;
+    return continuar(junta(outras, `Anotei! Se o proprietário aceita permuta, o corretor confirma ${CORRETOR_CONFIRMA}.`, fecha));
   }
   // Proposta, desconto, negociação: só quando o CLIENTE puxa o assunto.
   if (temas.includes("negociacao") && !respParecido) {

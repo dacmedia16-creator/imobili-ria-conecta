@@ -96,13 +96,13 @@ describe("item 5 — trava tipo (oferecer outro tipo deixando o tipo claro)", ()
   const perm = permitidosDe(FICHA, [APTO, CASA_COND], VISITA);
   it("apartamento a quem viu casa, sem dizer o tipo: barra", () => {
     expect(
-      validarRedacao(s("Tenho uma opção no Campolim com 3 quartos por R$ 880.000. Quer ver?", { acao: "oferecer", codigo: "VIP0200" }), perm, "tem mais opções?"),
+      validarRedacao(s("Tenho uma opção no Campolim com 3 quartos por R$ 880.000: https://vipsevenimoveis.com.br/imovel/VIP0200 Quer ver?", { acao: "oferecer", codigo: "VIP0200" }), perm, "tem mais opções?"),
     ).toBe("tipo");
   });
   it("dizendo \"apartamento\": deixa", () => {
     expect(
       validarRedacao(
-        s("Tenho um apartamento no Campolim com 3 quartos por R$ 880.000. Apartamento serve para você?", { acao: "oferecer", codigo: "VIP0200" }),
+        s("Tenho um apartamento no Campolim com 3 quartos por R$ 880.000: https://vipsevenimoveis.com.br/imovel/VIP0200 Apartamento serve para você?", { acao: "oferecer", codigo: "VIP0200" }),
         perm,
         "tem mais opções?",
       ),
@@ -110,7 +110,7 @@ describe("item 5 — trava tipo (oferecer outro tipo deixando o tipo claro)", ()
   });
   it("casa de condomínio a quem viu casa: mesmo tipo, não precisa avisar", () => {
     expect(
-      validarRedacao(s("Tenho outra casa no Villagio Milano com 3 quartos por R$ 950.000. Quer ver?", { acao: "oferecer", codigo: "VIP0131" }), perm, "tem mais opções?"),
+      validarRedacao(s("Tenho outra casa no Villagio Milano com 3 quartos por R$ 950.000: https://vipsevenimoveis.com.br/imovel/VIP0131 Quer ver?", { acao: "oferecer", codigo: "VIP0131" }), perm, "tem mais opções?"),
     ).toBeNull();
   });
 });

@@ -205,10 +205,10 @@ REGRAS (todas obrigatórias):
 1. Responda PRIMEIRO exatamente o que o cliente perguntou, em 1 ou 2 frases. Não repita dados que você já mandou no histórico.
 2. Só 1 pergunta por mensagem, no fim, de quem conduz a venda: visita, "gostou?", "quer ver mais alguma?". Para dar escolha, junte tudo numa pergunta só com "ou" ("Quer ver essa ou prefere que eu procure com 2 suítes?"). Nunca faça 2 perguntas seguidas ("Te serve? Quer visitar?" está errado). Nunca ofereça "pedir para alguém".
 3. Use SOMENTE os dados do bloco DADOS, escritos exatamente como lá (valores no mesmo formato). Nunca invente valor, metragem, quartos, vagas, link, código ou bairro. IPTU: diga "por mês" ou "por ano" SÓ se DADOS trouxer "iptu_periodo"; sem ele, diga só o valor. Sem o dado: "o corretor confirma com você na visita ou no contato" e registre o assunto em "registro.pendente". Nunca prometa voltar com a resposta ("já te falo", "te retorno", "te confirmo").
-4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
+4. Nunca afirme disponibilidade, que aceita financiamento, FGTS ou permuta, andar, desconto, prazo ou qualquer promessa. Nesses casos diga que o corretor confirma com você na visita ou no contato, registre em "registro.pendente" e convide para a visita. Isso NÃO é motivo para "acao":"passar": anote e siga o atendimento. Não use as palavras "disponível" nem "disponíveis" (nem para opções de horário ou de imóveis).
 5. Não fale em sistema, robô, IA ou assistente. Não diga que é humana. Corretor só na frase "o corretor confirma com você na visita ou no contato"; nunca diga que o corretor vai ligar, mandar ou responder em algum prazo. Quando for passar o atendimento, use "acao":"passar" e NÃO escreva a frase de passagem (ela é colocada depois e avisa que um corretor continua o atendimento).
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
-7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
+7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Toda oferta de imóvel leva o link dele ("Dá uma olhada: <link>"), sem exceção. Quando o cliente corrigir o tipo que quer ("disse que quero casa") e houver CANDIDATOS, peça desculpa em poucas palavras e já mostre um deles com o link. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que anotou tudo e use "acao":"passar" (sem prometer separar nem mandar opções). Não perca o interesse no imóvel original.
 9. Visita: convide de forma simples ("Quer agendar uma visita?"). Dias e horários só quando o bloco DADOS trouxer "visita" (o cliente já disse que quer visitar); sem ele, não cite dia, data nem período. Quando o cliente escolher dia E período (manhã, tarde ou horário), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?". Se ele pedir outro dia ou horário, aceite e anote, sem repetir as opções.
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
@@ -378,13 +378,17 @@ export type Bloqueio =
   | "regiao"
   | "perfil"
   | "gostou"
-  | "sem_oferta";
+  | "sem_oferta"
+  // t_0c590c55
+  | "sem_link";
 
 /** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
 // t_37cf21e3: fotos (promessa sem link), regiao (outro bairro sem avisar) e perfil (oferta do perfil errado)
 // também são firmes: no modo observar, a fala errada não chega ao cliente.
 export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>([
   "retorno", "sem_opcao", "iptu", "idioma", "fotos", "regiao", "perfil", "sem_oferta", "gostou",
+  // t_0c590c55: oferta sem o link do anúncio (quando ele existe) também não chega ao cliente.
+  "sem_link",
 ]);
 
 /** Contagens conferidas pela trava "contagem". */
@@ -627,7 +631,7 @@ export function validarRedacao(
 }
 
 const RE_IDENTIDADE =
-  /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um )?(pessoa|humana|humano|gente)|de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/;
+  /(assistente virtual|inteligencia artificial|\bia\b|\brobo|\bbot\b|chatbot|\bsistema\b|automatic|\bsou (uma |um |a |o )?(pessoa|humana|humano|gente|corretora|corretor)\b|\bsou (a |sua |tua )?(corretora|corretor) |de carne e osso|nao sou (um |uma )?(robo|bot|ia|maquina))/;
 const RE_DISPONIB =
   /(disponiv|ja (foi )?(vendid|alugad)|ainda (esta|ta|tem|e) a venda|continua a venda|nao foi vendid|livre para)/;
 const RE_CONDICAO =
@@ -676,8 +680,13 @@ export function validarRedacaoDetalhe(
   );
   if (s.acao === "oferecer") {
     const c = s.codigo ? perm.codigos.get(s.codigo) : undefined;
-    if (!c || jaOferecidos.includes(c.codigo)) return b("oferta", s.codigo ?? "sem código");
+    // t_0c590c55 item 3: citar de novo o ÚLTIMO imóvel oferecido marcando \"oferecer\" não é oferta repetida (o dado
+    // é o mesmo do XML); segue como \"responder\". Os outros já oferecidos continuam barrados.
+    const reCita = !!c && jaOferecidos[jaOferecidos.length - 1] === c.codigo;
+    if (!c || (jaOferecidos.includes(c.codigo) && !reCita)) return b("oferta", s.codigo ?? "sem código");
     if (linksCand.some((x) => x.codigo !== c.codigo)) return b("oferta", linksCand.find((x) => x.codigo !== c.codigo)?.url);
+    // t_0c590c55 item 2: toda oferta leva o link do anúncio, quando ele existe.
+    if (c.url && !links.some((l) => l.replace(/[.,;:!?]+$/, "") === c.url)) return b("sem_link", c.codigo);
   } else if (linksCand.length > 1) return b("oferta", `${linksCand.length} links de opções`);
 
   const n0 = norm(resto);
@@ -711,7 +720,9 @@ export function validarRedacaoDetalhe(
   // Item 1: com candidato (ou sem a busca ter rodado), nunca dizer que não tem outra opção. Com o aviso de
   // região (o bairro pedido não tem, e a mensagem mostra um de outro bairro), dizer que \"não tem lá\" é correto.
   const avisoRegiao = !!perm.regiao && foraDoBairro.length > 0;
-  if (perm.estoque && perm.estoque !== "sem_resultado" && RE_SEM_OPCAO.test(n0) && !avisoRegiao)
+  // t_0c590c55 item 3: a mensagem que MOSTRA um imóvel (\"nessa faixa não tenho com 3 suítes, mas tenho esta: <link>\")
+  // não está dizendo que não há opção; a trava fica só para \"não tenho\" sem mostrar nada.
+  if (perm.estoque && perm.estoque !== "sem_resultado" && RE_SEM_OPCAO.test(n0) && !avisoRegiao && !ofertados.length)
     return b("sem_opcao", `${achou(RE_SEM_OPCAO, n0)} | ${perm.estoque}`);
   // Item 2: "por mês"/"por ano" do IPTU só a partir do iptu_periodo do XML.
   const iu = RE_IPTU_UNIDADE.exec(n0);
@@ -870,6 +881,7 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     perfil: "esse imóvel é do perfil da outra busca; ofereça só um candidato do tipo da busca de que o cliente fala agora (veja buscas.atual)",
     sem_oferta: "o cliente pediu mais opções e há CANDIDATOS: ofereça um deles com acao oferecer, tipo, valor e link",
     gostou: "o cliente não disse que gostou; pergunte o que ele gostaria de saber ou se prefere agendar a visita",
+    sem_link: "toda oferta de imóvel leva o link exato dele, de CANDIDATOS (\"Dá uma olhada: <link>\")",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
 }
@@ -1018,6 +1030,9 @@ export type OpcoesRedacao = {
 };
 
 /** "Não" curto a uma pergunta da Nicole (não é motivo para passar ao corretor, t_a9f1b447 item 5). */
+/** t_0c590c55 item 4: assuntos que o corretor confirma (anotar e seguir, sem passar). */
+const TEMA_CONFIRMA = /(permut|financ|fgts|consorcio|disponiv|ainda (esta|ta) a venda|\bandar\b)/;
+const curtoTxt = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 60);
 const NAO_CURTO = /^(nao|n|nao obrigad\w*|nao precisa|so isso|tudo bem|ta bom|nao,? obrigad\w*)[\s.!]*$/;
 
 /** A mensagem tem que sair com o texto fixo (regras de antes do modelo)? */
@@ -1135,7 +1150,10 @@ export async function redigirResposta(
     .filter((i) => !ja.includes(i.codigo) && (busca ? true : quartosParecidos(i, ctx.ficha, dadosIn.filtro_pedido)))
     .slice(0, 3);
   // t_82c89141 item 1: a Nicole só pode dizer "não tenho outra" se a busca RODOU e voltou vazia.
-  const estoque: Permitidos["estoque"] = candidatos.length ? "com_candidatos" : res ? "sem_resultado" : "nao_consultado";
+  // t_0c590c55 item 3: já mostrou as 3 opções (a busca não roda de novo) = \"sem_resultado\": dizer \"essas são as
+  // opções que tenho\" é verdade (o roteiro diz o mesmo). Antes contava como \"nao_consultado\" e a trava barrava.
+  const limiteOpcoes = !busca && !segundaAtiva && ja.length >= MAX_PARECIDOS;
+  const estoque: Permitidos["estoque"] = candidatos.length ? "com_candidatos" : res || limiteOpcoes ? "sem_resultado" : "nao_consultado";
   // Datas só depois que o cliente disse que quer visitar (item 7); antes, o convite é simples.
   const visita = querVisitar(ctx, texto) ? visitaSemParenteses(op.agora ?? new Date()) : [];
   const msgs = montarMensagens({
@@ -1292,6 +1310,11 @@ export async function redigirResposta(
   // "Não" a uma pergunta da Nicole não é motivo para passar ao corretor (item 5).
   if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && NAO_CURTO.test(norm(texto)))
     saida = { ...saida, acao: "responder" };
+  // t_0c590c55 item 4: assunto que \"o corretor confirma\" (permuta, financiamento, FGTS, disponibilidade, andar)
+  // vira pendência e o atendimento SEGUE; passar só com visita combinada, pedido de pessoa ou busca nova.
+  if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && TEMA_CONFIRMA.test(norm(texto))) {
+    saida = { ...saida, acao: "responder", registro: { ...saida.registro, pendente: saida.registro.pendente ?? curtoTxt(texto) } };
+  }
   // Observar: limite do banco (2000) e oferta com código fora dos candidatos não vira "oferecido".
   if (observar) saida = { ...saida, mensagem: saida.mensagem.slice(0, 1500) };
   const ofertaValida = saida.acao === "oferecer" && !!saida.codigo && perm.codigos.has(saida.codigo);
@@ -1337,7 +1360,8 @@ export async function redigirResposta(
       // "parecido atual" do cliente e as fotos e as "outras opções" da casa dele passavam a vir do apartamento.
       dados.busca2 = { ...dados.busca2, atual: c, ofertados: [...new Set([...(dados.busca2.ofertados ?? []), c.codigo])].slice(0, 3) };
     } else {
-      dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, 3);
+      // t_0c590c55: +1 para a opção extra depois da correção do tipo (\"disse q quero casa\") não se perder.
+      dados.parecidos = [...ja.filter((x) => x !== c.codigo), c.codigo].slice(0, MAX_PARECIDOS + 1);
       dados.parecido_atual = c;
       // Fica depois do "quero sim" (o roteiro limpa parecido_atual): fotos e endereço seguem desse imóvel.
       dados.ultimo_parecido = c;

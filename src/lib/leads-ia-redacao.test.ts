@@ -143,9 +143,12 @@ describe("validador da redação (travas depois do modelo)", () => {
   it("oferta precisa ser de candidato fornecido e ainda não oferecido", () => {
     const m = "Tem esta: https://vipsevenimoveis.com.br/imovel/3921 Gostou?";
     expect(validarRedacao(s(m, { acao: "oferecer", codigo: "9999" }), PERM, "")).toBe("oferta");
-    expect(validarRedacao(s(m, { acao: "oferecer", codigo: "3921" }), PERM, "", ["3921"])).toBe(
+    // t_0c590c55: oferecer de novo um já oferecido (que não é o último) continua barrado.
+    expect(validarRedacao(s(m, { acao: "oferecer", codigo: "3921" }), PERM, "", ["3921", "outro"])).toBe(
       "oferta",
     );
+    // ...mas citar de novo o ÚLTIMO oferecido, com o link, passa (antes era bloqueio \"oferta\").
+    expect(validarRedacao(s(m, { acao: "oferecer", codigo: "3921" }), PERM, "", ["3921"])).toBeNull();
     expect(validarRedacao(s(m, { acao: "oferecer", codigo: "3920" }), PERM, "")).toBe("oferta");
   });
   it("bloqueia disponibilidade, financiamento/permuta, andar, desconto e promessa", () => {

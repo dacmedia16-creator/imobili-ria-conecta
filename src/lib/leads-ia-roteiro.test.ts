@@ -534,17 +534,18 @@ describe("t_25fe1197 — valor do XML, faixa, permuta e \"é robô?\"", () => {
     expect(rs[2].dados.faixa).toBe("1.200.000");
   });
 
-  it("pagamento: \"permuta\" nunca é sugerida; se o cliente falar em permuta, registra e passa ao corretor", async () => {
+  // t_0c590c55 item 4: permuta é anotada (pagamento + pendência) e o atendimento SEGUE, sem passar.
+  it("pagamento: \"permuta\" nunca é sugerida; se o cliente falar em permuta, anota e segue (sem passar)", async () => {
     const rs = await conversa(["500 mil"], { ...c(), passo: "faixa", dados: { perguntas: ["faixa"] }, ficha: { ...VIP0040, preco_valor: 480000 } });
     expect(rs[0].resposta).toBe("Perfeito! Quer agendar uma visita para conhecer?"); // pagamento não é mais perguntado
     expect(rs[0].resposta).not.toMatch(/permuta/);
     for (const t of ["aceita permuta?", "posso dar meu carro como parte?", "pago com permuta"]) {
       const r = await proximaResposta(ctx(c({ passo: "pagamento" })), t, undefined, { agora: AGORA });
-      expect(r.fim, t).toBe("qualificado");
-      expect(r.resposta).toBe("Anotei! Se o proprietário aceita permuta, o corretor confirma com você. Já pedi para {corretor} continuar seu atendimento por aqui para conversar sobre isso.");
+      expect(r.fim, t).toBeNull();
+      expect(r.resposta).toBe("Anotei! Se o proprietário aceita permuta, o corretor confirma com você na visita ou no contato. Quer agendar uma visita para conhecer?");
       expect(r.resposta).not.toMatch(/(?<![Ss]e (ele|o proprietário) )aceita permuta|não aceita/); // nunca afirma se aceita
       expect(r.dados.pagamento).toContain("permuta");
-      expect(r.resumo).toMatch(/PERMUTA/);
+      expect(r.dados.pendentes?.some((p) => /permuta/.test(p))).toBe(true);
     }
   });
 
