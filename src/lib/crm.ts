@@ -1,7 +1,18 @@
 // CRM — dois funis (Venda e Captação) sobre o módulo Leads. Card t_188fb282; maquete aprovada por Denis
 // em 29/10/2026. Lógica pura (sem imports de tela/banco). O banco (migration 20261029100000_crm_dois_funis)
 // é a proteção real: RLS do módulo Leads + RPCs crm_* que exigem próximo contato, aceite e papel.
-import { encerrado, ORIGEM_LABEL, type Etapa, type Lead, type Origem } from "@/lib/leads";
+import { ORIGEM_LABEL, type Lead, type Origem } from "@/lib/leads";
+
+/** Etapas do CRM: as do módulo Leads + "avaliacao" (só no funil de captação; CHECK leads_etapa_do_funil). */
+export type Etapa =
+  | "novo"
+  | "em_atendimento"
+  | "visita_agendada"
+  | "avaliacao"
+  | "proposta"
+  | "ganho"
+  | "perdido";
+const encerrado = (e: string) => e === "ganho" || e === "perdido";
 
 export const FUNIS = ["venda", "captacao"] as const;
 export type Funil = (typeof FUNIS)[number];
