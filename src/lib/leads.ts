@@ -86,6 +86,13 @@ export type Lead = {
   portal_tipo?: string | null;
   portal_temperatura?: "baixa" | "media" | "alta" | null;
   portal_transacao?: "venda" | "aluguel" | null;
+  // CRM (migration 20261029100000, t_188fb282). Opcionais: sem o CRM a tela de leads segue igual.
+  funil?: "venda" | "captacao";
+  proximo_contato_em?: string | null;
+  proximo_contato_motivo?: string | null;
+  sale_id?: string | null;
+  capture_convertida_id?: string | null;
+  convertido_em?: string | null;
 };
 
 /** extraData.leadType do Grupo OLX (doc oficial) em português. */
