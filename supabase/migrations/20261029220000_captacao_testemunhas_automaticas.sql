@@ -3,7 +3,7 @@
 --   1. Só o contrato de CAPTAÇÃO (exclusividade). A venda (clicksign-sale) NÃO muda.
 --   2. Testemunha 1 = o corretor da captação (captor_id); testemunha 2 = o gestor da equipe dele.
 --   3. O corretor assina UMA vez só, como TESTEMUNHA (deixa de assinar como parte).
--- Rollback: supabase/rollback/20261029180000_captacao_testemunhas_automaticas.sql
+-- Rollback: supabase/rollback/20261029220000_captacao_testemunhas_automaticas.sql
 --
 -- Como equipe/gestor está modelado (conferido no banco em 29/10/2026):
 --   teams(id, lider_id, organization_id, parent_team_id) = a equipe e o seu líder principal;

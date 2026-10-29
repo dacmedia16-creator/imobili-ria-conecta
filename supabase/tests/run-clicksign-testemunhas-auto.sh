@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Testemunhas automáticas da captação (migration 20261029180000, t_e8078685) numa ÚNICA transação
+# Testemunhas automáticas da captação (migration 20261029220000, t_e8078685) numa ÚNICA transação
 # revertida: aplica a migration -> roda a suíte -> aplica o rollback -> reaplica. Nada fica gravado.
 # Nunca usar com produção.
 # Uso: PSQL="docker exec -i pg-c663 psql -U supabase_admin -d postgres" bash supabase/tests/run-clicksign-testemunhas-auto.sh
@@ -7,8 +7,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PSQL="${PSQL:?defina PSQL (banco local descartável ou homologação; nunca produção)}"
-MIG="$ROOT/supabase/migrations/20261029180000_captacao_testemunhas_automaticas.sql"
-RB="$ROOT/supabase/rollback/20261029180000_captacao_testemunhas_automaticas.sql"
+MIG="$ROOT/supabase/migrations/20261029220000_captacao_testemunhas_automaticas.sql"
+RB="$ROOT/supabase/rollback/20261029220000_captacao_testemunhas_automaticas.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 {
   echo "BEGIN;"

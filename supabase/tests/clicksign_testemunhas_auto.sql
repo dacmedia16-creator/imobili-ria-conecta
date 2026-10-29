@@ -1,4 +1,4 @@
--- Suíte: testemunhas automáticas da captação (migration 20261029180000, t_e8078685).
+-- Suíte: testemunhas automáticas da captação (migration 20261029220000, t_e8078685).
 -- Roda DENTRO de transação revertida (run-clicksign-testemunhas-auto.sh), em banco local descartável
 -- ou homologação; nunca em produção. Dados 100% fictícios, criados aqui.
 -- Imobiliária A: gestor G (líder da equipe T1), TL (team leader, líder da equipe T2), G2 (gestor sem
