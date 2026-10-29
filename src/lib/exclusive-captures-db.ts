@@ -217,6 +217,23 @@ export async function setCaptureSignedOn(id: string, date: string) {
   const { error } = await db.rpc("exclusive_set_signed_on", { _id: id, _date: date });
   check(error);
 }
+/**
+ * Corretor (antes da aprovação) ou gestor confirma/corrige a data de assinatura sugerida pelo PDF assinado.
+ * `dataPdf` = data lida do PDF (null = não lida); o banco registra no histórico se veio do PDF (t_834c16c9).
+ */
+export async function confirmarDataAssinatura(id: string, date: string, dataPdf: string | null) {
+  // RPC nova (20261029180000) ainda fora dos tipos gerados: chamada sem tipagem.
+  const rpc = db.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ error: { message: string } | null }>;
+  const { error } = await rpc.call(db, "exclusive_confirmar_data_assinatura", {
+    _id: id,
+    _date: date,
+    _data_pdf: dataPdf,
+  });
+  check(error);
+}
 export async function uploadCaptureDocument(
   id: string,
   kind: DocumentKind,

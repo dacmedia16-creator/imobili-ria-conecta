@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { lerDataAssinaturaPdf, motivoSemData } from "@/lib/clicksign-data-assinatura";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { DETAIL_NOT_FOUND_MESSAGE, isDetailRouteId } from "@/lib/detail-route-state";
@@ -18,6 +19,7 @@ import {
   addressConflicts,
   type AddressConflict,
   uploadCaptureDocument,
+  confirmarDataAssinatura,
   vendaDaCaptacao,
   corrigirCaptacaoAprovada,
   virarVenda,
@@ -261,6 +263,9 @@ function ExclusiveDetail() {
   const [preview, setPreview] = useState<{ doc: CaptureDocument; url: string } | null>(null);
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
+  // Data lida do PDF assinado (t_834c16c9): sugestão que o corretor/gestor confere antes de salvar.
+  const [dataPdf, setDataPdf] = useState<{ data: string | null; aviso: string | null } | null>(null);
+  const sugestaoPdf = useRef<string | null | undefined>(undefined);
   // "Corrigir dados" na captação aprovada (t_9f9f0c6a): libera só imóvel, ficha e proprietários.
   const [corrigindo, setCorrigindo] = useState(false);
   const [conflicts, setConflicts] = useState<AddressConflict[]>([]);
@@ -410,7 +415,13 @@ function ExclusiveDetail() {
     const contractDate = result.capture.manual
       ? normalizeForm(result.savedForm).data_assinatura
       : undefined;
-    setSignedOn(result.capture.signed_on ?? contractDate ?? hojeSaoPaulo());
+    // PDF assinado recém-lido: a data lida (ou vazio, sem data confiável) vale até ser salva.
+    const sug = sugestaoPdf.current;
+    setSignedOn(
+      sug !== undefined
+        ? (sug ?? "")
+        : (result.capture.signed_on ?? contractDate ?? hojeSaoPaulo()),
+    );
     // Aviso de endereço repetido: falha aqui nunca bloqueia a tela.
     addressConflicts(id)
       .then(setConflicts)
@@ -482,7 +493,7 @@ function ExclusiveDetail() {
   // Começa vazio: o corretor escolhe as ações. Obrigatório ter ao menos 1 quando há catálogo
   // (mesma regra na captação normal e no cadastro manual).
   const dossieIds = form?.dossie ?? [];
-  // Semanas do Plano: Semana 1 = aprovação; até a última semana da exclusividade (sem prazo: 4).
+  // Semanas do Plano: Semana 1 = assinatura (manual: aprovação); até a última semana da exclusividade (sem prazo: 4).
   const planoSemanas = form?.plano_semanas;
   const aprovadaEm = useMemo(() => {
     const ev = history
@@ -490,8 +501,10 @@ function ExclusiveDetail() {
       .map((h) => h.created_at)
       .sort()
       .at(-1);
-    return ev ? hojeSaoPaulo(new Date(ev)) : (capture?.signed_on ?? null);
-  }, [history, capture?.signed_on]);
+    const ap = ev ? hojeSaoPaulo(new Date(ev)) : (capture?.signed_on ?? null);
+    // Fluxo normal: Semana 1 = data de assinatura (mesma regra de exclusive_inicio_plano).
+    return !capture?.manual && capture?.signed_on ? capture.signed_on : ap;
+  }, [history, capture?.signed_on, capture?.manual]);
   const semanasInfo = totalSemanasPlano({
     aprovadaEm: capture?.status === "aprovada" ? aprovadaEm : null,
     fimExclusividade: capture ? (captureValidity(capture, hojeSaoPaulo())?.end ?? null) : null,
@@ -664,7 +677,25 @@ function ExclusiveDetail() {
       const storagePath = await uploadCaptureDocument(id, kind, owner, file);
       toast.success("Documento anexado");
       // Upload manual do assinado (captação normal) leva ao passo 5, igual ao que chega da Clicksign.
-      if (kind === "assinado" && !manual) setStep("assinado");
+      if (kind === "assinado" && !manual) {
+        setStep("assinado");
+        // Lê a data da última assinatura no log da Clicksign (leitura local, sem serviço externo).
+        try {
+          const l = await lerDataAssinaturaPdf(
+            new Uint8Array(await file.arrayBuffer()),
+            hojeSaoPaulo(),
+          );
+          sugestaoPdf.current = l.ok ? l.data : null;
+          setDataPdf({ data: l.ok ? l.data : null, aviso: motivoSemData(l) });
+          if (l.ok)
+            toast.info(
+              `Data de assinatura lida do PDF: ${formatDateBR(l.data)}. Confira e salve.`,
+            );
+        } catch {
+          sugestaoPdf.current = null;
+          setDataPdf({ data: null, aviso: "Não foi possível ler a data do PDF. Informe a data." });
+        }
+      }
       if (kind === "assinado" || kind === "gerado") return;
       const scope: OwnerScope | "imovel" = owner > 0 ? ownerScope(owner) : "imovel";
       try {
@@ -787,10 +818,12 @@ function ExclusiveDetail() {
         )
       )
         return;
+      // Vigência e Plano contam da assinatura: a data conferida é gravada antes; o 'aprovar' a mantém.
+      if (name === "aprovar" && signedOn && signedOn !== capture?.signed_on) {
+        await confirmarDataAssinatura(id, signedOn, dataPdf?.data ?? null);
+        sugestaoPdf.current = undefined;
+      }
       await transitionCapture(id, name, name === "devolver" ? reason : undefined);
-      // Vigência conta da assinatura: grava a data informada pelo gestor (padrão hoje).
-      if (name === "aprovar" && signedOn && signedOn !== hojeSaoPaulo())
-        await setCaptureSignedOn(id, signedOn);
       // Aviso (sino + WhatsApp) depois de gravar; falha do aviso nunca desfaz a ação.
       void avisarTransicao(name, id, notifyCaptureTransition);
       setReason("");
@@ -1133,8 +1166,21 @@ function ExclusiveDetail() {
   };
   const saveSignedOn = () =>
     run(async () => {
-      await setCaptureSignedOn(id, signedOn);
+      // Antes da aprovação: confirmação (corretor ou gestor). Aprovada: "Corrigir data" do gestor.
+      if (capture?.status === "aprovada") await setCaptureSignedOn(id, signedOn);
+      else await confirmarDataAssinatura(id, signedOn, dataPdf?.data ?? null);
+      sugestaoPdf.current = undefined;
       toast.success("Data de assinatura atualizada");
+    });
+  // Contrato que chegou pela Clicksign (sem upload na tela): lê a data do PDF já anexado.
+  const lerDataDoAssinado = () =>
+    run(async () => {
+      if (!currentSigned) return;
+      const url = await signedDocument(currentSigned);
+      const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+      const l = await lerDataAssinaturaPdf(bytes, hojeSaoPaulo());
+      sugestaoPdf.current = l.ok ? l.data : null;
+      setDataPdf({ data: l.ok ? l.data : null, aviso: motivoSemData(l) });
     });
   // "Virou venda": o banco cria (ou devolve, se já existir) a venda em rascunho; dois cliques ou
   // duas abas caem na mesma venda.
@@ -1168,6 +1214,30 @@ function ExclusiveDetail() {
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
   const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);
+  const dicaDataPdf =
+    !manual && currentSigned ? (
+      <p className="text-xs" data-testid="data-lida-pdf">
+        {dataPdf ? (
+          dataPdf.data ? (
+            <span className="text-emerald-700">
+              Data lida do PDF assinado (última assinatura): {formatDateBR(dataPdf.data)}. Confira e
+              salve.
+            </span>
+          ) : (
+            <span className="text-amber-800">{dataPdf.aviso}</span>
+          )
+        ) : (
+          <button
+            type="button"
+            className="font-medium text-primary underline"
+            disabled={busy}
+            onClick={lerDataDoAssinado}
+          >
+            Ler a data de assinatura do PDF
+          </button>
+        )}
+      </p>
+    ) : null;
   // Passo 4 = revisão, geração e envio. Com o assinado anexado, a aprovação (PDF assinado, data e
   // botão Aprovar) passa para o passo 5 "Documento assinado".
   const approvalStep: CaptureStep = signedStep ? "assinado" : "revisao";
@@ -2041,8 +2111,9 @@ function ExclusiveDetail() {
                     Salvar data
                   </Button>
                 </div>
+                {dicaDataPdf}
                 <p className="text-xs text-muted-foreground">
-                  O prazo da exclusividade conta a partir desta data. Depois da aprovação, só o
+                  O prazo da exclusividade e o Plano de Marketing contam a partir desta data. Depois da aprovação, só o
                   gestor corrige.
                 </p>
               </CardContent>
@@ -2118,9 +2189,10 @@ function ExclusiveDetail() {
                       />
                     </div>
                     <p className="pb-2 text-xs text-muted-foreground">
-                      O prazo da exclusividade conta a partir desta data.
+                      O prazo da exclusividade e o Plano de Marketing contam a partir desta data.
                     </p>
                   </div>
+                  {dicaDataPdf}
                   <div className="flex flex-wrap gap-2">
                     {!manual &&
                       !signedStep &&

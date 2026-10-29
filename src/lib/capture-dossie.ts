@@ -71,8 +71,8 @@ export function missingVitals(
 }
 
 // ---------- Semanas do Plano (t_9a21f3e6) ----------
-// form_data.plano_semanas = { "<id da ação>": [1, 2, ...] }. Semana 1 começa na aprovação; semana N vai de
-// aprovação + 7×(N−1) até aprovação + 7×N − 1. Plano sem plano_semanas = plano antigo (prazo por peso).
+// form_data.plano_semanas = { "<id da ação>": [1, 2, ...] }. Semana 1 começa na assinatura (t_834c16c9; manual: aprovação);
+// semana N vai de início + 7×(N−1) até início + 7×N − 1. Plano sem plano_semanas = plano antigo (prazo por peso).
 
 export type PlanoSemanas = Record<string, number[]>;
 
@@ -273,7 +273,7 @@ export async function buildDossiePdf(input: DossiePdfInput): Promise<Uint8Array>
   page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.6, color: LINE });
   y -= 18;
   for (const l of wrap(
-    `${input.company?.trim() || "A imobiliária"}, por meio do(a) corretor(a) responsável, se compromete a realizar as ações abaixo para divulgar e vender o imóvel durante o período de exclusividade. O andamento será informado ao proprietário nos relatórios de feedback.${input.semanas ? " A Semana 1 começa na data de aprovação da captação; cada semana tem 7 dias." : ""}`,
+    `${input.company?.trim() || "A imobiliária"}, por meio do(a) corretor(a) responsável, se compromete a realizar as ações abaixo para divulgar e vender o imóvel durante o período de exclusividade. O andamento será informado ao proprietário nos relatórios de feedback.${input.semanas ? " A Semana 1 começa na data de assinatura do contrato; cada semana tem 7 dias." : ""}`,
     10,
     W,
   )) {
