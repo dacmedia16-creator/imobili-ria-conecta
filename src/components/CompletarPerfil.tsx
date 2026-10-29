@@ -260,10 +260,16 @@ function CompletarPerfilTela({
   const salvar = async () => {
     if (!user) return;
     setTentouSalvar(true);
-    if (faltando.length > 0) {
-      const nomes = faltando.map((c) => CAMPO_LABEL[c]);
+    // CRECI é opcional sempre (t_6b800cea): formato inválido avisa o formato, nunca "falta preencher".
+    const faltandoObrig = faltando.filter((c) => c !== "creci");
+    if (faltandoObrig.length > 0) {
+      const nomes = faltandoObrig.map((c) => CAMPO_LABEL[c]);
       if (erroNasc && !dataNasc.trim()) nomes.push("Data de nascimento");
       toast.error(`Falta preencher: ${nomes.join(", ")}.`);
+      return;
+    }
+    if (faltando.includes("creci")) {
+      toast.error(CRECI_FORMATO_INVALIDO);
       return;
     }
     if (erroNasc) {
@@ -437,7 +443,8 @@ function CompletarPerfilTela({
               id="cp-creci"
               label="CRECI (opcional)"
               erro={erro("creci")}
-              dica={erro("creci") ? "CRECI inválido. Use só letras, números e - . /" : undefined}
+              sufixoErro=""
+              dica={erro("creci") ? CRECI_FORMATO_INVALIDO : undefined}
             >
               <Input
                 id="cp-creci"
@@ -511,16 +518,22 @@ function CompletarPerfilTela({
   );
 }
 
+const CRECI_FORMATO_INVALIDO =
+  "Formato de CRECI inválido — corrija ou deixe em branco. Use só letras, números e - . /";
+
 function Campo({
   id,
   label,
   erro,
+  sufixoErro = " — obrigatório",
   dica,
   children,
 }: {
   id: string;
   label: string;
   erro?: boolean;
+  /** Texto colado ao rótulo quando há erro. CRECI passa "" (opcional sempre, t_6b800cea). */
+  sufixoErro?: string;
   dica?: string;
   children: ReactNode;
 }) {
@@ -528,7 +541,7 @@ function Campo({
     <div className="space-y-1.5">
       <Label htmlFor={id} className={erro ? "text-destructive" : undefined}>
         {label}
-        {erro ? " — obrigatório" : ""}
+        {erro ? sufixoErro : ""}
       </Label>
       {children}
       {dica && <p className="text-xs text-muted-foreground">{dica}</p>}
