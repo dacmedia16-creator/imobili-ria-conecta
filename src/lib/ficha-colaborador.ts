@@ -92,6 +92,7 @@ export const CAMPO_FICHA_LABEL: Record<CampoFicha, string> = {
 export const RELIGIOES = [
   "Católica",
   "Evangélica",
+  "Adventista do Sétimo Dia",
   "Espírita",
   "Umbanda ou Candomblé",
   "Judaica",
