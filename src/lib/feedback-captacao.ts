@@ -1,7 +1,7 @@
 /**
  * Feedback ligado à captação exclusiva (migration 20261009010000).
  * - Ligação captação <-> anúncio: prefixo = ID RE/MAX do captador (travado); o corretor digita só o final.
- * - Plano de Marketing como checklist: prazo pela aprovação (essencial 7 dias, importante 14, complementar 30).
+ * - Plano de Marketing como checklist: prazo pela data de assinatura (essencial 7 dias, importante 14, complementar 30).
  * - Feedback ao proprietário: "O que já fizemos" e "Próximos passos" (atrasada aparece como "esta semana";
  *   o atraso só o gestor vê).
  * Regras puras aqui; o banco repete as mesmas regras nas RPCs.

@@ -125,7 +125,7 @@ export function CaptureDossieStep({
               )}
             </div>
             <p className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
-              A Semana 1 começa no dia em que a captação é aprovada; cada semana tem 7 dias. Dá para
+              A Semana 1 começa no dia em que o contrato é assinado; cada semana tem 7 dias. Dá para
               marcar mais de uma semana por ação.{" "}
               {semanasPadrao
                 ? "Sem prazo de exclusividade registrado: mostrando 4 semanas."

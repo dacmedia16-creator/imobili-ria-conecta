@@ -108,8 +108,8 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
       <CardContent className="space-y-4 text-sm">
         <p className="text-xs text-muted-foreground">
           {items.some((i) => i.semana)
-            ? "Ações prometidas no contrato, por semana. A Semana 1 começa na aprovação; o prazo é o último dia da semana escolhida."
-            : "Ações prometidas no contrato. Prazo contado da aprovação: essencial 7 dias, importante 14, complementar 30."}{" "}
+            ? "Ações prometidas no contrato, por semana. A Semana 1 começa na data de assinatura do contrato; o prazo é o último dia da semana escolhida."
+            : "Ações prometidas no contrato. Prazo contado da data de assinatura: essencial 7 dias, importante 14, complementar 30."}{" "}
           O gestor vê as atrasadas no painel dele.
         </p>
         {groups.map((g) => (
