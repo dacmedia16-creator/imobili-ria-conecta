@@ -122,6 +122,7 @@ export const ORGANIZATION_MODULES = [
   "mural_conquistas",
   "ranking_valores",
   "leads",
+  "crm",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -132,6 +133,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   mural_conquistas: "Mural de Conquistas",
   ranking_valores: "Ranking: mostrar valores dos colegas (Minha carreira)",
   leads: "Leads (piloto: funil e distribuição)",
+  crm: "CRM (dois funis: venda e captação; precisa do Leads ligado)",
 };
 
 export type OrganizationSummary = OrganizationRow & {

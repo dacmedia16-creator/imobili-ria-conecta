@@ -34,6 +34,7 @@ import { roomReservationEnabled } from "@/lib/room-reservation-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { opportunitiesEnabled } from "@/lib/oportunidades-module";
 import { leadsEnabled } from "@/lib/leads-db";
+import { crmEnabled } from "@/lib/crm-db";
 import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import {
@@ -316,6 +317,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
   const [achievementsVisible, setAchievementsVisible] = useState(false);
   const [leadsVisible, setLeadsVisible] = useState(false);
+  const [crmVisible, setCrmVisible] = useState(false);
   // Módulos já lidos: o tour só monta os passos com o menu completo.
   const [modulosProntos, setModulosProntos] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
@@ -344,6 +346,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       }),
       leadsEnabled().then((enabled) => {
         if (alive) setLeadsVisible(enabled);
+      }),
+      crmEnabled().then((enabled) => {
+        if (alive) setCrmVisible(enabled);
       }),
     ]).then(() => {
       if (alive) setModulosProntos(true);
@@ -438,6 +443,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     opportunitiesVisible,
     achievementsVisible,
     leadsVisible,
+    crmVisible,
     carreiraVisible: exclusiveVisible,
     inPlatformContext: Boolean(platformContext),
   });

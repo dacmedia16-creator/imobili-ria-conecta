@@ -12,8 +12,10 @@ export const ETAPAS = [
 ] as const;
 export type Etapa = (typeof ETAPAS)[number];
 
-export const ETAPA_LABEL: Record<Etapa, string> = {
+// "avaliacao" só existe no funil de captação do CRM (migration 20261029100000); fica fora de ETAPAS.
+export const ETAPA_LABEL: Record<Etapa | "avaliacao", string> = {
   novo: "Novo",
+  avaliacao: "Avaliação",
   em_atendimento: "Em atendimento",
   visita_agendada: "Visita agendada",
   proposta: "Proposta",
@@ -22,8 +24,12 @@ export const ETAPA_LABEL: Record<Etapa, string> = {
 };
 
 /** Tom do Pill (visual/base) por etapa: sempre cor + texto. */
-export const ETAPA_TOM: Record<Etapa, "blue" | "amber" | "violet" | "slate" | "green" | "red"> = {
+export const ETAPA_TOM: Record<
+  Etapa | "avaliacao",
+  "blue" | "amber" | "violet" | "slate" | "green" | "red"
+> = {
   novo: "blue",
+  avaliacao: "violet",
   em_atendimento: "amber",
   visita_agendada: "violet",
   proposta: "slate",
@@ -175,7 +181,11 @@ export type LeadEvento = {
     | "devolvido_banco"
     | "redistribuido"
     | "ligacao"
-    | "ia";
+    | "ia"
+    // CRM (migration 20261029100000)
+    | "proximo_contato"
+    | "convertido"
+    | "funil";
   de: string | null;
   para: string | null;
   nota: string | null;
@@ -294,6 +304,12 @@ export function textoEvento(e: LeadEvento, nome: (id: string | null) => string):
       return `Lead criado (origem: ${ORIGEM_LABEL[e.para as Origem] ?? e.para ?? "—"})`;
     case "etapa":
       return `Etapa: ${ETAPA_LABEL[e.de as Etapa] ?? e.de ?? "—"} → ${ETAPA_LABEL[e.para as Etapa] ?? e.para ?? "—"}`;
+    case "proximo_contato":
+      return `Próximo contato: ${e.para ? `${e.para.slice(8, 10)}/${e.para.slice(5, 7)}/${e.para.slice(0, 4)}` : "—"}`;
+    case "convertido":
+      return e.de === "captacao" ? "Convertido em captação exclusiva" : "Convertido em venda";
+    case "funil":
+      return `Funil: ${e.para === "captacao" ? "Captação" : "Venda"}`;
     case "atribuido":
       return e.de
         ? `Responsável trocado: ${nome(e.de)} → ${nome(e.para)}`
