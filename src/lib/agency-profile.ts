@@ -6,6 +6,8 @@ const db = supabase as unknown as SupabaseClient;
 
 export type AgencyProfile = {
   id: string;
+  /** Identificador público (endereço /especialistas/<slug>). */
+  slug: string;
   nome: string;
   razao_social: string | null;
   creci: string | null;
@@ -26,7 +28,7 @@ export async function loadAgencyProfile(): Promise<AgencyProfile> {
   const { data, error } = await db
     .from("organizations")
     .select(
-      "id,nome,razao_social,creci,cidade,uf,cor_primaria,cor_secundaria,logo_path,mapa_site_enabled",
+      "id,slug,nome,razao_social,creci,cidade,uf,cor_primaria,cor_secundaria,logo_path,mapa_site_enabled",
     )
     .eq("id", id)
     .single();

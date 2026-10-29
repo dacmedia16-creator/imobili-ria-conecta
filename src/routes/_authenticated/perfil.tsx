@@ -42,6 +42,7 @@ import {
   normalizeInstagramUrl,
   type PositioningRegion,
 } from "@/lib/positioning";
+import { listMyPositioningRegions } from "@/lib/positioning-db";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -92,6 +93,7 @@ function MeuAcesso() {
   const [savingPositioning, setSavingPositioning] = useState(false);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
   const [agencyLocation, setAgencyLocation] = useState<string | null>(null);
+  const [agencySlug, setAgencySlug] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState({
     nome: "",
     cidade: agencyCity(null),
@@ -162,6 +164,7 @@ function MeuAcesso() {
     void loadAgencyProfile()
       .then((agency) => {
         setAgencyLocation(agency.cidade);
+        setAgencySlug(agency.slug ?? null);
         setSuggestion((current) => ({ ...current, cidade: agencyCity(agency.cidade) }));
       })
       .catch(() => {});
@@ -170,19 +173,14 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user || !canUsePositioning) return;
     (async () => {
-      const [
-        { data: regions, error: regionsError },
-        { data: selected, error: selectedError },
-        { data: suggestions },
-      ] = await Promise.all([
-        supabase
-          .from("positioning_regions")
-          .select("id, cidade, zona, nome, tipo")
-          .eq("ativo", true)
-          .order("cidade")
-          .order("zona")
-          .order("nome"),
-        supabase
+      // Regiões: só as ATIVAS para a imobiliária do corretor (catálogo compartilhado da cidade).
+      const [regionsResult, { data: selected, error: selectedError }, { data: suggestions }] =
+        await Promise.all([
+          listMyPositioningRegions().then(
+            (data) => ({ data, error: null }),
+            (error: Error) => ({ data: null, error }),
+          ),
+          supabase
           .from("corretor_positioning_regions")
           .select("region_id")
           .eq("corretor_id", user.id),
@@ -192,11 +190,11 @@ function MeuAcesso() {
           .eq("suggested_by", user.id)
           .order("created_at", { ascending: false }),
       ]);
-      if (regionsError || selectedError) {
+      if (regionsResult.error || selectedError) {
         toast.error("Não foi possível carregar seu posicionamento.");
         return;
       }
-      setPositioningRegions(regions ?? []);
+      setPositioningRegions(regionsResult.data ?? []);
       setSelectedRegionIds((selected ?? []).map((row) => row.region_id));
       setMySuggestions(suggestions ?? []);
     })();
@@ -732,7 +730,8 @@ function MeuAcesso() {
           <CardContent className="space-y-4 text-sm">
             <p className="text-xs text-muted-foreground">
               Escolha até dois bairros, condomínios ou cidades em que você atua ou quer se
-              posicionar. Todos os corretores ativos aparecem na vitrine pública.
+              posicionar. A lista é a da cidade da sua imobiliária. Todos os corretores ativos
+              aparecem na página pública da imobiliária, quando ela estiver publicada.
             </p>
             <Input
               aria-label="Buscar bairro, condomínio, cidade ou zona"
@@ -807,7 +806,12 @@ function MeuAcesso() {
                 {savingPositioning ? "Salvando…" : "Salvar posicionamento"}
               </Button>
               <Button variant="outline" asChild>
-                <Link to="/especialistas" target="_blank">
+                <Link
+                  {...(agencySlug
+                    ? { to: "/especialistas/$slug" as const, params: { slug: agencySlug } }
+                    : { to: "/especialistas" as const })}
+                  target="_blank"
+                >
                   Ver página pública <ExternalLink className="ml-1 h-3.5 w-3.5" />
                 </Link>
               </Button>

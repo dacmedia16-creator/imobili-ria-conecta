@@ -273,7 +273,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
         },
         {
           to: "/admin/posicionamento",
-          label: "Sugestões de regiões",
+          label: "Regiões e sugestões",
           icon: Compass,
           show: hasAny(["admin", "super_admin"]),
         },

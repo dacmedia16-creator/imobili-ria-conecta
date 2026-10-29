@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContaMaxRouteImport } from './routes/conta-max'
-import { Route as EspecialistasRouteImport } from './routes/especialistas'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
 import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/ajuda'
@@ -44,6 +43,8 @@ import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_auth
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
+import { Route as EspecialistasIndexRouteImport } from './routes/especialistas.index'
+import { Route as EspecialistasSlugRouteImport } from './routes/especialistas.$slug'
 import { Route as LeadFormTokenRouteImport } from './routes/lead-form.$token'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
@@ -84,11 +85,6 @@ const AuthRoute = AuthRouteImport.update({
 const ContaMaxRoute = ContaMaxRouteImport.update({
   id: '/conta-max',
   path: '/conta-max',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EspecialistasRoute = EspecialistasRouteImport.update({
-  id: '/especialistas',
-  path: '/especialistas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
@@ -258,6 +254,16 @@ const ConviteCadastroRoute = ConviteCadastroRouteImport.update({
   path: '/convite/cadastro',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EspecialistasIndexRoute = EspecialistasIndexRouteImport.update({
+  id: '/especialistas/',
+  path: '/especialistas/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EspecialistasSlugRoute = EspecialistasSlugRouteImport.update({
+  id: '/especialistas/$slug',
+  path: '/especialistas/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeadFormTokenRoute = LeadFormTokenRouteImport.update({
   id: '/lead-form/$token',
   path: '/lead-form/$token',
@@ -388,7 +394,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
-  '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
@@ -419,7 +424,9 @@ export interface FileRoutesByFullPath {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/especialistas/': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -446,7 +453,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
-  '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
@@ -477,7 +483,9 @@ export interface FileRoutesByTo {
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/especialistas': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -506,7 +514,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
-  '/especialistas': typeof EspecialistasRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/_authenticated/ajuda': typeof AuthenticatedAjudaRoute
@@ -537,7 +544,9 @@ export interface FileRoutesById {
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
+  '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/especialistas/': typeof EspecialistasIndexRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
@@ -566,7 +575,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/conta-max'
-    | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/ajuda'
@@ -597,7 +605,9 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/especialistas/'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -624,7 +634,6 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/conta-max'
-    | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/ajuda'
@@ -655,7 +664,9 @@ export interface FileRouteTypes {
     | '/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/especialistas'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
@@ -683,7 +694,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/conta-max'
-    | '/especialistas'
     | '/redefinir-senha'
     | '/trocar-senha'
     | '/_authenticated/ajuda'
@@ -714,7 +724,9 @@ export interface FileRouteTypes {
     | '/_authenticated/visao-executiva'
     | '/convite/$token'
     | '/convite/cadastro'
+    | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/especialistas/'
     | '/_authenticated/admin/assinatura-digital'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
@@ -743,12 +755,13 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContaMaxRoute: typeof ContaMaxRoute
-  EspecialistasRoute: typeof EspecialistasRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
+  EspecialistasSlugRoute: typeof EspecialistasSlugRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
+  EspecialistasIndexRoute: typeof EspecialistasIndexRoute
   ApiLeadsReengajarRoute: typeof ApiLeadsReengajarRoute
   ApiLeadsGrupoOlxTokenRoute: typeof ApiLeadsGrupoOlxTokenRoute
   ApiLeadsZiontalkTokenRoute: typeof ApiLeadsZiontalkTokenRoute
@@ -782,13 +795,6 @@ declare module '@tanstack/react-router' {
       path: '/conta-max'
       fullPath: '/conta-max'
       preLoaderRoute: typeof ContaMaxRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/especialistas': {
-      id: '/especialistas'
-      path: '/especialistas'
-      fullPath: '/especialistas'
-      preLoaderRoute: typeof EspecialistasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/redefinir-senha': {
@@ -999,6 +1005,20 @@ declare module '@tanstack/react-router' {
       path: '/convite/cadastro'
       fullPath: '/convite/cadastro'
       preLoaderRoute: typeof ConviteCadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/especialistas/': {
+      id: '/especialistas/'
+      path: '/especialistas'
+      fullPath: '/especialistas/'
+      preLoaderRoute: typeof EspecialistasIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/especialistas/$slug': {
+      id: '/especialistas/$slug'
+      path: '/especialistas/$slug'
+      fullPath: '/especialistas/$slug'
+      preLoaderRoute: typeof EspecialistasSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lead-form/$token': {
@@ -1267,12 +1287,13 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ContaMaxRoute: ContaMaxRoute,
-  EspecialistasRoute: EspecialistasRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
+  EspecialistasSlugRoute: EspecialistasSlugRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
+  EspecialistasIndexRoute: EspecialistasIndexRoute,
   ApiLeadsReengajarRoute: ApiLeadsReengajarRoute,
   ApiLeadsGrupoOlxTokenRoute: ApiLeadsGrupoOlxTokenRoute,
   ApiLeadsZiontalkTokenRoute: ApiLeadsZiontalkTokenRoute,
