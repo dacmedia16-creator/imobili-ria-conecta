@@ -1,7 +1,34 @@
--- Rollback de 20261029180000_captacao_data_assinatura_pdf (t_834c16c9): volta as 3 funções do plano/pendências à base "aprovação"
--- (definições de produção de 29/10/2026) e remove as 2 funções novas. Nenhum dado é apagado:
--- signed_on e o histórico gravados pela confirmação continuam como estão.
+-- Captação: data de assinatura lida do PDF assinado (corretor confere) + Plano de Marketing e feedback
+-- contam da assinatura (t_834c16c9, "sim" de Denis 29/10/2026, tópico 6238).
+--
+-- 1) exclusive_inicio_plano(captação): início da Semana 1 do Plano de Marketing.
+--    Fluxo normal (contrato gerado e assinado pelo sistema/Clicksign): signed_on; sem signed_on, a aprovação.
+--    Cadastro manual (contrato antigo em papel, assinado antes de entrar no sistema): continua a aprovação,
+--    para o plano não nascer todo atrasado (decisão a confirmar com Denis; trocar é 1 linha aqui).
+-- 2) exclusive_plan_view, exclusive_feedback_pendencias e minhas_pendencias: semanas, prazos e atrasadas usam
+--    exclusive_inicio_plano. "Sem anúncio há N dias" e a coluna aprovada_em continuam pela aprovação.
+--    exclusive_plan_done NÃO é alterada (o que foi marcado como feito fica igual).
+-- 3) exclusive_confirmar_data_assinatura(_id, _date, _data_pdf): o corretor (ou o gestor) confirma/corrige a data
+--    sugerida pela leitura do PDF assinado. Mesmas travas de exclusive_set_signed_on + não antes da criação
+--    (created_on_sp) no fluxo normal. Corretor: só a própria captação e só antes da aprovação.
+--    Grava 'data_assinatura' em exclusive_history com quem informou e se veio do PDF.
+-- exclusive_set_signed_on ("Corrigir data" do gestor) e exclusive_transition ('aprovar' mantém signed_on) intocadas.
+-- Nada de dado é alterado por esta migration. Rollback: supabase/rollback/20261029200000_captacao_data_assinatura_pdf.sql
 BEGIN;
+
+CREATE OR REPLACE FUNCTION public.exclusive_inicio_plano(_id uuid)
+ RETURNS date
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT CASE WHEN c.manual THEN public.exclusive_aprovada_em(c.id)
+              ELSE coalesce(c.signed_on, public.exclusive_aprovada_em(c.id)) END
+    FROM public.exclusive_captures c WHERE c.id = _id
+$function$;
+-- Uso interno (como exclusive_aprovada_em): só as funções SECURITY DEFINER chamam.
+REVOKE ALL ON FUNCTION public.exclusive_inicio_plano(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.exclusive_inicio_plano(uuid) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.exclusive_plan_view(_capture uuid)
  RETURNS TABLE(action_id uuid, category text, label text, weight text, sort integer, in_plan boolean, prazo date, done_on date, done_by_nome text, proof_path text, proof_name text, semana smallint, semana_inicio date)
@@ -15,7 +42,8 @@ BEGIN
   IF NOT FOUND OR NOT public.exclusive_can_view(_capture, auth.uid()) THEN
     RAISE EXCEPTION 'Captação não disponível' USING ERRCODE = '42501';
   END IF;
-  _base := CASE WHEN _c.status = 'aprovada' THEN public.exclusive_aprovada_em(_capture) END;
+  -- Semana 1 = data de assinatura (t_834c16c9); manual e sem data: aprovação.
+  _base := CASE WHEN _c.status = 'aprovada' THEN public.exclusive_inicio_plano(_capture) END;
   RETURN QUERY
   WITH plano AS (
     SELECT a.id AS aid, s.s AS sem
@@ -53,6 +81,7 @@ BEGIN
   RETURN QUERY
   WITH caps AS (
     SELECT c.id, c.organization_id, c.form_data, public.exclusive_aprovada_em(c.id) AS ap,
+      public.exclusive_inicio_plano(c.id) AS ini,
       nullif(concat_ws(' — ', nullif(btrim(c.form_data->'imovel'->>'tipo_imovel'), ''),
         nullif(btrim(c.form_data->'imovel'->>'bairro'), '')), '') AS imovel,
       (SELECT p.nome FROM public.profiles p WHERE p.id = c.captor_id) AS corretor
@@ -84,7 +113,7 @@ BEGIN
       ON a.organization_id = caps.organization_id AND a.list = 'marketing' AND (caps.form_data->'dossie') ? a.id::text
     CROSS JOIN LATERAL (
       SELECT s.s AS sem,
-             CASE WHEN s.s > 0 THEN caps.ap + 7 * s.s - 1 ELSE caps.ap + public.exclusive_plan_prazo_dias(a.weight) END AS prazo
+             CASE WHEN s.s > 0 THEN caps.ini + 7 * s.s - 1 ELSE caps.ini + public.exclusive_plan_prazo_dias(a.weight) END AS prazo
         FROM public.exclusive_plan_semanas(caps.form_data, a.id) s(s)) it
    WHERE it.prazo < _hoje
      AND NOT EXISTS (SELECT 1 FROM public.exclusive_plan_done d
@@ -109,7 +138,8 @@ BEGIN
      WHERE c.captor_id = _me AND c.organization_id = public.current_org_id()
        AND c.archived_at IS NULL AND c.discarded_at IS NULL
        AND public.exclusive_can_view(c.id, _me)),
-  apr AS (SELECT caps.*, public.exclusive_aprovada_em(caps.id) AS ap FROM caps WHERE caps.status = 'aprovada'),
+  apr AS (SELECT caps.*, public.exclusive_aprovada_em(caps.id) AS ap, public.exclusive_inicio_plano(caps.id) AS ini
+          FROM caps WHERE caps.status = 'aprovada'),
   docs AS (
     SELECT caps.id, array_remove(ARRAY[
       -- Todos os proprietários: 1º com o texto de antes; demais "do Nº proprietário" — t_58effd65.
@@ -148,9 +178,9 @@ BEGIN
       ON a.organization_id = apr.organization_id AND a.list = 'marketing' AND (apr.form_data->'dossie') ? a.id::text
     CROSS JOIN LATERAL (
       SELECT s.s AS sem,
-             CASE WHEN s.s > 0 THEN apr.ap + 7 * s.s - 1 ELSE apr.ap + public.exclusive_plan_prazo_dias(a.weight) END AS prazo
+             CASE WHEN s.s > 0 THEN apr.ini + 7 * s.s - 1 ELSE apr.ini + public.exclusive_plan_prazo_dias(a.weight) END AS prazo
         FROM public.exclusive_plan_semanas(apr.form_data, a.id) s(s)) it
-   WHERE apr.ap IS NOT NULL AND it.prazo < _hoje
+   WHERE apr.ini IS NOT NULL AND it.prazo < _hoje
      AND NOT EXISTS (SELECT 1 FROM public.exclusive_plan_done d
                       WHERE d.capture_id = apr.id AND d.action_id = a.id AND d.semana = it.sem)
   UNION ALL
@@ -160,7 +190,42 @@ BEGIN
     FROM venc WHERE venc.fim - _hoje BETWEEN -30 AND 30;
 END $function$;
 
-DROP FUNCTION IF EXISTS public.exclusive_confirmar_data_assinatura(uuid, date, date);
-DROP FUNCTION IF EXISTS public.exclusive_inicio_plano(uuid);
+CREATE OR REPLACE FUNCTION public.exclusive_confirmar_data_assinatura(_id uuid, _date date, _data_pdf date DEFAULT NULL)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE _c public.exclusive_captures%ROWTYPE; _uid uuid := auth.uid(); _gestor boolean; _captor boolean;
+  _hoje date := (now() AT TIME ZONE 'America/Sao_Paulo')::date; _origem text;
+BEGIN
+  SELECT * INTO _c FROM public.exclusive_captures WHERE id = _id FOR UPDATE;
+  IF NOT FOUND OR _uid IS NULL THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  _gestor := public.exclusive_is_manager(_id, _uid);
+  _captor := _c.captor_id = _uid AND public.exclusive_can_view(_id, _uid);
+  IF NOT (_gestor OR _captor) OR _c.archived_at IS NOT NULL OR _c.discarded_at IS NOT NULL
+  THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  -- Confirmação é antes da aprovação; depois dela o gestor usa "Corrigir data" (exclusive_set_signed_on).
+  IF _c.status NOT IN ('enviada','em_assinatura') THEN
+    RAISE EXCEPTION 'Captação aprovada: só o gestor corrige a data de assinatura';
+  END IF;
+  IF _date IS NULL OR _date > _hoje OR _date < date '2000-01-01'
+     OR (NOT _c.manual AND _date < _c.created_on_sp)
+  THEN RAISE EXCEPTION 'Data de assinatura inválida (não pode ser futura nem anterior à criação da captação)'; END IF;
+  IF _data_pdf IS NOT NULL AND (_data_pdf > _hoje OR _data_pdf < date '2000-01-01') THEN _data_pdf := NULL; END IF;
+  _origem := CASE WHEN _data_pdf IS NULL THEN 'informada (sem data lida do PDF)'
+                  WHEN _data_pdf = _date THEN 'lida do PDF assinado e confirmada'
+                  ELSE 'corrigida (o PDF indicava ' || to_char(_data_pdf, 'DD/MM/YYYY') || ')' END
+          || CASE WHEN _captor AND NOT _gestor THEN ' pelo corretor' ELSE ' pelo gestor' END;
+  UPDATE public.exclusive_captures SET signed_on = _date, updated_at = now() WHERE id = _id;
+  INSERT INTO public.exclusive_history(capture_id, actor_id, action, detail)
+    VALUES (_id, _uid, 'data_assinatura', to_char(_date, 'DD/MM/YYYY') || ' · ' || _origem);
+END $function$;
+-- Mesmo dono de exclusive_set_signed_on (padrão das RPCs que gravam na captação).
+GRANT CREATE ON SCHEMA public TO mt_1b_definer;
+ALTER FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) OWNER TO mt_1b_definer;
+REVOKE CREATE ON SCHEMA public FROM mt_1b_definer;
+REVOKE ALL ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) TO authenticated, service_role;
 
 COMMIT;
