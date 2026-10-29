@@ -16,7 +16,7 @@ export const GUIAS: WikiGuia[] = [
       "Abra <b>unicaescolha.com.br</b>. Ele abre o <b>UniHub</b>, a página com todos os sistemas MAX.",
       "Clique no cartão do sistema que você quer usar: <b>Sistema ADM MAX</b>, <b>Visita MAX</b> ou <b>Estudo de Mercado MAX</b>.",
       "Entre com a sua <b>conta Google</b>. Use o mesmo e-mail que a imobiliária cadastrou (ex.: o seu @remax.com.br). O MAX não tem senha própria.",
-      "<b>1º acesso ao ADM MAX:</b> aparece a tela <b>Complete seu perfil</b> (foto, nome, e-mail, telefone, CPF, CRECI, <b>Data de nascimento</b> e ID RE/MAX). Preencha e clique em <b>Salvar e entrar</b>. Para conta nova, é obrigatório, inclusive a data de nascimento. Quem já tinha conta pode clicar em <b>Agora não</b> e recebe um lembrete a cada entrada; para essas contas, a data aparece como <b>(opcional)</b>.",
+      "<b>1º acesso ao ADM MAX:</b> aparece a tela <b>Complete seu perfil</b> (foto, nome, e-mail, telefone, CPF, <b>Data de nascimento</b>, CRECI e ID RE/MAX). CRECI e ID RE/MAX são <b>opcionais</b>: quem ainda não tem pode deixar em branco. Preencha e clique em <b>Salvar e entrar</b>. Para conta nova, é obrigatório, inclusive a data de nascimento. Quem já tinha conta pode clicar em <b>Agora não</b> e recebe um lembrete a cada entrada; para essas contas, a data aparece como <b>(opcional)</b>.",
       "<b>1º acesso ao Visita MAX:</b> aparece a tela <b>Termos de Uso</b>. Leia, marque a caixa de concordância e clique em <b>Aceitar e Continuar</b>.",
       "<b>1º acesso ao Estudo de Mercado MAX:</b> pode aparecer <b>Complete seu perfil</b>. Confira nome, telefone e e-mail e clique em <b>Salvar e continuar</b>.",
     ],
