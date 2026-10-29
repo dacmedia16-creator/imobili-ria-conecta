@@ -85,8 +85,18 @@ describe("completar perfil no primeiro acesso", () => {
     expect(camposFaltando({ ...completo, avatar_url: null })).toEqual(["foto"]);
   });
 
+  it("CRECI é opcional: vazio não falta; preenchido inválido falta (t_5c4bd214)", () => {
+    expect(camposFaltando({ ...completo, creci: null })).toEqual([]);
+    expect(camposFaltando({ ...completo, creci: "   " })).toEqual([]);
+    expect(camposFaltando({ ...completo, creci: "12" })).toEqual(["creci"]);
+    expect(camposFaltando({ ...completo, creci: "#123456" })).toEqual(["creci"]);
+    const input = { ...base, roles: ["corretor"], perfil: { ...completo, creci: null } };
+    expect(modoCompletarPerfil({ ...input, createdAt: NOVA })).toBeNull();
+    expect(modoCompletarPerfil({ ...input, createdAt: ANTIGA })).toBeNull();
+  });
+
   it("lista o que falta e valida CPF, telefone e nome", () => {
-    expect(camposFaltando(vazio)).toEqual(["foto", "telefone", "cpf", "creci"]);
+    expect(camposFaltando(vazio)).toEqual(["foto", "telefone", "cpf"]);
     expect(camposFaltando({ ...completo, nome: "Amanda" })).toEqual(["nome"]);
     expect(camposFaltando({ ...completo, cpf: "111.111.111-11" })).toEqual(["cpf"]);
     expect(camposFaltando({ ...completo, telefone: "1234" })).toEqual(["telefone"]);

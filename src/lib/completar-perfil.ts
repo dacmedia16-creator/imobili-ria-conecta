@@ -10,7 +10,8 @@ import { validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
  * nunca veem a tela.
  *
  * Usa só campos que o perfil já tem (profiles): foto (avatar_url), nome, telefone, CPF, CRECI.
- * ID RE/MAX aparece na tela, mas é opcional (corretor novo pode ainda não ter).
+ * ID RE/MAX e CRECI aparecem na tela, mas são opcionais (corretor novo pode ainda não ter).
+ * CRECI vazio nunca bloqueia (t_5c4bd214); se preenchido, precisa ter formato válido.
  *
  * Para desligar: troque COMPLETAR_PERFIL_ATIVO para false.
  */
@@ -58,7 +59,8 @@ export function camposFaltando(p: PerfilParaCompletar): CampoPerfil[] {
   if (!nomeCompletoValido(p.nome)) faltando.push("nome");
   if (!telefoneValido(p.telefone)) faltando.push("telefone");
   if (!normalizarCpf(p.cpf)) faltando.push("cpf");
-  if (!p.creci?.trim() || !validCreci(p.creci)) faltando.push("creci");
+  // CRECI é opcional (t_5c4bd214): vazio não falta; preenchido com formato inválido, falta.
+  if (p.creci?.trim() && !validCreci(p.creci)) faltando.push("creci");
   return faltando;
 }
 

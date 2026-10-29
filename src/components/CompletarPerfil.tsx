@@ -294,14 +294,14 @@ function CompletarPerfilTela({
         nome: string;
         telefone: string;
         cpf: string | null;
-        creci: string;
+        creci: string | null;
         avatar_url: string | null;
         remax_id?: string;
       } = {
         nome: nome.trim().replace(/\s+/g, " "),
         telefone: telefone.trim(),
         cpf: normalizarCpf(cpf),
-        creci: creci.trim(),
+        creci: creci.trim() || null, // CRECI opcional (t_5c4bd214): vazio grava null.
         avatar_url: url,
       };
       if (rid) patch.remax_id = rid;
@@ -433,7 +433,12 @@ function CompletarPerfilTela({
                 onChange={(e) => setCpf(e.target.value)}
               />
             </Campo>
-            <Campo id="cp-creci" label="CRECI" erro={erro("creci")}>
+            <Campo
+              id="cp-creci"
+              label="CRECI (opcional)"
+              erro={erro("creci")}
+              dica={erro("creci") ? "CRECI inválido. Use só letras, números e - . /" : undefined}
+            >
               <Input
                 id="cp-creci"
                 placeholder="Ex.: 123456-F"
