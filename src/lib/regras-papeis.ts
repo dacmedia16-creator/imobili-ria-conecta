@@ -306,7 +306,7 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
           it(
             "Abre Configurações (vê se as Captações exclusivas estão ligadas) e configura a Assinatura digital (Clicksign).",
           ),
-          it("Dados da imobiliária, Sugestões de regiões e Unidades da captação."),
+          it("Dados da imobiliária, Regiões e sugestões e Unidades da captação."),
         ],
         [it("Não liga nem desliga módulos: isso é do Administrador da plataforma.")],
       ),
@@ -346,7 +346,7 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
         ],
       ),
       configuracoes: area(
-        [it("Dados da imobiliária, Sugestões de regiões e Unidades da captação.")],
+        [it("Dados da imobiliária, Regiões e sugestões e Unidades da captação.")],
         [
           it(
             "Não abre Configurações nem Assinatura digital (Clicksign): só o Administrador principal.",
