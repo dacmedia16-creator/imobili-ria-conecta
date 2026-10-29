@@ -77,9 +77,15 @@ import {
   clicksignCaptureSigned,
   clicksignManualInstructions,
   currentSignedDoc,
+  fixarTestemunhasPdf,
   hasSignedStep,
+  testemunhasCaptacao,
+  testemunhasParaPdf,
+  usarTestemunhasAuto,
   type ClicksignSignedInfo,
+  type TestemunhasCaptacao,
 } from "@/lib/exclusive-clicksign";
+import { TestemunhasAutomaticas } from "@/components/exclusividades/TestemunhasAutomaticas";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
 import { OwnerBlocks } from "@/components/exclusividades/OwnerBlocks";
 import { useCaptureAutosave } from "@/components/exclusividades/useCaptureAutosave";
@@ -254,6 +260,8 @@ function ExclusiveDetail() {
   const [creci, setCreci] = useState("");
   const [docs, setDocs] = useState<CaptureDocument[]>([]);
   const [history, setHistory] = useState<CaptureEvent[]>([]);
+  // Testemunhas automáticas da Clicksign (corretor + gestor da equipe, t_e8078685).
+  const [testemunhas, setTestemunhas] = useState<TestemunhasCaptacao | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
@@ -431,6 +439,8 @@ function ExclusiveDetail() {
     vendaDaCaptacao(id)
       .then(setVendaInfo)
       .catch(() => setVendaInfo({ pode_virar: false, venda: null }));
+    // Falha aqui = null: a tela mostra o aviso e o envio pela Clicksign fica bloqueado.
+    testemunhasCaptacao(supabase as unknown as SupabaseClient, id).then(setTestemunhas);
     setDirty(false);
   }, [id]);
   useEffect(() => {
@@ -612,11 +622,21 @@ function ExclusiveDetail() {
     // Contrato é gerado pelo gestor depois do envio; só salva se ainda for editável.
     if (salvar) await saveCapture(id, saved, cpf, creci);
     // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
+    // Testemunhas automáticas (t_e8078685), lidas agora: com Clicksign e cadastro completo, o PDF sai
+    // com nome e CPF do corretor e do gestor (RG em branco). Senão, as digitadas, como antes.
+    const tw = await testemunhasCaptacao(supabase as unknown as SupabaseClient, id);
+    setTestemunhas(tw);
+    const autoTw = usarTestemunhasAuto(tw);
     // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
     const source = contractSource(capture, units);
     let bytes = await fillExclusiveTemplate(
       await downloadCaptureTemplate(source.file),
-      { ...capture, form_data: saved, broker_cpf: cpf, broker_creci: creci },
+      {
+        ...capture,
+        form_data: testemunhasParaPdf(saved, tw),
+        broker_cpf: cpf,
+        broker_creci: creci,
+      },
       true,
       hojeSaoPaulo(),
       source.unit,
@@ -653,8 +673,22 @@ function ExclusiveDetail() {
     // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
     // arquivo salvo na captação e o que o gestor envia ao Clicksign.
     await uploadCaptureDocument(id, "gerado", 0, file);
+    // Registra quem saiu impresso: o envio pela Clicksign só aceita o PDF com as testemunhas atuais.
+    let avisoTw: string | null = null;
+    if (autoTw && tw) {
+      try {
+        await fixarTestemunhasPdf(supabase as unknown as SupabaseClient, id, tw);
+      } catch (e) {
+        avisoTw = errorMessage(e, "Não foi possível registrar as testemunhas do PDF");
+      }
+    } else if (tw?.aplica) {
+      avisoTw =
+        "O PDF saiu com as testemunhas digitadas na captação. Para enviar pela Clicksign, complete as testemunhas automáticas e gere o PDF de novo.";
+    }
+    setTestemunhas(await testemunhasCaptacao(supabase as unknown as SupabaseClient, id));
     await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
     toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
+    if (avisoTw) toast.warning(avisoTw, { duration: 12000 });
   };
   // PDF completo (depois da aprovação): contrato ASSINADO + todos os documentos anexados.
   // O Plano de Marketing já está dentro do contrato assinado, então não é repetido.
@@ -1847,6 +1881,24 @@ function ExclusiveDetail() {
               )}
             </CardContent>
           </Card>
+          {testemunhas?.aplica && !manual ? (
+            <Card data-testid="card-testemunhas-auto">
+              <CardHeader>
+                <CardTitle>Testemunhas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TestemunhasAutomaticas
+                  db={supabase as unknown as SupabaseClient}
+                  captureId={capture.id}
+                  testemunhas={testemunhas}
+                  podeTrocar={
+                    !archived && ["rascunho", "devolvida", "enviada"].includes(capture.status)
+                  }
+                  onChange={setTestemunhas}
+                />
+              </CardContent>
+            </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle>Testemunhas (opcionais)</CardTitle>
@@ -1865,6 +1917,7 @@ function ExclusiveDetail() {
               ))}
             </CardContent>
           </Card>
+          )}
           {editable && (
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy || !dirty} onClick={save}>
@@ -2136,6 +2189,8 @@ function ExclusiveDetail() {
                 temAssinado={!!currentSigned}
                 onManual={() => action("assinatura")}
                 onModo={setClicksignModo}
+                testemunhas={testemunhas}
+                onTestemunhas={setTestemunhas}
               />
             )}
           {step === approvalStep &&

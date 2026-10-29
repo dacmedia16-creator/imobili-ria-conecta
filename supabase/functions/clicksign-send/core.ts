@@ -30,10 +30,55 @@ export const NOTIFY_FAILED_MSG =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Testemunhas automáticas da captação (t_e8078685), decididas no banco
+ * (exclusive_testemunhas_resolver): 1 = corretor da captação, 2 = gestor da equipe (ou o escolhido
+ * pelo staff). `problemas` vazio e `pdfOk` = pode enviar.
+ */
+export type TestemunhasAuto = {
+  corretor: PersonInput;
+  gestor: PersonInput | null;
+  problemas: string[];
+  pdfOk: boolean;
+};
+
+/**
+ * Converte a resposta de exclusive_testemunhas_resolver. Resposta ausente/estranha = problema
+ * (fail-closed: nunca vira testemunha vazia).
+ */
+export function testemunhasDoBanco(raw: unknown): TestemunhasAuto {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const pessoa = (v: unknown): PersonInput | null => {
+    if (!v || typeof v !== "object") return null;
+    const o = v as Record<string, unknown>;
+    return {
+      nome: typeof o.nome === "string" ? o.nome : "",
+      email: typeof o.email === "string" ? o.email : "",
+    };
+  };
+  const problemas = Array.isArray(r.problemas)
+    ? r.problemas.filter((x): x is string => typeof x === "string")
+    : [];
+  const corretor = pessoa(r.corretor);
+  if (!corretor || r.ok !== true) {
+    if (!problemas.length) problemas.push("Não foi possível conferir as testemunhas da captação");
+  }
+  return {
+    corretor: corretor ?? { nome: "", email: "" },
+    gestor: pessoa(r.gestor),
+    problemas,
+    pdfOk: r.pdf_ok === true,
+  };
+}
+
+export const TESTEMUNHAS_PDF_MSG =
+  "As testemunhas impressas no PDF não são as atuais (a testemunha mudou depois de gerar). Gere o PDF para assinatura de novo.";
+
 export type SendContext = {
   organizationId: string;
   form: Record<string, unknown>;
-  corretor: PersonInput;
+  /** Testemunhas do banco. O corretor assina só como testemunha 1 (não como parte). */
+  testemunhas: TestemunhasAuto;
   /** Signatários válidos da imobiliária (usuários ativos da org com e-mail do cadastro). */
   imobiliaria: Array<{ id: string; nome: string; email: string }>;
   testMode: boolean;
@@ -74,15 +119,7 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
         ),
       ]
     : [];
-  const testemunhas = Array.isArray(b.testemunhas)
-    ? b.testemunhas.slice(0, WITNESS_COUNT + 1).map((t) => {
-        const o = (t ?? {}) as Record<string, unknown>;
-        return {
-          nome: typeof o.nome === "string" ? o.nome.slice(0, 200) : "",
-          email: typeof o.email === "string" ? o.email.slice(0, 200) : "",
-        };
-      })
-    : [];
+  // Testemunhas enviadas pela tela são IGNORADAS (t_e8078685): vêm do cadastro, decididas no banco.
 
   let org: string;
   try {
@@ -99,11 +136,22 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
       details: ["Escolha somente pessoas da lista da imobiliária"],
     });
   }
+  // Nunca envia com testemunha vazia ou incompleta: o motivo vem do banco, sem e-mail nem CPF.
+  const tw = ctx.testemunhas;
+  if (tw.problemas.length || !tw.gestor) {
+    return fail(422, "Testemunhas incompletas", {
+      code: "testemunhas",
+      details: tw.problemas.length ? tw.problemas : ["Testemunha 2: escolha um gestor ou team leader"],
+    });
+  }
+  if (!tw.pdfOk) {
+    return fail(422, TESTEMUNHAS_PDF_MSG, { code: "testemunhas:pdf" });
+  }
   const { signers, errors } = buildCaptureSigners({
     form: ctx.form,
-    corretor: ctx.corretor,
+    corretor: null,
     imobiliaria: imobIds.map((id) => byId.get(id)!),
-    testemunhas,
+    testemunhas: [tw.corretor, tw.gestor],
   });
   if (errors.length) return fail(422, "Dados incompletos para assinatura", { details: errors });
 
@@ -112,6 +160,7 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
       papel: s.papel,
       nome: s.nome,
       email_sha256: await sha256Hex(s.email),
+      ...(s.papel === "testemunha" ? { cadastro: true } : {}),
     })),
   );
   if (ctx.testMode) {
