@@ -24,6 +24,7 @@ import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/cr
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
+import { Route as AuthenticatedFichaColaboradoresRouteImport } from './routes/_authenticated/ficha-colaboradores'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
 import { Route as AuthenticatedMeusLeadsRouteImport } from './routes/_authenticated/meus-leads'
@@ -143,6 +144,12 @@ const AuthenticatedFeedbackRoute = AuthenticatedFeedbackRouteImport.update({
   path: '/feedback',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFichaColaboradoresRoute =
+  AuthenticatedFichaColaboradoresRouteImport.update({
+    id: '/ficha-colaboradores',
+    path: '/ficha-colaboradores',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
@@ -392,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
+  '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
@@ -449,6 +457,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
+  '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
@@ -508,6 +517,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
+  '/_authenticated/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/_authenticated/meus-leads': typeof AuthenticatedMeusLeadsRoute
@@ -567,6 +577,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/equipe'
     | '/feedback'
+    | '/ficha-colaboradores'
     | '/financeiro'
     | '/mapa-captacoes'
     | '/meus-leads'
@@ -624,6 +635,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/equipe'
     | '/feedback'
+    | '/ficha-colaboradores'
     | '/financeiro'
     | '/mapa-captacoes'
     | '/meus-leads'
@@ -682,6 +694,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/equipe'
     | '/_authenticated/feedback'
+    | '/_authenticated/ficha-colaboradores'
     | '/_authenticated/financeiro'
     | '/_authenticated/mapa-captacoes'
     | '/_authenticated/meus-leads'
@@ -846,6 +859,13 @@ declare module '@tanstack/react-router' {
       path: '/feedback'
       fullPath: '/feedback'
       preLoaderRoute: typeof AuthenticatedFeedbackRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ficha-colaboradores': {
+      id: '/_authenticated/ficha-colaboradores'
+      path: '/ficha-colaboradores'
+      fullPath: '/ficha-colaboradores'
+      preLoaderRoute: typeof AuthenticatedFichaColaboradoresRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/financeiro': {
@@ -1147,6 +1167,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
+  AuthenticatedFichaColaboradoresRoute: typeof AuthenticatedFichaColaboradoresRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
   AuthenticatedMeusLeadsRoute: typeof AuthenticatedMeusLeadsRoute
@@ -1193,6 +1214,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
+  AuthenticatedFichaColaboradoresRoute: AuthenticatedFichaColaboradoresRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
   AuthenticatedMeusLeadsRoute: AuthenticatedMeusLeadsRoute,

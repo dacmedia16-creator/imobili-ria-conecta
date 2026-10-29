@@ -39,6 +39,8 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/visao-executiva", hasAny(["gestor", "team_leader", "admin", "super_admin", "financeiro"])],
     ["/painel-equipe", podeAcessarPainelEquipe(roles)],
     ["/equipe", hasAny(["gestor", "team_leader", "admin", "super_admin"])],
+    // Ficha dos colaboradores (t_618b64bc): item novo, só staff e administração.
+    ["/ficha-colaboradores", hasAny(["staff", "admin", "super_admin"])],
     ["/reservas-salas", roomVisible],
     ["/comparativo-comissao", hasAny(["admin", "super_admin", "financeiro"])],
     [
@@ -181,8 +183,14 @@ describe("menu lateral agrupado", () => {
       expect(vê([p], true)).toBe(false);
   });
 
-  it('"Entrar como" da plataforma esconde só os 3 itens da plataforma (card t_722085c6)', () => {
-    const PLATAFORMA = ["/plataforma/imobiliarias", "/plataforma/usuarios", "/plataforma/chamados"];
+  it('"Entrar como" da plataforma esconde os 3 itens da plataforma e a Ficha dos colaboradores (t_722085c6, t_618b64bc)', () => {
+    // + Ficha dos colaboradores (t_618b64bc): dado sensível, o banco recusa na visão da plataforma.
+    const PLATAFORMA = [
+      "/plataforma/imobiliarias",
+      "/plataforma/usuarios",
+      "/plataforma/chamados",
+      "/ficha-colaboradores",
+    ];
     const base: MenuContexto = {
       roles: ["super_admin", "admin"], // papéis virtuais do contexto (CONTEXT_ROLES)
       platformAdmin: true,

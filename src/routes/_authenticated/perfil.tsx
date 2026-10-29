@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/visual/base";
 import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
 import { MeusDadosPagamento } from "@/components/vendas/DadosPagamento";
 import { MinhaDataNascimento } from "@/components/perfil/MinhaDataNascimento";
+import { MinhaFichaColaborador } from "@/components/ficha/MinhaFichaColaborador";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -716,6 +717,8 @@ function MeuAcesso() {
           )}
         </CardContent>
       </Card>
+
+      <MinhaFichaColaborador />
 
       {canUsePositioning && (
         <Card>

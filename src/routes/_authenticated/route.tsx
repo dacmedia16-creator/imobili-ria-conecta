@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { CompletarPerfilGate } from "@/components/CompletarPerfil";
+import { FichaColaboradorGate } from "@/components/ficha/FichaColaboradorGate";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -13,9 +14,11 @@ export const Route = createFileRoute("/_authenticated")({
   component: () => (
     <AuthProvider>
       <CompletarPerfilGate>
-        <AppShell>
-          <Outlet />
-        </AppShell>
+        <FichaColaboradorGate>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+        </FichaColaboradorGate>
       </CompletarPerfilGate>
     </AuthProvider>
   ),
