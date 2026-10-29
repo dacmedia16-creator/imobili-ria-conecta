@@ -143,7 +143,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.positioning_region_orgs l
                   JOIN public.positioning_regions r ON r.id = l.region_id AND r.ativo
                   WHERE l.region_id = NEW.region_id AND l.organization_id = NEW.organization_id
-                    AND l.status = 'ativa') THEN
+                    AND l.status = 'ativa' FOR SHARE OF l) THEN
     RAISE EXCEPTION 'Essa regiao nao esta disponivel para a sua imobiliaria.' USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
@@ -359,6 +359,12 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM public.corretor_positioning_regions c WHERE c.region_id = _region_id AND c.organization_id <> _org) THEN
       RAISE EXCEPTION 'Essa regiao e usada por corretores de outra imobiliaria; so o administrador da plataforma pode altera-la.'
+        USING ERRCODE = '42501';
+    END IF;
+    -- Outra imobiliária já aprovou a região (ativa para ela): a criadora não decide mais por ela.
+    IF EXISTS (SELECT 1 FROM public.positioning_region_orgs l
+                WHERE l.region_id = _region_id AND l.organization_id <> _org AND l.status = 'ativa') THEN
+      RAISE EXCEPTION 'Essa regiao ja foi aprovada por outra imobiliaria; so o administrador da plataforma pode altera-la.'
         USING ERRCODE = '42501';
     END IF;
   END IF;
@@ -600,6 +606,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
   JOIN public.profiles p ON p.organization_id = o.id
   LEFT JOIN public.corretor_positioning_regions c ON c.corretor_id = p.id AND c.organization_id = o.id
   LEFT JOIN public.positioning_regions r ON r.id = c.region_id AND r.ativo
+   AND EXISTS (SELECT 1 FROM public.positioning_region_orgs l
+                WHERE l.region_id = r.id AND l.organization_id = o.id AND l.status = 'ativa')
   WHERE p.ativo
     AND EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = p.id AND ur.role = 'corretor'::public.app_role
                   AND ur.organization_id = o.id)

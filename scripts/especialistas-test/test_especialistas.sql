@@ -247,6 +247,20 @@ SELECT public.review_positioning_region_suggestion((SELECT id FROM public.positi
 SELECT t.dono();
 SELECT t.ok((SELECT count(*) FROM public.corretor_positioning_regions WHERE corretor_id = :c1UE) = 2, 'S10 limite de 2 locais respeitado');
 
+-- Revisão de segurança (t_68769cc7): região aprovada por outra imobiliária, mesmo sem corretor dela, não
+-- pode ser renomeada/desativada pela criadora.
+SELECT t.como(:aUE);
+SELECT public.positioning_region_create('Sorocaba', 'SP', null, 'Regiao Aprovada B', 'bairro');
+SELECT t.como(:aZZ);
+SELECT public.positioning_region_decidir(t.rid('Regiao Aprovada B'), 'aprovar');
+SELECT t.como(:aUE);
+SELECT t.ok(t.falha(format('SELECT public.positioning_region_editar(%s, %L, null, %L, false)', t.rid('Regiao Aprovada B'), 'Regiao Aprovada B', 'bairro'), 'aprovada por outra'),
+  'E07 criadora não desativa região já aprovada por outra imobiliária (sem corretor dela)');
+SELECT t.ok(t.falha(format('SELECT public.positioning_region_editar(%s, %L, null, %L, true)', t.rid('Regiao Aprovada B'), 'Outro Nome', 'bairro'), 'aprovada por outra'),
+  'E08 criadora não renomeia região já aprovada por outra imobiliária');
+SELECT t.dono();
+SELECT t.ok(t.st(t.rid('Regiao Aprovada B'), 'zz-teste') = 'ativa', 'E09 aprovação da ZZ continua valendo');
+
 SELECT t.dono();
 SELECT n, CASE WHEN ok THEN 'OK  ' ELSE 'FALHOU' END, label FROM t.res ORDER BY n;
 SELECT count(*) FILTER (WHERE ok) || '/' || count(*) AS resultado FROM t.res;
