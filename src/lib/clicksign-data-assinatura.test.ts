@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { dataAssinaturaClicksign, motivoSemData, textoDoPdf } from "./clicksign-data-assinatura";
 
 // Trechos no formato real do log da Clicksign (nomes fictícios).
-const CAB = "Datas e horários em GMT -03:00 Brasilia Log gerado em 09 de outubro de 2026. Versão v1.51.0.";
+const CAB =
+  "Datas e horários em GMT -03:00 Brasilia Log gerado em 09 de outubro de 2026. Versão v1.51.0.";
 const FIM =
   "09 out 2026, 12:07:00 Processo de assinatura finalizado automaticamente. Motivo: finalização automática após a última assinatura habilitada. Processo de assinatura concluído para o documento número 6931540b. Documento assinado com validade jurídica. Clicksign";
 
@@ -52,13 +53,22 @@ describe("data de assinatura lida do PDF da Clicksign", () => {
   });
 
   it("PDF escaneado (sem texto) => sem data", () => {
-    expect(dataAssinaturaClicksign("", "2026-10-29")).toMatchObject({ ok: false, motivo: "sem_texto" });
-    expect(dataAssinaturaClicksign("  \n \f ", "2026-10-29")).toMatchObject({ ok: false, motivo: "sem_texto" });
+    expect(dataAssinaturaClicksign("", "2026-10-29")).toMatchObject({
+      ok: false,
+      motivo: "sem_texto",
+    });
+    expect(dataAssinaturaClicksign("  \n \f ", "2026-10-29")).toMatchObject({
+      ok: false,
+      motivo: "sem_texto",
+    });
   });
 
   it("documento com marca Clicksign mas sem nenhuma assinatura => sem data", () => {
     const t = "Clicksign 052978d0-86bd Conta de Energia Elétrica Data de Emissão: 23/06/2025";
-    expect(dataAssinaturaClicksign(t, "2026-10-29")).toMatchObject({ ok: false, motivo: "sem_assinaturas" });
+    expect(dataAssinaturaClicksign(t, "2026-10-29")).toMatchObject({
+      ok: false,
+      motivo: "sem_assinaturas",
+    });
   });
 
   it("envelope expirado por data limite (faltou assinatura) => sem data", () => {
@@ -77,7 +87,10 @@ describe("data de assinatura lida do PDF da Clicksign", () => {
 
   it("envelope ainda em andamento (sem 'processo finalizado') => sem data", () => {
     const t = [CAB, "08 out 2026, 11:27:13 A assinou. Pontos de autenticação Clicksign"].join("\n");
-    expect(dataAssinaturaClicksign(t, "2026-10-29")).toMatchObject({ ok: false, motivo: "nao_finalizado" });
+    expect(dataAssinaturaClicksign(t, "2026-10-29")).toMatchObject({
+      ok: false,
+      motivo: "nao_finalizado",
+    });
   });
 
   it("recusa não conta como assinatura", () => {
@@ -116,6 +129,9 @@ describe("data de assinatura lida do PDF da Clicksign", () => {
       }),
     };
     const texto = await textoDoPdf(fake, new Uint8Array([1]));
-    expect(dataAssinaturaClicksign(texto, "2026-10-29")).toMatchObject({ ok: true, data: "2026-10-08" });
+    expect(dataAssinaturaClicksign(texto, "2026-10-29")).toMatchObject({
+      ok: true,
+      data: "2026-10-08",
+    });
   });
 });

@@ -264,7 +264,9 @@ function ExclusiveDetail() {
   const [reason, setReason] = useState("");
   const [signedOn, setSignedOn] = useState("");
   // Data lida do PDF assinado (t_834c16c9): sugestão que o corretor/gestor confere antes de salvar.
-  const [dataPdf, setDataPdf] = useState<{ data: string | null; aviso: string | null } | null>(null);
+  const [dataPdf, setDataPdf] = useState<{ data: string | null; aviso: string | null } | null>(
+    null,
+  );
   const sugestaoPdf = useRef<string | null | undefined>(undefined);
   // "Corrigir dados" na captação aprovada (t_9f9f0c6a): libera só imóvel, ficha e proprietários.
   const [corrigindo, setCorrigindo] = useState(false);
@@ -688,9 +690,7 @@ function ExclusiveDetail() {
           sugestaoPdf.current = l.ok ? l.data : null;
           setDataPdf({ data: l.ok ? l.data : null, aviso: motivoSemData(l) });
           if (l.ok)
-            toast.info(
-              `Data de assinatura lida do PDF: ${formatDateBR(l.data)}. Confira e salve.`,
-            );
+            toast.info(`Data de assinatura lida do PDF: ${formatDateBR(l.data)}. Confira e salve.`);
         } catch {
           sugestaoPdf.current = null;
           setDataPdf({ data: null, aviso: "Não foi possível ler a data do PDF. Informe a data." });
@@ -2113,8 +2113,8 @@ function ExclusiveDetail() {
                 </div>
                 {dicaDataPdf}
                 <p className="text-xs text-muted-foreground">
-                  O prazo da exclusividade e o Plano de Marketing contam a partir desta data. Depois da aprovação, só o
-                  gestor corrige.
+                  O prazo da exclusividade e o Plano de Marketing contam a partir desta data. Depois
+                  da aprovação, só o gestor corrige.
                 </p>
               </CardContent>
             </Card>

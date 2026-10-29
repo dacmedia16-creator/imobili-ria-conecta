@@ -43,7 +43,8 @@ const ASSINOU_EM = new RegExp(
 // "Processo de assinatura finalizado automaticamente. Motivo: finalização automática após a última
 // assinatura habilitada." (ou finalizado manualmente). "Motivo: data limite para assinatura foi atingida"
 // = envelope expirado sem todas as assinaturas: não conta como contrato concluído.
-const FINALIZADO = /processo\s+de\s+assinatura\s+finalizado\b[^.]{0,40}\.(?:\s*motivo:\s*([^.]{0,80}))?/gi;
+const FINALIZADO =
+  /processo\s+de\s+assinatura\s+finalizado\b[^.]{0,40}\.(?:\s*motivo:\s*([^.]{0,80}))?/gi;
 
 function finalizadoValido(t: string): boolean {
   for (const m of t.matchAll(FINALIZADO)) if (!/data\s+limite/i.test(m[1] ?? "")) return true;
@@ -54,7 +55,8 @@ export type LeituraDataAssinatura =
   | { ok: true; data: string; assinaturas: number }
   | {
       ok: false;
-      motivo: "sem_texto" | "sem_clicksign" | "sem_assinaturas" | "nao_finalizado" | "data_invalida";
+      motivo:
+        "sem_texto" | "sem_clicksign" | "sem_assinaturas" | "nao_finalizado" | "data_invalida";
       assinaturas: number;
       /** Última assinatura vista, só para conferência humana (nunca preenche o campo sozinha). */
       ultimaVista?: string;

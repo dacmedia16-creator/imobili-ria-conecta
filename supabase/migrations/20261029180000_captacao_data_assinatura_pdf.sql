@@ -221,6 +221,10 @@ BEGIN
   INSERT INTO public.exclusive_history(capture_id, actor_id, action, detail)
     VALUES (_id, _uid, 'data_assinatura', to_char(_date, 'DD/MM/YYYY') || ' · ' || _origem);
 END $function$;
+-- Mesmo dono de exclusive_set_signed_on (padrão das RPCs que gravam na captação).
+GRANT CREATE ON SCHEMA public TO mt_1b_definer;
+ALTER FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) OWNER TO mt_1b_definer;
+REVOKE CREATE ON SCHEMA public FROM mt_1b_definer;
 REVOKE ALL ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) TO authenticated, service_role;
 
