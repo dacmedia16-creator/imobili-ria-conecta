@@ -41,6 +41,7 @@ BEGIN
       RAISE EXCEPTION 'Informe o motivo da perda' USING ERRCODE = '22023';
     END IF;
   END IF;
+  -- Reabrir (sair de ganho/perdido) recomeça o relógio, para o lead não voltar ao banco na hora.
   UPDATE public.leads SET etapa = _etapa, etapa_em = now(), updated_at = now(),
          motivo_perda_id = CASE WHEN _etapa = 'perdido' THEN _motivo_perda_id END,
          motivo_perda_obs = CASE WHEN _etapa = 'perdido' THEN nullif(btrim(coalesce(_obs, '')), '') END,
