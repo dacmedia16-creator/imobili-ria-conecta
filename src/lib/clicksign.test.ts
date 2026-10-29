@@ -17,7 +17,12 @@ import {
   handleWebhook,
   type WebhookDeps,
 } from "../../supabase/functions/clicksign-webhook/core.ts";
-import { canStartEnvelope, envelopeStatusLabel, sendDialogErrors } from "./exclusive-clicksign";
+import {
+  canStartEnvelope,
+  envelopeStatusLabel,
+  sendDialogErrors,
+  type TestemunhasCaptacao,
+} from "./exclusive-clicksign";
 
 const CAP = "11111111-1111-4111-8111-111111111111";
 const ORG = "22222222-2222-4222-8222-222222222222";
@@ -33,6 +38,33 @@ const testemunhas = [
   { nome: "Otávio Testemunha", email: "t2@example.com" },
 ];
 const corretor = { nome: "Carlos Corretor", email: "corretor@example.com" };
+const gestor = { nome: "Gina Gestora", email: "gestor@example.com" };
+/** Testemunhas automáticas como o banco devolve (t_e8078685): corretor + gestor da equipe. */
+const twBanco = { corretor, gestor, problemas: [] as string[], pdfOk: true };
+/** Testemunhas como a tela recebe (sem e-mail). */
+function twTela(over: Partial<TestemunhasCaptacao> = {}): TestemunhasCaptacao {
+  return {
+    aplica: true,
+    corretor: { id: "c1", nome: "Carlos Corretor", cpf: "52998224725", ok: true, falta: [] },
+    gestor: {
+      id: "g1",
+      nome: "Gina Gestora",
+      cpf: "11144477735",
+      ok: true,
+      falta: [],
+      origem: "equipe",
+    },
+    gestorEquipe: { id: "g1", nome: "Gina Gestora" },
+    motivo: null,
+    escolhido: false,
+    problemas: [],
+    ok: true,
+    pdfGerado: true,
+    pdfOk: true,
+    podeGerir: true,
+    ...over,
+  };
+}
 const imobList = [
   { id: IMOB_A, nome: "Vera Imobiliária", email: "vera@example.com" },
   { id: IMOB_B, nome: "Ivo Imobiliária", email: "ivo@example.com" },
@@ -71,7 +103,7 @@ function sendDeps(over: Partial<SendDeps> = {}, failOn?: string) {
     loadContext: vi.fn(async () => ({
       organizationId: ORG,
       form,
-      corretor,
+      testemunhas: twBanco,
       imobiliaria: imobList,
       testMode: false,
       allowlistSha256: [],
@@ -121,22 +153,21 @@ describe("signatários da captação", () => {
     expect(r.errors.join(" ")).not.toMatch(/@/);
   });
   it("a tela aplica as mesmas regras e trava o botão", () => {
-    expect(
-      sendDialogErrors({ form, corretorEmailOk: true, imobiliariaIds: [IMOB_A], testemunhas }),
-    ).toEqual([]);
+    expect(sendDialogErrors({ form, imobiliariaIds: [IMOB_A], testemunhas: twTela() })).toEqual([]);
     const errs = sendDialogErrors({
       form,
-      corretorEmailOk: false,
       imobiliariaIds: [],
-      testemunhas: [testemunhas[0], { nome: "Tânia Outra", email: "t1@example.com" }],
+      testemunhas: twTela({ problemas: ["Testemunha 2 (Gina Gestora): falta CPF"], ok: false }),
     });
     expect(errs).toEqual(
       expect.arrayContaining([
-        "Corretor: o cadastro do captador está sem e-mail",
         "Escolha ao menos 1 pessoa para assinar pela imobiliária",
-        expect.stringMatching(/Testemunha 1 e Testemunha 2/),
+        "Testemunha 2 (Gina Gestora): falta CPF",
       ]),
     );
+    expect(sendDialogErrors({ form, imobiliariaIds: [IMOB_A], testemunhas: null })).toEqual([
+      "Não foi possível conferir as testemunhas. Atualize a página.",
+    ]);
   });
   it("status do envelope e reenvio", () => {
     const base = { is_test: true, created_at: "", error_code: null, signed: false };
@@ -220,7 +251,8 @@ describe("clicksign-send (core)", () => {
     const { deps, cs } = sendDeps();
     const r = await handleSend(deps, body);
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ ok: true, signers: 5 });
+    // proprietário 1 + imobiliária + 2 testemunhas (corretor e gestor); o corretor NÃO é parte
+    expect(r.body).toMatchObject({ ok: true, signers: 4 });
     expect(cs.calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
     // Ativar não envia e-mail na v3: notifica os signatários logo depois da ativação, uma vez.
     const keys = cs.calls.map((c) => `${c.method} ${c.path.replace(/[0-9a-f-]{36}/g, ":id")}`);
@@ -253,8 +285,14 @@ describe("clicksign-send (core)", () => {
       imobiliaria_ids: ["99999999-9999-4999-8999-999999999999"],
     });
     expect(r1.status).toBe(422);
-    const r2 = await handleSend(a.deps, { ...body, testemunhas: [testemunhas[0]] });
+    const ctx = await a.deps.loadContext(ORG, CAP);
+    a.deps.loadContext = vi.fn(async () => ({
+      ...ctx,
+      testemunhas: { ...twBanco, gestor: null, problemas: ["Testemunha 2: sem gestor"] },
+    }));
+    const r2 = await handleSend(a.deps, body);
     expect(r2.status).toBe(422);
+    expect(r2.body.code).toBe("testemunhas");
     expect(a.cs.fetch).not.toHaveBeenCalled();
   });
   it("modo teste: bloqueia e-mail fora da allowlist; libera quando todos estão nela", async () => {
@@ -264,13 +302,9 @@ describe("clicksign-send (core)", () => {
     expect((await handleSend(deps, body)).status).toBe(422);
     expect(cs.fetch).not.toHaveBeenCalled();
     const all = await Promise.all(
-      [
-        "ana@example.com",
-        "corretor@example.com",
-        "vera@example.com",
-        "t1@example.com",
-        "t2@example.com",
-      ].map((e) => sha256Hex(e)),
+      ["ana@example.com", "corretor@example.com", "vera@example.com", "gestor@example.com"].map(
+        (e) => sha256Hex(e),
+      ),
     );
     deps.loadContext = vi.fn(async () => ({ ...ctx, testMode: true, allowlistSha256: all }));
     const ok = await handleSend(deps, body);

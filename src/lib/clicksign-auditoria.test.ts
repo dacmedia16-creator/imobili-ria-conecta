@@ -267,8 +267,12 @@ describe("R3: detalhe da recusa gravado sem dados pessoais", () => {
       error_detail: "documentation inválido",
       signed: false,
     };
-    expect(saleEnvelopeStatusLabel(e)).toContain("Motivo informado pela Clicksign: documentation inválido");
-    expect(envelopeStatusLabel(e)).toContain("Motivo informado pela Clicksign: documentation inválido");
+    expect(saleEnvelopeStatusLabel(e)).toContain(
+      "Motivo informado pela Clicksign: documentation inválido",
+    );
+    expect(envelopeStatusLabel(e)).toContain(
+      "Motivo informado pela Clicksign: documentation inválido",
+    );
     expect(saleEnvelopeStatusLabel({ ...e, error_detail: null })).not.toContain("Motivo");
   });
 });
@@ -280,7 +284,9 @@ describe("R7: teto de 10 MB", () => {
     const { deps } = saleDeps({ fetch, fileBytes: BIG });
     const r = await handleSale(deps, saleSend);
     expect(r.status).toBe(422);
-    expect(r.body.error).toMatch(/O contrato do jurídico tem 10,0 MB e a Clicksign aceita no máximo 10 MB/);
+    expect(r.body.error).toMatch(
+      /O contrato do jurídico tem 10,0 MB e a Clicksign aceita no máximo 10 MB/,
+    );
     expect(r.body.code).toBe("file:too_big");
     expect(deps.insertEnvelope).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
@@ -300,7 +306,12 @@ describe("R7: teto de 10 MB", () => {
         form: {
           proprietario_1: { nome_completo: "Ana Teste Silva", email: "ana@example.com" },
         },
-        corretor: { nome: "Carlos Corretor", email: "carlos@example.com" },
+        testemunhas: {
+          corretor: { nome: "Carlos Corretor", email: "carlos@example.com" },
+          gestor: { nome: "Gina Gestora", email: "gina@example.com" },
+          problemas: [],
+          pdfOk: true,
+        },
         imobiliaria: [{ id: IMOB, nome: "Vera Imobiliaria", email: "vera@example.com" }],
         testMode: false,
         allowlistSha256: [],
@@ -322,7 +333,9 @@ describe("R7: teto de 10 MB", () => {
       ],
     });
     expect(r.status).toBe(422);
-    expect(r.body.error).toMatch(/O PDF do contrato tem .* MB e a Clicksign aceita no máximo 10 MB/);
+    expect(r.body.error).toMatch(
+      /O PDF do contrato tem .* MB e a Clicksign aceita no máximo 10 MB/,
+    );
     expect(deps.insertEnvelope).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
@@ -339,22 +352,25 @@ describe("R7: teto de 10 MB", () => {
     expect(venda.errors[0]).toMatch(/máximo 10 MB/);
     const cap = sendDialogErrors({
       form: {},
-      corretorEmailOk: true,
       imobiliariaIds: [],
-      testemunhas: [],
+      testemunhas: null,
       pdfSize: BIG,
     });
     expect(cap[0]).toMatch(/máximo 10 MB/);
     expect(
-      sendDialogErrors({ form: {}, corretorEmailOk: true, imobiliariaIds: [], testemunhas: [] }).some(
-        (e) => /MB/.test(e),
+      sendDialogErrors({ form: {}, imobiliariaIds: [], testemunhas: null }).some((e) =>
+        /MB/.test(e),
       ),
     ).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------- F) R5
-function reconcileDeps(remote: Route, over: Partial<ReconcileDeps> = {}, errorCode = "activate_unknown") {
+function reconcileDeps(
+  remote: Route,
+  over: Partial<ReconcileDeps> = {},
+  errorCode = "activate_unknown",
+) {
   const { fetch, calls } = fake(remote);
   const deps: ReconcileDeps = {
     fetch,
@@ -441,9 +457,9 @@ describe("R5: Conferir na Clicksign (envio sem confirmação)", () => {
     expect(canReconcile(true, { ...base, updated_at: "2026-10-19T11:50:00Z" }, now)).toBe(true);
     expect(canReconcile(true, { ...base, error_code: "activate_unknown" }, now)).toBe(true);
     expect(canReconcile(false, { ...base, error_code: "activate_unknown" }, now)).toBe(false);
-    expect(canReconcile(true, { ...base, status: "running", error_code: "activate_unknown" }, now)).toBe(
-      false,
-    );
+    expect(
+      canReconcile(true, { ...base, status: "running", error_code: "activate_unknown" }, now),
+    ).toBe(false);
   });
 });
 

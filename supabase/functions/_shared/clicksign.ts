@@ -96,7 +96,11 @@ function ownerFilled(o: Record<string, unknown> | null | undefined): boolean {
 
 export type BuildInput = {
   form: Record<string, unknown>;
-  corretor: PersonInput;
+  /**
+   * Corretor como PARTE (real_estate_broker). Na captação, desde t_e8078685 o corretor assina só
+   * como testemunha: o envio passa null e ele vem em `testemunhas`. Mantido para compatibilidade.
+   */
+  corretor?: PersonInput | null;
   /** Signatários da Imobiliária JÁ filtrados pelo servidor (usuários da org, com e-mail do cadastro). */
   imobiliaria: PersonInput[];
   testemunhas: PersonInput[];
@@ -128,7 +132,7 @@ export function buildCaptureSigners(input: BuildInput): {
       `Proprietário ${i + 1}`,
     );
   });
-  push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
+  if (input.corretor) push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
   if (input.imobiliaria.length < 1)
     errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
   if (input.imobiliaria.length > MAX_IMOBILIARIA_SIGNERS)
@@ -721,6 +725,11 @@ export type StoredSigner = {
   email_sha256: string;
   label?: string;
   role?: string;
+  /**
+   * Veio do cadastro (testemunhas automáticas da captação, t_e8078685): não é editável pelo
+   * envelope; corrige-se no cadastro da pessoa ou trocando a testemunha antes do envio.
+   */
+  cadastro?: boolean;
 };
 /** Situação mostrada por signatário. A API v3 não tem evento de "e-mail não entregue". */
 export type SignerStatus = "enviado" | "abriu" | "assinou";

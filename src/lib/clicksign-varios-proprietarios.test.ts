@@ -144,9 +144,8 @@ describe("signatários: todos os proprietários assinam", () => {
     );
     const tela = sendDialogErrors({
       form: f,
-      corretorEmailOk: true,
       imobiliariaIds: ["x"],
-      testemunhas: base.testemunhas.map((t) => ({ nome: t.nome, email: t.email })) as never,
+      testemunhas: null,
     });
     expect(tela).toContain("Proprietário 4: e-mail ausente ou inválido no cadastro");
   });

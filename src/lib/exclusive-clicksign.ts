@@ -79,30 +79,202 @@ export async function clicksignCaptureConfig(
 
 export type Testemunha = { nome: string; email: string };
 
-/**
- * Testemunhas do modal da Clicksign a partir das testemunhas já cadastradas na captação
- * (form.testemunha_1/2: nome e, se houver, e-mail). Só preenche o que está vazio no modal:
- * o que a pessoa já digitou ali nunca é sobrescrito. Continua tudo editável.
- */
-export function witnessesFromForm(
-  form: Record<string, unknown> | null | undefined,
-  current?: Testemunha[],
-): Testemunha[] {
-  return Array.from({ length: WITNESS_COUNT }, (_, i) => {
-    const w = (form?.[`testemunha_${i + 1}`] ?? {}) as Record<string, unknown>;
-    const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-    const cur = current?.[i] ?? { nome: "", email: "" };
-    return {
-      nome: cur.nome.trim() ? cur.nome : str(w.nome),
-      email: cur.email.trim() ? cur.email : str(w.email),
-    };
-  });
+// ---------- testemunhas automáticas da captação (t_e8078685) ----------
+// Testemunha 1 = corretor da captação; testemunha 2 = gestor da equipe dele (ou outro gestor/TL da
+// mesma imobiliária escolhido pelo staff). Tudo decidido no banco (exclusive_testemunhas*); a edge
+// clicksign-send monta os signatários pelo banco e ignora o que vier da tela.
+
+export type TestemunhaPessoa = {
+  id: string;
+  nome: string;
+  /** Só para quem gera o PDF ou envia (pode_gerir). Vazio = sem CPF válido. */
+  cpf?: string;
+  ok: boolean;
+  falta: string[];
+  origem?: "equipe" | "escolhido";
+};
+
+export type TestemunhasCaptacao = {
+  /** A imobiliária usa a Clicksign na captação: testemunhas automáticas valem. */
+  aplica: boolean;
+  corretor: TestemunhaPessoa;
+  gestor: TestemunhaPessoa | null;
+  /** Líder da equipe do corretor (padrão), mesmo quando outro foi escolhido. */
+  gestorEquipe: { id: string; nome: string } | null;
+  /** Por que não há gestor padrão. */
+  motivo: "sem_equipe" | "corretor_e_lider" | null;
+  escolhido: boolean;
+  /** Mensagens prontas do banco (sem e-mail nem CPF). Vazio = testemunhas completas. */
+  problemas: string[];
+  ok: boolean;
+  pdfGerado: boolean;
+  /** O PDF gerado tem impressas as testemunhas atuais. */
+  pdfOk: boolean;
+  podeGerir: boolean;
+  /** Impressão digital de nome+CPF das testemunhas (só para quem gere; vai de volta ao fixar). */
+  dados?: string;
+};
+
+function pessoa(v: unknown): TestemunhaPessoa | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const s = (x: unknown) => (typeof x === "string" ? x : "");
+  return {
+    id: s(o.id),
+    nome: s(o.nome),
+    ...(typeof o.cpf === "string" ? { cpf: o.cpf } : {}),
+    ok: o.ok === true,
+    falta: Array.isArray(o.falta) ? o.falta.filter((x): x is string => typeof x === "string") : [],
+    ...(o.origem === "equipe" || o.origem === "escolhido" ? { origem: o.origem } : {}),
+  };
 }
+
+/** Converte a resposta de exclusive_testemunhas. Formato inesperado = null (tela trata como falha). */
+export function parseTestemunhas(raw: unknown): TestemunhasCaptacao | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const corretor = pessoa(r.corretor);
+  if (!corretor) return null;
+  const ge = r.gestor_equipe as Record<string, unknown> | null | undefined;
+  return {
+    aplica: r.aplica === true,
+    corretor,
+    gestor: pessoa(r.gestor),
+    gestorEquipe:
+      ge && typeof ge.id === "string"
+        ? { id: ge.id, nome: typeof ge.nome === "string" ? ge.nome : "" }
+        : null,
+    motivo: r.motivo === "sem_equipe" || r.motivo === "corretor_e_lider" ? r.motivo : null,
+    escolhido: r.escolhido === true,
+    problemas: Array.isArray(r.problemas)
+      ? r.problemas.filter((x): x is string => typeof x === "string")
+      : [],
+    ok: r.ok === true,
+    pdfGerado: r.pdf_gerado === true,
+    pdfOk: r.pdf_ok === true,
+    podeGerir: r.pode_gerir === true,
+    ...(typeof r.dados === "string" ? { dados: r.dados } : {}),
+  };
+}
+
+/** Lê as testemunhas da captação. Falha = null (a tela não deixa enviar nem gera com elas). */
+export async function testemunhasCaptacao(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<TestemunhasCaptacao | null> {
+  try {
+    const { data, error } = await db.rpc("exclusive_testemunhas", { _id: captureId });
+    if (error) return null;
+    return parseTestemunhas(data);
+  } catch {
+    return null;
+  }
+}
+
+export type CandidatoTestemunha = {
+  id: string;
+  nome: string;
+  ok: boolean;
+  falta: string | null;
+  daEquipe: boolean;
+};
+
+/** Gestores/team leaders ativos da MESMA imobiliária (o banco filtra). Sem e-mail nem CPF. */
+export async function candidatosTestemunha(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<CandidatoTestemunha[]> {
+  const { data, error } = await db.rpc("exclusive_testemunhas_candidatos", { _id: captureId });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((c) => ({
+    id: String(c.id ?? ""),
+    nome: typeof c.nome === "string" ? c.nome : "",
+    ok: c.ok === true,
+    falta: typeof c.falta === "string" ? c.falta : null,
+    daEquipe: c.da_equipe === true,
+  }));
+}
+
+/** Escolhe a testemunha 2 (null = volta para o gestor da equipe). O banco confere tudo de novo. */
+export async function escolherTestemunhaGestor(
+  db: SupabaseClient,
+  captureId: string,
+  userId: string | null,
+): Promise<TestemunhasCaptacao | null> {
+  const { data, error } = await db.rpc("exclusive_testemunha_gestor_escolher", {
+    _id: captureId,
+    _user: userId,
+  });
+  if (error) throw new Error(error.message);
+  return parseTestemunhas(data);
+}
+
+/**
+ * Registra quem foi impresso no PDF gerado (o envio pela Clicksign confere). `path` = caminho do
+ * arquivo que ESTA tela acabou de subir: se outro PDF foi gerado no meio, o banco recusa.
+ */
+export async function fixarTestemunhasPdf(
+  db: SupabaseClient,
+  captureId: string,
+  t: TestemunhasCaptacao,
+  path: string,
+): Promise<void> {
+  const { error } = await db.rpc("exclusive_testemunhas_fixar", {
+    _id: captureId,
+    _corretor: t.corretor.id,
+    _gestor: t.gestor?.id ?? null,
+    _path: path,
+    _dados: t.dados ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Testemunhas que vão impressas no contrato. Com as automáticas completas: nome e CPF do cadastro;
+ * RG fica em branco (o cadastro não tem RG). Sem automáticas (imobiliária sem Clicksign ou cadastro
+ * incompleto): as digitadas na captação, como antes.
+ */
+export function testemunhasParaPdf<
+  F extends { testemunha_1: Record<string, unknown>; testemunha_2: Record<string, unknown> },
+>(form: F, t: TestemunhasCaptacao | null): F {
+  if (!usarTestemunhasAuto(t)) return form;
+  const w = (p: TestemunhaPessoa) => ({ nome: p.nome, rg: "", cpf: p.cpf ?? "" });
+  return { ...form, testemunha_1: w(t!.corretor), testemunha_2: w(t!.gestor!) } as F;
+}
+
+/** As automáticas valem e estão completas (com CPF visível para quem gera). */
+export function usarTestemunhasAuto(t: TestemunhasCaptacao | null): boolean {
+  return (
+    !!t &&
+    t.aplica &&
+    t.ok &&
+    !!t.gestor &&
+    !!t.corretor.cpf &&
+    !!t.gestor.cpf &&
+    t.corretor.id !== t.gestor.id
+  );
+}
+
+/** Texto curto de cada testemunha para a tela (sem e-mail nem CPF). */
+export function rotuloTestemunha(p: TestemunhaPessoa | null, papel: string): string {
+  if (!p) return `${papel}: não definida`;
+  const nome = p.nome || "sem nome no cadastro";
+  return p.ok ? `${papel}: ${nome}` : `${papel}: ${nome} (falta ${p.falta.join(", ")})`;
+}
+
+/** Mensagem da tela quando não há gestor padrão. */
+export function avisoSemGestor(t: TestemunhasCaptacao): string | null {
+  if (t.gestor) return null;
+  return t.motivo === "corretor_e_lider"
+    ? "O corretor é o próprio líder da equipe, então não pode ser as duas testemunhas. Escolha outro gestor ou team leader desta imobiliária."
+    : "O corretor não está em nenhuma equipe. Escolha um gestor ou team leader desta imobiliária para ser a testemunha 2.";
+}
+
 export type SendDialogInput = {
   form: Record<string, unknown> | null | undefined;
-  corretorEmailOk: boolean;
   imobiliariaIds: string[];
-  testemunhas: Testemunha[];
+  /** Testemunhas automáticas (null = não deu para conferir: bloqueia). */
+  testemunhas: TestemunhasCaptacao | null;
   /** Tamanho do PDF gerado em bytes (null/ausente = desconhecido; o servidor confere). */
   pdfSize?: number | null;
 };
@@ -138,18 +310,22 @@ export function sendDialogErrors(input: SendDialogInput): string[] {
     if (!validEmail(o.email)) errors.push(`${label}: e-mail ausente ou inválido no cadastro`);
     else emails.push([normEmail(o.email), label]);
   });
-  if (!input.corretorEmailOk) errors.push("Corretor: o cadastro do captador está sem e-mail");
   if (input.imobiliariaIds.length < 1)
     errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
-  if (input.testemunhas.length !== WITNESS_COUNT) {
-    errors.push(`Informe exatamente ${WITNESS_COUNT} testemunhas`);
-  }
-  input.testemunhas.slice(0, WITNESS_COUNT).forEach((t, i) => {
-    const label = `Testemunha ${i + 1}`;
-    if (!validSignerName(t.nome)) errors.push(`${label}: informe nome e sobrenome`);
-    if (!validEmail(t.email)) errors.push(`${label}: e-mail ausente ou inválido`);
-    else emails.push([normEmail(t.email), label]);
-  });
+  // Testemunhas: corretor + gestor do cadastro (o e-mail delas não chega à tela; o servidor confere
+  // repetição com proprietários/imobiliária).
+  const t = input.testemunhas;
+  if (!t) errors.push("Não foi possível conferir as testemunhas. Atualize a página.");
+  else if (t.problemas.length) errors.push(...t.problemas);
+  else if (!t.gestor) errors.push(avisoSemGestor(t) ?? "Testemunha 2: escolha um gestor");
+  else if (input.imobiliariaIds.some((id) => id === t.gestor!.id || id === t.corretor.id))
+    errors.push(
+      "Quem já é testemunha (corretor ou gestor) não pode assinar também pela imobiliária. Desmarque essa pessoa ou troque a testemunha 2.",
+    );
+  else if (!t.pdfOk)
+    errors.push(
+      "As testemunhas impressas no PDF não são as atuais. Gere o PDF para assinatura de novo.",
+    );
   const seen = new Map<string, string>();
   for (const [email, label] of emails) {
     const prev = seen.get(email);
@@ -164,14 +340,11 @@ export type SendResult = { ok: true; is_test: boolean; signers: number; warning?
 /** Envia pela edge function. Lança Error com a mensagem do servidor (e detalhes, se houver). */
 export async function sendToClicksign(
   db: SupabaseClient,
-  input: { captureId: string; imobiliariaIds: string[]; testemunhas: Testemunha[] },
+  input: { captureId: string; imobiliariaIds: string[] },
 ): Promise<SendResult> {
+  // Testemunhas não vão no corpo: o servidor usa as do cadastro (t_e8078685).
   const { data, error } = await db.functions.invoke("clicksign-send", {
-    body: {
-      capture_id: input.captureId,
-      imobiliaria_ids: input.imobiliariaIds,
-      testemunhas: input.testemunhas.map((t) => ({ nome: t.nome.trim(), email: t.email.trim() })),
-    },
+    body: { capture_id: input.captureId, imobiliaria_ids: input.imobiliariaIds },
   });
   if (error) {
     // Sem corpo do servidor não dá para saber em que ponto falhou: não afirmar que nada foi enviado.

@@ -194,7 +194,12 @@ export async function handleManage(
             opened: s.opened,
             status: s.status,
             found: !!s.signerId,
-            editable: auth.canManage && !s.signed && !!s.signerId && editable.has(s.papel),
+            editable:
+              auth.canManage &&
+              !s.signed &&
+              !!s.signerId &&
+              editable.has(s.papel) &&
+              !ctx.signers[s.idx]?.cadastro,
           })),
         },
       };
@@ -284,6 +289,13 @@ export async function handleManage(
   if (!target) return fail(422, "Signatário inválido");
   const label = labelOf(ctx.signers, idx);
   if (!editable.has(target.papel)) return fail(422, notEditableMsg(kind, target.papel));
+  // Testemunha automática (corretor/gestor, t_e8078685): vem do cadastro, não se edita aqui.
+  if (target.cadastro) {
+    return fail(
+      422,
+      "Esta testemunha vem do cadastro (corretor ou gestor) e não se troca no envelope. Para mudar, cancele o envelope, corrija o cadastro e envie de novo.",
+    );
+  }
   const errors: string[] = [];
   if (!validSignerName(nome)) errors.push(`${label}: informe nome e sobrenome`);
   if (!validEmail(email)) errors.push(`${label}: e-mail ausente ou inválido`);

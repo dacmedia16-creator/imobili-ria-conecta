@@ -3,7 +3,7 @@
 // (clicksign_capture_authorize). Chave da Clicksign: Vault da org, lida só aqui (service_role).
 // Logs: só ids, status e código HTTP — nunca token, segredo ou e-mail.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { handleSend } from "./core.ts";
+import { handleSend, testemunhasDoBanco } from "./core.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -44,10 +44,10 @@ Deno.serve(async (req) => {
         return data as string;
       },
       async loadContext(org, captureId) {
-        const [cap, settings, imob, token, gerado] = await Promise.all([
+        const [cap, settings, imob, token, gerado, tw] = await Promise.all([
           admin
             .from("exclusive_captures")
-            .select("form_data, captor_id")
+            .select("form_data")
             .eq("id", captureId)
             .eq("organization_id", org)
             .single(),
@@ -64,19 +64,16 @@ Deno.serve(async (req) => {
             .eq("capture_id", captureId)
             .eq("kind", "gerado")
             .single(),
+          // Testemunhas automáticas (t_e8078685): corretor + gestor da equipe, decididos no banco.
+          admin.rpc("exclusive_testemunhas_resolver", { _id: captureId }),
         ]);
-        if (cap.error || settings.error || imob.error || token.error || gerado.error) {
+        if (cap.error || settings.error || imob.error || token.error || gerado.error || tw.error) {
           throw new Error("context_unavailable");
         }
-        const { data: captor } = await admin
-          .from("profiles")
-          .select("nome, email")
-          .eq("id", cap.data.captor_id)
-          .single();
         return {
           organizationId: org,
           form: (cap.data.form_data ?? {}) as Record<string, unknown>,
-          corretor: { nome: captor?.nome ?? "", email: captor?.email ?? "" },
+          testemunhas: testemunhasDoBanco(tw.data),
           imobiliaria: (imob.data ?? []) as Array<{ id: string; nome: string; email: string }>,
           testMode: settings.data.test_mode,
           allowlistSha256: settings.data.test_allowlist_sha256 ?? [],

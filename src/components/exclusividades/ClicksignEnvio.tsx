@@ -26,10 +26,8 @@ import {
   reconcileClicksign,
   sendDialogErrors,
   sendToClicksign,
-  WITNESS_COUNT,
   type ClicksignCaptureConfig,
-  type Testemunha,
-  witnessesFromForm,
+  type TestemunhasCaptacao,
   cancelCaptureClicksignPapel,
   modoAssinaturaCaptacao,
   mostrarEscolhaCaptacao,
@@ -41,10 +39,9 @@ import {
   EscolhaAssinaturaVenda,
   TrocarParaPapelButton,
 } from "@/components/vendas/AssinaturaManualVenda";
+import { TestemunhasAutomaticas } from "@/components/exclusividades/TestemunhasAutomaticas";
 
 const db = supabase as unknown as SupabaseClient;
-const emptyWitnesses = (): Testemunha[] =>
-  Array.from({ length: WITNESS_COUNT }, () => ({ nome: "", email: "" }));
 
 /**
  * Envio da captação para assinatura na Clicksign. Fica oculto enquanto a organização não habilitar
@@ -63,10 +60,15 @@ export function ClicksignEnvio({
   temAssinado = false,
   onManual,
   onModo,
+  testemunhas,
+  onTestemunhas,
 }: {
   captureId: string;
   status: string;
   form: Record<string, unknown> | null;
+  /** Testemunhas automáticas (corretor + gestor da equipe, t_e8078685). null = não deu para ler. */
+  testemunhas: TestemunhasCaptacao | null;
+  onTestemunhas: (t: TestemunhasCaptacao | null) => void;
   hasGerado: boolean;
   dirty: boolean;
   onSent: () => Promise<unknown> | void;
@@ -82,7 +84,6 @@ export function ClicksignEnvio({
   const [config, setConfig] = useState<ClicksignCaptureConfig>(CLICKSIGN_DISABLED);
   const [open, setOpen] = useState(false);
   const [imob, setImob] = useState<string[]>([]);
-  const [witnesses, setWitnesses] = useState<Testemunha[]>(emptyWitnesses);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(
@@ -99,25 +100,17 @@ export function ClicksignEnvio({
     });
   }, [config, onModo]);
 
-  // Ao abrir o modal, puxa as testemunhas já cadastradas em "Dados do contrato" (só onde o modal
-  // está vazio; o que foi digitado aqui fica). Continuam editáveis.
-  useEffect(() => {
-    if (open) setWitnesses((cur) => witnessesFromForm(form, cur));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só na abertura
-  }, [open]);
-
   const errors = useMemo(
     () =>
       config.enabled
         ? sendDialogErrors({
             form,
-            corretorEmailOk: config.corretor_email_ok,
             imobiliariaIds: imob,
-            testemunhas: witnesses,
+            testemunhas,
             pdfSize: config.pdf_size,
           })
         : [],
-    [config, form, imob, witnesses],
+    [config, form, imob, testemunhas],
   );
 
   if (!config.enabled) return null;
@@ -143,11 +136,7 @@ export function ClicksignEnvio({
     if (errors.length) return;
     setBusy(true);
     try {
-      const r = await sendToClicksign(db, {
-        captureId,
-        imobiliariaIds: imob,
-        testemunhas: witnesses,
-      });
+      const r = await sendToClicksign(db, { captureId, imobiliariaIds: imob });
       if (r.warning) toast.warning(r.warning);
       else
         toast.success(
@@ -155,7 +144,6 @@ export function ClicksignEnvio({
         );
       setOpen(false);
       setImob([]);
-      setWitnesses(emptyWitnesses());
       await onSent();
     } catch (e) {
       toast.error(errorMessage(e, "Falha ao enviar para a Clicksign"));
@@ -262,9 +250,10 @@ export function ClicksignEnvio({
         {podeEnviar && !escolha && !trocarParaClicksign && (
           <>
             <p className="text-sm text-muted-foreground">
-              Assinam ao mesmo tempo, com código por e-mail: proprietário(s), corretor, imobiliária
-              e {WITNESS_COUNT} testemunhas. Prazo: {config.deadline_days} dias. Quando todos
-              assinarem, o PDF assinado é anexado sozinho; a aprovação continua manual.
+              Assinam ao mesmo tempo, com código por e-mail: proprietário(s), imobiliária e 2
+              testemunhas (o corretor da captação e o gestor da equipe dele). Prazo:{" "}
+              {config.deadline_days} dias. Quando todos assinarem, o PDF assinado é anexado sozinho;
+              a aprovação continua manual.
             </p>
             <Button disabled={busy || !!bloqueioAbrir} onClick={() => setOpen(true)}>
               Enviar pela Clicksign
@@ -297,40 +286,22 @@ export function ClicksignEnvio({
                 </label>
               ))}
             </fieldset>
-            {witnesses.map((t, i) => (
-              <fieldset key={i} className="space-y-2">
-                <legend className="text-sm font-medium">Testemunha {i + 1}</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor={`tst-nome-${i}`}>Nome completo</Label>
-                    <Input
-                      id={`tst-nome-${i}`}
-                      maxLength={200}
-                      value={t.nome}
-                      onChange={(e) =>
-                        setWitnesses((cur) =>
-                          cur.map((w, j) => (j === i ? { ...w, nome: e.target.value } : w)),
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor={`tst-email-${i}`}>E-mail</Label>
-                    <Input
-                      id={`tst-email-${i}`}
-                      type="email"
-                      maxLength={200}
-                      value={t.email}
-                      onChange={(e) =>
-                        setWitnesses((cur) =>
-                          cur.map((w, j) => (j === i ? { ...w, email: e.target.value } : w)),
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              </fieldset>
-            ))}
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Testemunhas (automáticas)</legend>
+              {testemunhas ? (
+                <TestemunhasAutomaticas
+                  db={db}
+                  captureId={captureId}
+                  testemunhas={testemunhas}
+                  podeTrocar={status === "enviada" && canStartEnvelope(envelope)}
+                  onChange={onTestemunhas}
+                />
+              ) : (
+                <p className="text-sm text-amber-900">
+                  Não foi possível conferir as testemunhas. Atualize a página.
+                </p>
+              )}
+            </fieldset>
             {errors.length > 0 && (
               <ul
                 role="status"
