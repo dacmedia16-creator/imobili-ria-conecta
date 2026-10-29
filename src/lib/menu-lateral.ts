@@ -34,6 +34,7 @@ import {
   Contact,
   KanbanSquare,
   Workflow,
+  HeartPulse,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -181,6 +182,15 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           label: "Equipes",
           icon: UsersRound,
           show: hasAny(["gestor", "team_leader", "admin", "super_admin"]),
+        },
+        {
+          to: "/ficha-colaboradores",
+          label: "Ficha dos colaboradores",
+          icon: HeartPulse,
+          // Dados sensíveis (t_618b64bc): só staff e administração. O banco (RPC) é a proteção real
+          // e também recusa a visão da plataforma e o "Entrar como".
+          show:
+            hasAny(["staff", "admin", "super_admin"]) && !(platformAdmin && ctx.inPlatformContext),
         },
       ],
     },
