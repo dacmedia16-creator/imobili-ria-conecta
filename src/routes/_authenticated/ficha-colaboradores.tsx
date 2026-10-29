@@ -14,6 +14,7 @@ import {
   COLUNAS_EXPORT,
   MESES,
   NAO_INFORMADO,
+  PENDENCIA_LABEL,
   TODOS,
   dataBr,
   dataHoraSp,
@@ -25,6 +26,7 @@ import {
   linhaExport,
   opcoesDistintas,
   rotuloPapeis,
+  textoPendencias,
   type Colaborador,
   type FiltrosFicha,
 } from "@/lib/ficha-colaborador";
@@ -84,6 +86,7 @@ function FichaColaboradoresPage() {
   const set = <K extends keyof FiltrosFicha>(k: K, v: FiltrosFicha[K]) =>
     setF((x) => ({ ...x, [k]: v }));
   const completas = (lista ?? []).filter((c) => c.completa).length;
+  const cadastroPendente = (lista ?? []).filter((c) => c.cadastro_pendente.length > 0).length;
 
   const exportar = async (formato: "excel" | "pdf") => {
     if (!filtrada.length) {
@@ -160,10 +163,11 @@ function FichaColaboradoresPage() {
 
       {lista && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Resumo rotulo="Colaboradores" valor={lista.length} />
             <Resumo rotulo="Fichas completas" valor={completas} cor="text-green-600" />
             <Resumo rotulo="Pendentes" valor={lista.length - completas} cor="text-red-600" />
+            <Resumo rotulo="Cadastro pendente" valor={cadastroPendente} cor="text-amber-600" />
             <Resumo rotulo="No filtro" valor={filtrada.length} />
           </div>
 
@@ -202,6 +206,20 @@ function FichaColaboradoresPage() {
                   opcoes={[
                     ["completa", "Completa"],
                     ["pendente", "Pendente"],
+                  ]}
+                />
+              </Filtro>
+              <Filtro id="ff-cadastro" label="Cadastro pendente">
+                <Sel
+                  id="ff-cadastro"
+                  value={f.cadastro}
+                  onChange={(v) => set("cadastro", v as FiltrosFicha["cadastro"])}
+                  opcoes={[
+                    ["pendente", "Com pendência"],
+                    ["completo", "Cadastro completo"],
+                    ...Object.entries(PENDENCIA_LABEL).map(
+                      ([k, l]) => [k, `Falta: ${l}`] as [string, string],
+                    ),
                   ]}
                 />
               </Filtro>
@@ -293,6 +311,7 @@ function FichaColaboradoresPage() {
                       "Papel / Equipe",
                       "Nascimento",
                       "Ficha",
+                      "Cadastro pendente",
                       "Filhos",
                       "Plano de saúde",
                       "Hospital",
@@ -324,6 +343,15 @@ function FichaColaboradoresPage() {
                           <Pill tom="green">Completa</Pill>
                         ) : (
                           <Pill tom="red">Pendente</Pill>
+                        )}
+                      </td>
+                      <td className="px-3 py-2" data-testid="cadastro-pendente-celula">
+                        {c.cadastro_pendente.length ? (
+                          <span className="text-amber-700 dark:text-amber-400">
+                            {textoPendencias(c.cadastro_pendente)}
+                          </span>
+                        ) : (
+                          <Pill tom="green">Completo</Pill>
                         )}
                       </td>
                       <td className="px-3 py-2">{c.qtd_filhos ?? "—"}</td>

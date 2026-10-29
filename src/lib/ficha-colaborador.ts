@@ -25,11 +25,44 @@ export type FichaDados = {
   updated_at?: string | null;
 };
 
+/**
+ * Pendências do cadastro (t_b98f3e4b), calculadas no banco. CPF e ID RE/MAX só para quem é corretor,
+ * gestor ou team leader (os mesmos papéis que veem esses campos no Meu acesso). CRECI não é cobrado.
+ */
+export type PendenciaCadastro =
+  | "nome"
+  | "telefone"
+  | "cpf"
+  | "remax_id"
+  | "remax_id_invalido"
+  | "remax_id_duplicado";
+
+export const PENDENCIA_LABEL: Record<PendenciaCadastro, string> = {
+  nome: "Nome completo",
+  telefone: "Telefone (WhatsApp)",
+  cpf: "CPF",
+  remax_id: "ID RE/MAX",
+  remax_id_invalido: "ID RE/MAX fora do padrão",
+  remax_id_duplicado: "ID RE/MAX repetido",
+};
+
+export type CadastroDados = {
+  nome: string | null;
+  telefone: string | null;
+  cpf: string | null;
+  remax_id: string | null;
+};
+
 export type SituacaoFicha =
   | { aplica: false; motivo?: string }
   | {
       aplica: true;
       completa: boolean;
+      /** Ausentes na versão anterior do banco: tratados como "sem pendência". */
+      cadastro_completo?: boolean;
+      cadastro_pendente?: PendenciaCadastro[];
+      cadastro_exige_registro?: boolean;
+      cadastro?: CadastroDados | null;
       obrigatoria_a_partir_de: string;
       bloqueia: boolean;
       data_nascimento: string | null;
@@ -38,19 +71,66 @@ export type SituacaoFicha =
 
 export type ModoFicha = "bloqueio" | "lembrete" | null;
 
+/** Pendências do cadastro (lista vazia se o banco não mandou nada — nunca trava por isso). */
+export function pendenciasCadastro(s: SituacaoFicha | null | undefined): PendenciaCadastro[] {
+  if (!s || !s.aplica || !Array.isArray(s.cadastro_pendente)) return [];
+  return s.cadastro_pendente.filter((p): p is PendenciaCadastro => p in PENDENCIA_LABEL);
+}
+
+/** Ficha + cadastro completos? */
+export function tudoCompleto(s: SituacaoFicha | null | undefined): boolean {
+  if (!s || !s.aplica) return true;
+  return s.completa && pendenciasCadastro(s).length === 0;
+}
+
 /**
  * O que a tela faz ao logar:
- * - "bloqueio": prazo vencido (decidido no banco) e ficha incompleta → só sai salvando (ou Sair);
- * - "lembrete": ficha incompleta antes do prazo → mostra a tela com "Preencher depois";
- * - null: ficha completa, não se aplica, ou adiada neste mesmo login.
+ * - "bloqueio": prazo vencido (decidido no banco) e ficha OU cadastro incompleto → só sai salvando (ou Sair);
+ * - "lembrete": algo incompleto antes do prazo → mostra a tela com "Preencher depois";
+ * - null: tudo completo, não se aplica, ou adiada neste mesmo login.
  */
 export function modoFicha(
   situacao: SituacaoFicha | null | undefined,
   adiadaNesteLogin: boolean,
 ): ModoFicha {
-  if (!situacao || !situacao.aplica || situacao.completa) return null;
+  if (!situacao || !situacao.aplica || tudoCompleto(situacao)) return null;
   if (situacao.bloqueia) return "bloqueio";
   return adiadaNesteLogin ? null : "lembrete";
+}
+
+// ------------------------------------------------------------------------------------------------
+// Cadastro (nome, telefone, CPF, ID RE/MAX) no mesmo aviso
+
+/** ID RE/MAX: 9 dígitos começando com 630 (630 + código do corretor de 6 dígitos). */
+export function remaxIdValido(v: string | null | undefined): boolean {
+  return /^630\d{6}$/.test((v ?? "").replace(/\D/g, ""));
+}
+
+export type CadastroForm = { nome: string; telefone: string; cpf: string; remax_id: string };
+
+export function cadastroDaSituacao(s: SituacaoFicha | null | undefined): CadastroForm {
+  const c = s && s.aplica ? s.cadastro : null;
+  return {
+    nome: c?.nome ?? "",
+    telefone: c?.telefone ?? "",
+    cpf: c?.cpf ?? "",
+    remax_id: c?.remax_id ?? "",
+  };
+}
+
+/** Mensagem amigável a partir do erro da RPC cadastro_salvar_meu. */
+export function mensagemErroCadastro(err: { code?: string; message?: string } | null): string {
+  const msg = err?.message ?? "";
+  if (err?.code === "23505" || /ja esta em outro|remax_id_uniq|remax_id_org_uniq/i.test(msg))
+    return "Esse ID RE/MAX já está no cadastro de outra pessoa. Confira o número ou fale com o administrador.";
+  if (err?.code === "22023") {
+    if (/re\/?max/i.test(msg)) return "ID RE/MAX inválido: são 9 números começando com 630.";
+    if (/cpf/i.test(msg)) return "CPF inválido. Confira os números.";
+    if (/nome/i.test(msg)) return "Informe o nome completo (nome e sobrenome).";
+    if (/telefone/i.test(msg)) return "Telefone inválido (use DDD).";
+  }
+  if (err?.code === "42501") return "Sem permissão para atualizar este cadastro.";
+  return "Não foi possível salvar agora. Tente de novo.";
 }
 
 /** Chave do "Preencher depois" no navegador (guarda o session_id do login em que foi adiado). */
@@ -225,6 +305,8 @@ export type Colaborador = {
   equipes: string[];
   data_nascimento: string | null;
   completa: boolean;
+  /** Só as chaves do que falta no cadastro (sem valores). */
+  cadastro_pendente: PendenciaCadastro[];
   qtd_filhos: number | null;
   tem_plano_saude: boolean | null;
   plano_saude: string | null;
@@ -251,6 +333,8 @@ export type FiltrosFicha = {
   religiao: string;
   hospital: string;
   situacao: typeof TODOS | "completa" | "pendente";
+  /** "Cadastro pendente": qualquer pendência ou uma específica. */
+  cadastro: typeof TODOS | "completo" | "pendente" | PendenciaCadastro;
   papel: string;
   equipe: string;
 };
@@ -266,6 +350,7 @@ export function filtrosVazios(): FiltrosFicha {
     religiao: TODOS,
     hospital: TODOS,
     situacao: TODOS,
+    cadastro: TODOS,
     papel: TODOS,
     equipe: TODOS,
   };
@@ -319,6 +404,16 @@ export function filtrarColaboradores(lista: Colaborador[], f: FiltrosFicha): Col
     if (f.hospital !== TODOS && norm(c.hospital_preferencia) !== norm(f.hospital)) return false;
     if (f.situacao === "completa" && !c.completa) return false;
     if (f.situacao === "pendente" && c.completa) return false;
+    const pend = c.cadastro_pendente ?? [];
+    if (f.cadastro === "completo" && pend.length > 0) return false;
+    if (f.cadastro === "pendente" && pend.length === 0) return false;
+    if (
+      f.cadastro !== TODOS &&
+      f.cadastro !== "completo" &&
+      f.cadastro !== "pendente" &&
+      !pend.includes(f.cadastro)
+    )
+      return false;
     if (f.papel !== TODOS && !c.papeis.includes(f.papel)) return false;
     if (f.equipe !== TODOS && !c.equipes.includes(f.equipe)) return false;
     return true;
@@ -405,6 +500,11 @@ export function rotuloPapeis(papeis: string[], labels: Record<string, string>): 
   return papeis.map((p) => labels[p] ?? p).join(", ");
 }
 
+/** "CPF, ID RE/MAX" (vazio se nada falta). */
+export function textoPendencias(p: PendenciaCadastro[] | null | undefined): string {
+  return (p ?? []).map((k) => PENDENCIA_LABEL[k] ?? k).join(", ");
+}
+
 /** Linhas para Excel/PDF (mesma ordem de colunas nos dois). */
 export const COLUNAS_EXPORT = [
   "Nome",
@@ -422,6 +522,7 @@ export const COLUNAS_EXPORT = [
   "Telefone de emergência",
   "Religião",
   "Preenchida em",
+  "Cadastro pendente",
 ] as const;
 
 export function linhaExport(c: Colaborador, labels: Record<string, string>): string[] {
@@ -441,6 +542,8 @@ export function linhaExport(c: Colaborador, labels: Record<string, string>): str
     c.emergencia_telefone ?? "",
     c.religiao ?? "",
     dataHoraSp(c.preenchida_em),
+    // No fim, para não mudar as posições usadas pelo PDF.
+    textoPendencias(c.cadastro_pendente),
   ];
 }
 
@@ -463,6 +566,14 @@ export function descreverFiltros(f: FiltrosFicha, labels: Record<string, string>
   if (f.hospital !== TODOS) partes.push(`Hospital: ${f.hospital}`);
   if (f.situacao !== TODOS)
     partes.push(f.situacao === "completa" ? "Fichas completas" : "Fichas pendentes");
+  if (f.cadastro !== TODOS)
+    partes.push(
+      f.cadastro === "completo"
+        ? "Cadastro completo"
+        : f.cadastro === "pendente"
+          ? "Cadastro pendente"
+          : `Cadastro: falta ${PENDENCIA_LABEL[f.cadastro]}`,
+    );
   if (f.papel !== TODOS) partes.push(`Papel: ${labels[f.papel] ?? f.papel}`);
   if (f.equipe !== TODOS) partes.push(`Equipe: ${f.equipe}`);
   if (f.busca.trim()) partes.push(`Busca: "${f.busca.trim()}"`);

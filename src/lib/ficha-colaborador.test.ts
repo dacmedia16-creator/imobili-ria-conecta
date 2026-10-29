@@ -168,6 +168,7 @@ const colab = (o: Partial<Colaborador>): Colaborador => ({
   equipes: [],
   data_nascimento: null,
   completa: false,
+  cadastro_pendente: [],
   qtd_filhos: null,
   tem_plano_saude: null,
   plano_saude: null,

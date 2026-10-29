@@ -46,16 +46,18 @@ INSERT INTO public.organizations (id, slug, nome, status, cnpj, cor_primaria, co
   (:'org_a', 'teste-ficha-a', 'Imobiliaria Exemplo A', 'ativa', '00000000000191', '#112233', '#445566'),
   (:'org_b', 'teste-ficha-b', 'Imobiliaria Exemplo B', 'ativa', '00000000000272', '#112233', '#445566');
 INSERT INTO auth.users (id) SELECT unnest(ARRAY[:'admin', :'gestor', :'tl', :'c1', :'c2', :'staff', :'ab', :'cb', :'plat']::uuid[]);
-INSERT INTO public.profiles (id, nome, email, ativo, organization_id) VALUES
-  (:'admin', 'Dona Exemplo', 'dona@exemplo.test', true, :'org_a'),
-  (:'gestor', 'Gestor Exemplo', 'gestor@exemplo.test', true, :'org_a'),
-  (:'tl', 'Lider Exemplo', 'tl@exemplo.test', true, :'org_a'),
-  (:'c1', 'Carlos Um', 'c1@exemplo.test', true, :'org_a'),
-  (:'c2', 'Bruna Dois', 'c2@exemplo.test', true, :'org_a'),
-  (:'staff', 'Sara Staff', 'staff@exemplo.test', true, :'org_a'),
-  (:'ab', 'Admin B', 'ab@exemplo.test', true, :'org_b'),
-  (:'cb', 'Corretor B', 'cb@exemplo.test', true, :'org_b'),
-  (:'plat', 'Dono Plataforma', 'plat@exemplo.test', true, :'org_a');
+-- Cadastro (telefone/CPF/ID RE/MAX) já completo: esta suíte testa só a ficha. Desde a 20261029160000
+-- o cadastro também conta para liberar (suíte própria em cadastro_completo.sql).
+INSERT INTO public.profiles (id, nome, email, ativo, organization_id, telefone, cpf, remax_id) VALUES
+  (:'admin', 'Dona Exemplo', 'dona@exemplo.test', true, :'org_a', '15991234567', NULL, NULL),
+  (:'gestor', 'Gestor Exemplo', 'gestor@exemplo.test', true, :'org_a', '15991234567', '529.982.247-25', '630000011'),
+  (:'tl', 'Lider Exemplo', 'tl@exemplo.test', true, :'org_a', '15991234567', '529.982.247-25', '630000012'),
+  (:'c1', 'Carlos Um', 'c1@exemplo.test', true, :'org_a', '15991234567', '529.982.247-25', '630000013'),
+  (:'c2', 'Bruna Dois', 'c2@exemplo.test', true, :'org_a', '15991234567', '529.982.247-25', '630000014'),
+  (:'staff', 'Sara Staff', 'staff@exemplo.test', true, :'org_a', '15991234567', NULL, NULL),
+  (:'ab', 'Admin B', 'ab@exemplo.test', true, :'org_b', '15991234567', NULL, NULL),
+  (:'cb', 'Corretor B', 'cb@exemplo.test', true, :'org_b', '15991234567', '529.982.247-25', '630000015'),
+  (:'plat', 'Dono Plataforma', 'plat@exemplo.test', true, :'org_a', NULL, NULL, NULL);
 INSERT INTO public.organization_members (organization_id, user_id, ativo) VALUES
   (:'org_a', :'admin', true), (:'org_a', :'gestor', true), (:'org_a', :'tl', true), (:'org_a', :'c1', true),
   (:'org_a', :'c2', true), (:'org_a', :'staff', true), (:'org_b', :'ab', true), (:'org_b', :'cb', true),
