@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
+  DragOverlay,
   MouseSensor,
   TouchSensor,
   KeyboardSensor,
@@ -9,8 +10,9 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/leads";
@@ -32,43 +34,50 @@ const ESTADO_TXT = {
   fim: "",
 } as const;
 
-function Cartao({
-  lead,
-  hoje,
-  nomeDe,
-  mostrarDono,
-  arrastavel,
-  onOpen,
-}: {
+type CartaoProps = {
   lead: Lead;
   hoje: string;
   nomeDe: (id: string | null) => string;
   mostrarDono: boolean;
-  arrastavel: boolean;
-  onOpen: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: lead.id,
+};
+
+function classeCartao(lead: Lead, hoje: string) {
+  return cn(
+    "cursor-pointer touch-manipulation rounded-md border bg-background p-2 text-sm shadow-sm transition hover:border-primary/50",
+    emAlerta(estadoProximo(lead, hoje)) && "border-red-500 bg-red-50 dark:bg-red-950/30",
+  );
+}
+
+function Cartao({
+  arrastavel,
+  onOpen,
+  ...p
+}: CartaoProps & { arrastavel: boolean; onOpen: () => void }) {
+  // O cartão em si fica parado (meio apagado) enquanto o "cartão flutuante" (DragOverlay) segue o
+  // ponteiro: assim ele não é cortado pela rolagem da coluna e o quadro pode rolar sozinho.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: p.lead.id,
     disabled: !arrastavel,
   });
-  const est = estadoProximo(lead, hoje);
-  const alerta = emAlerta(est);
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined;
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...listeners}
       {...attributes}
       onClick={onOpen}
-      className={cn(
-        "cursor-pointer touch-manipulation rounded-md border bg-background p-2 text-sm shadow-sm transition hover:border-primary/50",
-        alerta && "border-red-500 bg-red-50 dark:bg-red-950/30",
-        isDragging && "opacity-70 shadow-lg",
-      )}
+      data-testid="crm-cartao"
+      className={cn(classeCartao(p.lead, p.hoje), isDragging && "opacity-40")}
     >
+      <ConteudoCartao {...p} />
+    </div>
+  );
+}
+
+function ConteudoCartao({ lead, hoje, nomeDe, mostrarDono }: CartaoProps) {
+  const est = estadoProximo(lead, hoje);
+  const alerta = emAlerta(est);
+  return (
+    <>
       <div className="break-words font-medium">{lead.nome}</div>
       {mostrarDono && (
         <div className="text-xs text-muted-foreground">
@@ -96,7 +105,7 @@ function Cartao({
           {lead.sale_id ? "Venda vinculada" : "Captação vinculada"}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -115,16 +124,20 @@ function Coluna({
   return (
     <div
       ref={setNodeRef}
+      data-testid={`crm-coluna-${etapa}`}
       className={cn(
-        "flex min-h-[200px] w-64 shrink-0 flex-col gap-2 rounded-lg border bg-muted/40 p-2",
+        "flex h-full min-h-0 w-64 shrink-0 flex-col gap-2 rounded-lg border bg-muted/40 p-2",
         isOver && "border-primary bg-primary/5",
       )}
     >
-      <div className="flex items-center justify-between px-1 text-sm font-medium">
+      <div className="flex shrink-0 items-center justify-between px-1 text-sm font-medium">
         <span>{nomeEtapa(funil, etapa)}</span>
         <span className="text-xs text-muted-foreground">{qtd}</span>
       </div>
-      {children}
+      {/* Cada coluna rola os próprios cartões; o quadro não cresce além da tela. */}
+      <div className="-mr-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+        {children}
+      </div>
     </div>
   );
 }
@@ -161,8 +174,49 @@ export function CrmQuadro({
     useSensor(KeyboardSensor),
   );
   const porEtapa = (e: Etapa) => leads.filter((l) => l.etapa === e);
+  const [arrastando, setArrastando] = useState<Lead | null>(null);
+
+  // Quadro do computador: altura = do topo do quadro até o fim da tela, para a barra de rolagem
+  // horizontal ficar sempre visível logo abaixo das colunas (antes ela ficava no fim da coluna
+  // mais comprida, fora da tela).
+  const quadroRef = useRef<HTMLDivElement>(null);
+  const [altura, setAltura] = useState<number | null>(null);
+  const [lado, setLado] = useState({ esq: false, dir: false });
+
+  const medir = useCallback(() => {
+    const el = quadroRef.current;
+    if (!el || el.offsetParent === null) return; // escondido (celular ou outra aba)
+    const topoNoDocumento = el.getBoundingClientRect().top + window.scrollY;
+    setAltura(Math.max(360, Math.round(window.innerHeight - topoNoDocumento - 24)));
+    const max = el.scrollWidth - el.clientWidth;
+    setLado({ esq: el.scrollLeft > 2, dir: el.scrollLeft < max - 2 });
+  }, []);
+
+  useEffect(() => {
+    medir();
+    const el = quadroRef.current;
+    window.addEventListener("resize", medir);
+    el?.addEventListener("scroll", medir, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" && el ? new ResizeObserver(medir) : null;
+    if (ro && el) ro.observe(el);
+    return () => {
+      window.removeEventListener("resize", medir);
+      el?.removeEventListener("scroll", medir);
+      ro?.disconnect();
+    };
+  }, [medir, leads.length]);
+
+  const andar = (sentido: -1 | 1) => {
+    const el = quadroRef.current;
+    if (!el) return;
+    el.scrollBy({ left: sentido * Math.max(268, el.clientWidth * 0.75), behavior: "smooth" });
+  };
+
+  const inicio = (ev: DragStartEvent) =>
+    setArrastando(leads.find((l) => l.id === ev.active.id) ?? null);
 
   const fim = (ev: DragEndEvent) => {
+    setArrastando(null);
     const lead = leads.find((l) => l.id === ev.active.id);
     const para = ev.over?.id as Etapa | undefined;
     if (lead && para && para !== lead.etapa) onSoltar(lead, para);
@@ -182,7 +236,14 @@ export function CrmQuadro({
     ));
 
   return (
-    <DndContext sensors={sensors} onDragEnd={fim}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={inicio}
+      onDragEnd={fim}
+      onDragCancel={() => setArrastando(null)}
+      // Levar o cartão até a borda esquerda/direita do quadro rola as colunas sozinho.
+      autoScroll={{ threshold: { x: 0.12, y: 0.15 }, acceleration: 12 }}
+    >
       {/* Celular: abas por etapa */}
       <div className="md:hidden">
         <div className="mb-2 flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Etapas">
@@ -206,14 +267,59 @@ export function CrmQuadro({
           )}
         </div>
       </div>
-      {/* Desktop: colunas */}
-      <div className="hidden gap-3 overflow-x-auto pb-2 md:flex">
-        {etapas.map((e) => (
-          <Coluna key={e} funil={funil} etapa={e} qtd={porEtapa(e).length}>
-            {cartoes(e)}
-          </Coluna>
-        ))}
+      {/* Desktop: colunas (altura limitada à tela, rolagem lateral + setas) */}
+      <div className="relative hidden md:block">
+        <div
+          ref={quadroRef}
+          data-testid="crm-quadro"
+          style={{ height: altura ?? undefined }}
+          className="flex h-[calc(100dvh-16rem)] min-h-[360px] gap-3 overflow-x-auto overflow-y-hidden pb-3"
+        >
+          {etapas.map((e) => (
+            <Coluna key={e} funil={funil} etapa={e} qtd={porEtapa(e).length}>
+              {cartoes(e)}
+            </Coluna>
+          ))}
+        </div>
+        {lado.esq && (
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            aria-label="Ver colunas da esquerda"
+            data-testid="crm-seta-esq"
+            onClick={() => andar(-1)}
+            className="absolute left-1 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full border shadow-md"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+        )}
+        {lado.dir && (
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            aria-label="Ver colunas da direita"
+            data-testid="crm-seta-dir"
+            onClick={() => andar(1)}
+            className="absolute right-1 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full border shadow-md"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+        )}
       </div>
+      <DragOverlay dropAnimation={null}>
+        {arrastando ? (
+          <div className={cn(classeCartao(arrastando, hoje), "w-60 cursor-grabbing shadow-lg")}>
+            <ConteudoCartao
+              lead={arrastando}
+              hoje={hoje}
+              nomeDe={nomeDe}
+              mostrarDono={mostrarDono}
+            />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
