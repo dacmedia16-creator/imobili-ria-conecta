@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -60,7 +60,10 @@ export function LeadDetalhe({
   motivos,
   onClose,
   onChanged,
+  crm,
 }: {
+  /** Tela do CRM: bloco próprio (funil, próximo contato, converter); a etapa muda pelo quadro. */
+  crm?: ReactNode;
   lead: Lead | null;
   gestor: boolean;
   userId: string | undefined;
@@ -107,7 +110,7 @@ export function LeadDetalhe({
   const captura = capturas.find((c) => c.id === lead.capture_id);
   // Antes do aceite, o responsável só vê o botão Aceitar (o banco também recusa atendimento sem aceite).
   const precisaAceitar = aguardandoMeuAceite(lead, userId);
-  const opcoes = precisaAceitar ? [] : proximasEtapas(lead.etapa, gestor);
+  const opcoes = precisaAceitar || crm ? [] : proximasEtapas(lead.etapa, gestor);
   const prazo = textoPrazo(prazoDoLead(lead, config));
   const podeAtender = !precisaAceitar && (gestor || lead.responsavel_id === userId);
 
@@ -205,6 +208,8 @@ export function LeadDetalhe({
           {lead.mensagem && (
             <p className="whitespace-pre-wrap rounded-md border bg-muted/40 p-2">{lead.mensagem}</p>
           )}
+
+          {!precisaAceitar && crm}
 
           {opcoes.length > 0 && (
             <section className="space-y-2 rounded-lg border p-3">

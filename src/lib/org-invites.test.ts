@@ -108,11 +108,14 @@ describe("token e status do convite", () => {
 });
 
 describe("módulos da imobiliária criada pelo convite", () => {
-  it("todos ligados, exceto Oportunidades e Leads (piloto)", () => {
+  it("todos ligados, exceto Oportunidades, Leads (piloto) e CRM", () => {
     const m = inviteModules();
     expect(m.oportunidades).toBe(false);
     expect(m.leads).toBe(false);
-    for (const k of ORGANIZATION_MODULES.filter((x) => x !== "oportunidades" && x !== "leads"))
+    expect(m.crm).toBe(false);
+    for (const k of ORGANIZATION_MODULES.filter(
+      (x) => x !== "oportunidades" && x !== "leads" && x !== "crm",
+    ))
       expect(m[k]).toBe(true);
   });
 
@@ -120,7 +123,10 @@ describe("módulos da imobiliária criada pelo convite", () => {
     const lista = MIGRATION.match(/FOREACH _m IN ARRAY ARRAY\[([^\]]+)\]/)?.[1] ?? "";
     const mods = [...lista.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
     // "leads" (t_2472761a) é posterior ao convite: sem linha no organization_modules = desligado.
-    expect(mods).toEqual([...ORGANIZATION_MODULES].filter((x) => x !== "leads").sort());
+    // "crm" (t_188fb282) idem.
+    expect(mods).toEqual(
+      [...ORGANIZATION_MODULES].filter((x) => x !== "leads" && x !== "crm").sort(),
+    );
     expect(MIGRATION).toMatch(/_m <> 'oportunidades'/);
   });
 });

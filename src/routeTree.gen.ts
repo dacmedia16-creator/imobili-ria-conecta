@@ -20,6 +20,7 @@ import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedComissaoCoordenadorRouteImport } from './routes/_authenticated/comissao-coordenador'
 import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_authenticated/comissoes-a-receber'
 import { Route as AuthenticatedComparativoComissaoRouteImport } from './routes/_authenticated/comparativo-comissao'
+import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
@@ -122,6 +123,11 @@ const AuthenticatedComparativoComissaoRoute =
     path: '/comparativo-comissao',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCrmRoute = AuthenticatedCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -382,6 +388,7 @@ export interface FileRoutesByFullPath {
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
+  '/crm': typeof AuthenticatedCrmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
@@ -438,6 +445,7 @@ export interface FileRoutesByTo {
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
+  '/crm': typeof AuthenticatedCrmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
@@ -496,6 +504,7 @@ export interface FileRoutesById {
   '/_authenticated/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/_authenticated/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
   '/_authenticated/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
+  '/_authenticated/crm': typeof AuthenticatedCrmRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
@@ -554,6 +563,7 @@ export interface FileRouteTypes {
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
+    | '/crm'
     | '/dashboard'
     | '/equipe'
     | '/feedback'
@@ -610,6 +620,7 @@ export interface FileRouteTypes {
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
     | '/comparativo-comissao'
+    | '/crm'
     | '/dashboard'
     | '/equipe'
     | '/feedback'
@@ -667,6 +678,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comissao-coordenador'
     | '/_authenticated/comissoes-a-receber'
     | '/_authenticated/comparativo-comissao'
+    | '/_authenticated/crm'
     | '/_authenticated/dashboard'
     | '/_authenticated/equipe'
     | '/_authenticated/feedback'
@@ -806,6 +818,13 @@ declare module '@tanstack/react-router' {
       path: '/comparativo-comissao'
       fullPath: '/comparativo-comissao'
       preLoaderRoute: typeof AuthenticatedComparativoComissaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/crm': {
+      id: '/_authenticated/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AuthenticatedCrmRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -1124,6 +1143,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComissaoCoordenadorRoute: typeof AuthenticatedComissaoCoordenadorRoute
   AuthenticatedComissoesAReceberRoute: typeof AuthenticatedComissoesAReceberRoute
   AuthenticatedComparativoComissaoRoute: typeof AuthenticatedComparativoComissaoRoute
+  AuthenticatedCrmRoute: typeof AuthenticatedCrmRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
@@ -1169,6 +1189,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComissaoCoordenadorRoute: AuthenticatedComissaoCoordenadorRoute,
   AuthenticatedComissoesAReceberRoute: AuthenticatedComissoesAReceberRoute,
   AuthenticatedComparativoComissaoRoute: AuthenticatedComparativoComissaoRoute,
+  AuthenticatedCrmRoute: AuthenticatedCrmRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,

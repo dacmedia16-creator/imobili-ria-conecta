@@ -33,6 +33,7 @@ import {
   BookOpen,
   Contact,
   KanbanSquare,
+  Workflow,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -60,6 +61,8 @@ export type MenuContexto = {
   achievementsVisible?: boolean;
   /** Módulo Leads (piloto t_2472761a) ligado na imobiliária (opcional: ausente = desligado). */
   leadsVisible?: boolean;
+  /** Módulo CRM (dois funis, t_188fb282) ligado: crm E leads (opcional: ausente = desligado). */
+  crmVisible?: boolean;
   /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
   carreiraVisible?: boolean;
   /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
@@ -73,6 +76,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const achievementsVisible = ctx.achievementsVisible === true;
   const carreiraVisible = ctx.carreiraVisible === true;
   const leadsVisible = ctx.leadsVisible === true;
+  const crmVisible = leadsVisible && ctx.crmVisible === true;
   const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
@@ -146,6 +150,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           label: "Painel de leads",
           icon: KanbanSquare,
           show: leadsVisible && podeVerPainelLeads(roles),
+        },
+        {
+          to: "/crm",
+          label: "CRM",
+          icon: Workflow,
+          // Dois funis (t_188fb282): só com os módulos CRM e Leads ligados; o banco é a proteção real.
+          show: crmVisible && (podeAtenderLeads(roles) || podeVerPainelLeads(roles)),
         },
       ],
     },

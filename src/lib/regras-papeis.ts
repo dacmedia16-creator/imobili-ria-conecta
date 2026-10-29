@@ -806,6 +806,7 @@ export function menuDoPapel(papel: ManagedRole): string[] {
     opportunitiesVisible: true,
     achievementsVisible: true,
     leadsVisible: true,
+    crmVisible: true,
     carreiraVisible: true,
   }).flatMap((g) => g.items.filter((i) => i.show).map((i) => i.label));
 }
