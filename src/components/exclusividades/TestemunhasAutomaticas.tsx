@@ -122,11 +122,15 @@ export function TestemunhasAutomaticas({
           ) : (
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
-                <Label htmlFor="testemunha-2-escolha">Gestor ou team leader desta imobiliária</Label>
+                <Label htmlFor="testemunha-2-escolha">
+                  Gestor ou team leader desta imobiliária
+                </Label>
                 <Select value={escolha} onValueChange={setEscolha}>
                   <SelectTrigger id="testemunha-2-escolha" className="w-72">
                     <SelectValue
-                      placeholder={lista.length ? "Escolha" : "Ninguém disponível nesta imobiliária"}
+                      placeholder={
+                        lista.length ? "Escolha" : "Ninguém disponível nesta imobiliária"
+                      }
                     />
                   </SelectTrigger>
                   <SelectContent>

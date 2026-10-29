@@ -293,7 +293,7 @@ export async function handleManage(
   if (target.cadastro) {
     return fail(
       422,
-      "Esta testemunha vem do cadastro (corretor ou gestor): corrija o e-mail no cadastro da pessoa.",
+      "Esta testemunha vem do cadastro (corretor ou gestor) e não se troca no envelope. Para mudar, cancele o envelope, corrija o cadastro e envie de novo.",
     );
   }
   const errors: string[] = [];

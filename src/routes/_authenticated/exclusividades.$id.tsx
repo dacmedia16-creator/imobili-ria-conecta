@@ -672,12 +672,12 @@ function ExclusiveDetail() {
     });
     // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
     // arquivo salvo na captação e o que o gestor envia ao Clicksign.
-    await uploadCaptureDocument(id, "gerado", 0, file);
+    const geradoPath = await uploadCaptureDocument(id, "gerado", 0, file);
     // Registra quem saiu impresso: o envio pela Clicksign só aceita o PDF com as testemunhas atuais.
     let avisoTw: string | null = null;
     if (autoTw && tw) {
       try {
-        await fixarTestemunhasPdf(supabase as unknown as SupabaseClient, id, tw);
+        await fixarTestemunhasPdf(supabase as unknown as SupabaseClient, id, tw, geradoPath);
       } catch (e) {
         avisoTw = errorMessage(e, "Não foi possível registrar as testemunhas do PDF");
       }
@@ -1899,24 +1899,26 @@ function ExclusiveDetail() {
               </CardContent>
             </Card>
           ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Testemunhas (opcionais)</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              {(["testemunha_1", "testemunha_2"] as const).map((scope, i) => (
-                <div key={scope} className="space-y-2 rounded border p-3">
-                  <h3 className="font-medium">Testemunha {i + 1}</h3>
-                  {(["nome", "rg", "cpf"] as const).map((key) =>
-                    field(key.toUpperCase(), form[scope][key], (v) => edit(scope, key, v)),
-                  )}
-                  {field(`E-mail da testemunha ${i + 1} (opcional)`, form[scope].email ?? "", (v) =>
-                    edit(scope, "email", v),
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Testemunhas (opcionais)</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                {(["testemunha_1", "testemunha_2"] as const).map((scope, i) => (
+                  <div key={scope} className="space-y-2 rounded border p-3">
+                    <h3 className="font-medium">Testemunha {i + 1}</h3>
+                    {(["nome", "rg", "cpf"] as const).map((key) =>
+                      field(key.toUpperCase(), form[scope][key], (v) => edit(scope, key, v)),
+                    )}
+                    {field(
+                      `E-mail da testemunha ${i + 1} (opcional)`,
+                      form[scope].email ?? "",
+                      (v) => edit(scope, "email", v),
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
           {editable && (
             <div className="flex flex-wrap gap-2">

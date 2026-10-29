@@ -50,7 +50,9 @@ BEGIN
   END IF;
   _nome := btrim(regexp_replace(coalesce(_p.nome, ''), '\s+', ' ', 'g'));
   _email := lower(btrim(coalesce(_p.email, '')));
-  _doc := btrim(coalesce(nullif(btrim(coalesce(_cpf, '')), ''), _p.cpf, ''));
+  -- CPF do CADASTRO primeiro (mesma origem do nome); o CPF do captador na captação só de reserva.
+  _doc := CASE WHEN public.exclusive_valid_cpf(btrim(coalesce(_p.cpf, ''))) THEN btrim(_p.cpf)
+    ELSE btrim(coalesce(_cpf, '')) END;
   IF _p.ativo IS NOT TRUE OR NOT EXISTS (SELECT 1 FROM public.organization_members m
       WHERE m.user_id = _user AND m.organization_id = _org AND m.ativo) THEN
     _falta := _falta || 'cadastro inativo ou de outra imobiliária'::text;
@@ -65,13 +67,21 @@ END $$;
 REVOKE ALL ON FUNCTION public.exclusive_testemunha_pessoa(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.exclusive_testemunha_pessoa(uuid, uuid, text) TO service_role;
 
+-- Impressão digital do que vai impresso no PDF (nome + CPF das 2 testemunhas). Muda se o cadastro mudar.
+CREATE OR REPLACE FUNCTION public.exclusive_testemunhas_assinatura(_cor jsonb, _ges jsonb)
+RETURNS text LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT md5(coalesce(_cor->>'nome', '') || '|' || coalesce(_cor->>'cpf', '') || '|'
+    || coalesce(_ges->>'nome', '') || '|' || coalesce(_ges->>'cpf', ''))
+$$;
+REVOKE ALL ON FUNCTION public.exclusive_testemunhas_assinatura(jsonb, jsonb) FROM PUBLIC, anon, authenticated;
+
 -- 3) Resolvedor (servidor): quem são as 2 testemunhas desta captação --------------------------------
 -- Não depende de auth.uid(): a edge chama como service_role; as RPCs da tela chamam depois de checar
 -- permissão. Tudo filtrado pela organização da própria captação.
 CREATE OR REPLACE FUNCTION public.exclusive_testemunhas_resolver(_id uuid)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE _c public.exclusive_captures%ROWTYPE; _lider uuid; _gestor uuid; _origem text; _motivo text;
-  _cor jsonb; _ges jsonb; _probs text[] := '{}'; _doc_at timestamptz; _pdf_ok boolean := false;
+  _cor jsonb; _ges jsonb; _probs text[] := '{}'; _doc_at timestamptz; _doc_path text; _pdf_ok boolean := false;
   _papel_ok boolean; _lider_nome text;
 BEGIN
   SELECT * INTO _c FROM public.exclusive_captures WHERE id = _id;
@@ -125,13 +135,15 @@ BEGIN
     END IF;
   END IF;
 
-  -- PDF: as testemunhas impressas são as de agora e o PDF é o mesmo registrado (gerar de novo muda a data).
-  SELECT d.created_at INTO _doc_at FROM public.exclusive_documents d
+  -- PDF: o arquivo "gerado" atual é exatamente o registrado (caminho único por upload) e as
+  -- testemunhas impressas (pessoa + nome + CPF) são as de agora.
+  SELECT d.created_at, d.storage_path INTO _doc_at, _doc_path FROM public.exclusive_documents d
     WHERE d.capture_id = _id AND d.kind = 'gerado';
   _pdf_ok := _doc_at IS NOT NULL AND _c.testemunhas_pdf IS NOT NULL
-    AND (_c.testemunhas_pdf->>'gerado_at')::timestamptz = _doc_at
+    AND (_c.testemunhas_pdf->>'path') = _doc_path
     AND (_c.testemunhas_pdf->>'corretor_id')::uuid = _c.captor_id
-    AND (_c.testemunhas_pdf->>'gestor_id')::uuid IS NOT DISTINCT FROM _gestor;
+    AND (_c.testemunhas_pdf->>'gestor_id')::uuid IS NOT DISTINCT FROM _gestor
+    AND (_c.testemunhas_pdf->>'dados') = public.exclusive_testemunhas_assinatura(_cor, _ges);
 
   RETURN jsonb_build_object(
     'aplica', EXISTS (SELECT 1 FROM public.clicksign_org_settings s
@@ -145,7 +157,9 @@ BEGIN
     'problemas', to_jsonb(_probs),
     'ok', cardinality(_probs) = 0,
     'pdf_gerado', _doc_at IS NOT NULL,
-    'pdf_ok', _pdf_ok);
+    'pdf_ok', _pdf_ok,
+    -- Devolvida ao fixar: prova que o PDF saiu com estes nomes/CPFs (só para quem gere).
+    'dados', public.exclusive_testemunhas_assinatura(_cor, _ges));
 END $$;
 REVOKE ALL ON FUNCTION public.exclusive_testemunhas_resolver(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.exclusive_testemunhas_resolver(uuid) TO service_role;
@@ -179,6 +193,7 @@ BEGIN
     _r := jsonb_set(_r, '{gestor}', (_r->'gestor') - 'email');
   END IF;
   IF _acesso <> 'gerir' THEN
+    _r := _r - 'dados';
     _r := jsonb_set(_r, '{corretor}', (_r->'corretor') - 'cpf');
     IF jsonb_typeof(_r->'gestor') = 'object' THEN
       _r := jsonb_set(_r, '{gestor}', (_r->'gestor') - 'cpf');
@@ -267,11 +282,13 @@ REVOKE ALL ON FUNCTION public.exclusive_testemunha_gestor_escolher(uuid, uuid) F
 GRANT EXECUTE ON FUNCTION public.exclusive_testemunha_gestor_escolher(uuid, uuid) TO authenticated;
 
 -- 7) Tela: registrar quem foi impresso no PDF gerado ----------------------------------------------
--- Chamada logo depois de anexar o PDF "gerado". Confere que as testemunhas impressas são as atuais
--- e estão completas; senão recusa (o envio pela Clicksign fica bloqueado até gerar de novo).
-CREATE OR REPLACE FUNCTION public.exclusive_testemunhas_fixar(_id uuid, _corretor uuid, _gestor uuid)
+-- Chamada logo depois de anexar o PDF "gerado", com o caminho do arquivo que ESTA tela subiu e o que
+-- ela imprimiu (ids + nome/CPF). Se outro PDF foi gerado no meio (outra aba/pessoa) ou as testemunhas
+-- mudaram, recusa (o envio pela Clicksign fica bloqueado até gerar de novo).
+CREATE OR REPLACE FUNCTION public.exclusive_testemunhas_fixar(_id uuid, _corretor uuid, _gestor uuid,
+  _path text, _dados text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE _c public.exclusive_captures%ROWTYPE; _r jsonb; _doc_at timestamptz;
+DECLARE _c public.exclusive_captures%ROWTYPE; _r jsonb; _doc_at timestamptz; _doc_path text;
 BEGIN
   IF auth.uid() IS NULL OR NOT coalesce(public.exclusive_is_manager(_id, auth.uid()), false) THEN
     RAISE EXCEPTION 'Apenas gestor, team leader ou ADM pode gerar o contrato';
@@ -280,16 +297,38 @@ BEGIN
   IF _c.status <> 'enviada' OR _c.manual THEN
     RAISE EXCEPTION 'O contrato só é gerado com a captação enviada ao gestor';
   END IF;
-  SELECT created_at INTO _doc_at FROM public.exclusive_documents WHERE capture_id = _id AND kind = 'gerado';
+  SELECT created_at, storage_path INTO _doc_at, _doc_path FROM public.exclusive_documents
+    WHERE capture_id = _id AND kind = 'gerado';
   IF _doc_at IS NULL THEN RAISE EXCEPTION 'Gere o contrato antes'; END IF;
+  IF _path IS DISTINCT FROM _doc_path THEN
+    RAISE EXCEPTION 'Outro PDF foi gerado ao mesmo tempo: gere o PDF de novo';
+  END IF;
   _r := public.exclusive_testemunhas_resolver(_id);
   IF NOT (_r->>'ok')::boolean OR _corretor IS DISTINCT FROM (_r->'corretor'->>'id')::uuid
-     OR _gestor IS DISTINCT FROM (_r->'gestor'->>'id')::uuid THEN
+     OR _gestor IS DISTINCT FROM (_r->'gestor'->>'id')::uuid
+     OR _dados IS DISTINCT FROM public.exclusive_testemunhas_assinatura(_r->'corretor', _r->'gestor') THEN
     RAISE EXCEPTION 'As testemunhas mudaram ou estão incompletas: gere o PDF de novo';
   END IF;
   UPDATE public.exclusive_captures SET testemunhas_pdf = jsonb_build_object(
-    'gerado_at', _doc_at, 'corretor_id', _corretor, 'gestor_id', _gestor, 'em', now())
+    'path', _doc_path, 'gerado_at', _doc_at, 'corretor_id', _corretor, 'gestor_id', _gestor,
+    'dados', _dados, 'em', now())
   WHERE id = _id;
 END $$;
-REVOKE ALL ON FUNCTION public.exclusive_testemunhas_fixar(uuid, uuid, uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.exclusive_testemunhas_fixar(uuid, uuid, uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.exclusive_testemunhas_fixar(uuid, uuid, uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.exclusive_testemunhas_fixar(uuid, uuid, uuid, text, text) TO authenticated;
+
+-- 8) Corretor da captação mudou (transferência): a escolha manual e o registro do PDF valiam para o
+-- corretor antigo. Zera os dois; o líder da equipe do novo corretor volta a ser o padrão.
+CREATE OR REPLACE FUNCTION public.exclusive_testemunhas_reset_captor()
+RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
+BEGIN
+  IF NEW.captor_id IS DISTINCT FROM OLD.captor_id THEN
+    NEW.testemunha_gestor_id := NULL;
+    NEW.testemunhas_pdf := NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.exclusive_testemunhas_reset_captor() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_exclusive_testemunhas_reset_captor ON public.exclusive_captures;
+CREATE TRIGGER trg_exclusive_testemunhas_reset_captor BEFORE UPDATE OF captor_id ON public.exclusive_captures
+  FOR EACH ROW EXECUTE FUNCTION public.exclusive_testemunhas_reset_captor();

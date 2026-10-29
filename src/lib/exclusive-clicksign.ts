@@ -111,6 +111,8 @@ export type TestemunhasCaptacao = {
   /** O PDF gerado tem impressas as testemunhas atuais. */
   pdfOk: boolean;
   podeGerir: boolean;
+  /** Impressão digital de nome+CPF das testemunhas (só para quem gere; vai de volta ao fixar). */
+  dados?: string;
 };
 
 function pessoa(v: unknown): TestemunhaPessoa | null {
@@ -151,6 +153,7 @@ export function parseTestemunhas(raw: unknown): TestemunhasCaptacao | null {
     pdfGerado: r.pdf_gerado === true,
     pdfOk: r.pdf_ok === true,
     podeGerir: r.pode_gerir === true,
+    ...(typeof r.dados === "string" ? { dados: r.dados } : {}),
   };
 }
 
@@ -206,16 +209,22 @@ export async function escolherTestemunhaGestor(
   return parseTestemunhas(data);
 }
 
-/** Registra quem foi impresso no PDF gerado (o envio pela Clicksign confere). */
+/**
+ * Registra quem foi impresso no PDF gerado (o envio pela Clicksign confere). `path` = caminho do
+ * arquivo que ESTA tela acabou de subir: se outro PDF foi gerado no meio, o banco recusa.
+ */
 export async function fixarTestemunhasPdf(
   db: SupabaseClient,
   captureId: string,
   t: TestemunhasCaptacao,
+  path: string,
 ): Promise<void> {
   const { error } = await db.rpc("exclusive_testemunhas_fixar", {
     _id: captureId,
     _corretor: t.corretor.id,
     _gestor: t.gestor?.id ?? null,
+    _path: path,
+    _dados: t.dados ?? null,
   });
   if (error) throw new Error(error.message);
 }
@@ -309,6 +318,10 @@ export function sendDialogErrors(input: SendDialogInput): string[] {
   if (!t) errors.push("Não foi possível conferir as testemunhas. Atualize a página.");
   else if (t.problemas.length) errors.push(...t.problemas);
   else if (!t.gestor) errors.push(avisoSemGestor(t) ?? "Testemunha 2: escolha um gestor");
+  else if (input.imobiliariaIds.some((id) => id === t.gestor!.id || id === t.corretor.id))
+    errors.push(
+      "Quem já é testemunha (corretor ou gestor) não pode assinar também pela imobiliária. Desmarque essa pessoa ou troque a testemunha 2.",
+    );
   else if (!t.pdfOk)
     errors.push(
       "As testemunhas impressas no PDF não são as atuais. Gere o PDF para assinatura de novo.",

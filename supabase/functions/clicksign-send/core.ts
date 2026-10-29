@@ -141,7 +141,9 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   if (tw.problemas.length || !tw.gestor) {
     return fail(422, "Testemunhas incompletas", {
       code: "testemunhas",
-      details: tw.problemas.length ? tw.problemas : ["Testemunha 2: escolha um gestor ou team leader"],
+      details: tw.problemas.length
+        ? tw.problemas
+        : ["Testemunha 2: escolha um gestor ou team leader"],
     });
   }
   if (!tw.pdfOk) {

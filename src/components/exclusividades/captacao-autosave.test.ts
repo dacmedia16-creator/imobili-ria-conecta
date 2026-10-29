@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 // Salvamento automático da captação (igual às Vendas) + envio ao gestor depois do autosave
-// (pedido de Denis 19/10, t_487ca876) e testemunhas puxadas para o modal da Clicksign.
+// (pedido de Denis 19/10, t_487ca876).
 import { useCallback, useState } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTOSAVE_BROKER_INVALIDO, useCaptureAutosave } from "./useCaptureAutosave";
 import { emptyForm, type CaptureForm } from "@/lib/exclusive-captures";
-import { witnessesFromForm } from "@/lib/exclusive-clicksign";
 
 const CPF_OK = "529.982.247-25";
 const DELAY = 1200;
@@ -246,37 +245,5 @@ describe("captação: envio ao gestor depois do autosave", () => {
       }),
     ).rejects.toThrow("Dados inválidos");
     expect(result.current.dirty).toBe(true);
-  });
-});
-
-describe("modal da Clicksign: testemunhas da captação", () => {
-  const form = {
-    testemunha_1: { nome: "Carla Souza", rg: "1", cpf: "2", email: "carla@exemplo.com" },
-    testemunha_2: { nome: "Pedro Lima", rg: "", cpf: "" },
-  };
-
-  it("preenche nome e e-mail cadastrados (sem e-mail fica vazio para digitar)", () => {
-    expect(witnessesFromForm(form)).toEqual([
-      { nome: "Carla Souza", email: "carla@exemplo.com" },
-      { nome: "Pedro Lima", email: "" },
-    ]);
-  });
-
-  it("não sobrescreve o que a pessoa já digitou no modal", () => {
-    const cur = [
-      { nome: "Carla S. Editada", email: "" },
-      { nome: "", email: "pedro@exemplo.com" },
-    ];
-    expect(witnessesFromForm(form, cur)).toEqual([
-      { nome: "Carla S. Editada", email: "carla@exemplo.com" },
-      { nome: "Pedro Lima", email: "pedro@exemplo.com" },
-    ]);
-  });
-
-  it("captação sem testemunhas ou form nulo: 2 testemunhas vazias", () => {
-    expect(witnessesFromForm(null)).toEqual([
-      { nome: "", email: "" },
-      { nome: "", email: "" },
-    ]);
   });
 });
