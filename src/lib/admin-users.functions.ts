@@ -118,7 +118,9 @@ const updateUserSchema = z.object({
   remax_id: z
     .string()
     .trim()
-    .regex(/^[0-9]{9}$/, "O ID RE/MAX tem 9 números (ex.: 630601272).")
+    // O padrão 630 é cobrado pelo banco só quando o ID MUDA (IDs antigos fora do padrão não travam
+    // a edição de outros dados da pessoa; ela é cobrada no aviso do cadastro).
+    .regex(/^[0-9]{9}$/, "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).")
     .nullable()
     .optional(),
   nome: fullName,
@@ -270,8 +272,10 @@ export const updateUser = createServerFn({ method: "POST" })
       .eq("organization_id", orgId)
       .eq("id", data.userId);
     if (profErr) {
-      if (/profiles_remax_id_org_uniq|duplicate/i.test(profErr.message))
-        throw new Error("Esse ID RE/MAX já está em outro cadastro desta imobiliária.");
+      if (/profiles_remax_id_(org_)?uniq|duplicate/i.test(profErr.message))
+        throw new Error("Esse ID RE/MAX já está no cadastro de outra pessoa.");
+      if (/ID RE\/MAX invalido/i.test(profErr.message))
+        throw new Error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
       throw new Error(profErr.message);
     }
 

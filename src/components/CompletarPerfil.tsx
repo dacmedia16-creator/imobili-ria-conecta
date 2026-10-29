@@ -307,10 +307,13 @@ function CompletarPerfilTela({
       if (rid) patch.remax_id = rid;
       const { error } = await supabase.from("profiles").update(patch).eq("id", user.id);
       if (error) {
-        if (/profiles_remax_id_org_uniq|duplicate/i.test(error.message))
+        if (/profiles_remax_id_(org_)?uniq|duplicate/i.test(error.message))
           throw new Error(
             "Esse ID RE/MAX já está em outro cadastro. Deixe em branco e fale com o administrador.",
           );
+        // Gatilho do padrão 630 (t_b98f3e4b): só recusa quando o ID muda.
+        if (/ID RE\/MAX invalido/i.test(error.message))
+          throw new Error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
         if (/cpf/i.test(error.message)) throw new Error("CPF inválido. Confira os números.");
         if (/creci/i.test(error.message))
           throw new Error("CRECI inválido. Use só letras, números e - . /");

@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  mensagemErroCadastro,
   mensagemErroFicha,
   paramsSalvarFicha,
+  type CadastroForm,
   type Colaborador,
   type FichaForm,
   type SituacaoFicha,
@@ -42,8 +44,22 @@ export async function listarFichasColaboradores(): Promise<{
       ...c,
       papeis: c.papeis ?? [],
       equipes: c.equipes ?? [],
+      cadastro_pendente: c.cadastro_pendente ?? [],
     })),
   };
+}
+
+/** Grava nome/telefone/CPF/ID RE/MAX da própria pessoa (vazio = não mexe). O banco valida tudo. */
+export async function salvarMeuCadastro(c: CadastroForm): Promise<SituacaoFicha> {
+  const vazio = (t: string) => (t.trim() ? t.trim() : null);
+  const { data, error } = await db.rpc("cadastro_salvar_meu", {
+    _nome: vazio(c.nome),
+    _telefone: vazio(c.telefone),
+    _cpf: vazio(c.cpf),
+    _remax_id: vazio(c.remax_id),
+  });
+  if (error) throw new Error(mensagemErroCadastro(error));
+  return data as SituacaoFicha;
 }
 
 /** Registra quem exportou (formato e total; sem dados pessoais). */
