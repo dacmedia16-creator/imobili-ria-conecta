@@ -231,6 +231,7 @@ export function resumoGestor(
 export function mensagemErroCrm(msg: string): string | null {
   const m = msg.toLowerCase();
   if (m.includes("modulo crm desligado")) return "O CRM está desligado nesta imobiliária.";
+  if (m.includes("antes de converter")) return "O lead precisa ser aceito antes de converter.";
   if (m.includes("proximo contato invalida")) return "Data do próximo contato inválida.";
   if (m.includes("motivo do proximo contato longo")) return "Motivo longo demais (até 200 caracteres).";
   if (m.includes("proximo contato")) return "Informe a data e o motivo do próximo contato.";

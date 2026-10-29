@@ -197,6 +197,11 @@ BEGIN
   IF _etapa IN ('ganho', 'perdido') THEN
     RETURN public.lead_mudar_etapa(_lead, _etapa, _motivo_perda_id, _obs);
   END IF;
+  -- Mesma etapa: é só remarcar o próximo contato (com as checagens de aceite e responsável).
+  IF _etapa = (SELECT etapa FROM public.leads WHERE id = _lead AND organization_id = _org) THEN
+    PERFORM public.crm_proximo_contato(_lead, _proximo_em, _proximo_motivo);
+    RETURN _etapa;
+  END IF;
   _m := public.crm_validar_proximo(_proximo_em, _proximo_motivo);
   PERFORM set_config('app.crm_mover', 'on', true);
   PERFORM public.lead_mudar_etapa(_lead, _etapa, NULL, _obs);
@@ -264,6 +269,10 @@ BEGIN
   IF _l.funil <> 'venda' THEN RAISE EXCEPTION 'Lead nao e do funil de venda' USING ERRCODE = '22023'; END IF;
   IF _l.sale_id IS NOT NULL THEN RETURN _l.sale_id; END IF;
   IF _l.etapa = 'perdido' THEN RAISE EXCEPTION 'Lead encerrado' USING ERRCODE = '42501'; END IF;
+  -- A venda recebe telefone/e-mail do lead: só depois do aceite (mesma regra do lead_contatos), para ninguém.
+  IF _l.aceito_em IS NULL OR _l.no_banco_desde IS NOT NULL THEN
+    RAISE EXCEPTION 'Aceite o lead antes de converter' USING ERRCODE = '42501';
+  END IF;
   IF NOT public.has_any_role(_me, ARRAY['corretor','gestor','team_leader','admin','super_admin']::public.app_role[]) THEN
     RAISE EXCEPTION 'Seu papel nao cria venda' USING ERRCODE = '42501';
   END IF;
@@ -328,6 +337,10 @@ BEGIN
   IF _l.funil <> 'captacao' THEN RAISE EXCEPTION 'Lead nao e do funil de captacao' USING ERRCODE = '22023'; END IF;
   IF _l.capture_convertida_id IS NOT NULL THEN RETURN _l.capture_convertida_id; END IF;
   IF _l.etapa = 'perdido' THEN RAISE EXCEPTION 'Lead encerrado' USING ERRCODE = '42501'; END IF;
+  -- A captação recebe telefone/e-mail do lead: só depois do aceite (mesma regra do lead_contatos).
+  IF _l.aceito_em IS NULL OR _l.no_banco_desde IS NOT NULL THEN
+    RAISE EXCEPTION 'Aceite o lead antes de converter' USING ERRCODE = '42501';
+  END IF;
   IF NOT public.exclusive_capture_enabled() THEN
     RAISE EXCEPTION 'Captacao exclusiva desligada nesta imobiliaria' USING ERRCODE = '42501';
   END IF;

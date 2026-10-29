@@ -210,6 +210,19 @@ SELECT t.ok(t.falha(format('SELECT public.crm_mover(%L, ''proposta'', public.crm
 SELECT t.ok(t.falha(format('SELECT public.crm_proximo_contato(%L, public.crm_hoje() + 1, ''x'')', :'l1'), 'encerrado'),
             'C48 lead encerrado não recebe próximo contato');
 
+-- 8b) Contato não vaza pela conversão antes do aceite (revisão de dúvida) -------------------------------
+SELECT t.como(:ges);
+SELECT public.lead_criar('Cliente Ficticio 6', '15900000006', NULL, 'manual', NULL, NULL, :cA) AS l6 \gset
+SELECT t.como(:tl);
+SELECT t.ok(t.falha(format('SELECT public.crm_converter_venda(%L)', :'l6'), 'antes de converter'),
+            'C54 Team Leader não converte lead ainda não aceito (telefone não vaza para a venda)');
+SELECT t.como(:ges);
+SELECT t.ok(t.falha(format('SELECT public.crm_converter_venda(%L)', :'l6'), 'antes de converter'),
+            'C55 nem o gestor converte lead não aceito');
+SELECT t.como(:cA);
+SELECT t.ok(t.falha(format('SELECT public.crm_mover(%L, ''novo'', public.crm_hoje() + 1, ''x'')', :'l6'), 'aceite o lead'),
+            'C56 remarcar na mesma etapa também exige aceite');
+
 -- 9) Imobiliária com CRM desligado: tudo como antes ----------------------------------------------------
 SELECT t.como(:gX);
 SELECT public.lead_criar('Cliente Ficticio X', '15900000009', NULL, 'manual', NULL, NULL, :cX) AS lx \gset
