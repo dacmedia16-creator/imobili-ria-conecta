@@ -740,7 +740,12 @@ function MeuAcesso() {
               placeholder="Buscar bairro, condomínio, cidade ou zona"
               className="max-w-lg"
             />
-            <div className="max-h-80 space-y-4 overflow-y-auto rounded-md border p-3">
+            {/* Celular: altura pela tela (dvh evita a barra do Safari), rolagem presa na caixa e
+                folga no fim para o último local não ficar colado/cortado. Computador: igual a antes. */}
+            <div
+              data-testid="lista-regioes"
+              className="max-h-[60dvh] space-y-4 overflow-y-auto overscroll-contain rounded-md border p-3 pb-8 sm:max-h-80 sm:pb-3"
+            >
               {groupRegions(
                 positioningRegions.filter((region) => {
                   const query = positioningSearch.trim().toLocaleLowerCase("pt-BR");
