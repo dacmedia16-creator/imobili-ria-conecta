@@ -75,6 +75,7 @@ describe("porteiro da ficha: os dois estados do prazo (decididos pelo banco)", (
 const valido = (): FichaForm => ({
   data_nascimento: "1990-05-17",
   qtd_filhos: "0",
+  filhos_faixas: [],
   tem_plano_saude: "nao",
   plano_saude: "",
   emergencia_nome: "Maria Exemplo",
