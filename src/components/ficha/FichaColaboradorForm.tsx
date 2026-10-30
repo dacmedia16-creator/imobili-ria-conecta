@@ -12,8 +12,11 @@ import {
 import {
   AVISO_FINALIDADE,
   CAMPO_FICHA_LABEL,
+  FAIXAS_FILHOS,
   RELIGIOES,
+  alternarFaixa,
   camposFichaFaltando,
+  temFilhos,
   formDaSituacao,
   type CampoFicha,
   type FichaForm,
@@ -109,9 +112,41 @@ export function FichaColaboradorForm({
             min={0}
             max={30}
             value={f.qtd_filhos}
-            onChange={(e) => set("qtd_filhos", e.target.value.replace(/\D/g, "").slice(0, 2))}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+              // Sem filhos (0 ou vazio): esconde e limpa as faixas marcadas.
+              setF((x) => ({
+                ...x,
+                qtd_filhos: v,
+                filhos_faixas: temFilhos(v) ? x.filhos_faixas : [],
+              }));
+            }}
           />
         </Campo>
+        {temFilhos(f.qtd_filhos) && (
+          <fieldset className="space-y-1.5" data-testid="ficha-filhos-faixas">
+            <legend className="text-sm font-medium">Idade dos filhos (opcional)</legend>
+            <p className="text-xs text-muted-foreground">Marque todas as faixas que se aplicam.</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {FAIXAS_FILHOS.map((fx) => (
+                <label
+                  key={fx.valor}
+                  htmlFor={`fc-faixa-${fx.valor}`}
+                  className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                >
+                  <Checkbox
+                    id={`fc-faixa-${fx.valor}`}
+                    checked={f.filhos_faixas.includes(fx.valor)}
+                    onCheckedChange={() =>
+                      set("filhos_faixas", alternarFaixa(f.filhos_faixas, fx.valor))
+                    }
+                  />
+                  <span>{fx.rotulo}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
       </Secao>
 
       <Secao titulo="Saúde">

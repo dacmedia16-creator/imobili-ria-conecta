@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Faixas de idade dos filhos (migration 20261030100000, t_27d37c57) numa ÚNICA transação revertida:
+# ficha (130000) + cadastro (160000) + esta -> suítes -> rollback -> confere -> reaplica. Nada fica gravado.
+# Uso: PSQL="docker exec -i pg-c663 psql -U supabase_admin -d postgres" bash supabase/tests/run-ficha-filhos-faixas.sh
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+PSQL="${PSQL:?defina PSQL (banco local descartável ou homologação; nunca produção)}"
+M1="$ROOT/supabase/migrations/20261029130000_ficha_colaborador.sql"
+M2="$ROOT/supabase/migrations/20261029160000_cadastro_completo_ficha.sql"
+MIG="$ROOT/supabase/migrations/20261030100000_ficha_filhos_faixas.sql"
+RB="$ROOT/docs/sql/rollback/20261030100000_ficha_filhos_faixas.rollback.sql"
+strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
+HASH="SELECT 'hash: ' || string_agg(proname || '=' || md5(prosrc), ' ' ORDER BY proname) FROM pg_proc WHERE proname IN ('ficha_salvar_minha','ficha_minha_situacao','ficha_colaboradores_listar');"
+{
+  echo "BEGIN;"
+  echo "SELECT 1 FROM pg_proc WHERE proname = 'ficha_minha_situacao' HAVING count(*) = 0;"
+  strip "$M1"
+  strip "$M2"
+  echo "\\echo [antes]"
+  echo "$HASH"
+  strip "$MIG"
+  echo "\\echo [migration ok]"
+  echo "SAVEPOINT s1;"
+  strip "$HERE/ficha_filhos_faixas.sql"
+  echo "RESET ROLE;"
+  echo "ROLLBACK TO SAVEPOINT s1;"
+  echo "SAVEPOINT s2;"
+  echo "\\echo [suite da ficha]"
+  strip "$HERE/ficha_colaborador.sql"
+  echo "RESET ROLE;"
+  echo "ROLLBACK TO SAVEPOINT s2;"
+  echo "SAVEPOINT s3;"
+  echo "\\echo [suite do cadastro]"
+  strip "$HERE/cadastro_completo.sql"
+  echo "RESET ROLE;"
+  echo "ROLLBACK TO SAVEPOINT s3;"
+  strip "$RB"
+  echo "\\echo [rollback ok]"
+  echo "$HASH"
+  echo "SELECT 'rollback: coluna=' || count(*) FROM information_schema.columns WHERE table_name = 'colaborador_fichas' AND column_name = 'filhos_faixas';"
+  echo "SELECT 'rollback: assinaturas_salvar=' || count(*) FROM pg_proc WHERE proname = 'ficha_salvar_minha';"
+  strip "$MIG"
+  echo "\\echo [reaplicada ok]"
+  echo "ROLLBACK;"
+} | $PSQL -X -q -At -v ON_ERROR_STOP=1 2>&1 | grep -E "^\[|^(ok|FALHA|TOTAL=|hash|rollback)|ERROR|LINE|DETAIL|CONTEXT|psql:" || true

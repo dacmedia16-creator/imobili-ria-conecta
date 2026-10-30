@@ -13,6 +13,8 @@
 
 export type FichaDados = {
   qtd_filhos: number;
+  /** Ausente na versão anterior do banco: tratado como lista vazia. */
+  filhos_faixas?: string[] | null;
   tem_plano_saude: boolean;
   plano_saude: string | null;
   emergencia_nome: string;
@@ -30,12 +32,7 @@ export type FichaDados = {
  * gestor ou team leader (os mesmos papéis que veem esses campos no Meu acesso). CRECI não é cobrado.
  */
 export type PendenciaCadastro =
-  | "nome"
-  | "telefone"
-  | "cpf"
-  | "remax_id"
-  | "remax_id_invalido"
-  | "remax_id_duplicado";
+  "nome" | "telefone" | "cpf" | "remax_id" | "remax_id_invalido" | "remax_id_duplicado";
 
 export const PENDENCIA_LABEL: Record<PendenciaCadastro, string> = {
   nome: "Nome completo",
@@ -141,9 +138,49 @@ export function chaveFichaAdiada(userId: string): string {
 // ------------------------------------------------------------------------------------------------
 // Formulário
 
+/**
+ * Faixas de idade dos filhos (t_27d37c57, pedido de Denis em 30/10/2026). Múltipla escolha e opcional;
+ * só aparece com 1 filho ou mais. Os códigos são os mesmos do banco (colaborador_fichas.filhos_faixas).
+ */
+export const FAIXAS_FILHOS = [
+  { valor: "0-5", rotulo: "0 a 5 anos" },
+  { valor: "6-10", rotulo: "6 a 10 anos" },
+  { valor: "11-15", rotulo: "11 a 15 anos" },
+  { valor: "16+", rotulo: "16 anos ou mais" },
+] as const;
+export type FaixaFilhos = (typeof FAIXAS_FILHOS)[number]["valor"];
+
+/** "Tem filhos?" = quantidade de filhos 1 ou mais (a pergunta da ficha é a quantidade). */
+export function temFilhos(qtd: string): boolean {
+  const t = qtd.trim();
+  return /^\d{1,2}$/.test(t) && Number(t) > 0;
+}
+
+/** Só códigos conhecidos, sem repetir, na ordem da lista. */
+export function normalizarFaixas(v: readonly string[] | null | undefined): FaixaFilhos[] {
+  const set = new Set(v ?? []);
+  return FAIXAS_FILHOS.map((f) => f.valor).filter((c) => set.has(c));
+}
+
+/** Liga/desliga uma faixa. */
+export function alternarFaixa(atual: readonly string[], faixa: FaixaFilhos): FaixaFilhos[] {
+  return normalizarFaixas(
+    atual.includes(faixa) ? atual.filter((x) => x !== faixa) : [...atual, faixa],
+  );
+}
+
+/** "0 a 5 anos, 11 a 15 anos" (vazio se nada marcado). */
+export function textoFaixas(v: readonly string[] | null | undefined): string {
+  const rotulo = new Map<string, string>(FAIXAS_FILHOS.map((f) => [f.valor, f.rotulo]));
+  return normalizarFaixas(v)
+    .map((c) => rotulo.get(c) ?? c)
+    .join(", ");
+}
+
 export type FichaForm = {
   data_nascimento: string;
   qtd_filhos: string;
+  filhos_faixas: FaixaFilhos[];
   tem_plano_saude: "" | "sim" | "nao";
   plano_saude: string;
   emergencia_nome: string;
@@ -159,6 +196,7 @@ export type CampoFicha = keyof FichaForm;
 export const CAMPO_FICHA_LABEL: Record<CampoFicha, string> = {
   data_nascimento: "Data de nascimento",
   qtd_filhos: "Quantidade de filhos",
+  filhos_faixas: "Idade dos filhos",
   tem_plano_saude: "Tem plano de saúde?",
   plano_saude: "Qual plano de saúde",
   emergencia_nome: "Nome do contato de emergência",
@@ -187,6 +225,7 @@ export function formVazio(): FichaForm {
   return {
     data_nascimento: "",
     qtd_filhos: "",
+    filhos_faixas: [],
     tem_plano_saude: "",
     plano_saude: "",
     emergencia_nome: "",
@@ -207,6 +246,7 @@ export function formDaSituacao(s: SituacaoFicha | null | undefined): FichaForm {
   return {
     ...f,
     qtd_filhos: String(d.qtd_filhos),
+    filhos_faixas: d.qtd_filhos > 0 ? normalizarFaixas(d.filhos_faixas) : [],
     tem_plano_saude: d.tem_plano_saude ? "sim" : "nao",
     plano_saude: d.plano_saude ?? "",
     emergencia_nome: d.emergencia_nome ?? "",
@@ -268,6 +308,8 @@ export function paramsSalvarFicha(f: FichaForm) {
     _religiao: rel || null,
     _data_nascimento: f.data_nascimento,
     _ciente: f.ciente,
+    // Opcional. Sem filhos (0) → lista vazia: o banco limpa as faixas salvas.
+    _filhos_faixas: temFilhos(f.qtd_filhos) ? normalizarFaixas(f.filhos_faixas) : [],
   };
 }
 
@@ -277,6 +319,7 @@ export function mensagemErroFicha(err: { code?: string; message?: string } | nul
   if (err?.code === "22023") {
     const mapa: [RegExp, string][] = [
       [/aviso/i, "Confirme que leu o aviso de uso dos dados."],
+      [/faixa/i, "Faixa de idade dos filhos inválida."],
       [/filhos/i, "Quantidade de filhos inválida."],
       [/qual e o plano/i, "Informe qual é o plano de saúde."],
       [/tem plano/i, "Informe se tem plano de saúde."],
@@ -308,6 +351,7 @@ export type Colaborador = {
   /** Só as chaves do que falta no cadastro (sem valores). */
   cadastro_pendente: PendenciaCadastro[];
   qtd_filhos: number | null;
+  filhos_faixas?: string[] | null;
   tem_plano_saude: boolean | null;
   plano_saude: string | null;
   emergencia_nome: string | null;
@@ -505,6 +549,13 @@ export function textoPendencias(p: PendenciaCadastro[] | null | undefined): stri
   return (p ?? []).map((k) => PENDENCIA_LABEL[k] ?? k).join(", ");
 }
 
+/** "2 (0 a 5 anos, 11 a 15 anos)": quantidade com as faixas, quando houver. */
+export function filhosComFaixas(c: Pick<Colaborador, "qtd_filhos" | "filhos_faixas">): string {
+  if (c.qtd_filhos == null) return "";
+  const t = c.qtd_filhos > 0 ? textoFaixas(c.filhos_faixas) : "";
+  return t ? `${c.qtd_filhos} (${t})` : String(c.qtd_filhos);
+}
+
 /** Linhas para Excel/PDF (mesma ordem de colunas nos dois). */
 export const COLUNAS_EXPORT = [
   "Nome",
@@ -533,7 +584,7 @@ export function linhaExport(c: Colaborador, labels: Record<string, string>): str
     c.equipes.join(", "),
     dataBr(c.data_nascimento),
     c.completa ? "Completa" : "Pendente",
-    c.qtd_filhos == null ? "" : String(c.qtd_filhos),
+    filhosComFaixas(c),
     c.tem_plano_saude == null ? "" : c.tem_plano_saude ? "Sim" : "Não",
     c.plano_saude ?? "",
     c.hospital_preferencia ?? "",

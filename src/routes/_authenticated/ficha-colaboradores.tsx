@@ -19,6 +19,7 @@ import {
   dataBr,
   dataHoraSp,
   descreverFiltros,
+  filhosComFaixas,
   filtrarColaboradores,
   filtrosVazios,
   inputSpParaIso,
@@ -354,7 +355,7 @@ function FichaColaboradoresPage() {
                           <Pill tom="green">Completo</Pill>
                         )}
                       </td>
-                      <td className="px-3 py-2">{c.qtd_filhos ?? "—"}</td>
+                      <td className="px-3 py-2">{filhosComFaixas(c) || "—"}</td>
                       <td className="px-3 py-2">
                         {c.tem_plano_saude == null
                           ? "—"
