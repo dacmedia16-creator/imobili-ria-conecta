@@ -308,3 +308,34 @@ export function corretorDoFeedback(
   const atual = cap?.link_status === "ativo" ? cap.corretor?.trim() : "";
   return atual || corretorAnuncio?.trim() || undefined;
 }
+
+/** Texto quando o anúncio não tem proprietário com nome (sem captação ligada, sem nome ou sem permissão). */
+export const SEM_PROPRIETARIO = "Proprietário não informado";
+
+/**
+ * Nomes dos proprietários para a tela: "Fulano", "Fulano e Beltrana", "Fulano, Beltrana e Ciclano".
+ * Ignora vazios e repetidos. Sem nome nenhum = SEM_PROPRIETARIO. Só nomes entram aqui (nunca CPF/contato).
+ */
+export function nomesProprietarios(
+  nomes: readonly (string | null | undefined)[] | null | undefined,
+): string {
+  const lista = [
+    ...new Set((nomes ?? []).map((n) => (n ?? "").replace(/\s+/g, " ").trim()).filter(Boolean)),
+  ];
+  if (!lista.length) return SEM_PROPRIETARIO;
+  if (lista.length === 1) return lista[0];
+  return `${lista.slice(0, -1).join(", ")} e ${lista[lista.length - 1]}`;
+}
+
+/** Linhas de owner_feedback_proprietarios() -> mapa pela chave do código (codeKey). */
+export function mapaProprietarios(
+  rows: readonly { code_key: string | null; nomes: (string | null)[] | null }[] | null | undefined,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const r of rows ?? []) {
+    if (!r?.code_key) continue;
+    const nomes = (r.nomes ?? []).filter((n): n is string => !!n && !!n.trim());
+    if (nomes.length) out[codeKey(r.code_key)] = nomes;
+  }
+  return out;
+}
