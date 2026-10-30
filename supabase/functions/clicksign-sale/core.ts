@@ -85,6 +85,17 @@ export type SaleDeps = ManageDeps &
   markCanceled(envelopeRow: string, reason: string): Promise<string>;
 };
 
+/** IDs devolvidos pela RPC clicksign_sale_corretores (SETOF uuid: string ou {nome_da_função: id}). */
+export function corretorIds(data: unknown): string[] {
+  if (!Array.isArray(data)) return [];
+  const ids = data.map((x) =>
+    typeof x === "string"
+      ? x
+      : String((x as Record<string, unknown> | null)?.clicksign_sale_corretores ?? ""),
+  );
+  return [...new Set(ids.filter((id) => id !== ""))];
+}
+
 export type CoreResult = { status: number; body: Record<string, unknown> };
 const fail = (status: number, error: string, extra: Record<string, unknown> = {}): CoreResult => ({
   status,

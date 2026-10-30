@@ -3,7 +3,7 @@
 // status contrato_ok_corretor, liberação do jurídico, contrato vigente) ficam no banco.
 // Logs: só ação, status e código HTTP — nunca token, segredo ou e-mail.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { handleSale } from "./core.ts";
+import { corretorIds, handleSale } from "./core.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +57,9 @@ Deno.serve(async (req) => {
             .from("sale_parties")
             .select("papel, nome, email, tipo_pessoa")
             .eq("sale_id", saleId),
-          admin.rpc("sale_corretores", { _sale_id: saleId }),
+          // Função só do servidor (dona postgres, presa à org): sale_corretores depende do usuário
+          // logado (RLS) e com a chave service_role devolvia lista vazia (t_bc726348).
+          admin.rpc("clicksign_sale_corretores", { _org: org, _sale_id: saleId }),
           admin
             .from("clicksign_org_settings")
             .select("enabled, sale_enabled, test_mode, test_allowlist_sha256, deadline_days")
@@ -83,9 +85,7 @@ Deno.serve(async (req) => {
         ) {
           throw new Error("context_unavailable");
         }
-        const ids = ((corretores.data ?? []) as unknown[]).map((x) =>
-          typeof x === "string" ? x : String((x as Record<string, unknown>).sale_corretores ?? ""),
-        );
+        const ids = corretorIds(corretores.data);
         const profs = ids.length
           ? await admin.from("profiles").select("id, nome, email").in("id", ids)
           : { data: [], error: null };
