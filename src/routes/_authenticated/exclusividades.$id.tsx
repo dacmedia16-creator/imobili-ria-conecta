@@ -74,6 +74,10 @@ import {
   extractSignedContract,
 } from "@/lib/exclusive-captures-ai.functions";
 import {
+  limparArquivoSubstituido,
+  removerDocumentoCaptacao,
+} from "@/lib/captacao-remover-documento.functions";
+import {
   clicksignCaptureSigned,
   clicksignManualInstructions,
   currentSignedDoc,
@@ -710,8 +714,18 @@ function ExclusiveDetail() {
   const upload = (kind: DocumentKind, owner: number, file: File) =>
     run(async () => {
       await autosave.flush();
+      // Substituir: guarda o arquivo antigo para apagar do Storage depois que o novo for registrado
+      // (só documentos da ficha; contrato gerado/assinado fica como está).
+      const antigo =
+        kind !== "assinado" && kind !== "gerado"
+          ? docs.find((d) => d.kind === kind && d.owner_index === owner)?.storage_path
+          : undefined;
       const storagePath = await uploadCaptureDocument(id, kind, owner, file);
       toast.success("Documento anexado");
+      if (antigo && antigo !== storagePath)
+        void limparArquivoSubstituido({ data: { captureId: id, path: antigo } }).catch(
+          () => undefined,
+        );
       // Upload manual do assinado (captação normal) leva ao passo 5, igual ao que chega da Clicksign.
       if (kind === "assinado" && !manual) {
         setStep("assinado");
@@ -1000,7 +1014,22 @@ function ExclusiveDetail() {
         toast.error(errorMessage(e, "Não foi possível imprimir o documento"));
       });
   };
-  const docRow = (doc: CaptureDocument) => (
+  // Remover documento enviado por engano (t_5ab6dad4): o banco confere a permissão de novo.
+  const removeDoc = (doc: CaptureDocument, label: string) => {
+    if (
+      !window.confirm(
+        `Remover "${doc.file_name}" de ${label}? O arquivo será apagado e não poderá ser recuperado.`,
+      )
+    )
+      return;
+    void run(async () => {
+      await removerDocumentoCaptacao({
+        data: { captureId: id, kind: doc.kind, owner: doc.owner_index },
+      });
+      toast.success("Documento removido");
+    });
+  };
+  const docRow = (doc: CaptureDocument, remove?: () => void) => (
     <div
       key={doc.id}
       className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 p-2 text-sm"
@@ -1042,6 +1071,18 @@ function ExclusiveDetail() {
         >
           <Download className="h-4 w-4" />
         </Button>
+        {remove && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Remover"
+            aria-label={`Remover ${doc.file_name}`}
+            className="text-destructive hover:text-destructive"
+            onClick={remove}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -1063,6 +1104,10 @@ function ExclusiveDetail() {
           ? editable || (manager && capture.status === "enviada")
           : manager && ["enviada", "em_assinatura"].includes(capture.status)
         : editable);
+    // Remover: mesma regra do banco (exclusive_remove_document) — quem pode enviar, em rascunho ou
+    // devolvida; nunca o contrato gerado nem o assinado da captação normal.
+    const canRemove =
+      canUpload && editable && kind !== "gerado" && !(kind === "assinado" && !manual);
     const acceptPdfOnly = kind === "gerado" || (kind === "assinado" && !manual);
     return (
       <Card key={`${kind}-${owner}`} className={opts.accent ?? ""}>
@@ -1105,7 +1150,7 @@ function ExclusiveDetail() {
               )}
             </div>
           </div>
-          {list.map(docRow)}
+          {list.map((doc) => docRow(doc, canRemove ? () => removeDoc(doc, label) : undefined))}
         </CardContent>
       </Card>
     );
