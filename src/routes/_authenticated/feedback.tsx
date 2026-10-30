@@ -3,12 +3,15 @@ import {
   codeKey,
   corretorDoFeedback,
   mesclarHistorico,
+  nomesProprietarios,
   ownerPlan,
   ownerPlanText,
+  SEM_PROPRIETARIO,
   type PlanItem,
 } from "@/lib/feedback-captacao";
 import {
   feedbackCaptacao,
+  feedbackProprietarios,
   planView,
   siteAgentNames,
   type FeedbackCaptacao,
@@ -84,6 +87,8 @@ function FeedbackPage() {
   // Base oficial: venda do XML RE/MAX -> OLX (t_698be0d2). Vazio = sem coleta boa: usa só os portais.
   const [xmlBase, setXmlBase] = useState<XmlBaseRow[]>([]);
   const [xmlAviso, setXmlAviso] = useState<string | null>(null);
+  // Nomes dos proprietários (captação ligada), por codeKey. Vem do banco já filtrado por permissão.
+  const [owners, setOwners] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [broker, setBroker] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -115,9 +120,10 @@ function FeedbackPage() {
           if (!data || data.length < 1000) break;
         }
         // XML: RPC ausente ou com erro não derruba a tela (cai no comportamento antigo).
-        const [xb, xs] = await Promise.all([
+        const [xb, xs, donos] = await Promise.all([
           db.rpc("feedback_xml_base"),
           db.rpc("remax_xml_status"),
+          feedbackProprietarios(),
         ]);
         const base = xb.error ? [] : ((xb.data ?? []) as XmlBaseRow[]);
         const aviso = xs.error ? null : ((xs.data?.[0]?.aviso as string | null) ?? null);
@@ -138,6 +144,7 @@ function FeedbackPage() {
           setSiteNames(site);
           setXmlBase(base);
           setXmlAviso(aviso);
+          setOwners(donos);
         }
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar os números dos portais."));
@@ -181,6 +188,7 @@ function FeedbackPage() {
       <Review
         listing={current}
         brokerName={current.brokerId ? names[current.brokerId] : undefined}
+        ownerNames={owners[codeKey(current.code)]}
         onBack={() => setSelected(null)}
       />
     );
@@ -242,6 +250,7 @@ function FeedbackPage() {
             >
               <div className="min-w-0">
                 <div className="font-medium">{l.code}</div>
+                <OwnerLine nomes={owners[codeKey(l.code)]} />
                 <div className="break-words text-xs text-muted-foreground">
                   {isManager &&
                     (l.brokerId
@@ -290,8 +299,11 @@ function FeedbackPage() {
                 onClick={() => setSelected(l.code)}
                 className="flex justify-between gap-2 rounded border bg-card px-2 py-1 text-left text-xs hover:bg-muted"
               >
-                <span className="font-medium">{l.code}</span>
-                <span className="tabular-nums text-muted-foreground">
+                <span className="min-w-0">
+                  <span className="font-medium">{l.code}</span>
+                  <OwnerLine nomes={owners[codeKey(l.code)]} />
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
                   {n(totalViews(l))} visualizações · {n(totalContacts(l))} contatos
                 </span>
               </button>
@@ -303,13 +315,29 @@ function FeedbackPage() {
   );
 }
 
+/** Proprietários do anúncio na lista: todos os nomes numa linha, cortada com "…" (nome inteiro no title). */
+function OwnerLine({ nomes }: { nomes?: string[] }) {
+  const texto = nomesProprietarios(nomes);
+  const vazio = texto === SEM_PROPRIETARIO;
+  return (
+    <span
+      className={`block max-w-full truncate text-xs sm:max-w-md ${vazio ? "italic text-muted-foreground/70" : "text-foreground/80"}`}
+      title={vazio ? undefined : `Proprietário(s): ${texto}`}
+    >
+      {vazio ? texto : `Proprietário(s): ${texto}`}
+    </span>
+  );
+}
+
 function Review({
   listing,
   brokerName: brokerNameAnuncio,
+  ownerNames,
   onBack,
 }: {
   listing: ListingFeedback;
   brokerName?: string;
+  ownerNames?: string[];
   onBack: () => void;
 }) {
   const [ownerName, setOwnerName] = useState("");
@@ -356,6 +384,10 @@ function Review({
     [cap, plan, hoje],
   );
   const imovel = cap ? [cap.tipo, cap.bairro].filter(Boolean).join(" · ") || null : null;
+  // Topo: todos os proprietários (lista em lote); sem ela, o 1º da captação ligada (regra de antes).
+  const proprietarios = nomesProprietarios(
+    ownerNames?.length ? ownerNames : [cap?.proprietario ?? null],
+  );
   // Com captação ligada, quem fala com o proprietário é o captador atual (pode ter sido transferida).
   const brokerName = corretorDoFeedback(cap, brokerNameAnuncio);
   useEffect(() => {
@@ -506,6 +538,18 @@ function Review({
         Imóvel {listing.code}
         {imovel ? <span className="font-normal text-muted-foreground"> · {imovel}</span> : null}
       </h1>
+      <p
+        className={`-mt-2 break-words text-sm ${proprietarios === SEM_PROPRIETARIO ? "italic text-muted-foreground" : ""}`}
+      >
+        {proprietarios === SEM_PROPRIETARIO ? (
+          proprietarios
+        ) : (
+          <>
+            <span className="text-muted-foreground">Proprietário(s): </span>
+            <span className="font-medium">{proprietarios}</span>
+          </>
+        )}
+      </p>
       {cap ? (
         <div
           className={`flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm ${cap.link_status === "ativo" ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200" : "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200"}`}
