@@ -33,7 +33,16 @@ import {
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 import { textoToque15 } from "./leads-ia-toque15";
-import { AVISO_SEM_RESPOSTA, falasSemResposta, historicoDb, modoValidadorDb, redacaoLigadaDb, redigirResposta, type FalaHistorico, type ModoValidador } from "./leads-ia-redacao";
+import {
+  AVISO_SEM_RESPOSTA,
+  falasSemResposta,
+  historicoDb,
+  modoValidadorDb,
+  redacaoLigadaDb,
+  redigirResposta,
+  type FalaHistorico,
+  type ModoValidador,
+} from "./leads-ia-redacao";
 
 export const RETORNO_MAX_BYTES = 50_000;
 export const RETORNO_TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
@@ -74,24 +83,78 @@ const verdade = (v: unknown) => v === true || v === "true" || v === 1 || v === "
 /** Normaliza o payload da ZionTalk (só aqui dentro existe o formato do provedor). */
 export function normalizarZionTalk(p: unknown, corpoBruto: string): MensagemZion | null {
   if (!p || typeof p !== "object" || Array.isArray(p)) return null;
-  const jid = primeiro(p, ["key.remoteJid", "data.key.remoteJid", "remoteJid", "chat.id", "data.chat_id", "chat_id"]);
+  const jid = primeiro(p, [
+    "key.remoteJid",
+    "data.key.remoteJid",
+    "remoteJid",
+    "chat.id",
+    "data.chat_id",
+    "chat_id",
+  ]);
   const telBruto = primeiro(p, [
-    "contato.telefone", "contato.celular", "contact.phone", "contact.mobile_phone", "sender.phone",
-    "sender.mobile_phone", "data.sender.phone", "data.contact.phone", "data.chat.phone", "mobile_phone", "phone",
-    "from", "remoteJid", "key.remoteJid", "data.key.remoteJid",
+    "contato.telefone",
+    "contato.celular",
+    "contact.phone",
+    "contact.mobile_phone",
+    "sender.phone",
+    "sender.mobile_phone",
+    "data.sender.phone",
+    "data.contact.phone",
+    "data.chat.phone",
+    "mobile_phone",
+    "phone",
+    "from",
+    "remoteJid",
+    "key.remoteJid",
+    "data.key.remoteJid",
   ]);
   const telefone = telBruto.replace(/@.*$/, "").replace(/\D/g, "");
   const texto = primeiro(p, [
-    "mensagem.texto", "mensagem.conteudo", "mensagem.legenda", "message.text", "message.body", "message.caption",
-    "data.message.text", "data.message.body", "data.text", "text", "body", "msg",
+    "mensagem.texto",
+    "mensagem.conteudo",
+    "mensagem.legenda",
+    "message.text",
+    "message.body",
+    "message.caption",
+    "data.message.text",
+    "data.message.body",
+    "data.text",
+    "text",
+    "body",
+    "msg",
   ]);
-  const tipoBruto = primeiro(p, ["mensagem.tipo", "message.type", "data.message.type", "message_type", "type"]).toLowerCase();
-  const arquivo = primeiro(p, ["mensagem.arquivo_url", "mensagem.url", "message.mediaUrl", "message.media_url", "mediaUrl", "media_url"]);
+  const tipoBruto = primeiro(p, [
+    "mensagem.tipo",
+    "message.type",
+    "data.message.type",
+    "message_type",
+    "type",
+  ]).toLowerCase();
+  const arquivo = primeiro(p, [
+    "mensagem.arquivo_url",
+    "mensagem.url",
+    "message.mediaUrl",
+    "message.media_url",
+    "mediaUrl",
+    "media_url",
+  ]);
   const evento = primeiro(p, ["evento", "event", "event_type"]).toLowerCase();
-  const ehMidia = !!arquivo || /(audio|ptt|voice|imag|video|document|arquivo|sticker|figurinha|file)/.test(tipoBruto);
+  const ehMidia =
+    !!arquivo ||
+    /(audio|ptt|voice|imag|video|document|arquivo|sticker|figurinha|file)/.test(tipoBruto);
   // Só campos que são, sem dúvida, id da MENSAGEM. O "id" solto na raiz fica de fora até confirmar o formato
   // real da ZionTalk: se fosse o id do contato, toda mensagem depois da 1ª viraria "duplicado".
-  const id = primeiro(p, ["mensagem.id", "mensagem.message_id", "message.id", "data.message.id", "data.message_id", "key.id", "data.key.id", "message_id", "messageId"]);
+  const id = primeiro(p, [
+    "mensagem.id",
+    "mensagem.message_id",
+    "message.id",
+    "data.message.id",
+    "data.message_id",
+    "key.id",
+    "data.key.id",
+    "message_id",
+    "messageId",
+  ]);
   return {
     // Sem id do provedor: id determinístico pelo corpo (reenvio idêntico = mesmo id). Nunca só horário.
     id: id || `h:${corpoBruto.length}:${hashSimples(corpoBruto)}`,
@@ -99,16 +162,26 @@ export function normalizarZionTalk(p: unknown, corpoBruto: string): MensagemZion
     texto: texto.slice(0, 1000),
     tipo: ehMidia && !texto ? "midia" : "texto",
     grupo:
-      /@g\.us$/.test(jid) || /@g\.us$/.test(telBruto) ||
-      verdade(valor(p, "grupo")) || verdade(valor(p, "is_group")) || verdade(valor(p, "isGroup")) ||
-      verdade(valor(p, "mensagem.grupo")) || verdade(valor(p, "chat.isGroup")),
+      /@g\.us$/.test(jid) ||
+      /@g\.us$/.test(telBruto) ||
+      verdade(valor(p, "grupo")) ||
+      verdade(valor(p, "is_group")) ||
+      verdade(valor(p, "isGroup")) ||
+      verdade(valor(p, "mensagem.grupo")) ||
+      verdade(valor(p, "chat.isGroup")),
     status:
-      /status@broadcast/.test(jid) || /status@broadcast/.test(telBruto) ||
+      /status@broadcast/.test(jid) ||
+      /status@broadcast/.test(telBruto) ||
       /(status|ack|entreg|lid[ao]|read|delivered|sent|enviad)/.test(evento),
     proprio:
-      verdade(valor(p, "fromMe")) || verdade(valor(p, "from_me")) || verdade(valor(p, "key.fromMe")) ||
-      verdade(valor(p, "data.fromMe")) || verdade(valor(p, "data.key.fromMe")) ||
-      /^(saida|enviada|outgoing|out)$/.test(primeiro(p, ["mensagem.direcao", "direcao", "direction"]).toLowerCase()),
+      verdade(valor(p, "fromMe")) ||
+      verdade(valor(p, "from_me")) ||
+      verdade(valor(p, "key.fromMe")) ||
+      verdade(valor(p, "data.fromMe")) ||
+      verdade(valor(p, "data.key.fromMe")) ||
+      /^(saida|enviada|outgoing|out)$/.test(
+        primeiro(p, ["mensagem.direcao", "direcao", "direction"]).toLowerCase(),
+      ),
   };
 }
 
@@ -123,7 +196,14 @@ function hashSimples(s: string): string {
 }
 
 export type ResultadoRetorno =
-  | "ok" | "duplicado" | "ignorado" | "fora_lista" | "desconhecido" | "token" | "desligada" | "invalido";
+  | "ok"
+  | "duplicado"
+  | "ignorado"
+  | "fora_lista"
+  | "desconhecido"
+  | "token"
+  | "desligada"
+  | "invalido";
 
 /** Código HTTP. 2xx = a ZionTalk não precisa reenviar. Erro nosso = 503 (reenvio é seguro: há dedup). */
 export const STATUS_RETORNO: Record<ResultadoRetorno, number> = {
@@ -150,8 +230,13 @@ export type RespostaBanco = {
 
 /** O que o handler precisa do mundo de fora (o teste troca por simulações). */
 export type DepsRetorno = {
-  receber: (token: string, msg: MensagemZion) => Promise<{ data: unknown; error: { code?: string } | null }>;
-  aplicar: (args: Record<string, unknown>) => Promise<{ data: unknown; error: { code?: string } | null }>;
+  receber: (
+    token: string,
+    msg: MensagemZion,
+  ) => Promise<{ data: unknown; error: { code?: string } | null }>;
+  aplicar: (
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { code?: string } | null }>;
   reservar: (leadId: string) => Promise<{ data: unknown; error: { code?: string } | null }>;
   resultado: (msgId: string, ok: boolean) => Promise<unknown>;
   /** Link do anúncio do imóvel do lead no XML da própria imobiliária (trava da 1ª mensagem). Sem = nenhum link. */
@@ -160,11 +245,17 @@ export type DepsRetorno = {
   /** Imóvel pelo código do anúncio que o cliente informou (lead_ia_imovel_por_codigo). Opcional. */
   buscarImovel?: (conversaId: string, codigo: string) => Promise<ImovelEncontrado | null>;
   /** Imóvel parecido do XML da própria imobiliária (lead_ia_imoveis_parecidos, t_232e13cb). Opcional. */
-  buscarParecidos?: (conversaId: string, filtro: FiltroParecido) => Promise<ResultadoParecidos | null>;
+  buscarParecidos?: (
+    conversaId: string,
+    filtro: FiltroParecido,
+  ) => Promise<ResultadoParecidos | null>;
   /** Busca nova no XML da própria imobiliária (lead_ia_imoveis_busca, t_5b493bc9). Opcional. */
   buscarImoveis?: (conversaId: string, filtro: FiltroBusca) => Promise<ResultadoParecidos | null>;
   /** Busca por característica (suítes, quartos, vagas...) no XML da própria imobiliária (t_a9f1b447). Opcional. */
-  buscarCaracteristica?: (conversaId: string, filtro: FiltroCaracteristicaBusca) => Promise<ResultadoCaracteristica | null>;
+  buscarCaracteristica?: (
+    conversaId: string,
+    filtro: FiltroCaracteristicaBusca,
+  ) => Promise<ResultadoCaracteristica | null>;
   /** t_228659f0: busca pelo nome do condomínio (lead_ia_imoveis_nome). Erro (migration não aplicada) = null. */
   buscarNome?: (conversaId: string, filtro: FiltroNome) => Promise<ResultadoParecidos | null>;
   /** Chave da imobiliária: o modelo escreve a resposta (lead_config.ia_redige, padrão desligado, t_7b59589c). */
@@ -181,6 +272,13 @@ export type DepsRetorno = {
   rand?: () => number;
   /** Cloudflare: request.waitUntil. Sem ele (testes), o trabalho é aguardado antes de responder. */
   emSegundoPlano?: (p: Promise<unknown>) => void;
+  /** t_ccaa41c0: aviso por WhatsApp ao corretor quando a IA passa o cliente. Opcional. */
+  avisos?: {
+    avisosReservar: (
+      leadId: string | null,
+    ) => Promise<{ data: unknown; error: { code?: string } | null }>;
+    avisoResultado: (avisoId: string, ok: boolean) => Promise<unknown>;
+  };
 };
 
 const json = (status: number, r: string) =>
@@ -262,7 +360,11 @@ function parse(texto: string, ct: string): unknown {
   }
 }
 
-export async function receberRetornoZionTalk(request: Request, token: string, deps: DepsRetorno): Promise<Response> {
+export async function receberRetornoZionTalk(
+  request: Request,
+  token: string,
+  deps: DepsRetorno,
+): Promise<Response> {
   if (request.method !== "POST") return json(405, "metodo");
   const ip = request.headers.get("cf-connecting-ip");
   if (bloqueado(ip)) return json(429, "limite");
@@ -272,9 +374,20 @@ export async function receberRetornoZionTalk(request: Request, token: string, de
   }
   const corpo = await lerCorpo(request).catch(() => null);
   if (corpo === null) return json(413, "grande");
-  const msg = normalizarZionTalk(parse(corpo, String(request.headers.get("content-type") ?? "")), corpo);
+  const msg = normalizarZionTalk(
+    parse(corpo, String(request.headers.get("content-type") ?? "")),
+    corpo,
+  );
   // Corpo ilegível (ex.: teste do painel): 202 sem gravar, mas o token ainda é conferido no banco abaixo.
-  const alvo: MensagemZion = msg ?? { id: "", telefone: "", texto: "", tipo: "texto", grupo: false, status: false, proprio: false };
+  const alvo: MensagemZion = msg ?? {
+    id: "",
+    telefone: "",
+    texto: "",
+    tipo: "texto",
+    grupo: false,
+    status: false,
+    proprio: false,
+  };
 
   let banco: RespostaBanco;
   try {
@@ -311,7 +424,9 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
   if (banco.responder && banco.ctx && banco.ctx.estado === "ativa") {
     const espera = deps.esperar ?? ((ms: number) => new Promise<void>((ok) => setTimeout(ok, ms)));
     const rand = deps.rand ?? Math.random;
-    await espera(Math.round(ESPERA_HUMANA_MS.min + rand() * (ESPERA_HUMANA_MS.max - ESPERA_HUMANA_MS.min)));
+    await espera(
+      Math.round(ESPERA_HUMANA_MS.min + rand() * (ESPERA_HUMANA_MS.max - ESPERA_HUMANA_MS.min)),
+    );
     const c = banco.ctx;
     const ctx: ContextoIa = { ...c, dados: c.dados ?? {} };
     const escolha: EscolhaModelo = {
@@ -320,30 +435,62 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     };
     const usos: UsoModelo[] = [];
     let semResposta = false;
-    const buscarParecidos = deps.buscarParecidos ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f) : undefined;
+    const buscarParecidos = deps.buscarParecidos
+      ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f)
+      : undefined;
     // t_37cf21e3: histórico lido 1 vez; as falas do cliente que chegaram juntas (sem resposta) dizem de qual busca ele fala.
-    const historico = banco.tipo !== "midia" && deps.historico ? await deps.historico(c.conversa_id).catch(() => []) : [];
+    const historico =
+      banco.tipo !== "midia" && deps.historico
+        ? await deps.historico(c.conversa_id).catch(() => [])
+        : [];
     let r =
       banco.tipo === "midia"
         ? respostaMidia(ctx)
-        : await proximaResposta(ctx, msg.texto, montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn), {
-            buscarImovel: deps.buscarImovel ? (cod) => deps.buscarImovel!(c.conversa_id, cod) : undefined,
-            buscarParecidos,
-            buscarImoveis: deps.buscarImoveis ? (f) => deps.buscarImoveis!(c.conversa_id, f) : undefined,
-            buscarCaracteristica: deps.buscarCaracteristica ? (f) => deps.buscarCaracteristica!(c.conversa_id, f) : undefined,
-            falasAntes: falasSemResposta(historico, msg.texto),
-          });
+        : await proximaResposta(
+            ctx,
+            msg.texto,
+            montarExtrator(escolha, deps.env, (u) => usos.push(u), deps.fetchFn),
+            {
+              buscarImovel: deps.buscarImovel
+                ? (cod) => deps.buscarImovel!(c.conversa_id, cod)
+                : undefined,
+              buscarParecidos,
+              buscarImoveis: deps.buscarImoveis
+                ? (f) => deps.buscarImoveis!(c.conversa_id, f)
+                : undefined,
+              buscarCaracteristica: deps.buscarCaracteristica
+                ? (f) => deps.buscarCaracteristica!(c.conversa_id, f)
+                : undefined,
+              falasAntes: falasSemResposta(historico, msg.texto),
+            },
+          );
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
-    if (banco.tipo !== "midia" && deps.redacaoLigada && (await deps.redacaoLigada(banco.organization_id!).catch(() => false))) {
+    if (
+      banco.tipo !== "midia" &&
+      deps.redacaoLigada &&
+      (await deps.redacaoLigada(banco.organization_id!).catch(() => false))
+    ) {
       const modo: ModoValidador = deps.modoValidador
         ? await deps.modoValidador(banco.organization_id!).catch(() => "bloquear" as const)
         : "bloquear";
-      const buscarNome = deps.buscarNome ? (f: FiltroNome) => deps.buscarNome!(c.conversa_id, f) : undefined;
-      const red = await redigirResposta(ctx, msg.texto, r, { escolha, env: deps.env, historico, buscarParecidos, buscarNome, registrar: (u) => usos.push(u), fetchFn: deps.fetchFn, modo });
+      const buscarNome = deps.buscarNome
+        ? (f: FiltroNome) => deps.buscarNome!(c.conversa_id, f)
+        : undefined;
+      const red = await redigirResposta(ctx, msg.texto, r, {
+        escolha,
+        env: deps.env,
+        historico,
+        buscarParecidos,
+        buscarNome,
+        registrar: (u) => usos.push(u),
+        fetchFn: deps.fetchFn,
+        modo,
+      });
       semResposta = !!red.sem_resposta;
       r = red;
     }
-    for (const u of usos) await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
+    for (const u of usos)
+      await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
     const { error } = await deps.aplicar({
       _conversa: c.conversa_id,
@@ -355,13 +502,16 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       _resumo: r.resumo,
       _resposta_falha: r.resposta_falha,
     });
-    if (error) console.error("leads ia retorno: lead_ia_aplicar falhou", error.code ?? "sem_codigo");
+    if (error)
+      console.error("leads ia retorno: lead_ia_aplicar falhou", error.code ?? "sem_codigo");
     else if (semResposta && deps.avisoSemResposta)
       await deps.avisoSemResposta(banco.organization_id!, c.conversa_id).catch(() => {
         console.error("leads ia retorno: aviso sem resposta falhou");
       });
   }
   await enviarPendentes(leadId, deps);
+  // t_ccaa41c0: se a IA passou o cliente agora, o aviso ao corretor sai logo depois da última mensagem ao cliente.
+  if (deps.avisos) await enviarAvisosCorretor(leadId, { ...deps, ...deps.avisos }).catch(() => 0);
 }
 
 /** Envia o que estiver pendente para o lead (o banco confere lista de liberados, opt-out, limites). */
@@ -378,10 +528,14 @@ export async function enviarPendentes(
       console.error("leads ia retorno: reservar falhou", error.code ?? "sem_codigo");
       break;
     }
-    const m = (data as Array<{ msg_id: string; telefone: string; texto: string; primeira: boolean }> | null)?.[0];
+    const m = (
+      data as Array<{ msg_id: string; telefone: string; texto: string; primeira: boolean }> | null
+    )?.[0];
     if (!m) break;
     // Só o link do anúncio do próprio imóvel no XML da imobiliária (t_25fe1197).
-    const link = m.primeira ? await (deps.linkAnuncio?.(leadId) ?? Promise.resolve(null)).catch(() => null) : null;
+    const link = m.primeira
+      ? await (deps.linkAnuncio?.(leadId) ?? Promise.resolve(null)).catch(() => null)
+      : null;
     if (m.primeira && primeiraComLinkProibido(m.texto, link)) {
       await deps.resultado(m.msg_id, false);
       break;
@@ -389,7 +543,10 @@ export async function enviarPendentes(
     const r = await canal.enviar(m.telefone, m.texto);
     await deps.resultado(m.msg_id, r.status === "enviada");
     if (r.status !== "enviada") {
-      console.error("leads ia retorno: envio ZionTalk falhou", r.status === "falhou" ? r.erro : r.status);
+      console.error(
+        "leads ia retorno: envio ZionTalk falhou",
+        r.status === "falhou" ? r.erro : r.status,
+      );
       break; // nunca repete sozinho
     }
     enviadas++;
@@ -404,10 +561,16 @@ export async function enviarPendentes(
 // pelo mesmo caminho das respostas (enviarPendentes, que exige LEADS_IA_ENVIO_REAL=on + chave própria).
 export const ENV_REENGAJAR_SEGREDO = "LEADS_IA_REENGAJAR_SEGREDO";
 
-export type DepsReengajar = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
+export type DepsReengajar = Pick<
+  DepsRetorno,
+  "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"
+> & {
   reengajarReservar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
   /** Lembrete de 15 min (t_b3f753a5). Sem estas funções (ou com a migration ausente) o toque não roda. */
   toque15?: DepsToque15;
+  /** t_ccaa41c0: 1ª mensagem automática e aviso ao corretor. Sem elas (ou com a migration ausente), não rodam. */
+  primeiraProximo?: DepsPrimeiraAuto["primeiraProximo"];
+  avisos?: Pick<DepsAvisoCorretor, "avisosReservar" | "avisoResultado">;
 };
 
 // --- Lembrete rápido de 15 min (t_b3f753a5) ------------------------------------------------------------------
@@ -429,13 +592,19 @@ export type CandidataToque15 = {
 };
 export type DepsToque15 = {
   candidatas: () => Promise<{ data: unknown; error: { code?: string } | null }>;
-  gravar: (conversaId: string, ultimaId: string, texto: string) => Promise<{ data: unknown; error: { code?: string } | null }>;
+  gravar: (
+    conversaId: string,
+    ultimaId: string,
+    texto: string,
+  ) => Promise<{ data: unknown; error: { code?: string } | null }>;
   historico: (conversaId: string) => Promise<FalaHistorico[]>;
   registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
 };
 
 export async function toque15UmaVez(
-  deps: Pick<DepsReengajar, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & { toque15: DepsToque15 },
+  deps: Pick<DepsReengajar, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
+    toque15: DepsToque15;
+  },
 ): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; origem?: "modelo" | "fixo" }> {
   const t = deps.toque15;
   const { data, error } = await t.candidatas();
@@ -455,12 +624,16 @@ export async function toque15UmaVez(
       cliente: c.cliente,
       historico,
       redige: c.redige === true,
-      escolha: { provedor: c.provedor === "openrouter" ? "openrouter" : "gemini", modelo: c.modelo ?? null },
+      escolha: {
+        provedor: c.provedor === "openrouter" ? "openrouter" : "gemini",
+        modelo: c.modelo ?? null,
+      },
       env: deps.env,
       registrar: (u) => usos.push(u),
       fetchFn: deps.fetchFn,
     });
-    for (const u of usos) await t.registrarUso(c.organization_id, c.conversa_id, u).catch(() => undefined);
+    for (const u of usos)
+      await t.registrarUso(c.organization_id, c.conversa_id, u).catch(() => undefined);
     const g = await t.gravar(c.conversa_id, c.ultima_id, txt.texto);
     if (g.error) {
       console.error("leads ia toque15: gravar falhou", g.error.code ?? "sem_codigo");
@@ -475,7 +648,9 @@ export async function toque15UmaVez(
 }
 
 /** Prepara e envia no máximo 1 toque. Devolve o que aconteceu (sem telefone nem texto). */
-export async function reengajarUmaVez(deps: DepsReengajar): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; toque?: number }> {
+export async function reengajarUmaVez(
+  deps: DepsReengajar,
+): Promise<{ r: "nada" | "erro" | "preparado"; enviadas?: number; toque?: number }> {
   const { data, error } = await deps.reengajarReservar();
   if (error) {
     console.error("leads ia reengajar: reservar falhou", error.code ?? "sem_codigo");
@@ -487,13 +662,77 @@ export async function reengajarUmaVez(deps: DepsReengajar): Promise<{ r: "nada" 
   return { r: "preparado", enviadas, toque: t.toque };
 }
 
+// --- 1ª mensagem automática e aviso ao corretor (t_ccaa41c0) ---------------------------------------------------
+// Ligados por imobiliária (lead_config.ia_primeira_auto / ia_aviso_corretor_whats; nascem desligados). Rodam na
+// MESMA chamada do pg_cron (rota /api/leads/reengajar, a cada 5 min). O banco escolhe 1 lead por chamada e confere
+// tudo (modo/lista, leads só de ia_envio_desde em diante, opt-out, limite do dia, horário); o envio é o de sempre.
+export type DepsAvisoCorretor = Pick<DepsRetorno, "env" | "fetchFn"> & {
+  avisosReservar: (
+    leadId: string | null,
+  ) => Promise<{ data: unknown; error: { code?: string } | null }>;
+  avisoResultado: (avisoId: string, ok: boolean) => Promise<unknown>;
+};
+
+/** Envia os avisos pendentes ao corretor (WhatsApp, mesmo número da IA). Falhou = fica "falhou"; nunca repete. */
+export async function enviarAvisosCorretor(
+  leadId: string | null,
+  deps: DepsAvisoCorretor,
+): Promise<number> {
+  const canal = escolherCanal(deps.env, deps.fetchFn);
+  if (canal.nome !== "ziontalk") return 0; // envio real desligado: o aviso fica pendente (o sino já foi)
+  const { data, error } = await deps.avisosReservar(leadId);
+  if (error) {
+    console.error("leads ia aviso corretor: reservar falhou", error.code ?? "sem_codigo");
+    return 0;
+  }
+  let enviados = 0;
+  for (const a of (data as Array<{ aviso_id: string; telefone: string; texto: string }> | null) ??
+    []) {
+    const r = await canal.enviar(a.telefone, a.texto);
+    await deps.avisoResultado(a.aviso_id, r.status === "enviada");
+    if (r.status === "enviada") enviados++;
+    else
+      console.error(
+        "leads ia aviso corretor: envio falhou",
+        r.status === "falhou" ? r.erro : r.status,
+      );
+  }
+  return enviados;
+}
+
+export type DepsPrimeiraAuto = Pick<
+  DepsRetorno,
+  "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"
+> & {
+  primeiraProximo: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+};
+
+/** 1ª mensagem automática: no máximo 1 lead por chamada (intervalo natural de 5 min entre clientes). */
+export async function primeiraAutoUmaVez(
+  deps: DepsPrimeiraAuto,
+): Promise<{ r: "nada" | "erro" | "enviada" | "nao_enviada" }> {
+  if (escolherCanal(deps.env, deps.fetchFn).nome !== "ziontalk") return { r: "nada" };
+  const { data, error } = await deps.primeiraProximo();
+  if (error) {
+    console.error("leads ia primeira auto: falhou", error.code ?? "sem_codigo");
+    return { r: "erro" };
+  }
+  const l = (data as Array<{ lead_id: string }> | null)?.[0];
+  if (!l) return { r: "nada" };
+  const enviadas = await enviarPendentes(l.lead_id, deps);
+  return { r: enviadas > 0 ? "enviada" : "nao_enviada" };
+}
+
 // --- Resposta de espera depois do repasse (t_82c89141 item 6b) ---------------------------------------------
 // O banco (lead_ia_espera_preparar) escolhe as conversas já passadas ao corretor em que o cliente escreveu e
 // ninguém da equipe respondeu em lead_config.ia_espera_min (padrão 10; 0 = desligado), no máximo 1 a cada 2 h,
 // grava a resposta curta (pendente) e avisa o corretor de novo pelo sininho. Aqui só envia pelo MESMO caminho
 // das respostas (enviarPendentes: lista de liberados, opt-out e LEADS_IA_ENVIO_REAL=on). Fila e WhatsApp dos
 // corretores não mudam.
-export type DepsEspera = Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"> & {
+export type DepsEspera = Pick<
+  DepsRetorno,
+  "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"
+> & {
   esperaPreparar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
 };
 
@@ -505,7 +744,9 @@ export async function esperaUmaRodada(
     console.error("leads ia espera: preparar falhou", error.code ?? "sem_codigo");
     return { r: "erro" };
   }
-  const leads = [...new Set(((data as Array<{ lead_id: string }> | null) ?? []).map((x) => x.lead_id))];
+  const leads = [
+    ...new Set(((data as Array<{ lead_id: string }> | null) ?? []).map((x) => x.lead_id)),
+  ];
   if (!leads.length) return { r: "nada" };
   let enviadas = 0;
   for (const l of leads) enviadas += await enviarPendentes(l, deps).catch(() => 0);
@@ -518,7 +759,8 @@ export async function depsEsperaReais(): Promise<DepsEspera> {
   const db = supabaseAdmin as unknown as SupabaseClient;
   return {
     reservar: async (leadId) => await db.rpc("lead_ia_envio_reservar", { _lead: leadId }),
-    resultado: async (msgId, ok) => await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
+    resultado: async (msgId, ok) =>
+      await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
     linkAnuncio: (leadId) => linkAnuncioDoLead(db, leadId),
     env: process.env as Record<string, string | undefined>,
     esperaPreparar: async () => await db.rpc("lead_ia_espera_preparar"),
@@ -529,18 +771,31 @@ export async function depsEsperaReais(): Promise<DepsEspera> {
 export function segredoConfere(recebido: string | null, esperado: string | undefined): boolean {
   if (!esperado || esperado.length < 32 || !recebido) return false;
   let dif = recebido.length ^ esperado.length;
-  for (let i = 0; i < esperado.length; i++) dif |= (recebido.charCodeAt(i) || 0) ^ esperado.charCodeAt(i);
+  for (let i = 0; i < esperado.length; i++)
+    dif |= (recebido.charCodeAt(i) || 0) ^ esperado.charCodeAt(i);
   return dif === 0;
 }
 
 export async function receberReengajar(request: Request, deps: DepsReengajar): Promise<Response> {
   if (request.method !== "POST") return json(405, "metodo");
   // Sem segredo configurado no servidor = rota desligada.
-  if (!segredoConfere(request.headers.get("x-leads-ia-segredo"), deps.env[ENV_REENGAJAR_SEGREDO]?.trim()))
+  if (
+    !segredoConfere(
+      request.headers.get("x-leads-ia-segredo"),
+      deps.env[ENV_REENGAJAR_SEGREDO]?.trim(),
+    )
+  )
     return json(404, "desligado");
   const r = await reengajarUmaVez(deps).catch(() => ({ r: "erro" as const }));
   // t_b3f753a5: o lembrete de 15 min vem depois, na mesma chamada. Erro nele não muda a resposta do reengajamento.
-  if (deps.toque15) await toque15UmaVez({ ...deps, toque15: deps.toque15 }).catch(() => ({ r: "erro" as const }));
+  if (deps.toque15)
+    await toque15UmaVez({ ...deps, toque15: deps.toque15 }).catch(() => ({ r: "erro" as const }));
+  // t_ccaa41c0: 1ª mensagem automática e avisos pendentes ao corretor. Erro neles não muda a resposta.
+  if (deps.primeiraProximo)
+    await primeiraAutoUmaVez({ ...deps, primeiraProximo: deps.primeiraProximo }).catch(() => ({
+      r: "erro" as const,
+    }));
+  if (deps.avisos) await enviarAvisosCorretor(null, { ...deps, ...deps.avisos }).catch(() => 0);
   return json(r.r === "erro" ? 503 : 200, r.r);
 }
 
@@ -555,11 +810,39 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
     toque15: {
       candidatas: async () => await db.rpc("lead_ia_toque15_candidatas"),
       gravar: async (conversaId, ultimaId, texto) =>
-        await db.rpc("lead_ia_toque15_gravar", { _conversa: conversaId, _ultima: ultimaId, _texto: texto }),
+        await db.rpc("lead_ia_toque15_gravar", {
+          _conversa: conversaId,
+          _ultima: ultimaId,
+          _texto: texto,
+        }),
       historico: (conversaId) => historicoDb(db, conversaId),
       registrarUso: base.registrarUso,
     },
+    // Migration 20261030220000: enquanto não for aplicada, as RPCs falham e nada sai (só registra "erro").
+    primeiraProximo: async () => await db.rpc("lead_ia_primeira_auto_proximo"),
+    avisos: base.avisos,
   };
+}
+
+/**
+ * t_ccaa41c0: 1ª mensagem automática NA HORA em que o lead chega (qualquer horário, decisão de Denis 30/10). Chamada
+ * pelo webhook do portal depois de gravar o lead; roda em segundo plano (waitUntil) e nunca muda a resposta ao portal.
+ * O banco decide tudo (imobiliária com ia_primeira_auto, lead liberado, limite do dia); o pg_cron repesca o que sobrar.
+ */
+export async function dispararPrimeiraAuto(request: Request): Promise<void> {
+  const base = await depsReais(request);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = supabaseAdmin as unknown as SupabaseClient;
+  const trabalho = primeiraAutoUmaVez({
+    ...base,
+    primeiraProximo: async () => await db.rpc("lead_ia_primeira_auto_proximo"),
+  })
+    .then(() => undefined)
+    .catch(() => {
+      console.error("leads ia primeira auto: falha inesperada");
+    });
+  if (base.emSegundoPlano) base.emSegundoPlano(trabalho);
+  else await trabalho;
 }
 
 /** Dependências reais (service_role). Só o servidor importa este arquivo. */
@@ -568,19 +851,29 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
   const db = supabaseAdmin as unknown as SupabaseClient;
   const wu = (request as Request & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil;
   return {
-    receber: async (token, msg) => await db.rpc("lead_ia_retorno_receber", { _token: token, _msg: msg }),
+    receber: async (token, msg) =>
+      await db.rpc("lead_ia_retorno_receber", { _token: token, _msg: msg }),
     aplicar: async (args) => await db.rpc("lead_ia_aplicar", args),
     reservar: async (leadId) => await db.rpc("lead_ia_envio_reservar", { _lead: leadId }),
-    resultado: async (msgId, ok) => await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
+    resultado: async (msgId, ok) =>
+      await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
     linkAnuncio: (leadId) => linkAnuncioDoLead(db, leadId),
     registrarUso: async (orgId, conversaId, u) =>
-      await db.from("lead_ia_uso").insert({ organization_id: orgId, conversa_id: conversaId, ...u }),
+      await db
+        .from("lead_ia_uso")
+        .insert({ organization_id: orgId, conversa_id: conversaId, ...u }),
     buscarImovel: async (conversaId, codigo) => {
-      const { data, error } = await db.rpc("lead_ia_imovel_por_codigo", { _conversa: conversaId, _codigo: codigo });
+      const { data, error } = await db.rpc("lead_ia_imovel_por_codigo", {
+        _conversa: conversaId,
+        _codigo: codigo,
+      });
       return error ? null : ((data as ImovelEncontrado | null) ?? null);
     },
     buscarParecidos: async (conversaId, filtro) => {
-      const { data, error } = await db.rpc("lead_ia_imoveis_parecidos", argsParecidos(conversaId, filtro));
+      const { data, error } = await db.rpc(
+        "lead_ia_imoveis_parecidos",
+        argsParecidos(conversaId, filtro),
+      );
       return error ? null : normalizarParecidos(data);
     },
     // Função nova (migration 20261027110000): enquanto não for aplicada, o erro vira "vou procurar" + passagem.
@@ -590,7 +883,10 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     },
     // Função nova (migration 20261027140000): enquanto não for aplicada, o erro vira "vou procurar com 3 suítes".
     buscarCaracteristica: async (conversaId, filtro) => {
-      const { data, error } = await db.rpc("lead_ia_imoveis_caracteristica", argsCaracteristica(conversaId, filtro));
+      const { data, error } = await db.rpc(
+        "lead_ia_imoveis_caracteristica",
+        argsCaracteristica(conversaId, filtro),
+      );
       return error ? null : normalizarCaracteristica(data);
     },
     // Função nova (migration 20261028100000, ainda não aplicada): enquanto isso, o erro vira null e a Nicole diz
@@ -612,6 +908,13 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
       if (error) throw new Error(error.code ?? "erro");
     },
     historico: (conversaId) => historicoDb(db, conversaId),
+    // Migration 20261030220000: enquanto não for aplicada, a RPC falha e nenhum aviso sai.
+    avisos: {
+      avisosReservar: async (leadId) =>
+        await db.rpc("lead_avisos_corretor_reservar", { _lead: leadId }),
+      avisoResultado: async (avisoId, ok) =>
+        await db.rpc("lead_avisos_corretor_resultado", { _aviso: avisoId, _ok: ok }),
+    },
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };
