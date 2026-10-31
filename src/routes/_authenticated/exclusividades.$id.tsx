@@ -106,6 +106,7 @@ import { DocumentoAssinadoResumo } from "@/components/exclusividades/DocumentoAs
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
 import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
+import { passoCompleto, pendenciasPorPasso, type PassoCaptacao } from "@/lib/captacao-pendencias";
 import {
   appendDossieToContract,
   buildDossiePdf,
@@ -197,6 +198,7 @@ import {
   Eye,
   FileCheck2,
   ArrowRightLeft,
+  Check,
   Handshake,
   Pencil,
   Printer,
@@ -982,6 +984,33 @@ function ExclusiveDetail() {
     missing.push(
       "CRECI inválido (4 a 50 caracteres, letras, números, espaço, ponto, barra ou hífen)",
     );
+  // Bloco "Pendências" e ✓ nos passos (FASE 2 item 19, t_7fcda931): só tela, mesmas listas acima.
+  const pendenciasPasso = editable
+    ? [
+        ...pendenciasPorPasso(missing, manual).map((p) => ({ ...p, opcional: false })),
+        ...(manualCheck
+          ? pendenciasPorPasso(manualCheck.optional, true).map((p) => ({ ...p, opcional: true }))
+          : []),
+      ]
+    : [];
+  const pendenciasVisiveis = pendenciasPasso.filter((p) =>
+    captureSteps.some((c) => c.key === p.passo),
+  );
+  const rotuloPasso = (k: string) => captureSteps.find((c) => c.key === k)?.label ?? k;
+  const passoOk = (k: string) =>
+    editable
+      ? passoCompleto(
+          k as PassoCaptacao,
+          pendenciasPasso.filter((p) => !p.opcional),
+          capture.status,
+        )
+      : !archived && ["enviada", "em_assinatura", "aprovada"].includes(capture.status);
+  const temPendencias =
+    pendenciasVisiveis.length > 0 ||
+    conflicts.length > 0 ||
+    (capture.status === "devolvida" && !!devolucao) ||
+    archived ||
+    !!avisoTransferida;
   const pendingSuggestions = suggestions.map((suggestion) => ({
     ...suggestion,
     fields: Object.entries(suggestion.values).filter(([key]) => {
@@ -1359,23 +1388,6 @@ function ExclusiveDetail() {
                 : statusLabels[capture.status]}{" "}
           · Criada em {capture.created_on_sp} (São Paulo). Captador: {capture.broker_name}
         </p>
-        {conflicts.length > 0 && (
-          <div
-            role="alert"
-            className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
-          >
-            <strong>Atenção: já existe captação ativa neste endereço.</strong>
-            <ul className="mt-1 list-disc pl-5">
-              {conflicts.map((c, i) => (
-                <li key={i}>
-                  {c.broker_name || "—"} · {statusLabels[c.status as Capture["status"]] ?? c.status}{" "}
-                  · criada em {formatDateBR(c.created_on_sp)}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1 text-xs">Confira com o gestor antes de seguir com esta captação.</p>
-          </div>
-        )}
         {capture.status === "aprovada" && (
           <p
             role="status"
@@ -1425,30 +1437,6 @@ function ExclusiveDetail() {
           </div>
         )}
         {vendaInfo.venda && <VendaDaCaptacaoAviso venda={vendaInfo.venda} />}
-        {capture.status === "devolvida" && devolucao && (
-          <div
-            role="alert"
-            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          >
-            <strong>Devolvida para ajuste</strong> por {devolucao.quem} em {devolucao.quando}.
-            <br />
-            Motivo: {devolucao.motivo}
-          </div>
-        )}
-        {archived && (
-          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a usar.
-          </p>
-        )}
-        {avisoTransferida && (
-          <p
-            role="status"
-            data-testid="aviso-transferida"
-            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          >
-            {avisoTransferida}
-          </p>
-        )}
         <div className="mt-3 flex flex-wrap gap-2">
           {podeTransf && !corrigindoAtivo && (
             <Button
@@ -1525,12 +1513,6 @@ function ExclusiveDetail() {
           )}
         </div>
       </div>
-      {capture.status === "aprovada" && (
-        <>
-          <AnuncioPortais captureId={capture.id} />
-          <PlanoChecklist captureId={capture.id} editable={!archived} />
-        </>
-      )}
       <nav
         aria-label="Etapas da captação"
         className={`grid grid-cols-2 gap-2 ${captureSteps.length > 4 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}
@@ -1543,11 +1525,95 @@ function ExclusiveDetail() {
             aria-current={step === item.key ? "step" : undefined}
             onClick={() => setStep(item.key)}
           >
-            <span className="mr-2 rounded-full border px-2 py-0.5 text-xs">{index + 1}</span>
+            {passoOk(item.key) ? (
+              <span
+                className="mr-2 inline-flex items-center gap-0.5 rounded-full border border-emerald-500 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300"
+                data-testid={`passo-ok-${item.key}`}
+              >
+                <Check className="h-3 w-3" aria-hidden />
+                {index + 1}
+              </span>
+            ) : (
+              <span className="mr-2 rounded-full border px-2 py-0.5 text-xs">{index + 1}</span>
+            )}
             {item.label}
+            {passoOk(item.key) && <span className="sr-only"> (completo)</span>}
           </Button>
         ))}
       </nav>
+      {capture.status === "aprovada" && (
+        <>
+          <AnuncioPortais captureId={capture.id} />
+          <PlanoChecklist captureId={capture.id} editable={!archived} />
+        </>
+      )}
+      {temPendencias && (
+        <section
+          aria-labelledby="pendencias-titulo"
+          data-testid="bloco-pendencias"
+          className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        >
+          <h2 id="pendencias-titulo" className="text-sm font-semibold">
+            Pendências
+          </h2>
+          {conflicts.length > 0 && (
+            <div role="alert" className="text-sm">
+              <strong>Atenção: já existe captação ativa neste endereço.</strong>
+              <ul className="mt-1 list-disc pl-5">
+                {conflicts.map((c, i) => (
+                  <li key={i}>
+                    {c.broker_name || "—"} ·{" "}
+                    {statusLabels[c.status as Capture["status"]] ?? c.status} · criada em{" "}
+                    {formatDateBR(c.created_on_sp)}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs">
+                Confira com o gestor antes de seguir com esta captação.
+              </p>
+            </div>
+          )}
+          {capture.status === "devolvida" && devolucao && (
+            <div role="alert" className="text-sm">
+              <strong>Devolvida para ajuste</strong> por {devolucao.quem} em {devolucao.quando}.
+              <br />
+              Motivo: {devolucao.motivo}
+            </div>
+          )}
+          {archived && (
+            <p className="text-sm">
+              Captação arquivada: fora da lista principal e sem edição. Desarquive para voltar a
+              usar.
+            </p>
+          )}
+          {avisoTransferida && (
+            <p role="status" data-testid="aviso-transferida" className="text-sm">
+              {avisoTransferida}
+            </p>
+          )}
+          {pendenciasVisiveis.length > 0 && (
+            <ul className="space-y-1 text-sm" data-testid="pendencias-lista">
+              {pendenciasVisiveis.map((p) => (
+                <li key={p.texto} className="flex flex-wrap items-center gap-x-2">
+                  <span>
+                    {p.texto}
+                    {p.opcional ? " (opcional)" : ""}
+                  </span>
+                  {step !== p.passo && (
+                    <button
+                      type="button"
+                      className="min-h-8 font-medium text-primary underline"
+                      onClick={() => setStep(p.passo as CaptureStep)}
+                    >
+                      Ir para {rotuloPasso(p.passo)}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {step === "contrato" && manual && (
         <>
           <Card className="border-violet-300 bg-violet-50/60">
