@@ -493,7 +493,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           role="status"
           aria-live="polite"
           data-testid="platform-context-banner"
-          className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-amber-400 px-4 py-2 text-center text-sm font-semibold text-amber-950 shadow-lg print:hidden"
+          className="fixed inset-x-0 top-0 z-[100] flex flex-wrap items-center justify-center gap-3 bg-amber-400 px-4 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-center text-sm font-semibold text-amber-950 shadow-lg print:hidden"
         >
           <span
             className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-amber-950"
@@ -519,7 +519,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div
           role="status"
           data-testid="impersonation-banner"
-          className="fixed inset-x-0 top-0 z-[100] flex h-12 items-center justify-center gap-2 bg-red-700 px-3 text-sm font-semibold text-white shadow-lg md:gap-3 md:px-4 print:hidden"
+          className="fixed inset-x-0 top-0 z-[100] flex h-[calc(3rem+env(safe-area-inset-top))] items-center justify-center gap-2 bg-red-700 px-3 pt-[env(safe-area-inset-top)] text-sm font-semibold text-white shadow-lg md:gap-3 md:px-4 print:hidden"
         >
           <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
           {/* Uma linha só, em qualquer largura: a faixa ocupa exatamente os 48px reservados (pt-12). */}
@@ -544,7 +544,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <aside
-        className={`fixed inset-y-0 left-0 hidden flex-col overflow-hidden border-r border-white/10 text-white transition-[width] duration-200 md:flex print:hidden ${collapsed ? "w-16" : "w-60"} ${topBar ? "pt-12" : ""}`}
+        className={`fixed inset-y-0 left-0 hidden flex-col overflow-hidden border-r border-white/10 text-white transition-[width] duration-200 md:flex print:hidden ${collapsed ? "w-16" : "w-60"} ${topBar ? "pt-[calc(3rem+env(safe-area-inset-top))]" : ""}`}
       >
         <BrandHeroBackground />
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
@@ -559,15 +559,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <header
-        className={`sticky z-30 flex items-center justify-between border-b bg-background px-4 py-3 md:hidden print:hidden ${topBar ? "top-12" : "top-0"}`}
+        data-testid="cabecalho-celular"
+        // Área segura (t_1ebe1a47): no app da tela inicial a página vai até o topo do aparelho; o
+        // padding empurra título e botões para baixo do relógio/bateria e o fundo branco do
+        // cabeçalho cobre a barra de status (ícones escuros, legíveis). No navegador comum o
+        // env() vale 0 e nada muda.
+        className={`sticky z-30 flex items-center justify-between gap-2 border-b bg-background pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] md:hidden print:hidden ${topBar ? "top-[calc(3rem+env(safe-area-inset-top))] pt-3" : "top-0 pt-[calc(0.75rem+env(safe-area-inset-top))]"}`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <img
             src={agencyBrand?.logoUrl ?? "/remax-icon.png"}
             alt={agencyBrand?.logoUrl ? `Logo ${agencyBrand.nome}` : "RE/MAX"}
-            className="h-7 w-7 object-contain"
+            className="h-7 w-7 shrink-0 object-contain"
           />
-          <span className="font-semibold tracking-tight">
+          <span className="line-clamp-2 min-w-0 font-semibold leading-tight tracking-tight">
             {IS_HOMOLOG
               ? platformAdmin && !platformContext
                 ? "ADM MAX · Plataforma"
@@ -579,7 +584,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   : "ADM MAX"}
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           <span data-tour="ajuda-celular" className="inline-flex">
             <AjudaSugestoesBotao compacto />
           </span>
@@ -596,7 +601,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
             <SheetContent
               side="left"
-              className={`w-72 overflow-hidden border-0 p-0 text-white [&>button]:z-20 [&>button]:text-white ${topBar ? "pt-12 [&>button]:top-16" : ""}`}
+              className={`w-72 overflow-hidden border-0 p-0 text-white [&>button]:z-20 [&>button]:text-white ${topBar ? "pt-[calc(3rem+env(safe-area-inset-top))] [&>button]:top-[calc(4rem+env(safe-area-inset-top))]" : "pt-[env(safe-area-inset-top)]"} pb-[env(safe-area-inset-bottom)]`}
             >
               <BrandHeroBackground />
               <div className="pointer-events-none absolute inset-0 z-[1] bg-[#030a23]/85" />
@@ -618,7 +623,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main
         id="conteudo-principal"
         tabIndex={-1}
-        className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? "md:pl-16" : "md:pl-60"} ${topBar ? "pt-12" : ""}`}
+        className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? "md:pl-16" : "md:pl-60"} ${topBar ? "pt-[calc(3rem+env(safe-area-inset-top))]" : ""} pb-[env(safe-area-inset-bottom)]`}
       >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden items-center justify-end gap-2 md:flex print:hidden">

@@ -95,7 +95,7 @@ export function MaxHubAuthShell({ children, footer }: { children: ReactNode; foo
       />
       <div className="maxhub-grain pointer-events-none absolute inset-0 -z-10" aria-hidden="true" />
 
-      <header className="mx-auto flex h-16 w-full max-w-7xl items-center px-5 lg:px-8">
+      <header className="mx-auto flex h-[calc(4rem+env(safe-area-inset-top))] w-full max-w-7xl items-center px-5 pt-[env(safe-area-inset-top)] lg:px-8">
         <MaxHubLogo />
       </header>
 
