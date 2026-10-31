@@ -26,6 +26,7 @@ import {
 import type { PainelEquipeOpcao } from "@/lib/painel-equipe-calc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { clicavelPorTeclado } from "@/lib/clicavel";
 
 // painel_equipe_equipes ainda não consta do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
@@ -318,8 +319,13 @@ export function PorCorretorTab({
                 return (
                   <Fragment key={r.id}>
                     <tr
-                      className={`cursor-pointer border-b hover:bg-muted/50 ${on ? "bg-muted/50" : ""}`}
+                      className={`cursor-pointer border-b hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${on ? "bg-muted/50" : ""}`}
                       onClick={() => setAberto(on ? null : r.id)}
+                      {...clicavelPorTeclado(
+                        () => setAberto(on ? null : r.id),
+                        `${on ? "Fechar" : "Ver"} captações de ${r.nome}`,
+                      )}
+                      aria-expanded={on}
                     >
                       <td className="py-2 font-semibold">
                         {on ? "▾" : "▸"} {r.nome}

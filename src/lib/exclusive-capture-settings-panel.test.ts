@@ -58,14 +58,14 @@ describe("painel de controle das captações", () => {
     expect(actions.onConfirmEnableChange).toHaveBeenCalledWith(true);
     expect(actions.onChange).not.toHaveBeenCalled();
   });
-  it("ligado: permite desligar e informa que preserva os dados", () => {
+  it("ligado: exige confirmação antes de desligar e informa que preserva os dados", () => {
     const html = render(true);
     expect(html).toContain("Estado atual: Ligado");
     expect(html).toContain("Desligar captações");
     expect(html).toContain("preserva captações, documentos e histórico");
     const actions = clickMainButton(true);
-    expect(actions.onChange).toHaveBeenCalledWith(false);
-    expect(actions.onConfirmEnableChange).not.toHaveBeenCalled();
+    expect(actions.onConfirmEnableChange).toHaveBeenCalledWith(true);
+    expect(actions.onChange).not.toHaveBeenCalled();
   });
   it("falha de leitura: não permite alteração com estado desconhecido", () => {
     const html = render(null);

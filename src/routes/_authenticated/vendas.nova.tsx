@@ -73,8 +73,9 @@ function NewSale() {
     return (
       <Card className="mx-auto max-w-2xl">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Somente corretores, gestores e Team Leaders podem criar uma venda comum. Para registrar um
-          Lançamento, use a opção específica disponível para os perfis autorizados.
+          Somente corretores, gestores, Team Leaders e administradores podem criar uma venda comum.
+          Para registrar um Lançamento, use a opção específica disponível para os perfis
+          autorizados.
         </CardContent>
       </Card>
     );

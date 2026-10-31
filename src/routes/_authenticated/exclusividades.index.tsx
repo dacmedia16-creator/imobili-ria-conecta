@@ -334,113 +334,120 @@ function ExclusiveList() {
               const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
               const property = c.form_data.imovel;
               const validity = captureValidity(c, today);
+              // "Excluir" fica FORA do link (item 11 t_532125eb): botão dentro de <a> é HTML inválido e,
+              // pelo teclado, Enter no botão podia abrir a captação em vez de excluir o rascunho.
+              const podeExcluir = c.status === "rascunho" && !c.archived_at;
               return (
-                <Link
+                <div
                   key={c.id}
-                  to="/exclusividades/$id"
-                  params={{ id: c.id }}
-                  className="group min-w-0 rounded-md border p-4 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-primary"
-                  onClick={(e) => {
-                    // Aprovada: abre o resumo da gestão; Ctrl/Cmd+clique continua abrindo a captação.
-                    if (c.status !== "aprovada" || e.metaKey || e.ctrlKey || e.shiftKey) return;
-                    e.preventDefault();
-                    setSummary(c);
-                  }}
+                  className="min-w-0 rounded-md border transition-colors hover:bg-muted/50"
+                  data-testid="captacao-cartao"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 font-medium">
-                        <House className="h-4 w-4 shrink-0 text-primary" />
-                        <span className="truncate">
-                          {property.endereco || property.tipo_imovel || "Imóvel a identificar"}
-                        </span>
-                      </div>
-                      {fullAddress(property) && (
-                        <p className="mt-1 text-sm" title={fullAddress(property)}>
-                          {fullAddress(property)}
+                  <Link
+                    to="/exclusividades/$id"
+                    params={{ id: c.id }}
+                    className={`group block min-w-0 rounded-md p-4 focus-visible:outline-2 focus-visible:outline-primary ${podeExcluir ? "pb-2" : ""}`}
+                    onClick={(e) => {
+                      // Aprovada: abre o resumo da gestão; Ctrl/Cmd+clique continua abrindo a captação.
+                      if (c.status !== "aprovada" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+                      e.preventDefault();
+                      setSummary(c);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 font-medium">
+                          <House className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="truncate">
+                            {property.endereco || property.tipo_imovel || "Imóvel a identificar"}
+                          </span>
+                        </div>
+                        {fullAddress(property) && (
+                          <p className="mt-1 text-sm" title={fullAddress(property)}>
+                            {fullAddress(property)}
+                          </p>
+                        )}
+                        <p className="mt-1 truncate text-sm text-muted-foreground">
+                          {c.form_data.proprietario_1?.nome_completo || "Proprietário a preencher"}
+                          {ownerListSuffix(c.form_data)}
                         </p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full border px-2 py-0.5">
+                        {captureUnitLabel(c, units)}
+                      </span>
+                      {c.manual && (
+                        <span
+                          className="rounded-full px-2 py-0.5 font-medium text-white"
+                          style={{ background: MANUAL_COLOR }}
+                        >
+                          Cadastro manual
+                        </span>
                       )}
-                      <p className="mt-1 truncate text-sm text-muted-foreground">
-                        {c.form_data.proprietario_1?.nome_completo || "Proprietário a preencher"}
-                        {ownerListSuffix(c.form_data)}
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                        {
+                          {
+                            rascunho: "Rascunho",
+                            devolvida: "Devolvida",
+                            enviada: "Enviada",
+                            em_assinatura: "Em assinatura",
+                            aprovada: "Aprovada",
+                          }[c.status]
+                        }
+                      </span>
+                      {validity && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-medium ${VALIDITY_STYLE[validity.level]}`}
+                        >
+                          {validityText(validity)}
+                        </span>
+                      )}
+                      {(() => {
+                        const v = vendas.get(c.id);
+                        const selo = seloSituacaoCaptacao(v?.situacao);
+                        if (!v || !selo) return null;
+                        const dias =
+                          v.situacao === "em_negociacao"
+                            ? haQuantosDias(diasEntre(v.negociacao_desde, today))
+                            : "";
+                        return (
+                          <span className={`rounded-full px-2 py-0.5 font-medium ${selo.classe}`}>
+                            {selo.texto}
+                            {dias ? ` · ${dias}` : ""}
+                          </span>
+                        );
+                      })()}
+                      <span className="text-muted-foreground">
+                        Criada por {c.broker_name || "—"}
+                        {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}
+                      </span>
+                    </div>
+                    {validity && <VigenciaBar v={validity} compact />}
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Próxima ação: </span>
+                        {captureNextAction(c.status, manager, c.manual)}
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="rounded-full border px-2 py-0.5">
-                      {captureUnitLabel(c, units)}
-                    </span>
-                    {c.manual && (
-                      <span
-                        className="rounded-full px-2 py-0.5 font-medium text-white"
-                        style={{ background: MANUAL_COLOR }}
-                      >
-                        Cadastro manual
-                      </span>
-                    )}
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
-                      {
-                        {
-                          rascunho: "Rascunho",
-                          devolvida: "Devolvida",
-                          enviada: "Enviada",
-                          em_assinatura: "Em assinatura",
-                          aprovada: "Aprovada",
-                        }[c.status]
-                      }
-                    </span>
-                    {validity && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 font-medium ${VALIDITY_STYLE[validity.level]}`}
-                      >
-                        {validityText(validity)}
-                      </span>
-                    )}
-                    {(() => {
-                      const v = vendas.get(c.id);
-                      const selo = seloSituacaoCaptacao(v?.situacao);
-                      if (!v || !selo) return null;
-                      const dias =
-                        v.situacao === "em_negociacao"
-                          ? haQuantosDias(diasEntre(v.negociacao_desde, today))
-                          : "";
-                      return (
-                        <span className={`rounded-full px-2 py-0.5 font-medium ${selo.classe}`}>
-                          {selo.texto}
-                          {dias ? ` · ${dias}` : ""}
-                        </span>
-                      );
-                    })()}
-                    <span className="text-muted-foreground">
-                      Criada por {c.broker_name || "—"}
-                      {c.captor_id === user?.id ? " (você)" : ""} · {c.created_on_sp}
-                    </span>
-                  </div>
-                  {validity && <VigenciaBar v={validity} compact />}
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Próxima ação: </span>
-                      {captureNextAction(c.status, manager, c.manual)}
-                    </p>
-                    {c.status === "rascunho" && !c.archived_at && (
+                  </Link>
+                  {podeExcluir && (
+                    <div className="flex justify-end px-4 pb-3">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10"
                         disabled={removing === c.id}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void removeDraft(c);
-                        }}
+                        aria-label="Excluir este rascunho de captação"
+                        onClick={() => void removeDraft(c)}
                       >
                         <Trash2 className="mr-1 h-4 w-4" /> Excluir
                       </Button>
-                    )}
-                  </div>
-                </Link>
+                    </div>
+                  )}
+                </div>
               );
             })
           )}

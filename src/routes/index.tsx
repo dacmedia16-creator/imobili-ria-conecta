@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
 
@@ -163,7 +165,33 @@ function CardIcon({ card }: { card: ServiceCard }) {
   );
 }
 
+/** Há sessão do ADM neste navegador? Começa em false (servidor e 1ª pintura sem banner) e só liga
+ * depois de ler a sessão local: "Trocar conta" e "Sair da Conta MAX" não fazem sentido para quem
+ * nem entrou (item 14 t_532125eb). */
+function useTemSessao() {
+  const [tem, setTem] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (vivo) setTem(!!data.session);
+      })
+      .catch(() => {});
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+      if (vivo) setTem(!!s);
+    });
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+  return tem;
+}
+
 function SingleLoginBanner() {
+  const temSessao = useTemSessao();
+  if (!temSessao) return null;
   return (
     <div
       className="single-login-banner"

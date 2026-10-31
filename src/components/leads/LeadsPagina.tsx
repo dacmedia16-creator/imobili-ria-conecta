@@ -56,6 +56,7 @@ import {
   type Pessoa,
 } from "@/lib/leads";
 import { carregarOpcoes, lerConfig, listarLeads, listarMotivos } from "@/lib/leads-db";
+import { clicavelPorTeclado } from "@/lib/clicavel";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -259,8 +260,9 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
           {visiveis.map((l) => (
             <Card
               key={l.id}
-              className="cursor-pointer transition hover:border-primary/50"
+              className="cursor-pointer transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => setAbertoId(l.id)}
+              {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
             >
               <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
                 <div className="min-w-0">

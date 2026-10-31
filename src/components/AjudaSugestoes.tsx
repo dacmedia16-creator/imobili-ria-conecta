@@ -319,7 +319,7 @@ export function AjudaSugestoesBotao({ compacto = false }: { compacto?: boolean }
                           setTarjas([]);
                         }}
                       >
-                        <Trash2 className="mr-1 h-4 w-4" /> Tirar print
+                        <Trash2 className="mr-1 h-4 w-4" /> Remover imagem
                       </Button>
                     </div>
                   </div>

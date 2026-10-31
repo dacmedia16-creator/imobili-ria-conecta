@@ -86,7 +86,8 @@ export function ExclusiveSettingsPanel({
           <Button
             variant={enabled ? "destructive" : "default"}
             disabled={saving}
-            onClick={() => (enabled ? onChange(false) : onConfirmEnableChange(true))}
+            // Confirma nos dois sentidos (item 15 t_532125eb): desligar era o único sem confirmação.
+            onClick={() => onConfirmEnableChange(true)}
           >
             {saving ? "Salvando…" : enabled ? "Desligar captações" : "Ligar captações"}
           </Button>
@@ -94,16 +95,27 @@ export function ExclusiveSettingsPanel({
         <AlertDialog open={confirmEnable} onOpenChange={onConfirmEnableChange}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Ligar captações exclusivas?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {enabled ? "Desligar captações exclusivas?" : "Ligar captações exclusivas?"}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                O módulo ficará disponível aos papéis autorizados. Confirme apenas depois de validar
-                o fluxo com usuários autenticados.
+                {enabled
+                  ? "O módulo deixa de aparecer para todos. Captações, documentos e histórico ficam guardados e voltam ao religar."
+                  : "O módulo ficará disponível aos papéis autorizados. Confirme apenas depois de validar o fluxo com usuários autenticados."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction disabled={saving} onClick={() => onChange(true)}>
-                Sim, ligar captações
+              <AlertDialogAction
+                disabled={saving}
+                className={
+                  enabled
+                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    : undefined
+                }
+                onClick={() => onChange(!enabled)}
+              >
+                {enabled ? "Sim, desligar captações" : "Sim, ligar captações"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
