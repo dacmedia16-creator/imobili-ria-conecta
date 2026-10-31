@@ -5,7 +5,8 @@
  * vazio e skeleton. Só apresentação — nenhum cálculo, consulta ou regra mora aqui.
  */
 import type { ComponentType, ReactNode } from "react";
-import { Inbox } from "lucide-react";
+import { AlertTriangle, Inbox, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -132,6 +133,50 @@ export function EmptyState({
       <Icon className="h-6 w-6 opacity-60" aria-hidden />
       <div className="max-w-md">{children}</div>
       {action && <div className="mt-1">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * Estado de erro de carga (item 1 t_8730be75): deixa claro que NÃO é lista vazia nem zero, e
+ * oferece "Tentar de novo". Mesmo visual do erro do Mural, que já funcionava bem.
+ */
+export function ErrorState({
+  children = "Não foi possível carregar os dados.",
+  onRetry,
+  retrying = false,
+  className,
+}: {
+  children?: ReactNode;
+  onRetry?: () => void;
+  retrying?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      role="alert"
+      data-testid="error-state"
+      className={cn(
+        "flex flex-col items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between",
+        className,
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <div>{children}</div>
+      </div>
+      {onRetry && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0 text-foreground"
+          onClick={onRetry}
+          disabled={retrying}
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden />
+          {retrying ? "Carregando…" : "Tentar de novo"}
+        </Button>
+      )}
     </div>
   );
 }

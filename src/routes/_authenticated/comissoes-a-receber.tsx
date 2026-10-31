@@ -31,6 +31,7 @@ import { AlertTriangle, CheckCircle2, Download, ListChecks, Wallet } from "lucid
 import {
   CardField,
   EmptyState,
+  ErrorState,
   KpiGridSkeleton,
   KpiTile,
   ListSkeleton,
@@ -95,6 +96,7 @@ function ComissoesAReceberPage() {
   const allowed = hasAny(["financeiro", "admin", "super_admin"]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [occs, setOccs] = useState<PaymentOccurrence[]>([]);
   const [sales, setSales] = useState<SaleSummary[]>([]);
   const [profileName, setProfileName] = useState<Record<string, string>>({});
@@ -123,15 +125,30 @@ function ComissoesAReceberPage() {
         return `or(prev_recebimento${suf}_data.not.is.null,prev_recebimento${suf}_valor.not.is.null,prev_recebimento${suf}_recebido_em.not.is.null,prev_recebimento${suf}_recebido_valor.not.is.null)`;
       })
       .join(",");
-    const { data: o } = await supabase.from("occurrences").select(OCC_COLUMNS).or(paymentFilter);
+    setLoadError(false);
+    const { data: o, error: occError } = await supabase
+      .from("occurrences")
+      .select(OCC_COLUMNS)
+      .or(paymentFilter);
+    // Erro de carga NUNCA vira lista vazia/zero (item 1 t_8730be75): mostra o erro e "Tentar de novo".
+    if (occError) {
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
     setOccs(o ?? []);
 
     const saleIds = Array.from(new Set((o ?? []).map((r) => r.sale_id)));
     if (saleIds.length) {
-      const { data: s } = await supabase
+      const { data: s, error: salesError } = await supabase
         .from("sales")
         .select("id, imovel_id, codigo_interno, corretor_id, status")
         .in("id", saleIds);
+      if (salesError) {
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
       setSales(s ?? []);
       try {
         setCorretoresPorVenda(await buscarCorretoresPorVenda(saleIds));
@@ -455,270 +472,284 @@ function ComissoesAReceberPage() {
         description="Área operacional para confirmar parcelas recebidas. Os valores já mostram somente a fatia própria da imobiliária, sem parcerias externas."
       />
 
-      {inconsistentes.length > 0 && (
-        <Card className="border-destructive/40">
-          <CardContent className="py-3 text-sm text-destructive">
-            {inconsistentes.length} ocorrência(s) sem venda correspondente carregada — excluída(s)
-            do total pendente por segurança. Verifique com o suporte técnico.
-          </CardContent>
-        </Card>
-      )}
+      {loadError ? (
+        <ErrorState onRetry={() => void load()}>
+          Não foi possível carregar as parcelas. Os totais não foram exibidos para não mostrar
+          valores errados.
+        </ErrorState>
+      ) : (
+        <>
+          {inconsistentes.length > 0 && (
+            <Card className="border-destructive/40">
+              <CardContent className="py-3 text-sm text-destructive">
+                {inconsistentes.length} ocorrência(s) sem venda correspondente carregada —
+                excluída(s) do total pendente por segurança. Verifique com o suporte técnico.
+              </CardContent>
+            </Card>
+          )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiTile
-          icon={Wallet}
-          tom="blue"
-          label="Total pendente (nossa parte)"
-          value={money(totalPendente)}
-        />
-        <KpiTile
-          icon={AlertTriangle}
-          tom="red"
-          label="Pendente vencido"
-          value={money(totalVencido)}
-          valueClassName="text-destructive"
-        />
-        <KpiTile
-          icon={CheckCircle2}
-          tom="green"
-          label="Total recebido"
-          value={money(totalRecebido)}
-          valueClassName="text-emerald-700 dark:text-emerald-400"
-        />
-        <KpiTile
-          icon={ListChecks}
-          tom="violet"
-          label="Selecionado"
-          value={money(totalSelecionado)}
-          valueClassName="text-primary"
-          destaque={selecionadas.length > 0}
-        />
-      </div>
-
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <Tabs
-            value={view}
-            onValueChange={(value) => setView(value as "pendentes" | "recebidas" | "todas")}
-          >
-            <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
-              <TabsTrigger value="pendentes">A receber ({pendingRows.length})</TabsTrigger>
-              <TabsTrigger value="recebidas">Recebidas ({receivedRows.length})</TabsTrigger>
-              <TabsTrigger value="todas">Todas ({filteredRows.length})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-            <Input
-              placeholder="Buscar recebimento…"
-              title="Buscar por ocorrência, imóvel, partes, corretor ou forma"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Buscar recebimentos"
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiTile
+              icon={Wallet}
+              tom="blue"
+              label="Total pendente (nossa parte)"
+              value={money(totalPendente)}
             />
-            <select
-              className="h-10 rounded-md border bg-background px-3 text-sm"
-              value={brokerFilter}
-              onChange={(e) => setBrokerFilter(e.target.value)}
-              aria-label="Filtrar por corretor"
-            >
-              <option value="todos">Todos os corretores</option>
-              {corretores.map((corretor) => (
-                <option key={corretor.id} value={corretor.id}>
-                  {corretor.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-10 rounded-md border bg-background px-3 text-sm"
-              value={formFilter}
-              onChange={(e) => setFormFilter(e.target.value)}
-              aria-label="Filtrar por forma de recebimento"
-            >
-              <option value="todos">Todas as formas</option>
-              {formas.map((forma) => (
-                <option key={forma} value={forma}>
-                  {forma}
-                </option>
-              ))}
-            </select>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              aria-label="Data inicial"
+            <KpiTile
+              icon={AlertTriangle}
+              tom="red"
+              label="Pendente vencido"
+              value={money(totalVencido)}
+              valueClassName="text-destructive"
             />
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              aria-label="Data final"
+            <KpiTile
+              icon={CheckCircle2}
+              tom="green"
+              label="Total recebido"
+              value={money(totalRecebido)}
+              valueClassName="text-emerald-700 dark:text-emerald-400"
+            />
+            <KpiTile
+              icon={ListChecks}
+              tom="violet"
+              label="Selecionado"
+              value={money(totalSelecionado)}
+              valueClassName="text-primary"
+              destaque={selecionadas.length > 0}
             />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Label htmlFor="deadline-filter">Pendências</Label>
-              <select
-                id="deadline-filter"
-                className="h-9 rounded-md border bg-background px-2 text-sm"
-                value={deadlineFilter}
-                onChange={(e) => setDeadlineFilter(e.target.value as typeof deadlineFilter)}
-              >
-                <option value="todos">Todas</option>
-                <option value="vencidas">Vencidas</option>
-                <option value="a_vencer">A vencer</option>
-              </select>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={rows.length === 0}
-                onClick={exportarCsv}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar CSV
-              </Button>
-              <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
-                <Wallet className="mr-2 h-4 w-4" />
-                Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como recebida(s)
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {view === "pendentes"
-              ? "A receber"
-              : view === "recebidas"
-                ? "Recebidas"
-                : "Todas as parcelas"}{" "}
-            ({rows.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="hidden md:block print:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={(v) => toggleAll(!!v)}
-                      disabled={rows.length === 0}
-                    />
-                  </TableHead>
-                  <TableHead>Imóvel</TableHead>
-                  <TableHead>Corretor</TableHead>
-                  <TableHead>Parcela</TableHead>
-                  <TableHead>Data prevista</TableHead>
-                  <TableHead>Recebida em</TableHead>
-                  <TableHead>Forma</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Situação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <Tabs
+                value={view}
+                onValueChange={(value) => setView(value as "pendentes" | "recebidas" | "todas")}
+              >
+                <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
+                  <TabsTrigger value="pendentes">A receber ({pendingRows.length})</TabsTrigger>
+                  <TabsTrigger value="recebidas">Recebidas ({receivedRows.length})</TabsTrigger>
+                  <TabsTrigger value="todas">Todas ({filteredRows.length})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                <Input
+                  placeholder="Buscar recebimento…"
+                  title="Buscar por ocorrência, imóvel, partes, corretor ou forma"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Buscar recebimentos"
+                />
+                <select
+                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  value={brokerFilter}
+                  onChange={(e) => setBrokerFilter(e.target.value)}
+                  aria-label="Filtrar por corretor"
+                >
+                  <option value="todos">Todos os corretores</option>
+                  {corretores.map((corretor) => (
+                    <option key={corretor.id} value={corretor.id}>
+                      {corretor.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  value={formFilter}
+                  onChange={(e) => setFormFilter(e.target.value)}
+                  aria-label="Filtrar por forma de recebimento"
+                >
+                  <option value="todos">Todas as formas</option>
+                  {formas.map((forma) => (
+                    <option key={forma} value={forma}>
+                      {forma}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  aria-label="Data inicial"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  aria-label="Data final"
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Label htmlFor="deadline-filter">Pendências</Label>
+                  <select
+                    id="deadline-filter"
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                    value={deadlineFilter}
+                    onChange={(e) => setDeadlineFilter(e.target.value as typeof deadlineFilter)}
+                  >
+                    <option value="todos">Todas</option>
+                    <option value="vencidas">Vencidas</option>
+                    <option value="a_vencer">A vencer</option>
+                  </select>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={rows.length === 0}
+                    onClick={exportarCsv}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar CSV
+                  </Button>
+                  <Button size="sm" disabled={selecionadas.length === 0} onClick={abrirConfirmacao}>
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Marcar {selecionadas.length > 0 ? `${selecionadas.length} ` : ""}como
+                    recebida(s)
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {view === "pendentes"
+                  ? "A receber"
+                  : view === "recebidas"
+                    ? "Recebidas"
+                    : "Todas as parcelas"}{" "}
+                ({rows.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="hidden md:block print:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={(v) => toggleAll(!!v)}
+                          disabled={rows.length === 0}
+                        />
+                      </TableHead>
+                      <TableHead>Imóvel</TableHead>
+                      <TableHead>Corretor</TableHead>
+                      <TableHead>Parcela</TableHead>
+                      <TableHead>Data prevista</TableHead>
+                      <TableHead>Recebida em</TableHead>
+                      <TableHead>Forma</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Situação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={9}
+                          className="py-8 text-center text-sm text-muted-foreground"
+                        >
+                          Nenhuma parcela encontrada com os filtros atuais.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {rows.map((r) => (
+                      <TableRow key={r.key}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selected.has(r.key)}
+                            onCheckedChange={(v) => toggleOne(r.key, !!v)}
+                            disabled={r.status === "recebida"}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {r.sale ? (
+                            <Link
+                              to="/vendas/$id"
+                              params={{ id: r.sale.id }}
+                              className="hover:underline"
+                            >
+                              {saleLabel(r.sale)}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {corretorNome(r.sale)}
+                        </TableCell>
+                        <TableCell>{r.parcela}ª</TableCell>
+                        <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
+                        <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
+                        <TableCell>{money(r.valor)}</TableCell>
+                        <TableCell>
+                          <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Celular: cartões com a mesma lista, seleção e situação da tabela. */}
+              <div className="space-y-3 md:hidden print:hidden">
                 {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={9}
-                      className="py-8 text-center text-sm text-muted-foreground"
-                    >
-                      Nenhuma parcela encontrada com os filtros atuais.
-                    </TableCell>
-                  </TableRow>
+                  <EmptyState>Nenhuma parcela encontrada com os filtros atuais.</EmptyState>
+                )}
+                {selectableRows.length > 0 && (
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox checked={allSelected} onCheckedChange={(v) => toggleAll(!!v)} />
+                    Selecionar todas as pendentes
+                  </label>
                 )}
                 {rows.map((r) => (
-                  <TableRow key={r.key}>
-                    <TableCell>
+                  <div key={r.key} className="rounded-xl border bg-card p-3 shadow-sm">
+                    <div className="flex items-start gap-3">
                       <Checkbox
+                        className="mt-0.5"
+                        aria-label={`Selecionar ${r.parcela}ª parcela de ${saleLabel(r.sale)}`}
                         checked={selected.has(r.key)}
                         onCheckedChange={(v) => toggleOne(r.key, !!v)}
                         disabled={r.status === "recebida"}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {r.sale ? (
-                        <Link
-                          to="/vendas/$id"
-                          params={{ id: r.sale.id }}
-                          className="hover:underline"
-                        >
-                          {saleLabel(r.sale)}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{corretorNome(r.sale)}</TableCell>
-                    <TableCell>{r.parcela}ª</TableCell>
-                    <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
-                    <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                    <TableCell>{money(r.valor)}</TableCell>
-                    <TableCell>
-                      <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Celular: cartões com a mesma lista, seleção e situação da tabela. */}
-          <div className="space-y-3 md:hidden print:hidden">
-            {rows.length === 0 && (
-              <EmptyState>Nenhuma parcela encontrada com os filtros atuais.</EmptyState>
-            )}
-            {selectableRows.length > 0 && (
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox checked={allSelected} onCheckedChange={(v) => toggleAll(!!v)} />
-                Selecionar todas as pendentes
-              </label>
-            )}
-            {rows.map((r) => (
-              <div key={r.key} className="rounded-xl border bg-card p-3 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    className="mt-0.5"
-                    aria-label={`Selecionar ${r.parcela}ª parcela de ${saleLabel(r.sale)}`}
-                    checked={selected.has(r.key)}
-                    onCheckedChange={(v) => toggleOne(r.key, !!v)}
-                    disabled={r.status === "recebida"}
-                  />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <Link
-                        to="/vendas/$id"
-                        params={{ id: r.sale.id }}
-                        className="min-w-0 break-words font-medium hover:underline"
-                      >
-                        {saleLabel(r.sale)}
-                      </Link>
-                      <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <Link
+                            to="/vendas/$id"
+                            params={{ id: r.sale.id }}
+                            className="min-w-0 break-words font-medium hover:underline"
+                          >
+                            {saleLabel(r.sale)}
+                          </Link>
+                          <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
+                        </div>
+                        <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <CardField label="Valor">
+                            <span className="font-semibold">{money(r.valor)}</span>
+                          </CardField>
+                          <CardField label="Parcela">{r.parcela}ª</CardField>
+                          <CardField label="Data prevista">
+                            {r.data ? dateBR(r.data) : "—"}
+                          </CardField>
+                          <CardField label="Recebida em">
+                            {r.recebidoEm ? dateBR(r.recebidoEm) : "—"}
+                          </CardField>
+                          <CardField label="Corretor">{corretorNome(r.sale)}</CardField>
+                          <CardField label="Forma">{r.forma ?? "—"}</CardField>
+                        </dl>
+                      </div>
                     </div>
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-                      <CardField label="Valor">
-                        <span className="font-semibold">{money(r.valor)}</span>
-                      </CardField>
-                      <CardField label="Parcela">{r.parcela}ª</CardField>
-                      <CardField label="Data prevista">{r.data ? dateBR(r.data) : "—"}</CardField>
-                      <CardField label="Recebida em">
-                        {r.recebidoEm ? dateBR(r.recebidoEm) : "—"}
-                      </CardField>
-                      <CardField label="Corretor">{corretorNome(r.sale)}</CardField>
-                      <CardField label="Forma">{r.forma ?? "—"}</CardField>
-                    </dl>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Dialog
         open={confirmOpen}
