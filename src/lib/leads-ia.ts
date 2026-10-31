@@ -851,23 +851,82 @@ const OUTRO_DIA = /(segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|hoje
 
 // t_2aecef49: cliente pede um dia/horário que não está nas 2 opções ("sábado de manhã pode ser?").
 // A Nicole aceita e anota, sem repetir as opções; o corretor confirma pelo resumo.
-const DIA_PEDIDO_RE = /\b(amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
+// t_d775be06 (Thiago 995c6dc0): "finais de semana" também é fim de semana (antes não era reconhecido e o modelo
+// trocou por "sábado").
+const DIA_PEDIDO_RE = /\b(amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|fins de semana|finais de semana|semana que vem|dia \d{1,2}|\d{1,2}\/\d{1,2})\b/;
 const MARCAR_RE = /(pode ser|da pra|da para|consigo|posso (ir|passar|visitar)|seria possivel|tem como|visit|agendar|marcar|ir ver|conhecer)/;
+
+// t_d775be06 (Daniela 2225f4d9): "Boa noite! Gostaria de agendar visita ... para amanhã" virou "amanhã à noite".
+// Cumprimento não é período: sai do texto antes de procurar manhã/tarde/noite.
+const SAUDACAO_RE =
+  /\b(bom dia|boa tarde|boa noite|boa madrugada|(otimo|otima|excelente|bom|boa|feliz) (dia|tarde|noite|fim de semana|final de semana))\b/g;
+/** Texto normalizado sem os cumprimentos ("boa noite", "bom dia", "bom fim de semana"). */
+export const semSaudacao = (n: string) => n.replace(SAUDACAO_RE, " ").replace(/\s+/g, " ").trim();
+
 /** "sábado de manhã", "fim de semana", "sexta às 18h" (texto do próprio cliente, normalizado e com acento). */
 export function diaPedido(texto: string): string | null {
-  const n = norm(texto);
+  const n = semSaudacao(norm(texto));
   const d = DIA_PEDIDO_RE.exec(n)?.[1];
   if (!d) return null;
   const i = DIAS_N.indexOf(d);
-  const dia = i >= 0 ? DIAS[i] : d === "final de semana" ? "fim de semana" : d === "amanha" ? "amanhã" : d;
+  const dia = i >= 0 ? DIAS[i] : /^(final|fins|finais) de semana$/.test(d) ? "fim de semana" : d === "amanha" ? "amanhã" : d;
   const periodo = /\bmanha\b/.test(n) ? "de manhã" : /\btarde\b/.test(n) ? "à tarde" : /\bnoite\b/.test(n) ? "à noite" : "";
   const h = /\b(\d{1,2})(?:h|:(\d{2}))\b/.exec(n);
   const hora = h && Number(h[1]) <= 23 ? `às ${h[1]}h${h[2] && h[2] !== "00" ? h[2] : ""}` : "";
   return [dia, periodo, hora].filter(Boolean).join(" ");
 }
+/**
+ * t_d775be06: dia e período da visita SÓ com as palavras do cliente (da fala mais nova para a mais antiga).
+ * "finais de semana" + "Manhã" = { dia: "fim de semana", periodo: "de manhã" } (nunca "sábado").
+ */
+export function visitaDasFalas(falas: string[]): { dia: string | null; periodo: string | null } {
+  let dia: string | null = null;
+  let periodo: string | null = null;
+  for (const f of falas) {
+    const n = semSaudacao(norm(f));
+    if (!dia && DIA_PEDIDO_RE.test(n)) {
+      const d = diaPedido(f);
+      dia = d ? d.replace(/ (de manhã|à tarde|à noite)( às .*)?$/, "").replace(/ às .*$/, "") : null;
+    }
+    if (!periodo) periodo = periodoDe(n);
+    if (dia && periodo) break;
+  }
+  return { dia, periodo };
+}
+// --- Resposta automática de empresa (t_d775be06, Luciana 66050ec1 / Grafi10) ------------------------------
+// O número do lead às vezes é comercial e devolve, em segundos, um aviso de horário ou "em que posso te ajudar?".
+// "forte" = frase típica de autoatendimento (vale sempre antes da 1ª fala humana do cliente);
+// "apresentacao" = "aqui é Fulana da Empresa" (o banco só aceita se chegou logo depois da 1ª mensagem da Nicole).
+const AUTO_FORTE: RegExp[] = [
+  /\b(nosso|o nosso) horario de (atendimento|funcionamento)\b/,
+  /\b(fora do|fora de nosso|fora do nosso) horario (de atendimento|comercial)\b/,
+  /\bhorario de atendimento (e|eh) de\b/,
+  /\b(responderemos|retornaremos|retornamos|respondemos) (o mais breve|em breve|assim que|seu contato|sua mensagem)/,
+  /\bem breve (retornaremos|responderemos|entraremos em contato|um de nossos|um atendente)/,
+  /\b(em que|como) (posso|podemos) (te |lhe |the |le )?(ajudar|ser util)\b/,
+  /\b(mensagem|resposta|atendimento) automatic[oa]\b/,
+  /\bagradecemos (o seu contato|seu contato|o contato|a compreensao|sua compreensao|sua mensagem|a sua mensagem|a preferencia)\b/,
+  /\bobrigad[oa] por (entrar em contato|sua mensagem|nos contatar)\b/,
+  /\b(ola|oi|bom dia|boa tarde|boa noite),? (queridos |caros |prezados )?clientes\b/,
+  /\bprezad[oa]s? clientes?\b/,
+  /\bseja(m)? bem[ -]?vind[oa]s?\b/,
+  /\b(digite|responda com) (o numero|um numero|uma das opcoes|a opcao|\d)\b/,
+  /\bescolha uma (das )?opc(ao|oes)\b/,
+];
+const AUTO_APRESENTACAO = /\b(aqui (e|eh|quem fala e) |sou (a |o )?)[a-z]+ (da|do|de) [a-z0-9]/;
+export type RespostaAutomatica = "forte" | "apresentacao" | null;
+/** A mensagem que chegou parece resposta automática de empresa (e não fala do cliente)? */
+export function respostaAutomatica(texto: string): RespostaAutomatica {
+  const n = norm(texto ?? "");
+  if (!n) return null;
+  if (AUTO_FORTE.some((re) => re.test(n))) return "forte";
+  if (AUTO_APRESENTACAO.test(n)) return "apresentacao";
+  return null;
+}
+
 /** Pedido de dia fora das opções? `contextoVisita` = já se falou em visita nesta conversa. */
 export function pedidoDiaFora(texto: string, opcoes: string[], contextoVisita: boolean): string | null {
-  const n = norm(texto);
+  const n = semSaudacao(norm(texto));
   if (!DIA_PEDIDO_RE.test(n) || !(contextoVisita || MARCAR_RE.test(n))) return null;
   if (escolhaVisita(texto, opcoes)) return null;
   return diaPedido(texto);
@@ -942,7 +1001,8 @@ const CHAMAR = `Já pedi para ${"{corretor}"} continuar seu atendimento por aqui
 
 // --- Período da visita (t_82c89141 item 4) ------------------------------------------------------------
 /** "de manhã" / "à tarde" / "à noite" dito pelo cliente (texto normalizado). null = não disse. */
-export function periodoDe(n: string): string | null {
+export function periodoDe(n0: string): string | null {
+  const n = semSaudacao(n0); // t_d775be06: "boa noite" é cumprimento, não período
   if (/\bmanha\b|\bcedo\b|\bmanhazinha\b/.test(n) && !/\btarde\b/.test(n)) return "de manhã";
   if (/\btarde(zinha)?\b|depois do almoco/.test(n) && !/\bmanha\b/.test(n)) return "à tarde";
   if (/\bnoite\b/.test(n)) return "à noite";
