@@ -40,7 +40,9 @@ import {
   opcoesVisita,
   PERGUNTA_PERIODO,
   periodoDe,
+  semSaudacao,
   temPeriodo,
+  visitaDasFalas,
   tipoDe,
   tipoPedido,
   pediuPessoa,
@@ -238,7 +240,7 @@ REGRAS (todas obrigatórias):
 6. Sem parênteses, sem código do imóvel, sem markdown, sem lista, no máximo 1 emoji. Não comece com "Obrigada" quando o cliente fez uma pergunta. Concorde o gênero com o tipo (casa anunciada, apartamento anunciado).
 7. Pedido de mais opções, "outra", "parecido", "mesma faixa", "nesse valor": ofereça UM imóvel de CANDIDATOS (o primeiro que servir), com tipo, 1 ou 2 características, valor e o link exato, e use "acao":"oferecer" com o "codigo" dele. Toda oferta de imóvel leva o link dele ("Dá uma olhada: <link>"), sem exceção. Quando o cliente corrigir o tipo que quer ("disse que quero casa") e houver CANDIDATOS, peça desculpa em poucas palavras e já mostre um deles com o link. Se o tipo do candidato for diferente do imóvel do cliente (apartamento para quem viu casa, ou o contrário), diga o tipo com todas as letras e pergunte se esse tipo serve. Havendo candidato, NUNCA diga que não tem outra. Sem candidato: só se DADOS trouxer "estoque":"sem_resultado" diga com naturalidade que essas são as opções que você tem nessa faixa agora e pergunte qual mais gostou ou se quer visitar; com "estoque":"nao_consultado", responda curto ("Entendi!") e use "acao":"passar" (nunca diga que não tem e não prometa separar, mandar ou trazer opções: a frase de passagem já avisa quem continua). Para falar de novo de um imóvel que você já mandou, use "acao":"responder" (oferecer é só para imóvel novo de CANDIDATOS). Use "acao":"passar" também se o cliente insistir em mais opções depois disso.
 8. Busca nova (outra pessoa, outro tipo de imóvel, outra finalidade): responda que sim, trabalham com isso, e faça 1 pergunta curta por vez para entender (compra ou aluguel, região, quartos, faixa). Registre em "registro.nova_busca" um resumo curto de tudo o que já sabe dessa busca. Com 2 ou 3 respostas, diga que anotou tudo e use "acao":"passar" (sem prometer separar nem mandar opções). Não perca o interesse no imóvel original.
-9. Visita: convide de forma simples ("Quer agendar uma visita?"). Você NÃO tem a agenda: nunca ofereça dia, data, período ou horário como se estivesse livre ("tenho amanhã de manhã", "temos sexta à tarde", "amanhã à tarde tem sim" estão errados). Quando o cliente quiser visitar, pergunte qual dia e período ficam melhores para ele e diga que o corretor confirma o horário com ele. Quando o cliente disser dia E período (manhã, tarde ou horário), anote ("Amanhã à tarde anotado!"), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?".
+9. Visita: convide de forma simples ("Quer agendar uma visita?"). Você NÃO tem a agenda: nunca ofereça dia, data, período ou horário como se estivesse livre ("tenho amanhã de manhã", "temos sexta à tarde", "amanhã à tarde tem sim" estão errados). Quando o cliente quiser visitar, pergunte qual dia e período ficam melhores para ele e diga que o corretor confirma o horário com ele. Quando o cliente disser dia E período (manhã, tarde ou horário), anote ("Amanhã à tarde anotado!"), registre em "registro.visita" e use "acao":"passar". Se ele disse só o dia (ex.: "sábado"), NÃO passe: pergunte "Fica melhor de manhã ou à tarde?". Anote SÓ o que o cliente disse, com as palavras dele: nunca suponha dia, período, horário, número de pessoas ou valor. "Boa noite", "bom dia" e "boa tarde" são cumprimentos, NÃO período. "Fim de semana" ou "finais de semana" continua "fim de semana" (nunca vire "sábado" nem "domingo").
 10. Forma de pagamento: pergunte só se o cliente já mostrou interesse num imóvel específico, uma vez só, e nunca no meio de um pedido dele.
 11. Máximo de 350 caracteres.
 12. Pedido por característica (suítes, quartos, vagas, área, tipo, bairro): se DADOS trouxer "busca", os CANDIDATOS são o resultado dessa busca no estoque. Pode repetir o número que o cliente pediu ("com 3 suítes"). Se "busca.fora_faixa" for true, diga com honestidade que nessa faixa não tem, mostre o candidato como o mais em conta (valor e link) e pergunte se quer ver ou se prefere procurar com um pouco menos. Nunca ofereça de novo um imóvel que não tem o que o cliente acabou de pedir. Sem "busca" e sem candidato que atenda: responda curto que anotou o pedido e use "acao":"passar" (sem prometer procurar nem mandar depois).
@@ -427,7 +429,9 @@ export type Bloqueio =
   // t_228659f0
   | "anuncio"
   | "repeticao"
-  | "agenda";
+  | "agenda"
+  // t_d775be06
+  | "inventou";
 
 /** Travas FIRMES (t_82c89141): barram também no modo observar (2ª tentativa e, se falhar, o roteiro). */
 // t_37cf21e3: fotos (promessa sem link), regiao (outro bairro sem avisar) e perfil (oferta do perfil errado)
@@ -439,6 +443,8 @@ export const TRAVAS_FIRMES: ReadonlySet<Bloqueio> = new Set<Bloqueio>([
   // t_228659f0 (7ebaa6bb): valor/suítes que não batem com o anúncio do link, link que não é de DADOS, resposta
   // quase igual a uma das 2 anteriores e oferta de dia/horário como livre não chegam ao cliente.
   "anuncio", "link", "repeticao", "agenda",
+  // t_d775be06: dia/período/horário "anotado" que o cliente não disse não chega ao cliente.
+  "inventou",
 ]);
 
 /** Contagens conferidas pela trava "contagem". */
@@ -489,6 +495,9 @@ export type Permitidos = {
   reperguntou?: boolean;
   /** t_6667db44: quantos imóveis a busca pelo nome achou (\"encontrei 2 no Cannes\" não é número solto). */
   achouNome?: number;
+  /** t_d775be06: falas do cliente (a atual e as anteriores) + opções de visita oferecidas: o dia, o período e o
+   * horário anotados têm de sair daqui. Sem o campo, a trava "inventou" não roda. */
+  falasVisita?: string[];
 };
 
 const numBr = (s: string): number => {
@@ -845,6 +854,34 @@ export function travasAnuncioRepeticao(msg: string, perm: Permitidos): DetalheBl
   }
   const ag = RE_AGENDA_OFERTA.exec(norm(msg.replace(LINK_RE, " ")));
   if (ag) return ret("agenda", ag[0]);
+  const inv = perm.falasVisita ? visitaInventada(msg, perm.falasVisita) : null;
+  if (inv) return ret("inventou", inv);
+  return null;
+}
+
+/** Frase que ANOTA a visita ("Amanhã à noite anotado!", "fica para sábado de manhã"). */
+const RE_ANOTA = /(anotad|combinad|agendad|marcad|registrad|pre.?agend|fica (para|pra)|ficou (para|pra))/;
+const RE_DIA_TXT =
+  /\b(amanha|depois de amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|fim de semana|final de semana|fins de semana|finais de semana|\d{1,2}\/\d{1,2})\b/g;
+const RE_HORA_TXT = /\b(\d{1,2}) ?(h\b|:\d{2})/g;
+const grupoDia = (d: string) => (/(fim|final|fins|finais) de semana/.test(d) ? "fim de semana" : d);
+/**
+ * t_d775be06: na frase que anota a visita, cada dia, período e horário tem de estar nas falas do cliente (ou nas
+ * opções de visita oferecidas). Devolve o trecho inventado ou null. Cumprimento ("boa noite") não conta.
+ */
+export function visitaInventada(msg: string, falas: string[]): string | null {
+  const ditas = falas.map((f) => semSaudacao(norm(f))).join(" | ");
+  const dias = new Set([...ditas.matchAll(RE_DIA_TXT)].map((m) => grupoDia(m[1])));
+  const periodos = new Set(falas.map((f) => periodoDe(norm(f))).filter(Boolean));
+  const horas = new Set([...ditas.matchAll(RE_HORA_TXT)].map((m) => Number(m[1])));
+  for (const frase of norm(msg.replace(LINK_RE, " ")).split(/[.!?]+/)) {
+    const f = semSaudacao(frase);
+    if (!RE_ANOTA.test(f)) continue;
+    for (const m of f.matchAll(RE_DIA_TXT)) if (!dias.has(grupoDia(m[1]))) return f.trim();
+    const p = periodoDe(f);
+    if (p && !periodos.has(p) && !/\b(manha|tarde)\b.*\bou\b/.test(f)) return f.trim();
+    for (const m of f.matchAll(RE_HORA_TXT)) if (!horas.has(Number(m[1]))) return f.trim();
+  }
   return null;
 }
 
@@ -1120,6 +1157,7 @@ export function explicarBloqueio(d: DetalheBloqueio): string {
     sem_link: "toda oferta de imóvel leva o link exato dele, de CANDIDATOS (\"Dá uma olhada: <link>\")",
     anuncio: "o valor ou as suítes/quartos ditos junto do link não são os desse imóvel; use exatamente os dados dele em DADOS (candidatos ou mostrados)",
     repeticao: "a resposta ficou quase igual a uma que você já mandou; responda a última pergunta do cliente com algo novo (se ele citou um condomínio, use busca_nome) e faça outra pergunta",
+    inventou: "o cliente não disse esse dia, período ou horário; anote só o que ele disse, com as palavras dele (\"fim de semana\" não vira \"sábado\"; \"boa noite\" é cumprimento, não período) e, se faltar o período, pergunte \"Fica melhor de manhã ou à tarde?\"",
     agenda: "você não tem a agenda: não ofereça dia nem horário; pergunte qual dia e período ficam melhores para o cliente e diga que o corretor confirma o horário",
   };
   return `Sua resposta anterior foi recusada: ${e[d.motivo]}${t}. Escreva de novo seguindo todas as regras.`;
@@ -1306,6 +1344,20 @@ const PASSAR_OK = `Já pedi para ${CORRETOR}, que vai continuar seu atendimento 
 const PASSAR_FALHA = "Um corretor da nossa equipe vai continuar seu atendimento por aqui.";
 const VISITA_OK = `Já pedi para ${CORRETOR}, que vai continuar seu atendimento por aqui para confirmar o horário certinho.`;
 const VISITA_FALHA = "Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.";
+/**
+ * t_d775be06: tira da fala do modelo as frases sobre o corretor continuar/confirmar (a frase de passagem, colada
+ * depois, já diz isso uma vez). Se sobrar nada, fica vazio e sai só a frase de passagem.
+ */
+export function semFraseCorretor(msg: string): string {
+  return msg
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter((f) => !/\b(corretor|corretora|corretores|time|equipe)\b.*\b(confirma|continua|continuar|vai|segue|chama|fala)/.test(norm(f)))
+    .join(" ")
+    .trim();
+}
+/** t_d775be06: o cliente quer visitar mas não disse dia nem período. */
+export const PERGUNTA_DIA_PERIODO = "Qual dia e período ficam melhores para você? O corretor confirma o horário com você.";
 
 /**
  * Resposta com o modelo escrevendo. `base` = o roteiro fixo (plano B), já calculado.
@@ -1455,6 +1507,15 @@ async function redigirRespostaBase(
     busca_nome: buscaNome,
     convite_visita: pol.pode,
   });
+  // t_d775be06: o que o cliente disse sobre a visita, da fala mais nova para a mais antiga (só as dele).
+  const falasVisita = [
+    texto,
+    ...op.historico
+      .filter((m) => m.autor === "cliente" && m.texto.trim() !== texto.trim())
+      .slice(-3)
+      .reverse()
+      .map((m) => m.texto),
+  ];
   const falasCliente = [
     texto,
     ...op.historico.filter((m) => m.autor === "cliente").slice(-4).map((m) => m.texto),
@@ -1473,6 +1534,7 @@ async function redigirRespostaBase(
   );
   const perm = permitidosDe(ctx.ficha, [...candidatos, ...extras], visita, falasCliente);
   perm.estoque = estoque;
+  perm.falasVisita = [...falasVisita, ...visita];
   // t_228659f0 item 3: anti-repetição contra as 2 últimas respostas da Nicole.
   perm.anteriores = op.historico.filter((m) => m.autor === "ia" && m.texto.trim()).slice(-2).map((m) => m.texto);
   // t_6667db44: links já mandados (imóvel novo não é repetição) e pergunta repetida do cliente (o dado é o mesmo).
@@ -1662,19 +1724,28 @@ async function redigirRespostaBase(
   }
   const bloqueio: Bloqueio | null = detalhe?.motivo ?? null;
   if (bloqueio && (!observar || TRAVAS_FIRMES.has(bloqueio))) return reserva(bloqueio);
-  // t_82c89141 item 4: dia sem período não passa ao corretor; pergunta manhã ou tarde.
-  if (saida.acao === "passar" && saida.registro.visita && !temPeriodo(saida.registro.visita) && !periodoDe(norm(texto))) {
-    const dia = saida.registro.visita;
-    return {
-      passo: ctx.passo === "fim" ? "visita" : ctx.passo,
-      dados: { ...dadosIn, visita_dia_pendente: dia, convite_visita: true },
-      resposta: PERGUNTA_PERIODO(dia),
-      resposta_falha: null,
-      fim: null,
-      resumo: null,
-      redigida: true,
-      bloqueio,
-    };
+  // t_d775be06: a visita anotada sai SÓ das palavras do cliente (o "registro.visita" do modelo não vale): "Boa noite!
+  // ... para amanhã" não vira "amanhã à noite" e "finais de semana" não vira "sábado".
+  // Vale o registro do modelo só se ele tem período e cada dia/período/horário dele foi dito pelo cliente ou está numa
+  // das opções oferecidas ("a primeira" = "amanhã de manhã").
+  const modeloOk = (v: string) => temPeriodo(v) && !visitaInventada(`${v} anotado`, perm.falasVisita ?? falasVisita);
+  if (saida.acao === "passar" && saida.registro.visita && !modeloOk(saida.registro.visita)) {
+    const v = visitaDasFalas(falasVisita);
+    if (!v.periodo) {
+      // t_82c89141 item 4: dia sem período não passa ao corretor; pergunta manhã ou tarde (ou dia e período).
+      return {
+        passo: ctx.passo === "fim" ? "visita" : ctx.passo,
+        dados: { ...dadosIn, visita_dia_pendente: v.dia ?? undefined, convite_visita: true },
+        resposta: v.dia ? PERGUNTA_PERIODO(v.dia) : PERGUNTA_DIA_PERIODO,
+        resposta_falha: null,
+        fim: null,
+        resumo: null,
+        redigida: true,
+        bloqueio,
+      };
+    }
+    const visita = v.dia ? `${v.dia} ${v.periodo}` : `${v.periodo}, dia a confirmar`;
+    saida = { ...saida, mensagem: `${visita[0].toUpperCase()}${visita.slice(1)} anotado!`, registro: { ...saida.registro, visita } };
   }
   // "Não" a uma pergunta da Nicole não é motivo para passar ao corretor (item 5).
   if (saida.acao === "passar" && !saida.registro.visita && !saida.registro.nova_busca && NAO_CURTO.test(norm(texto)))
@@ -1758,11 +1829,14 @@ async function redigirRespostaBase(
     ]
       .filter(Boolean)
       .join(" ");
+    // t_d775be06 (Thiago 995c6dc0): "O corretor confirma o horário com você. Já pedi para o nosso time..." = 2 frases
+    // sobre o corretor. A frase de passagem já diz quem continua: a do modelo sobre o corretor sai.
+    const msgPassar = semFraseCorretor(saida.mensagem);
     return {
       passo: "fim",
       dados,
-      resposta: `${saida.mensagem} ${visitaEscolhida ? VISITA_OK : PASSAR_OK}`,
-      resposta_falha: `${saida.mensagem} ${visitaEscolhida ? VISITA_FALHA : PASSAR_FALHA}`,
+      resposta: `${msgPassar} ${visitaEscolhida ? VISITA_OK : PASSAR_OK}`.trim(),
+      resposta_falha: `${msgPassar} ${visitaEscolhida ? VISITA_FALHA : PASSAR_FALHA}`.trim(),
       fim: visitaEscolhida ? "visita" : "qualificado",
       resumo: resumo.slice(0, 1000),
       redigida: true,

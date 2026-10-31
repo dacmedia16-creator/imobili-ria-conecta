@@ -26,6 +26,7 @@ import {
   type FiltroBusca,
   proximaResposta,
   respostaMidia,
+  respostaAutomatica,
   type ContextoIa,
   type FiltroParecido,
   type ImovelEncontrado,
@@ -59,6 +60,8 @@ export type MensagemZion = {
   grupo: boolean;
   status: boolean;
   proprio: boolean;
+  /** t_d775be06: parece resposta automática de empresa (marcado pelo servidor, decidido pelo banco). */
+  auto?: "forte" | "apresentacao";
 };
 
 type Obj = Record<string, unknown>;
@@ -398,7 +401,9 @@ export async function receberRetornoZionTalk(
 
   let banco: RespostaBanco;
   try {
-    const r = await deps.receber(token, alvo);
+    // t_d775be06: o banco decide (só antes da 1ª fala humana do cliente); aqui só marca o tipo de texto.
+    const auto = alvo.tipo === "texto" ? respostaAutomatica(alvo.texto) : null;
+    const r = await deps.receber(token, auto ? { ...alvo, auto } : alvo);
     if (r.error) {
       console.error("leads ia retorno: falha no banco", r.error.code ?? "sem_codigo");
       return json(503, "erro");
