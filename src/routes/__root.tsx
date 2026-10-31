@@ -103,7 +103,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient; auth
       { name: "theme-color", content: "#0b1330" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      // "default" = barra de status clara com relógio escuro, e a página começa abaixo dela
+      // (t_1ebe1a47). Com "black-translucent" o relógio branco ficava por cima do cabeçalho branco.
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "ADM MAX" },
     ],
     links: [
@@ -153,7 +155,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <Toaster richColors position="top-right" />
+      <Toaster
+        richColors
+        position="top-right"
+        // Avisos abaixo do relógio/bateria no app da tela inicial (t_1ebe1a47); 0 no navegador.
+        mobileOffset={{ top: "calc(16px + env(safe-area-inset-top))" }}
+      />
     </QueryClientProvider>
   );
 }
