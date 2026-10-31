@@ -1,6 +1,37 @@
 import { describe, expect, it, vi } from "vitest";
 import { consultarTodasLinhas } from "./consulta-paginada";
-import { confirmarLinhaAlterada, exigirConsulta } from "./relatorios-integridade";
+import {
+  conferirBaixaEmLote,
+  confirmarLinhaAlterada,
+  exigirConsulta,
+} from "./relatorios-integridade";
+
+describe("baixa em lote (item 2 t_8730be75)", () => {
+  it("só conta como recebida a linha que o banco devolveu", () => {
+    expect(
+      conferirBaixaEmLote(
+        [
+          { data: [{ id: "a" }], error: null },
+          { data: [{ id: "b" }], error: null },
+        ],
+        ["a", "b"],
+      ),
+    ).toEqual({ confirmadas: 2, falhas: 0 });
+  });
+  it("zero linhas (RLS silenciosa), erro e linha errada viram falha", () => {
+    expect(
+      conferirBaixaEmLote(
+        [
+          { data: [], error: null },
+          { data: null, error: { message: "negado" } },
+          { data: [{ id: "x" }], error: null },
+          { data: [{ id: "d" }], error: null },
+        ],
+        ["a", "b", "c", "d"],
+      ),
+    ).toEqual({ confirmadas: 1, falhas: 3 });
+  });
+});
 
 describe("consulta financeira paginada", () => {
   it("concatena todas as páginas, inclusive a última parcial", async () => {

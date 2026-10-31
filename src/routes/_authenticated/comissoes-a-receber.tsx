@@ -40,6 +40,7 @@ import {
 import { exportCsv } from "@/lib/csv";
 import type { OccurrenceRow, OccurrenceUpdate, SaleRow } from "@/lib/database.types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { conferirBaixaEmLote } from "@/lib/relatorios-integridade";
 import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 
 type PaymentOccurrence = Pick<
@@ -405,13 +406,21 @@ function ComissoesAReceberPage() {
                     prev_recebimento3_recebido_em: markDate,
                     prev_recebimento3_recebido_valor: r.valor,
                   };
-          return supabase.from("occurrences").update(patch).eq("id", r.occId);
+          // .select("id") devolve a linha gravada: sem ela (RLS silenciosa) não é sucesso.
+          return supabase.from("occurrences").update(patch).eq("id", r.occId).select("id");
         }),
       );
-      const falhas = results.filter((r) => r.error);
-      if (falhas.length)
-        toast.error(`${falhas.length} de ${selecionadas.length} falharam ao salvar`);
-      else toast.success(`${selecionadas.length} parcela(s) marcada(s) como recebida(s)`);
+      const { confirmadas, falhas } = conferirBaixaEmLote(
+        results,
+        selecionadas.map((r) => r.occId),
+      );
+      if (falhas)
+        toast.error(
+          `${falhas} de ${selecionadas.length} parcela(s) não foram gravadas.` +
+            (confirmadas ? ` ${confirmadas} foram marcadas como recebidas.` : "") +
+            " Confira a lista e tente de novo.",
+        );
+      else toast.success(`${confirmadas} parcela(s) marcada(s) como recebida(s)`);
       setConfirmOpen(false);
       load();
     } finally {

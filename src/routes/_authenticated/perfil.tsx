@@ -34,6 +34,7 @@ import { MinhaFichaColaborador } from "@/components/ficha/MinhaFichaColaborador"
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
+import { estadoCargaPerfil, podeSalvarPerfil, type EstadoCargaPerfil } from "@/lib/perfil-carga";
 import {
   addPositioningRegion,
   groupRegions,
@@ -83,6 +84,10 @@ function MeuAcesso() {
   const [remaxId, setRemaxId] = useState("");
   const [savingRemaxId, setSavingRemaxId] = useState(false);
   const [registrationLoaded, setRegistrationLoaded] = useState(false);
+  const [cargaPerfil, setCargaPerfil] = useState<EstadoCargaPerfil>("carregando");
+  const [cargaPosicionamento, setCargaPosicionamento] = useState<EstadoCargaPerfil>("carregando");
+  const [tentativaCarga, setTentativaCarga] = useState(0);
+  const perfilPronto = podeSalvarPerfil(cargaPerfil);
   const [savingRegistration, setSavingRegistration] = useState(false);
   const [paginaPessoal, setPaginaPessoal] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -121,11 +126,15 @@ function MeuAcesso() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
+      setCargaPerfil("carregando");
+      const resultado = await supabase
         .from("profiles")
         .select("nome, telefone, avatar_url, pagina_pessoal_url, instagram_url, remax_id")
         .eq("id", user.id)
         .maybeSingle();
+      const { data } = resultado;
+      // Se a leitura falhou, os botões Salvar ficam travados (item 6): nunca gravar vazio por cima.
+      setCargaPerfil(estadoCargaPerfil(resultado));
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setRemaxId(data?.remax_id ?? "");
@@ -157,7 +166,7 @@ function MeuAcesso() {
       setNotifPorPapel(map);
       setNotifAtualizacaoPorPapel(mapAtualizacao);
     })();
-  }, [user]);
+  }, [user, tentativaCarga]);
 
   useEffect(() => {
     if (!user || !canUsePositioning) return;
@@ -181,24 +190,26 @@ function MeuAcesso() {
             (error: Error) => ({ data: null, error }),
           ),
           supabase
-          .from("corretor_positioning_regions")
-          .select("region_id")
-          .eq("corretor_id", user.id),
-        supabase
-          .from("positioning_region_suggestions")
-          .select("id, nome, cidade, status")
-          .eq("suggested_by", user.id)
-          .order("created_at", { ascending: false }),
-      ]);
+            .from("corretor_positioning_regions")
+            .select("region_id")
+            .eq("corretor_id", user.id),
+          supabase
+            .from("positioning_region_suggestions")
+            .select("id, nome, cidade, status")
+            .eq("suggested_by", user.id)
+            .order("created_at", { ascending: false }),
+        ]);
       if (regionsResult.error || selectedError) {
         toast.error("Não foi possível carregar seu posicionamento.");
+        setCargaPosicionamento("erro");
         return;
       }
       setPositioningRegions(regionsResult.data ?? []);
       setSelectedRegionIds((selected ?? []).map((row) => row.region_id));
       setMySuggestions(suggestions ?? []);
+      setCargaPosicionamento("ok");
     })();
-  }, [canUsePositioning, user]);
+  }, [canUsePositioning, user, tentativaCarga]);
 
   const alternarNotifCampo = async (
     r: AppRole,
@@ -228,7 +239,7 @@ function MeuAcesso() {
   };
 
   const salvarTelefone = async () => {
-    if (!user) return;
+    if (!user || !perfilPronto) return;
     setSavingTelefone(true);
     try {
       const { error } = await supabase
@@ -243,7 +254,7 @@ function MeuAcesso() {
   };
 
   const salvarRemaxId = async () => {
-    if (!user) return;
+    if (!user || !perfilPronto) return;
     const valor = remaxId.replace(/\D/g, "");
     if (valor && !/^630\d{6}$/.test(valor)) {
       toast.error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
@@ -288,7 +299,7 @@ function MeuAcesso() {
   };
 
   const salvarContatosPublicos = async () => {
-    if (!user) return;
+    if (!user || !perfilPronto) return;
     const paginaUrl = normalizeExternalUrl(paginaPessoal);
     const instagramUrl = normalizeInstagramUrl(instagram);
     if (paginaPessoal.trim() && !paginaUrl) {
@@ -329,7 +340,7 @@ function MeuAcesso() {
   };
 
   const salvarPosicionamento = async () => {
-    if (!user) return;
+    if (!user || cargaPosicionamento !== "ok") return;
     setSavingPositioning(true);
     try {
       const { error } = await supabase.rpc("save_my_positioning", {
@@ -551,6 +562,21 @@ function MeuAcesso() {
           <CardTitle className="text-base">Conta</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
+          {cargaPerfil === "erro" && (
+            <div
+              role="alert"
+              data-testid="perfil-erro-carga"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3"
+            >
+              <span>
+                Não foi possível carregar seus dados. Para não apagar nada, os botões “Salvar” ficam
+                travados até carregar.
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setTentativaCarga((n) => n + 1)}>
+                Tentar de novo
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-4 border-b pb-4">
             <Avatar className="h-16 w-16 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
               <AvatarImage
@@ -610,7 +636,7 @@ function MeuAcesso() {
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
               />
-              <Button size="sm" onClick={salvarTelefone} disabled={savingTelefone}>
+              <Button size="sm" onClick={salvarTelefone} disabled={savingTelefone || !perfilPronto}>
                 {savingTelefone ? "Salvando…" : "Salvar"}
               </Button>
             </div>
@@ -666,7 +692,7 @@ function MeuAcesso() {
                   maxLength={9}
                   onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
                 />
-                <Button size="sm" disabled={savingRemaxId} onClick={salvarRemaxId}>
+                <Button size="sm" disabled={savingRemaxId || !perfilPronto} onClick={salvarRemaxId}>
                   {savingRemaxId ? "Salvando…" : "Salvar ID RE/MAX"}
                 </Button>
               </div>
@@ -705,7 +731,7 @@ function MeuAcesso() {
                   size="sm"
                   variant="outline"
                   onClick={salvarContatosPublicos}
-                  disabled={savingPublicContacts}
+                  disabled={savingPublicContacts || !perfilPronto}
                 >
                   {savingPublicContacts ? "Salvando…" : "Salvar links públicos"}
                 </Button>
@@ -807,9 +833,21 @@ function MeuAcesso() {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={salvarPosicionamento} disabled={savingPositioning}>
+              <Button
+                onClick={salvarPosicionamento}
+                disabled={savingPositioning || cargaPosicionamento !== "ok"}
+              >
                 {savingPositioning ? "Salvando…" : "Salvar posicionamento"}
               </Button>
+              {cargaPosicionamento === "erro" && (
+                <Button
+                  variant="outline"
+                  data-testid="posicionamento-tentar-de-novo"
+                  onClick={() => setTentativaCarga((n) => n + 1)}
+                >
+                  Tentar de novo
+                </Button>
+              )}
               <Button variant="outline" asChild>
                 <Link
                   {...(agencySlug
@@ -1020,8 +1058,8 @@ function MeuAcesso() {
           ))}
           <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
             🔒 Regra geral: quando o financeiro aceita a ocorrência, a venda fica travada para
-            edição de corretor, gestor e jurídico até que o financeiro (ou administrador ou administrador principal)
-            libere.
+            edição de corretor, gestor e jurídico até que o financeiro (ou administrador ou
+            administrador principal) libere.
           </div>
         </CardContent>
       </Card>

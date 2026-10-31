@@ -51,6 +51,74 @@ export function getRoomReservationCancellationNotice(
   return `Reserva cancelada. Você tem ${status.lateCancellationCount} de ${ROOM_RESERVATION_CANCELLATION_LIMIT} cancelamentos após a primeira hora. Faltam ${status.remainingCancellations} para o bloqueio de 7 dias.`;
 }
 
+/**
+ * Aviso mostrado ANTES de cancelar (item 4 t_8730be75). Espelha a regra do banco
+ * (cancel_room_reservation): conta para a penalidade só se quem cancela é o responsável
+ * e a reserva foi criada há mais de 1 hora; staff nunca conta. Não muda a regra, só explica.
+ */
+export function getRoomReservationCancelWarning(opts: {
+  isOwn: boolean;
+  createdAt: string | null;
+  status: RoomReservationCancellationStatus | null;
+  isStaff: boolean;
+  now?: Date;
+}): { countsForPenalty: boolean; text: string } {
+  const { isOwn, createdAt, status, isStaff, now = new Date() } = opts;
+  if (isStaff) {
+    return {
+      countsForPenalty: false,
+      text: "Staff não tem limite de cancelamentos nem bloqueio.",
+    };
+  }
+  if (!isOwn) {
+    return {
+      countsForPenalty: false,
+      text: "A reserva é de outra pessoa: este cancelamento não conta para a regra de bloqueio de ninguém.",
+    };
+  }
+  const created = createdAt ? new Date(createdAt).getTime() : NaN;
+  const withinFirstHour = Number.isFinite(created) && now.getTime() <= created + 60 * 60 * 1000;
+  if (withinFirstHour) {
+    return {
+      countsForPenalty: false,
+      text: "A reserva foi feita há menos de 1 hora: este cancelamento não conta para a regra de bloqueio.",
+    };
+  }
+  const limit = ROOM_RESERVATION_CANCELLATION_LIMIT;
+  const days = ROOM_RESERVATION_CANCELLATION_BLOCK_DAYS;
+  if (!status) {
+    return {
+      countsForPenalty: true,
+      text: `Este cancelamento conta para a regra de bloqueio: ao chegar a ${limit} cancelamentos depois da primeira hora, você fica ${days} dias sem poder reservar.`,
+    };
+  }
+  const next = status.lateCancellationCount + 1;
+  if (next >= limit) {
+    return {
+      countsForPenalty: true,
+      text: `Atenção: este será seu ${next}º cancelamento depois da primeira hora. Ao confirmar, você fica ${days} dias sem poder fazer novas reservas.`,
+    };
+  }
+  return {
+    countsForPenalty: true,
+    text: `Este cancelamento conta para a regra de bloqueio: será o ${next}º de ${limit}. Ao chegar a ${limit}, você fica ${days} dias sem poder reservar.`,
+  };
+}
+
+/**
+ * Estado de uma célula da agenda (item 5 t_8730be75): enquanto a agenda carrega ou falhou,
+ * nenhum horário pode aparecer como "Livre" nem ser clicado para reservar.
+ */
+export function getRoomSlotState(opts: {
+  loading: boolean;
+  loadFailed: boolean;
+  occupied: boolean;
+}): "carregando" | "indisponivel" | "ocupada" | "livre" {
+  if (opts.loading) return "carregando";
+  if (opts.loadFailed) return "indisponivel";
+  return opts.occupied ? "ocupada" : "livre";
+}
+
 export function getRoomReservationPeriodTimes(
   period: RoomReservationPeriod,
 ): { start: string; end: string } | null {
