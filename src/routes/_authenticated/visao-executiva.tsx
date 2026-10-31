@@ -221,6 +221,7 @@ function VisaoExecutiva() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [carregouUmaVez, setCarregouUmaVez] = useState(false);
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
@@ -408,11 +409,14 @@ function VisaoExecutiva() {
           quantidade_vendas: 0,
         },
       );
+      setCarregouUmaVez(true);
       setLoading(false);
     })();
   }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa, reloadKey]);
 
-  if (authLoading || loading || (ehLider && temEquipe === null)) {
+  // Esqueleto só na PRIMEIRA carga (item 8 t_8730be75): trocar a data não desmonta a tela,
+  // o campo mantém o foco e a aba do ranking não volta para a primeira.
+  if (authLoading || (loading && !carregouUmaVez) || (ehLider && temEquipe === null)) {
     return (
       <div className="space-y-6">
         <PageHeader icon={TrendingUp} title="Desempenho" />
