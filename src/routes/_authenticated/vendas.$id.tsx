@@ -45,6 +45,8 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { SaleFlowStepper } from "@/components/SaleFlowStepper";
 import { FinanciadaBadge } from "@/components/FinanciadaBadge";
+import { AcoesDaVenda } from "@/components/vendas/AcoesDaVenda";
+import { montarAcoesVenda, type AcaoVenda } from "@/lib/venda-acoes";
 import { AgingBadge } from "@/components/AgingBadge";
 import {
   STATUS_LABEL,
@@ -4281,6 +4283,89 @@ function SaleDetail() {
                           }
                         : null;
 
+  // Barra do topo (FASE 2 item 18, t_7fcda931): 1 botão principal + "Devolver" + menu "Mais".
+  // Mesmas condições de antes (só reorganiza); o banco confere tudo de novo em cada ação.
+  const acoesTopo = montarAcoesVenda({
+    status,
+    isGestor,
+    isJuridico,
+    isFinanceiro,
+    isOwner,
+    isAdminLike,
+    podeEnviarRevisao,
+    gestorDaEquipeRascunho,
+    envioDiretoJuridico,
+    canUploadCertidoes,
+    contratoDocs: contratoDocs.length,
+    certidoesJuridicoDocs: certidoesJuridicoDocs.length,
+    contratoPendenciaDescricao: sale.contrato_pendencia_descricao,
+    assinaturaBloqueadaJuridico: sale.contrato_libera_assinatura === false,
+    clicksignAtalhoGestor,
+    envioManualSimples,
+    assinaturaManual,
+    contratoAssinadoDocs: contratoAssinadoDocs.length,
+    canCloseSale,
+    canUnarchive,
+    etapaAntesDeArquivar,
+    canCancel,
+    canDelete,
+  });
+  const abrirContratoAssinado = () => {
+    setContratoAssinadoFile(null);
+    setContratoAssinadoDialogOpen(true);
+  };
+  const executarAcaoTopo = (a: AcaoVenda) => {
+    switch (a.id) {
+      case "enviar_revisao":
+        return attemptSendForReview();
+      case "aprovar_juridico":
+        return attemptApproveJuridico();
+      case "iniciar_contrato":
+        return void changeStatus("em_elaboracao_contrato");
+      case "subir_certidoes":
+        return irParaCertidoes();
+      case "anexar_contrato":
+      case "substituir_contrato":
+        return openContratoDialog();
+      case "enviar_contrato_gestor":
+        return void enviarContratoAoGestor();
+      case "enviar_corretor_conferir":
+        return void changeStatus("contrato_conferencia_corretor");
+      case "enviar_direto_assinatura":
+        return clicksignAtalhoGestor
+          ? setAtalhoEscolhaOpen(true)
+          : void changeStatus("aguardando_assinatura");
+      case "dar_ok_contrato":
+        return void changeStatus("contrato_ok_corretor");
+      case "enviar_assinatura":
+        return void changeStatus("aguardando_assinatura");
+      case "subir_contrato_assinado":
+      case "substituir_contrato_assinado":
+        return abrirContratoAssinado();
+      case "marcar_contrato_assinado":
+        return void marcarContratoAssinado();
+      case "criar_ocorrencia":
+        return void changeStatus("ocorrencia_pendente");
+      case "enviar_ocorrencia_financeiro":
+        return void enviarOcorrenciaFinanceiro();
+      case "desfazer_contrato_assinado":
+        return openReturnDialog("aguardando_assinatura");
+      case "arquivar":
+        return openArchiveDialog("arquivada");
+      case "desarquivar":
+        setUnarchiveMotivo("");
+        return setUnarchiveOpen(true);
+      case "cancelar_venda":
+        return openArchiveDialog("cancelada");
+      case "excluir_venda":
+        return setDeleteOpen(true);
+      case "devolver_corretor":
+      case "devolver_gestor":
+      case "devolver_juridico":
+        return a.alvo ? openReturnDialog(a.alvo as SaleStatus) : undefined;
+    }
+  };
+
   // Faixa amarela: venda aberta sem Mídia. Com ocorrência criada, a trava passa a ser a Mídia da
   // ocorrência (é ela que o banco confere ao enviar ao financeiro); antes disso, a Mídia da venda.
   const vendaAberta = !["ocorrencia_concluida", "arquivada", "cancelada"].includes(status);
@@ -4321,7 +4406,7 @@ function SaleDetail() {
             <b>Falta preencher a Mídia{faixaMidia === "occ_midia" ? " na Ocorrência" : ""}.</b> Sem
             ela, a venda não poderá avançar.
           </span>
-          <Button size="sm" variant="outline" onClick={() => void levarAoCampo(faixaMidia)}>
+          <Button size="sm" onClick={() => void levarAoCampo(faixaMidia)}>
             Preencher agora
           </Button>
         </div>
@@ -4383,264 +4468,7 @@ function SaleDetail() {
             Criada em {new Date(sale.created_at).toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Corretor: envio inicial ou reenvio após devolução (dono que também é gestor/team leader pula a revisão e já manda pro jurídico) */}
-          {(podeEnviarRevisao || gestorDaEquipeRascunho) && (
-            <Button onClick={attemptSendForReview}>
-              <Send className="mr-2 h-4 w-4" />
-              {envioDiretoJuridico ? "Enviar ao jurídico" : "Enviar ao gestor"}
-            </Button>
-          )}
-
-          {/* Gestor: revisão inicial */}
-          {isGestor && status === "enviada_revisao" && (
-            <>
-              <Button onClick={attemptApproveJuridico}>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Aprovar p/ jurídico
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao corretor
-              </Button>
-            </>
-          )}
-
-          {/* Jurídico: aceitar e elaborar */}
-          {isJuridico && status === "aprovada_gestor" && (
-            <>
-              <Button onClick={() => changeStatus("em_elaboracao_contrato")}>
-                <Gavel className="mr-2 h-4 w-4" />
-                Iniciar contrato
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao gestor
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao corretor
-              </Button>
-            </>
-          )}
-          {isJuridico && canUploadCertidoes && (
-            <Button variant="outline" onClick={irParaCertidoes}>
-              <Gavel className="mr-2 h-4 w-4" />
-              Subir certidões
-            </Button>
-          )}
-          {isJuridico && status === "em_elaboracao_contrato" && (
-            <>
-              <Button variant="outline" onClick={openContratoDialog}>
-                <Upload className="mr-2 h-4 w-4" />
-                {contratoDocs.length > 0 ? "Substituir versão do contrato" : "Anexar contrato"}
-              </Button>
-              <Button
-                onClick={enviarContratoAoGestor}
-                disabled={
-                  contratoDocs.length === 0 ||
-                  (certidoesJuridicoDocs.length === 0 && !sale.contrato_pendencia_descricao)
-                }
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Enviar ao gestor
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("enviada_revisao")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao gestor
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("devolvida_ajuste")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao corretor
-              </Button>
-            </>
-          )}
-
-          {/* Gestor: conferência do contrato */}
-          {isGestor && status === "contrato_conferencia_gestor" && (
-            <>
-              <Button onClick={() => changeStatus("contrato_conferencia_corretor")}>
-                <Send className="mr-2 h-4 w-4" />
-                Enviar ao corretor conferir
-              </Button>
-              <Button
-                onClick={() =>
-                  clicksignAtalhoGestor
-                    ? setAtalhoEscolhaOpen(true)
-                    : changeStatus("aguardando_assinatura")
-                }
-                disabled={sale.contrato_libera_assinatura === false}
-                title={
-                  sale.contrato_libera_assinatura === false
-                    ? "Jurídico marcou que ainda não pode ir para assinatura"
-                    : clicksignAtalhoGestor
-                      ? "Pula a conferência do corretor: escolha assinatura digital (Clicksign) ou papel"
-                      : undefined
-                }
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Enviar direto para assinatura
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao jurídico
-              </Button>
-            </>
-          )}
-
-          {/* Corretor: conferência do contrato */}
-          {(isOwner || isAdminLike) && status === "contrato_conferencia_corretor" && (
-            <>
-              <Button onClick={() => changeStatus("contrato_ok_corretor")}>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Dar OK no contrato
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => openReturnDialog("contrato_conferencia_gestor")}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao gestor
-              </Button>
-            </>
-          )}
-
-          {/* Liberar para assinatura: sem Clicksign, o botão manual de sempre (gestor/TL, jurídico
-              e ADM). Com Clicksign, a escolha fica no cartão "Como vai ser assinado?" abaixo. */}
-          {envioManualSimples && (
-            <Button
-              onClick={() => changeStatus("aguardando_assinatura")}
-              disabled={sale.contrato_libera_assinatura === false}
-              title={
-                sale.contrato_libera_assinatura === false
-                  ? "Jurídico marcou que ainda não pode ir para assinatura"
-                  : undefined
-              }
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Enviar para assinatura
-            </Button>
-          )}
-          {isGestor && status === "contrato_ok_corretor" && (
-            <>
-              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao jurídico
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => openReturnDialog("contrato_conferencia_corretor")}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao corretor
-              </Button>
-            </>
-          )}
-
-          {/* Em assinatura pela Clicksign: o gestor mantém o caminho de reserva (subir/marcar/devolver).
-              Na assinatura manual esses botões ficam no cartão "Assinatura manual (papel)". */}
-          {isGestor && status === "aguardando_assinatura" && !assinaturaManual && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setContratoAssinadoFile(null);
-                  setContratoAssinadoDialogOpen(true);
-                }}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                {contratoAssinadoDocs.length > 0
-                  ? "Substituir contrato assinado"
-                  : "Subir contrato assinado"}
-              </Button>
-              <Button onClick={marcarContratoAssinado} disabled={contratoAssinadoDocs.length === 0}>
-                <FileCheck className="mr-2 h-4 w-4" />
-                Marcar contrato assinado
-              </Button>
-              <Button variant="outline" onClick={() => openReturnDialog("em_elaboracao_contrato")}>
-                <XCircle className="mr-2 h-4 w-4" />
-                Devolver ao jurídico
-              </Button>
-            </>
-          )}
-
-          {/* Gestor: enviar ocorrência ao financeiro */}
-          {isGestor && status === "contrato_assinado" && (
-            <Button onClick={() => changeStatus("ocorrencia_pendente")}>
-              <FileCheck className="mr-2 h-4 w-4" />
-              Criar ocorrência e continuar
-            </Button>
-          )}
-
-          {isGestor &&
-            (status === "ocorrencia_pendente" || status === "ocorrencia_devolvida_gestor") && (
-              <Button onClick={enviarOcorrenciaFinanceiro}>
-                <DollarSign className="mr-2 h-4 w-4" />
-                Enviar ocorrência ao financeiro
-              </Button>
-            )}
-
-          {/* Gestor: desfazer "contrato assinado" marcado por engano — volta pra aguardando_assinatura,
-              reabrindo subir/substituir e marcar de novo. Ainda não existe Ocorrência criada nesse
-              ponto (passo manual, separado), então não há nada além do status pra desfazer. */}
-          {isGestor && status === "ocorrencia_pendente" && (
-            <Button variant="outline" onClick={() => openReturnDialog("aguardando_assinatura")}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Desfazer contrato assinado
-            </Button>
-          )}
-
-          {/* Financeiro: devolver ocorrência (aceite é feito dentro do painel de Ocorrência) */}
-          {isFinanceiro && status === "ocorrencia_analise_financeiro" && (
-            <Button
-              variant="outline"
-              onClick={() => openReturnDialog("ocorrencia_devolvida_gestor")}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Devolver ao gestor
-            </Button>
-          )}
-
-          {canCloseSale && status !== "arquivada" && status !== "cancelada" && (
-            <Button variant="outline" onClick={() => openArchiveDialog("arquivada")}>
-              Arquivar
-            </Button>
-          )}
-
-          {canUnarchive && etapaAntesDeArquivar && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setUnarchiveMotivo("");
-                setUnarchiveOpen(true);
-              }}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Desarquivar
-            </Button>
-          )}
-
-          {canCancel && (
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => openArchiveDialog("cancelada")}
-            >
-              Cancelar venda
-            </Button>
-          )}
-
-          {canDelete && (
-            <Button
-              variant="outline"
-              className="text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Excluir venda
-            </Button>
-          )}
-        </div>
+        <AcoesDaVenda acoes={acoesTopo} onAcao={executarAcaoTopo} />
       </div>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>

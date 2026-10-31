@@ -86,8 +86,14 @@ describe("canCancelSale — só o dono da plataforma, depois do rascunho (fase 2
     expect(tela).toContain('supabase.rpc("is_platform_super_admin")');
     expect(tela).toContain("canCancelSale(isPlatformAdmin, status, isAdminLike)");
     expect(tela).toContain("cancelSale(id, archiveMotivo.trim(), isPlatformAdmin)");
-    // O botão Cancelar não depende de canCloseSale (arquivar).
-    expect(tela).toMatch(/\{canCancel && \(\s*<Button/);
+    // O botão Cancelar não depende de canCloseSale (arquivar). Desde a FASE 2 item 18 (t_7fcda931)
+    // ele fica no menu "Mais" da barra montada em venda-acoes.ts.
+    expect(tela).toMatch(/\n\s*canCancel,\n/);
+    const acoes = readFileSync(new URL("./venda-acoes.ts", import.meta.url), "utf8");
+    expect(acoes).toContain(
+      'if (e.canCancel) mais.push({ id: "cancelar_venda", label: "Cancelar venda", destrutiva: true });',
+    );
+    expect(tela).toMatch(/case "cancelar_venda":\s*return openArchiveDialog\("cancelada"\);/);
     // Confirmação com motivo obrigatório continua (diálogo + botão desabilitado sem motivo).
     expect(tela).toMatch(
       /if \(!archiveMotivo\.trim\(\)\) \{\s*toast\.error\("Motivo é obrigatório"\)/,
