@@ -21,7 +21,7 @@ import { ArrowLeft, Building, Plus } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/admin/unidades-captacao")({
-  head: () => ({ meta: [{ title: "Unidades da captação — Administração" }] }),
+  head: () => ({ meta: [{ title: "Unidades da captação" }] }),
   beforeLoad: guardExclusiveUnitsAdminRoute,
   component: UnitsAdmin,
 });
@@ -105,7 +105,7 @@ function UnitsAdmin() {
     <div className="space-y-5">
       <PageHeader
         icon={Building}
-        title="Unidades da captação exclusiva"
+        title="Unidades da captação"
         description="Dados da unidade impressos no contrato de exclusividade (razão social, CNPJ, CRECI, endereço e nome comercial)."
         actions={
           <div className="flex flex-wrap gap-2">

@@ -27,7 +27,7 @@ const PRINTS = import.meta.glob("/src/assets/wiki-max/*.webp", {
 const urlDoPrint = (chave: string) => PRINTS[`/src/assets/wiki-max/${chave}.webp`];
 
 export const Route = createFileRoute("/_authenticated/ajuda_/wiki")({
-  head: () => ({ meta: [{ title: "Wiki MAX · Guias" }] }),
+  head: () => ({ meta: [{ title: "Wiki MAX" }] }),
   component: WikiPage,
 });
 

@@ -136,7 +136,7 @@ describe("Regras de papéis — texto igual às permissões reais", () => {
         "Vendas",
         "Notificações",
         "Meu acesso",
-        "Wiki MAX (guias)",
+        "Wiki MAX",
       ]),
     );
   });

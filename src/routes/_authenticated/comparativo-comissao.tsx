@@ -23,7 +23,7 @@ import { MonthlyGrouping } from "@/components/comparativo-comissao/MonthlyGroupi
 import { InconsistenciasIndicator } from "@/components/comparativo-comissao/InconsistenciasIndicator";
 
 export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
-  head: () => ({ meta: [{ title: "Comparativo de Comissão — Padrão 6%" }] }),
+  head: () => ({ meta: [{ title: "Comparativo 6%" }] }),
   // Proteção no nível da rota, além da checagem no componente (useAuth) e do RAISE EXCEPTION dentro
   // da RPC comparativo_comissao_6pct: quem tenta acessar a URL direto sem um dos três papéis é
   // barrado antes de qualquer dado carregar e mandado de volta pro Dashboard.
@@ -106,7 +106,7 @@ function ComparativoComissaoPage() {
     <div className="space-y-6">
       <PageHeader
         icon={Scale}
-        title="Comparativo de Comissão — Padrão 6%"
+        title="Comparativo 6%"
         description="Comparação da produção atribuída à REMAX, já sem parceria externa, considerando comissão-padrão de 6%."
       />
 

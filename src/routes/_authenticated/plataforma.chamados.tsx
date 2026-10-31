@@ -86,7 +86,7 @@ function CentralChamados() {
     <div className="space-y-5">
       <PageHeader
         icon={Headset}
-        title="Central de chamados — equipe MAX"
+        title="Central de chamados"
         description="Todos os chamados de todas as imobiliárias. Só a equipe MAX (super admin da plataforma) vê esta tela."
       />
 

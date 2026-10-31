@@ -15,7 +15,7 @@ import { LifeBuoy, MessageSquareText } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/ajuda")({
-  head: () => ({ meta: [{ title: "Ajuda e sugestões" }] }),
+  head: () => ({ meta: [{ title: "Meus chamados" }] }),
   component: AjudaPage,
 });
 
@@ -46,8 +46,8 @@ function AjudaPage() {
     <div className="space-y-6">
       <PageHeader
         icon={LifeBuoy}
-        title="Ajuda e sugestões"
-        description="Para abrir um chamado, use o botão “Ajuda e sugestões” no canto da tela."
+        title="Meus chamados"
+        description="Para abrir um chamado, use o botão “Ajuda e sugestões” no topo da tela."
       />
 
       {podeVerOrg && (

@@ -192,12 +192,8 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           show:
             hasAny(["staff", "admin", "super_admin"]) && !(platformAdmin && ctx.inPlatformContext),
         },
-      ],
-    },
-    {
-      label: "Agenda",
-      items: [
-        { to: "/reservas-salas", label: "Reservar sala", icon: CalendarDays, show: roomVisible },
+        // Item 21 (t_0fa570c7): o grupo "Agenda" tinha só este item; mesma condição de antes.
+        { to: "/reservas-salas", label: "Reserva de salas", icon: CalendarDays, show: roomVisible },
       ],
     },
     {
@@ -255,9 +251,10 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
       items: [
         { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
         { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
-        { to: "/ajuda", label: "Ajuda e sugestões", icon: LifeBuoy, show: true },
+        // Item 21: "Ajuda e sugestões" é só o botão do topo (abre o formulário); aqui é a lista.
+        { to: "/ajuda", label: "Meus chamados", icon: LifeBuoy, show: true },
         // Wiki MAX v4 (t_5e94d050): para todos os logados; o conteúdo filtra pelo papel.
-        { to: "/ajuda/wiki", label: "Wiki MAX (guias)", icon: BookOpen, show: true },
+        { to: "/ajuda/wiki", label: "Wiki MAX", icon: BookOpen, show: true },
       ],
     },
     {
@@ -301,9 +298,17 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: Signature,
           show: hasAny(["super_admin"]),
         },
+      ],
+    },
+    {
+      // Item 21 (t_0fa570c7): a plataforma (equipe MAX) em grupo próprio, fora da Administração
+      // da imobiliária. Mesma condição de antes (platformItems).
+      label: "Plataforma",
+      restricted: true,
+      items: [
         {
           to: "/plataforma/imobiliarias",
-          label: "Imobiliárias",
+          label: "Painel da Plataforma",
           icon: Building,
           show: platformItems,
         },

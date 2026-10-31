@@ -743,7 +743,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
           ? "A venda está em etapa financeira mas não tem entrada em 'ocorrência em análise (financeiro)' no histórico."
           : "Valor negociado ou comissão total inválidos (nulo, zero ou negativo).",
       valorAfetado: null,
-      acaoRecomendada: "Revisar no Comparativo de Comissão — Padrão 6%.",
+      acaoRecomendada: "Revisar no Comparativo 6%.",
       linkTo: "/comparativo-comissao",
     });
   }

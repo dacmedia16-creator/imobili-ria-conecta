@@ -32,7 +32,7 @@ describe("tour de primeiro acesso — passos", () => {
     expect(ps[0].texto).toContain("ADM MAX");
   });
 
-  it("corretor: uma área por grupo visível, sem Equipe nem Administração", () => {
+  it("corretor: uma área por grupo visível, sem Equipe nem Administração (sem salas)", () => {
     const ps = montarPassosTour(menu({ roles: ["corretor"] }), { celular: false });
     const titulos = ps.map((p) => p.titulo);
     expect(titulos).toEqual([
@@ -60,16 +60,18 @@ describe("tour de primeiro acesso — passos", () => {
     expect(adm.texto).not.toContain("Configurações");
   });
 
-  it("respeita os módulos: Reservar sala e Captações só aparecem se ligados", () => {
+  it("respeita os módulos: Reserva de salas e Captações só aparecem se ligados", () => {
     const desl = textos(montarPassosTour(menu({ roles: ["corretor"] }), { celular: false }));
-    expect(desl).not.toContain("Reservar sala");
+    expect(desl).not.toContain("Reserva de salas");
     expect(desl).not.toContain("Captações exclusivas");
-    expect(desl).not.toContain("Agenda");
     const lig = montarPassosTour(
       menu({ roles: ["corretor"], roomVisible: true, exclusiveVisible: true }),
       { celular: false },
     );
-    expect(lig.map((p) => p.titulo)).toContain("Agenda");
+    // Item 21 (t_0fa570c7): a reserva de salas fica no grupo Equipe (o grupo Agenda saiu).
+    expect(lig.map((p) => p.titulo)).toContain("Equipe");
+    expect(lig.map((p) => p.titulo)).not.toContain("Agenda");
+    expect(textos(lig)).toContain("Reserva de salas");
     expect(textos(lig)).toContain("Captações exclusivas");
   });
 
