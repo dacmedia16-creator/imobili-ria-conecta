@@ -1554,7 +1554,6 @@ function DesempenhoDialog({
           id,
           nome: profiles[id]?.nome || profiles[id]?.email || id,
           total: Number(comercial?.vendas ?? 0),
-          fechadas: Number(comercial?.vendas ?? 0),
           negociado: Number(comercial?.vgv ?? 0),
           comissao: Number(comercial?.comissao ?? 0),
         };
@@ -1690,7 +1689,6 @@ function DesempenhoDialog({
                 <TableRow>
                   <TableHead>Corretor</TableHead>
                   <TableHead>Vendas</TableHead>
-                  <TableHead>Fechadas</TableHead>
                   <TableHead>Comissão do mês</TableHead>
                   <TableHead>Meta do corretor</TableHead>
                   <TableHead>Progresso</TableHead>
@@ -1700,7 +1698,7 @@ function DesempenhoDialog({
                 {ranking.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={5}
                       className="py-8 text-center text-sm text-muted-foreground"
                     >
                       Nenhum corretor nesta equipe ainda.
@@ -1713,7 +1711,6 @@ function DesempenhoDialog({
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.nome}</TableCell>
                       <TableCell>{r.total}</TableCell>
-                      <TableCell>{r.fechadas}</TableCell>
                       <TableCell>{money(meta?.comissao_realizada ?? 0)}</TableCell>
                       <TableCell>
                         {canManage ? (
