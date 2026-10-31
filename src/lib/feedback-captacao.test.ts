@@ -4,7 +4,10 @@ import {
   checkState,
   codeKey,
   corretorDoFeedback,
+  mapaProprietarios,
   mesclarHistorico,
+  nomesProprietarios,
+  SEM_PROPRIETARIO,
   codigoValido,
   finalDigitado,
   montarCodigo,
@@ -182,5 +185,36 @@ describe("mesclarHistorico", () => {
     expect(h.doneAt).toEqual({ a: "2026-10-20T10:00:00Z", b: "2026-10-28T10:00:00Z" });
     expect(h.codigos).toEqual({ a: ["630699001-1", "630699002-7"], b: ["630699002-7"] });
     expect(mesclarHistorico([])).toEqual({ doneAt: {}, codigos: {} });
+  });
+});
+
+describe("nomes dos proprietários no Feedback (t_28136145)", () => {
+  it("um, dois e vários proprietários", () => {
+    expect(nomesProprietarios(["Fulano"])).toBe("Fulano");
+    expect(nomesProprietarios(["Fulano", "Beltrana"])).toBe("Fulano e Beltrana");
+    expect(nomesProprietarios(["Fulano", "Beltrana", "Ciclano"])).toBe(
+      "Fulano, Beltrana e Ciclano",
+    );
+  });
+  it("ignora vazios, espaços e repetidos", () => {
+    expect(nomesProprietarios(["  Fulano  de  Tal ", "", null, "Fulano de Tal"])).toBe(
+      "Fulano de Tal",
+    );
+  });
+  it("sem nome: texto discreto, não quebra", () => {
+    expect(nomesProprietarios([])).toBe(SEM_PROPRIETARIO);
+    expect(nomesProprietarios(null)).toBe(SEM_PROPRIETARIO);
+    expect(nomesProprietarios([" ", null])).toBe(SEM_PROPRIETARIO);
+  });
+  it("mapa pela chave do código (x/hífen/zeros iguais) e descarta linha sem nome", () => {
+    const m = mapaProprietarios([
+      { code_key: "630601005-114", nomes: ["Fulano", "Beltrana"] },
+      { code_key: "630601005-115", nomes: null },
+      { code_key: null, nomes: ["X"] },
+    ]);
+    expect(m[codeKey("630601005XX0114")]).toEqual(["Fulano", "Beltrana"]);
+    expect(m[codeKey("630601005-115")]).toBeUndefined();
+    expect(Object.keys(m)).toHaveLength(1);
+    expect(mapaProprietarios(null)).toEqual({});
   });
 });
