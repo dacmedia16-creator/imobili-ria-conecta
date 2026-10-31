@@ -57,13 +57,13 @@ describe("Ajuste 2 — resposta automática de empresa", () => {
       expect(respostaAutomatica(t), t).not.toBe("forte");
   });
   it("migration: grava como sistema, não responde, avisa o gestor 1 vez; rollback em 1 arquivo", () => {
-    const mig = readFileSync("supabase/migrations/20261031020000_leads_ia_resposta_automatica.sql", "utf8");
+    const mig = readFileSync("supabase/migrations/20261031040000_leads_ia_resposta_automatica.sql", "utf8");
     expect(mig).toMatch(/_msg->>'auto', ''\) IN \('forte', 'apresentacao'\)/);
     expect(mig).toMatch(/x\.autor = 'cliente'\)/); // só antes da 1ª fala humana
     expect(mig).toMatch(/'sistema',\s+left\('Resposta automática do número/);
     expect(mig).toMatch(/'responder', false, 'lead_id', _cv\.lead_id, 'auto', true/);
     expect(mig).toMatch(/e\.para = 'resposta_automatica'\) THEN/);
-    const rb = readFileSync("docs/sql/rollback/20261031020000_leads_ia_resposta_automatica.rollback.sql", "utf8");
+    const rb = readFileSync("docs/sql/rollback/20261031040000_leads_ia_resposta_automatica.rollback.sql", "utf8");
     expect(rb).toMatch(/CREATE OR REPLACE FUNCTION public\.lead_ia_retorno_receber\(/);
     expect(rb).not.toMatch(/'auto'/);
   });
