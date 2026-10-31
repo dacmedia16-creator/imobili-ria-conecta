@@ -154,7 +154,7 @@ export function Filters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="padrao">Venda tradicional</SelectItem>
+                <SelectItem value="padrao">Padrão</SelectItem>
                 <SelectItem value="lancamento">Lançamento</SelectItem>
               </SelectContent>
             </Select>

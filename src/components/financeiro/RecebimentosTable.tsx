@@ -45,12 +45,12 @@ export function RecebimentosTable({ parcelas }: { parcelas: ParcelaRecebimento[]
               <TableHead>Parcela</TableHead>
               <TableHead>Data prevista</TableHead>
               <TableHead>Forma</TableHead>
-              <TableHead>Bruto</TableHead>
-              <TableHead>Parceria</TableHead>
-              <TableHead>Líquido previsto</TableHead>
+              <TableHead className="text-right">Bruto</TableHead>
+              <TableHead className="text-right">Parceria</TableHead>
+              <TableHead className="text-right">Líquido previsto</TableHead>
               <TableHead>Recebido em</TableHead>
-              <TableHead>Valor recebido</TableHead>
-              <TableHead>Diferença</TableHead>
+              <TableHead className="text-right">Valor recebido</TableHead>
+              <TableHead className="text-right">Diferença</TableHead>
               <TableHead>Situação</TableHead>
             </TableRow>
           </TableHeader>
@@ -80,24 +80,24 @@ export function RecebimentosTable({ parcelas }: { parcelas: ParcelaRecebimento[]
                 <TableCell>{p.parcela}ª</TableCell>
                 <TableCell>{dateBR(p.dataPrevista)}</TableCell>
                 <TableCell className="text-muted-foreground">{p.formaPrevista ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">{money(p.valorBrutoPrevisto)}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">
+                <TableCell className="text-right tabular-nums">{money(p.valorBrutoPrevisto)}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
                   {p.valorParceria > 0 ? money(p.valorParceria) : "—"}
                 </TableCell>
-                <TableCell className="font-medium tabular-nums">
+                <TableCell className="text-right font-medium tabular-nums">
                   {money(p.valorLiquidoPrevisto)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {p.dataRecebimento ? dateBR(p.dataRecebimento) : "—"}
                 </TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">
+                <TableCell className="text-right tabular-nums text-muted-foreground">
                   {p.valorRecebido != null ? money(p.valorRecebido) : "—"}
                 </TableCell>
                 <TableCell
                   className={
                     temDiferenca(p)
-                      ? "tabular-nums text-amber-700 dark:text-amber-400"
-                      : "tabular-nums text-muted-foreground"
+                      ? "text-right tabular-nums text-amber-700 dark:text-amber-400"
+                      : "text-right tabular-nums text-muted-foreground"
                   }
                 >
                   {p.diferenca != null ? money(p.diferenca) : "—"}

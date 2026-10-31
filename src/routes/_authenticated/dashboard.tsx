@@ -15,6 +15,12 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
+  LINK_VENDAS_POR_CARTAO,
+  painelComecaAberto,
+  primeiraMaiuscula,
+  type BuscaVendas,
+} from "@/lib/dashboard-links-vendas";
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -280,6 +286,7 @@ function Dashboard() {
       icon: ClipboardCheck,
       label: "Aguardando revisão",
       value: stats?.gestor_aguardando_revisao ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.gestor_aguardando_revisao,
       info: "Vendas enviadas pelo corretor, aguardando sua primeira revisão como gestor.",
     },
     {
@@ -306,24 +313,28 @@ function Dashboard() {
       icon: ClipboardCheck,
       label: "Aprovadas pelo gestor",
       value: stats?.juridico_aprovadas_gestor ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.juridico_aprovadas_gestor,
       info: "Vendas aprovadas pelo gestor, prontas pro jurídico começar a elaborar o contrato.",
     },
     {
       icon: Gavel,
       label: "Em elaboração",
       value: stats?.juridico_em_elaboracao ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.juridico_em_elaboracao,
       info: "Vendas com contrato em elaboração pelo jurídico agora.",
     },
     {
       icon: FileText,
       label: "Aguardando assinatura",
       value: stats?.juridico_aguardando_assinatura ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.juridico_aguardando_assinatura,
       info: "Contratos já elaborados, aguardando assinatura das partes.",
     },
     {
       icon: CheckCircle2,
       label: "Assinados",
       value: stats?.juridico_assinados ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.juridico_assinados,
       info: "Vendas com contrato assinado — só a modalidade padrão; Lançamento nunca passa por aqui.",
     },
   ]);
@@ -332,12 +343,14 @@ function Dashboard() {
       icon: DollarSign,
       label: "Ocorrências em análise",
       value: stats?.fin_ocorrencias_analise ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.fin_ocorrencias_analise,
       info: "Vendas com status “ocorrência em análise no financeiro” agora — fila atual de trabalho, não é um total do período.",
     },
     {
       icon: AlertCircle,
       label: "Devolvidas por mim",
       value: stats?.fin_devolvidas ?? 0,
+      search: LINK_VENDAS_POR_CARTAO.fin_devolvidas,
       info: "Ocorrências que você devolveu pro gestor ajustar antes de seguir.",
     },
     {
@@ -541,6 +554,7 @@ function Dashboard() {
                 label={i.label}
                 value={i.value}
                 to="/vendas"
+                search={i.search}
                 info={i.info}
               />
             ))}
@@ -570,6 +584,7 @@ function Dashboard() {
                 label={i.label}
                 value={i.value}
                 to="/vendas"
+                search={i.search}
                 info={i.info}
               />
             ))}
@@ -594,6 +609,7 @@ function Dashboard() {
                 label={i.label}
                 value={i.value}
                 to="/vendas"
+                search={i.search}
                 info={i.info}
               />
             ))}
@@ -839,7 +855,9 @@ function ResumoGestorMes() {
             <CalendarDays className="h-4 w-4" />
             {deslocamentoMes === 0 ? "Este mês" : "Mês anterior"}
           </div>
-          <h2 className="mt-3 text-2xl font-semibold capitalize tracking-tight">{periodo.label}</h2>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+            {primeiraMaiuscula(periodo.label)}
+          </h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
             O essencial da operação em uma leitura. Os detalhes continuam disponíveis no Financeiro.
           </p>
@@ -955,7 +973,14 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
 }
 
-type PainelItem = { icon: LucideIcon; label: string; value: number; info?: string };
+type PainelItem = {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  info?: string;
+  /** Filtro da lista de Vendas ao tocar no número (item 20); sem filtro quando não bate 1:1. */
+  search?: BuscaVendas;
+};
 
 /** Separa os KPIs de um painel (gestor/jurídico/financeiro) entre os que têm algo acontecendo e os
  * zerados — os zerados viram uma única linha de texto (LinhaZerados) em vez de um card cada, pra
@@ -987,9 +1012,9 @@ function badgeParaItens(comValor: PainelItem[], tone: "warn" | "calm") {
   };
 }
 
-/** Painel recolhível (gestor/jurídico/financeiro) — estado aberto/fechado fica salvo no navegador
- * por seção, então quem reabre um painel não precisa refazer isso a cada visita. Começa fechado
- * por padrão — o resumo (título + badge) já mostra se há algo pendente, sem precisar expandir. */
+/** Painel recolhível (gestor/jurídico/financeiro). Sem escolha salva, abre sozinho quando há
+ * pendência (item 20, t_55ee647c) e fica fechado quando não há; abrir/fechar à mão fica salvo no
+ * navegador por seção e passa a valer nas próximas visitas. */
 function CollapsibleSection({
   title,
   storageKey,
@@ -1001,22 +1026,25 @@ function CollapsibleSection({
   badge?: { label: string; tone: "warn" | "calm" };
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = window.localStorage.getItem(storageKey);
-    return saved === "1";
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, open ? "1" : "0");
-  }, [open, storageKey]);
+  // Chave nova (v2): a antiga gravava "0" sozinha ao abrir a tela, então não é escolha da pessoa.
+  const chave = `${storageKey}:v2`;
+  const [escolha, setEscolha] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : window.localStorage.getItem(chave),
+  );
+  const open = painelComecaAberto(escolha, !!badge);
+  const setOpen = (fn: (v: boolean) => boolean) => {
+    const novo = fn(open) ? "1" : "0";
+    window.localStorage.setItem(chave, novo);
+    setEscolha(novo);
+  };
 
   return (
     <section>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="mb-2 flex w-full items-center gap-2 text-left"
+        aria-expanded={open}
+        className="mb-2 flex min-h-10 w-full items-center gap-2 text-left"
       >
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}

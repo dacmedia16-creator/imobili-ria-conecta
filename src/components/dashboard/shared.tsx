@@ -8,6 +8,7 @@ import {
   type ResumoPorGrupo,
 } from "@/lib/dashboard-perfil-query";
 import { Send, CheckCircle2, DollarSign, Info, type LucideIcon } from "lucide-react";
+import { formatBRL } from "@/lib/formato-moeda";
 
 /** Cores compartilhadas do gráfico "Comissão: prevista x concluída" — usado no Dashboard (Painel
  * financeiro, fila) e na Visão Executiva ("Comissão em carteira"), pra manter a mesma legenda/cor
@@ -60,6 +61,7 @@ export function KpiCard({
   label,
   value,
   to,
+  search,
   info,
   display,
 }: {
@@ -67,6 +69,8 @@ export function KpiCard({
   label: string;
   value: number | string;
   to?: string;
+  /** Filtros da lista de destino (ex.: Vendas já filtrada pelo status do cartão). */
+  search?: Record<string, unknown>;
   info?: string;
   /** Como mostrar o valor (ex.: NumberTicker); `value` continua definindo o estado "zerado". */
   display?: ReactNode;
@@ -101,7 +105,13 @@ export function KpiCard({
       </CardContent>
     </Card>
   );
-  return to ? <Link to={to}>{inner}</Link> : inner;
+  return to ? (
+    <Link to={to} search={search as never}>
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
 }
 
 export function MovimentacaoCard({
@@ -135,7 +145,7 @@ export function MovimentacaoCard({
           <div className="mt-1 text-xs text-muted-foreground pr-4">{label}</div>
           {vgv !== undefined && (
             <div className="mt-0.5 text-xs text-muted-foreground">
-              VGV: R$ {vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              VGV: {formatBRL(vgv)}
             </div>
           )}
         </div>
@@ -197,28 +207,28 @@ export function ResumoGrupoVendaCards({
   // Insere o sufixo (ex.: "da equipe", "da imobiliária") logo antes do travessão do rótulo
   // recomendado, mantendo o "— explicação" no final: "VGV em andamento da equipe — ainda não
   // confirmado".
-  const rotulo = (base: string) => (sufixoLabel ? base.replace(" — ", ` ${sufixoLabel} — `) : base);
+  const rotulo = (base: string) => (sufixoLabel ? `${base} ${sufixoLabel}` : base);
   const ativoTotal = vgvAtivoTotal(resumo);
 
   return (
     <>
       <MovimentacaoCard
         icon={Send}
-        label={rotulo("VGV REMAX em andamento — ainda não confirmado")}
+        label={rotulo("VGV REMAX em andamento")}
         quantidade={resumo.futura.quantidade}
         vgv={resumo.futura.vgv}
-        info="VGV atribuído à REMAX, já sem parceria externa, das vendas em preparação ou futura."
+        info="Ainda não confirmado. VGV atribuído à REMAX, já sem parceria externa, das vendas em preparação ou futura."
       />
       <MovimentacaoCard
         icon={CheckCircle2}
-        label={rotulo("VGV REMAX confirmado — contrato assinado ou já avançado ao financeiro")}
+        label={rotulo("VGV REMAX confirmado")}
         quantidade={resumo.confirmada.quantidade}
         vgv={resumo.confirmada.vgv}
-        info="VGV atribuído à REMAX, já sem parceria externa, das vendas confirmadas."
+        info="Contrato assinado ou já avançado ao financeiro. VGV atribuído à REMAX, já sem parceria externa."
       />
       <MovimentacaoCard
         icon={DollarSign}
-        label={rotulo("VGV REMAX ativo total — sem duplicidade")}
+        label={rotulo("VGV REMAX ativo total")}
         quantidade={ativoTotal.quantidade}
         vgv={ativoTotal.vgv}
         info="Soma direta de “em andamento” + “confirmado”. Cada venda ativa pertence a

@@ -59,6 +59,7 @@ import {
   visaoInicialDesempenho,
   type VisaoDesempenho,
 } from "@/lib/desempenho-visao";
+import { formatBRL } from "@/lib/formato-moeda";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -133,8 +134,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 const STAGE_ORDER = ["inicio", "aprovacao", "juridico", "concluida"];
 
-const money = (v: number) =>
-  `R$ ${Number(v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+const money = (v: number) => formatBRL(v);
 const mesAtualISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;

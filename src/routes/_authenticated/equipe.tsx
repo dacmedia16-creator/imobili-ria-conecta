@@ -73,6 +73,7 @@ import {
 } from "@/lib/vendas-comerciais-query";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
+import { formatBRL } from "@/lib/formato-moeda";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({ meta: [{ title: "Equipes" }] }),
@@ -91,7 +92,7 @@ const TEAM_COLORS = [
   "#ec4899",
   "#f97316",
 ];
-const money = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+const money = (v: number) => formatBRL(v);
 /** Sempre dia 1 do mês corrente — mesmo formato que a coluna metas.mes exige (CHECK trava isso no banco). */
 const mesAtualISO = () => {
   const d = new Date();
