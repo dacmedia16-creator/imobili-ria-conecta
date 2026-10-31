@@ -24,6 +24,7 @@ import {
 } from "@/lib/ajuda-sugestoes";
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
 import { clicavelPorTeclado } from "@/lib/clicavel";
+import { DetalhePorCima, useTelaEstreita } from "@/components/ListaDetalhe";
 
 export const Route = createFileRoute("/_authenticated/plataforma/chamados")({
   head: () => ({ meta: [{ title: "Central de chamados" }] }),
@@ -75,6 +76,8 @@ function CentralChamados() {
   const visiveis = filtrarChamados(lista, f);
   const resumo = resumoCentral(lista);
   const atual = lista.find((c) => c.id === sel) ?? null;
+  // Item 25: abaixo de xl o detalhe abre por cima da lista (antes ficava embaixo da lista inteira).
+  const estreita = useTelaEstreita(1280);
   const papel = (p: string | null) =>
     (p ?? "")
       .split(",")
@@ -266,16 +269,29 @@ function CentralChamados() {
             </table>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            {atual ? (
-              <ChamadoDetalhe key={atual.id} chamado={atual} modo="equipe" onMudou={carregar} />
-            ) : (
-              <EmptyState icon={Headset}>Escolha um chamado na lista.</EmptyState>
-            )}
-          </CardContent>
-        </Card>
+        {!estreita && (
+          <Card>
+            <CardContent className="pt-6">
+              {atual ? (
+                <ChamadoDetalhe key={atual.id} chamado={atual} modo="equipe" onMudou={carregar} />
+              ) : (
+                <EmptyState icon={Headset}>Escolha um chamado na lista.</EmptyState>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
+      {estreita && (
+        <DetalhePorCima
+          aberto={!!atual}
+          onFechar={() => setSel(null)}
+          titulo={atual ? `Chamado #${atual.numero}` : "Chamado"}
+        >
+          {atual && (
+            <ChamadoDetalhe key={atual.id} chamado={atual} modo="equipe" onMudou={carregar} />
+          )}
+        </DetalhePorCima>
+      )}
     </div>
   );
 }

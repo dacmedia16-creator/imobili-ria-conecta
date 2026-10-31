@@ -13,6 +13,7 @@ import {
 import { idade } from "@/lib/ajuda-sugestoes";
 import { LifeBuoy, MessageSquareText } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
+import { DetalhePorCima, useTelaEstreita } from "@/components/ListaDetalhe";
 
 export const Route = createFileRoute("/_authenticated/ajuda")({
   head: () => ({ meta: [{ title: "Meus chamados" }] }),
@@ -41,6 +42,16 @@ function AjudaPage() {
   }, [carregar]);
 
   const atual = lista.find((c) => c.id === sel) ?? null;
+  // Item 25: abaixo de lg o detalhe abre por cima da lista (antes ficava escondido embaixo dela).
+  const estreita = useTelaEstreita(1024);
+  const detalhe = atual ? (
+    <ChamadoDetalhe
+      key={atual.id}
+      chamado={atual}
+      modo={aba === "org" ? "leitura" : "autor"}
+      onMudou={carregar}
+    />
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -102,23 +113,27 @@ function AjudaPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            {atual ? (
-              <ChamadoDetalhe
-                key={atual.id}
-                chamado={atual}
-                modo={aba === "org" ? "leitura" : "autor"}
-                onMudou={carregar}
-              />
-            ) : (
-              <EmptyState icon={MessageSquareText}>
-                Escolha um chamado para ver a conversa.
-              </EmptyState>
-            )}
-          </CardContent>
-        </Card>
+        {!estreita && (
+          <Card>
+            <CardContent className="pt-6">
+              {detalhe ?? (
+                <EmptyState icon={MessageSquareText}>
+                  Escolha um chamado para ver a conversa.
+                </EmptyState>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
+      {estreita && (
+        <DetalhePorCima
+          aberto={!!atual}
+          onFechar={() => setSel(null)}
+          titulo={atual ? `Chamado #${atual.numero}` : "Chamado"}
+        >
+          {detalhe}
+        </DetalhePorCima>
+      )}
     </div>
   );
 }

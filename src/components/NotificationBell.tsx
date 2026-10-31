@@ -8,7 +8,7 @@ export function NotificationBell() {
   return (
     <Link
       to="/notificacoes"
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-sidebar-accent"
+      className="relative inline-flex h-10 w-10 md:h-9 md:w-9 items-center justify-center rounded-md hover:bg-sidebar-accent"
       aria-label={`${count} notificações não lidas`}
     >
       <Bell className="h-4 w-4" />
