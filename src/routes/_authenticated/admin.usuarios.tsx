@@ -80,7 +80,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { EmptyState, PageHeader } from "@/components/visual/base";
+import { EmptyState, ErrorState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
@@ -164,6 +164,7 @@ function AdminUsers() {
     return m.trim();
   };
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [cargaUsuarios, setCargaUsuarios] = useState<"carregando" | "ok" | "erro">("carregando");
   const [registrationLoaded, setRegistrationLoaded] = useState(false);
   const [rolesByUser, setRolesByUser] = useState<Record<string, AppRole[]>>({});
   const [teamLeads, setTeamLeads] = useState<Record<string, string[]>>({});
@@ -277,9 +278,16 @@ function AdminUsers() {
   };
 
   const load = useCallback(async () => {
-    const { data: profs } = await supabase
+    const { data: profs, error: profsError } = await supabase
       .from("profiles")
       .select("id, nome, email, telefone, ativo, avatar_url, remax_id");
+    // Erro de carga NUNCA vira "Nenhum usuário cadastrado" (item 1 t_8730be75); mantém a lista
+    // que já estava na tela e mostra "Tentar de novo".
+    if (profsError) {
+      console.error("usuarios:", profsError);
+      setCargaUsuarios("erro");
+      return;
+    }
     // Papéis de toda a agência pelo servidor: a RLS só deixa admin ler papéis de terceiros, e a tela
     // de gestor/team leader precisa saber quem é corretor para oferecer as ações certas.
     let r: { user_id: string; role: string }[] | null = null;
@@ -316,6 +324,7 @@ function AdminUsers() {
         creci: registrationMap.get(p.id)?.creci ?? null,
       })),
     );
+    setCargaUsuarios("ok");
     setTeamsRaw(teams ?? []);
     setTeamMembersRaw(t ?? []);
     setCoLeadersRaw(cl ?? []);
@@ -859,7 +868,15 @@ function AdminUsers() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {sortedUsers.length === 0 && (
+          {cargaUsuarios === "erro" && (
+            <ErrorState onRetry={() => void load()}>
+              Não foi possível carregar os usuários. Tente de novo antes de fazer alterações.
+            </ErrorState>
+          )}
+          {cargaUsuarios === "carregando" && sortedUsers.length === 0 && (
+            <ListSkeleton rows={4} label="Carregando usuários" />
+          )}
+          {cargaUsuarios === "ok" && sortedUsers.length === 0 && (
             <EmptyState icon={Users}>Nenhum usuário cadastrado.</EmptyState>
           )}
           {sortedUsers.length > 0 && activeUsers.length === 0 && inactiveUsers.length === 0 && (

@@ -18,7 +18,14 @@ import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import {
+  EmptyState,
+  ErrorState,
+  KpiTile,
+  ListSkeleton,
+  PageHeader,
+  Pill,
+} from "@/components/visual/base";
 import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
 import { LeadsBanco } from "@/components/leads/LeadsBanco";
 import { LeadsConfigDialog } from "@/components/leads/LeadsConfigDialog";
@@ -81,14 +88,23 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const [novo, setNovo] = useState(false);
 
+  const [erroCarga, setErroCarga] = useState(false);
+  const [recarregando, setRecarregando] = useState(false);
+
   const carregar = useCallback(async () => {
+    setRecarregando(true);
     try {
       const l = await listarLeads(modo === "meus" && user ? { responsavel: user.id } : {});
       setLeads(l);
+      setErroCarga(false);
       setVersaoBanco((v) => v + 1);
     } catch (e) {
-      setLeads([]);
+      // Erro de carga NUNCA vira "Nenhum lead" nem zeros (item 1 t_8730be75).
+      setLeads(null);
+      setErroCarga(true);
       toast.error(errorMessage(e, "Não foi possível carregar os leads."));
+    } finally {
+      setRecarregando(false);
     }
   }, [modo, user]);
 
@@ -223,7 +239,12 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
         )}
       </div>
 
-      {leads === null ? (
+      {erroCarga ? (
+        <ErrorState onRetry={() => void carregar()} retrying={recarregando}>
+          Não foi possível carregar os leads. A lista e os contadores não foram exibidos para não
+          mostrar números errados.
+        </ErrorState>
+      ) : leads === null ? (
         <ListSkeleton />
       ) : visiveis.length === 0 ? (
         <EmptyState icon={SearchX}>

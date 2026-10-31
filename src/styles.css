@@ -36,6 +36,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-brand-red: var(--brand-red);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
@@ -72,9 +73,12 @@
   /* RE/MAX Blue */
   --primary: oklch(0.396 0.184 264);
   --primary-foreground: oklch(1 0 0);
-  /* RE/MAX Red */
-  --secondary: oklch(0.575 0.222 25);
-  --secondary-foreground: oklch(1 0 0);
+  /* Secondary neutro (azul-claro) — antes era o vermelho RE/MAX e botões comuns pareciam erro
+     (item 10 t_8730be75). O vermelho da marca agora tem token próprio: --brand-red. */
+  --secondary: oklch(0.94 0.025 264);
+  --secondary-foreground: oklch(0.396 0.184 264);
+  /* RE/MAX Red — uso explícito da marca (barra de meta, cartão tone="red", border-beam). */
+  --brand-red: oklch(0.575 0.222 25);
   --muted: oklch(0.968 0.007 247);
   --muted-foreground: oklch(0.5 0.02 260);
   --accent: oklch(0.95 0.03 264);
@@ -117,8 +121,9 @@
   --popover-foreground: oklch(0.98 0.003 247);
   --primary: oklch(0.5 0.18 264);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.65 0.22 25);
-  --secondary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.32 0.05 264);
+  --secondary-foreground: oklch(0.96 0.01 264);
+  --brand-red: oklch(0.65 0.22 25);
   --muted: oklch(0.28 0.04 260);
   --muted-foreground: oklch(0.72 0.03 256);
   --accent: oklch(0.32 0.08 264);
@@ -158,7 +163,8 @@
   /* O menu mobile (Sheet) fica colado na borda esquerda da tela — sem isso, um toque perto da
      borda podia ser lido pelo Chrome/Android como o gesto de "voltar" (arrastar da borda), que
      cancela o toque no link em vez de navegar. */
-  html, body {
+  html,
+  body {
     overscroll-behavior-x: none;
   }
 }

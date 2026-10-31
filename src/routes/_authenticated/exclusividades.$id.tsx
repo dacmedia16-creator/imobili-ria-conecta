@@ -2,7 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { lerDataAssinaturaPdf, motivoSemData } from "@/lib/clicksign-data-assinatura";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { DETAIL_NOT_FOUND_MESSAGE, isDetailRouteId } from "@/lib/detail-route-state";
+import {
+  DETAIL_NOT_FOUND_MESSAGE,
+  isDetailRouteId,
+  isTransientLoadError,
+} from "@/lib/detail-route-state";
 import { DetailNotFound } from "@/components/DetailNotFound";
 import { guardExclusiveRoute } from "@/lib/exclusive-captures-guard";
 import {
@@ -268,6 +272,9 @@ function ExclusiveDetail() {
   const [testemunhas, setTestemunhas] = useState<TestemunhasCaptacao | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Falha de rede/servidor (não "não encontrada"): mostra "Tentar de novo" (item 1 t_8730be75).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [step, setStep] = useState<CaptureStep>("documentos");
   const [dossieActions, setDossieActions] = useState<FeedbackAction[]>([]);
@@ -456,10 +463,14 @@ function ExclusiveDetail() {
       return;
     }
     setLoading(true);
+    setLoadFailed(false);
     reload()
-      .catch(() => setCapture(null))
+      .catch((e: unknown) => {
+        setCapture(null);
+        setLoadFailed(isTransientLoadError(e as { code?: unknown }));
+      })
       .finally(() => setLoading(false));
-  }, [id, reload]);
+  }, [id, reload, reloadKey]);
   // Salvamento automático (igual às Vendas) enquanto a captação é editável; nunca durante uma
   // ação em andamento (upload, leitura da IA, envio), que já grava o que estiver pendente.
   const persistCapture = useCallback(
@@ -949,6 +960,7 @@ function ExclusiveDetail() {
         message={DETAIL_NOT_FOUND_MESSAGE.captacao}
         backTo="/exclusividades"
         backLabel="Voltar para exclusividades"
+        onRetry={loadFailed ? () => setReloadKey((k) => k + 1) : undefined}
       />
     );
   // Manual: contrato assinado e Plano de Marketing são obrigatórios; o resto é pendência (o gestor vê).

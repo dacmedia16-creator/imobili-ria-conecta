@@ -18,8 +18,10 @@ import { storageOrganizationPath } from "./storage-org";
 // Isolar o cast evita editar types.ts, que é gerado automaticamente pelo projeto.
 const db = supabase as unknown as SupabaseClient;
 const bucket = () => supabase.storage.from("exclusive-captures");
-const check = (error: { message: string } | null) => {
-  if (error) throw new Error(error.message);
+const check = (error: { message: string; code?: string } | null) => {
+  // Mantém o código do PostgREST no erro (mesma mensagem de antes) para a tela separar
+  // "não encontrada/sem acesso" de falha de rede (item 1 t_8730be75).
+  if (error) throw Object.assign(new Error(error.message), { code: error.code ?? "" });
 };
 
 export async function exclusiveEnabled(): Promise<boolean> {

@@ -26,7 +26,13 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { InfoDot, KpiCard, comissaoChartConfig } from "@/components/dashboard/shared";
-import { EmptyState, KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
+import {
+  EmptyState,
+  ErrorState,
+  KpiGridSkeleton,
+  ListSkeleton,
+  PageHeader,
+} from "@/components/visual/base";
 import {
   Banknote,
   Percent,
@@ -213,6 +219,8 @@ function VisaoExecutiva() {
   const [profileName, setProfileName] = useState<Record<string, string>>({});
   const [metas, setMetas] = useState<MetaProgresso>({ corretor: [], equipe: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [detalheSel, setDetalheSel] = useState<DetalheSelecao | null>(null);
   const [periodo, setPeriodo] = useState<IntervaloDesempenho>(intervaloInicialDesempenho);
   const mes = periodo.de.slice(0, 7) || mesInicial();
@@ -331,6 +339,23 @@ function VisaoExecutiva() {
           } as never,
         ),
       ]);
+      // Erro de carga NUNCA vira zero (item 1 t_8730be75): mostra o erro e "Tentar de novo".
+      const falha = [
+        contextoRes,
+        profRes,
+        metasRes,
+        carteiraRes,
+        operacaoRes,
+        rankingRes,
+        rankingPessoalRes,
+      ].find((r) => r.error);
+      if (falha) {
+        console.error("visao-executiva:", falha.error);
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
+      setLoadError(false);
       const resumoCorreto = operacaoRes.data as unknown as ResumoDesempenho | null;
       const rankingPeriodo = rankingRes.data as unknown as RankingPeriodo | null;
       const contexto = contextoRes.data as unknown as ContextoPeriodo | null;
@@ -385,7 +410,7 @@ function VisaoExecutiva() {
       );
       setLoading(false);
     })();
-  }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa]);
+  }, [allowed, periodo, podeAlternarVisao, usaConsolidadoEmpresa, reloadKey]);
 
   if (authLoading || loading || (ehLider && temEquipe === null)) {
     return (
@@ -404,6 +429,18 @@ function VisaoExecutiva() {
           Esta área é restrita a lideranças, administradores e ao financeiro.
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader icon={TrendingUp} title="Desempenho" />
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)}>
+          Não foi possível carregar o desempenho do período. Os números não foram exibidos para não
+          mostrar valores errados.
+        </ErrorState>
+      </div>
     );
   }
 
