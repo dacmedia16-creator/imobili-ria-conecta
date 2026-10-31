@@ -66,6 +66,28 @@ export function textoFixoToque15(cliente: string, ultimaIa: string, ultimoClient
   }
 }
 
+// --- Lembrete coerente (t_99359490 item 4, caso Isabella 12:20) -----------------------------------------------
+// Com lead_config.ia_permuta_fluxo ligada, o lembrete retoma a pergunta que ficou aberta, com texto fixo (sem modelo):
+// visita pedida sem dia/período = pergunta o dia e o período (não oferece outras opções); permuta = pede os detalhes.
+const PEDIU_DIA = /(qual dia e periodo|que dia e periodo|qual dia|melhor de manha ou (a )?tarde|manha ou (a )?tarde\?)/;
+const PEDIU_PERMUTA = /me conta (um pouco d[oa]|o que voce quer dar na troca)/;
+/** Lembrete fixo pelo ponto em que a conversa parou. null = o de sempre (modelo/frase fixa antiga). */
+export function textoCoerenteToque15(cliente: string, ultimaIa: string): string | null {
+  const nome = nomeToque15(cliente);
+  const oi = nome ? `${nome}, fico` : "Fico";
+  const n = norm(ultimaIa);
+  if (PEDIU_PERMUTA.test(n)) {
+    const bem = /me conta um pouco d[oa] ([a-zà-ú]+)/i.exec(ultimaIa)?.[1];
+    return `${oi} por aqui. Quando puder, me conta um pouco ${bem ? `d${/a$/.test(bem) ? "a" : "o"} ${bem}` : "do que você quer dar na troca"} para eu avisar o corretor sobre a permuta.`;
+  }
+  if (PEDIU_DIA.test(n)) {
+    if (/manha ou (a )?tarde/.test(n) && !/qual dia/.test(n))
+      return `${oi} por aqui. Quando puder, me diz se a visita fica melhor de manhã ou à tarde que eu aviso o corretor.`;
+    return `${oi} por aqui. Quando puder, me diz qual dia e período ficam melhores para a visita que eu aviso o corretor.`;
+  }
+  return null;
+}
+
 export type BloqueioToque15 = "vazio" | "tamanho" | "link" | "numero" | "seco" | "perguntas" | "promessa" | "visita" | "robo";
 
 /** O toque de 15 min NÃO convida para visita nem oferece (pré-)agendamento/horário (t_5335cd2b). Texto já normalizado. */
@@ -135,6 +157,8 @@ export type OpcoesToque15 = {
   historico: FalaHistorico[];
   /** lead_config.ia_redige: com a chave desligada sai sempre a frase fixa (sem custo). */
   redige: boolean;
+  /** t_99359490: lead_config.ia_permuta_fluxo (lembrete coerente com o ponto em que a conversa parou). */
+  coerente?: boolean;
   escolha: EscolhaModelo;
   env: Record<string, string | undefined>;
   registrar?: (u: UsoModelo) => void;
@@ -147,6 +171,10 @@ export type TextoToque15 = { texto: string; origem: "modelo" | "fixo"; bloqueio?
 export async function textoToque15(o: OpcoesToque15): Promise<TextoToque15> {
   const ultimaIa = [...o.historico].reverse().find((f) => f.autor === "ia")?.texto ?? "";
   const ultimoCliente = [...o.historico].reverse().find((f) => f.autor === "cliente")?.texto ?? "";
+  // t_99359490 item 4: com a chave ligada, a pergunta que ficou aberta (dia/período da visita, detalhes da permuta)
+  // volta com texto fixo, sem modelo e sem oferecer outras opções.
+  const coerente = o.coerente ? textoCoerenteToque15(o.cliente, ultimaIa) : null;
+  if (coerente) return { texto: coerente, origem: "fixo", bloqueio: null };
   const fixo = textoFixoToque15(o.cliente, ultimaIa, ultimoCliente);
   if (!o.redige) return { texto: fixo, origem: "fixo", bloqueio: null };
   const m = montarMensagensToque15({ ...o, cliente: nomeToque15(o.cliente) }, o.historico);
