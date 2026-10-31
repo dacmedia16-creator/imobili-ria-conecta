@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CampoPorteiro } from "@/components/porteiro/PorteiroEntrada";
 import { nomeCompletoValido, normalizarCpf, telefoneValido } from "@/lib/completar-perfil";
 import {
   cadastroDaSituacao,
@@ -138,27 +138,12 @@ export function CadastroPendenteForm({
   );
 }
 
-function Campo({
-  id,
-  label,
-  erro,
-  dica,
-  children,
-}: {
+function Campo(props: {
   id: string;
   label: string;
   erro?: boolean;
   dica?: string;
   children: ReactNode;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className={erro ? "text-destructive" : undefined}>
-        {label}
-        {erro ? " — confira" : ""}
-      </Label>
-      {children}
-      {dica && <p className="text-xs text-muted-foreground">{dica}</p>}
-    </div>
-  );
+  return <CampoPorteiro {...props} sufixoErro=" — confira" />;
 }

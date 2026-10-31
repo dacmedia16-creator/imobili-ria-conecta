@@ -2,7 +2,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { idDaSessao, lembreteAdiadoNestaSessao } from "@/lib/completar-perfil";
+import {
+  candidatoPerfilOuLembrete,
+  idDaSessao,
+  lembreteAdiadoNestaSessao,
+} from "@/lib/completar-perfil";
+import { PorteiroCarregando, PorteiroEntrada } from "@/components/porteiro/PorteiroEntrada";
 import {
   chaveFichaAdiada,
   dataHoraSp,
@@ -79,13 +84,7 @@ export function FichaColaboradorGate({ children }: { children: ReactNode }) {
   }, [loading, platformReady, userId, fora, sessao]);
 
   if (fora || !userId) return <>{children}</>;
-  if (modo === "carregando") {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Carregando…
-      </div>
-    );
-  }
+  if (modo === "carregando") return <PorteiroCarregando />;
   if (modo === "bloqueio" || modo === "lembrete") {
     return (
       <FichaTela
@@ -118,7 +117,14 @@ function FichaTela({
   onSalvo: (s: SituacaoFicha) => void;
   onDepois: () => void;
 }) {
-  const { signOut } = useAuth();
+  const { signOut, roles, platformAdmin, platformContext, impersonation } = useAuth();
+  // Etapas "1 → 2" só para quem também passa pela tela de perfil e foto (mesma condição dela).
+  const duasEtapas = candidatoPerfilOuLembrete({
+    roles,
+    platformAdmin,
+    emVisaoDaPlataforma: Boolean(platformContext),
+    vendoComo: Boolean(impersonation),
+  });
   const prazo = situacao?.aplica ? dataHoraSp(situacao.obrigatoria_a_partir_de) : "";
   const pend = pendenciasCadastro(situacao);
   const fichaFalta = Boolean(situacao?.aplica && !situacao.completa);
@@ -138,77 +144,69 @@ function FichaTela({
     ...(fichaFalta ? ["Ficha pessoal e de emergência"] : []),
   ];
   return (
-    <div
-      className="min-h-screen bg-muted/40 px-4 py-6 sm:py-10"
-      data-testid={bloqueio ? "ficha-bloqueio" : "ficha-lembrete"}
+    <PorteiroEntrada
+      testId={bloqueio ? "ficha-bloqueio" : "ficha-lembrete"}
+      etapa={2}
+      mostrarEtapas={duasEtapas}
+      largura="lg"
+      descricao={
+        bloqueio
+          ? "Para continuar usando o sistema, complete os dados abaixo. Leva cerca de 2 minutos."
+          : `Complete os dados abaixo. A partir de ${prazo || "breve"} eles serão obrigatórios para entrar no sistema.`
+      }
     >
-      <div className="mx-auto w-full max-w-lg space-y-5 rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
-        <div className="space-y-1 text-center">
-          <img src="/remax-icon.png" alt="" className="mx-auto h-10 w-10 object-contain" />
-          <h1 className="text-xl font-semibold tracking-tight">Atualize seu cadastro</h1>
-          <p className="text-sm text-muted-foreground">
-            {bloqueio
-              ? "Para continuar usando o sistema, complete os dados abaixo. Leva cerca de 2 minutos."
-              : `Complete os dados abaixo. A partir de ${prazo || "breve"} eles serão obrigatórios para entrar no sistema.`}
-          </p>
+      {itens.length > 0 && (
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
+          data-testid="cadastro-faltando"
+        >
+          <p className="font-medium">Falta completar:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {itens.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
         </div>
-        {itens.length > 0 && (
-          <div
-            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100"
-            data-testid="cadastro-faltando"
-          >
-            <p className="font-medium">Falta completar:</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5">
-              {itens.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {pend.length > 0 && (
-          <section className="space-y-3" data-testid="cadastro-secao">
-            <h2 className="text-sm font-semibold">Dados do cadastro</h2>
-            <CadastroPendenteForm
-              key={`c${versaoCad}`}
-              situacao={situacao}
-              onSalvo={salvoCadastro}
-            />
-          </section>
-        )}
-        {fichaFalta && (
-          <section className="space-y-3">
-            {pend.length > 0 && (
-              <h2 className="text-sm font-semibold">Ficha pessoal e de emergência</h2>
-            )}
-            <FichaColaboradorForm
-              key={`f${versaoFicha}`}
-              situacao={situacao}
-              rotuloSalvar={pend.length > 0 ? "Salvar ficha" : "Salvar e entrar"}
-              onSalvo={salvoFicha}
-            />
-          </section>
-        )}
-        <div className="space-y-5">
-          {!bloqueio && (
-            <Button
-              variant="outline"
-              className="h-11 w-full text-base"
-              onClick={onDepois}
-              data-testid="ficha-depois"
-            >
-              Preencher depois
-            </Button>
+      )}
+      {pend.length > 0 && (
+        <section className="space-y-3" data-testid="cadastro-secao">
+          <h2 className="text-sm font-semibold">Dados do cadastro</h2>
+          <CadastroPendenteForm key={`c${versaoCad}`} situacao={situacao} onSalvo={salvoCadastro} />
+        </section>
+      )}
+      {fichaFalta && (
+        <section className="space-y-3">
+          {pend.length > 0 && (
+            <h2 className="text-sm font-semibold">Ficha pessoal e de emergência</h2>
           )}
-          <button
-            type="button"
-            className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"
-            onClick={() => void signOut().then(() => window.location.assign("/auth"))}
-            data-testid="ficha-sair"
+          <FichaColaboradorForm
+            key={`f${versaoFicha}`}
+            situacao={situacao}
+            rotuloSalvar={pend.length > 0 ? "Salvar ficha" : "Salvar e entrar"}
+            onSalvo={salvoFicha}
+          />
+        </section>
+      )}
+      <div className="space-y-5">
+        {!bloqueio && (
+          <Button
+            variant="outline"
+            className="h-11 w-full text-base"
+            onClick={onDepois}
+            data-testid="ficha-depois"
           >
-            <LogOut className="h-3.5 w-3.5" aria-hidden /> Sair
-          </button>
-        </div>
+            Preencher depois
+          </Button>
+        )}
+        <button
+          type="button"
+          className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"
+          onClick={() => void signOut().then(() => window.location.assign("/auth"))}
+          data-testid="ficha-sair"
+        >
+          <LogOut className="h-3.5 w-3.5" aria-hidden /> Sair
+        </button>
       </div>
-    </div>
+    </PorteiroEntrada>
   );
 }

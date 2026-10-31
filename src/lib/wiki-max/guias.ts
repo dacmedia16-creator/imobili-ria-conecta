@@ -16,14 +16,14 @@ export const GUIAS: WikiGuia[] = [
       "Abra <b>unicaescolha.com.br</b>. Ele abre o <b>UniHub</b>, a página com todos os sistemas MAX.",
       "Clique no cartão do sistema que você quer usar: <b>Sistema ADM MAX</b>, <b>Visita MAX</b> ou <b>Estudo de Mercado MAX</b>.",
       "Entre com a sua <b>conta Google</b>. Use o mesmo e-mail que a imobiliária cadastrou (ex.: o seu @remax.com.br). O MAX não tem senha própria.",
-      "<b>1º acesso ao ADM MAX:</b> aparece a tela <b>Complete seu perfil</b> (foto, nome, e-mail, telefone, CPF, <b>Data de nascimento</b>, CRECI e ID RE/MAX). CRECI e ID RE/MAX são <b>opcionais</b>: quem ainda não tem pode deixar em branco. Preencha e clique em <b>Salvar e entrar</b>. Para conta nova, é obrigatório, inclusive a data de nascimento. Quem já tinha conta pode clicar em <b>Agora não</b> e recebe um lembrete a cada entrada; para essas contas, a data aparece como <b>(opcional)</b>.",
+      "<b>1º acesso ao ADM MAX:</b> aparece a tela <b>Complete seu cadastro</b>, etapa 1 <b>Perfil e foto</b> (foto, nome, e-mail, telefone, CPF, <b>Data de nascimento</b>, CRECI e ID RE/MAX). CRECI e ID RE/MAX são <b>opcionais</b>: quem ainda não tem pode deixar em branco. Preencha e clique em <b>Salvar e entrar</b>. Para conta nova, é obrigatório, inclusive a data de nascimento. Quem já tinha conta pode clicar em <b>Agora não</b> e recebe um lembrete a cada entrada; para essas contas, a data aparece como <b>(opcional)</b>.",
       "<b>1º acesso ao Visita MAX:</b> aparece a tela <b>Termos de Uso</b>. Leia, marque a caixa de concordância e clique em <b>Aceitar e Continuar</b>.",
       "<b>1º acesso ao Estudo de Mercado MAX:</b> pode aparecer <b>Complete seu perfil</b>. Confira nome, telefone e e-mail e clique em <b>Salvar e continuar</b>.",
     ],
     dica: "Você não precisa criar conta no Visita nem no Estudo. O cadastro é feito uma vez só, no ADM MAX, e vai para os outros sozinho.",
     cuidado: "Não compartilhe a sua conta Google. Cada corretor tem o próprio acesso.",
     outrosPapeis:
-      "A tela <b>Complete seu perfil</b> aparece só para quem é <b>corretor</b>. Conta nova (criada a partir de 20/10/2026) não entra sem preencher a data de nascimento: aparece “Falta preencher: … Data de nascimento.” e, embaixo do campo, “Informe sua data de nascimento.” A idade mínima é 16 anos.",
+      "A etapa <b>Perfil e foto</b> da tela <b>Complete seu cadastro</b> aparece só para quem é <b>corretor</b>. Conta nova (criada a partir de 20/10/2026) não entra sem preencher a data de nascimento: aparece “Falta preencher: … Data de nascimento.” e, embaixo do campo, “Informe sua data de nascimento.” A idade mínima é 16 anos.",
     prints: [
       {
         chave: "entrar-1",
@@ -32,7 +32,8 @@ export const GUIAS: WikiGuia[] = [
       },
       {
         chave: "adm-1acesso-nascimento",
-        legenda: "Complete seu perfil de conta nova: a Data de nascimento é obrigatória.",
+        legenda:
+          "Complete seu cadastro (etapa 1) de conta nova: a Data de nascimento é obrigatória.",
       },
       {
         chave: "visita-3-aceitar-termos",

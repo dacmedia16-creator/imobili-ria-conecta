@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { FileDown, FileSpreadsheet, HeartPulse, RotateCcw } from "lucide-react";
+import { ChevronDown, FileDown, FileSpreadsheet, HeartPulse, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABEL } from "@/lib/auth";
@@ -84,6 +84,25 @@ function FichaColaboradoresPage() {
       ),
     };
   }, [lista]);
+  // Item 22 (FASE 2): busca e filtros principais à vista; o resto fica em "Mais filtros (n)",
+  // como em Vendas. Os filtros e a regra de cada um são os mesmos de antes.
+  const vazio = useMemo(filtrosVazios, []);
+  const CHAVES_MAIS: (keyof FiltrosFicha)[] = [
+    "mesDe",
+    "mesAte",
+    "temPlano",
+    "plano",
+    "filhos",
+    "religiao",
+    "hospital",
+    "papel",
+    "equipe",
+  ];
+  const maisAtivos = CHAVES_MAIS.filter((k) => f[k] !== vazio[k]).length;
+  const filtrosAtivos = (Object.keys(vazio) as (keyof FiltrosFicha)[]).filter(
+    (k) => f[k] !== vazio[k],
+  ).length;
+  const [maisAberto, setMaisAberto] = useState(false);
   const set = <K extends keyof FiltrosFicha>(k: K, v: FiltrosFicha[K]) =>
     setF((x) => ({ ...x, [k]: v }));
   const completas = (lista ?? []).filter((c) => c.completa).length;
@@ -175,127 +194,156 @@ function FichaColaboradoresPage() {
           <PrazoCard prazo={prazo} onSalvo={setPrazo} />
 
           <Card>
-            <CardContent className="grid grid-cols-1 gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-              <Filtro id="ff-busca" label="Buscar nome ou e-mail">
-                <Input
-                  id="ff-busca"
-                  value={f.busca}
-                  onChange={(e) => set("busca", e.target.value)}
-                />
-              </Filtro>
-              <Filtro id="ff-mes-de" label="Aniversário de (mês)">
-                <Sel
-                  id="ff-mes-de"
-                  value={f.mesDe == null ? TODOS : String(f.mesDe)}
-                  onChange={(v) => set("mesDe", v === TODOS ? null : Number(v))}
-                  opcoes={MESES.map((m, i) => [String(i + 1), m])}
-                />
-              </Filtro>
-              <Filtro id="ff-mes-ate" label="Aniversário até (mês)">
-                <Sel
-                  id="ff-mes-ate"
-                  value={f.mesAte == null ? TODOS : String(f.mesAte)}
-                  onChange={(v) => set("mesAte", v === TODOS ? null : Number(v))}
-                  opcoes={MESES.map((m, i) => [String(i + 1), m])}
-                />
-              </Filtro>
-              <Filtro id="ff-situacao" label="Ficha">
-                <Sel
-                  id="ff-situacao"
-                  value={f.situacao}
-                  onChange={(v) => set("situacao", v as FiltrosFicha["situacao"])}
-                  opcoes={[
-                    ["completa", "Completa"],
-                    ["pendente", "Pendente"],
-                  ]}
-                />
-              </Filtro>
-              <Filtro id="ff-cadastro" label="Cadastro pendente">
-                <Sel
-                  id="ff-cadastro"
-                  value={f.cadastro}
-                  onChange={(v) => set("cadastro", v as FiltrosFicha["cadastro"])}
-                  opcoes={[
-                    ["pendente", "Com pendência"],
-                    ["completo", "Cadastro completo"],
-                    ...Object.entries(PENDENCIA_LABEL).map(
-                      ([k, l]) => [k, `Falta: ${l}`] as [string, string],
-                    ),
-                  ]}
-                />
-              </Filtro>
-              <Filtro id="ff-tem-plano" label="Tem plano de saúde">
-                <Sel
-                  id="ff-tem-plano"
-                  value={f.temPlano}
-                  onChange={(v) => set("temPlano", v as FiltrosFicha["temPlano"])}
-                  opcoes={[
-                    ["sim", "Sim"],
-                    ["nao", "Não"],
-                  ]}
-                />
-              </Filtro>
-              <Filtro id="ff-plano" label="Qual plano">
-                <Sel
-                  id="ff-plano"
-                  value={f.plano}
-                  onChange={(v) => set("plano", v)}
-                  opcoes={op.planos.map((p) => [p, p])}
-                />
-              </Filtro>
-              <Filtro id="ff-filhos" label="Nº de filhos">
-                <Sel
-                  id="ff-filhos"
-                  value={f.filhos}
-                  onChange={(v) => set("filhos", v)}
-                  opcoes={[
-                    ["0", "0"],
-                    ["1", "1"],
-                    ["2", "2"],
-                    ["3+", "3 ou mais"],
-                    [NAO_INFORMADO, "Não informado"],
-                  ]}
-                />
-              </Filtro>
-              <Filtro id="ff-religiao" label="Religião">
-                <Sel
-                  id="ff-religiao"
-                  value={f.religiao}
-                  onChange={(v) => set("religiao", v)}
-                  opcoes={[
-                    ...op.religioes.map((r) => [r, r] as [string, string]),
-                    [NAO_INFORMADO, "Não informada"],
-                  ]}
-                />
-              </Filtro>
-              <Filtro id="ff-hospital" label="Hospital">
-                <Sel
-                  id="ff-hospital"
-                  value={f.hospital}
-                  onChange={(v) => set("hospital", v)}
-                  opcoes={op.hospitais.map((h) => [h, h])}
-                />
-              </Filtro>
-              <Filtro id="ff-papel" label="Papel">
-                <Sel
-                  id="ff-papel"
-                  value={f.papel}
-                  onChange={(v) => set("papel", v)}
-                  opcoes={op.papeis.map((p) => [p, LABELS[p] ?? p])}
-                />
-              </Filtro>
-              <Filtro id="ff-equipe" label="Equipe">
-                <Sel
-                  id="ff-equipe"
-                  value={f.equipe}
-                  onChange={(v) => set("equipe", v)}
-                  opcoes={op.equipes.map((e) => [e, e])}
-                />
-              </Filtro>
-              <div className="flex items-end">
-                <Button variant="ghost" onClick={() => setF(filtrosVazios())} className="w-full">
-                  <RotateCcw className="h-4 w-4" aria-hidden /> Limpar filtros
-                </Button>
+            <CardContent className="space-y-3 pt-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Filtro id="ff-busca" label="Buscar nome ou e-mail">
+                  <Input
+                    id="ff-busca"
+                    value={f.busca}
+                    onChange={(e) => set("busca", e.target.value)}
+                  />
+                </Filtro>
+                <Filtro id="ff-situacao" label="Ficha">
+                  <Sel
+                    id="ff-situacao"
+                    value={f.situacao}
+                    onChange={(v) => set("situacao", v as FiltrosFicha["situacao"])}
+                    opcoes={[
+                      ["completa", "Completa"],
+                      ["pendente", "Pendente"],
+                    ]}
+                  />
+                </Filtro>
+                <Filtro id="ff-cadastro" label="Cadastro pendente">
+                  <Sel
+                    id="ff-cadastro"
+                    value={f.cadastro}
+                    onChange={(v) => set("cadastro", v as FiltrosFicha["cadastro"])}
+                    opcoes={[
+                      ["pendente", "Com pendência"],
+                      ["completo", "Cadastro completo"],
+                      ...Object.entries(PENDENCIA_LABEL).map(
+                        ([k, l]) => [k, `Falta: ${l}`] as [string, string],
+                      ),
+                    ]}
+                  />
+                </Filtro>
+                <div className="flex items-end gap-2">
+                  <Button
+                    type="button"
+                    variant={maisAtivos > 0 ? "secondary" : "outline"}
+                    className="flex-1"
+                    data-testid="ficha-mais-filtros-botao"
+                    aria-expanded={maisAberto}
+                    aria-controls="ficha-mais-filtros"
+                    onClick={() => setMaisAberto((v) => !v)}
+                  >
+                    {maisAtivos > 0 ? `Mais filtros (${maisAtivos})` : "Mais filtros"}
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${maisAberto ? "rotate-180" : ""}`}
+                      aria-hidden
+                    />
+                  </Button>
+                  {filtrosAtivos > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      data-testid="ficha-limpar-filtros"
+                      onClick={() => setF(filtrosVazios())}
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden /> Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div
+                id="ficha-mais-filtros"
+                className={`grid-cols-1 gap-3 border-t pt-3 sm:grid-cols-2 lg:grid-cols-4 ${maisAberto ? "grid" : "hidden"}`}
+              >
+                <Filtro id="ff-mes-de" label="Aniversário de (mês)">
+                  <Sel
+                    id="ff-mes-de"
+                    value={f.mesDe == null ? TODOS : String(f.mesDe)}
+                    onChange={(v) => set("mesDe", v === TODOS ? null : Number(v))}
+                    opcoes={MESES.map((m, i) => [String(i + 1), m])}
+                  />
+                </Filtro>
+                <Filtro id="ff-mes-ate" label="Aniversário até (mês)">
+                  <Sel
+                    id="ff-mes-ate"
+                    value={f.mesAte == null ? TODOS : String(f.mesAte)}
+                    onChange={(v) => set("mesAte", v === TODOS ? null : Number(v))}
+                    opcoes={MESES.map((m, i) => [String(i + 1), m])}
+                  />
+                </Filtro>
+                <Filtro id="ff-tem-plano" label="Tem plano de saúde">
+                  <Sel
+                    id="ff-tem-plano"
+                    value={f.temPlano}
+                    onChange={(v) => set("temPlano", v as FiltrosFicha["temPlano"])}
+                    opcoes={[
+                      ["sim", "Sim"],
+                      ["nao", "Não"],
+                    ]}
+                  />
+                </Filtro>
+                <Filtro id="ff-plano" label="Qual plano">
+                  <Sel
+                    id="ff-plano"
+                    value={f.plano}
+                    onChange={(v) => set("plano", v)}
+                    opcoes={op.planos.map((p) => [p, p])}
+                  />
+                </Filtro>
+                <Filtro id="ff-filhos" label="Nº de filhos">
+                  <Sel
+                    id="ff-filhos"
+                    value={f.filhos}
+                    onChange={(v) => set("filhos", v)}
+                    opcoes={[
+                      ["0", "0"],
+                      ["1", "1"],
+                      ["2", "2"],
+                      ["3+", "3 ou mais"],
+                      [NAO_INFORMADO, "Não informado"],
+                    ]}
+                  />
+                </Filtro>
+                <Filtro id="ff-religiao" label="Religião">
+                  <Sel
+                    id="ff-religiao"
+                    value={f.religiao}
+                    onChange={(v) => set("religiao", v)}
+                    opcoes={[
+                      ...op.religioes.map((r) => [r, r] as [string, string]),
+                      [NAO_INFORMADO, "Não informada"],
+                    ]}
+                  />
+                </Filtro>
+                <Filtro id="ff-hospital" label="Hospital">
+                  <Sel
+                    id="ff-hospital"
+                    value={f.hospital}
+                    onChange={(v) => set("hospital", v)}
+                    opcoes={op.hospitais.map((h) => [h, h])}
+                  />
+                </Filtro>
+                <Filtro id="ff-papel" label="Papel">
+                  <Sel
+                    id="ff-papel"
+                    value={f.papel}
+                    onChange={(v) => set("papel", v)}
+                    opcoes={op.papeis.map((p) => [p, LABELS[p] ?? p])}
+                  />
+                </Filtro>
+                <Filtro id="ff-equipe" label="Equipe">
+                  <Sel
+                    id="ff-equipe"
+                    value={f.equipe}
+                    onChange={(v) => set("equipe", v)}
+                    opcoes={op.equipes.map((e) => [e, e])}
+                  />
+                </Filtro>
               </div>
             </CardContent>
           </Card>
