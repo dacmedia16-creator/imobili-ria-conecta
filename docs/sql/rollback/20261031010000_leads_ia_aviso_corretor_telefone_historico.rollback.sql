@@ -1,0 +1,9 @@
+-- Rollback do aviso com telefone + histórico (t_50cf73f3).
+-- PASSO ÚNICO para PARAR os avisos por WhatsApp ao corretor na ZZ (é o mesmo do rollback de t_ccaa41c0):
+--   UPDATE public.lead_config SET ia_aviso_corretor_whats = false, updated_at = now()
+--    WHERE organization_id = 'eb0a260a-db2f-4cbf-b031-f0c2aebb407c';
+-- (ou o rollback completo: docs/sql/rollback/20261030220000_leads_ia_vip7_liberacao.rollback.sql)
+--
+-- Voltar só ao texto ANTIGO (sem telefone e sem histórico), mantendo o aviso: reaplicar a definição de
+-- public.lead_avisos_corretor_reservar da migration 20261030220000_leads_ia_vip7_liberacao.sql (ela usa o texto
+-- gravado na passagem, sem telefone). As funções/eventos novos podem ficar: sem chamada, nada sai.
