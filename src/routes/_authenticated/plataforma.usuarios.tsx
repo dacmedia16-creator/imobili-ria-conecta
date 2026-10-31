@@ -181,6 +181,7 @@ function PlatformUsers() {
           size="sm"
           variant="ghost"
           title="Editar dados"
+          aria-label={`Editar dados de ${u.nome}`}
           onClick={() => setAction({ kind: "editar", user: u })}
         >
           <Pencil className="h-4 w-4" />
@@ -191,6 +192,7 @@ function PlatformUsers() {
             size="sm"
             variant="ghost"
             title="Trocar senha"
+            aria-label={`Trocar senha de ${u.nome}`}
             onClick={() => setAction({ kind: "senha", user: u })}
           >
             <KeyRound className="h-4 w-4" />
@@ -200,6 +202,7 @@ function PlatformUsers() {
           size="sm"
           variant="ghost"
           title="Papéis"
+          aria-label={`Papéis de ${u.nome}`}
           onClick={() => setAction({ kind: "papeis", user: u })}
         >
           <ShieldCheck className="h-4 w-4" />
@@ -208,6 +211,7 @@ function PlatformUsers() {
           size="sm"
           variant="ghost"
           title={u.ativo ? "Desativar" : "Ativar"}
+          aria-label={`${u.ativo ? "Desativar" : "Ativar"} ${u.nome}`}
           className={u.ativo ? "text-destructive" : "text-emerald-700"}
           onClick={() => setAction({ kind: "ativo", user: u })}
         >

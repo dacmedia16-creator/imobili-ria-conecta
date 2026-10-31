@@ -1383,6 +1383,8 @@ export function LancamentoDetail({
                         size="sm"
                         onClick={() => delComm(c.id)}
                         className="w-full"
+                        aria-label="Remover esta linha de comissão"
+                        title="Remover linha"
                       >
                         ×
                       </Button>
@@ -1904,6 +1906,8 @@ export function LancamentoDetail({
                       size="sm"
                       onClick={() => delEditLinha(c.id)}
                       className="w-full"
+                      aria-label="Remover esta linha"
+                      title="Remover linha"
                     >
                       ×
                     </Button>

@@ -178,6 +178,7 @@ function RelatoriosPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [carregouUmaVez, setCarregouUmaVez] = useState(false);
   const loadVersion = useRef(0);
   const [sales, setSales] = useState<ReportSale[]>([]);
   const [occs, setOccs] = useState<ReportOccurrence[]>([]);
@@ -328,6 +329,7 @@ function RelatoriosPage() {
       setComms(c);
       setPartners(p);
       setProfileName(names);
+      if (versao === loadVersion.current) setCarregouUmaVez(true);
     } catch (error) {
       if (versao === loadVersion.current)
         setLoadError(error instanceof Error ? error.message : "Falha ao carregar relatórios.");
@@ -342,8 +344,13 @@ function RelatoriosPage() {
       setLoading(false);
       return;
     }
+    // Enquanto a data é digitada o campo passa por "" (data incompleta): não consulta com data vazia
+    // (dava "invalid input syntax for type date" e trocava a tela pelo erro). Mantém os números
+    // anteriores até as duas datas estarem completas (item 8 t_8730be75).
+    const dataOk = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+    if (!dataOk(dateFrom) || !dataOk(dateTo)) return;
     load();
-  }, [allowed, load]);
+  }, [allowed, load, dateFrom, dateTo]);
 
   const saleById = useMemo(() => {
     const m: Record<string, ReportSale> = {};
@@ -383,7 +390,9 @@ function RelatoriosPage() {
   const matchesCorretor = (sale: ReportSale | undefined) =>
     !corretorQ || corretorNome(sale).toLowerCase().includes(corretorQ.toLowerCase());
 
-  if (authLoading || loading)
+  // Esqueleto só na PRIMEIRA carga (item 8 t_8730be75): ao trocar a data a tela continua montada,
+  // o campo não perde o foco e a aba escolhida não volta para a primeira.
+  if (authLoading || (loading && !carregouUmaVez))
     return (
       <div role="status" aria-live="polite" className="space-y-6">
         <span className="sr-only">Carregando relatórios…</span>
@@ -423,6 +432,16 @@ function RelatoriosPage() {
         title="Relatórios — Financeiro"
         description="Visão consolidada de comissões, recebimentos, financiamentos e ocorrências."
       />
+      {loading && (
+        <p
+          role="status"
+          aria-live="polite"
+          data-testid="relatorios-atualizando"
+          className="text-sm text-muted-foreground"
+        >
+          Atualizando os números para o novo período…
+        </p>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">

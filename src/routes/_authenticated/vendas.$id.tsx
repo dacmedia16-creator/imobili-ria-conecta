@@ -5872,6 +5872,7 @@ function SaleDetail() {
           <div className="space-y-3 rounded-md border p-3">
             <div className="flex items-center gap-2">
               <Switch
+                aria-label="Está faltando algum documento?"
                 checked={contratoFaltaDoc}
                 onCheckedChange={setContratoFaltaDoc}
                 disabled={contratoUploading}
@@ -5895,6 +5896,7 @@ function SaleDetail() {
             )}
             <div className="flex items-center gap-2 border-t pt-3">
               <Switch
+                aria-label="Libera o gestor a enviar para assinatura"
                 checked={contratoLiberaAssinatura}
                 onCheckedChange={setContratoLiberaAssinatura}
                 disabled={contratoUploading}
@@ -7724,6 +7726,7 @@ function OccurrencePanel({
             <Field label="Nota fiscal obrigatória">
               <div className="flex items-center gap-2">
                 <Switch
+                  aria-label="Nota fiscal obrigatória"
                   checked={!!formOcc.nota_fiscal_obrigatoria}
                   onCheckedChange={(v) => updOcc({ nota_fiscal_obrigatoria: v })}
                   disabled={!canWrite}
@@ -7825,6 +7828,7 @@ function OccurrencePanel({
             <Field label="Tem financiamento?">
               <div className="flex items-center gap-2">
                 <Switch
+                  aria-label="Tem financiamento?"
                   checked={!!formOcc.financiamento}
                   onCheckedChange={(v) => updOcc({ financiamento: v })}
                   disabled={!canWrite}
@@ -7866,6 +7870,7 @@ function OccurrencePanel({
             <Field label="Oba Crédito">
               <div className="flex items-center gap-2">
                 <Switch
+                  aria-label="Oba Crédito"
                   checked={!!formOcc.oba_credito}
                   onCheckedChange={(v) => updOcc({ oba_credito: v })}
                   disabled={!canWrite || !formOcc.financiamento}
@@ -8157,6 +8162,8 @@ function OccurrencePanel({
                     size="sm"
                     onClick={() => delCommission(c.id)}
                     className="w-full"
+                    aria-label="Remover esta linha de comissão"
+                    title="Remover linha"
                   >
                     ×
                   </Button>
