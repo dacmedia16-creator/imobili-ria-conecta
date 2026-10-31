@@ -377,7 +377,7 @@ function Progresso(props: {
           >
             <div className="h-3 rounded-full bg-primary" style={{ width: `${pct}%` }} />
             <div
-              className="absolute -top-1 h-5 w-0.5 bg-red-500"
+              className="absolute -top-1 h-5 w-0.5 bg-slate-700"
               style={{ left: `${esperado}%` }}
             />
           </div>

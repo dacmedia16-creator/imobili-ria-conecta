@@ -35,7 +35,7 @@ export const PAINEL_CARDS: PainelCard[] = [
     key: "devolvidas",
     titulo: "Devolvidas",
     frase: "Vez do corretor: ajustar e reenviar.",
-    classe: "border-red-300 bg-red-50 text-red-900",
+    classe: "border-amber-300 bg-amber-50 text-amber-900",
   },
   {
     key: "aprovadas_mes",

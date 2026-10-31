@@ -34,7 +34,7 @@ export const ETAPA_TOM: Record<
   visita_agendada: "violet",
   proposta: "slate",
   ganho: "green",
-  perdido: "red",
+  perdido: "slate",
 };
 
 export const ORIGENS = [

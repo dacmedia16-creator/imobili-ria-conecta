@@ -1177,7 +1177,6 @@ function ExclusiveDetail() {
           ? "Dispensado — RG e CPF enviados"
           : undefined;
     return fileInput(label, kind, owner, {
-      accent: "border-l-4 border-l-amber-500",
       // Manual: documentos do proprietário são opcionais (aparecem como pendência).
       required: !manual && !dispensa && !hasDoc(kind, owner),
       dispensa,
@@ -1186,9 +1185,7 @@ function ExclusiveDetail() {
   // Comprovante de residência do proprietário: opcional, nunca trava o envio; a leitura preenche
   // só o endereço desse proprietário, se estiver vazio (t_8e496afb).
   const ownerResidenciaInput = (owner: number) =>
-    fileInput("Comprovante de residência (opcional)", "residencia", owner, {
-      accent: "border-l-4 border-l-amber-500",
-    });
+    fileInput("Comprovante de residência (opcional)", "residencia", owner, {});
   // Só o bloco aberto chama estes dois (OwnerBlocks): com 30+ proprietários a tela não monta
   // centenas de campos e envios de documento de uma vez.
   const ownerFields = (n: number) => {
@@ -1431,7 +1428,7 @@ function ExclusiveDetail() {
         {capture.status === "devolvida" && devolucao && (
           <div
             role="alert"
-            className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900"
+            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
           >
             <strong>Devolvida para ajuste</strong> por {devolucao.quem} em {devolucao.quando}.
             <br />
@@ -1564,7 +1561,6 @@ function ExclusiveDetail() {
             </CardContent>
           </Card>
           {fileInput("Contrato assinado (PDF ou foto)", "assinado", 0, {
-            accent: "border-l-4 border-l-violet-600",
             required: !signedDoc,
           })}
           {reading && (
@@ -1642,16 +1638,12 @@ function ExclusiveDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               {fileInput("Matrícula", "matricula", 0, {
-                accent: "border-l-4 border-l-emerald-500",
                 required: !manual && !hasDoc("matricula", 0),
               })}
               {fileInput("IPTU", "iptu", 0, {
-                accent: "border-l-4 border-l-emerald-500",
                 required: !manual && !hasDoc("iptu", 0),
               })}
-              {fileInput("Comprovante de residência (opcional)", "residencia", 0, {
-                accent: "border-l-4 border-l-emerald-500",
-              })}
+              {fileInput("Comprovante de residência (opcional)", "residencia", 0, {})}
             </CardContent>
           </Card>
           {docs.some((d) => d.kind === "gerado" || d.kind === "assinado") && (
@@ -1661,13 +1653,9 @@ function ExclusiveDetail() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {docs.some((d) => d.kind === "gerado") &&
-                  fileInput("Contrato gerado", "gerado", 0, {
-                    accent: "border-l-4 border-l-indigo-500",
-                  })}
+                  fileInput("Contrato gerado", "gerado", 0, {})}
                 {docs.some((d) => d.kind === "assinado") &&
-                  fileInput("Contrato assinado", "assinado", 0, {
-                    accent: "border-l-4 border-l-indigo-500",
-                  })}
+                  fileInput("Contrato assinado", "assinado", 0, {})}
               </CardContent>
             </Card>
           )}
@@ -2039,13 +2027,9 @@ function ExclusiveDetail() {
                   docsOptional
                   renderBody={ownerDocs}
                 />
-                {fileInput("Comprovante de residência", "residencia", 0, {
-                  accent: "border-l-4 border-l-emerald-500",
-                })}
-                {fileInput("IPTU", "iptu", 0, { accent: "border-l-4 border-l-emerald-500" })}
-                {fileInput("Matrícula", "matricula", 0, {
-                  accent: "border-l-4 border-l-emerald-500",
-                })}
+                {fileInput("Comprovante de residência", "residencia", 0, {})}
+                {fileInput("IPTU", "iptu", 0)}
+                {fileInput("Matrícula", "matricula", 0, {})}
               </CardContent>
             </Card>
           )}
@@ -2093,7 +2077,7 @@ function ExclusiveDetail() {
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   {manualCheck.required.length > 0 && (
-                    <p className="rounded-md border border-red-300 bg-red-50 p-2 text-red-900">
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
                       Obrigatório: {manualCheck.required.join(" · ")}
                     </p>
                   )}
@@ -2274,7 +2258,7 @@ function ExclusiveDetail() {
                         : clicksignManualInstructions}
                   </p>
                   {dossieMissing && (
-                    <p className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
                       O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
                       corretor para marcar antes de aprovar.{" "}
                       <button
@@ -2352,7 +2336,7 @@ function ExclusiveDetail() {
                       onChange={(e) => setReason(e.target.value)}
                     />
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       disabled={busy || !reason.trim()}
                       onClick={() => action("devolver")}
                     >
@@ -2389,7 +2373,7 @@ function ExclusiveDetail() {
                       onChange={(e) => setReason(e.target.value)}
                     />
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       disabled={busy || !reason.trim()}
                       onClick={() => action("devolver")}
                     >

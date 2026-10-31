@@ -167,7 +167,7 @@ function FichaColaboradoresPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Resumo rotulo="Colaboradores" valor={lista.length} />
             <Resumo rotulo="Fichas completas" valor={completas} cor="text-green-600" />
-            <Resumo rotulo="Pendentes" valor={lista.length - completas} cor="text-red-600" />
+            <Resumo rotulo="Pendentes" valor={lista.length - completas} cor="text-amber-600" />
             <Resumo rotulo="Cadastro pendente" valor={cadastroPendente} cor="text-amber-600" />
             <Resumo rotulo="No filtro" valor={filtrada.length} />
           </div>
@@ -343,7 +343,7 @@ function FichaColaboradoresPage() {
                         {c.completa ? (
                           <Pill tom="green">Completa</Pill>
                         ) : (
-                          <Pill tom="red">Pendente</Pill>
+                          <Pill tom="amber">Pendente</Pill>
                         )}
                       </td>
                       <td className="px-3 py-2" data-testid="cadastro-pendente-celula">

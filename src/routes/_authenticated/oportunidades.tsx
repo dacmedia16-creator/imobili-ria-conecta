@@ -45,7 +45,7 @@ const SELECT =
 
 const SELO = "rounded-md border px-2 py-0.5 text-[11px] font-semibold";
 const SELO_GRUPO = `${SELO} border-[#f1c86b] bg-[#fff1d6] text-[#8a5a00]`;
-const SELO_EQUIPE = `${SELO} border-[#f39aaa] bg-[#ffe3e8] text-[#b0001f]`;
+const SELO_EQUIPE = `${SELO} border-emerald-300 bg-emerald-50 text-emerald-800`;
 
 type PostRow = Omit<OpportunityPost, "valor_min" | "valor_max" | "valor"> & {
   valor_min: number | string | null;
@@ -76,7 +76,9 @@ function OportunidadesPage() {
       const [p, h, c, o] = await Promise.all([
         db
           .from("opportunity_posts")
-          .select("id,kind,tipo,finalidade,bairro,valor_min,valor_max,valor,corretor,texto,posted_at")
+          .select(
+            "id,kind,tipo,finalidade,bairro,valor_min,valor_max,valor,corretor,texto,posted_at",
+          )
           .gte("posted_at", desde)
           .order("posted_at", { ascending: false })
           .limit(500),
@@ -99,10 +101,18 @@ function OportunidadesPage() {
         })),
       );
       setHidden(
-        new Set(((h.data ?? []) as { post_id: string; target_id: string }[]).map((x) => pairKey(x.post_id, x.target_id))),
+        new Set(
+          ((h.data ?? []) as { post_id: string; target_id: string }[]).map((x) =>
+            pairKey(x.post_id, x.target_id),
+          ),
+        ),
       );
       // Sem captações (erro ou nenhuma aprovada) o mural continua funcionando, só sem o selo da equipe.
-      setCaptures(c.error ? [] : ((c.data ?? []) as Parameters<typeof captureCandidate>[0][]).map(captureCandidate));
+      setCaptures(
+        c.error
+          ? []
+          : ((c.data ?? []) as Parameters<typeof captureCandidate>[0][]).map(captureCandidate),
+      );
       setOrgId(typeof o.data === "string" ? o.data : null);
     })();
     return () => {
@@ -121,7 +131,9 @@ function OportunidadesPage() {
   }, [vivos, captures, hidden]);
 
   const opcoes = (f: (p: OpportunityPost) => string | null) =>
-    [...new Set(vivos.map(f).filter((x): x is string => Boolean(x)))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    [...new Set(vivos.map(f).filter((x): x is string => Boolean(x)))].sort((a, b) =>
+      a.localeCompare(b, "pt-BR"),
+    );
 
   const filtrados = useMemo(
     () =>
@@ -142,7 +154,12 @@ function OportunidadesPage() {
     if (!orgId || !user) return;
     const { error } = await db
       .from("opportunity_hidden_pairs")
-      .insert({ organization_id: orgId, post_id: post.id, target_id: targetId, hidden_by: user.id });
+      .insert({
+        organization_id: orgId,
+        post_id: post.id,
+        target_id: targetId,
+        hidden_by: user.id,
+      });
     if (error) return toast.error(errorMessage(error, "Não foi possível ocultar o par."));
     setHidden((h) => new Set(h).add(pairKey(post.id, targetId)));
     toast.success("Par ocultado. Ele não aparece mais nem gera alerta.");
@@ -165,7 +182,8 @@ function OportunidadesPage() {
             className="rounded-full px-3.5"
             onClick={() => setAba(a.kind)}
           >
-            {a.label} <span className="ml-1">{posts ? `(${contarPorAba(filtrados, a.kind)})` : ""}</span>
+            {a.label}{" "}
+            <span className="ml-1">{posts ? `(${contarPorAba(filtrados, a.kind)})` : ""}</span>
           </Button>
         ))}
       </div>
@@ -214,7 +232,11 @@ function OportunidadesPage() {
             </select>
           </Filtro>
           <Filtro label="Busca livre">
-            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="ex.: piscina, Airbnb" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="ex.: piscina, Airbnb"
+            />
           </Filtro>
         </CardContent>
       </Card>
@@ -229,7 +251,8 @@ function OportunidadesPage() {
           <span className={SELO_GRUPO}>🤝 possível encaixe</span> procura × oferta do grupo
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className={SELO_EQUIPE}>⭐ encaixe com captação da equipe</span> procura × captação do ADM
+          <span className={SELO_EQUIPE}>⭐ encaixe com captação da equipe</span> procura × captação
+          do ADM
         </span>
       </div>
 
@@ -308,7 +331,10 @@ function Encaixes({
       </div>
       {grupo.length > 0 && !aberto && (
         <div className="text-xs text-muted-foreground">
-          ↳ {grupo.map((g) => `${g.corretor} (${g.bairro ?? "—"}${g.valor ? `, ${faixaTexto(g)}` : ""})`).join("; ")}
+          ↳{" "}
+          {grupo
+            .map((g) => `${g.corretor} (${g.bairro ?? "—"}${g.valor ? `, ${faixaTexto(g)}` : ""})`)
+            .join("; ")}
         </div>
       )}
       {aberto && (
@@ -338,7 +364,12 @@ function Par({ texto, onNao }: { texto: string; onNao: () => void }) {
   return (
     <li className="flex items-center justify-between gap-2">
       <span>{texto}</span>
-      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-destructive" onClick={onNao}>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-[11px] text-muted-foreground"
+        onClick={onNao}
+      >
         🚫 Não encaixa
       </Button>
     </li>

@@ -174,7 +174,9 @@ export function DocumentsPanel({
     setUploadingCertidao((m) => ({ ...m, [draftId]: true }));
     try {
       const ext = file.name.split(".").pop();
-      const path = await storageOrganizationPath(`${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`);
+      const path = await storageOrganizationPath(
+        `${saleId}/juridico/certidao_juridico/${crypto.randomUUID()}.${ext}`,
+      );
       const { error } = await supabase.storage
         .from("sale-documents")
         .upload(path, file, { upsert: false });
@@ -358,7 +360,9 @@ export function DocumentsPanel({
     const ext = file.name.split(".").pop();
     let path: string;
     try {
-      path = await storageOrganizationPath(`${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`);
+      path = await storageOrganizationPath(
+        `${saleId}/${parte}/${tipo}/${crypto.randomUUID()}.${ext}`,
+      );
     } catch (err: unknown) {
       toast.error(errorMessage(err, "Organização não disponível"));
       return;
@@ -845,13 +849,6 @@ export function DocumentsPanel({
       <Wizard
         steps={enabledBlocos.map(({ parte, tipos }) => {
           const parteNumero = Number(parte.split("_")[1]);
-          const parteAccent = parte.startsWith("comprador_")
-            ? "border-l-4 border-l-blue-500"
-            : parte.startsWith("vendedor_")
-              ? "border-l-4 border-l-amber-500"
-              : parte === "imovel"
-                ? "border-l-4 border-l-emerald-500"
-                : "";
           return {
             key: parte,
             label: parteLabel(parte),
@@ -898,11 +895,7 @@ export function DocumentsPanel({
                     parte.startsWith("comprador_") || parte.startsWith("vendedor_");
                   const mostraObrigatorio = partePessoal || parte === "imovel";
                   return (
-                    <Card
-                      key={`${parte}-${t.key}`}
-                      id={`doc-${t.key}-${parte}`}
-                      className={parteAccent}
-                    >
+                    <Card key={`${parte}-${t.key}`} id={`doc-${t.key}-${parte}`}>
                       <CardContent className="space-y-3 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
@@ -1050,7 +1043,7 @@ export function DocumentsPanel({
                     {docs
                       .filter((d) => d.tipo === "certidao_juridico")
                       .map((d) => (
-                        <Card key={d.id} className="border-l-4 border-l-indigo-500">
+                        <Card key={d.id}>
                           <CardContent className="space-y-2 p-4">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>

@@ -45,7 +45,7 @@ function Lista({ itens, tipo }: { itens: string[]; tipo: "pode" | "nao" }) {
             className={
               tipo === "pode"
                 ? "mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                : "mt-0.5 h-4 w-4 shrink-0 text-red-600"
+                : "mt-0.5 h-4 w-4 shrink-0 text-slate-500"
             }
             aria-label={tipo === "pode" ? "Pode" : "Não pode"}
           />

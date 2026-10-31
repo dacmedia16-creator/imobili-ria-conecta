@@ -238,7 +238,7 @@ function FeedbackPage() {
             <button
               key={l.code}
               onClick={() => setSelected(l.code)}
-              className="flex flex-col gap-2 rounded-lg border border-l-4 border-l-blue-500 bg-card p-3 text-left shadow-sm transition-shadow hover:bg-muted hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2 rounded-lg border bg-card p-3 text-left shadow-sm transition-shadow hover:bg-muted hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
                 <div className="font-medium">{l.code}</div>

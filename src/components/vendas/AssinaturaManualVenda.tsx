@@ -72,10 +72,7 @@ export function EscolhaAssinaturaVenda({
     </button>
   );
   return (
-    <div
-      className="space-y-3 rounded-md border border-l-4 border-l-primary p-3"
-      data-testid="escolha-assinatura"
-    >
+    <div className="space-y-3 rounded-md border p-3" data-testid="escolha-assinatura">
       <div>
         <p className="text-sm font-semibold">Como vai ser assinado?</p>
         <p className="text-xs text-muted-foreground">
@@ -170,10 +167,7 @@ export function AssinaturaManualCard({
   onDevolver: () => void;
 }) {
   return (
-    <div
-      className="space-y-3 rounded-md border border-l-4 border-l-violet-500 p-3"
-      data-testid="assinatura-manual"
-    >
+    <div className="space-y-3 rounded-md border p-3" data-testid="assinatura-manual">
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex items-center gap-1.5 text-sm font-semibold">
           <FileSignature className="h-4 w-4 text-violet-600" /> Assinatura manual (papel)

@@ -71,7 +71,7 @@ function Papeis({ g }: { g: WikiGuia }) {
 function Caixa({ tom, titulo, s }: { tom: string; titulo: string; s?: string }) {
   if (!s) return null;
   return (
-    <div className={`rounded-lg border-l-4 p-3 text-sm ${tom}`}>
+    <div className={`rounded-lg border p-3 text-sm ${tom}`}>
       <strong>{titulo}</strong> <Texto s={s} />
     </div>
   );
@@ -255,7 +255,7 @@ function GuiaAberto({
         <p className="text-muted-foreground">{g.resumo}</p>
         <Papeis g={g} />
       </div>
-      <Caixa tom="border-blue-500 bg-blue-50" titulo="📍 Onde fica:" s={g.onde} />
+      <Caixa tom="border-blue-200 bg-blue-50" titulo="📍 Onde fica:" s={g.onde} />
       <h3 className="font-semibold">Passo a passo</h3>
       <ol className="space-y-2">
         {g.passos.map((p, n) => (
@@ -269,7 +269,7 @@ function GuiaAberto({
           </li>
         ))}
       </ol>
-      <Caixa tom="border-slate-400 bg-slate-50" titulo="👥 Outros papéis:" s={g.outrosPapeis} />
+      <Caixa tom="border-slate-200 bg-slate-50" titulo="👥 Outros papéis:" s={g.outrosPapeis} />
       {(g.videos ?? []).map((v) => (
         <WikiVideo
           key={`${g.id}-${v.chave}`}
@@ -292,8 +292,8 @@ function GuiaAberto({
           </figure>
         );
       })}
-      <Caixa tom="border-emerald-500 bg-emerald-50" titulo="💡 Dica:" s={g.dica} />
-      <Caixa tom="border-amber-500 bg-amber-50" titulo="⚠️ Cuidado:" s={g.cuidado} />
+      <Caixa tom="border-emerald-200 bg-emerald-50" titulo="💡 Dica:" s={g.dica} />
+      <Caixa tom="border-amber-300 bg-amber-50" titulo="⚠️ Cuidado:" s={g.cuidado} />
       <div className="flex flex-wrap items-center gap-3 pt-2 text-sm">
         <span className="text-muted-foreground">
           Não resolveu? Use o botão “Ajuda e sugestões” no topo da tela.

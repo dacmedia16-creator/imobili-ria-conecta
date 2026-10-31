@@ -4721,7 +4721,7 @@ function SaleDetail() {
               size="sm"
               className={
                 commentNeedsAttention
-                  ? "border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  ? "border-primary text-primary hover:bg-primary/10 hover:text-primary"
                   : undefined
               }
             >

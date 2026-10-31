@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { CAPTACAO_STATUS_TOM } from "@/lib/cores-status";
 import {
   archiveCapture,
   createCapture,
@@ -386,7 +387,9 @@ function ExclusiveList() {
                           Cadastro manual
                         </span>
                       )}
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-medium ${CAPTACAO_STATUS_TOM[c.status]}`}
+                      >
                         {
                           {
                             rascunho: "Rascunho",

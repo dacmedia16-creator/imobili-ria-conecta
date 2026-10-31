@@ -793,7 +793,7 @@ function VisaoExecutiva() {
                 <span className="text-sm font-medium">
                   {e.label}
                   {gargalo?.key === e.key && (
-                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-destructive">
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-amber-700">
                       Gargalo
                     </span>
                   )}
@@ -803,8 +803,7 @@ function VisaoExecutiva() {
                     className="h-full rounded-md"
                     style={{
                       width: `${Math.max(6, (e.dias / maxDias) * 100)}%`,
-                      background:
-                        gargalo?.key === e.key ? "var(--destructive)" : "var(--color-chart-1)",
+                      background: gargalo?.key === e.key ? "#d97706" : "var(--color-chart-1)",
                     }}
                   />
                 </div>
