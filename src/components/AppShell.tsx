@@ -207,7 +207,7 @@ function SidebarNav({
                             : n.label
                           : undefined
                       }
-                      className={`relative flex touch-manipulation items-center rounded-md border-l-2 border-transparent py-2 text-sm text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+                      className={`relative flex touch-manipulation items-center max-md:min-h-10 rounded-md border-l-2 border-transparent py-2 text-sm text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
                       activeProps={{
                         className: "bg-[#3453a4]/55 border-white text-white font-medium",
                       }}

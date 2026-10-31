@@ -674,7 +674,109 @@ function RoomReservationsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          {/* Item 25: no celular, lista por sala no lugar da grade de 760px com rolagem lateral. */}
+          <CardContent className="space-y-3 md:hidden" data-testid="salas-lista-celular">
+            {visibleRooms.map((room) => {
+              const estados = TIME_SLOTS.map((slot) => {
+                const reservation = reservationForSlot(room, slot);
+                return {
+                  slot,
+                  reservation,
+                  estado: getRoomSlotState({
+                    loading: loadingReservations,
+                    loadFailed: !!loadError,
+                    occupied: !!reservation,
+                  }),
+                };
+              });
+              const ocupadas = estados
+                .map((e) => e.reservation)
+                .filter((r, i, arr): r is Reservation => !!r && arr.indexOf(r) === i);
+              const livres = estados.filter((e) => e.estado === "livre");
+              const indisponivel = estados.some(
+                (e) => e.estado === "carregando" || e.estado === "indisponivel",
+              );
+              return (
+                <section
+                  key={room}
+                  data-testid="sala-celular"
+                  aria-label={`Sala ${room}`}
+                  className="space-y-3 rounded-lg border p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="min-w-0 truncate font-semibold">{room}</h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={indisponivel || livres.length === 0}
+                      onClick={() => openNewReservation(room, livres[0]?.slot)}
+                    >
+                      <Plus className="mr-1 h-4 w-4" /> Reservar
+                    </Button>
+                  </div>
+                  {indisponivel ? (
+                    <div
+                      data-testid="slot-indisponivel"
+                      aria-hidden="true"
+                      className={
+                        loadingReservations
+                          ? "h-10 animate-pulse rounded-md border bg-muted/50"
+                          : "h-10 rounded-md border border-dashed bg-muted/30"
+                      }
+                    />
+                  ) : (
+                    <>
+                      {ocupadas.length > 0 && (
+                        <ul className="space-y-2">
+                          {ocupadas.map((reservation) => (
+                            <li key={reservation.id}>
+                              <button
+                                type="button"
+                                className="flex min-h-10 w-full items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-left text-sm"
+                                onClick={() => setSelectedReservation(reservation)}
+                                aria-label={`Ver reserva de ${reservation.responsible}${reservation.hasDetails ? `, ${reservation.purpose}` : ""}, das ${reservation.start} às ${reservation.end}`}
+                              >
+                                <span className="shrink-0 font-medium tabular-nums text-primary">
+                                  {reservation.start}–{reservation.end}
+                                </span>
+                                <span className="min-w-0 truncate">
+                                  {reservation.responsible}
+                                  {reservation.hasDetails ? ` · ${reservation.purpose}` : ""}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {livres.length > 0 ? (
+                        <div>
+                          <div className="mb-1 text-xs text-muted-foreground">Horários livres</div>
+                          <div className="flex flex-wrap gap-2">
+                            {livres.map(({ slot }) => (
+                              <button
+                                key={slot}
+                                type="button"
+                                className="min-h-10 rounded-md border border-dashed bg-emerald-50/40 px-3 text-sm tabular-nums text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                onClick={() => openNewReservation(room, slot)}
+                                aria-label={`Reservar ${room} às ${slot}`}
+                              >
+                                {slot}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Sem horário livre neste dia.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </section>
+              );
+            })}
+          </CardContent>
+          <CardContent className="hidden overflow-x-auto md:block">
             <div className="min-w-[760px] space-y-2">
               <div className="flex gap-2 text-xs font-semibold text-muted-foreground">
                 <div className="w-16 shrink-0 px-2 py-2">Hora</div>
