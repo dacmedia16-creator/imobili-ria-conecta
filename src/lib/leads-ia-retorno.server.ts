@@ -206,11 +206,13 @@ export type ResultadoRetorno =
   | "desconhecido"
   | "token"
   | "desligada"
-  | "invalido";
+  | "invalido"
+  | "corretor";
 
 /** Código HTTP. 2xx = a ZionTalk não precisa reenviar. Erro nosso = 503 (reenvio é seguro: há dedup). */
 export const STATUS_RETORNO: Record<ResultadoRetorno, number> = {
   ok: 200,
+  corretor: 200,
   duplicado: 200,
   ignorado: 200,
   fora_lista: 200,
@@ -229,6 +231,9 @@ export type RespostaBanco = {
   ia_modelo_provedor?: "gemini" | "openrouter";
   ia_modelo?: string | null;
   ctx?: ContextoIa;
+  /** t_63c55cee: resposta curta ao corretor (aceite pelo WhatsApp) ou a um número desconhecido que pediu aceite. */
+  resposta_id?: string | null;
+  resposta?: string | null;
 };
 
 /** O que o handler precisa do mundo de fora (o teste troca por simulações). */
@@ -282,6 +287,8 @@ export type DepsRetorno = {
     ) => Promise<{ data: unknown; error: { code?: string } | null }>;
     avisoResultado: (avisoId: string, ok: boolean) => Promise<unknown>;
   };
+  /** t_63c55cee: marca se a resposta ao corretor saiu (lead_aceite_whats_resultado). Opcional. */
+  aceiteResultado?: (respostaId: string, ok: boolean) => Promise<unknown>;
 };
 
 const json = (status: number, r: string) =>
@@ -413,6 +420,23 @@ export async function receberRetornoZionTalk(
   }
   if (banco.r === "token") falhou(ip);
   if (banco.r === "invalido" && !msg) return json(202, "ignorado");
+  // t_63c55cee: corretor (ou número desconhecido pedindo aceite). Nunca vai para a IA; só a resposta curta do banco.
+  if (
+    (banco.r === "corretor" || banco.r === "desconhecido") &&
+    banco.resposta_id &&
+    banco.resposta
+  ) {
+    const trabalho = responderCorretor(
+      alvo.telefone,
+      banco.resposta_id,
+      banco.resposta,
+      deps,
+    ).catch(() => {
+      console.error("leads ia aceite whats: falha ao responder");
+    });
+    if (deps.emSegundoPlano) deps.emSegundoPlano(trabalho);
+    else await trabalho;
+  }
   if (banco.r === "ok" && banco.lead_id) {
     const trabalho = responderEEnviar(banco, alvo, deps).catch(() => {
       console.error("leads ia retorno: falha ao responder");
@@ -421,6 +445,25 @@ export async function receberRetornoZionTalk(
     else await trabalho;
   }
   return json(status, banco.r);
+}
+
+/**
+ * t_63c55cee: envia ao corretor a resposta do aceite pelo WhatsApp (mesmo número da IA). Uma vez só (o banco já
+ * deduplicou a mensagem); falhou = fica "falhou", nunca repete. Log só com o código do erro.
+ */
+export async function responderCorretor(
+  telefone: string,
+  respostaId: string,
+  texto: string,
+  deps: Pick<DepsRetorno, "env" | "fetchFn" | "aceiteResultado">,
+): Promise<boolean> {
+  const canal = escolherCanal(deps.env, deps.fetchFn);
+  if (canal.nome !== "ziontalk") return false; // envio real desligado: nada sai
+  const r = await canal.enviar(telefone, texto);
+  await deps.aceiteResultado?.(respostaId, r.status === "enviada").catch(() => undefined);
+  if (r.status !== "enviada")
+    console.error("leads ia aceite whats: envio falhou", r.status === "falhou" ? r.erro : r.status);
+  return r.status === "enviada";
 }
 
 /** Gera a resposta (se for o caso) e envia as mensagens pendentes do lead. */
@@ -920,6 +963,9 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
       avisoResultado: async (avisoId, ok) =>
         await db.rpc("lead_avisos_corretor_resultado", { _aviso: avisoId, _ok: ok }),
     },
+    // Migration 20261031030000 (t_63c55cee).
+    aceiteResultado: async (respostaId, ok) =>
+      await db.rpc("lead_aceite_whats_resultado", { _id: respostaId, _ok: ok }),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };
