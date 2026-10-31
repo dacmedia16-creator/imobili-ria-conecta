@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,8 +57,13 @@ import { excluirVenda } from "@/lib/excluir-venda.functions";
 import { fetchLedMemberIds } from "@/lib/team";
 import {
   ArrowRight,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Building2,
+  ChevronRight,
   House,
+  Info,
   Plus,
   Trash2,
   SlidersHorizontal,
@@ -66,6 +71,7 @@ import {
   FileText,
 } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { periodoInicialVendas, periodoMesAnterior, periodoMesAtual } from "@/lib/vendas-periodo";
@@ -163,6 +169,8 @@ export const Route = createFileRoute("/_authenticated/vendas/")({
 });
 
 const PAGE_SIZE = 10;
+/** Ordenação escolhida na tabela (sem escolha = ordem padrão da consulta). */
+type Ordem = { campo: "valor" | "dias"; dir: "asc" | "desc" };
 /** Espera depois da última troca de filtro/tecla antes de consultar o banco. */
 export const FILTRO_DEBOUNCE_MS = 400;
 /** Validade do pacote financeiro do resumo dentro da mesma abertura da tela. */
@@ -290,10 +298,20 @@ function SalesList() {
   const [esteiraRows, setEsteiraRows] = useState<SalesListRow[]>([]);
   const [esteiraEtapa, setEsteiraEtapa] = useState<string>("todas");
   const esteira = statusFilter === ESTEIRA_FILTER;
+  // Ordenação da tabela por valor ou por dias na etapa. Para ordenar o resultado inteiro (e não
+  // só as 10 linhas da página), a lista é carregada inteira, como a esteira já faz.
+  const [ordem, setOrdem] = useState<Ordem | null>(null);
+  const carregarTudo = esteira || ordem !== null;
   const esteiraTotalRef = useRef(0);
   const esteiraPendingKeyRef = useRef("");
 
   const canFilterByTeam = hasAny(["juridico", "admin", "super_admin", "financeiro"]);
+  // Filtros guardados em "Mais filtros" (computador). Abre sozinho se algum já vier ligado (URL/sessão).
+  const maisFiltrosAtivos =
+    (canFilterByTeam && equipeFilter !== "todas" ? 1 : 0) +
+    (midiaFilter !== "todas" ? 1 : 0) +
+    (pagamentoFilter !== "todas" ? 1 : 0);
+  const [maisFiltrosOpen, setMaisFiltrosOpen] = useState(() => maisFiltrosAtivos > 0);
   const waitingForSavedTeamFilter =
     canFilterByTeam && equipeFilter !== "todas" && !teamOptionsLoaded;
 
@@ -598,12 +616,20 @@ function SalesList() {
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[], requestId: number, signal?: AbortSignal) => {
     if (!ids.length) return;
-    const consulta = supabase
-      .from("sale_status_history")
-      .select("sale_id, created_at, para")
-      .in("sale_id", ids)
-      .order("created_at", { ascending: false });
-    const { data: hist } = await (signal ? consulta.abortSignal(signal) : consulta);
+    // Lotes de 100 ids: a lista inteira (esteira/ordenação) não estoura o tamanho da URL.
+    const lotes: string[][] = [];
+    for (let i = 0; i < ids.length; i += 100) lotes.push(ids.slice(i, i + 100));
+    const respostas = await Promise.all(
+      lotes.map((lote) => {
+        const consulta = supabase
+          .from("sale_status_history")
+          .select("sale_id, created_at, para")
+          .in("sale_id", lote)
+          .order("created_at", { ascending: false });
+        return signal ? consulta.abortSignal(signal) : consulta;
+      }),
+    );
+    const hist = respostas.flatMap((r) => r.data ?? []);
     if (requestIdRef.current !== requestId) return;
     setStageSince((prev) => {
       const next = { ...prev };
@@ -632,10 +658,14 @@ function SalesList() {
       setLoading(true);
       setLoadError(false);
       try {
-        if (esteira) {
-          // Carrega a esteira inteira (lotes de 50, limite da RPC) para ordenar e somar por etapa.
+        if (carregarTudo) {
+          // Carrega a lista inteira (lotes de 50, limite da RPC): a esteira para ordenar e somar
+          // por etapa; as demais quando o usuário pede ordenação por valor/dias.
+          // shortcut: no máximo 40 lotes (2.000 vendas) por carga.
           const filters = buildFilters();
           const todas: SalesListRow[] = [];
+          let primeiroLote: { total_count: number; total_valor: number } | null = null;
+          const resumoPromise = esteira ? Promise.resolve(null) : fetchSummary();
           for (let p = 0; p < 40; p++) {
             const lote = await fetchVendasComerciaisPaginadas({
               page: p,
@@ -645,18 +675,27 @@ function SalesList() {
               signal,
             });
             if (requestIdRef.current !== myRequestId) return;
+            primeiroLote ??= lote;
             todas.push(...(lote.rows as unknown as SalesListRow[]));
             if (lote.rows.length < 50 || todas.length >= lote.total_count) break;
           }
+          const resumoFinanceiro = await resumoPromise;
+          if (requestIdRef.current !== myRequestId) return;
           setEsteiraRows(todas);
-          setSales([]);
-          setTotalCount(todas.length);
-          setTotalValor(todas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0));
-          setContratosAssinadosCount(0);
-          setContratosAssinadosValor(0);
-          setEfetivadasValorCheio(0);
-          setEfetivadasComParceria(0);
-          setParceriaValorCheio(0);
+          setSales(esteira ? [] : todas);
+          if (esteira) {
+            setTotalCount(todas.length);
+            setTotalValor(todas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0));
+          } else {
+            // Mesmos totais da carga paginada (vêm da RPC, não da soma local).
+            setTotalCount(primeiroLote?.total_count ?? todas.length);
+            setTotalValor(Number(primeiroLote?.total_valor) || 0);
+          }
+          setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
+          setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
+          setEfetivadasValorCheio(resumoFinanceiro?.vgvCheio ?? 0);
+          setEfetivadasComParceria(resumoFinanceiro?.comParceria ?? 0);
+          setParceriaValorCheio(resumoFinanceiro?.comParceriaValorCheio ?? 0);
           setStageSince({});
           await mergeStageSince(
             todas.map((s) => s.id),
@@ -697,7 +736,7 @@ function SalesList() {
         if (requestIdRef.current === myRequestId) setLoading(false);
       }
     },
-    [fetchSales, fetchSummary, esteira, buildFilters, soMinhaVez],
+    [fetchSales, fetchSummary, esteira, carregarTudo, buildFilters, soMinhaVez],
   );
 
   const filterKey = [
@@ -732,7 +771,7 @@ function SalesList() {
     previousLoadRef.current = load;
     const chaveEsteira = `${filterKey}|${refreshKey}`;
     // Só pula quando a esteira já terminou de carregar com os mesmos filtros (troca de página).
-    if (esteira && !loadMudou && esteiraLoadedKeyRef.current === chaveEsteira) return;
+    if (carregarTudo && !loadMudou && esteiraLoadedKeyRef.current === chaveEsteira) return;
     esteiraLoadedKeyRef.current = "";
     esteiraPendingKeyRef.current = chaveEsteira;
     // Troca de filtro/tecla espera FILTRO_DEBOUNCE_MS sem nova mudança antes de consultar; a
@@ -752,10 +791,10 @@ function SalesList() {
       requestIdRef.current += 1;
       controller.abort();
     };
-  }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey, esteira]);
+  }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey, carregarTudo]);
 
   const goToPage = (nextPage: number) => {
-    const total = statusFilter === ESTEIRA_FILTER ? esteiraTotalRef.current : totalCount;
+    const total = carregarTudo ? esteiraTotalRef.current : totalCount;
     if (loading || nextPage < 0 || (total !== null && nextPage * PAGE_SIZE >= total)) return;
     setPage(nextPage);
   };
@@ -812,24 +851,76 @@ function SalesList() {
       valor: linhas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0),
     };
   }).filter((e) => e.quantidade > 0);
-  const esteiraFiltrada = esteira
+  const comparar = (a: SalesListRow, b: SalesListRow) => {
+    if (!ordem) return diasNaEtapa(b) - diasNaEtapa(a);
+    const sinal = ordem.dir === "asc" ? 1 : -1;
+    if (ordem.campo === "dias") return sinal * (diasNaEtapa(a) - diasNaEtapa(b));
+    // Valor pendente fica sempre no fim, nas duas direções.
+    const va = a.valor_negociado ? Number(a.valor_negociado) : null;
+    const vb = b.valor_negociado ? Number(b.valor_negociado) : null;
+    if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
+    return sinal * (va - vb);
+  };
+  const esteiraFiltrada = carregarTudo
     ? esteiraRows
-        .filter((s) => esteiraEtapa === "todas" || s.status === esteiraEtapa)
-        .sort((a, b) => diasNaEtapa(b) - diasNaEtapa(a))
+        .filter((s) => !esteira || esteiraEtapa === "todas" || s.status === esteiraEtapa)
+        .sort(comparar)
     : [];
   const esteiraParadas = esteiraRows.filter(
     (s) => diasNaEtapa(s) >= ESTEIRA_AGING_LIMITES.cobrar * 86_400_000,
   ).length;
   esteiraTotalRef.current = esteiraFiltrada.length;
-  const listTotal = esteira ? esteiraFiltrada.length : totalCount;
-  const displayedSales = esteira
+  const listTotal = carregarTudo ? esteiraFiltrada.length : totalCount;
+  const displayedSales = carregarTudo
     ? esteiraFiltrada.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
     : sales;
+  const alternarOrdem = (campo: Ordem["campo"]) => {
+    setOrdem((atual) =>
+      !atual || atual.campo !== campo
+        ? { campo, dir: "desc" }
+        : atual.dir === "desc"
+          ? { campo, dir: "asc" }
+          : null,
+    );
+    setPage(0);
+  };
+  const ariaSort = (campo: Ordem["campo"]) =>
+    ordem?.campo === campo ? (ordem.dir === "asc" ? "ascending" : "descending") : "none";
+  const iconeOrdem = (campo: Ordem["campo"]) => {
+    const Icone = ordem?.campo !== campo ? ArrowUpDown : ordem.dir === "asc" ? ArrowUp : ArrowDown;
+    return <Icone className="ml-1 h-3.5 w-3.5" aria-hidden />;
+  };
+
+  // Celular: quantos filtros estão ligados (fora a busca, que fica sempre à vista).
+  const periodoPadrao = periodoInicialRef.current;
+  const filtrosLigados =
+    (statusFilter !== "todas" ? 1 : 0) +
+    (vezFilter !== "todas" ? 1 : 0) +
+    (!esteira && (dataDe !== periodoPadrao.de || dataAte !== periodoPadrao.ate) ? 1 : 0) +
+    (soMinhaVez ? 1 : 0) +
+    maisFiltrosAtivos;
+  const limparFiltros = () => {
+    setStatusFilter("todas");
+    setVezFilter("todas");
+    setDiasFilter(null);
+    setDataDe(periodoPadrao.de);
+    setDataAte(periodoPadrao.ate);
+    setSoMinhaVez(false);
+    setEquipeFilter("todas");
+    setMidiaFilter("todas");
+    setPagamentoFilter("todas");
+    setEsteiraEtapa("todas");
+  };
+  const isMobile = useCelular();
   const totalPages = listTotal ? Math.ceil(listTotal / PAGE_SIZE) : 0;
   const hasPreviousPage = page > 0;
   const hasNextPage = listTotal !== null && (page + 1) * PAGE_SIZE < listTotal;
   const agingLimites = esteira ? ESTEIRA_AGING_LIMITES : undefined;
   const registrarAction = registrarVendaAction(roles);
+  const abrirVenda = (id: string) => {
+    markSalesListForReturn();
+    router.navigate({ to: "/vendas/$id", params: { id } });
+  };
 
   const registrarVendaButton =
     registrarAction === "venda_padrao" ? (
@@ -913,7 +1004,11 @@ function SalesList() {
           <div className="flex items-center gap-2">
             <Input
               aria-label="Buscar por código, imóvel ou pessoa envolvida"
-              placeholder="Buscar por código, imóvel, endereço, bairro ou pessoa"
+              placeholder={
+                isMobile
+                  ? "Código, imóvel ou pessoa…"
+                  : "Buscar por código, imóvel, endereço, bairro ou pessoa"
+              }
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="flex-1 md:max-w-sm"
@@ -923,16 +1018,17 @@ function SalesList() {
               variant="outline"
               size="sm"
               className="shrink-0 md:hidden"
+              aria-expanded={filtersOpen}
+              aria-controls="vendas-filtros"
+              aria-label={filtrosLigados > 0 ? `Filtros, ${filtrosLigados} ligados` : "Filtros"}
               onClick={() => setFiltersOpen((v) => !v)}
             >
               <SlidersHorizontal className="mr-1 h-4 w-4" />
-              Filtros
-              <ChevronDown
-                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              />
+              {filtrosLigados > 0 ? `Filtros (${filtrosLigados})` : "Filtros"}
             </Button>
           </div>
           <div
+            id="vendas-filtros"
             className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex md:flex-row md:flex-wrap md:items-center`}
           >
             <Select
@@ -965,48 +1061,6 @@ function SalesList() {
                 {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
-              teamOptions.length > 0 && (
-                <Select value={equipeFilter} onValueChange={setEquipeFilter}>
-                  <SelectTrigger aria-label="Equipe" className="md:w-56">
-                    <SelectValue placeholder="Equipe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as equipes</SelectItem>
-                    {teamOptions.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            <Select value={midiaFilter} onValueChange={setMidiaFilter}>
-              <SelectTrigger aria-label="Mídia" className="md:w-56">
-                <SelectValue placeholder="Mídia" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as mídias</SelectItem>
-                {MIDIA_FILTER_OPTIONS.map((m) => (
-                  <SelectItem key={m.key} value={m.key}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={pagamentoFilter} onValueChange={setPagamentoFilter}>
-              <SelectTrigger aria-label="Pagamento" className="md:w-56">
-                <SelectValue placeholder="Pagamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todos os pagamentos</SelectItem>
-                {PAGAMENTO_FILTER_OPTIONS.map((p) => (
-                  <SelectItem key={p.key} value={p.key}>
-                    {p.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1074,12 +1128,79 @@ function SalesList() {
                 type="button"
                 variant={soMinhaVez ? "default" : "outline"}
                 size="sm"
+                aria-pressed={soMinhaVez}
                 onClick={() => setSoMinhaVez((v) => !v)}
-                className={soMinhaVez ? "bg-destructive hover:bg-destructive/90" : ""}
               >
                 Só minha vez
               </Button>
             )}
+            <Button
+              type="button"
+              variant={maisFiltrosAtivos > 0 ? "secondary" : "outline"}
+              size="sm"
+              className="hidden md:inline-flex"
+              aria-expanded={maisFiltrosOpen}
+              aria-controls="vendas-mais-filtros"
+              onClick={() => setMaisFiltrosOpen((v) => !v)}
+            >
+              <SlidersHorizontal className="mr-1 h-4 w-4" />
+              {maisFiltrosAtivos > 0 ? `Mais filtros (${maisFiltrosAtivos})` : "Mais filtros"}
+              <ChevronDown
+                className={`ml-1 h-4 w-4 transition-transform ${maisFiltrosOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+            {filtrosLigados > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            )}
+            {/* Celular: sempre dentro do painel de filtros. Computador: só com "Mais filtros". */}
+            <div
+              id="vendas-mais-filtros"
+              className={`flex flex-col gap-3 md:basis-full md:flex-row md:flex-wrap md:items-center ${maisFiltrosOpen ? "md:flex" : "md:hidden"}`}
+            >
+              {canFilterByTeam && teamOptions.length > 0 && (
+                <Select value={equipeFilter} onValueChange={setEquipeFilter}>
+                  <SelectTrigger aria-label="Equipe" className="md:w-56">
+                    <SelectValue placeholder="Equipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as equipes</SelectItem>
+                    {teamOptions.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Select value={midiaFilter} onValueChange={setMidiaFilter}>
+                <SelectTrigger aria-label="Mídia" className="md:w-56">
+                  <SelectValue placeholder="Mídia" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as mídias</SelectItem>
+                  {MIDIA_FILTER_OPTIONS.map((m) => (
+                    <SelectItem key={m.key} value={m.key}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={pagamentoFilter} onValueChange={setPagamentoFilter}>
+                <SelectTrigger aria-label="Pagamento" className="md:w-56">
+                  <SelectValue placeholder="Pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todos os pagamentos</SelectItem>
+                  {PAGAMENTO_FILTER_OPTIONS.map((p) => (
+                    <SelectItem key={p.key} value={p.key}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           {esteira && (
             <p className="text-xs text-muted-foreground">
@@ -1136,27 +1257,31 @@ function SalesList() {
           )}
           {!loading && !esteira && totalCount !== null && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                <p className="text-xs text-muted-foreground">Efetivadas · VGV REMAX</p>
-                <p className="text-lg font-semibold leading-tight">
-                  {brl0(contratosAssinadosValor)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {contratosAssinadosCount} {contratosAssinadosCount === 1 ? "venda" : "vendas"} com
-                  contrato assinado · sem a parte de parceiros
-                </p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">Lançadas no período</p>
-                <p className="text-lg font-semibold leading-tight">{brl0(totalValor)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {totalCount} {totalCount === 1 ? "venda" : "vendas"} · valor cheio, incluindo
-                  vendas com parceria (com a parte dos parceiros) · sem canceladas
-                </p>
-              </div>
-              <p className="text-[11px] text-muted-foreground sm:col-span-2">
-                O cartão de efetivadas não segue o filtro de status.
-              </p>
+              <ResumoCartao
+                titulo="Efetivadas"
+                destaque
+                valor={brl0(contratosAssinadosValor)}
+                linha={`${contratosAssinadosCount} ${contratosAssinadosCount === 1 ? "venda" : "vendas"} · VGV REMAX`}
+                aviso="Não segue o filtro de status."
+                explicacao={
+                  <>
+                    Vendas com contrato assinado no período.{" "}
+                    <span>VGV REMAX, sem a parte de parceiros.</span>{" "}
+                    <span>O cartão de efetivadas não segue o filtro de status.</span>
+                  </>
+                }
+              />
+              <ResumoCartao
+                titulo="Lançadas"
+                valor={brl0(totalValor)}
+                linha={`${totalCount} ${totalCount === 1 ? "venda" : "vendas"} no período`}
+                explicacao={
+                  <>
+                    Vendas lançadas no período, com o valor cheio, incluindo vendas com parceria
+                    (com a parte dos parceiros) · sem canceladas.
+                  </>
+                }
+              />
             </div>
           )}
         </CardHeader>
@@ -1174,8 +1299,8 @@ function SalesList() {
               </Button>
             </div>
           )}
-          {!loading && !loadError && sales.length === 0 && (
-            <EmptyState icon={FileText}>
+          {!loading && !loadError && displayedSales.length === 0 && (
+            <EmptyState icon={FileText} action={registrarVendaButton}>
               {hasAny(["corretor"]) &&
                 !hasAny([
                   "gestor",
@@ -1186,7 +1311,8 @@ function SalesList() {
                   "super_admin",
                 ]) && (
                   <>
-                    Você ainda não criou nenhuma venda. Clique em <b>Nova Venda</b> para começar.
+                    Você ainda não criou nenhuma venda. Clique em <b>Registrar venda</b> para
+                    começar.
                   </>
                 )}
               {hasAny(["lancamento"]) &&
@@ -1200,7 +1326,7 @@ function SalesList() {
                   "super_admin",
                 ]) && (
                   <>
-                    Você ainda não criou nenhum lançamento. Clique em <b>Novo Lançamento</b> para
+                    Você ainda não criou nenhum lançamento. Clique em <b>Registrar venda</b> para
                     começar.
                   </>
                 )}
@@ -1224,6 +1350,15 @@ function SalesList() {
           )}
           {!loading && displayedSales.length > 0 && (
             <>
+              {!esteira && listTotal !== null && (
+                <p
+                  className="mb-3 text-sm font-medium"
+                  role="status"
+                  data-testid="vendas-encontradas"
+                >
+                  {listTotal} {listTotal === 1 ? "venda encontrada" : "vendas encontradas"}
+                </p>
+              )}
               {/* Mobile: cards empilhados — a tabela força colunas largas demais e corta o texto
                   do status numa tela estreita. A partir de md, volta pra tabela (mais densa, melhor
                   pra comparar várias vendas de uma vez, o que faz sentido numa tela maior). */}
@@ -1234,17 +1369,12 @@ function SalesList() {
                   return (
                     <div
                       key={s.id}
-                      className={`cursor-pointer rounded-md border p-3 ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
-                      onClick={() => {
-                        markSalesListForReturn();
-                        router.navigate({ to: "/vendas/$id", params: { id: s.id } });
-                      }}
+                      className={`cursor-pointer rounded-md border p-3 ${minhaVez ? "border-primary/40 bg-primary/5" : ""}`}
+                      onClick={() => abrirVenda(s.id)}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">
-                            {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
-                          </div>
+                          <LinkVenda s={s} className="truncate" />
                           <div className="truncate text-sm text-muted-foreground">
                             {nomesCorretores(s, profileName)}
                             {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
@@ -1278,11 +1408,7 @@ function SalesList() {
                           correspondente={s.pagamento_correspondente}
                           obaCredito={s.pagamento_oba}
                         />
-                        {minhaVez && (
-                          <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                            Sua vez
-                          </span>
-                        )}
+                        {minhaVez && <SuaVezBadge />}
                         <AgingBadge
                           since={stageSince[s.id] ?? s.created_at}
                           limites={agingLimites}
@@ -1290,7 +1416,7 @@ function SalesList() {
                         />
                       </div>
                       <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="font-medium">
+                        <span className="font-semibold tabular-nums">
                           {s.valor_negociado
                             ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
                             : "Valor pendente"}
@@ -1313,10 +1439,30 @@ function SalesList() {
                       {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
                         <TableHead>Gestor/Líder</TableHead>
                       )}
-                      <TableHead>Valor</TableHead>
+                      <TableHead className="text-right" aria-sort={ariaSort("valor")}>
+                        <button
+                          type="button"
+                          className="-mr-1 inline-flex items-center rounded px-1 py-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => alternarOrdem("valor")}
+                          aria-label="Ordenar por valor"
+                        >
+                          Valor
+                          {iconeOrdem("valor")}
+                        </button>
+                      </TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Vez de agir</TableHead>
-                      <TableHead>Nesta etapa</TableHead>
+                      <TableHead aria-sort={ariaSort("dias")}>
+                        <button
+                          type="button"
+                          className="-ml-1 inline-flex items-center rounded px-1 py-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => alternarOrdem("dias")}
+                          aria-label="Ordenar por dias nesta etapa"
+                        >
+                          Nesta etapa
+                          {iconeOrdem("dias")}
+                        </button>
+                      </TableHead>
                       <TableHead>Datas</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
@@ -1328,14 +1474,11 @@ function SalesList() {
                       return (
                         <TableRow
                           key={s.id}
-                          className={`cursor-pointer ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
-                          onClick={() => {
-                            markSalesListForReturn();
-                            router.navigate({ to: "/vendas/$id", params: { id: s.id } });
-                          }}
+                          className={`cursor-pointer ${minhaVez ? "bg-primary/5" : ""}`}
+                          onClick={() => abrirVenda(s.id)}
                         >
-                          <TableCell className="font-medium">
-                            {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
+                          <TableCell>
+                            <LinkVenda s={s} />
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {nomesCorretores(s, profileName)}
@@ -1345,10 +1488,14 @@ function SalesList() {
                               {nomesLideres(s, profileName, liderIdByCorretor) || "—"}
                             </TableCell>
                           )}
-                          <TableCell className="text-muted-foreground">
-                            {s.valor_negociado
-                              ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
-                              : "Pendente"}
+                          <TableCell className="whitespace-nowrap text-right tabular-nums">
+                            {s.valor_negociado ? (
+                              <span className="font-semibold">
+                                {`R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Pendente</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -1359,11 +1506,7 @@ function SalesList() {
                                 correspondente={s.pagamento_correspondente}
                                 obaCredito={s.pagamento_oba}
                               />
-                              {minhaVez && (
-                                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                                  Sua vez
-                                </span>
-                              )}
+                              {minhaVez && <SuaVezBadge />}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1462,6 +1605,101 @@ function SalesList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/** Celular (< 768 px), só para o texto da busca; sem matchMedia (ex.: testes) vale computador. */
+function useCelular() {
+  const [celular, setCelular] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(max-width: 767px)");
+    const atualizar = () => setCelular(mql.matches);
+    atualizar();
+    mql.addEventListener("change", atualizar);
+    return () => mql.removeEventListener("change", atualizar);
+  }, []);
+  return celular;
+}
+
+function codigoDaVenda(s: Pick<SalesListRow, "id" | "imovel_id" | "codigo_interno">) {
+  return s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`;
+}
+
+/**
+ * Código do imóvel como link de verdade: abre pelo teclado (Tab + Enter) e aceita
+ * Ctrl/Cmd+clique ou botão do meio para abrir em nova aba. O clique não chega à linha.
+ */
+function LinkVenda({ s, className }: { s: SalesListRow; className?: string }) {
+  const codigo = codigoDaVenda(s);
+  return (
+    <Link
+      to="/vendas/$id"
+      params={{ id: s.id }}
+      onClick={(e) => {
+        e.stopPropagation();
+        markSalesListForReturn();
+      }}
+      aria-label={`Abrir venda ${codigo}`}
+      className={`inline-flex max-w-full items-center gap-0.5 rounded font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className ?? ""}`}
+    >
+      <span className="truncate">{codigo}</span>
+      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+    </Link>
+  );
+}
+
+/** "Sua vez" no azul da marca (vermelho fica só para atraso e exclusão). */
+function SuaVezBadge() {
+  return (
+    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+      Sua vez
+    </span>
+  );
+}
+
+/** Cartão de resumo: nome curto, número, 1 linha de apoio e um "i" com a explicação. */
+function ResumoCartao({
+  titulo,
+  valor,
+  linha,
+  aviso,
+  explicacao,
+  destaque = false,
+}: {
+  titulo: string;
+  valor: string;
+  linha: string;
+  aviso?: string;
+  explicacao: ReactNode;
+  destaque?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-3 ${destaque ? "border-primary/30 bg-primary/5" : "bg-muted/30"}`}
+      data-testid={`resumo-${titulo.toLowerCase()}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-muted-foreground">{titulo}</p>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`O que entra em ${titulo}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Info className="h-4 w-4" aria-hidden />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="end" className="w-72 text-sm">
+            {explicacao}
+          </PopoverContent>
+        </Popover>
+      </div>
+      <p className="text-lg font-semibold leading-tight tabular-nums">{valor}</p>
+      <p className="text-sm text-muted-foreground">{linha}</p>
+      {aviso && <p className="mt-1 text-xs text-muted-foreground">{aviso}</p>}
     </div>
   );
 }

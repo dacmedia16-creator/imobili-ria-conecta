@@ -107,7 +107,7 @@ async function abrirTela() {
 }
 
 function textoResumo() {
-  const cartao = screen.queryByText("Efetivadas · VGV REMAX")?.parentElement;
+  const cartao = screen.queryByTestId("resumo-efetivadas");
   return cartao?.textContent ?? "(sem cartão)";
 }
 
