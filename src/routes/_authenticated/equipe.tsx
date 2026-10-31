@@ -42,6 +42,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   Search,
@@ -60,6 +67,8 @@ import {
   Wallet,
   Banknote,
   SearchX,
+  MoreHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { CardField, EmptyState, KpiTile, ListSkeleton, PageHeader } from "@/components/visual/base";
 import {
@@ -781,70 +790,16 @@ function TeamCard({
           coLiderIds={coLeadersByTeam[team.id] ?? []}
         />
         {manageable ? (
-          <div className="flex flex-wrap gap-1.5 border-t pt-3">
-            <Button
-              size="icon"
-              variant="outline"
-              title="Ver equipe"
-              aria-label="Ver equipe"
-              onClick={() => onMembros(team)}
-            >
-              <Users className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 gap-1"
-              onClick={() => onMembros(team)}
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              Membros
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 gap-1"
-              onClick={() => onCoLideres(team)}
-            >
-              <Crown className="h-3.5 w-3.5" />
-              Líder auxiliar
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              title="Desempenho"
-              aria-label="Desempenho"
-              onClick={() => onDesempenho(team)}
-            >
-              <TrendingUp className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              title="Criar sub-equipe"
-              aria-label="Criar sub-equipe"
-              onClick={() => onCreateSub(team)}
-            >
-              <FolderPlus className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              title="Editar"
-              aria-label="Editar"
-              onClick={() => onEdit(team)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              title="Excluir"
-              aria-label="Excluir"
-              onClick={() => onDelete(team)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+          <div className="border-t pt-3">
+            <AcoesEquipe
+              team={team}
+              onMembros={onMembros}
+              onCoLideres={onCoLideres}
+              onDesempenho={onDesempenho}
+              onCreateSub={onCreateSub}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
           </div>
         ) : (
           <p className="border-t pt-3 text-xs text-muted-foreground">
@@ -867,62 +822,14 @@ function TeamCard({
                   compact
                 />
                 {canManageTeam(sub) ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      title="Ver equipe"
-                      aria-label="Ver equipe"
-                      onClick={() => onMembros(sub)}
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 gap-1"
-                      onClick={() => onMembros(sub)}
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Membros
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 gap-1"
-                      onClick={() => onCoLideres(sub)}
-                    >
-                      <Crown className="h-3.5 w-3.5" />
-                      Líder auxiliar
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      title="Desempenho"
-                      aria-label="Desempenho"
-                      onClick={() => onDesempenho(sub)}
-                    >
-                      <TrendingUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      title="Editar"
-                      aria-label="Editar"
-                      onClick={() => onEdit(sub)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      title="Excluir"
-                      aria-label="Excluir"
-                      onClick={() => onDelete(sub)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
+                  <AcoesEquipe
+                    team={sub}
+                    onMembros={onMembros}
+                    onCoLideres={onCoLideres}
+                    onDesempenho={onDesempenho}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Gerenciada por {profiles[sub.lider_id]?.nome || "outro líder"}.
@@ -934,6 +841,90 @@ function TeamCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Item 22 (FASE 2): cada cartão fica com 2 botões (Membros e Desempenho) e um "Mais"
+ * com o resto. Os destinos e as permissões são os mesmos de antes; só a arrumação mudou. */
+function AcoesEquipe({
+  team,
+  onMembros,
+  onCoLideres,
+  onDesempenho,
+  onCreateSub,
+  onEdit,
+  onDelete,
+}: {
+  team: Team;
+  onMembros: (t: Team) => void;
+  onCoLideres: (t: Team) => void;
+  onDesempenho: (t: Team) => void;
+  onCreateSub?: (t: Team) => void;
+  onEdit: (t: Team) => void;
+  onDelete: (t: Team) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" data-testid="equipe-acoes">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-9 flex-1 gap-1"
+        data-testid="equipe-acao-membros"
+        onClick={() => onMembros(team)}
+      >
+        <Users className="h-3.5 w-3.5" />
+        Membros
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-9 flex-1 gap-1"
+        data-testid="equipe-acao-desempenho"
+        onClick={() => onDesempenho(team)}
+      >
+        <TrendingUp className="h-3.5 w-3.5" />
+        Desempenho
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1"
+            data-testid="equipe-acao-mais"
+            aria-label={`Mais ações da equipe ${team.nome}`}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+            Mais
+            <ChevronDown className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onSelect={() => onCoLideres(team)}>
+            <Crown className="mr-2 h-4 w-4" />
+            Líder auxiliar
+          </DropdownMenuItem>
+          {onCreateSub && (
+            <DropdownMenuItem onSelect={() => onCreateSub(team)}>
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Criar sub-equipe
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => onEdit(team)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => onDelete(team)}
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Excluir
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -1470,12 +1461,12 @@ function MetaEditField({
     setDraft(valor != null ? String(valor) : "");
   }, [valor]);
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2" data-testid="meta-edit">
       <Input
         aria-label="Meta"
         type="number"
         step="0.01"
-        className="h-7 w-28 text-xs"
+        className="h-9 w-32 min-w-0 text-sm"
         placeholder={placeholder ?? "Definir meta"}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -1484,11 +1475,12 @@ function MetaEditField({
       <Button
         size="sm"
         variant="outline"
-        className="h-7 px-2 text-xs"
+        className="h-9 shrink-0 px-3"
+        data-testid="meta-salvar"
         disabled={saving || !draft}
         onClick={() => onSave(Number(draft))}
       >
-        {saving ? "..." : "Salvar"}
+        {saving ? "Salvando…" : "Salvar"}
       </Button>
     </div>
   );
@@ -1632,7 +1624,7 @@ function DesempenhoDialog({
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <Card>
                 <CardContent className="pt-6">
                   <p className="text-xs text-muted-foreground">Membros</p>
@@ -1653,7 +1645,7 @@ function DesempenhoDialog({
                   </p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="sm:col-span-2">
                 <CardContent className="pt-6">
                   <p className="mb-1.5 text-xs text-muted-foreground">
                     Meta da equipe — {mesAtualLabel()}

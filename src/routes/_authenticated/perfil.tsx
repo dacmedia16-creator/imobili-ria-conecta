@@ -23,13 +23,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink } from "lucide-react";
+import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink, Cake } from "lucide-react";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/visual/base";
 import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
 import { MeusDadosPagamento } from "@/components/vendas/DadosPagamento";
-import { MinhaDataNascimento } from "@/components/perfil/MinhaDataNascimento";
+import {
+  DATA_NASCIMENTO_MIN,
+  dataNascimentoMaxima,
+  erroCampoDataNascimento,
+} from "@/lib/data-nascimento";
+import { minhaDataNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
 import { MinhaFichaColaborador } from "@/components/ficha/MinhaFichaColaborador";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
@@ -78,17 +83,27 @@ function MeuAcesso() {
   const [myTeam, setMyTeam] = useState<TeamInfo | null>(null);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [savingTelefone, setSavingTelefone] = useState(false);
+  // Item 23 (FASE 2): um "Salvar" por seção. Guardamos o que veio do banco para saber o que
+  // mudou e gravar só isso, com as mesmas chamadas e validações de antes.
+  const [salvo, setSalvo] = useState({
+    telefone: "",
+    nascimento: null as string | null,
+    cpf: "",
+    creci: "",
+    remaxId: "",
+  });
+  const [nascimento, setNascimento] = useState("");
+  const [nascimentoLido, setNascimentoLido] = useState(false);
+  const [savingPessoais, setSavingPessoais] = useState(false);
   const [cpf, setCpf] = useState("");
   const [creci, setCreci] = useState("");
   const [remaxId, setRemaxId] = useState("");
-  const [savingRemaxId, setSavingRemaxId] = useState(false);
   const [registrationLoaded, setRegistrationLoaded] = useState(false);
   const [cargaPerfil, setCargaPerfil] = useState<EstadoCargaPerfil>("carregando");
   const [cargaPosicionamento, setCargaPosicionamento] = useState<EstadoCargaPerfil>("carregando");
   const [tentativaCarga, setTentativaCarga] = useState(0);
   const perfilPronto = podeSalvarPerfil(cargaPerfil);
-  const [savingRegistration, setSavingRegistration] = useState(false);
+  const [savingCadastro, setSavingCadastro] = useState(false);
   const [paginaPessoal, setPaginaPessoal] = useState("");
   const [instagram, setInstagram] = useState("");
   const [savingPublicContacts, setSavingPublicContacts] = useState(false);
@@ -138,14 +153,23 @@ function MeuAcesso() {
       setNome(data?.nome ?? "");
       setTelefone(data?.telefone ?? "");
       setRemaxId(data?.remax_id ?? "");
+      setSalvo((x) => ({ ...x, telefone: data?.telefone ?? "", remaxId: data?.remax_id ?? "" }));
       profileRegistrations()
         .then((rows) => {
           const mine = rows.find((row) => row.user_id === user.id);
           setCpf(mine?.cpf ?? "");
           setCreci(mine?.creci ?? "");
+          setSalvo((x) => ({ ...x, cpf: mine?.cpf ?? "", creci: mine?.creci ?? "" }));
           setRegistrationLoaded(true);
         })
         .catch(() => setRegistrationLoaded(false));
+      minhaDataNascimento(user.id)
+        .then((d) => {
+          setNascimento(d ?? "");
+          setSalvo((x) => ({ ...x, nascimento: d }));
+          setNascimentoLido(true);
+        })
+        .catch(() => setNascimentoLido(false));
       setAvatarUrl(data?.avatar_url ?? null);
       setPaginaPessoal(data?.pagina_pessoal_url ?? "");
       setInstagram(data?.instagram_url ?? "");
@@ -238,63 +262,92 @@ function MeuAcesso() {
     }
   };
 
-  const salvarTelefone = async () => {
-    if (!user || !perfilPronto) return;
-    setSavingTelefone(true);
+  const erroNascimento = nascimento ? erroCampoDataNascimento(nascimento, false) : null;
+  const mudouTelefone = perfilPronto && telefone !== salvo.telefone;
+  const mudouNascimento = nascimentoLido && (nascimento.trim() || null) !== salvo.nascimento;
+  const pessoaisAlterados = mudouTelefone || mudouNascimento;
+  const mudouRegistro = registrationLoaded && (cpf !== salvo.cpf || creci !== salvo.creci);
+  const mudouRemaxId = perfilPronto && remaxId !== salvo.remaxId;
+  const cadastroAlterado = mudouRegistro || mudouRemaxId;
+
+  /** Seção "Contato e aniversário": telefone + data de nascimento, um só botão. */
+  const salvarDadosPessoais = async () => {
+    if (!user || !pessoaisAlterados) return;
+    if (mudouNascimento && erroNascimento) {
+      toast.error(erroNascimento);
+      return;
+    }
+    setSavingPessoais(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ telefone: telefone.trim() || null })
-        .eq("id", user.id);
-      if (error) toast.error(error.message);
-      else toast.success("Telefone salvo");
+      if (mudouTelefone) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ telefone: telefone.trim() || null })
+          .eq("id", user.id);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        setSalvo((x) => ({ ...x, telefone }));
+      }
+      if (mudouNascimento) {
+        const nova = nascimento.trim() || null;
+        try {
+          await salvarMinhaDataNascimento(nova);
+        } catch (e: unknown) {
+          toast.error(e instanceof Error ? e.message : "Não foi possível salvar agora.");
+          return;
+        }
+        setSalvo((x) => ({ ...x, nascimento: nova }));
+      }
+      toast.success("Contato e aniversário salvos");
     } finally {
-      setSavingTelefone(false);
+      setSavingPessoais(false);
     }
   };
 
-  const salvarRemaxId = async () => {
-    if (!user || !perfilPronto) return;
-    const valor = remaxId.replace(/\D/g, "");
-    if (valor && !/^630\d{6}$/.test(valor)) {
+  /** Seção "Cadastro profissional": CPF, CRECI e ID RE/MAX, um só botão (mesmas regras de antes). */
+  const salvarCadastro = async () => {
+    if (!user || !cadastroAlterado) return;
+    const valorRemax = remaxId.replace(/\D/g, "");
+    if (mudouRemaxId && valorRemax && !/^630\d{6}$/.test(valorRemax)) {
       toast.error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
       return;
     }
-    setSavingRemaxId(true);
+    setSavingCadastro(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ remax_id: valor || null })
-        .eq("id", user.id);
-      if (error) {
-        toast.error(
-          /profiles_remax_id_(org_)?uniq|duplicate/i.test(error.message)
-            ? "Esse ID RE/MAX já está em outro cadastro. Fale com o administrador."
-            : /ID RE\/MAX invalido/i.test(error.message)
-              ? "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272)."
-              : error.message,
-        );
-      } else {
-        setRemaxId(valor);
-        toast.success("ID RE/MAX salvo");
+      if (mudouRegistro) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ cpf: cpf.trim() || null, creci: creci.trim() || null })
+          .eq("id", user.id);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        setSalvo((x) => ({ ...x, cpf, creci }));
       }
+      if (mudouRemaxId) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ remax_id: valorRemax || null })
+          .eq("id", user.id);
+        if (error) {
+          toast.error(
+            /profiles_remax_id_(org_)?uniq|duplicate/i.test(error.message)
+              ? "Esse ID RE/MAX já está em outro cadastro. Fale com o administrador."
+              : /ID RE\/MAX invalido/i.test(error.message)
+                ? "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272)."
+                : error.message,
+          );
+          return;
+        }
+        setRemaxId(valorRemax);
+        setSalvo((x) => ({ ...x, remaxId: valorRemax }));
+      }
+      toast.success("Cadastro profissional salvo");
     } finally {
-      setSavingRemaxId(false);
-    }
-  };
-
-  const salvarRegistro = async () => {
-    if (!user || !registrationLoaded) return;
-    setSavingRegistration(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ cpf: cpf.trim() || null, creci: creci.trim() || null })
-        .eq("id", user.id);
-      if (error) toast.error(error.message);
-      else toast.success("CPF e CRECI salvos no perfil");
-    } finally {
-      setSavingRegistration(false);
+      setSavingCadastro(false);
     }
   };
 
@@ -622,35 +675,95 @@ function MeuAcesso() {
               {roles.map((r) => ROLE_LABEL[r]).join(", ") || (platformAdmin ? "" : "Sem papel")}
             </b>
           </div>
-          <div className="max-w-sm">
-            <Label className="mb-1.5 block text-xs text-muted-foreground">
-              Telefone (WhatsApp)
-            </Label>
-            <div className="flex gap-2">
+          <section
+            className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2"
+            aria-labelledby="perfil-secao-contato"
+            data-testid="perfil-secao-contato"
+          >
+            <h3 id="perfil-secao-contato" className="font-medium sm:col-span-2">
+              Contato e aniversário
+            </h3>
+            <div>
+              <Label
+                htmlFor="perfil-telefone"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
+                Telefone (WhatsApp)
+              </Label>
               <Input
-                aria-label="Telefone (WhatsApp)"
+                id="perfil-telefone"
                 type="tel"
                 autoComplete="tel"
                 inputMode="tel"
                 placeholder="(11) 91234-5678"
                 value={telefone}
+                disabled={!perfilPronto}
                 onChange={(e) => setTelefone(e.target.value)}
               />
-              <Button size="sm" onClick={salvarTelefone} disabled={savingTelefone || !perfilPronto}>
-                {savingTelefone ? "Salvando…" : "Salvar"}
-              </Button>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.
+              </p>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              Usado pra avisar por WhatsApp quando uma venda estiver aguardando sua ação.
-            </p>
-          </div>
-          {user && <MinhaDataNascimento userId={user.id} />}
+            <div
+              className={
+                nascimentoLido && !salvo.nascimento
+                  ? "rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/30"
+                  : undefined
+              }
+              data-testid="perfil-nascimento"
+            >
+              <Label
+                htmlFor="perfil-nascimento"
+                className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
+                <Cake className="h-3.5 w-3.5" aria-hidden /> Data de nascimento
+              </Label>
+              <Input
+                id="perfil-nascimento"
+                type="date"
+                autoComplete="bday"
+                min={DATA_NASCIMENTO_MIN}
+                max={dataNascimentoMaxima()}
+                value={nascimento}
+                disabled={!nascimentoLido}
+                aria-invalid={Boolean(erroNascimento)}
+                onChange={(e) => setNascimento(e.target.value)}
+              />
+              {erroNascimento ? (
+                <p className="mt-1.5 text-xs text-destructive">{erroNascimento}</p>
+              ) : nascimentoLido && !salvo.nascimento ? (
+                <p className="mt-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+                  Preencha sua data de nascimento para a equipe lembrar do seu aniversário.
+                </p>
+              ) : null}
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Os colegas veem só o dia e o mês. O ano e a idade ficam só com você e a gestão da
+                imobiliária.
+              </p>
+            </div>
+            <BarraSalvarSecao
+              testId="perfil-salvar-contato"
+              rotulo="Salvar contato e aniversário"
+              alterado={pessoaisAlterados}
+              salvando={savingPessoais}
+              onSalvar={salvarDadosPessoais}
+            />
+          </section>
           {canUsePositioning && (
-            <div className="grid max-w-2xl gap-3 border-t pt-4 sm:grid-cols-2">
+            <section
+              className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2"
+              aria-labelledby="perfil-secao-cadastro"
+              data-testid="perfil-secao-cadastro"
+            >
+              <h3 id="perfil-secao-cadastro" className="font-medium sm:col-span-2">
+                Cadastro profissional
+              </h3>
               <div>
-                <Label className="mb-1.5 block">CPF do captador</Label>
+                <Label htmlFor="perfil-cpf" className="mb-1.5 block text-xs text-muted-foreground">
+                  CPF
+                </Label>
                 <Input
-                  aria-label="CPF do captador"
+                  id="perfil-cpf"
                   value={cpf}
                   maxLength={30}
                   disabled={!registrationLoaded}
@@ -658,31 +771,27 @@ function MeuAcesso() {
                 />
               </div>
               <div>
-                <Label className="mb-1.5 block">CRECI</Label>
+                <Label
+                  htmlFor="perfil-creci"
+                  className="mb-1.5 block text-xs text-muted-foreground"
+                >
+                  CRECI (opcional)
+                </Label>
                 <Input
-                  aria-label="CRECI"
+                  id="perfil-creci"
                   value={creci}
                   maxLength={50}
                   disabled={!registrationLoaded}
                   onChange={(e) => setCreci(e.target.value)}
                 />
               </div>
-              <Button
-                size="sm"
-                className="w-fit"
-                disabled={savingRegistration || !registrationLoaded}
-                onClick={salvarRegistro}
-              >
-                {savingRegistration ? "Salvando…" : "Salvar CPF e CRECI"}
-              </Button>
-            </div>
-          )}
-          {canUsePositioning && (
-            <div className="grid max-w-2xl gap-2 border-t pt-4">
-              <Label htmlFor="perfil-remax-id" className="block">
-                ID RE/MAX
-              </Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="sm:col-span-2">
+                <Label
+                  htmlFor="perfil-remax-id"
+                  className="mb-1.5 block text-xs text-muted-foreground"
+                >
+                  ID RE/MAX
+                </Label>
                 <Input
                   id="perfil-remax-id"
                   inputMode="numeric"
@@ -690,20 +799,37 @@ function MeuAcesso() {
                   className="max-w-[220px]"
                   value={remaxId}
                   maxLength={9}
+                  disabled={!perfilPronto}
                   onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
                 />
-                <Button size="sm" disabled={savingRemaxId || !perfilPronto} onClick={salvarRemaxId}>
-                  {savingRemaxId ? "Salvando…" : "Salvar ID RE/MAX"}
-                </Button>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  São os 9 números do início do código dos seus imóveis nos portais. Ex.: no imóvel
+                  630601272-190, o seu ID é 630601272. Usado no Feedback ao Proprietário.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                São os 9 números do início do código dos seus imóveis nos portais. Ex.: no imóvel
-                630601272-190, o seu ID é 630601272. Usado no Feedback ao Proprietário.
-              </p>
-            </div>
+              {!registrationLoaded && cargaPerfil === "ok" && (
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Não foi possível carregar CPF e CRECI agora; esses campos ficam travados.
+                </p>
+              )}
+              <BarraSalvarSecao
+                testId="perfil-salvar-cadastro"
+                rotulo="Salvar cadastro"
+                alterado={cadastroAlterado}
+                salvando={savingCadastro}
+                onSalvar={salvarCadastro}
+              />
+            </section>
           )}
           {canUsePositioning && (
-            <div className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2">
+            <section
+              className="grid max-w-2xl gap-4 border-t pt-4 sm:grid-cols-2"
+              aria-labelledby="perfil-secao-links"
+              data-testid="perfil-secao-links"
+            >
+              <h3 id="perfil-secao-links" className="font-medium sm:col-span-2">
+                Links públicos
+              </h3>
               <div>
                 <Label className="mb-1.5 block text-xs text-muted-foreground">
                   Página pessoal (opcional)
@@ -726,20 +852,20 @@ function MeuAcesso() {
                   onChange={(e) => setInstagram(e.target.value)}
                 />
               </div>
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                Esses links só aparecem na vitrine se o perfil público estiver ativado.
+              </p>
               <div className="sm:col-span-2">
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={salvarContatosPublicos}
                   disabled={savingPublicContacts || !perfilPronto}
+                  data-testid="perfil-salvar-links"
                 >
                   {savingPublicContacts ? "Salvando…" : "Salvar links públicos"}
                 </Button>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Esses links só aparecem na vitrine se o perfil público estiver ativado.
-                </p>
               </div>
-            </div>
+            </section>
           )}
         </CardContent>
       </Card>
@@ -1104,6 +1230,34 @@ function MeuAcesso() {
             )}
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+
+/** Rodapé de cada seção de Meu acesso: um único "Salvar" e o aviso de alteração não salva. */
+function BarraSalvarSecao({
+  testId,
+  rotulo,
+  alterado,
+  salvando,
+  onSalvar,
+}: {
+  testId: string;
+  rotulo: string;
+  alterado: boolean;
+  salvando: boolean;
+  onSalvar: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+      <Button size="sm" data-testid={testId} disabled={!alterado || salvando} onClick={onSalvar}>
+        {salvando ? "Salvando…" : rotulo}
+      </Button>
+      {alterado && !salvando && (
+        <span className="text-xs text-amber-700 dark:text-amber-400" role="status">
+          Alterações não salvas
+        </span>
       )}
     </div>
   );

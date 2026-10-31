@@ -6,7 +6,11 @@ import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  CampoPorteiro as Campo,
+  PorteiroCarregando,
+  PorteiroEntrada,
+} from "@/components/porteiro/PorteiroEntrada";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
 import {
@@ -154,13 +158,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
 
   // Quem não é candidato (admin, gestor, plataforma…) vê o sistema direto, sem tela de espera.
   if (!candidato) return <>{children}</>;
-  if (estado === "carregando") {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Carregando…
-      </div>
-    );
-  }
+  if (estado === "carregando") return <PorteiroCarregando />;
   if (estado === "completar" && perfil) {
     return (
       <CompletarPerfilTela
@@ -278,7 +276,9 @@ function CompletarPerfilTela({
     }
     const rid = remaxId.replace(/\D/g, "");
     if (rid && rid.length !== 9) {
-      toast.error("O ID RE/MAX tem 9 números (ex.: 630601272). Deixe em branco se não tiver.");
+      toast.error(
+        "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272). Deixe em branco se não tiver.",
+      );
       return;
     }
     setSalvando(true);
@@ -339,212 +339,173 @@ function CompletarPerfilTela({
   const inicial = (nome || user?.email || "?").trim()[0]?.toUpperCase() ?? "?";
 
   return (
-    <div
-      className="min-h-screen bg-muted/40 px-4 py-6 sm:py-10"
-      data-testid={onAgoraNao ? "lembrete-perfil" : "completar-perfil"}
+    <PorteiroEntrada
+      testId={onAgoraNao ? "lembrete-perfil" : "completar-perfil"}
+      etapa={1}
+      mostrarEtapas
+      descricao={
+        onAgoraNao
+          ? "Seu perfil ainda está incompleto. Coloque sua foto e confira seus dados. Leva menos de um minuto."
+          : "Antes de começar, preencha seus dados e coloque uma foto. Leva menos de um minuto."
+      }
     >
-      <div className="mx-auto w-full max-w-md space-y-5 rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
-        <div className="space-y-1 text-center">
-          <img src="/remax-icon.png" alt="RE/MAX" className="mx-auto h-10 w-10 object-contain" />
-          <h1 className="text-xl font-semibold tracking-tight">Complete seu perfil</h1>
-          <p className="text-sm text-muted-foreground">
-            {onAgoraNao
-              ? "Seu perfil ainda está incompleto. Coloque sua foto e confira seus dados. Leva menos de um minuto."
-              : "Antes de começar, preencha seus dados e coloque uma foto. Leva menos de um minuto."}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-3">
-          <Avatar
-            className={`h-28 w-28 ring-2 ring-offset-2 ring-offset-background ${erro("foto") ? "ring-destructive" : "ring-primary/20"}`}
-          >
-            <AvatarImage src={preview ?? avatarUrl ?? undefined} alt="Sua foto de perfil" />
-            <AvatarFallback className="text-3xl">
-              {preview || avatarUrl ? inicial : <UserRound className="h-12 w-12 opacity-50" />}
-            </AvatarFallback>
-          </Avatar>
-          <input
-            ref={cameraRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={escolherFoto}
-            data-testid="foto-camera"
-          />
-          <input
-            ref={galeriaRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={escolherFoto}
-            data-testid="foto-galeria"
-          />
-          <div className="grid w-full grid-cols-2 gap-2">
-            <Button type="button" variant="outline" onClick={() => cameraRef.current?.click()}>
-              <Camera className="h-4 w-4" aria-hidden /> Tirar foto
-            </Button>
-            <Button type="button" variant="outline" onClick={() => galeriaRef.current?.click()}>
-              <ImageUp className="h-4 w-4" aria-hidden /> Da galeria
-            </Button>
-          </div>
-          <p className={`text-xs ${erro("foto") ? "text-destructive" : "text-muted-foreground"}`}>
-            Foto obrigatória: rosto visível, de frente.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <Campo id="cp-nome" label="Nome completo" erro={erro("nome")} dica="Nome e sobrenome.">
-            <Input
-              id="cp-nome"
-              autoComplete="name"
-              value={nome}
-              maxLength={120}
-              onChange={(e) => setNome(e.target.value)}
-            />
-          </Campo>
-          <Campo id="cp-email" label="E-mail">
-            <Input id="cp-email" value={user?.email ?? ""} disabled readOnly />
-          </Campo>
-          <Campo
-            id="cp-telefone"
-            label="Telefone (WhatsApp)"
-            erro={erro("telefone")}
-            dica="Com DDD."
-          >
-            <Input
-              id="cp-telefone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="(15) 99123-4567"
-              value={telefone}
-              maxLength={20}
-              onChange={(e) => setTelefone(e.target.value)}
-            />
-          </Campo>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Campo
-              id="cp-cpf"
-              label="CPF"
-              erro={erro("cpf")}
-              dica={erro("cpf") ? "CPF inválido." : undefined}
-            >
-              <Input
-                id="cp-cpf"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                value={cpf}
-                maxLength={14}
-                onChange={(e) => setCpf(e.target.value)}
-              />
-            </Campo>
-            <Campo
-              id="cp-creci"
-              label="CRECI (opcional)"
-              erro={erro("creci")}
-              sufixoErro=""
-              dica={erro("creci") ? CRECI_FORMATO_INVALIDO : undefined}
-            >
-              <Input
-                id="cp-creci"
-                placeholder="Ex.: 123456-F"
-                value={creci}
-                maxLength={50}
-                onChange={(e) => setCreci(e.target.value)}
-              />
-            </Campo>
-          </div>
-          <Campo
-            id="cp-nascimento"
-            label={nascObrigatoria ? "Data de nascimento" : "Data de nascimento (opcional)"}
-            erro={tentouSalvar && Boolean(erroNasc)}
-            dica={
-              tentouSalvar && erroNasc
-                ? erroNasc
-                : "Seus colegas veem só o dia e o mês, no aniversário. O ano fica com você e a gestão."
-            }
-          >
-            <Input
-              id="cp-nascimento"
-              type="date"
-              autoComplete="bday"
-              min={DATA_NASCIMENTO_MIN}
-              max={dataNascimentoMaxima()}
-              value={dataNasc}
-              onChange={(e) => setDataNasc(e.target.value)}
-              data-testid="cp-nascimento"
-            />
-          </Campo>
-          <Campo
-            id="cp-remax"
-            label="ID RE/MAX (opcional)"
-            dica="9 números. Deixe em branco se ainda não tiver."
-          >
-            <Input
-              id="cp-remax"
-              inputMode="numeric"
-              placeholder="Ex.: 630601272"
-              value={remaxId}
-              maxLength={9}
-              onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
-            />
-          </Campo>
-        </div>
-
-        <Button className="h-11 w-full text-base" onClick={salvar} disabled={salvando}>
-          {salvando ? "Salvando…" : "Salvar e entrar"}
-        </Button>
-        {onAgoraNao ? (
-          <Button
-            variant="outline"
-            className="h-11 w-full text-base"
-            onClick={onAgoraNao}
-            disabled={salvando}
-            data-testid="lembrete-agora-nao"
-          >
-            Agora não
-          </Button>
-        ) : null}
-        <button
-          type="button"
-          className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"
-          onClick={() => void signOut().then(() => window.location.assign("/auth"))}
+      <div className="flex flex-col items-center gap-3">
+        <Avatar
+          className={`h-28 w-28 ring-2 ring-offset-2 ring-offset-background ${erro("foto") ? "ring-destructive" : "ring-primary/20"}`}
         >
-          <LogOut className="h-3.5 w-3.5" aria-hidden /> Sair
-        </button>
+          <AvatarImage src={preview ?? avatarUrl ?? undefined} alt="Sua foto de perfil" />
+          <AvatarFallback className="text-3xl">
+            {preview || avatarUrl ? inicial : <UserRound className="h-12 w-12 opacity-50" />}
+          </AvatarFallback>
+        </Avatar>
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="user"
+          className="hidden"
+          onChange={escolherFoto}
+          data-testid="foto-camera"
+        />
+        <input
+          ref={galeriaRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={escolherFoto}
+          data-testid="foto-galeria"
+        />
+        <div className="grid w-full grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={() => cameraRef.current?.click()}>
+            <Camera className="h-4 w-4" aria-hidden /> Tirar foto
+          </Button>
+          <Button type="button" variant="outline" onClick={() => galeriaRef.current?.click()}>
+            <ImageUp className="h-4 w-4" aria-hidden /> Da galeria
+          </Button>
+        </div>
+        <p className={`text-xs ${erro("foto") ? "text-destructive" : "text-muted-foreground"}`}>
+          Foto obrigatória: rosto visível, de frente.
+        </p>
       </div>
-    </div>
+
+      <div className="space-y-4">
+        <Campo id="cp-nome" label="Nome completo" erro={erro("nome")} dica="Nome e sobrenome.">
+          <Input
+            id="cp-nome"
+            autoComplete="name"
+            value={nome}
+            maxLength={120}
+            onChange={(e) => setNome(e.target.value)}
+          />
+        </Campo>
+        <Campo id="cp-email" label="E-mail">
+          <Input id="cp-email" value={user?.email ?? ""} disabled readOnly />
+        </Campo>
+        <Campo id="cp-telefone" label="Telefone (WhatsApp)" erro={erro("telefone")} dica="Com DDD.">
+          <Input
+            id="cp-telefone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(15) 99123-4567"
+            value={telefone}
+            maxLength={20}
+            onChange={(e) => setTelefone(e.target.value)}
+          />
+        </Campo>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Campo
+            id="cp-cpf"
+            label="CPF"
+            erro={erro("cpf")}
+            dica={erro("cpf") ? "CPF inválido." : undefined}
+          >
+            <Input
+              id="cp-cpf"
+              inputMode="numeric"
+              placeholder="000.000.000-00"
+              value={cpf}
+              maxLength={14}
+              onChange={(e) => setCpf(e.target.value)}
+            />
+          </Campo>
+          <Campo
+            id="cp-creci"
+            label="CRECI (opcional)"
+            erro={erro("creci")}
+            sufixoErro=""
+            dica={erro("creci") ? CRECI_FORMATO_INVALIDO : undefined}
+          >
+            <Input
+              id="cp-creci"
+              placeholder="Ex.: 123456-F"
+              value={creci}
+              maxLength={50}
+              onChange={(e) => setCreci(e.target.value)}
+            />
+          </Campo>
+        </div>
+        <Campo
+          id="cp-nascimento"
+          label={nascObrigatoria ? "Data de nascimento" : "Data de nascimento (opcional)"}
+          erro={tentouSalvar && Boolean(erroNasc)}
+          dica={
+            tentouSalvar && erroNasc
+              ? erroNasc
+              : "Seus colegas veem só o dia e o mês, no aniversário. O ano fica com você e a gestão."
+          }
+        >
+          <Input
+            id="cp-nascimento"
+            type="date"
+            autoComplete="bday"
+            min={DATA_NASCIMENTO_MIN}
+            max={dataNascimentoMaxima()}
+            value={dataNasc}
+            onChange={(e) => setDataNasc(e.target.value)}
+            data-testid="cp-nascimento"
+          />
+        </Campo>
+        <Campo
+          id="cp-remax"
+          label="ID RE/MAX (opcional)"
+          dica="9 números começando com 630 (ex.: 630601272). Deixe em branco se ainda não tiver."
+        >
+          <Input
+            id="cp-remax"
+            inputMode="numeric"
+            placeholder="Ex.: 630601272"
+            value={remaxId}
+            maxLength={9}
+            onChange={(e) => setRemaxId(e.target.value.replace(/\D/g, ""))}
+          />
+        </Campo>
+      </div>
+
+      <Button className="h-11 w-full text-base" onClick={salvar} disabled={salvando}>
+        {salvando ? "Salvando…" : "Salvar e entrar"}
+      </Button>
+      {onAgoraNao ? (
+        <Button
+          variant="outline"
+          className="h-11 w-full text-base"
+          onClick={onAgoraNao}
+          disabled={salvando}
+          data-testid="lembrete-agora-nao"
+        >
+          Agora não
+        </Button>
+      ) : null}
+      <button
+        type="button"
+        className="mx-auto flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        onClick={() => void signOut().then(() => window.location.assign("/auth"))}
+      >
+        <LogOut className="h-3.5 w-3.5" aria-hidden /> Sair
+      </button>
+    </PorteiroEntrada>
   );
 }
 
 const CRECI_FORMATO_INVALIDO =
   "Formato de CRECI inválido — corrija ou deixe em branco. Use só letras, números e - . /";
-
-function Campo({
-  id,
-  label,
-  erro,
-  sufixoErro = " — obrigatório",
-  dica,
-  children,
-}: {
-  id: string;
-  label: string;
-  erro?: boolean;
-  /** Texto colado ao rótulo quando há erro. CRECI passa "" (opcional sempre, t_6b800cea). */
-  sufixoErro?: string;
-  dica?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className={erro ? "text-destructive" : undefined}>
-        {label}
-        {erro ? sufixoErro : ""}
-      </Label>
-      {children}
-      {dica && <p className="text-xs text-muted-foreground">{dica}</p>}
-    </div>
-  );
-}
