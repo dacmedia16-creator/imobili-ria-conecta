@@ -88,8 +88,8 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
         <TableHeader>
           <TableRow>
             <TableHead>{AGRUPAMENTO_LABEL[agrupamento]}</TableHead>
-            <TableHead>Qtd.</TableHead>
-            <TableHead>Valor calculado</TableHead>
+            <TableHead className="text-right">Qtd.</TableHead>
+            <TableHead className="text-right">Valor calculado</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -105,8 +105,10 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
               <TableCell className="font-medium">
                 {agrupamento === "papel" ? (PAPEL_LABEL[g.label] ?? g.label) : g.label}
               </TableCell>
-              <TableCell className="text-muted-foreground">{g.quantidade}</TableCell>
-              <TableCell className="font-semibold">{money(g.valorTotal)}</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">{g.quantidade}</TableCell>
+              <TableCell className="text-right font-semibold tabular-nums">
+                {money(g.valorTotal)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -165,7 +167,7 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
               <TableHead>Equipe</TableHead>
               <TableHead>Gestor</TableHead>
               <TableHead>%</TableHead>
-              <TableHead>Valor calculado</TableHead>
+              <TableHead className="text-right">Valor calculado</TableHead>
               <TableHead>Origem</TableHead>
               <TableHead>Recebimento da venda</TableHead>
               <TableHead>Divergência</TableHead>
@@ -201,7 +203,7 @@ export function ComissoesCalculadasTable({ rows }: { rows: ComissaoCalculada[] }
                 <TableCell className="text-muted-foreground">
                   {r.percentual != null ? `${r.percentual}%` : "—"}
                 </TableCell>
-                <TableCell className="font-medium">{money(r.valor)}</TableCell>
+                <TableCell className="text-right font-medium tabular-nums">{money(r.valor)}</TableCell>
                 <TableCell>
                   <Badge variant={r.origem === "manual" ? "outline" : "secondary"}>
                     {r.origem === "manual" ? "Ajuste manual" : "Automática"}

@@ -9,7 +9,7 @@ const MOTIVO_LABEL: Record<MotivoInconsistencia, string> = {
 };
 
 const MODALIDADE_LABEL: Record<string, string> = {
-  padrao: "Venda tradicional",
+  padrao: "Padrão",
   lancamento: "Lançamento",
 };
 

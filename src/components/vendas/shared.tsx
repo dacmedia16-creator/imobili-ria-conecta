@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldLabelContext } from "@/components/ui/field-context";
 import { CircleHelp, Loader2 } from "lucide-react";
+import { formatBRLOu } from "@/lib/formato-moeda";
 
 export type Saver = () => Promise<boolean>;
 
@@ -317,8 +318,7 @@ export function CurrencyInput({
   );
 }
 
-export const money = (v: unknown) =>
-  v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
+export const money = (v: unknown) => formatBRLOu(v, null);
 // Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
 // como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
 // Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.

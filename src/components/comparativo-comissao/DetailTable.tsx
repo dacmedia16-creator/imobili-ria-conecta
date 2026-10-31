@@ -21,14 +21,14 @@ import { SituacaoBadge } from "./SituacaoBadge";
 import { formatMoney, formatPercent, formatDateBR } from "./format";
 
 const MODALIDADE_LABEL: Record<string, string> = {
-  padrao: "Venda tradicional",
+  padrao: "Padrão",
   lancamento: "Lançamento",
 };
 
 // "numerica: true" alinha coluna+valores à direita (leitura/comparação de números fica mais fácil
 // em coluna do que espalhada à esquerda) — mesma convenção usada em MonthlyGrouping.
 const COLUNAS: { campo: OrdenacaoCampo; label: string; numerica?: boolean }[] = [
-  { campo: "data", label: "Efetivada em" },
+  { campo: "data", label: "Assinada/efetivada em" },
   { campo: "valor_negociado", label: "Valor do imóvel", numerica: true },
   { campo: "valor_comissao", label: "Comissão REMAX", numerica: true },
   { campo: "percentual_real", label: "% real", numerica: true },
@@ -100,7 +100,8 @@ export function DetailTable({ rows }: { rows: ComparativoRowComCalculo[] }) {
                     {r.codigo_interno || r.imovel_id || `Venda #${r.sale_id.slice(0, 8)}`}
                   </Link>
                   <p className="break-words text-xs text-muted-foreground">
-                    Efetivada em {formatDateBR(r.data_fechamento)} ·{" "}
+                    {r.modalidade === "lancamento" ? "Efetivada em" : "Assinada em"}{" "}
+                    {formatDateBR(r.data_fechamento)} ·{" "}
                     {MODALIDADE_LABEL[r.modalidade] ?? r.modalidade}
                   </p>
                 </div>

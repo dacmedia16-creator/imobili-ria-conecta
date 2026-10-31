@@ -74,6 +74,7 @@ import { confirmarLinhaAlterada } from "@/lib/relatorios-integridade";
 import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 import { dataOficialVendaComercial } from "@/lib/data-assinatura-oficial";
+import { formatBRLOu } from "@/lib/formato-moeda";
 
 type ReportSale = Pick<
   SaleRow,
@@ -128,8 +129,7 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
   component: RelatoriosPage,
 });
 
-const money = (v: unknown) =>
-  v != null ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
+const money = (v: unknown) => formatBRLOu(v, "—");
 // Colunas `date` do banco chegam como "YYYY-MM-DD" sem hora — `new Date(...)` direto interpreta isso
 // como meia-noite UTC, e em fusos atrás de UTC (Brasil) o toLocaleDateString mostra o dia anterior.
 // Datas com hora (timestamptz) continuam indo pro Date normal, que já lida certo com fuso.
@@ -826,7 +826,7 @@ function FluxoCaixaTab({
                   <TableHead>Parcela</TableHead>
                   <TableHead>Data prevista</TableHead>
                   <TableHead>Forma</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -856,7 +856,7 @@ function FluxoCaixaTab({
                     <TableCell>{r.parcela}ª</TableCell>
                     <TableCell>{dateBR(r.data)}</TableCell>
                     <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                    <TableCell>{money(r.valor)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(r.valor)}</TableCell>
                     <TableCell>
                       {r.recebidoEm ? (
                         <span className="text-emerald-700 dark:text-emerald-400">
@@ -1160,7 +1160,7 @@ function ComissoesTab({
                 <TableHead>Papel</TableHead>
                 <TableHead>Beneficiário</TableHead>
                 <TableHead>%</TableHead>
-                <TableHead>Valor</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Assinada em</TableHead>
               </TableRow>
             </TableHeader>
@@ -1188,7 +1188,7 @@ function ComissoesTab({
                   <TableCell className="text-muted-foreground">
                     {r.percentual != null ? `${r.percentual}%` : "—"}
                   </TableCell>
-                  <TableCell>{money(r.valor)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(r.valor)}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {dateBR(vendaComercialEm[r.occ.sale_id])}
                   </TableCell>
@@ -1327,7 +1327,7 @@ function FinanciamentosTab({
                 <TableHead>Corretor</TableHead>
                 <TableHead>Banco</TableHead>
                 <TableHead>Correspondente</TableHead>
-                <TableHead>Valor</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Oba Crédito</TableHead>
                 <TableHead>Previsão liberação</TableHead>
                 <TableHead>Status da venda</TableHead>
@@ -1355,7 +1355,7 @@ function FinanciamentosTab({
                   <TableCell className="text-muted-foreground">
                     {r.occ.financiamento_correspondente ?? "—"}
                   </TableCell>
-                  <TableCell>{money(r.occ.financiamento_valor)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(r.occ.financiamento_valor)}</TableCell>
                   <TableCell>
                     {r.occ.oba_credito ? (
                       <Badge variant="secondary">Oba Crédito</Badge>

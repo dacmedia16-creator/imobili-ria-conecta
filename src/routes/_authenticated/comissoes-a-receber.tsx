@@ -641,7 +641,7 @@ function ComissoesAReceberPage() {
                       <TableHead>Data prevista</TableHead>
                       <TableHead>Recebida em</TableHead>
                       <TableHead>Forma</TableHead>
-                      <TableHead>Valor</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
                       <TableHead>Situação</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -685,7 +685,7 @@ function ComissoesAReceberPage() {
                         <TableCell>{r.data ? dateBR(r.data) : "—"}</TableCell>
                         <TableCell>{r.recebidoEm ? dateBR(r.recebidoEm) : "—"}</TableCell>
                         <TableCell className="text-muted-foreground">{r.forma ?? "—"}</TableCell>
-                        <TableCell>{money(r.valor)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{money(r.valor)}</TableCell>
                         <TableCell>
                           <SituacaoParcela status={r.status} vencida={!!r.data && r.data < hoje} />
                         </TableCell>

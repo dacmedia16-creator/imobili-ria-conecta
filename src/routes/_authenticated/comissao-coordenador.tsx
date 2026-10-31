@@ -27,6 +27,7 @@ import {
   type RelatorioComissaoCoordenador,
   type Secao,
 } from "@/lib/comissao-coordenador";
+import { formatBRL } from "@/lib/formato-moeda";
 
 export const Route = createFileRoute("/_authenticated/comissao-coordenador")({
   head: () => ({ meta: [{ title: "Comissão por Coordenador" }] }),
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/_authenticated/comissao-coordenador")({
 
 const BLOCO_LABEL = { AGENTES: "Agentes", TEAM_LEADERS: "Team Leaders" } as const;
 
-const money = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+const money = (v: number) => formatBRL(v);
 
 /** Últimos 12 meses (mês atual primeiro) — value no formato "YYYY-MM-01", que é o que a RPC espera. */
 function ultimosMeses(): { value: string; label: string }[] {
