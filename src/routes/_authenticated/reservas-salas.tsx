@@ -37,12 +37,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   getInclusiveRoomReservationDates,
   getRoomReservationCancellationNotice,
   getRoomReservationDateRangeConflicts,
   getRoomReservationPeriodTimes,
   intervalsOverlap,
+  getRoomReservationCancelWarning,
+  getRoomSlotState,
   isRoomReservationBlocked,
   ROOM_RESERVATION_PURPOSES,
   timeToMinutes,
@@ -97,11 +100,20 @@ type Reservation = {
   status: "confirmed" | "canceled";
   canCancel: boolean;
   hasDetails: boolean;
+  /** Quando a reserva foi criada (só nas reservas com detalhe); usado no aviso de cancelamento. */
+  createdAt: string | null;
 };
 
 type DraftReservation = Omit<
   Reservation,
-  "id" | "groupId" | "status" | "participants" | "responsibleId" | "canCancel" | "hasDetails"
+  | "id"
+  | "groupId"
+  | "status"
+  | "participants"
+  | "responsibleId"
+  | "canCancel"
+  | "hasDetails"
+  | "createdAt"
 > & {
   participants: string;
   period: RoomReservationPeriod;
@@ -166,6 +178,7 @@ const mapReservation = (
   status: row.status as Reservation["status"],
   canCancel,
   hasDetails: true,
+  createdAt: row.created_at ?? null,
 });
 
 type RoomOccupancyRow = {
@@ -197,6 +210,7 @@ const mapOccupancy = (row: RoomOccupancyRow): Reservation => ({
   status: "confirmed",
   canCancel: false,
   hasDetails: false,
+  createdAt: null,
 });
 
 const groupReservationsByPeriod = (items: Reservation[]): Reservation[] => {
@@ -254,6 +268,8 @@ function RoomReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Cancelar sempre passa por confirmação, com o aviso da regra de bloqueio (item 4 t_8730be75).
+  const [cancelando, setCancelando] = useState<Reservation | null>(null);
   const [cancellationStatus, setCancellationStatus] =
     useState<RoomReservationCancellationStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -528,7 +544,9 @@ function RoomReservationsPage() {
           <Button
             className="w-full sm:w-auto"
             onClick={() => openNewReservation()}
-            disabled={loadingRooms || roomError || rooms.length === 0}
+            disabled={
+              loadingRooms || roomError || rooms.length === 0 || loadingReservations || !!loadError
+            }
           >
             <Plus className="mr-2 h-4 w-4" /> Reservar sala
           </Button>
@@ -541,10 +559,10 @@ function RoomReservationsPage() {
         <AlertDescription>
           As reservas são salvas no banco da imobiliária. O cancelamento pode ser feito a qualquer
           momento pelo responsável; gestores e team leaders, as reservas da própria equipe; staff,
-          administradores e administradores principais, qualquer reserva da imobiliária. Cancelamentos
-          feitos pelo responsável depois da primeira hora contam para a regra de bloqueio: ao
-          atingir 3, o usuário fica 7 dias corridos sem poder reservar. Staff não tem limite de
-          cancelamentos nem bloqueio.
+          administradores e administradores principais, qualquer reserva da imobiliária.
+          Cancelamentos feitos pelo responsável depois da primeira hora contam para a regra de
+          bloqueio: ao atingir 3, o usuário fica 7 dias corridos sem poder reservar. Staff não tem
+          limite de cancelamentos nem bloqueio.
         </AlertDescription>
       </Alert>
       {roomError && (
@@ -674,6 +692,27 @@ function RoomReservationsPage() {
                   </div>
                   {visibleRooms.map((room) => {
                     const reservation = reservationForSlot(room, slot);
+                    // Enquanto a agenda carrega (ou se falhou), nada aparece como "Livre" nem
+                    // aceita clique: evita reservar por cima de um horário ocupado (item 5).
+                    const estado = getRoomSlotState({
+                      loading: loadingReservations,
+                      loadFailed: !!loadError,
+                      occupied: !!reservation,
+                    });
+                    if (estado === "carregando" || estado === "indisponivel") {
+                      return (
+                        <div
+                          key={`${room}-${slot}`}
+                          data-testid="slot-indisponivel"
+                          aria-hidden="true"
+                          className={
+                            estado === "carregando"
+                              ? "min-h-16 min-w-0 flex-1 animate-pulse rounded-md border bg-muted/50"
+                              : "min-h-16 min-w-0 flex-1 rounded-md border border-dashed bg-muted/30"
+                          }
+                        />
+                      );
+                    }
                     return reservation ? (
                       <button
                         key={`${room}-${slot}`}
@@ -741,7 +780,7 @@ function RoomReservationsPage() {
                     </div>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => cancelReservation(reservation.id)}>
+                <Button variant="ghost" size="sm" onClick={() => setCancelando(reservation)}>
                   <XCircle className="mr-1 h-4 w-4" /> Cancelar
                 </Button>
               </div>
@@ -773,11 +812,7 @@ function RoomReservationsPage() {
                       {reservation.start} às {reservation.end} · {reservation.responsible}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => cancelReservation(reservation.id)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setCancelando(reservation)}>
                     <XCircle className="mr-1 h-4 w-4" /> Cancelar
                   </Button>
                 </div>
@@ -1120,9 +1155,9 @@ function RoomReservationsPage() {
               <Button
                 variant="destructive"
                 onClick={() => {
-                  const reservationId = selectedReservation.id;
+                  const reservation = selectedReservation;
                   setSelectedReservation(null);
-                  void cancelReservation(reservationId);
+                  setCancelando(reservation);
                 }}
               >
                 <XCircle className="mr-1 h-4 w-4" /> Cancelar reserva
@@ -1134,6 +1169,48 @@ function RoomReservationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!cancelando}
+        onOpenChange={(o) => {
+          if (!o) setCancelando(null);
+        }}
+        testId="confirmar-cancelar-reserva"
+        title="Cancelar esta reserva?"
+        description={
+          cancelando ? (
+            <>
+              <p>
+                {cancelando.room} · {formatReservationPeriod(cancelando.date, cancelando.endDate)} ·{" "}
+                {cancelando.start} às {cancelando.end}
+                {cancelando.responsibleId !== user?.id ? ` · ${cancelando.responsible}` : ""}
+              </p>
+              {(() => {
+                const aviso = getRoomReservationCancelWarning({
+                  isOwn: cancelando.responsibleId === user?.id,
+                  createdAt: cancelando.createdAt,
+                  status: cancellationStatus,
+                  isStaff,
+                });
+                return (
+                  <p
+                    data-testid="aviso-bloqueio-cancelamento"
+                    className={aviso.countsForPenalty ? "font-medium text-foreground" : undefined}
+                  >
+                    {aviso.text}
+                  </p>
+                );
+              })()}
+            </>
+          ) : null
+        }
+        cancelLabel="Manter reserva"
+        confirmLabel="Cancelar reserva"
+        destructive
+        onConfirm={() => {
+          if (cancelando) void cancelReservation(cancelando.id);
+        }}
+      />
     </div>
   );
 }

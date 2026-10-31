@@ -33,6 +33,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CurrencyInput } from "@/components/vendas/shared";
 import { STATUS_LABEL, type SaleStatus } from "@/lib/status";
@@ -748,6 +749,9 @@ function FluxoCaixaTab({
     }
   };
 
+  // Desfazer apaga a data e o valor recebidos: sempre pede confirmação antes (item 3 t_8730be75).
+  const [desfazendo, setDesfazendo] = useState<(typeof rows)[number] | null>(null);
+
   const desfazerRecebido = async (occId: string, parcela: number) => {
     try {
       const result = await supabase
@@ -850,11 +854,7 @@ function FluxoCaixaTab({
                     </TableCell>
                     <TableCell>
                       {r.recebidoEm ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => desfazerRecebido(r.occId, r.parcela)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => setDesfazendo(r)}>
                           Desfazer
                         </Button>
                       ) : (
@@ -918,7 +918,7 @@ function FluxoCaixaTab({
                     size="sm"
                     variant="ghost"
                     className="w-full"
-                    onClick={() => desfazerRecebido(r.occId, r.parcela)}
+                    onClick={() => setDesfazendo(r)}
                   >
                     Desfazer
                   </Button>
@@ -978,6 +978,32 @@ function FluxoCaixaTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!desfazendo}
+        onOpenChange={(o) => {
+          if (!o) setDesfazendo(null);
+        }}
+        testId="confirmar-desfazer-recebimento"
+        title="Desfazer este recebimento?"
+        description={
+          desfazendo ? (
+            <>
+              <p>
+                {saleLabel(desfazendo.sale)} — {desfazendo.parcela}ª parcela
+                {desfazendo.recebidoEm ? `, recebida em ${dateBR(desfazendo.recebidoEm)}` : ""}
+                {desfazendo.recebidoValor != null ? ` (${money(desfazendo.recebidoValor)})` : ""}.
+              </p>
+              <p>A data e o valor recebidos serão apagados e a parcela volta para “A vencer”.</p>
+            </>
+          ) : null
+        }
+        confirmLabel="Desfazer recebimento"
+        destructive
+        onConfirm={() => {
+          if (desfazendo) void desfazerRecebido(desfazendo.occId, desfazendo.parcela);
+        }}
+      />
     </div>
   );
 }
