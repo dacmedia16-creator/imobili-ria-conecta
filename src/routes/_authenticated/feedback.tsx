@@ -56,7 +56,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 
 export const Route = createFileRoute("/_authenticated/feedback")({
   head: () => ({ meta: [{ title: "Feedback ao proprietário" }] }),
@@ -256,9 +256,6 @@ function FeedbackPage() {
                     ? `${l.lines.length} portal(is)`
                     : "Sem números dos portais ainda"}
                 </div>
-                <Pill tom="blue" className="mt-1.5">
-                  Sua vez: revisar e enviar
-                </Pill>
               </div>
               <div className="flex shrink-0 gap-3 text-xs tabular-nums sm:block sm:text-right">
                 <div>{n(totalViews(l))} visualizações</div>

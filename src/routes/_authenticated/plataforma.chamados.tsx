@@ -23,6 +23,7 @@ import {
   type FiltroCentral,
 } from "@/lib/ajuda-sugestoes";
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
+import { clicavelPorTeclado } from "@/lib/clicavel";
 
 export const Route = createFileRoute("/_authenticated/plataforma/chamados")({
   head: () => ({ meta: [{ title: "Central de chamados" }] }),
@@ -231,7 +232,9 @@ function CentralChamados() {
                   <tr
                     key={c.id}
                     onClick={() => setSel(c.id)}
-                    className={`cursor-pointer border-b ${sel === c.id ? "bg-primary/10" : "hover:bg-muted"}`}
+                    {...clicavelPorTeclado(() => setSel(c.id), `Abrir chamado ${c.numero}`)}
+                    aria-pressed={sel === c.id}
+                    className={`cursor-pointer border-b focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary ${sel === c.id ? "bg-primary/10" : "hover:bg-muted"}`}
                   >
                     <td className="p-2 font-medium">{c.numero}</td>
                     <td className="p-2">

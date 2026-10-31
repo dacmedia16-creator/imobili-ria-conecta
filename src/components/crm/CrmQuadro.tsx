@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -59,14 +59,30 @@ function Cartao({
     id: p.lead.id,
     disabled: !arrastavel,
   });
+  // Teclado (item 11 t_532125eb): Enter abre o lead; Espaço pega/solta o cartão para mover com as
+  // setas (o KeyboardSensor do quadro só começa arrasto com Espaço).
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" && e.target === e.currentTarget && !isDragging) {
+      e.preventDefault();
+      onOpen();
+      return;
+    }
+    listeners?.onKeyDown?.(e);
+  };
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      onKeyDown={onKeyDown}
       onClick={onOpen}
+      aria-label={`Lead ${p.lead.nome}. Enter abre; Espaço pega para mover com as setas.`}
       data-testid="crm-cartao"
-      className={cn(classeCartao(p.lead, p.hoje), isDragging && "opacity-40")}
+      className={cn(
+        classeCartao(p.lead, p.hoje),
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        isDragging && "opacity-40",
+      )}
     >
       <ConteudoCartao {...p} />
     </div>

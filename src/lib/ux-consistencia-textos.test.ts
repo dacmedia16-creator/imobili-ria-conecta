@@ -26,7 +26,7 @@ describe("consistência dos textos com a regra comercial", () => {
 
   it("explica os perfis permitidos antes de criar vendas", () => {
     expect(source("routes/_authenticated/vendas.nova.tsx")).toContain(
-      "Somente corretores, gestores e Team Leaders",
+      "Somente corretores, gestores, Team Leaders e administradores",
     );
     expect(source("routes/_authenticated/vendas.lancamento.nova.tsx")).toContain(
       "Você não possui um perfil autorizado para criar Lançamentos",

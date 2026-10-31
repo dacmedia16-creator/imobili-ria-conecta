@@ -1196,7 +1196,7 @@ function MovimentacaoPeriodoSection() {
                 quantidade={dado?.futurasQuantidade ?? 0}
                 info='Vendas cujo status mais avançado dentro do período foi "venda futura". Cada
                   venda conta uma única vez, pelo status mais recente atingido na janela — não é o
-                  total atual (isso é o "VGV ativo total", no painel financeiro).'
+                  total atual da carteira.'
               />
               <MovimentacaoCard
                 icon={FileSignature}
@@ -1225,10 +1225,9 @@ function MovimentacaoPeriodoSection() {
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Cada venda conta uma única vez, pelo status mais recente atingido dentro do período
-              selecionado — não é o saldo atual (para isso, veja "VGV ativo total" nos painéis
-              abaixo). Venda de Lançamento nunca passa por contrato assinado (vai direto pro
-              financeiro em parceria com a construtora) — por isso conta separado das confirmadas
-              por contrato.
+              selecionado — não é o saldo atual da carteira. Venda de Lançamento nunca passa por
+              contrato assinado (vai direto pro financeiro em parceria com a construtora) — por isso
+              conta separado das confirmadas por contrato.
             </p>
             {semDataTotal > 0 && (
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">

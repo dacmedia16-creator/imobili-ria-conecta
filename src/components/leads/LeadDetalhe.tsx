@@ -140,8 +140,12 @@ export function LeadDetalhe({
 
         <div className="mt-4 space-y-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <Pill tom={ETAPA_TOM[lead.etapa]}>{ETAPA_LABEL[lead.etapa]}</Pill>
-            <span className="text-muted-foreground">desde {dataHora(lead.etapa_em)}</span>
+            {/* No CRM a etapa já aparece no bloco "CRM · funil" com o nome do funil: não repetir
+                com outro nome e outra cor (item 15 t_532125eb). */}
+            {!crm && <Pill tom={ETAPA_TOM[lead.etapa]}>{ETAPA_LABEL[lead.etapa]}</Pill>}
+            <span className="text-muted-foreground">
+              {crm ? "Na etapa atual desde" : "desde"} {dataHora(lead.etapa_em)}
+            </span>
             {lead.simulado && <Pill tom="slate">Simulado</Pill>}
           </div>
           {prazo && (

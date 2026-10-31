@@ -38,6 +38,7 @@ import {
   type Funil,
 } from "@/lib/crm";
 import { definirFunil, listarLeadsCrm } from "@/lib/crm-db";
+import { clicavelPorTeclado } from "@/lib/clicavel";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -96,7 +97,10 @@ export function CrmPagina() {
     exclusiveEnabled()
       .then((on) => {
         setCaptacaoLigada(on);
-        if (on) void listUnits().then(setUnidades).catch(() => undefined);
+        if (on)
+          void listUnits()
+            .then(setUnidades)
+            .catch(() => undefined);
       })
       .catch(() => undefined);
   }, [carregar]);
@@ -195,7 +199,10 @@ export function CrmPagina() {
                 ))}
             </select>
             {!convertido && l.etapa !== "perdido" && (f === "venda" || captacaoLigada) && (
-              <Button size="sm" onClick={() => setPedido({ lead: l, para: "ganho", tipo: "fechar" })}>
+              <Button
+                size="sm"
+                onClick={() => setPedido({ lead: l, para: "ganho", tipo: "fechar" })}
+              >
                 {FUNIL[f].conv}
               </Button>
             )}
@@ -281,8 +288,9 @@ export function CrmPagina() {
               {fila.map(({ lead: l, motivo }) => (
                 <Card
                   key={l.id}
-                  className="cursor-pointer transition hover:border-primary/50"
+                  className="cursor-pointer transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={() => setAbertoId(l.id)}
+                  {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
                 >
                   <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
                     <div className="min-w-0">
@@ -313,7 +321,12 @@ export function CrmPagina() {
                 label="Parados / sem próximo passo"
                 value={String(resumo.parados.length)}
               />
-              <KpiTile icon={Trophy} tom="green" label="Convertidos" value={String(resumo.convertidos)} />
+              <KpiTile
+                icon={Trophy}
+                tom="green"
+                label="Convertidos"
+                value={String(resumo.convertidos)}
+              />
               <KpiTile
                 icon={Percent}
                 tom="violet"
@@ -331,8 +344,9 @@ export function CrmPagina() {
                   {resumo.parados.slice(0, 50).map(({ lead: l, estado, dias }) => (
                     <Card
                       key={l.id}
-                      className="cursor-pointer border-red-300 transition hover:border-primary/50"
+                      className="cursor-pointer border-red-300 transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       onClick={() => setAbertoId(l.id)}
+                      {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
                     >
                       <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
                         <div className="min-w-0">

@@ -89,6 +89,7 @@ function AdminPositioning() {
   const { hasAny } = useAuth();
   const isAdmin = hasAny(["admin", "super_admin"]);
   const [items, setItems] = useState<Suggestion[]>([]);
+  const [abaEscolhida, setAbaEscolhida] = useState<string | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<Suggestion | null>(null);
   const [saving, setSaving] = useState(false);
@@ -287,7 +288,8 @@ function AdminPositioning() {
     ? ativas.filter(
         (r) =>
           r.id !== decidindo.region.id &&
-          r.cidade.toLocaleLowerCase("pt-BR") === decidindo.region.cidade.toLocaleLowerCase("pt-BR"),
+          r.cidade.toLocaleLowerCase("pt-BR") ===
+            decidindo.region.cidade.toLocaleLowerCase("pt-BR"),
       )
     : [];
 
@@ -304,12 +306,17 @@ function AdminPositioning() {
         }
       />
 
-      <Tabs defaultValue={pendentes.length > 0 && items.length === 0 ? "pedidos" : "sugestoes"}>
+      {/* Aba controlada (item 15 t_532125eb): o defaultValue era lido antes de os dados chegarem e
+          sempre abria "Sugestões". Agora segue os dados até a pessoa escolher uma aba. */}
+      <Tabs
+        value={
+          abaEscolhida ?? (pendentes.length > 0 && items.length === 0 ? "pedidos" : "sugestoes")
+        }
+        onValueChange={setAbaEscolhida}
+      >
         <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="sugestoes">Sugestões dos corretores ({items.length})</TabsTrigger>
-          <TabsTrigger value="pedidos">
-            Regiões novas para aprovar ({pendentes.length})
-          </TabsTrigger>
+          <TabsTrigger value="pedidos">Regiões novas para aprovar ({pendentes.length})</TabsTrigger>
           <TabsTrigger value="lista">Regiões da imobiliária ({ativas.length})</TabsTrigger>
           {platformPending && (
             <TabsTrigger value="plataforma">Plataforma ({platformPending.length})</TabsTrigger>
@@ -323,8 +330,8 @@ function AdminPositioning() {
           )}
           <p className="text-xs text-muted-foreground">
             Ao aprovar, a região passa a valer na hora para a sua imobiliária e o corretor que
-            sugeriu é vinculado a ela. Se a região já existir na cidade, nada é duplicado. As
-            outras imobiliárias da mesma cidade recebem o pedido e decidem se também usam.
+            sugeriu é vinculado a ela. Se a região já existir na cidade, nada é duplicado. As outras
+            imobiliárias da mesma cidade recebem o pedido e decidem se também usam.
           </p>
           <div className="grid gap-4">
             {items.map((item) => {
@@ -425,8 +432,7 @@ function AdminPositioning() {
                     <div className="break-words font-medium">{r.nome}</div>
                     <div className="text-xs text-muted-foreground">
                       {r.cidade}/{r.uf}
-                      {r.zona ? ` · ${r.zona}` : ""} · {r.tipo} · pedido por{" "}
-                      <b>{r.origem_nome}</b>
+                      {r.zona ? ` · ${r.zona}` : ""} · {r.tipo} · pedido por <b>{r.origem_nome}</b>
                       {r.pedido_por ? ` (${r.pedido_por})` : ""}
                     </div>
                   </div>
@@ -437,7 +443,9 @@ function AdminPositioning() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setDecidindo({ region: r, modo: "juntar", motivo: "", alvo: "" })}
+                      onClick={() =>
+                        setDecidindo({ region: r, modo: "juntar", motivo: "", alvo: "" })
+                      }
                       disabled={saving}
                     >
                       <Merge className="mr-1 h-4 w-4" /> Juntar com existente
@@ -523,9 +531,9 @@ function AdminPositioning() {
               </div>
               <p className="text-xs text-muted-foreground">
                 UF: {nova.uf || "cadastre a UF em Dados da imobiliária"}. Se outra imobiliária da
-                cidade{agency ? ` (${agency.cidade})` : ""} já tiver a região com o mesmo nome, ela é
-                reaproveitada. Se for nova, vale na hora para você e as outras imobiliárias da cidade
-                decidem se usam.
+                cidade{agency ? ` (${agency.cidade})` : ""} já tiver a região com o mesmo nome, ela
+                é reaproveitada. Se for nova, vale na hora para você e as outras imobiliárias da
+                cidade decidem se usam.
               </p>
               <Button onClick={criar} disabled={saving || !nova.nome.trim() || !nova.uf}>
                 Criar região
@@ -566,7 +574,12 @@ function AdminPositioning() {
                     >
                       <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => desativar(r)} disabled={saving}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => desativar(r)}
+                      disabled={saving}
+                    >
                       Desativar
                     </Button>
                   </div>
@@ -575,9 +588,9 @@ function AdminPositioning() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Só a imobiliária que criou pode renomear ou desativar a região, e apenas enquanto
-            nenhum corretor de outra imobiliária a usa. Nos demais casos, fale com o administrador
-            da plataforma.
+            Só a imobiliária que criou pode renomear ou desativar a região, e apenas enquanto nenhum
+            corretor de outra imobiliária a usa. Nos demais casos, fale com o administrador da
+            plataforma.
           </p>
         </TabsContent>
 
@@ -641,16 +654,16 @@ function AdminPositioning() {
                 </div>
               )}
               <div>
-                <Label>
-                  Motivo{decidindo.modo === "juntar" ? " (opcional)" : ""}
-                </Label>
+                <Label>Motivo{decidindo.modo === "juntar" ? " (opcional)" : ""}</Label>
                 <Input
                   aria-label="Motivo"
                   value={decidindo.motivo}
                   maxLength={500}
                   onChange={(e) => setDecidindo({ ...decidindo, motivo: e.target.value })}
                   placeholder={
-                    decidindo.modo === "recusar" ? "Ex.: não atuamos nessa região" : "Ex.: é o mesmo bairro"
+                    decidindo.modo === "recusar"
+                      ? "Ex.: não atuamos nessa região"
+                      : "Ex.: é o mesmo bairro"
                   }
                 />
               </div>
