@@ -52,7 +52,7 @@ export const Route = createFileRoute("/_authenticated/minha-carreira")({
 const db = supabase as unknown as SupabaseClient;
 
 const TOM: Record<PendenciaKind, Tom> = {
-  devolvida: "red",
+  devolvida: "amber",
   vencendo: "amber",
   atrasada: "amber",
   documentos: "blue",
@@ -284,7 +284,7 @@ function MinhaCarreiraPage() {
                     </p>
                   </div>
                   {c.status !== "aprovada" ? (
-                    <Pill tom="slate">
+                    <Pill tom={c.status === "devolvida" ? "amber" : "slate"}>
                       {c.status === "devolvida"
                         ? "Devolvida"
                         : c.status === "rascunho"

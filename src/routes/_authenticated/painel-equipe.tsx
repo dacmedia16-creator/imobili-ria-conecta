@@ -116,14 +116,6 @@ const TOM_PONTO: Record<Tom, string> = {
   violet: "bg-violet-500",
   slate: "bg-slate-500",
 };
-const TOM_BORDA: Record<Tom, string> = {
-  blue: "border-l-blue-500",
-  green: "border-l-emerald-500",
-  amber: "border-l-amber-500",
-  red: "border-l-rose-500",
-  violet: "border-l-violet-500",
-  slate: "border-l-slate-400",
-};
 
 /** Etiqueta de status: sempre cor + texto (regra de Denis). */
 function Pill({
@@ -886,8 +878,7 @@ export function PainelEquipeConteudo({
                           key={v.sale_id}
                           href={`/vendas/${v.sale_id}`}
                           className={cn(
-                            "block rounded-lg border border-l-4 bg-card p-2.5 text-xs shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            TOM_BORDA[vez.tom],
+                            "block rounded-lg border bg-card p-2.5 text-xs shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           )}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -1360,10 +1351,7 @@ function DetalhePessoa({
               {abertas.map((v) => {
                 const vez = VEZ_ESTILO[vezDoStatus(v.status)];
                 return (
-                  <li
-                    key={v.sale_id}
-                    className={cn("rounded-lg border border-l-4 p-2.5 text-sm", TOM_BORDA[vez.tom])}
-                  >
+                  <li key={v.sale_id} className="rounded-lg border p-2.5 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <a href={`/vendas/${v.sale_id}`} className="font-semibold hover:underline">
                         {v.codigo ?? "—"}

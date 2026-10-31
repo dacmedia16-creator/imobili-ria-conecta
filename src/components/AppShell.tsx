@@ -209,7 +209,7 @@ function SidebarNav({
                       }
                       className={`relative flex touch-manipulation items-center rounded-md border-l-2 border-transparent py-2 text-sm text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
                       activeProps={{
-                        className: "bg-[#3453a4]/55 border-[#ff3b3b] text-white font-medium",
+                        className: "bg-[#3453a4]/55 border-white text-white font-medium",
                       }}
                     >
                       <n.icon className="h-4 w-4 shrink-0" aria-hidden />

@@ -669,7 +669,7 @@ function AdminUsers() {
             {isPlatformInOrg && canEnterAs && u.id !== user?.id && u.ativo !== false && (
               <Button
                 size="sm"
-                variant="destructive"
+                variant="outline"
                 onClick={() => enterAsUser(u)}
                 disabled={enteringAs === u.id}
               >

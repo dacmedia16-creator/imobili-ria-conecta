@@ -14,13 +14,14 @@ import {
 
 const db = supabase as unknown as SupabaseClient;
 
+/** Só o conflito e o sem cadastro pedem atenção (texto + cor); o resto fica neutro. */
 const TOM: Record<Via, string> = {
-  id: "border-l-emerald-500",
-  admin: "border-l-emerald-500",
-  email: "border-l-blue-500",
-  telefone: "border-l-blue-500",
-  conflito: "border-l-red-500",
-  sem_cadastro: "border-l-amber-500",
+  id: "",
+  admin: "",
+  email: "",
+  telefone: "",
+  conflito: "border-amber-300 bg-amber-50 text-amber-900",
+  sem_cadastro: "border-amber-300 bg-amber-50 text-amber-900",
 };
 
 /**
@@ -69,7 +70,7 @@ export function VinculosXmlPanel({ names }: { names: Record<string, string> }) {
       </p>
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
         {(Object.keys(VIA_TEXTO) as Via[]).map((v) => (
-          <span key={v} className={`rounded border border-l-4 bg-card px-2 py-1 ${TOM[v]}`}>
+          <span key={v} className={`rounded border bg-card px-2 py-1 ${TOM[v]}`}>
             {VIA_TEXTO[v]}: {resumo[v].corretores} corretor(es) · {resumo[v].anuncios} anúncio(s)
           </span>
         ))}
@@ -82,7 +83,7 @@ export function VinculosXmlPanel({ names }: { names: Record<string, string> }) {
         {lista.slice(0, 300).map((l) => (
           <div
             key={l.agent_id}
-            className={`flex flex-col gap-1 rounded border border-l-4 bg-card px-2 py-1 text-xs sm:flex-row sm:justify-between ${TOM[l.via]}`}
+            className={`flex flex-col gap-1 rounded border bg-card px-2 py-1 text-xs sm:flex-row sm:justify-between ${TOM[l.via]}`}
           >
             <span className="min-w-0">
               <span className="font-medium">ID {l.agent_id}</span>

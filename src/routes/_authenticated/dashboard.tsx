@@ -636,7 +636,7 @@ function Dashboard() {
                 key={s.id}
                 to="/vendas/$id"
                 params={{ id: s.id }}
-                className={`flex flex-col items-start gap-2 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between ${minhaVez ? "border-l-2 border-l-destructive" : ""}`}
+                className="flex flex-col items-start gap-2 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0 break-words">
                   <div className="text-sm font-medium">
@@ -656,7 +656,7 @@ function Dashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={s.status as SaleStatus} />
                   {minhaVez && (
-                    <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                       Sua vez
                     </span>
                   )}
@@ -779,7 +779,6 @@ function AtalhosInicio({
             description="Imóveis captados e prazos"
             Icon={House}
             to="/exclusividades"
-            tone="red"
           />
         )}
         {equipe && (

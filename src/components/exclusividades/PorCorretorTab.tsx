@@ -337,7 +337,7 @@ export function PorCorretorTab({
                       <td className="text-right">{selo(r.vencem30, "bg-red-100 text-red-800")}</td>
                       <td className="text-right">{selo(r.vencidas, "bg-red-100 text-red-800")}</td>
                       <td className="text-right">
-                        {selo(r.aguardandoGestor, "bg-blue-100 text-blue-800")}
+                        {selo(r.aguardandoGestor, "bg-orange-100 text-orange-800")}
                       </td>
                       <td className="text-right">{zero(r.emAssinatura)}</td>
                       <td className="text-right">{zero(r.rascunho)}</td>

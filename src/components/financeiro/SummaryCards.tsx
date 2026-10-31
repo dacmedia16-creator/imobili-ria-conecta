@@ -101,7 +101,7 @@ export function SummaryCards({ resumo }: { resumo: ResumoFinanceiro }) {
             icon={AlertTriangle}
             tom="amber"
             valor={String(resumo.divergenciasAbertas)}
-            tone={resumo.divergenciasAbertas > 0 ? "text-destructive" : ""}
+            tone={resumo.divergenciasAbertas > 0 ? "text-amber-700" : ""}
             info="Pendências financeiras ainda não resolvidas. Esta fila não usa o filtro de período."
           />
         </div>

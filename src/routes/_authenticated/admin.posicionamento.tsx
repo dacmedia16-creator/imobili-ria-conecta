@@ -338,7 +338,7 @@ function AdminPositioning() {
               const current = editing?.id === item.id ? editing : item;
               const isEditing = editing?.id === item.id;
               return (
-                <Card key={item.id} className="rounded-xl border-l-4 border-l-amber-400 shadow-sm">
+                <Card key={item.id} className="rounded-xl shadow-sm">
                   <CardHeader>
                     <CardTitle className="break-words text-base">{item.nome}</CardTitle>
                   </CardHeader>
@@ -426,7 +426,7 @@ function AdminPositioning() {
           )}
           <div className="grid gap-3">
             {pendentes.map((r) => (
-              <Card key={r.id} className="rounded-xl border-l-4 border-l-blue-400 shadow-sm">
+              <Card key={r.id} className="rounded-xl shadow-sm">
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
                     <div className="break-words font-medium">{r.nome}</div>

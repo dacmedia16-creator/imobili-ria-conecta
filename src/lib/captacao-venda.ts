@@ -27,7 +27,8 @@ export function seloSituacaoCaptacao(
       texto: "Em negociação",
       classe: "border border-orange-300 bg-orange-100 text-orange-800",
     };
-  if (situacao === "vendida") return { texto: "Vendida", classe: "bg-violet-100 text-violet-800" };
+  if (situacao === "vendida")
+    return { texto: "Vendida", classe: "bg-emerald-100 text-emerald-800" };
   return null;
 }
 

@@ -120,7 +120,7 @@ function NotificationsPage() {
           {items.map((n) => (
             <div
               key={n.id}
-              className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm ${n.lida ? "" : "border-l-4 border-l-primary"}`}
+              className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-3 shadow-sm ${n.lida ? "" : "border-primary/40 bg-primary/5"}`}
             >
               <div className="min-w-0 flex-1">
                 <div className="break-words text-sm font-medium">{n.titulo}</div>
