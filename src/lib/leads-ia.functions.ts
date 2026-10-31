@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { argsBusca, argsNome, argsCaracteristica, argsParecidos, normalizarCaracteristica, normalizarParecidos, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
+import { argsBusca, argsNome, argsCaracteristica, argsParecidos, normalizarCaracteristica, normalizarParecidos, finalizarResposta, proximaResposta, type ContextoIa, type Extrator, type FiltroParecido, type ImovelEncontrado } from "./leads-ia";
 import { chamarGemini, montarExtrator, type UsoModelo } from "./leads-ia-modelo";
 import { historicoDb, redacaoLigadaDb, redigirResposta } from "./leads-ia-redacao";
 
@@ -92,6 +92,11 @@ export const responderComoCliente = createServerFn({ method: "POST" })
         },
         registrar: (u) => usos.push(u),
       });
+    }
+    // t_99359490: mesmo acabamento do WhatsApp (sem resposta repetida e ortografia), só com a chave ligada.
+    if (ctxIa.permuta_fluxo) {
+      const hist = await historicoDb(db, c.conversa_id).catch(() => []);
+      r = finalizarResposta(r, data.texto, hist.filter((f) => f.autor === "ia").map((f) => f.texto), ctxIa);
     }
     if (conf.organization_id && usos.length) {
       const { error: eu } = await db
