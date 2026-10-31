@@ -29,7 +29,7 @@ export function BorderBeam({
   delay = 0,
   duration = 9,
   colorFrom = "var(--primary)",
-  colorTo = "var(--secondary)",
+  colorTo = "var(--brand-red)",
   borderWidth = 1.5,
   reverse = false,
 }: BorderBeamProps) {

@@ -85,7 +85,13 @@ import { BorderBeam } from "@/components/magicui/border-beam";
 import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
-import { EmptyState, KpiGridSkeleton, ListSkeleton, PageHeader } from "@/components/visual/base";
+import {
+  EmptyState,
+  ErrorState,
+  KpiGridSkeleton,
+  ListSkeleton,
+  PageHeader,
+} from "@/components/visual/base";
 
 const mesAtualISO = () => {
   const d = new Date();
@@ -189,6 +195,8 @@ function Dashboard() {
     comissao_realizada: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
   // Mesmo controle de módulo do menu lateral (AppShell): sem o módulo de exclusividades na
   // imobiliária, o atalho não aparece.
@@ -214,6 +222,7 @@ function Dashboard() {
     if (!user) return;
     (async () => {
       setLoading(true);
+      setLoadError(false);
       const [statsRes, recentesRes, profRes, metasRes] = await Promise.all([
         supabase.rpc("dashboard_stats"),
         supabase
@@ -224,6 +233,13 @@ function Dashboard() {
         supabase.from("profiles").select("id, nome"),
         supabase.rpc("metas_progresso", { _mes: mesAtualISO() }),
       ]);
+      // Erro de carga NUNCA vira zero/lista vazia (item 1 t_8730be75): mostra o erro e "Tentar de novo".
+      if (statsRes.error || recentesRes.error) {
+        console.error("dashboard:", statsRes.error ?? recentesRes.error);
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
       setStats(statsRes.data as DashboardStats | null);
       setRecentes(await aplicarDatasRecentes(recentesRes.data ?? []));
       const names: Record<string, string> = {};
@@ -235,7 +251,7 @@ function Dashboard() {
       setMetaCorretor(metasData?.corretor.find((m) => m.corretor_id === user.id) ?? null);
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, reloadKey]);
 
   const isCorretor =
     hasAny(["corretor"]) &&
@@ -358,6 +374,13 @@ function Dashboard() {
       />
 
       {loading && <KpiGridSkeleton />}
+
+      {loadError && (
+        <ErrorState onRetry={() => setReloadKey((k) => k + 1)} retrying={loading}>
+          Não foi possível carregar os números do Início. Os contadores abaixo podem estar
+          incompletos; toque em "Tentar de novo".
+        </ErrorState>
+      )}
 
       {isFinanceiro && <ResumoGestorMes />}
 
@@ -588,7 +611,7 @@ function Dashboard() {
         </CardHeader>
         <CardContent className="space-y-2">
           {loading && recentes.length === 0 && <ListSkeleton rows={3} label="Carregando vendas" />}
-          {!loading && recentes.length === 0 && (
+          {!loading && !loadError && recentes.length === 0 && (
             <EmptyState icon={FileText}>
               Nenhuma venda ainda. Quando uma venda for registrada, ela aparece aqui.
             </EmptyState>
@@ -714,7 +737,7 @@ function DestaqueComissaoMeta({
               aria-valuenow={Math.round(pct)}
             >
               <div
-                className={`h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none ${atingida ? "bg-emerald-500" : "bg-secondary"}`}
+                className={`h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none ${atingida ? "bg-emerald-500" : "bg-brand-red"}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -777,11 +800,13 @@ function AtalhosInicio({
 function ResumoGestorMes() {
   const [bundle, setBundle] = useState<FinanceiroBundle | null>(null);
   const [erro, setErro] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
   const [deslocamentoMes, setDeslocamentoMes] = useState<0 | -1>(0);
   const periodo = useMemo(() => intervaloResumoMensal(deslocamentoMes), [deslocamentoMes]);
 
   useEffect(() => {
     let cancelado = false;
+    setErro(false);
     fetchFinanceiroBundle()
       .then((dados) => {
         if (!cancelado) setBundle(dados);
@@ -793,7 +818,7 @@ function ResumoGestorMes() {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [tentativa]);
 
   const resumo = useMemo(() => {
     if (!bundle) return null;
@@ -844,8 +869,11 @@ function ResumoGestorMes() {
 
         <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
           {erro ? (
-            <div className="col-span-full bg-card p-6 text-sm text-muted-foreground">
-              O resumo mensal não pôde ser carregado. Consulte a Central Financeira.
+            <div className="col-span-full bg-card p-4">
+              <ErrorState onRetry={() => setTentativa((t) => t + 1)}>
+                O resumo mensal não pôde ser carregado. Tente de novo ou consulte a Central
+                Financeira.
+              </ErrorState>
             </div>
           ) : !resumo ? (
             <div className="col-span-full bg-card p-4">
@@ -1050,6 +1078,7 @@ function MovimentacaoPeriodoSection() {
   const [dado, setDado] = useState<MovimentacaoPeriodo | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     if (periodoResolvido.incompleto) {
@@ -1080,7 +1109,12 @@ function MovimentacaoPeriodoSection() {
     // periodoResolvido é recalculado a cada render a partir de `search` — dependendo só dos campos
     // primitivos que realmente mudam o intervalo (em vez do objeto inteiro) evita refetch em
     // renders que não alteraram nada, sem precisar suprimir exhaustive-deps.
-  }, [periodoResolvido.incompleto, periodoResolvido.inicioUtc, periodoResolvido.fimExclusivoUtc]);
+  }, [
+    periodoResolvido.incompleto,
+    periodoResolvido.inicioUtc,
+    periodoResolvido.fimExclusivoUtc,
+    tentativa,
+  ]);
 
   const mudarPeriodo = (valor: string) => {
     const periodo = valor as PeriodoTipo;
@@ -1152,7 +1186,7 @@ function MovimentacaoPeriodoSection() {
         ) : carregando ? (
           <ListSkeleton rows={3} />
         ) : erro ? (
-          <p className="text-sm text-destructive">{erro}</p>
+          <ErrorState onRetry={() => setTentativa((t) => t + 1)}>{erro}</ErrorState>
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
