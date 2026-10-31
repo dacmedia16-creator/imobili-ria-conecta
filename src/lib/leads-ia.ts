@@ -21,6 +21,21 @@
 //  8) Proprietário, parceiro, fornecedor ou assunto pessoal: passa ao humano sem questionário.
 
 import { temLink } from "./leads-ia-canal";
+import {
+  bemPermuta,
+  corrigirOrtografia,
+  detalhesPermuta,
+  PERMUTA_FALHA,
+  PERMUTA_JA,
+  PERMUTA_OK,
+  PERMUTA_RECUSA,
+  perguntaPermuta,
+  recusouDetalhes,
+  respostaRepetida,
+  resumoPermuta,
+  TENHO_BEM_RE,
+  TROCA_BEM_RE,
+} from "./leads-ia-permuta";
 
 export const PASSOS = [
   "interesse",
@@ -159,6 +174,9 @@ export type DadosQualificacao = {
   nome_busca?: string;
   /** t_66ad4609: o cliente ignorou o convite para a visita ou disse \"agora não\"; só volta se ele puxar o assunto. */
   visita_recusada?: boolean;
+  /** t_99359490: cliente ofereceu um bem na troca. \"detalhes\" = a Nicole perguntou os detalhes (1 vez);
+   * \"encaminhada\" = passou ao corretor. bem = o que ele oferece; relato = o que ele disse (vai ao corretor). */
+  permuta?: { etapa: "perguntar" | "detalhes" | "encaminhada"; bem?: string; relato?: string[] };
 };
 
 /** t_228659f0 item 2: busca por nome de condomínio/empreendimento (título e descrição do XML). */
@@ -273,6 +291,9 @@ export type ContextoIa = {
   imovel_fonte?: "xml" | "captacao" | null;
   /** Outros anúncios do MESMO cliente, de avisos do portal juntados a este lead (t_82c89141 item 7). Só XML. */
   outros_anuncios?: Array<{ codigo: string; ficha: FichaIa | null }> | null;
+  /** t_99359490: lead_config.ia_permuta_fluxo (permuta com detalhes, sem resposta repetida, ortografia, lembrete
+   * coerente). O servidor lê a chave da imobiliária; desligada (ou ausente) = comportamento de antes. */
+  permuta_fluxo?: boolean;
 };
 
 export type RespostaIa = {
@@ -1031,6 +1052,80 @@ function passarVisita(dados: DadosQualificacao, ctx: Pick<ContextoIa, "anuncio_c
     `${CHAMAR} para confirmar o horário certinho.`,
     "Um corretor da nossa equipe vai continuar seu atendimento por aqui para confirmar o horário.",
     resumoQualificacao(dados, ctx),
+  );
+}
+
+// --- Permuta com detalhes (t_99359490, Denis 31/10) -----------------------------------------------------------
+// 1) O cliente oferece um bem na troca: a Nicole pergunta os detalhes UMA vez (nunca \"o corretor confirma na visita\").
+// 2) Na resposta seguinte (detalhes, mesmo parciais, ou recusa): avisa que um corretor vai verificar e PASSA ao corretor
+//    (fim \"qualificado\", resumo com \"PERMUTA: ...\"). Depois disso a conversa está encerrada: sem perguntas nem lembretes.
+// Conversa aberta antes desta regra (permuta só anotada em pendentes/pagamento): segue o mesmo caminho.
+const PERMUTA_ANTIGA = /(permut|troca)/;
+function relatoPermuta(dados: DadosQualificacao): string[] {
+  return (dados.pendentes ?? [])
+    .filter((p) => PERMUTA_ANTIGA.test(norm(p)) && norm(p) !== "permuta")
+    .map((p) => p.replace(/^permuta:\s*/i, "").replace(/^"|"$/g, ""))
+    .slice(-3);
+}
+function fluxoPermuta(ctx: ContextoIa, dados: DadosQualificacao, texto: string, n: string): RespostaIa | null {
+  const p = dados.permuta;
+  const antiga = !p && (!!dados.pagamento?.includes("permuta") || relatoPermuta(dados).length > 0);
+  const passarPermuta = (resposta: string): RespostaIa => {
+    // O lembrete de segunda (banco) pode marcar \"detalhes\" sem relato: usa o que ficou anotado na conversa.
+    const antes = p?.relato?.length ? p.relato : relatoPermuta(dados);
+    const relato = [...antes, curto(texto, 160)].slice(-4);
+    const bem = p?.bem ?? bemPermuta(texto) ?? bemPermuta(relato.join(" ")) ?? undefined;
+    dados.permuta = { etapa: "encaminhada", ...(bem ? { bem } : {}), relato };
+    dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
+    dados.convite_aberto = undefined;
+    return fim(dados, "qualificado", resposta, PERMUTA_FALHA, `${resumoPermuta(dados.permuta)}. ${resumoQualificacao(dados, ctx)}`);
+  };
+  if (RECUSA.test(n)) return null; // \"não tenho mais interesse\" continua sendo recusa
+  // Já perguntou os detalhes: qualquer resposta encaminha (não insiste; recusa também encaminha).
+  if (p?.etapa === "detalhes") return { ...passarPermuta(recusouDetalhes(texto) ? PERMUTA_RECUSA : PERMUTA_OK), fixo: true };
+  if (p?.etapa === "encaminhada") {
+    // Já foi ao corretor: não pergunta de novo nem diz \"o corretor confirma na visita\".
+    if (!falaPermuta(n) && !TROCA_BEM_RE.test(n)) return null;
+    const passo: Passo = ctx.passo === "fim" || ctx.passo === "codigo" ? "interesse" : ctx.passo;
+    return { passo, dados, resposta: PERMUTA_JA, resposta_falha: null, fim: null, resumo: null, fixo: true };
+  }
+  // Conversa antiga em que o cliente fala de outro assunto (\"bom dia\", \"qual o condomínio?\"): pergunta os detalhes
+  // só se ele voltar à troca; senão segue o roteiro normal (a permuta já está nos pendentes do corretor).
+  // \"perguntar\" = permuta anotada antes desta regra (gravada pela migration): na próxima fala, pergunta os detalhes.
+  const oferece = p?.etapa === "perguntar" || falaPermuta(n) || TROCA_BEM_RE.test(n) || (antiga && TENHO_BEM_RE.test(n));
+  if (!oferece) return null;
+  const relatoAntes = p?.relato?.length ? p.relato : antiga ? relatoPermuta(dados) : [];
+  const bem = p?.bem ?? bemPermuta(texto) ?? (relatoAntes.length ? bemPermuta(relatoAntes.join(" ")) : null);
+  // Já veio com detalhes (2 tipos ou mais: local, tamanho, valor, documento): não pergunta, encaminha.
+  if (detalhesPermuta(texto) >= 2) return { ...passarPermuta(PERMUTA_OK), fixo: true };
+  dados.permuta = { etapa: "detalhes", ...(bem ? { bem } : {}), relato: [...relatoAntes, curto(texto, 160)].slice(-4) };
+  dados.pagamento = [...new Set([...(dados.pagamento ?? []), "permuta"])];
+  dados.interesse = true;
+  const passo: Passo = ctx.passo === "fim" || ctx.passo === "codigo" ? "interesse" : ctx.passo;
+  return { passo, dados, resposta: perguntaPermuta(bem, [...relatoAntes, texto].join(" ")), resposta_falha: null, fim: null, resumo: null, fixo: true };
+}
+
+/**
+ * t_99359490 item 2 (caso Jidelson 16:39/17:18): a Nicole nunca manda a mesma resposta (ou quase igual) a uma das 2
+ * últimas dela. Em vez de repetir, encaminha ao corretor (\"se a pergunta já foi feita, avançar ou encaminhar\").
+ * Também corrige erros comuns de digitação (item 3, \"Trabalamos\"). Só com a chave da imobiliária ligada.
+ */
+export function finalizarResposta<T extends RespostaIa>(
+  r: T,
+  texto: string,
+  ultimasIa: string[],
+  ctx: Pick<ContextoIa, "anuncio_codigo" | "imovel_frase">,
+): T | RespostaIa {
+  const ok = { ...r, resposta: corrigirOrtografia(r.resposta) };
+  if (r.fim || !ok.resposta.trim() || !respostaRepetida(ok.resposta, ultimasIa)) return ok;
+  const dados = { ...r.dados, convite_aberto: undefined };
+  return passar(
+    dados,
+    "qualificado",
+    "Anotei!",
+    `${CHAMAR}.`,
+    FALHA_PADRAO,
+    `Cliente voltou ao mesmo assunto (\"${curto(texto, 120)}\"); a IA não repetiu a resposta. ${resumoQualificacao(dados, ctx)}`,
   );
 }
 
@@ -1853,6 +1948,12 @@ export async function proximaResposta(
       FALHA_PADRAO,
       `${quem}, não é comprador nem locatário: \"${curto(texto, 160)}\". Atender sem o roteiro de qualificação.`,
     );
+  }
+  // t_99359490: permuta com detalhes (só com a chave da imobiliária ligada). Vem antes da recusa e da busca nova:
+  // \"Troca por terreno?\" é oferta de um bem na troca, nunca procura de terreno (caso Leonardo 09:42).
+  if (ctx.permuta_fluxo) {
+    const r = fluxoPermuta(ctx, dados, texto, n);
+    if (r) return r;
   }
   const parecidoPendente = !!(dados.parecido_atual || dados.parecido_pergunta || dados.busca2?.ativa);
   // "não, tudo bem. quantos quartos?" e "não" à oferta do corretor (depois de "é robô?") não são recusa.

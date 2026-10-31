@@ -24,6 +24,7 @@ import {
   type FiltroCaracteristicaBusca,
   type ResultadoCaracteristica,
   type FiltroBusca,
+  finalizarResposta,
   proximaResposta,
   respostaMidia,
   respostaAutomatica,
@@ -289,7 +290,19 @@ export type DepsRetorno = {
   };
   /** t_63c55cee: marca se a resposta ao corretor saiu (lead_aceite_whats_resultado). Opcional. */
   aceiteResultado?: (respostaId: string, ok: boolean) => Promise<unknown>;
+  /** t_99359490: lead_config.ia_permuta_fluxo da imobiliária. Opcional; erro = desligada. */
+  permutaFluxo?: (orgId: string) => Promise<boolean>;
 };
+
+/** t_99359490: chave lead_config.ia_permuta_fluxo. Coluna ausente (migration não aplicada) ou erro = desligada. */
+export async function permutaFluxoDb(db: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("lead_config")
+    .select("ia_permuta_fluxo")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return !error && (data as { ia_permuta_fluxo?: boolean } | null)?.ia_permuta_fluxo === true;
+}
 
 const json = (status: number, r: string) =>
   new Response(JSON.stringify({ r }), {
@@ -476,7 +489,11 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       Math.round(ESPERA_HUMANA_MS.min + rand() * (ESPERA_HUMANA_MS.max - ESPERA_HUMANA_MS.min)),
     );
     const c = banco.ctx;
-    const ctx: ContextoIa = { ...c, dados: c.dados ?? {} };
+    // t_99359490: chave da imobiliária (permuta com detalhes, sem repetição, ortografia). Erro = desligada.
+    const permutaFluxo = deps.permutaFluxo
+      ? await deps.permutaFluxo(banco.organization_id!).catch(() => false)
+      : false;
+    const ctx: ContextoIa = { ...c, dados: c.dados ?? {}, permuta_fluxo: permutaFluxo };
     const escolha: EscolhaModelo = {
       provedor: banco.ia_modelo_provedor === "openrouter" ? "openrouter" : "gemini",
       modelo: banco.ia_modelo ?? null,
@@ -537,6 +554,14 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
       semResposta = !!red.sem_resposta;
       r = red;
     }
+    // t_99359490: sem resposta repetida (vira passagem ao corretor) e ortografia, só com a chave da imobiliária.
+    if (banco.tipo !== "midia" && ctx.permuta_fluxo && !semResposta)
+      r = finalizarResposta(
+        r,
+        msg.texto,
+        historico.filter((f) => f.autor === "ia").map((f) => f.texto),
+        ctx,
+      );
     for (const u of usos)
       await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -647,6 +672,8 @@ export type DepsToque15 = {
   ) => Promise<{ data: unknown; error: { code?: string } | null }>;
   historico: (conversaId: string) => Promise<FalaHistorico[]>;
   registrarUso: (orgId: string, conversaId: string, u: UsoModelo) => Promise<unknown>;
+  /** t_99359490: lead_config.ia_permuta_fluxo (lembrete coerente). Sem ela ou com erro = desligado. */
+  coerente?: (orgId: string) => Promise<boolean>;
 };
 
 export async function toque15UmaVez(
@@ -672,6 +699,7 @@ export async function toque15UmaVez(
       cliente: c.cliente,
       historico,
       redige: c.redige === true,
+      coerente: t.coerente ? await t.coerente(c.organization_id).catch(() => false) : false,
       escolha: {
         provedor: c.provedor === "openrouter" ? "openrouter" : "gemini",
         modelo: c.modelo ?? null,
@@ -865,6 +893,8 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
         }),
       historico: (conversaId) => historicoDb(db, conversaId),
       registrarUso: base.registrarUso,
+      // Migration 20261031200000 (t_99359490): sem a coluna, erro = desligado (lembrete de antes).
+      coerente: (orgId) => permutaFluxoDb(db, orgId),
     },
     // Migration 20261030220000: enquanto não for aplicada, as RPCs falham e nada sai (só registra "erro").
     primeiraProximo: async () => await db.rpc("lead_ia_primeira_auto_proximo"),
@@ -966,6 +996,7 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     // Migration 20261031030000 (t_63c55cee).
     aceiteResultado: async (respostaId, ok) =>
       await db.rpc("lead_aceite_whats_resultado", { _id: respostaId, _ok: ok }),
+    permutaFluxo: (orgId) => permutaFluxoDb(db, orgId),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };
