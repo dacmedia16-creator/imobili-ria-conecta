@@ -1006,6 +1006,7 @@ function MeuAcesso() {
                         Quando for sua vez de agir (WhatsApp)
                       </span>
                       <Switch
+                        aria-label={`${ROLE_LABEL[r]}: quando for sua vez de agir (WhatsApp)`}
                         checked={notifPorPapel[r] ?? true}
                         disabled={savingNotif === `${r}:notificar_whatsapp`}
                         onCheckedChange={(v) => alternarNotifCampo(r, "notificar_whatsapp", v)}
@@ -1018,6 +1019,7 @@ function MeuAcesso() {
                         {todaAtualizacaoLabel} (sino e WhatsApp)
                       </span>
                       <Switch
+                        aria-label={`${ROLE_LABEL[r]}: ${todaAtualizacaoLabel} (sino e WhatsApp)`}
                         checked={
                           notifAtualizacaoPorPapel[r] ??
                           (r === "corretor" || r === "gestor" || r === "team_leader")

@@ -344,8 +344,13 @@ function RelatoriosPage() {
       setLoading(false);
       return;
     }
+    // Enquanto a data é digitada o campo passa por "" (data incompleta): não consulta com data vazia
+    // (dava "invalid input syntax for type date" e trocava a tela pelo erro). Mantém os números
+    // anteriores até as duas datas estarem completas (item 8 t_8730be75).
+    const dataOk = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+    if (!dataOk(dateFrom) || !dataOk(dateTo)) return;
     load();
-  }, [allowed, load]);
+  }, [allowed, load, dateFrom, dateTo]);
 
   const saleById = useMemo(() => {
     const m: Record<string, ReportSale> = {};
