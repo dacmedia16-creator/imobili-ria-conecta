@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   FileSignature,
@@ -134,13 +135,97 @@ describe("menu lateral agrupado", () => {
       "",
       "Vendas e captações",
       "Equipe",
-      "Agenda",
       "Relatórios detalhados",
       "Conta e acesso",
       "Administração",
+      "Plataforma",
     ]);
     const admin = grupos.find((g) => g.label === "Administração")!;
     expect(admin.items.filter((i) => i.show).map((i) => i.to)).toEqual(["/admin/usuarios"]);
+    // Sem plataforma, o grupo Plataforma fica vazio (não aparece na tela).
+    const plat = grupos.find((g) => g.label === "Plataforma")!;
+    expect(plat.items.some((i) => i.show)).toBe(false);
+  });
+
+  it("item 21 (t_0fa570c7): Plataforma separada da Administração e Reserva de salas em Equipe", () => {
+    const grupos = montarMenuLateral({
+      roles: ["super_admin"],
+      platformAdmin: true,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+    });
+    const doGrupo = (l: string) =>
+      grupos.find((g) => g.label === l)!.items.filter((i) => i.show).map((i) => i.to);
+    expect(doGrupo("Plataforma")).toEqual([
+      "/plataforma/imobiliarias",
+      "/plataforma/usuarios",
+      "/plataforma/chamados",
+    ]);
+    expect(doGrupo("Administração").some((to) => to.startsWith("/plataforma"))).toBe(false);
+    expect(doGrupo("Equipe")).toContain("/reservas-salas");
+    expect(grupos.some((g) => g.label === "Agenda")).toBe(false);
+  });
+
+  it("item 21: nome do menu = título da tela (h1 e <title>) e Ajuda com um destino só", () => {
+    const ler = (arq: string) =>
+      readFileSync(new URL(`../routes/_authenticated/${arq}`, import.meta.url), "utf8");
+    const grupos = montarMenuLateral({
+      roles: ["super_admin", "admin", "financeiro", "gestor"],
+      platformAdmin: true,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+      opportunitiesVisible: true,
+      achievementsVisible: true,
+      carreiraVisible: true,
+    });
+    const rotulo = new Map(grupos.flatMap((g) => g.items).map((i) => [i.to, i.label]));
+    const arquivo: Record<string, string> = {
+      "/minha-carreira": "minha-carreira.tsx",
+      "/vendas": "vendas.index.tsx",
+      "/exclusividades": "exclusividades.index.tsx",
+      "/mapa-captacoes": "mapa-captacoes.tsx",
+      "/feedback": "feedback.tsx",
+      "/oportunidades": "oportunidades.tsx",
+      "/mural-conquistas": "mural-conquistas.tsx",
+      "/visao-executiva": "visao-executiva.tsx",
+      "/equipe": "equipe.tsx",
+      "/ficha-colaboradores": "ficha-colaboradores.tsx",
+      "/reservas-salas": "reservas-salas.tsx",
+      "/producao-por-pessoa": "producao-por-pessoa.tsx",
+      "/vendas-por-regiao": "vendas-por-regiao.tsx",
+      "/ocorrencias-concluidas": "ocorrencias-concluidas.tsx",
+      "/financeiro": "financeiro.tsx",
+      "/comparativo-comissao": "comparativo-comissao.tsx",
+      "/relatorios": "relatorios.tsx",
+      "/comissoes-a-receber": "comissoes-a-receber.tsx",
+      "/notificacoes": "notificacoes.tsx",
+      "/perfil": "perfil.tsx",
+      "/ajuda": "ajuda.tsx",
+      "/ajuda/wiki": "ajuda_.wiki.tsx",
+      "/admin/usuarios": "admin.usuarios.tsx",
+      "/admin/posicionamento": "admin.posicionamento.tsx",
+      "/admin/dados-imobiliaria": "admin.dados-imobiliaria.tsx",
+      "/admin/unidades-captacao": "admin.unidades-captacao.tsx",
+      "/admin/configuracoes": "admin.configuracoes.tsx",
+      "/admin/assinatura-digital": "admin.assinatura-digital.tsx",
+      "/plataforma/usuarios": "plataforma.usuarios.tsx",
+      "/plataforma/chamados": "plataforma.chamados.tsx",
+    };
+    for (const [to, arq] of Object.entries(arquivo)) {
+      const nome = rotulo.get(to)!;
+      expect(nome, to).toBeTruthy();
+      const fonte = ler(arq);
+      expect(fonte, `${arq} h1`).toContain(`title="${nome}"`);
+    }
+    const imob = ler("plataforma.imobiliarias.tsx");
+    expect(imob).toContain(`>${rotulo.get("/plataforma/imobiliarias")}</h1>`);
+    expect(imob).toContain(`title: "${rotulo.get("/plataforma/imobiliarias")}"`);
+    // "Ajuda e sugestões" é só o botão do topo (formulário); o menu leva à lista "Meus chamados".
+    const labels = grupos.flatMap((g) => g.items.map((i) => i.label));
+    expect(labels).not.toContain("Ajuda e sugestões");
+    expect(rotulo.get("/ajuda")).toBe("Meus chamados");
   });
 
   it("Oportunidades só aparece com o módulo ligado e para os mesmos perfis do Feedback", () => {

@@ -18,7 +18,7 @@ import { PageHeader } from "@/components/visual/base";
 // Tela "Assinatura digital" (t_7508c6b6): só super_admin. A rota esconde dos demais; a edge e o
 // banco (clicksign_config_authorize) recusam qualquer outro papel e escolhem a org pelo contexto.
 export const Route = createFileRoute("/_authenticated/admin/assinatura-digital")({
-  head: () => ({ meta: [{ title: "Assinatura digital — Administração" }] }),
+  head: () => ({ meta: [{ title: "Assinatura digital" }] }),
   beforeLoad: guardExclusiveSettingsRoute,
   component: AssinaturaDigitalPage,
 });
@@ -76,7 +76,7 @@ function AssinaturaDigitalPage() {
     <div className="space-y-6">
       <PageHeader
         icon={FileSignature}
-        title="Administração → Assinatura digital"
+        title="Assinatura digital"
         description="Liga a assinatura pela Clicksign nesta imobiliária: chave, webhook, quem assina e prazo. Vale para captação e venda."
       />
       {loadError && (

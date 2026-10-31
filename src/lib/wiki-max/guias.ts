@@ -123,7 +123,7 @@ export const GUIAS: WikiGuia[] = [
       "Escreva o que aconteceu e o que você esperava que acontecesse.",
       "Se quiser, clique em <b>Anexar imagem</b> e mande um print. Antes de enviar, dá para passar uma tarja sobre nomes, CPF, telefone e valores.",
       "Clique em <b>Enviar chamado</b>. A resposta chega no sino 🔔.",
-      "Para acompanhar: ADM MAX → Conta e acesso → <b>Ajuda e sugestões</b> (lista <b>Meus chamados</b>). No Visita e no Estudo, use o menu <b>Meus chamados</b>.",
+      "Para acompanhar: ADM MAX → Conta e acesso → <b>Meus chamados</b>. No Visita e no Estudo, use o menu <b>Meus chamados</b>.",
       "Problema resolvido? Abra o chamado em <b>Meus chamados</b> e clique em <b>Resolveu, pode fechar</b>. Ele passa para <b>Resolvido</b>; se precisar de novo, abra outro chamado.",
     ],
     dica: "O administrador vê também a aba <b>Chamados da imobiliária</b>.",
@@ -298,7 +298,7 @@ export const GUIAS: WikiGuia[] = [
     titulo: "Oportunidades entre corretores",
     resumo: "Os pedidos e ofertas do grupo de WhatsApp, organizados.",
     papeis: ["c", "tl", "g", "a"],
-    onde: "ADM MAX → Menu → Vendas e captações → <b>Oportunidades</b> (tela “Oportunidades: mural do grupo”)",
+    onde: "ADM MAX → Menu → Vendas e captações → <b>Oportunidades</b>",
     passos: [
       "Poste o pedido do seu cliente ou o imóvel que você tem no <b>grupo de WhatsApp</b> da imobiliária, como sempre. A tela não tem botão de publicar.",
       "O sistema organiza os posts em <b>Procurando</b>, <b>Oferecendo</b> e <b>Outros</b>. Cada cartão some depois de 7 dias.",
@@ -366,7 +366,7 @@ export const GUIAS: WikiGuia[] = [
     titulo: "Reservar sala de reunião",
     resumo: "Ver horário livre e reservar.",
     papeis: ["c", "tl", "g", "a"],
-    onde: "ADM MAX → Menu → Agenda → <b>Reservar sala</b> (tela “Agendamento de salas”)",
+    onde: "ADM MAX → Menu → Equipe → <b>Reserva de salas</b>",
     passos: [
       "Escolha a data no calendário. Se quiser, use <b>Filtrar sala</b>.",
       "Clique num horário <b>Livre</b> ou no botão <b>Reservar sala</b>.",
@@ -481,7 +481,7 @@ export const GUIAS: WikiGuia[] = [
     titulo: "Cadastrar ou desligar corretor",
     resumo: "Uma vez no ADM, vale para os três sistemas.",
     papeis: ["tl", "g", "a"],
-    onde: "ADM MAX → Menu → Administração → <b>Usuários</b> (tela “Usuários e perfis”)",
+    onde: "ADM MAX → Menu → Administração → <b>Usuários</b>",
     passos: [
       "<b>Administrador:</b> clique em <b>Novo usuário</b>, preencha Nome completo, E-mail, Telefone (WhatsApp), <b>Data de nascimento (opcional)</b> e Papel e clique em <b>Criar usuário</b>.",
       "<b>Team leader ou gestor:</b> clique em <b>Novo corretor</b>. O papel já vem como Corretor (no caso do team leader, a pessoa entra na equipe dele). A data de nascimento também pode ser preenchida aqui.",

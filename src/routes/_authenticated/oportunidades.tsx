@@ -169,7 +169,7 @@ function OportunidadesPage() {
     <div className="space-y-4">
       <PageHeader
         icon={Radar}
-        title="Oportunidades: mural do grupo"
+        title="Oportunidades"
         description="Posts do grupo de WhatsApp organizados automaticamente. Cada cartão some depois de 7 dias."
       />
 

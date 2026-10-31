@@ -123,7 +123,7 @@ type ReportOccurrence = Pick<
 >;
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
-  head: () => ({ meta: [{ title: "Relatórios — Financeiro" }] }),
+  head: () => ({ meta: [{ title: "Relatórios financeiros" }] }),
   beforeLoad: ({ context }) =>
     requireRoles(context.auth, anyOf("financeiro", "admin", "super_admin")),
   component: RelatoriosPage,
@@ -429,7 +429,7 @@ function RelatoriosPage() {
     <div className="space-y-6">
       <PageHeader
         icon={BarChart3}
-        title="Relatórios — Financeiro"
+        title="Relatórios financeiros"
         description="Visão consolidada de comissões, recebimentos, financiamentos e ocorrências."
       />
       {loading && (

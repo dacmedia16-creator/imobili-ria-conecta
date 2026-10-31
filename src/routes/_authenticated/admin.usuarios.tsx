@@ -760,7 +760,7 @@ function AdminUsers() {
     <div className="space-y-6">
       <PageHeader
         icon={Users}
-        title="Usuários e perfis"
+        title="Usuários"
         description={
           <>
             Você gerencia somente usuários da sua agência.{" "}

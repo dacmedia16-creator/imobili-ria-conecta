@@ -78,8 +78,10 @@ const FRASE_DA_AREA: Record<string, { titulo: string; frase: string }> = {
     titulo: "Vendas e captações",
     frase: "Registre e acompanhe suas vendas e captações.",
   },
-  equipe: { titulo: "Equipe", frase: "Acompanhe o desempenho e a organização das equipes." },
-  agenda: { titulo: "Agenda", frase: "Reserve salas para reuniões e atendimentos." },
+  equipe: {
+    titulo: "Equipe",
+    frase: "Acompanhe o desempenho e a organização das equipes e reserve salas.",
+  },
   "relatorios-detalhados": {
     titulo: "Relatórios",
     frase: "Números e relatórios para consultar os resultados.",
@@ -91,6 +93,10 @@ const FRASE_DA_AREA: Record<string, { titulo: string; frase: string }> = {
   administracao: {
     titulo: "Administração",
     frase: "Cadastros e ajustes da imobiliária. Só aparece para quem tem permissão.",
+  },
+  plataforma: {
+    titulo: "Plataforma",
+    frase: "Imobiliárias, usuários e chamados de todas as imobiliárias. Só para a equipe MAX.",
   },
 };
 

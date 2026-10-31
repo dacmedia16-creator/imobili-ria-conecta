@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/plataforma/usuarios")({
-  head: () => ({ meta: [{ title: "Usuários — Plataforma" }] }),
+  head: () => ({ meta: [{ title: "Usuários da plataforma" }] }),
   beforeLoad: guardPlatformRoute,
   component: PlatformUsers,
 });

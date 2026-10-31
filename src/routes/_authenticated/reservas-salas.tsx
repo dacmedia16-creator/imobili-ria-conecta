@@ -58,7 +58,7 @@ import type {
 import { listAgencyRooms } from "@/lib/agency-profile";
 import { guardRoomReservationRoute } from "@/lib/room-reservation-module";
 export const Route = createFileRoute("/_authenticated/reservas-salas")({
-  head: () => ({ meta: [{ title: "Agendamento de salas" }] }),
+  head: () => ({ meta: [{ title: "Reserva de salas" }] }),
   beforeLoad: guardRoomReservationRoute,
   component: RoomReservationsPage,
 });
@@ -538,7 +538,7 @@ function RoomReservationsPage() {
     <div className="space-y-6">
       <PageHeader
         icon={CalendarDays}
-        title="Agendamento de salas"
+        title="Reserva de salas"
         description="Consulte a disponibilidade e reserve uma sala sem conflito de horários."
         actions={
           <Button

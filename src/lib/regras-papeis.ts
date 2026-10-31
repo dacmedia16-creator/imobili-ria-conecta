@@ -1,5 +1,5 @@
 /**
- * Tela "Regras de papéis" (Usuários e perfis → Regras de papéis), pedido de Denis 27/10/2026 (t_37becd0c).
+ * Tela "Regras de papéis" (Usuários → Regras de papéis), pedido de Denis 27/10/2026 (t_37becd0c).
  *
  * SÓ DESCREVE as regras: não decide nada. A fonte da verdade continua sendo o código e o banco
  * (user-management-policy.ts, sale-permissions.ts, registrar-venda.ts, ocorrencias-concluidas.ts,
@@ -30,7 +30,7 @@ import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 import { podeAcessarProducaoPorPessoa } from "@/lib/producao-por-pessoa-calc";
 import { montarMenuLateral } from "@/lib/menu-lateral";
 
-/** Quem abre a tela: quem já administra Usuários e perfis como administrador (Denis, 27/10/2026).
+/** Quem abre a tela: quem já administra Usuários como administrador (Denis, 27/10/2026).
  * O admin da plataforma dentro de uma imobiliária recebe os papéis admin/super_admin do contexto. */
 export const PAPEIS_REGRAS_PAPEIS = ["admin", "super_admin"] as const;
 export function podeVerRegrasPapeis(roles: readonly string[]): boolean {
@@ -756,7 +756,7 @@ export const REGRAS_GERAIS: string[] = [
   "Cada imobiliária só enxerga os próprios dados.",
   "Uma pessoa pode ter mais de um papel. Nesse caso, ela soma o que cada papel permite.",
   "Ninguém altera o próprio papel, e nenhum papel da imobiliária move um usuário para outra imobiliária.",
-  "Alguns itens só aparecem quando o módulo está ligado para a imobiliária: Captações exclusivas, Feedback, Oportunidades, Mural de Conquistas, Reservar sala e Leads.",
+  "Alguns itens só aparecem quando o módulo está ligado para a imobiliária: Captações exclusivas, Feedback, Oportunidades, Mural de Conquistas, Reserva de salas e Leads.",
   "Quando o financeiro aceita a ocorrência, ou depois que ela é concluída, a venda fica travada: corretor, gestor e jurídico só leem; financeiro e administradores continuam editando.",
 ];
 

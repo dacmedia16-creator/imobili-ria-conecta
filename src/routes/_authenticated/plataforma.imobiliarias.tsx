@@ -91,7 +91,7 @@ export async function guardPlatformRoute() {
 }
 
 export const Route = createFileRoute("/_authenticated/plataforma/imobiliarias")({
-  head: () => ({ meta: [{ title: "Imobiliárias — Plataforma" }] }),
+  head: () => ({ meta: [{ title: "Painel da Plataforma" }] }),
   beforeLoad: guardPlatformRoute,
   component: PlatformOrganizations,
 });

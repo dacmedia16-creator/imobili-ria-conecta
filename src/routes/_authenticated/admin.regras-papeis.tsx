@@ -27,7 +27,7 @@ import {
 
 // Tela só de leitura (t_37becd0c, Denis 27/10/2026): descreve o que cada papel pode fazer.
 // Não grava nada e não decide permissão: o texto vem de src/lib/regras-papeis.ts, conferido por
-// teste contra as funções de permissão reais. Visível só para quem administra Usuários e perfis.
+// teste contra as funções de permissão reais. Visível só para quem administra Usuários.
 export const Route = createFileRoute("/_authenticated/admin/regras-papeis")({
   head: () => ({ meta: [{ title: "Regras de papéis" }] }),
   beforeLoad: ({ context }) => requireRoles(context.auth, podeVerRegrasPapeis),
@@ -142,11 +142,11 @@ function RegrasPapeisPage() {
       <PageHeader
         icon={ScrollText}
         title="Regras de papéis"
-        description="O que cada papel da imobiliária vê, pode fazer e não pode fazer no sistema. Esta tela é só para consulta: para mudar o papel de alguém, use Usuários e perfis."
+        description="O que cada papel da imobiliária vê, pode fazer e não pode fazer no sistema. Esta tela é só para consulta: para mudar o papel de alguém, use Usuários."
         actions={
           <Button asChild variant="outline" className="gap-2">
             <Link to="/admin/usuarios">
-              <ArrowLeft className="h-4 w-4" /> Voltar a Usuários e perfis
+              <ArrowLeft className="h-4 w-4" /> Voltar a Usuários
             </Link>
           </Button>
         }

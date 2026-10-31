@@ -22,7 +22,7 @@ import { PageHeader, TOM_PILL, TOM_PONTO } from "@/components/visual/base";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/configuracoes")({
-  head: () => ({ meta: [{ title: "Configurações — Administração" }] }),
+  head: () => ({ meta: [{ title: "Configurações" }] }),
   beforeLoad: guardExclusiveSettingsRoute,
   component: AdminSettings,
 });
@@ -171,7 +171,7 @@ function AdminSettings() {
     <div className="space-y-6">
       <PageHeader
         icon={Settings2}
-        title="Administração → Configurações"
+        title="Configurações"
         description="Liga ou desliga módulos da imobiliária. Desligar não apaga dados."
       />
       <ExclusiveSettingsPanel
