@@ -94,7 +94,7 @@ export const PERMUTA_JA = "O corretor já está verificando a permuta com o prop
 export const PERMUTA_FALHA = "Anotei! Um corretor da nossa equipe vai verificar a permuta com o proprietário e fala com você por aqui.";
 
 const RECUSA_DETALHE =
-  /^(nao|n|prefiro nao|agora nao|depois( eu (falo|passo|vejo))?|nao sei|so (com|pro|para o) corretor|melhor (com|falar com) o corretor|nao quero (falar|passar|dizer|informar))\b/;
+  /^(nao|n|prefiro nao|agora nao|depois( eu (falo|passo|vejo))?|nao sei|so (com|pro|para o) corretor|(prefiro|melhor|quero) (tratar |falar )?(com|direto com) o corretor|melhor falar com o corretor|nao quero (falar|passar|dizer|informar))\b/;
 /** O cliente não quis dar os detalhes ("prefiro falar com o corretor", "agora não"). */
 export function recusouDetalhes(texto: string): boolean {
   const n = norm(texto);

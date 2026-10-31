@@ -281,7 +281,8 @@ AS $function$
 DECLARE _r record; _hoje integer; _sp timestamp := now() AT TIME ZONE 'America/Sao_Paulo'; _alt uuid; _txt text;
   _frase text; _alt_frase text; _nome text; _cap uuid;
 BEGIN
-  IF extract(isodow FROM _sp) = 7 OR extract(hour FROM _sp) < 9 OR extract(hour FROM _sp) >= 19 THEN RETURN; END IF;
+  IF extract(hour FROM _sp) < 9 OR extract(hour FROM _sp) >= 19 THEN RETURN; END IF;
+  -- t_99359490 (Denis 31/10): domingo só para quem tem lead_config.ia_domingo (filtro abaixo, por imobiliária).
   FOR _r IN
     SELECT cv.id AS conversa_id, cv.organization_id, cv.lead_id, cv.reengaje_1_em, cv.dados, c.ia_envio_limite_dia,
            c.ia_reengajar_h0 AS h0, q.cli, c.ia_envio_intervalo_min_s AS imin, c.ia_envio_intervalo_max_s AS imax,
@@ -299,6 +300,7 @@ BEGIN
       LEFT JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM public.lead_mensagens y WHERE y.conversa_id = cv.id
                                           AND y.autor = 'cliente') AS cli) q ON true
      WHERE c.ia_reengajar AND c.ia_ativa AND c.ia_canal = 'ziontalk'
+       AND (extract(isodow FROM _sp) <> 7 OR coalesce(c.ia_domingo, false))
        AND (c.ia_reengajar_proximo_em IS NULL OR c.ia_reengajar_proximo_em <= now())
        AND cv.estado = 'ativa' AND cv.canal = 'ziontalk' AND cv.primeira_enviada_em IS NOT NULL
        AND cv.reengaje_2_em IS NULL
