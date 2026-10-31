@@ -137,14 +137,14 @@ async function abrirTela() {
   for (let i = 0; i < 80; i++) {
     await esperar(100);
     const carregando = document.querySelector('[aria-label="Carregando vendas"]');
-    if (!carregando && document.body.textContent?.includes("Efetivadas · VGV REMAX")) break;
+    if (!carregando && document.querySelector('[data-testid="resumo-efetivadas"]')) break;
   }
   await esperar(500);
 }
 
 function textoResumo() {
-  const cartao = screen.getByText("Efetivadas · VGV REMAX").parentElement!;
-  const lancadas = screen.getByText("Lançadas no período").parentElement!;
+  const cartao = screen.getByTestId("resumo-efetivadas");
+  const lancadas = screen.getByTestId("resumo-lançadas");
   return `${cartao.textContent} | ${lancadas.textContent}`;
 }
 
@@ -207,6 +207,6 @@ describe("tela Vendas: rajada de filtros", () => {
     fireEvent.change(busca, { target: { value: "C1" } });
     await esperar(800);
     expect(contagem.abortadas).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Efetivadas · VGV REMAX")).toBeTruthy();
+    expect(screen.getByTestId("resumo-efetivadas")).toBeTruthy();
   });
 });
