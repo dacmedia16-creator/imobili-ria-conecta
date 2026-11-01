@@ -435,7 +435,10 @@ export function captureMatches(
   return out;
 }
 
-/** Quem está olhando o mural. Staff = gestor, administrador, administrador principal ou staff. */
+/**
+ * Quem está olhando o mural. Staff = gestor, administrador, administrador principal, staff,
+ * team leader ou coordenador (decidido no banco por opportunity_is_staff).
+ */
 export type MuralViewer = { userId: string; isStaff: boolean };
 
 /** Captação devolvida ao mural: só o que o selo mostra (sem captor_id). */

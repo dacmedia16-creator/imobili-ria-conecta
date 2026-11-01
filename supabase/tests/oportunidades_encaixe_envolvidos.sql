@@ -1,7 +1,7 @@
 -- Suíte local de 20261101120000_oportunidades_encaixe_envolvidos (t_6dd4a31b). Dados sintéticos, ROLLBACK no fim.
 -- Rodar SOMENTE em banco local descartável (estrutura de produção restaurada sem dados), depois da migration:
 --   psql -v ON_ERROR_STOP=1 -1 < supabase/tests/oportunidades_encaixe_envolvidos.sql
--- Cobre: corretor envolvido vê, corretor de fora não vê, staff vê tudo, outra imobiliária não vê,
+-- Cobre: corretor envolvido vê, corretor de fora não vê, staff/team leader/coordenador veem tudo, outra imobiliária não vê,
 -- ligação do autor pelo telefone (sem gravar o número) e captações candidatas por papel.
 BEGIN;
 SET LOCAL client_min_messages = notice;
@@ -10,7 +10,7 @@ CREATE TEMP TABLE t_ids (k text PRIMARY KEY, v uuid) ON COMMIT DROP;
 GRANT SELECT ON t_ids TO authenticated, service_role;
 INSERT INTO t_ids SELECT k, gen_random_uuid() FROM unnest(ARRAY[
   'orgA', 'orgB', 'uAna', 'uBruno', 'uCaio', 'uDavi', 'uGestor', 'uStaff', 'uB', 'uSA', 'uDup1', 'uDup2',
-  'capCaio', 'capB']) k;
+  'uTL', 'uCoord', 'capCaio', 'capB']) k;
 
 CREATE FUNCTION pg_temp.id(_k text) RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT v FROM t_ids WHERE k = _k $$;
 CREATE FUNCTION pg_temp.ok(_n int, _cond boolean, _msg text) RETURNS void LANGUAGE plpgsql AS $$
@@ -35,7 +35,7 @@ INSERT INTO public.organizations (id, slug, nome) VALUES
   (pg_temp.id('orgA'), 'opp-env-a', 'Opp Env A'), (pg_temp.id('orgB'), 'opp-env-b', 'Opp Env B');
 INSERT INTO auth.users (id, email)
 SELECT pg_temp.id(k), k || '@opp-env.teste.local'
-FROM unnest(ARRAY['uAna', 'uBruno', 'uCaio', 'uDavi', 'uGestor', 'uStaff', 'uB', 'uSA', 'uDup1', 'uDup2']) k;
+FROM unnest(ARRAY['uAna', 'uBruno', 'uCaio', 'uDavi', 'uGestor', 'uStaff', 'uB', 'uSA', 'uDup1', 'uDup2', 'uTL', 'uCoord']) k;
 INSERT INTO public.profiles (id, nome, email, ativo, organization_id, telefone)
 SELECT pg_temp.id(x.k), x.nome, x.k || '@opp-env.teste.local', true, pg_temp.id(x.org), x.tel
 FROM (VALUES ('uAna', 'Ana Teste', 'orgA', '(15) 99000-0001'),
@@ -47,17 +47,20 @@ FROM (VALUES ('uAna', 'Ana Teste', 'orgA', '(15) 99000-0001'),
              ('uSA', 'Super Teste', 'orgA', NULL),
              ('uDup1', 'Dup Um', 'orgA', '15990000009'),
              ('uDup2', 'Dup Dois', 'orgA', '(15) 99000-0009'),
+             ('uTL', 'TL Teste', 'orgA', NULL),
+             ('uCoord', 'Coord Teste', 'orgA', NULL),
              ('uB', 'Corretor B', 'orgB', '15990000001')) x(k, nome, org, tel)
 ON CONFLICT (id) DO UPDATE SET organization_id = EXCLUDED.organization_id, ativo = true, nome = EXCLUDED.nome,
   telefone = EXCLUDED.telefone;
 INSERT INTO public.organization_members (organization_id, user_id)
 SELECT pg_temp.id(CASE WHEN k = 'uB' THEN 'orgB' ELSE 'orgA' END), pg_temp.id(k)
-FROM unnest(ARRAY['uAna', 'uBruno', 'uCaio', 'uDavi', 'uGestor', 'uStaff', 'uB', 'uSA', 'uDup1', 'uDup2']) k
+FROM unnest(ARRAY['uAna', 'uBruno', 'uCaio', 'uDavi', 'uGestor', 'uStaff', 'uB', 'uSA', 'uDup1', 'uDup2', 'uTL', 'uCoord']) k
 ON CONFLICT DO NOTHING;
 INSERT INTO public.user_roles (user_id, role, organization_id)
 SELECT pg_temp.id(x.k), x.r::public.app_role, pg_temp.id(x.org)
 FROM (VALUES ('uAna', 'corretor', 'orgA'), ('uBruno', 'corretor', 'orgA'), ('uCaio', 'corretor', 'orgA'),
              ('uDavi', 'corretor', 'orgA'), ('uGestor', 'gestor', 'orgA'), ('uStaff', 'staff', 'orgA'),
+             ('uTL', 'team_leader', 'orgA'), ('uCoord', 'coordenador', 'orgA'),
              ('uB', 'corretor', 'orgB')) x(k, r, org)
 ON CONFLICT DO NOTHING;
 INSERT INTO public.platform_admins (user_id) VALUES (pg_temp.id('uSA'));
@@ -124,6 +127,18 @@ RESET ROLE;
 SELECT pg_temp.as_user('uStaff');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.ok(8, (SELECT is_staff FROM public.opportunity_viewer()), 'papel staff é staff');
+RESET ROLE;
+SELECT pg_temp.as_user('uTL');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok(30, (SELECT is_staff FROM public.opportunity_viewer()), 'team leader vê tudo (t_1805d507)');
+SELECT pg_temp.ok(31, (SELECT array_agg(id) = ARRAY[pg_temp.id('capCaio')] FROM public.opportunity_capture_candidates()),
+  'team leader recebe todas as captações da A');
+RESET ROLE;
+SELECT pg_temp.as_user('uCoord');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.ok(32, (SELECT is_staff FROM public.opportunity_viewer()), 'coordenador vê tudo (t_1805d507)');
+SELECT pg_temp.ok(33, (SELECT array_agg(id) = ARRAY[pg_temp.id('capCaio')] FROM public.opportunity_capture_candidates()),
+  'coordenador recebe todas as captações da A');
 RESET ROLE;
 
 -- 9-11: captações candidatas — corretor só as próprias; staff todas da imobiliária.

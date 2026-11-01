@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   ageDays,
@@ -341,5 +342,30 @@ describe("formatação", () => {
 
   it("chave da repostagem ignora acento, caixa e espaços", () => {
     expect(sourceKeyInput("Ána", "Apto  CAMPOLIM")).toBe(sourceKeyInput("ana", "apto campolim"));
+  });
+});
+
+describe("quem vê todos os encaixes (opportunity_is_staff)", () => {
+  const sql = readFileSync(
+    new URL(
+      "../../supabase/migrations/20261101120000_oportunidades_encaixe_envolvidos.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const corpo = sql.slice(sql.indexOf("FUNCTION public.opportunity_is_staff()"));
+  const papeis = [...(corpo.match(/ARRAY\[([^\]]*)\]/)?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map(
+    (m) => m[1],
+  );
+
+  it("gestor, admin, administrador principal, staff, team leader e coordenador (decisão de Denis, t_1805d507)", () => {
+    expect(papeis.sort()).toEqual(
+      ["admin", "coordenador", "gestor", "staff", "super_admin", "team_leader"].sort(),
+    );
+  });
+
+  it("corretor e papéis de apoio (jurídico, financeiro, lançamento) não veem tudo", () => {
+    for (const p of ["corretor", "juridico", "financeiro", "lancamento"])
+      expect(papeis).not.toContain(p);
   });
 });

@@ -4,7 +4,7 @@
 -- Regras:
 --   ⭐ procura × captação: o dono da captação (captor_id) e o autor da procura.
 --   🤝 procura × oferta do grupo: os autores dos dois posts.
---   Gestor / administrador / staff da imobiliária veem todos os encaixes.
+--   Gestor / administrador / staff / team leader / coordenador da imobiliária veem todos os encaixes.
 -- O autor do post (author_profile_id) é ligado ao cadastro pelo TELEFONE do remetente na ingestão,
 -- só quando há exatamente 1 membro ativo da imobiliária com aquele celular. O telefone NÃO é gravado.
 -- Sem autor identificado, o post não dá direito de ver encaixe a nenhum corretor.
@@ -22,11 +22,13 @@ REVOKE SELECT ON public.opportunity_posts FROM authenticated;
 GRANT SELECT (id, organization_id, source_key, kind, tipo, finalidade, bairro, valor_min, valor_max, valor,
               corretor, texto, posted_at, created_at) ON public.opportunity_posts TO authenticated;
 
--- 2) Quem vê tudo: gestor, administrador, administrador principal e staff (papel na imobiliária ativa).
+-- 2) Quem vê tudo: gestor, administrador, administrador principal, staff, team leader e coordenador
+--    (papel na imobiliária ativa; TL e coordenador incluídos por decisão de Denis, t_1805d507).
 CREATE OR REPLACE FUNCTION public.opportunity_is_staff() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
   SELECT auth.uid() IS NOT NULL
-    AND public.has_any_role(auth.uid(), ARRAY['gestor', 'admin', 'super_admin', 'staff']::public.app_role[])
+    AND public.has_any_role(auth.uid(),
+      ARRAY['gestor', 'admin', 'super_admin', 'staff', 'team_leader', 'coordenador']::public.app_role[])
 $$;
 REVOKE ALL ON FUNCTION public.opportunity_is_staff() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.opportunity_is_staff() TO authenticated, service_role;
