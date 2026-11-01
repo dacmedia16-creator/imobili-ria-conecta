@@ -4,7 +4,7 @@ set -Eeuo pipefail
 EXPECTED_REMOTE="https://github.com/dacmedia16-creator/imobili-ria-conecta.git"
 EXPECTED_BRANCH="main"
 EXPECTED_WORKER="imobili-ria-conecta"
-PRODUCTION_URL="https://app.somosmaxhub.com.br"
+PRODUCTION_URL="https://app.somosunihub.com.br"
 CHECK_ONLY=false
 
 if [[ "${1:-}" == "--check-only" ]]; then

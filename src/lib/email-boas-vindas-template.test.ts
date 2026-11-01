@@ -46,7 +46,7 @@ describe("renderEmailBoasVindas", () => {
     expect(html).toContain('name="viewport"');
     // botão bulletproof: link de texto dentro de célula com bgcolor
     expect(html).toMatch(
-      /<td align="center" bgcolor="#dc1c2e"[\s\S]*?<a class="btn" href="https:\/\/app\.somosmaxhub\.com\.br\/"/,
+      /<td align="center" bgcolor="#dc1c2e"[\s\S]*?<a class="btn" href="https:\/\/app\.somosunihub\.com\.br\/"/,
     );
     // toda imagem tem alt não vazio
     const imgs = html.match(/<img\b[^>]*>/g) ?? [];
