@@ -65,6 +65,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { contaMaxLoginUrl } from "@/lib/dominios";
 import {
   Select,
   SelectContent,
@@ -137,9 +138,7 @@ function fromOrg(o: OrganizationSummary): FormState {
 
 // Convite só com Google (t_93e80346): o link é a entrada pelo Google (Conta MAX), não "definir senha".
 const redirectTo = () =>
-  import.meta.env.VITE_HOMOLOG_ONLY === "true"
-    ? "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog"
-    : "https://conta.somosmaxhub.com.br/login?app=adm-max";
+  contaMaxLoginUrl(import.meta.env.VITE_HOMOLOG_ONLY === "true" ? "adm-max-homolog" : "adm-max");
 
 async function readLogo(file: File): Promise<Logo> {
   if (!(LOGO_TYPES as readonly string[]).includes(file.type))

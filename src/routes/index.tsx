@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
+import { contaMaxLoginUrl, contaMaxLogoutUrl } from "@/lib/dominios";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -59,7 +60,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Gestão administrativa", "Subir Contratos"],
     icon: "/hub/adm.png",
     color: "navy",
-    href: "https://conta.somosmaxhub.com.br/login?app=adm-max",
+    href: contaMaxLoginUrl("adm-max"),
     pos: { left: "11%", top: "30.7%", width: "23.8%", height: "10.6%" },
     delay: "0s",
   },
@@ -69,7 +70,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Análise estratégica", "de mercado"],
     icon: "/hub/estudo.png",
     color: "blue",
-    href: "https://conta.somosmaxhub.com.br/login?app=estudo-mercado-max",
+    href: contaMaxLoginUrl("estudo-mercado-max"),
     pos: { left: "7.7%", top: "48.1%", width: "27.5%", height: "10.6%" },
     delay: "0.35s",
   },
@@ -115,7 +116,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Registro e proteção", "de visitas"],
     icon: "/hub/visita.png",
     color: "blue",
-    href: "https://conta.somosmaxhub.com.br/login?app=visita-max",
+    href: contaMaxLoginUrl("visita-max"),
     pos: { left: "39%", top: "75.1%", width: "22.3%", height: "11.6%" },
     delay: "2.1s",
   },
@@ -151,8 +152,7 @@ const WHEEL_ITEMS: WheelItem[] = CARDS.filter((c) => c.id !== "obah").map((c) =>
   href: c.href,
 }));
 
-const ADM_MAX_LOGIN_URL =
-  "https://conta.somosmaxhub.com.br/login?app=adm-max&return_to=%2Freservas-salas";
+const ADM_MAX_LOGIN_URL = contaMaxLoginUrl("adm-max", "/reservas-salas");
 
 function CardIcon({ card }: { card: ServiceCard }) {
   return (
@@ -214,10 +214,10 @@ function SingleLoginBanner() {
         </span>
       </span>
       <span className="single-login-actions">
-        <a href="https://conta.somosmaxhub.com.br/logout" className="single-login-switch">
+        <a href={contaMaxLogoutUrl()} className="single-login-switch">
           Trocar conta
         </a>
-        <a href="https://conta.somosmaxhub.com.br/logout" className="single-login-status">
+        <a href={contaMaxLogoutUrl()} className="single-login-status">
           <span aria-hidden="true" /> Sair da Conta MAX
         </a>
       </span>

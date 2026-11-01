@@ -1,4 +1,5 @@
 import type { Database } from "@/integrations/supabase/types";
+import { APP_ORIGIN } from "./dominios";
 
 export type RoomReservationRow = Database["public"]["Tables"]["room_reservations"]["Row"];
 
@@ -26,7 +27,7 @@ export function startAt(row: Pick<RoomReservationRow, "reserved_date" | "start_t
 
 export function reminderMessage(
   row: Pick<RoomReservationRow, "room" | "reserved_date" | "start_time" | "end_time" | "purpose">,
-  appUrl = "https://app.somosmaxhub.com.br",
+  appUrl = APP_ORIGIN,
 ): string {
   const date = new Date(`${row.reserved_date}T12:00:00-03:00`).toLocaleDateString("pt-BR");
   return whatsappText(

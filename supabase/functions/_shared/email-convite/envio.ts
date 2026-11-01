@@ -2,8 +2,10 @@
 // Sem dependências do Deno (testável no vitest). Banco e SMTP entram por injeção.
 import { renderEmailConvite } from "./render.ts";
 
+// t_a69e9d11: app.somosunihub aceito desde já (convivência); o antigo continua aceito.
 export const APP_ORIGENS_CONVITE = [
   "https://app.somosmaxhub.com.br",
+  "https://app.somosunihub.com.br",
   "https://adm-max-homolog.dacmedia16.workers.dev",
 ] as const;
 

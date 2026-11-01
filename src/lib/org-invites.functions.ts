@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { LOGO_TYPES } from "@/lib/platform-organizations";
 import { inviteEmailSchema, selfSignupSchema } from "@/lib/org-invites";
+import { APP_ORIGIN } from "./dominios";
 
 /**
  * Convite de autocadastro (t_6e4dab96) — funções de servidor. Lógica em `org-invites.server.ts`.
@@ -19,7 +20,7 @@ async function admin() {
 
 /** Endereço do app que vai no link do e-mail (produção ou homologação, conforme o Worker). */
 function appUrl(): string {
-  return (process.env.APP_URL || "https://app.somosmaxhub.com.br").replace(/\/+$/, "");
+  return (process.env.APP_URL || APP_ORIGIN).replace(/\/+$/, "");
 }
 
 /** Reaproveita a Edge Function das boas-vindas (SMTP Zoho já configurado), com a chave do servidor. */

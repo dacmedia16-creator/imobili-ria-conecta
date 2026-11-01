@@ -37,6 +37,7 @@ import { leadsEnabled } from "@/lib/leads-db";
 import { crmEnabled } from "@/lib/crm-db";
 import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
+import { contaMaxLogoutUrl } from "@/lib/dominios";
 import {
   PLATFORM_PANEL_PATH,
   contextBannerText,
@@ -91,7 +92,7 @@ function SidebarNav({
       return;
     }
     await signOut();
-    window.location.assign(IS_HOMOLOG ? "/auth" : "https://conta.somosmaxhub.com.br/logout");
+    window.location.assign(IS_HOMOLOG ? "/auth" : contaMaxLogoutUrl());
   };
 
   const signOutLabel = impersonation

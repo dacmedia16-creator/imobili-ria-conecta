@@ -263,7 +263,9 @@ describe("e-mail do convite (mesmo SMTP das boas-vindas)", () => {
     expect(r.text).toMatch(/uma única vez/);
   });
 
-  async function cenario(over: Partial<{ status: string; expires_at: string; hash: string }> = {}) {
+  async function cenario(
+    over: Partial<{ status: string; expires_at: string; hash: string; appUrl: string }> = {},
+  ) {
     const token = newInviteToken();
     const marcas: Array<[boolean, string | undefined]> = [];
     const enviados: Array<{ to: string; from: string; text: string }> = [];
@@ -284,7 +286,7 @@ describe("e-mail do convite (mesmo SMTP das boas-vindas)", () => {
       {
         inviteId: "11111111-1111-4111-8111-111111111111",
         token,
-        appUrl: "https://app.somosmaxhub.com.br",
+        appUrl: over.appUrl ?? "https://app.somosmaxhub.com.br",
       },
       { from: '"UniHub" <no-reply@somosmaxhub.com.br>', dominio: "somosmaxhub.com.br" },
       () => "erro",
@@ -301,6 +303,21 @@ describe("e-mail do convite (mesmo SMTP das boas-vindas)", () => {
     expect(enviados[0].text).toContain(`/convite/${token}`);
   });
 
+  it("aceita app.somosunihub e mantém os antigos; recusa endereço fora da lista (t_a69e9d11)", async () => {
+    for (const app of [
+      "https://app.somosunihub.com.br",
+      "https://app.somosmaxhub.com.br",
+      "https://adm-max-homolog.dacmedia16.workers.dev",
+    ]) {
+      const { r, enviados, token } = await cenario({ appUrl: app });
+      expect(r.ok, app).toBe(true);
+      expect(enviados[0].text).toContain(`${app}/convite/${token}`);
+    }
+    const ruim = await cenario({ appUrl: "https://app.somosunihub.com.br.evil.com" });
+    expect(ruim.r).toEqual({ ok: false, error: "app_nao_permitido" });
+    expect(ruim.enviados).toHaveLength(0);
+  });
+
   it("não envia com token trocado, convite cancelado ou expirado", async () => {
     expect((await cenario({ hash: "0".repeat(64) })).enviados).toHaveLength(0);
     expect((await cenario({ status: "cancelado" })).enviados).toHaveLength(0);
@@ -312,7 +329,8 @@ describe("login atual intacto", () => {
   it("o login continua só pela Conta MAX (Google) e a tela /auth não mudou de destino", () => {
     expect(LOGIN_SO_GOOGLE).toBe(true);
     const auth = readFileSync("src/routes/auth.tsx", "utf8");
-    expect(auth).toContain("https://conta.somosmaxhub.com.br/login?app=adm-max");
+    // t_a69e9d11: o endereço vem de dominios.ts (segue o domínio em que a pessoa está).
+    expect(auth).toContain('contaMaxLoginUrl(IS_HOMOLOG ? "adm-max-homolog" : "adm-max")');
     expect(auth).not.toMatch(/signInWithOAuth/);
   });
   it("a ponte só desvia para o convite quando o pedido traz invite_token", () => {

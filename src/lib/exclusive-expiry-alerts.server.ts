@@ -3,6 +3,7 @@ import { captureValidity, formatDateBR, type Capture, type Validity } from "./ex
 import type { OrgAdminClient } from "./org-scope";
 import { normalizePhone, whatsappText } from "./room-reservation-reminders";
 import { leaderIdsForCorretor, roleUserIds } from "./sale-notifications.server";
+import { APP_ORIGIN } from "./dominios";
 
 /** Entra no alerta: vence em até 30 dias ou venceu há no máximo 30 dias (depois disso para de avisar). */
 export const ALERT_AHEAD = 30;
@@ -28,10 +29,7 @@ export function weekStart(today: string): string {
 
 const MAX_LINES = 15;
 /** Mensagem só com dados do imóvel e do captador (nunca do proprietário). */
-export function expiryMessage(
-  items: ExpiryItem[],
-  appUrl = "https://app.somosmaxhub.com.br",
-): string {
+export function expiryMessage(items: ExpiryItem[], appUrl = APP_ORIGIN): string {
   const line = ({ c, v }: ExpiryItem) => {
     const i = c.form_data.imovel;
     const imovel = [i?.endereco?.trim() || i?.tipo_imovel?.trim() || "Imovel", i?.bairro?.trim()]

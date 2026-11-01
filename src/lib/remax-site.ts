@@ -1,3 +1,4 @@
+import { APP_ORIGIN } from "./dominios";
 /**
  * Coleta dos anúncios PÚBLICOS do site remax.com.br (pedido de Denis 09/10, tópico 6238).
  * Uma vez por dia, de madrugada, sem IA e sem custo. Guarda só o necessário para ligar captação <-> anúncio;
@@ -6,7 +7,7 @@
  */
 
 export const REMAX_SEARCH = "https://www.remax.com.br/search";
-export const REMAX_USER_AGENT = "ADM-MAX-coleta/1.0 (+https://app.somosmaxhub.com.br; 1x/dia)";
+export const REMAX_USER_AGENT = `ADM-MAX-coleta/1.0 (+${APP_ORIGIN}; 1x/dia)`;
 export const PAGE_SIZE = 500;
 export const PAUSA_MS = 1500;
 /** Status do anúncio no site: 160 = ativo (168/169/161 = vendido, alugado, suspenso). */
