@@ -7,8 +7,8 @@
  * - Portal ADM: app.<domínio principal>
  * - Login Google (Conta MAX): conta.<domínio principal>
  *
- * VIRADA (precisa de "sim" de Denis): trocar DOMINIO_PRINCIPAL para "somosunihub" e, no wrangler.toml,
- * APP_URL para "https://app.somosunihub.com.br" (o teste dominios.test.ts confere que os dois batem).
+ * VIRADA feita em 01/11/2026 (t_0515ccd3, "sim" de Denis): DOMINIO_PRINCIPAL = "somosunihub" e, no
+ * wrangler.toml, APP_URL = "https://app.somosunihub.com.br" (o teste dominios.test.ts confere que os dois batem).
  *
  * Convivência: o login e o "sair" seguem o endereço em que a pessoa está (quem abre app.somosunihub entra
  * por conta.somosunihub e volta para app.somosunihub; quem está em app.somosmaxhub segue no somosmaxhub).
@@ -28,7 +28,7 @@ export const DOMINIOS: Record<DominioMax, { app: string; conta: string }> = {
 };
 
 /** Flag da virada: domínio dos links enviados (WhatsApp, e-mail, og:url) e padrão do login. */
-export const DOMINIO_PRINCIPAL: DominioMax = "somosmaxhub";
+export const DOMINIO_PRINCIPAL: DominioMax = "somosunihub";
 
 export const APP_ORIGIN = DOMINIOS[DOMINIO_PRINCIPAL].app;
 export const CONTA_MAX_ORIGIN = DOMINIOS[DOMINIO_PRINCIPAL].conta;

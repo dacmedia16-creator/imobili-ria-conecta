@@ -6,8 +6,8 @@
 // Linhas do texto puro (versão sem HTML) são geradas a partir destes mesmos campos.
 
 export const LINKS = {
-  app: "https://app.somosmaxhub.com.br/",
-  capa: "https://somosmaxhub.com.br/og-maxhub.png",
+  app: "https://app.somosunihub.com.br/",
+  capa: "https://somosunihub.com.br/og-maxhub.png",
 };
 
 export const CONTEUDO = {
