@@ -19,6 +19,8 @@ export type OpportunityPost = {
   corretor: string;
   texto: string;
   posted_at: string;
+  /** Cadastro do autor, ligado pelo telefone na ingestão (null = não identificado). Só o servidor lê. */
+  author_profile_id?: string | null;
 };
 
 /** Captação aprovada da equipe, só com o que o encaixe precisa (sem endereço nem proprietário). */
@@ -53,7 +55,10 @@ export function sanitizeText(raw: string): string {
       .replace(/\b(senhas?|password|passwd|pass|pwd|pin|token)(\s*[:=]\s*)\S+/gi, "")
       .replace(/https?:\/\/\S+|www\.\S+|\b[\w.-]+\.(?:com|net|org)(?:\.br)?\/\S*/gi, "")
       .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, "")
-      .replace(/\[(?:número oculto|e-mail oculto|senha oculta|imagem|vídeo|video|áudio|audio|documento|figurinha)\]/gi, "")
+      .replace(
+        /\[(?:número oculto|e-mail oculto|senha oculta|imagem|vídeo|video|áudio|audio|documento|figurinha)\]/gi,
+        "",
+      )
       .replace(/\S*oculto\]\S*/gi, "")
       .replace(/@\S+/g, "")
       // telefone: 8+ dígitos com separadores comuns, com ou sem DDI/DDD
@@ -71,7 +76,10 @@ export function sanitizeText(raw: string): string {
 
 /** Nome do corretor como aparece no grupo, sem cargo, empresa nem pedaço de telefone. */
 export function sanitizeName(raw: string): string {
-  const first = (raw ?? "").split(/\n|\||•| - | – /)[0].replace(/[*_~]/g, "").trim();
+  const first = (raw ?? "")
+    .split(/\n|\||•| - | – /)[0]
+    .replace(/[*_~]/g, "")
+    .trim();
   if (!first || /\d|••|^contato$/i.test(first)) return "Corretor(a) do grupo";
   return (
     first
@@ -85,16 +93,24 @@ export function sanitizeName(raw: string): string {
 // Classificação
 // ---------------------------------------------------------------------------------------------
 
-const sem = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const sem = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const PROCURA =
   /\b(procur\w*|busc[ao]\w*|demanda|cliente (precisa|quer|busca|procura)|tenho (um |uma )?cliente|preciso de|necessito|interessad[oa]s? em|algu[eé]m (com|tem|teria|possui|posicionad|lembra|sabe)|quem tem|tem algu[eé]m com)\b/i;
 const OFERTA =
   /(\b(a|à) venda\b|\bvendo\b|\bvende-se\b|\bpara loca[cç][aã]o\b|\bloca[cç][aã]o\b|\balugo\b|\baluga-se\b|\boportunidade\b|\bdispon[ií]vel\b|\bparceria\b|\bexclusiv[ao]\b)/i;
-const CARACTERISTICA = /\b(dorm\w*|quartos?|su[ií]tes?|vagas?|m²|m2|banheiros?|lavabo|churrasqueira|condom[ií]nio)\b/i;
+const CARACTERISTICA =
+  /\b(dorm\w*|quartos?|su[ií]tes?|vagas?|m²|m2|banheiros?|lavabo|churrasqueira|condom[ií]nio)\b/i;
 
 const TIPOS: [TipoImovel, RegExp][] = [
-  ["Comercial", /\b(sala comercial|salas comerciais|sala para|galpao|barracao|ponto comercial|loja|predio comercial|casa comercial|imovel comercial|consultorio)\b/],
+  [
+    "Comercial",
+    /\b(sala comercial|salas comerciais|sala para|galpao|barracao|ponto comercial|loja|predio comercial|casa comercial|imovel comercial|consultorio)\b/,
+  ],
   ["Apartamento", /\b(apartamentos?|aptos?|apart|ap|cobertura|studio|kitnet|flat|duplex)\b/],
   ["Casa", /\b(casas?|sobrado|terrea|edicula)\b/],
   ["Terreno", /\b(terrenos?|lotes?)\b/],
@@ -186,7 +202,11 @@ export function extractBairro(text: string): string | null {
     .map((m) => m[0].replace(/\s+(d[aoe]s?)$/i, "").trim())
     .filter((b) => b.split(/\s+/).length >= 2 || /^(Campolim|Centro|Éden|Eden)$/i.test(b))
     .filter((b) => !/^(condom[ií]nio|cond\.?)\s*$/i.test(b));
-  if (achados.length) return achados[0].replace(/^Zona\s+(\w+)/i, (_, z) => `Zona ${z[0].toUpperCase()}${z.slice(1).toLowerCase()}`);
+  if (achados.length)
+    return achados[0].replace(
+      /^Zona\s+(\w+)/i,
+      (_, z) => `Zona ${z[0].toUpperCase()}${z.slice(1).toLowerCase()}`,
+    );
   if (zona) return `Zona ${zona[1][0].toUpperCase()}${zona[1].slice(1).toLowerCase()}`;
   const cidade = MUNICIPIOS.find((c) => new RegExp(`\\b${c}\\b`, "i").test(t));
   return cidade ?? null;
@@ -201,19 +221,29 @@ export function classifyPost(text: string): Classified {
   const valores = extractValues(t);
   const cabeca = t.slice(0, 140);
   // Anúncio começa dizendo o que é ("CASA À VENDA", "LOCAÇÃO |", "Oportunidade:"); pedido costuma ser pergunta.
-  const anuncio = OFERTA.test(t.slice(0, 70)) && !/\?/.test(cabeca) && !/\b(demanda|cliente|procuro|busco)\b/i.test(t.slice(0, 70));
-  const pergunta = /^(alguma?|algu[eé]m|quem|tem algu|to precisando|estou precisando|precisando)\b/i.test(t.replace(/^(ol[aá]|oi+|bom dia|boa tarde|boa noite|pessoal|time|parceiros)[!,. ]*/gi, "")) || (t.length < 200 && /\?\s*$/.test(t));
+  const anuncio =
+    OFERTA.test(t.slice(0, 70)) &&
+    !/\?/.test(cabeca) &&
+    !/\b(demanda|cliente|procuro|busco)\b/i.test(t.slice(0, 70));
+  const pergunta =
+    /^(alguma?|algu[eé]m|quem|tem algu|to precisando|estou precisando|precisando)\b/i.test(
+      t.replace(/^(ol[aá]|oi+|bom dia|boa tarde|boa noite|pessoal|time|parceiros)[!,. ]*/gi, ""),
+    ) ||
+    (t.length < 200 && /\?\s*$/.test(t));
   const pedeNaFrente = PROCURA.test(cabeca) || /\bprecisando\b/i.test(cabeca);
   let kind: OpportunityKind = "outros";
-  if (t.length >= 25 && (pergunta || (pedeNaFrente && !anuncio))) kind = tipo || pedeNaFrente ? "procura" : "outros";
+  if (t.length >= 25 && (pergunta || (pedeNaFrente && !anuncio)))
+    kind = tipo || pedeNaFrente ? "procura" : "outros";
   else if (t.length >= 40 && tipo && (OFERTA.test(t) || CARACTERISTICA.test(t) || valores.length))
     kind = "oferta";
   else if (t.length >= 25 && PROCURA.test(t)) kind = "procura";
 
   const loc = /\b(loca[cç][aã]o|alug\w*|aluguel|locar)\b/i.test(t);
-  const venda = /\b(venda|vend\w*|compra\w*|financ\w*|[aà] vista|caixa aprov\w*|investi\w*)\b/i.test(t);
+  const venda =
+    /\b(venda|vend\w*|compra\w*|financ\w*|[aà] vista|caixa aprov\w*|investi\w*)\b/i.test(t);
   let finalidade: Finalidade | null = loc && !venda ? "Locação" : venda && !loc ? "Venda" : null;
-  if (!finalidade && loc && venda) finalidade = /\b(pacote|aluguel)\b/i.test(t) ? "Locação" : "Venda";
+  if (!finalidade && loc && venda)
+    finalidade = /\b(pacote|aluguel)\b/i.test(t) ? "Locação" : "Venda";
   const maior = valores.length ? Math.max(...valores) : null;
   if (!finalidade && maior) finalidade = maior <= 20_000 ? "Locação" : "Venda";
 
@@ -221,7 +251,9 @@ export function classifyPost(text: string): Classified {
   let valor_max: number | null = null;
   let valor: number | null = null;
   if (kind === "procura" && valores.length) {
-    const faixa = t.match(/\bde\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:a|at[eé])\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|mi|milh[aã]o)?/i);
+    const faixa = t.match(
+      /\bde\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:a|at[eé])\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|mi|milh[aã]o)?/i,
+    );
     const unit = faixa ? (faixa[4] ?? faixa[2] ?? "") : "";
     const fMin = faixa ? toNumber(faixa[1], faixa[2] ?? unit) : null;
     const fMax = faixa ? toNumber(faixa[3], unit) : null;
@@ -229,7 +261,8 @@ export function classifyPost(text: string): Classified {
       valor_min = fMin;
       valor_max = fMax;
     } else valor_max = maior;
-  } else if (kind === "oferta" && valores.length) valor = valores[valores.length > 1 && /\bpara\b/i.test(t) ? valores.length - 1 : 0];
+  } else if (kind === "oferta" && valores.length)
+    valor = valores[valores.length > 1 && /\bpara\b/i.test(t) ? valores.length - 1 : 0];
 
   return {
     kind,
@@ -245,9 +278,7 @@ export function classifyPost(text: string): Classified {
 /** Mensagens do leitor que não viram cartão (só link/imagem, resposta curta, resumo automático). */
 export function isNoise(text: string): boolean {
   return (
-    !text ||
-    /cronjob response|job_id:/i.test(text) ||
-    text.replace(/[^\p{L}]/gu, "").length < 15
+    !text || /cronjob response|job_id:/i.test(text) || text.replace(/[^\p{L}]/gu, "").length < 15
   );
 }
 
@@ -283,8 +314,14 @@ export function isExpired(postedAt: string, now: Date = new Date()): boolean {
 // Encaixe
 // ---------------------------------------------------------------------------------------------
 
-const GENERICO = /\b(jardim|jd|vila|vl|parque|pq|residencial|condominio|cond|bairro|regiao|de|da|do|das|dos)\b\.?/g;
-const normBairro = (s: string) => sem(s).replace(GENERICO, " ").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const GENERICO =
+  /\b(jardim|jd|vila|vl|parque|pq|residencial|condominio|cond|bairro|regiao|de|da|do|das|dos)\b\.?/g;
+const normBairro = (s: string) =>
+  sem(s)
+    .replace(GENERICO, " ")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** Procura sem bairro, "qualquer região" ou só a cidade casa com qualquer bairro. */
 function isWildcard(bairro: string | null): boolean {
@@ -294,11 +331,17 @@ function isWildcard(bairro: string | null): boolean {
 }
 
 /** Bairros "batem" se algum pedaço da procura (separado por / , e ou) contém ou está contido no outro. */
-export function bairroCasa(procura: string | null, oferta: string | null, municipio?: string | null): boolean {
+export function bairroCasa(
+  procura: string | null,
+  oferta: string | null,
+  municipio?: string | null,
+): boolean {
   if (isWildcard(procura)) {
     if (!procura || sem(procura).startsWith("qualquer")) return Boolean(oferta || municipio);
     const cidade = sem(procura);
-    return !municipio || sem(municipio) === cidade || (oferta ? sem(oferta).includes(cidade) : false);
+    return (
+      !municipio || sem(municipio) === cidade || (oferta ? sem(oferta).includes(cidade) : false)
+    );
   }
   const alvos = [oferta, municipio].filter(Boolean).map((x) => normBairro(x as string));
   if (!alvos.length) return false;
@@ -310,12 +353,24 @@ export function bairroCasa(procura: string | null, oferta: string | null, munici
 }
 
 /** Valor da oferta dentro da faixa da procura, com 10% de folga acima do teto e abaixo do piso. */
-export function valorCasa(procura: Pick<OpportunityPost, "valor_min" | "valor_max">, valor: number | null): boolean {
+export function valorCasa(
+  procura: Pick<OpportunityPost, "valor_min" | "valor_max">,
+  valor: number | null,
+): boolean {
   if (!valor || !procura.valor_max) return false;
-  return valor <= procura.valor_max * (1 + MARGEM_TETO) && valor >= (procura.valor_min ?? 0) * (1 - MARGEM_TETO);
+  return (
+    valor <= procura.valor_max * (1 + MARGEM_TETO) &&
+    valor >= (procura.valor_min ?? 0) * (1 - MARGEM_TETO)
+  );
 }
 
-type Ofertavel = { tipo: TipoImovel | null; finalidade: Finalidade | null; bairro: string | null; municipio?: string | null; valor: number | null };
+type Ofertavel = {
+  tipo: TipoImovel | null;
+  finalidade: Finalidade | null;
+  bairro: string | null;
+  municipio?: string | null;
+  valor: number | null;
+};
 
 export function encaixa(procura: OpportunityPost, oferta: Ofertavel): boolean {
   if (procura.kind !== "procura" || !procura.tipo || procura.tipo !== oferta.tipo) return false;
@@ -332,13 +387,26 @@ const mesmoNome = (a: string, b: string) => {
 
 export const pairKey = (postId: string, targetId: string) => `${postId}|${targetId}`;
 
+/** Mesmo autor identificado nos dois lados (não é encaixe). */
+const mesmoAutor = (a: string | null | undefined, b: string | null | undefined) =>
+  Boolean(a) && a === b;
+
 /** Procura × oferta do grupo (autores diferentes), sem os pares marcados como "não encaixa". */
-export function groupMatches(posts: OpportunityPost[], hidden: Set<string>, now = new Date()): Map<string, OpportunityPost[]> {
+export function groupMatches(
+  posts: OpportunityPost[],
+  hidden: Set<string>,
+  now = new Date(),
+): Map<string, OpportunityPost[]> {
   const vivos = posts.filter((p) => !isExpired(p.posted_at, now));
   const out = new Map<string, OpportunityPost[]>();
   const add = (k: string, p: OpportunityPost) => out.set(k, [...(out.get(k) ?? []), p]);
   for (const pr of vivos.filter((p) => p.kind === "procura"))
-    for (const of of vivos.filter((p) => p.kind === "oferta" && p.corretor !== pr.corretor)) {
+    for (const of of vivos.filter(
+      (p) =>
+        p.kind === "oferta" &&
+        p.corretor !== pr.corretor &&
+        !mesmoAutor(p.author_profile_id, pr.author_profile_id),
+    )) {
       if (hidden.has(pairKey(pr.id, of.id)) || !encaixa(pr, of)) continue;
       add(pr.id, of);
       add(of.id, pr);
@@ -357,9 +425,67 @@ export function captureMatches(
   for (const pr of posts)
     if (pr.kind === "procura" && !isExpired(pr.posted_at, now))
       for (const c of captures)
-        if (!hidden.has(pairKey(pr.id, c.id)) && !mesmoNome(pr.corretor, c.captor_nome) && encaixa(pr, c))
+        if (
+          !hidden.has(pairKey(pr.id, c.id)) &&
+          !mesmoNome(pr.corretor, c.captor_nome) &&
+          !mesmoAutor(pr.author_profile_id, c.captor_id) &&
+          encaixa(pr, c)
+        )
           out.push({ post: pr, capture: c });
   return out;
+}
+
+/** Quem está olhando o mural. Staff = gestor, administrador, administrador principal ou staff. */
+export type MuralViewer = { userId: string; isStaff: boolean };
+
+/** Captação devolvida ao mural: só o que o selo mostra (sem captor_id). */
+export type EncaixeCaptacao = Pick<
+  CaptureCandidate,
+  "id" | "captor_nome" | "bairro" | "municipio" | "valor"
+>;
+
+/** Encaixes que ESTE usuário pode ver, por id de post (serializável: vai do servidor para a tela). */
+export type EncaixesVisiveis = {
+  grupo: Record<string, string[]>;
+  equipe: Record<string, EncaixeCaptacao[]>;
+};
+
+/**
+ * Filtro de envolvimento (t_6dd4a31b, pedido de Denis):
+ * - ⭐ procura × captação: o dono da captação e o autor da procura;
+ * - 🤝 procura × oferta: os autores dos dois posts;
+ * - staff vê todos. Post sem autor identificado não dá acesso a corretor nenhum.
+ * Roda no servidor, que é quem tem as captações de todos e o autor de cada post.
+ */
+export function encaixesVisiveis(
+  posts: OpportunityPost[],
+  captures: CaptureCandidate[],
+  hidden: Set<string>,
+  viewer: MuralViewer,
+  now = new Date(),
+): EncaixesVisiveis {
+  const meu = (p: OpportunityPost) =>
+    Boolean(viewer.userId) && p.author_profile_id === viewer.userId;
+  const grupo: Record<string, string[]> = {};
+  for (const [id, pares] of groupMatches(posts, hidden, now)) {
+    const post = posts.find((p) => p.id === id);
+    const ids = pares
+      .filter((o) => viewer.isStaff || (post && (meu(post) || meu(o))))
+      .map((o) => o.id);
+    if (ids.length) grupo[id] = ids;
+  }
+  const equipe: Record<string, EncaixeCaptacao[]> = {};
+  for (const { post, capture: c } of captureMatches(posts, captures, hidden, now)) {
+    if (!viewer.isStaff && !meu(post) && c.captor_id !== viewer.userId) continue;
+    (equipe[post.id] ??= []).push({
+      id: c.id,
+      captor_nome: c.captor_nome,
+      bairro: c.bairro,
+      municipio: c.municipio,
+      valor: c.valor,
+    });
+  }
+  return { grupo, equipe };
 }
 
 /** Converte a captação (form_data) em candidato ao encaixe. */
@@ -395,10 +521,16 @@ export function brl(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR")}`;
 }
 
-export function faixaTexto(p: Pick<OpportunityPost, "kind" | "valor" | "valor_min" | "valor_max">): string {
+export function faixaTexto(
+  p: Pick<OpportunityPost, "kind" | "valor" | "valor_min" | "valor_max">,
+): string {
   if (p.kind === "oferta") return p.valor ? brl(p.valor) : "Sem valor";
   if (p.kind === "procura")
-    return p.valor_max ? (p.valor_min ? `${brl(p.valor_min)} a ${brl(p.valor_max)}` : `até ${brl(p.valor_max)}`) : "Sem teto informado";
+    return p.valor_max
+      ? p.valor_min
+        ? `${brl(p.valor_min)} a ${brl(p.valor_max)}`
+        : `até ${brl(p.valor_max)}`
+      : "Sem teto informado";
   return "—";
 }
 

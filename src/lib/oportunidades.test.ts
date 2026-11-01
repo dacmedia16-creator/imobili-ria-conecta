@@ -8,6 +8,7 @@ import {
   captureMatches,
   classifyPost,
   encaixa,
+  encaixesVisiveis,
   extractValues,
   faixaTexto,
   groupMatches,
@@ -72,7 +73,9 @@ describe("classificação", () => {
   });
 
   it("procura com faixa", () => {
-    const c = classifyPost("Alguém tem apartamento no Campolim de 400 a 600 mil para cliente com financiamento?");
+    const c = classifyPost(
+      "Alguém tem apartamento no Campolim de 400 a 600 mil para cliente com financiamento?",
+    );
     expect(c.kind).toBe("procura");
     expect(c.tipo).toBe("Apartamento");
     expect(c.finalidade).toBe("Venda");
@@ -81,7 +84,9 @@ describe("classificação", () => {
   });
 
   it("oferta de locação", () => {
-    const c = classifyPost("CASA PARA LOCAÇÃO no Jardim Europa, 3 dormitórios, R$ 3.500 mensais. Parceria 50%");
+    const c = classifyPost(
+      "CASA PARA LOCAÇÃO no Jardim Europa, 3 dormitórios, R$ 3.500 mensais. Parceria 50%",
+    );
     expect(c.kind).toBe("oferta");
     expect(c.tipo).toBe("Casa");
     expect(c.finalidade).toBe("Locação");
@@ -126,7 +131,12 @@ describe("encaixe", () => {
   });
 
   it("tipo e finalidade precisam bater", () => {
-    const base = { tipo: "Apartamento" as const, finalidade: "Venda" as const, bairro: "Campolim", valor: 500_000 };
+    const base = {
+      tipo: "Apartamento" as const,
+      finalidade: "Venda" as const,
+      bairro: "Campolim",
+      valor: 500_000,
+    };
     expect(encaixa(procura, base)).toBe(true);
     expect(encaixa(procura, { ...base, tipo: "Casa" })).toBe(false);
     expect(encaixa(procura, { ...base, finalidade: "Locação" })).toBe(false);
@@ -136,7 +146,13 @@ describe("encaixe", () => {
   it("grupo: autores diferentes, sem vencidos e sem pares ocultos", () => {
     const oferta = post({ id: "o1", kind: "oferta", valor: 550_000, corretor: "Bruno Lima" });
     const propria = post({ id: "o2", kind: "oferta", valor: 550_000 });
-    const velha = post({ id: "o3", kind: "oferta", valor: 550_000, corretor: "Caio", posted_at: "2026-10-01T10:00:00-03:00" });
+    const velha = post({
+      id: "o3",
+      kind: "oferta",
+      valor: 550_000,
+      corretor: "Caio",
+      posted_at: "2026-10-01T10:00:00-03:00",
+    });
     const m = groupMatches([procura, oferta, propria, velha], new Set(), NOW);
     expect(m.get("p1")?.map((p) => p.id)).toEqual(["o1"]);
     expect(m.get("o1")?.map((p) => p.id)).toEqual(["p1"]);
@@ -153,10 +169,152 @@ describe("encaixe", () => {
       municipio: "Sorocaba",
       valor_imovel: "520.000,00",
     });
-    expect(c).toMatchObject({ tipo: "Apartamento", finalidade: "Venda", bairro: "Campolim", valor: 520_000 });
+    expect(c).toMatchObject({
+      tipo: "Apartamento",
+      finalidade: "Venda",
+      bairro: "Campolim",
+      valor: 520_000,
+    });
     const minha: CaptureCandidate = { ...c, id: "c2", captor_nome: "Ana Souza" };
-    expect(captureMatches([procura], [c, minha], new Set(), NOW).map((x) => x.capture.id)).toEqual(["c1"]);
+    expect(captureMatches([procura], [c, minha], new Set(), NOW).map((x) => x.capture.id)).toEqual([
+      "c1",
+    ]);
     expect(captureMatches([procura], [c], new Set([pairKey("p1", "c1")]), NOW)).toEqual([]);
+  });
+});
+
+describe("encaixes visíveis só para quem está no par (t_6dd4a31b)", () => {
+  // Ana (uAna) procura; Bruno (uBruno) oferece; Caio (uCaio) é captador; Davi (uDavi) está de fora.
+  const procura = post({
+    id: "p1",
+    kind: "procura",
+    valor_max: 600_000,
+    corretor: "Ana Souza",
+    author_profile_id: "uAna",
+  });
+  const oferta = post({
+    id: "o1",
+    kind: "oferta",
+    valor: 550_000,
+    corretor: "Bruno Lima",
+    author_profile_id: "uBruno",
+  });
+  const semAutor = post({
+    id: "o2",
+    kind: "oferta",
+    valor: 560_000,
+    corretor: "Edu Reis",
+    author_profile_id: null,
+  });
+  const cap: CaptureCandidate = {
+    id: "c1",
+    captor_id: "uCaio",
+    captor_nome: "Caio Neves",
+    tipo: "Apartamento",
+    finalidade: "Venda",
+    bairro: "Campolim",
+    municipio: "Sorocaba",
+    valor: 520_000,
+  };
+  const ver = (userId: string, isStaff = false) =>
+    encaixesVisiveis([procura, oferta, semAutor], [cap], new Set(), { userId, isStaff }, NOW);
+
+  it("autor da procura vê 🤝 e ⭐ do próprio cartão; só pares com autor identificado", () => {
+    const v = ver("uAna");
+    expect(v.grupo.p1).toEqual(["o1", "o2"]); // a procura é dela: vê todas as ofertas que encaixam
+    expect(v.grupo.o1).toEqual(["p1"]);
+    expect(v.grupo.o2).toEqual(["p1"]);
+    expect(v.equipe.p1?.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("autor da oferta vê só o par dele", () => {
+    const v = ver("uBruno");
+    expect(v.grupo).toEqual({ p1: ["o1"], o1: ["p1"] });
+    expect(v.equipe).toEqual({});
+  });
+
+  it("dono da captação vê o ⭐ da procura, sem os 🤝 dos outros", () => {
+    const v = ver("uCaio");
+    expect(v.grupo).toEqual({});
+    expect(v.equipe.p1?.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("corretor de fora não vê selo nenhum", () => {
+    expect(ver("uDavi")).toEqual({ grupo: {}, equipe: {} });
+  });
+
+  it("post sem autor identificado não dá acesso a ninguém (só staff)", () => {
+    const anon = post({
+      id: "p9",
+      kind: "procura",
+      valor_max: 600_000,
+      corretor: "Fulano",
+      author_profile_id: null,
+    });
+    const r = encaixesVisiveis(
+      [anon, semAutor],
+      [cap],
+      new Set(),
+      { userId: "uDavi", isStaff: false },
+      NOW,
+    );
+    expect(r.grupo).toEqual({});
+    // o captador continua vendo o ⭐ da captação dele
+    const c = encaixesVisiveis([anon], [cap], new Set(), { userId: "uCaio", isStaff: false }, NOW);
+    expect(Object.keys(c.equipe)).toEqual(["p9"]);
+    const s = encaixesVisiveis(
+      [anon, semAutor],
+      [cap],
+      new Set(),
+      { userId: "uX", isStaff: true },
+      NOW,
+    );
+    expect(s.grupo).toEqual({ p9: ["o2"], o2: ["p9"] });
+  });
+
+  it("staff vê todos os encaixes", () => {
+    const v = ver("uGestor", true);
+    expect(v.grupo).toEqual({ p1: ["o1", "o2"], o1: ["p1"], o2: ["p1"] });
+    expect(v.equipe.p1?.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("não devolve captor_id para a tela", () => {
+    const c = ver("uAna").equipe.p1?.[0] as Record<string, unknown>;
+    expect(c).not.toHaveProperty("captor_id");
+    expect(c.captor_nome).toBe("Caio Neves");
+  });
+
+  it("par oculto some para todos; userId vazio não casa com post sem autor", () => {
+    expect(
+      encaixesVisiveis(
+        [procura, oferta],
+        [cap],
+        new Set([pairKey("p1", "o1"), pairKey("p1", "c1")]),
+        { userId: "uAna", isStaff: false },
+        NOW,
+      ),
+    ).toEqual({ grupo: {}, equipe: {} });
+    expect(
+      encaixesVisiveis([procura, semAutor], [], new Set(), { userId: "", isStaff: false }, NOW),
+    ).toEqual({ grupo: {}, equipe: {} });
+  });
+
+  it("mesmo autor (pelo cadastro) não encaixa consigo mesmo, ainda que o nome no WhatsApp mude", () => {
+    const outraOferta = post({
+      id: "o3",
+      kind: "oferta",
+      valor: 550_000,
+      corretor: "Ana S. Imóveis",
+      author_profile_id: "uAna",
+    });
+    expect(groupMatches([procura, outraOferta], new Set(), NOW).size).toBe(0);
+    const minhaCap: CaptureCandidate = {
+      ...cap,
+      id: "c2",
+      captor_id: "uAna",
+      captor_nome: "A. Souza",
+    };
+    expect(captureMatches([procura], [minhaCap], new Set(), NOW)).toEqual([]);
   });
 });
 

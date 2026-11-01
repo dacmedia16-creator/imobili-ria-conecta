@@ -12,7 +12,13 @@ import {
 import type { OrgAdminClient } from "./org-scope";
 import { normalizePhone, whatsappText } from "./room-reservation-reminders";
 
-export type AlertRow = { post_id: string; capture_id: string; recipient_id: string | null; status: string; created_at: string };
+export type AlertRow = {
+  post_id: string;
+  capture_id: string;
+  recipient_id: string | null;
+  status: string;
+  created_at: string;
+};
 export type PlannedAlert = { post: OpportunityPost; capture: CaptureCandidate };
 
 const diaSP = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -31,12 +37,18 @@ export function planAlerts(
   now: Date = new Date(),
 ): PlannedAlert[] {
   const feitos = new Set(
-    existing.filter((a) => a.status === "sent" || a.status === "dry_run").map((a) => pairKey(a.post_id, a.capture_id)),
+    existing
+      .filter((a) => a.status === "sent" || a.status === "dry_run")
+      .map((a) => pairKey(a.post_id, a.capture_id)),
   );
   const hoje = diaSP(now);
   const noDia = new Map<string, number>();
   for (const a of existing)
-    if (a.recipient_id && (a.status === "sent" || a.status === "dry_run") && diaSP(new Date(a.created_at)) === hoje)
+    if (
+      a.recipient_id &&
+      (a.status === "sent" || a.status === "dry_run") &&
+      diaSP(new Date(a.created_at)) === hoje
+    )
       noDia.set(a.recipient_id, (noDia.get(a.recipient_id) ?? 0) + 1);
 
   const out: PlannedAlert[] = [];
@@ -58,9 +70,12 @@ export function planAlerts(
  * Mesmo critério de exclusive-expiry-alerts: o captador quer WhatsApp se algum papel dele na
  * imobiliária não tem notificar_whatsapp = false. Sem papel na imobiliária = não recebe.
  */
-export function whatsappOptIn(roles: { user_id: string; notificar_whatsapp: boolean | null }[]): Set<string> {
+export function whatsappOptIn(
+  roles: { user_id: string; notificar_whatsapp: boolean | null }[],
+): Set<string> {
   const wants = new Map<string, boolean>();
-  for (const r of roles) wants.set(r.user_id, (wants.get(r.user_id) ?? false) || r.notificar_whatsapp !== false);
+  for (const r of roles)
+    wants.set(r.user_id, (wants.get(r.user_id) ?? false) || r.notificar_whatsapp !== false);
   return new Set([...wants].filter(([, w]) => w).map(([id]) => id));
 }
 
@@ -112,7 +127,10 @@ export async function runOpportunityAlerts(
     const [posts, caps, hid, prev] = await Promise.all([
       admin
         .from("opportunity_posts")
-        .select("id,kind,tipo,finalidade,bairro,valor_min,valor_max,valor,corretor,texto,posted_at")
+        // author_profile_id: não alerta o captador sobre a própria procura (t_6dd4a31b).
+        .select(
+          "id,kind,tipo,finalidade,bairro,valor_min,valor_max,valor,corretor,texto,posted_at,author_profile_id",
+        )
         .eq("organization_id", orgId)
         .eq("kind", "procura")
         .gte("posted_at", desde),
@@ -126,7 +144,10 @@ export async function runOpportunityAlerts(
         .eq("status", "aprovada")
         .is("archived_at", null)
         .is("discarded_at", null),
-      admin.from("opportunity_hidden_pairs").select("post_id,target_id").eq("organization_id", orgId),
+      admin
+        .from("opportunity_hidden_pairs")
+        .select("post_id,target_id")
+        .eq("organization_id", orgId),
       admin
         .from("opportunity_alerts")
         .select("post_id,capture_id,recipient_id,status,created_at")
@@ -140,7 +161,11 @@ export async function runOpportunityAlerts(
     const [{ data: profs }, { data: roles, error: rolesErr }] = ids.length
       ? await Promise.all([
           admin.from("profiles").select("id,nome,ativo").eq("organization_id", orgId).in("id", ids),
-          admin.from("user_roles").select("user_id,notificar_whatsapp").eq("organization_id", orgId).in("user_id", ids),
+          admin
+            .from("user_roles")
+            .select("user_id,notificar_whatsapp")
+            .eq("organization_id", orgId)
+            .in("user_id", ids),
         ])
       : [{ data: [] }, { data: [], error: null }];
     if (rolesErr) continue; // sem saber a preferência, não alerta ninguém
@@ -148,10 +173,17 @@ export async function runOpportunityAlerts(
     const nomes = new Map(perfis.map((p) => [p.id, p.nome]));
     const ativos = new Set(perfis.filter((p) => p.ativo !== false).map((p) => p.id));
     // Respeita notificar_whatsapp (e ignora inativos): esses captadores ficam só no mural.
-    const querem = whatsappOptIn((roles ?? []) as { user_id: string; notificar_whatsapp: boolean | null }[]);
+    const querem = whatsappOptIn(
+      (roles ?? []) as { user_id: string; notificar_whatsapp: boolean | null }[],
+    );
     const captures = capRows
       .filter((c) => ativos.has(c.captor_id) && querem.has(c.captor_id))
-      .map((c) => captureCandidate({ ...c, captor_nome: c.broker_name?.trim() || nomes.get(c.captor_id) || null }));
+      .map((c) =>
+        captureCandidate({
+          ...c,
+          captor_nome: c.broker_name?.trim() || nomes.get(c.captor_id) || null,
+        }),
+      );
     const plan = planAlerts(
       ((posts.data ?? []) as OpportunityPost[]).map((p) => ({
         ...p,
@@ -160,7 +192,11 @@ export async function runOpportunityAlerts(
         valor: p.valor == null ? null : Number(p.valor),
       })),
       captures,
-      new Set(((hid.data ?? []) as { post_id: string; target_id: string }[]).map((h) => pairKey(h.post_id, h.target_id))),
+      new Set(
+        ((hid.data ?? []) as { post_id: string; target_id: string }[]).map((h) =>
+          pairKey(h.post_id, h.target_id),
+        ),
+      ),
       (prev.data ?? []) as AlertRow[],
       now,
     );
@@ -170,7 +206,9 @@ export async function runOpportunityAlerts(
       let status = "dry_run";
       if (live && opts.send && phone) {
         try {
-          status = (await opts.send(phone, whatsappText(alertMessage(post, capture, opts.appUrl)))) ? "sent" : "failed";
+          status = (await opts.send(phone, whatsappText(alertMessage(post, capture, opts.appUrl))))
+            ? "sent"
+            : "failed";
         } catch {
           status = "failed";
         }

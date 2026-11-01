@@ -1,21 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { guardOpportunitiesRoute } from "@/lib/oportunidades-module";
 import {
-  captureCandidate,
-  captureMatches,
   faixaTexto,
-  groupMatches,
   isExpired,
   pairKey,
-  type CaptureCandidate,
+  type EncaixeCaptacao,
+  type EncaixesVisiveis,
   type OpportunityKind,
   type OpportunityPost,
 } from "@/lib/oportunidades";
+import { encaixesDoMural } from "@/lib/oportunidades-encaixes.functions";
 import { contarPorAba, FAIXAS_VALOR, filtrarMural } from "@/lib/oportunidades-mural";
 import { MuralPostCard } from "@/components/oportunidades/MuralPostCard";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,8 +58,10 @@ const num = (v: number | string | null) => (v == null ? null : Number(v));
 function OportunidadesPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<OpportunityPost[] | null>(null);
-  const [captures, setCaptures] = useState<CaptureCandidate[]>([]);
+  // Encaixes calculados no servidor: cada um recebe só os pares de que faz parte (t_6dd4a31b).
+  const [encaixes, setEncaixes] = useState<EncaixesVisiveis>({ grupo: {}, equipe: {} });
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const buscarEncaixes = useServerFn(encaixesDoMural);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [aba, setAba] = useState<OpportunityKind>("procura");
   const [fTipo, setFTipo] = useState("");
@@ -73,7 +75,7 @@ function OportunidadesPage() {
     let alive = true;
     (async () => {
       const desde = new Date(Date.now() - 9 * 86_400_000).toISOString();
-      const [p, h, c, o] = await Promise.all([
+      const [p, e, o] = await Promise.all([
         db
           .from("opportunity_posts")
           .select(
@@ -82,8 +84,8 @@ function OportunidadesPage() {
           .gte("posted_at", desde)
           .order("posted_at", { ascending: false })
           .limit(500),
-        db.from("opportunity_hidden_pairs").select("post_id,target_id"),
-        db.rpc("opportunity_capture_candidates"),
+        // Sem encaixes (erro) o mural continua funcionando, só sem os selos.
+        buscarEncaixes().catch(() => null),
         db.rpc("current_org_id"),
       ]);
       if (!alive) return;
@@ -100,35 +102,41 @@ function OportunidadesPage() {
           valor: num(r.valor),
         })),
       );
-      setHidden(
-        new Set(
-          ((h.data ?? []) as { post_id: string; target_id: string }[]).map((x) =>
-            pairKey(x.post_id, x.target_id),
-          ),
-        ),
-      );
-      // Sem captações (erro ou nenhuma aprovada) o mural continua funcionando, só sem o selo da equipe.
-      setCaptures(
-        c.error
-          ? []
-          : ((c.data ?? []) as Parameters<typeof captureCandidate>[0][]).map(captureCandidate),
-      );
+      if (e) setEncaixes(e);
       setOrgId(typeof o.data === "string" ? o.data : null);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [buscarEncaixes]);
 
   // Validade de 7 dias: vencidos não entram em filtro, contagem nem encaixe.
   const vivos = useMemo(() => (posts ?? []).filter((p) => !isExpired(p.posted_at)), [posts]);
-  const grupo = useMemo(() => groupMatches(vivos, hidden), [vivos, hidden]);
-  const equipe = useMemo(() => {
-    const m = new Map<string, CaptureCandidate[]>();
-    for (const { post, capture } of captureMatches(vivos, captures, hidden))
-      m.set(post.id, [...(m.get(post.id) ?? []), capture]);
+  // "Não encaixa" marcado agora some na hora, sem recarregar.
+  const grupo = useMemo(() => {
+    const porId = new Map(vivos.map((p) => [p.id, p]));
+    const m = new Map<string, OpportunityPost[]>();
+    for (const [id, alvos] of Object.entries(encaixes.grupo)) {
+      const post = porId.get(id);
+      if (!post) continue;
+      const lista = alvos
+        .map((a) => porId.get(a))
+        .filter((g): g is OpportunityPost => Boolean(g))
+        .filter(
+          (g) => !hidden.has(post.kind === "procura" ? pairKey(id, g.id) : pairKey(g.id, id)),
+        );
+      if (lista.length) m.set(id, lista);
+    }
     return m;
-  }, [vivos, captures, hidden]);
+  }, [vivos, encaixes, hidden]);
+  const equipe = useMemo(() => {
+    const m = new Map<string, EncaixeCaptacao[]>();
+    for (const [id, caps] of Object.entries(encaixes.equipe)) {
+      const lista = caps.filter((c) => !hidden.has(pairKey(id, c.id)));
+      if (lista.length) m.set(id, lista);
+    }
+    return m;
+  }, [encaixes, hidden]);
 
   const opcoes = (f: (p: OpportunityPost) => string | null) =>
     [...new Set(vivos.map(f).filter((x): x is string => Boolean(x)))].sort((a, b) =>
@@ -152,14 +160,12 @@ function OportunidadesPage() {
 
   async function naoEncaixa(post: OpportunityPost, targetId: string) {
     if (!orgId || !user) return;
-    const { error } = await db
-      .from("opportunity_hidden_pairs")
-      .insert({
-        organization_id: orgId,
-        post_id: post.id,
-        target_id: targetId,
-        hidden_by: user.id,
-      });
+    const { error } = await db.from("opportunity_hidden_pairs").insert({
+      organization_id: orgId,
+      post_id: post.id,
+      target_id: targetId,
+      hidden_by: user.id,
+    });
     if (error) return toast.error(errorMessage(error, "Não foi possível ocultar o par."));
     setHidden((h) => new Set(h).add(pairKey(post.id, targetId)));
     toast.success("Par ocultado. Ele não aparece mais nem gera alerta.");
@@ -309,7 +315,7 @@ function Encaixes({
 }: {
   post: OpportunityPost;
   grupo: OpportunityPost[];
-  equipe: CaptureCandidate[];
+  equipe: EncaixeCaptacao[];
   onNaoEncaixa: (post: OpportunityPost, targetId: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
