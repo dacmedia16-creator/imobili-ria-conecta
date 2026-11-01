@@ -1,3 +1,4 @@
+import { contaMaxLoginUrl } from "@/lib/dominios";
 export type ContaMaxErrorCode =
   | "SEM_TICKET"
   | "TIMEOUT_PONTE"
@@ -152,8 +153,10 @@ export function retryContaMaxLogin(options: {
   } catch {
     /* armazenamento indisponível: o redirecionamento continua */
   }
-  const url = new URL("https://conta.somosmaxhub.com.br/login");
-  url.searchParams.set("app", options.homolog ? "adm-max-homolog" : "adm-max");
-  if (options.returnTo === "/reservas-salas") url.searchParams.set("return_to", options.returnTo);
-  options.replace(url.toString());
+  options.replace(
+    contaMaxLoginUrl(
+      options.homolog ? "adm-max-homolog" : "adm-max",
+      options.returnTo === "/reservas-salas" ? options.returnTo : undefined,
+    ),
+  );
 }

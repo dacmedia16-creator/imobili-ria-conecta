@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import type { RouterAuth } from "@/lib/route-access";
+import { APP_ORIGIN } from "@/lib/dominios";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 const HOMOLOG_URL = "https://adm-max-homolog.dacmedia16.workers.dev";
@@ -93,8 +94,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient; auth
       { property: "og:title", content: SITE_TITLE },
       { property: "og:description", content: SHARE_DESCRIPTION },
       { property: "og:type", content: "website" },
-      // Domínio novo (t_97380535). O antigo unicaescolha.com.br segue no ar e depois redireciona (301).
-      { property: "og:url", content: IS_HOMOLOG ? HOMOLOG_URL : "https://app.somosmaxhub.com.br" },
+      // Domínio principal vem de dominios.ts (t_a69e9d11); os antigos redirecionam para ele.
+      { property: "og:url", content: IS_HOMOLOG ? HOMOLOG_URL : APP_ORIGIN },
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: SITE_TITLE },

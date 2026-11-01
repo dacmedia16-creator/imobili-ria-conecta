@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { contaMaxLoginUrl } from "@/lib/dominios";
 import {
   MaxHubAuthShell,
   MaxHubEyebrow,
@@ -12,9 +13,8 @@ import {
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 // Login só com Google (t_bcc382de, Denis 12/10/2026): a entrada por e-mail/senha saiu da tela e o servidor
 // (hook login_so_google_hook no Supabase Auth) recusa sessão aberta por senha.
-const GOOGLE_LOGIN_URL = IS_HOMOLOG
-  ? "https://conta.somosmaxhub.com.br/login?app=adm-max-homolog"
-  : "https://conta.somosmaxhub.com.br/login?app=adm-max";
+// t_a69e9d11: o login segue o domínio em que a pessoa está (app.somosunihub → conta.somosunihub).
+const GOOGLE_LOGIN_URL = contaMaxLoginUrl(IS_HOMOLOG ? "adm-max-homolog" : "adm-max");
 
 export const Route = createFileRoute("/auth")({
   ssr: false,

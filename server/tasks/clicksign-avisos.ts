@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { defineTask } from "nitro/task";
 import { runClicksignAvisos, type PendenteWhats } from "../../src/lib/clicksign-avisos.server";
+import { APP_ORIGIN } from "../../src/lib/dominios";
 
 const ZIONTALK_URL = "https://app.ziontalk.com/api/send_message/";
-const APP_URL = process.env.APP_URL || "https://app.somosmaxhub.com.br";
+const APP_URL = process.env.APP_URL || APP_ORIGIN;
 
 export default defineTask({
   meta: {
