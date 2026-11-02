@@ -21,6 +21,7 @@ import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_au
 import { Route as AuthenticatedComparativoComissaoRouteImport } from './routes/_authenticated/comparativo-comissao'
 import { Route as AuthenticatedCrmRouteImport } from './routes/_authenticated/crm'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDepoimentoRouteImport } from './routes/_authenticated/depoimento'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedFichaColaboradoresRouteImport } from './routes/_authenticated/ficha-colaboradores'
@@ -58,6 +59,7 @@ import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
 import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_authenticated/plataforma.chamados'
+import { Route as AuthenticatedPlataformaDepoimentosRouteImport } from './routes/_authenticated/plataforma.depoimentos'
 import { Route as AuthenticatedPlataformaImobiliariasRouteImport } from './routes/_authenticated/plataforma.imobiliarias'
 import { Route as AuthenticatedPlataformaUsuariosRouteImport } from './routes/_authenticated/plataforma.usuarios'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
@@ -128,6 +130,11 @@ const AuthenticatedCrmRoute = AuthenticatedCrmRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDepoimentoRoute = AuthenticatedDepoimentoRouteImport.update({
+  id: '/depoimento',
+  path: '/depoimento',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
@@ -340,6 +347,12 @@ const AuthenticatedPlataformaChamadosRoute =
     path: '/plataforma/chamados',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlataformaDepoimentosRoute =
+  AuthenticatedPlataformaDepoimentosRouteImport.update({
+    id: '/plataforma/depoimentos',
+    path: '/plataforma/depoimentos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlataformaImobiliariasRoute =
   AuthenticatedPlataformaImobiliariasRouteImport.update({
     id: '/plataforma/imobiliarias',
@@ -402,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/crm': typeof AuthenticatedCrmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/depoimento': typeof AuthenticatedDepoimentoRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
@@ -438,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
+  '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -461,6 +476,7 @@ export interface FileRoutesByTo {
   '/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/crm': typeof AuthenticatedCrmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/depoimento': typeof AuthenticatedDepoimentoRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
@@ -497,6 +513,7 @@ export interface FileRoutesByTo {
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
+  '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -522,6 +539,7 @@ export interface FileRoutesById {
   '/_authenticated/comparativo-comissao': typeof AuthenticatedComparativoComissaoRoute
   '/_authenticated/crm': typeof AuthenticatedCrmRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/depoimento': typeof AuthenticatedDepoimentoRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
@@ -558,6 +576,7 @@ export interface FileRoutesById {
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
+  '/_authenticated/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/_authenticated/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/_authenticated/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
@@ -583,6 +602,7 @@ export interface FileRouteTypes {
     | '/comparativo-comissao'
     | '/crm'
     | '/dashboard'
+    | '/depoimento'
     | '/equipe'
     | '/feedback'
     | '/ficha-colaboradores'
@@ -619,6 +639,7 @@ export interface FileRouteTypes {
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/plataforma/chamados'
+    | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -642,6 +663,7 @@ export interface FileRouteTypes {
     | '/comparativo-comissao'
     | '/crm'
     | '/dashboard'
+    | '/depoimento'
     | '/equipe'
     | '/feedback'
     | '/ficha-colaboradores'
@@ -678,6 +700,7 @@ export interface FileRouteTypes {
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/plataforma/chamados'
+    | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
     | '/vendas/$id'
@@ -702,6 +725,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comparativo-comissao'
     | '/_authenticated/crm'
     | '/_authenticated/dashboard'
+    | '/_authenticated/depoimento'
     | '/_authenticated/equipe'
     | '/_authenticated/feedback'
     | '/_authenticated/ficha-colaboradores'
@@ -738,6 +762,7 @@ export interface FileRouteTypes {
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
     | '/_authenticated/plataforma/chamados'
+    | '/_authenticated/plataforma/depoimentos'
     | '/_authenticated/plataforma/imobiliarias'
     | '/_authenticated/plataforma/usuarios'
     | '/_authenticated/vendas/$id'
@@ -851,6 +876,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/depoimento': {
+      id: '/_authenticated/depoimento'
+      path: '/depoimento'
+      fullPath: '/depoimento'
+      preLoaderRoute: typeof AuthenticatedDepoimentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/equipe': {
@@ -1112,6 +1144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlataformaChamadosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plataforma/depoimentos': {
+      id: '/_authenticated/plataforma/depoimentos'
+      path: '/plataforma/depoimentos'
+      fullPath: '/plataforma/depoimentos'
+      preLoaderRoute: typeof AuthenticatedPlataformaDepoimentosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plataforma/imobiliarias': {
       id: '/_authenticated/plataforma/imobiliarias'
       path: '/plataforma/imobiliarias'
@@ -1185,6 +1224,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComparativoComissaoRoute: typeof AuthenticatedComparativoComissaoRoute
   AuthenticatedCrmRoute: typeof AuthenticatedCrmRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDepoimentoRoute: typeof AuthenticatedDepoimentoRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedFichaColaboradoresRoute: typeof AuthenticatedFichaColaboradoresRoute
@@ -1216,6 +1256,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
   AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
+  AuthenticatedPlataformaDepoimentosRoute: typeof AuthenticatedPlataformaDepoimentosRoute
   AuthenticatedPlataformaImobiliariasRoute: typeof AuthenticatedPlataformaImobiliariasRoute
   AuthenticatedPlataformaUsuariosRoute: typeof AuthenticatedPlataformaUsuariosRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
@@ -1232,6 +1273,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComparativoComissaoRoute: AuthenticatedComparativoComissaoRoute,
   AuthenticatedCrmRoute: AuthenticatedCrmRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDepoimentoRoute: AuthenticatedDepoimentoRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedFichaColaboradoresRoute: AuthenticatedFichaColaboradoresRoute,
@@ -1268,6 +1310,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,
   AuthenticatedPlataformaChamadosRoute: AuthenticatedPlataformaChamadosRoute,
+  AuthenticatedPlataformaDepoimentosRoute:
+    AuthenticatedPlataformaDepoimentosRoute,
   AuthenticatedPlataformaImobiliariasRoute:
     AuthenticatedPlataformaImobiliariasRoute,
   AuthenticatedPlataformaUsuariosRoute: AuthenticatedPlataformaUsuariosRoute,

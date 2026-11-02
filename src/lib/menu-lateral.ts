@@ -27,6 +27,7 @@ import {
   Building,
   Users,
   Inbox,
+  MessageSquareQuote,
   Radar,
   Trophy,
   Sprout,
@@ -322,6 +323,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           to: "/plataforma/chamados",
           label: "Central de chamados",
           icon: Inbox,
+          show: platformItems,
+        },
+        {
+          // Moderação dos depoimentos da página de vendas (t_c7cfaf00).
+          to: "/plataforma/depoimentos",
+          label: "Depoimentos",
+          icon: MessageSquareQuote,
           show: platformItems,
         },
       ],
