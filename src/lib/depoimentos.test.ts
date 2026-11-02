@@ -97,7 +97,7 @@ describe("depoimentos: convite automático", () => {
     convite,
     motivo: convite ? "elegivel" : "conta_nova",
     termo: { versao: "v1", texto: "Autorizo" },
-    previa: { nome_exibicao: "Maria S.", papel: "Corretor(a)", imobiliaria: "X", cidade: null, foto_url: null },
+    previa: { nome_exibicao: "Maria Silva", papel: "Corretor(a)", imobiliaria: "X", cidade: null, foto_url: null },
     meus: [],
   });
   it("abre só quando o banco diz que sim e não foi fechado neste login", () => {
@@ -159,7 +159,7 @@ describe("depoimentos: moderação", () => {
       consentimento_em: "2026-11-02T10:00:00Z",
       consentimento_versao: "v1",
       nome_completo: "Maria Silva",
-      nome_exibicao: "Maria S.",
+      nome_exibicao: "Maria Silva",
       papel: "Corretor(a)",
       imobiliaria: "X",
       cidade: null,
@@ -224,6 +224,14 @@ describe("migration 20261102120000_depoimentos (salvaguardas no texto)", () => {
     for (const proibido of ["email", "telefone", "cpf", "remax_id", "user_id", "organization_id", "nome_completo", "d.id"]) {
       expect(saida).not.toContain(proibido);
     }
+  });
+
+  it("vitrine e prévia mostram o nome completo (decisão de Denis, 02/11)", () => {
+    expect(sql).not.toContain("depoimento_nome_abreviado");
+    expect(sql).toContain("'nome_exibicao', public.depoimento_nome_vitrine(_p.nome)");
+    expect(sql).toContain("public.depoimento_nome_vitrine(_p.nome),\n      public.depoimento_papel");
+    const helper = sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public.depoimento_nome_vitrine"));
+    expect(helper.slice(0, helper.indexOf("$$;"))).not.toMatch(/left\(|initcap|\|\| '\.'/);
   });
 
   it("rollback remove tudo o que a migration cria", () => {

@@ -15,7 +15,7 @@ DROP FUNCTION IF EXISTS public.depoimento_minha_situacao();
 DROP FUNCTION IF EXISTS public.depoimento_eh_moderador();
 DROP FUNCTION IF EXISTS public.depoimento_tem_uso_real(uuid);
 DROP FUNCTION IF EXISTS public.depoimento_papel(uuid, uuid);
-DROP FUNCTION IF EXISTS public.depoimento_nome_abreviado(text);
+DROP FUNCTION IF EXISTS public.depoimento_nome_vitrine(text);
 DROP TABLE IF EXISTS public.depoimento_eventos;
 DROP TABLE IF EXISTS public.depoimento_convites;
 DROP TABLE IF EXISTS public.depoimentos;

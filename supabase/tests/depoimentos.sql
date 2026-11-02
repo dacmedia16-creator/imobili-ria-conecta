@@ -63,7 +63,7 @@ SET LOCAL ROLE authenticated;
 -- 1) Público do convite ----------------------------------------------------------------------------
 SELECT pg_temp.as_user(:'c1');
 SELECT pg_temp.ok((public.depoimento_minha_situacao()->>'convite')::boolean, 'C1 (30 dias + documento enviado): convite abre');
-SELECT pg_temp.ok(public.depoimento_minha_situacao()->'previa'->>'nome_exibicao' = 'Maria S.', 'previa: nome abreviado "Maria S."');
+SELECT pg_temp.ok(public.depoimento_minha_situacao()->'previa'->>'nome_exibicao' = 'Maria Aparecida da Silva', 'previa: nome completo');
 SELECT pg_temp.ok(public.depoimento_minha_situacao()->'previa'->>'foto_url' = 'https://exemplo.test/avatars/c1.jpg', 'previa: foto do cadastro');
 SELECT pg_temp.ok(public.depoimento_minha_situacao()->'previa'->>'cidade' = 'Sorocaba', 'previa: cidade da imobiliaria');
 SELECT pg_temp.ok(public.depoimento_minha_situacao()->'previa'->>'papel' = 'Corretor(a)', 'previa: papel');
@@ -135,13 +135,13 @@ SELECT public.depoimento_moderar((SELECT id FROM ids WHERE nome='c1'), 'aprovar'
 RESET ROLE;
 SET LOCAL ROLE anon;
 SELECT pg_temp.ok((SELECT count(*) FROM public.depoimentos_publicos()) = 1, 'anon: vitrine mostra o aprovado');
-SELECT pg_temp.ok((SELECT nome FROM public.depoimentos_publicos()) = 'Maria S.', 'vitrine: nome abreviado');
+SELECT pg_temp.ok((SELECT nome FROM public.depoimentos_publicos()) = 'Maria Aparecida da Silva', 'vitrine: nome completo');
 SELECT pg_temp.ok((SELECT frase FROM public.depoimentos_publicos()) = 'Facil e rapido, recomendo', 'vitrine: frase de destaque');
 SELECT pg_temp.ok((SELECT imobiliaria || '|' || cidade || '|' || papel || '|' || nota FROM public.depoimentos_publicos()) = 'RE/MAX Exemplo A|Sorocaba|Corretor(a)|5', 'vitrine: imobiliaria, cidade, papel, nota');
 -- Nada de dado pessoal fora da lista: colunas exatas e nenhum valor sensível no JSON da linha.
 SELECT pg_temp.ok((SELECT string_agg(k, ',' ORDER BY k) FROM public.depoimentos_publicos() p, jsonb_object_keys(to_jsonb(p)) k)
                   = 'cidade,foto_url,frase,imobiliaria,nome,nota,papel,publicado_em,tarefa,texto', 'vitrine: so as colunas permitidas');
-SELECT pg_temp.ok((SELECT to_jsonb(p)::text FROM public.depoimentos_publicos() p) !~* '(maria@|15991234567|529\.982|630000013|aparecida|a0000000)', 'vitrine: sem e-mail, telefone, CPF, ID RE/MAX, nome completo ou id');
+SELECT pg_temp.ok((SELECT to_jsonb(p)::text FROM public.depoimentos_publicos() p) !~* '(maria@|15991234567|529\.982|52998224725|630000013|a0000000)', 'vitrine: sem e-mail, telefone, CPF, ID RE/MAX ou id');
 SELECT pg_temp.ok(pg_temp.err('SELECT count(*) FROM public.depoimentos') LIKE '42501%', 'anon: tabela direta recusada');
 SELECT pg_temp.ok(pg_temp.err('SELECT public.depoimento_minha_situacao()') LIKE '42501%', 'anon: sem execute nas RPCs internas');
 SELECT pg_temp.ok(pg_temp.err('SELECT public.depoimento_moderacao_listar()') LIKE '42501%', 'anon: sem moderacao');
@@ -190,8 +190,8 @@ SELECT pg_temp.ok((public.depoimento_enviar(4, 'Depois de retirar posso mandar o
 RESET ROLE;
 SELECT pg_temp.ok(pg_temp.err($q$UPDATE public.depoimentos SET status = 'aprovado', aprovado_em = now() WHERE id = (SELECT id FROM ids WHERE nome='cb_baixa')$q$) LIKE '23514%', 'constraint: nota 3 nunca aprovada (nem pelo dono do banco)');
 SELECT pg_temp.ok(pg_temp.err($q$UPDATE public.depoimentos SET status = 'pendente' WHERE id = (SELECT id FROM ids WHERE nome='c2_sem_aut')$q$) LIKE '23514%', 'constraint: sem consentimento nunca vira pendente/aprovado');
-SELECT pg_temp.ok(public.depoimento_nome_abreviado('ana') = 'Ana' AND public.depoimento_nome_abreviado('') = 'Usuário ADM MAX'
-                  AND public.depoimento_nome_abreviado('JOSE DOS SANTOS') = 'Jose S.', 'nome abreviado: casos de borda');
+SELECT pg_temp.ok(public.depoimento_nome_vitrine('  Ana   Paula  Souza ') = 'Ana Paula Souza' AND public.depoimento_nome_vitrine('') = 'Usuário ADM MAX'
+                  AND public.depoimento_nome_vitrine(NULL) = 'Usuário ADM MAX', 'nome da vitrine: casos de borda');
 SELECT pg_temp.ok(NOT has_function_privilege('anon', 'public.depoimento_enviar(integer, text, text, text, text, boolean, text, text)', 'execute')
                   AND NOT has_function_privilege('anon', 'public.depoimento_moderar(uuid, text, text)', 'execute')
                   AND has_function_privilege('anon', 'public.depoimentos_publicos()', 'execute'), 'anon: so a vitrine e executavel');

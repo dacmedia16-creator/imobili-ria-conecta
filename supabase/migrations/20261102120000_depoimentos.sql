@@ -6,7 +6,7 @@
 -- Publicar exige a autorização marcada (versão do texto + data/hora gravadas). Sem ela = interno.
 -- Moderação (aprovar / recusar / remover / corrigir digitação) só pelo dono da PLATAFORMA
 -- (platform_admins). A vitrine pública lê só depoimentos_publicos(): aprovados + autorizados + não
--- retirados, com foto, nome abreviado, papel, imobiliária, cidade, nota, frase e texto.
+-- retirados, com foto, nome completo, papel, imobiliária, cidade, nota, frase e texto.
 -- Nada de e-mail, telefone, CPF, ID RE/MAX ou ids internos na saída pública.
 --
 -- LGPD: tabelas sem acesso direto (nem SELECT) para anon/authenticated; tudo por RPCs SECURITY
@@ -115,21 +115,14 @@ ALTER TABLE public.depoimento_eventos ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.depoimento_eventos FROM PUBLIC, anon, authenticated;
 
 -- 2) Helpers ---------------------------------------------------------------------------------------
--- "Maria Aparecida da Silva" -> "Maria S." (ignora da/de/do/dos/das/e).
-CREATE OR REPLACE FUNCTION public.depoimento_nome_abreviado(_nome text) RETURNS text
+-- Nome para a vitrine = NOME COMPLETO do cadastro (decisão de Denis em 02/11/2026, t_482cf9f1),
+-- só com espaços normalizados. Vazio -> 'Usuário ADM MAX'.
+-- E-mail, telefone, CPF, ID RE/MAX e ids continuam fora da vitrine.
+CREATE OR REPLACE FUNCTION public.depoimento_nome_vitrine(_nome text) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
-  WITH p AS (
-    SELECT array_remove(array_agg(w ORDER BY i), NULL) AS ws
-    FROM unnest(regexp_split_to_array(btrim(coalesce(_nome, '')), '\s+')) WITH ORDINALITY AS t(w, i)
-    WHERE w <> '' AND lower(w) NOT IN ('da', 'de', 'do', 'dos', 'das', 'e')
-  )
-  SELECT CASE
-    WHEN coalesce(array_length(ws, 1), 0) = 0 THEN 'Usuário ADM MAX'
-    WHEN array_length(ws, 1) = 1 THEN initcap(ws[1])
-    ELSE initcap(ws[1]) || ' ' || upper(left(ws[array_length(ws, 1)], 1)) || '.'
-  END FROM p
+  SELECT coalesce(nullif(btrim(regexp_replace(coalesce(_nome, ''), '\s+', ' ', 'g')), ''), 'Usuário ADM MAX')
 $$;
-REVOKE ALL ON FUNCTION public.depoimento_nome_abreviado(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.depoimento_nome_vitrine(text) FROM PUBLIC, anon, authenticated;
 
 -- Papel para a vitrine (o mais representativo que a pessoa tem na imobiliária).
 CREATE OR REPLACE FUNCTION public.depoimento_papel(_uid uuid, _org uuid) RETURNS text
@@ -222,7 +215,7 @@ BEGIN
     'motivo', coalesce(_motivo, 'elegivel'),
     'termo', jsonb_build_object('versao', _termo.versao, 'texto', _termo.texto),
     'previa', jsonb_build_object(
-      'nome_exibicao', public.depoimento_nome_abreviado(_p.nome),
+      'nome_exibicao', public.depoimento_nome_vitrine(_p.nome),
       'papel', public.depoimento_papel(_uid, _org),
       'imobiliaria', _o.nome,
       'cidade', _o.cidade,
@@ -342,7 +335,7 @@ BEGIN
       papel_exibicao, imobiliaria_exibicao, cidade_exibicao, foto_url)
   VALUES (_uid, _org, _nota, _m, _t, _f, _mel, _status, _origem, _publica,
       CASE WHEN _publica THEN now() END, CASE WHEN _publica THEN _termo.versao END,
-      coalesce(nullif(btrim(_p.nome), ''), 'Usuário ADM MAX'), public.depoimento_nome_abreviado(_p.nome),
+      coalesce(nullif(btrim(_p.nome), ''), 'Usuário ADM MAX'), public.depoimento_nome_vitrine(_p.nome),
       public.depoimento_papel(_uid, _org), coalesce(_o.nome, ''), _o.cidade,
       CASE WHEN _publica THEN _p.avatar_url END)
   RETURNING id INTO _id;
