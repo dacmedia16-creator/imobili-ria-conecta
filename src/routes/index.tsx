@@ -80,6 +80,7 @@ const CARDS: ServiceCard[] = [
     lines: ["Treinamento e", "desenvolvimento"],
     icon: "/hub/academia.png",
     color: "blue",
+    href: contaMaxLoginUrl("academia-max"),
     pos: { left: "9.7%", top: "65.1%", width: "25.8%", height: "10.6%" },
     delay: "0.7s",
   },
