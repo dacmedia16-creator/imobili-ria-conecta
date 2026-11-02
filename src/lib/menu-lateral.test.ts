@@ -65,6 +65,8 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/plataforma/imobiliarias", platformAdmin],
     ["/plataforma/usuarios", platformAdmin],
     ["/plataforma/chamados", platformAdmin],
+    // Depoimentos (t_c7cfaf00): item novo, só a plataforma.
+    ["/plataforma/depoimentos", platformAdmin],
   ];
   return new Set(itens.filter(([, s]) => s).map(([to]) => to));
 }
@@ -161,6 +163,7 @@ describe("menu lateral agrupado", () => {
       "/plataforma/imobiliarias",
       "/plataforma/usuarios",
       "/plataforma/chamados",
+      "/plataforma/depoimentos",
     ]);
     expect(doGrupo("Administração").some((to) => to.startsWith("/plataforma"))).toBe(false);
     expect(doGrupo("Equipe")).toContain("/reservas-salas");
@@ -212,6 +215,7 @@ describe("menu lateral agrupado", () => {
       "/admin/assinatura-digital": "admin.assinatura-digital.tsx",
       "/plataforma/usuarios": "plataforma.usuarios.tsx",
       "/plataforma/chamados": "plataforma.chamados.tsx",
+      "/plataforma/depoimentos": "plataforma.depoimentos.tsx",
     };
     for (const [to, arq] of Object.entries(arquivo)) {
       const nome = rotulo.get(to)!;
@@ -274,6 +278,7 @@ describe("menu lateral agrupado", () => {
       "/plataforma/imobiliarias",
       "/plataforma/usuarios",
       "/plataforma/chamados",
+      "/plataforma/depoimentos",
       "/ficha-colaboradores",
     ];
     const base: MenuContexto = {

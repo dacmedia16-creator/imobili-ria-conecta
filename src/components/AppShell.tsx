@@ -38,6 +38,7 @@ import { crmEnabled } from "@/lib/crm-db";
 import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import { contaMaxLogoutUrl } from "@/lib/dominios";
+import { ConviteDepoimento } from "@/components/depoimentos/ConviteDepoimento";
 import {
   PLATFORM_PANEL_PATH,
   contextBannerText,
@@ -637,6 +638,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </main>
       <MuralCelebrationListener />
+      <ConviteDepoimento />
       <TourPrimeiroAcesso
         userId={userId}
         groups={navGroups}
