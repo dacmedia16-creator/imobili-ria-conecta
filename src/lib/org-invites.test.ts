@@ -114,7 +114,12 @@ describe("módulos da imobiliária criada pelo convite", () => {
     expect(m.leads).toBe(false);
     expect(m.crm).toBe(false);
     for (const k of ORGANIZATION_MODULES.filter(
-      (x) => x !== "oportunidades" && x !== "leads" && x !== "crm" && x !== "especialistas_publico",
+      (x) =>
+        x !== "oportunidades" &&
+        x !== "leads" &&
+        x !== "crm" &&
+        x !== "especialistas_publico" &&
+        x !== "academia",
     ))
       expect(m[k]).toBe(true);
   });
@@ -126,7 +131,9 @@ describe("módulos da imobiliária criada pelo convite", () => {
     // "crm" (t_188fb282) idem.
     expect(mods).toEqual(
       [...ORGANIZATION_MODULES]
-        .filter((x) => x !== "leads" && x !== "crm" && x !== "especialistas_publico")
+        .filter(
+          (x) => x !== "leads" && x !== "crm" && x !== "especialistas_publico" && x !== "academia",
+        )
         .sort(),
     );
     expect(MIGRATION).toMatch(/_m <> 'oportunidades'/);

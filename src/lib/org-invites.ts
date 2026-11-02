@@ -23,6 +23,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "leads",
   "crm",
   "especialistas_publico",
+  // "academia" (t_e21b37b6): nasce desligada; a plataforma liga por imobiliária.
+  "academia",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {

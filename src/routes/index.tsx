@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
 import { contaMaxLoginUrl, contaMaxLogoutUrl } from "@/lib/dominios";
+import { academiaEnabled, aplicarModuloAcademia } from "@/lib/academia-module";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -147,11 +148,34 @@ const CARDS: ServiceCard[] = [
 
 /** Itens da roda: mesmos sistemas e mesmos destinos dos cartões (fonte única = CARDS).
  * A roda tem 8 posições fixas (uma por sistema MAX); o parceiro Obah fica de fora. */
-const WHEEL_ITEMS: WheelItem[] = CARDS.filter((c) => c.id !== "obah").map((c) => ({
-  id: c.id as WheelId,
-  title: c.title,
-  href: c.href,
-}));
+function wheelItems(cards: ServiceCard[]): WheelItem[] {
+  return cards
+    .filter((c) => c.id !== "obah")
+    .map((c) => ({ id: c.id as WheelId, title: c.title, href: c.href }));
+}
+
+/** Academia é módulo por imobiliária (t_e21b37b6): só fica ativa se a imobiliária do usuário logado tiver o
+ * módulo "academia" ligado. Sem login, carregando ou com erro = desligada ("Em breve"). */
+function useAcademiaLigada() {
+  const [ligada, setLigada] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    const consultar = () => {
+      void academiaEnabled().then((on) => {
+        if (vivo) setLigada(on);
+      });
+    };
+    consultar();
+    const { data: sub } = supabase.auth.onAuthStateChange((evt) => {
+      if (evt === "SIGNED_IN" || evt === "SIGNED_OUT" || evt === "USER_UPDATED") consultar();
+    });
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+  return ligada;
+}
 
 const ADM_MAX_LOGIN_URL = contaMaxLoginUrl("adm-max", "/reservas-salas");
 
@@ -227,6 +251,9 @@ function SingleLoginBanner() {
 }
 
 function FrontPage() {
+  const academiaLigada = useAcademiaLigada();
+  const cards = aplicarModuloAcademia(CARDS, academiaLigada);
+  const rodaItens = wheelItems(cards);
   return (
     <div className="hubpage">
       <style>{`
@@ -587,10 +614,10 @@ function FrontPage() {
           </a>
 
           <div className="hub">
-            <HubWheel items={WHEEL_ITEMS} />
+            <HubWheel items={rodaItens} />
           </div>
 
-          {CARDS.map((c) =>
+          {cards.map((c) =>
             c.href ? (
               <a
                 key={c.id}
@@ -681,12 +708,12 @@ function FrontPage() {
         <SingleLoginBanner />
 
         <div className="mhub">
-          <HubWheel items={WHEEL_ITEMS} />
+          <HubWheel items={rodaItens} />
         </div>
         <p className="mhub-hint">Toque num sistema da roda ou escolha na lista abaixo.</p>
 
         <div className="mlist">
-          {CARDS.map((c) =>
+          {cards.map((c) =>
             c.href ? (
               <a
                 key={c.id}
