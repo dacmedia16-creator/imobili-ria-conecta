@@ -1483,24 +1483,27 @@ function NewUserDialog({
       }
       // Equipe escolhida pelo admin (t_32d5dd75): mesma inserção da tela /equipe, sob a RLS de
       // team_members (só admin/super admin ou líder da equipe). Se falhar, o usuário fica criado.
+      let equipeFalhou = false;
       if (fixedTeamLabel === null && teamId !== SEM_EQUIPE && created?.id) {
         const { error: teamErr } = await supabase
           .from("team_members")
           .insert({ team_id: teamId, membro_id: created.id });
-        if (teamErr) {
-          toast.warning(
-            `Usuário criado, mas não entrou na equipe (${errorMessage(teamErr, "erro")}). Coloque-o na equipe pela tela Equipes.`,
-            {
-              action: { label: "Abrir Equipes", onClick: () => navigate({ to: "/equipe" }) },
-              duration: 15000,
-            },
-          );
-        }
+        equipeFalhou = Boolean(teamErr);
       }
       toast.success("Usuário criado. Copie e envie a instrução de acesso pelo Google.", {
         action: { label: "Copiar", onClick: copyCreds },
         duration: 10000,
       });
+      // Depois do sucesso, para o aviso ficar na frente da pilha de toasts.
+      if (equipeFalhou) {
+        toast.warning(
+          "Usuário criado, mas não entrou na equipe escolhida. Coloque-o na equipe pela tela Equipes.",
+          {
+            action: { label: "Abrir Equipes", onClick: () => navigate({ to: "/equipe" }) },
+            duration: 15000,
+          },
+        );
+      }
       onDone();
     } catch (err: unknown) {
       toast.error(errorMessage(err, "Falha ao criar usuário"));
