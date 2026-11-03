@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABEL } from "@/lib/auth";
 import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ import {
   filhosComFaixas,
   filtrarColaboradores,
   filtrosVazios,
+  fotoValida,
+  iniciaisNome,
   inputSpParaIso,
   isoParaInputSp,
   linhaExport,
@@ -502,17 +505,37 @@ function FichaColaboradoresPage() {
                   {filtrada.map((c) => (
                     <tr key={c.user_id} className="border-t align-top">
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          data-testid="ficha-abrir-card"
-                          className="rounded-sm text-left font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          title="Ver ficha completa"
-                          aria-haspopup="dialog"
-                          onClick={() => setAberto(c)}
-                        >
-                          {c.nome}
-                        </button>
-                        <div className="text-xs text-muted-foreground">{c.email}</div>
+                        <div className="flex items-start gap-2">
+                          {/* Miniatura decorativa: o nome ao lado já identifica a pessoa. */}
+                          <Avatar
+                            className="mt-0.5 h-7 w-7"
+                            aria-hidden
+                            data-testid="ficha-mini-avatar"
+                          >
+                            <AvatarImage
+                              src={fotoValida(c.avatar_url)}
+                              alt=""
+                              className="object-cover"
+                              loading="lazy"
+                            />
+                            <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                              {iniciaisNome(c.nome)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              data-testid="ficha-abrir-card"
+                              className="rounded-sm text-left font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              title="Ver ficha completa"
+                              aria-haspopup="dialog"
+                              onClick={() => setAberto(c)}
+                            >
+                              {c.nome}
+                            </button>
+                            <div className="text-xs text-muted-foreground">{c.email}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap" data-testid="atualizada-celula">
                         {dataHoraSp(c.updated_at) || "—"}

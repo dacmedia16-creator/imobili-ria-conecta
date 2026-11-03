@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { FileDown } from "lucide-react";
 import { Pill } from "@/components/visual/base";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,8 @@ import {
   dataBr,
   dataHoraSp,
   filhosComFaixas,
+  fotoValida,
+  iniciaisNome,
   rotuloPapeis,
   textoPendencias,
   type Colaborador,
@@ -45,8 +48,26 @@ export function FichaColaboradorCard({
         {c && (
           <>
             <DialogHeader className="pr-8 text-left">
-              <DialogTitle className="break-words">{c.nome}</DialogTitle>
-              <DialogDescription className="break-all">{ou(c.email)}</DialogDescription>
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="h-14 w-14 border" data-testid="ficha-card-avatar">
+                  <AvatarImage
+                    src={fotoValida(c.avatar_url)}
+                    alt={c.nome}
+                    className="object-cover"
+                  />
+                  <AvatarFallback
+                    className="bg-primary/10 text-base font-semibold text-primary"
+                    role="img"
+                    aria-label={c.nome}
+                  >
+                    {iniciaisNome(c.nome)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="break-words">{c.nome}</DialogTitle>
+                  <DialogDescription className="break-all">{ou(c.email)}</DialogDescription>
+                </div>
+              </div>
               <div className="flex flex-wrap gap-2 pt-1">
                 {c.completa ? (
                   <Pill tom="green">Ficha completa</Pill>
