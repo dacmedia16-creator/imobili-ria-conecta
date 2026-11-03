@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { anyOf, requireRoles } from "@/lib/route-access";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -21,6 +21,7 @@ import {
   type ManagedRole,
 } from "@/lib/user-management-policy";
 import { podeVerRegrasPapeis } from "@/lib/regras-papeis";
+import { opcoesEquipeNovoUsuario, SEM_EQUIPE } from "@/lib/novo-usuario-equipe";
 import {
   finalizeOperationalImpersonation,
   restoreOperationalImpersonation,
@@ -800,6 +801,7 @@ function AdminUsers() {
                       ? (ownTeam?.nome ?? "Uma equipe nova, liderada por você, será criada")
                       : null
                   }
+                  teamOptions={leadCreate ? [] : opcoesEquipeNovoUsuario(teamsRaw)}
                   onDone={() => {
                     setOpen(false);
                     load();
@@ -1419,12 +1421,15 @@ function ReasonField({
 function NewUserDialog({
   allowedRoles,
   fixedTeamLabel = null,
+  teamOptions = [],
   onDone,
   createUserFn,
 }: {
   allowedRoles: AppRole[];
   /** Gestor/team leader: papel fixo de corretor e equipe definida pelo servidor (só exibida). */
   fixedTeamLabel?: string | null;
+  /** Admin/super admin: equipes e subequipes ("Mãe → Sub") para escolher já no cadastro. */
+  teamOptions?: { id: string; label: string }[];
   onDone: () => void;
   createUserFn: (args: {
     data: { nome: string; email: string; telefone: string; role: AppRole };
@@ -1436,7 +1441,9 @@ function NewUserDialog({
   const [nasc, setNasc] = useState("");
   const nascErro = erroCampoDataNascimento(nasc, false);
   const [role, setRole] = useState<AppRole>(allowedRoles[0]);
+  const [teamId, setTeamId] = useState<string>(SEM_EQUIPE);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   // Convite só com Google (t_93e80346): sem senha inicial. A pessoa entra pelo botão do Google.
   const copyCreds = async () => {
@@ -1471,6 +1478,22 @@ function NewUserDialog({
         } catch (err: unknown) {
           toast.warning(
             `Usuário criado, mas a data de nascimento não foi salva (${errorMessage(err, "erro")}). Preencha em "Editar dados".`,
+          );
+        }
+      }
+      // Equipe escolhida pelo admin (t_32d5dd75): mesma inserção da tela /equipe, sob a RLS de
+      // team_members (só admin/super admin ou líder da equipe). Se falhar, o usuário fica criado.
+      if (fixedTeamLabel === null && teamId !== SEM_EQUIPE && created?.id) {
+        const { error: teamErr } = await supabase
+          .from("team_members")
+          .insert({ team_id: teamId, membro_id: created.id });
+        if (teamErr) {
+          toast.warning(
+            `Usuário criado, mas não entrou na equipe (${errorMessage(teamErr, "erro")}). Coloque-o na equipe pela tela Equipes.`,
+            {
+              action: { label: "Abrir Equipes", onClick: () => navigate({ to: "/equipe" }) },
+              duration: 15000,
+            },
           );
         }
       }
@@ -1585,6 +1608,24 @@ function NewUserDialog({
                 {allowedRoles.map((r) => (
                   <SelectItem key={r} value={r}>
                     {ROLE_LABEL[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {fixedTeamLabel === null && (
+          <div>
+            <Label>Equipe</Label>
+            <Select value={teamId} onValueChange={setTeamId}>
+              <SelectTrigger aria-label="Equipe" data-testid="nu-equipe">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_EQUIPE}>Sem equipe</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.label}
                   </SelectItem>
                 ))}
               </SelectContent>
