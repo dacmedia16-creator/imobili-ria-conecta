@@ -38,6 +38,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -86,7 +87,14 @@ import type { ProfileRow, TeamRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
-import { filterAdminUsers, type UserStatusFilter } from "@/lib/admin-user-filters";
+import {
+  filterAdminUsers,
+  TEAM_FILTER_COM,
+  TEAM_FILTER_SEM,
+  TEAM_FILTER_TODAS,
+  teamIdsByUserFrom,
+  type UserStatusFilter,
+} from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
 import {
   DATA_NASCIMENTO_MIN,
@@ -181,6 +189,7 @@ function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<AppRole | "todos">("todos");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("todos");
+  const [teamFilter, setTeamFilter] = useState<string>(TEAM_FILTER_TODAS);
   const [page, setPage] = useState(1);
   const [editingRoles, setEditingRoles] = useState<Record<string, boolean>>({});
   const [lastSignIn, setLastSignIn] = useState<Record<string, string | null>>({});
@@ -432,6 +441,14 @@ function AdminUsers() {
     return { groups, semEquipeIds };
   }, [teamsRaw, teamMembersRaw, coLeadersRaw, users]);
 
+  // Filtro "Equipe" da lista (t_736d19de): mesma regra do agrupamento acima (membro, líder ou
+  // líder auxiliar de equipe/subequipe), só com os dados já carregados.
+  const teamIdsByUser = useMemo(
+    () => teamIdsByUserFrom(teamsRaw, teamMembersRaw, coLeadersRaw),
+    [teamsRaw, teamMembersRaw, coLeadersRaw],
+  );
+  const teamFilterOptions = useMemo(() => opcoesEquipeNovoUsuario(teamsRaw), [teamsRaw]);
+
   if (!canManage)
     return (
       <p className="text-sm text-muted-foreground">
@@ -546,6 +563,8 @@ function AdminUsers() {
     role: roleFilter,
     status: statusFilter,
     rolesByUser,
+    team: teamFilter,
+    teamIdsByUser,
   });
   const activeUsers = filteredUsers.filter((u) => u.ativo !== false);
   const inactiveUsers = filteredUsers.filter((u) => u.ativo === false);
@@ -865,6 +884,28 @@ function AdminUsers() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="ativos">Ativos</SelectItem>
                 <SelectItem value="inativos">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={teamFilter}
+              onValueChange={(value) => {
+                setTeamFilter(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-52" aria-label="Filtrar por equipe">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TEAM_FILTER_TODAS}>Todas as equipes</SelectItem>
+                <SelectItem value={TEAM_FILTER_COM}>Com equipe</SelectItem>
+                <SelectItem value={TEAM_FILTER_SEM}>Sem equipe</SelectItem>
+                {teamFilterOptions.length > 0 && <SelectSeparator />}
+                {teamFilterOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
