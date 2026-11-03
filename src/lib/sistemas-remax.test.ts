@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { SISTEMAS_REMAX } from "./sistemas-remax";
 
 describe("SISTEMAS_REMAX (t_06bb81c4)", () => {
@@ -21,5 +23,14 @@ describe("SISTEMAS_REMAX (t_06bb81c4)", () => {
 
   it("todos os links são https externos", () => {
     for (const s of SISTEMAS_REMAX) expect(new URL(s.href).protocol).toBe("https:");
+  });
+});
+
+describe("logos dos sistemas (t_48434b4a)", () => {
+  it("os 5 têm logo local em /sistemas-remax/ (sem hotlink) e o arquivo existe em public/", () => {
+    for (const s of SISTEMAS_REMAX) {
+      expect(s.logo, s.nome).toMatch(/^\/sistemas-remax\/[a-z0-9-]+\.(svg|png)$/);
+      expect(existsSync(path.join(process.cwd(), "public", s.logo!)), s.logo).toBe(true);
+    }
   });
 });
