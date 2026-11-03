@@ -53,4 +53,14 @@ export const SISTEMAS_REMAX: SistemaRemax[] = [
     descricao: "Gestão de leads",
     href: "https://api.contact2sale.com/webapp/login",
   },
+  {
+    id: "universidade-remax",
+    nome: "Universidade REMAX",
+    sigla: "UR",
+    // Escudo recortado do logo oficial (t_d5a53c2a); fundo = bordô da própria imagem.
+    logo: "/sistemas-remax/universidade-remax.png",
+    logoFundo: "#5d0d06",
+    descricao: "EAD",
+    href: "https://hub.minharemax.com/universidade",
+  },
 ];
