@@ -73,8 +73,10 @@ function SistemasRemaxPage() {
           flex: none; width: 58px; height: 58px; border-radius: 999px; background: #fff;
           display: grid; place-items: center; color: var(--navy);
           font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 800; font-size: 15px;
-          box-shadow: 0 0 0 1px rgba(143, 180, 232, 0.35);
+          box-shadow: 0 0 0 1px rgba(143, 180, 232, 0.35); overflow: hidden;
         }
+        /* Logos oficiais (t_48434b4a): mesma caixa para todos, centralizados, sem distorcer. */
+        .srpage .sr-ico img { width: 72%; height: 72%; object-fit: contain; display: block; }
         .srpage .sr-txt { min-width: 0; }
         .srpage .sr-card h3 { margin: 0; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 600; font-size: 1.12rem;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -135,9 +137,25 @@ function SistemasRemaxPage() {
               aria-label={`Acessar ${s.nome} (abre em nova aba)`}
             >
               <span className="access-badge">Acessar →</span>
-              <span className="sr-ico" aria-hidden="true">
-                {s.sigla}
-              </span>
+              {s.logo ? (
+                <span
+                  className="sr-ico"
+                  style={s.logoFundo ? { background: s.logoFundo } : undefined}
+                >
+                  <img
+                    src={s.logo}
+                    alt={s.nome}
+                    width={58}
+                    height={58}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </span>
+              ) : (
+                <span className="sr-ico" aria-hidden="true">
+                  {s.sigla}
+                </span>
+              )}
               <span className="sr-txt">
                 <h3>{s.nome}</h3>
                 {s.descricao ? <p>{s.descricao}</p> : null}
