@@ -51,6 +51,7 @@ import {
 } from "@/lib/ficha-colaborador-db";
 import { TIPO_XLSX, baixarArquivo, gerarXlsx } from "@/lib/xlsx-simples";
 import { buildFichasPdf, fichasPdfFileName } from "@/lib/ficha-colaborador-pdf";
+import { FichaColaboradorCard } from "@/components/ficha/FichaColaboradorCard";
 
 export const Route = createFileRoute("/_authenticated/ficha-colaboradores")({
   head: () => ({ meta: [{ title: "Ficha dos colaboradores" }] }),
@@ -70,7 +71,9 @@ function FichaColaboradoresPage() {
   const [prazo, setPrazo] = useState<string>("");
   const [erro, setErro] = useState<string | null>(null);
   const [f, setF] = useState<FiltrosFicha>(filtrosVazios);
-  const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
+  const [exportando, setExportando] = useState<"excel" | "pdf" | "pdf-uma" | null>(null);
+  // Card somente leitura de uma pessoa (t_02c8d570): usa a linha já carregada, sem nova consulta.
+  const [aberto, setAberto] = useState<Colaborador | null>(null);
 
   const carregar = () => {
     setErro(null);
@@ -128,21 +131,23 @@ function FichaColaboradoresPage() {
   const completas = (lista ?? []).filter((c) => c.completa).length;
   const cadastroPendente = (lista ?? []).filter((c) => c.cadastro_pendente.length > 0).length;
 
-  const exportar = async (formato: "excel" | "pdf") => {
-    if (!filtrada.length) {
+  // `uma`: "PDF desta ficha" do card — mesma exportação e mesmo registro, com 1 pessoa.
+  const exportar = async (formato: "excel" | "pdf", uma?: Colaborador) => {
+    const alvo = uma ? [uma] : filtrada;
+    if (!alvo.length) {
       toast.error("Nenhum colaborador no filtro para exportar.");
       return;
     }
-    setExportando(formato);
+    setExportando(uma ? "pdf-uma" : formato);
     try {
       // Registra antes de gerar: se o log falhar, não exporta (exigência de rastreio).
-      await registrarExportacaoFichas(formato, filtrada.length);
+      await registrarExportacaoFichas(formato, alvo.length);
       const hoje = new Date();
       if (formato === "excel") {
         const bytes = gerarXlsx(
           "Colaboradores",
           [...COLUNAS_EXPORT],
-          filtrada.map((c) => linhaExport(c, LABELS)),
+          alvo.map((c) => linhaExport(c, LABELS)),
         );
         const p = (n: number) => String(n).padStart(2, "0");
         baixarArquivo(
@@ -154,9 +159,9 @@ function FichaColaboradoresPage() {
         const brand = await loadCurrentAgencyBrand();
         const logo = await logoForPdf(brand?.pdfLogoUrl ?? null);
         const bytes = await buildFichasPdf({
-          colaboradores: filtrada,
+          colaboradores: alvo,
           totalImobiliaria: lista?.length ?? 0,
-          filtros: descreverFiltros(f, LABELS),
+          filtros: uma ? `Ficha individual: ${uma.nome}` : descreverFiltros(f, LABELS),
           roleLabels: LABELS,
           agencyName: brand?.nome ?? null,
           logoPng: logo,
@@ -412,7 +417,12 @@ function FichaColaboradoresPage() {
           {filtrada.length === 0 ? (
             <EmptyState>Nenhum colaborador com esse filtro.</EmptyState>
           ) : (
-            <div className="overflow-x-auto rounded-xl border bg-card" data-testid="ficha-tabela">
+            // `relative`: prende o texto sr-only (absolute) do título "Atualizada em" dentro da
+            // rolagem; sem isso a página ficava com ~1120px no celular e o card abria cortado.
+            <div
+              className="relative overflow-x-auto rounded-xl border bg-card"
+              data-testid="ficha-tabela"
+            >
               <table className="w-full min-w-[1220px] text-sm">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
@@ -468,7 +478,16 @@ function FichaColaboradoresPage() {
                   {filtrada.map((c) => (
                     <tr key={c.user_id} className="border-t align-top">
                       <td className="px-3 py-2">
-                        <div className="font-medium">{c.nome}</div>
+                        <button
+                          type="button"
+                          data-testid="ficha-abrir-card"
+                          className="rounded-sm text-left font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          title="Ver ficha completa"
+                          aria-haspopup="dialog"
+                          onClick={() => setAberto(c)}
+                        >
+                          {c.nome}
+                        </button>
                         <div className="text-xs text-muted-foreground">{c.email}</div>
                       </td>
                       <td className="px-3 py-2">
@@ -530,6 +549,14 @@ function FichaColaboradoresPage() {
           )}
         </>
       )}
+
+      <FichaColaboradorCard
+        colaborador={aberto}
+        labels={LABELS}
+        onClose={() => setAberto(null)}
+        onPdf={(c) => exportar("pdf", c)}
+        gerandoPdf={exportando !== null}
+      />
     </div>
   );
 }
