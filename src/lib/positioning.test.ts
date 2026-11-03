@@ -6,6 +6,8 @@ import {
   normalizeExternalUrl,
   normalizeInstagramUrl,
   parseSpecialistRegions,
+  pickSelectedRegions,
+  regionTypeLabel,
   whatsappDigits,
   whatsappSpecialistUrl,
 } from "./positioning";
@@ -63,5 +65,25 @@ describe("positioning", () => {
     expect(addPositioningRegion([1], 2)).toEqual({ ids: [1, 2], limitReached: false });
     expect(addPositioningRegion([1, 2], 3)).toEqual({ ids: [1, 2], limitReached: true });
     expect(addPositioningRegion([1, 2], 2)).toEqual({ ids: [1, 2], limitReached: false });
+  });
+
+  it("lista os locais escolhidos na ordem marcada, mantendo id sem região para remover", () => {
+    const regions = [
+      { id: 1, cidade: "Sorocaba", zona: null, nome: "Campolim", tipo: "bairro" },
+      { id: 2, cidade: "Sorocaba", zona: "Zona Sul", nome: "Vila Exemplo", tipo: "condominio" },
+    ];
+    expect(pickSelectedRegions(regions, [2, 1]).map((item) => item.region?.nome)).toEqual([
+      "Vila Exemplo",
+      "Campolim",
+    ]);
+    expect(pickSelectedRegions(regions, [9])).toEqual([{ id: 9, region: null }]);
+    expect(pickSelectedRegions(regions, [])).toEqual([]);
+  });
+
+  it("mostra o tipo do local com acento e maiúscula", () => {
+    expect(regionTypeLabel("condominio")).toBe("Condomínio");
+    expect(regionTypeLabel("bairro")).toBe("Bairro");
+    expect(regionTypeLabel("zona")).toBe("Zona");
+    expect(regionTypeLabel("outro")).toBe("Outro");
   });
 });
