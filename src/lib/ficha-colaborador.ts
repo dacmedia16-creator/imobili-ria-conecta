@@ -361,7 +361,24 @@ export type Colaborador = {
   religiao: string | null;
   preenchida_em: string | null;
   updated_at: string | null;
+  /** Foto do perfil (profiles.avatar_url). Opcional: sem ela, o card mostra as iniciais. */
+  avatar_url?: string | null;
 };
+
+/** Iniciais para o avatar (primeiro e último nome). Ex.: "Ana Maria Souza" → "AS". */
+export function iniciaisNome(nome: string | null | undefined): string {
+  const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "?";
+  const a = partes[0][0] ?? "";
+  const b = partes.length > 1 ? (partes[partes.length - 1][0] ?? "") : "";
+  return (a + b).toUpperCase();
+}
+
+/** Só aceita URL http(s) da foto; qualquer outra coisa vira "sem foto" (mostra iniciais). */
+export function fotoValida(url: string | null | undefined): string | undefined {
+  const u = (url ?? "").trim();
+  return /^https?:\/\//i.test(u) ? u : undefined;
+}
 
 export const TODOS = "__todos__";
 export const NAO_INFORMADO = "__nao_informado__";
