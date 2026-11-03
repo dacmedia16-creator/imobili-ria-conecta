@@ -131,8 +131,10 @@ describe("tela do staff: filtro e coluna 'Cadastro pendente'", () => {
   });
   it("exportação traz o que falta no fim (posições do PDF não mudam)", () => {
     const linha = linhaExport(L[1], {});
-    expect(COLUNAS_EXPORT[COLUNAS_EXPORT.length - 1]).toBe("Cadastro pendente");
-    expect(linha[linha.length - 1]).toBe("CPF, ID RE/MAX fora do padrão");
+    // "Atualizada em" entrou depois dela, também no fim; as posições antigas continuam iguais.
+    expect(COLUNAS_EXPORT[15]).toBe("Cadastro pendente");
+    expect(linha[15]).toBe("CPF, ID RE/MAX fora do padrão");
+    expect(COLUNAS_EXPORT[COLUNAS_EXPORT.length - 1]).toBe("Atualizada em");
     expect(COLUNAS_EXPORT[5]).toBe("Ficha");
     expect(descreverFiltros({ ...filtrosVazios(), cadastro: "pendente" }, {})).toContain(
       "Cadastro pendente",

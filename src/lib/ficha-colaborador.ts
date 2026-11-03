@@ -381,7 +381,14 @@ export type FiltrosFicha = {
   cadastro: typeof TODOS | "completo" | "pendente" | PendenciaCadastro;
   papel: string;
   equipe: string;
+  /** "Atualizada": quando a ficha foi atualizada (dia no fuso de São Paulo). */
+  atualizada: FiltroAtualizada;
+  /** Só com atualizada = "periodo": AAAA-MM-DD (vazio = sem limite). */
+  atualizadaDe: string;
+  atualizadaAte: string;
 };
+
+export type FiltroAtualizada = typeof TODOS | "hoje" | "7d" | "30d" | "periodo";
 
 export function filtrosVazios(): FiltrosFicha {
   return {
@@ -397,7 +404,76 @@ export function filtrosVazios(): FiltrosFicha {
     cadastro: TODOS,
     papel: TODOS,
     equipe: TODOS,
+    atualizada: TODOS,
+    atualizadaDe: "",
+    atualizadaAte: "",
   };
+}
+
+/** Dia AAAA-MM-DD do instante no fuso de São Paulo ("" se inválido). */
+export function diaSp(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  // en-CA formata como AAAA-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(t));
+}
+
+/** AAAA-MM-DD menos n dias (aritmética de calendário, sem fuso). */
+export function menosDias(dia: string, n: number): string {
+  const d = new Date(`${dia}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * A ficha entra no filtro "Atualizada"? Compara pelo dia em São Paulo.
+ * "7d"/"30d" = hoje e os 6/29 dias anteriores. Sem updated_at, só entra em "Todas".
+ */
+export function atualizadaNoFiltro(
+  updatedAt: string | null | undefined,
+  f: Pick<FiltrosFicha, "atualizada" | "atualizadaDe" | "atualizadaAte">,
+  agora: Date = new Date(),
+): boolean {
+  if (f.atualizada === TODOS) return true;
+  const dia = diaSp(updatedAt);
+  if (!dia) return false;
+  const hoje = diaSp(agora.toISOString());
+  if (f.atualizada === "hoje") return dia === hoje;
+  if (f.atualizada === "7d") return dia >= menosDias(hoje, 6) && dia <= hoje;
+  if (f.atualizada === "30d") return dia >= menosDias(hoje, 29) && dia <= hoje;
+  // "periodo": limites inclusivos; se vierem invertidos, troca.
+  let de = f.atualizadaDe;
+  let ate = f.atualizadaAte;
+  if (de && ate && de > ate) [de, ate] = [ate, de];
+  if (de && dia < de) return false;
+  if (ate && dia > ate) return false;
+  return true;
+}
+
+export type OrdemAtualizada = "desc" | "asc" | null;
+
+/** Ordena por updated_at (desc = mais recente primeiro); sem data sempre no fim. null = não mexe. */
+export function ordenarPorAtualizada(lista: Colaborador[], ordem: OrdemAtualizada): Colaborador[] {
+  if (!ordem) return lista;
+  const t = (c: Colaborador) => {
+    const v = c.updated_at ? Date.parse(c.updated_at) : NaN;
+    return Number.isFinite(v) ? v : null;
+  };
+  // sort estável: empates mantêm a ordem atual da tela.
+  return [...lista].sort((a, b) => {
+    const ta = t(a);
+    const tb = t(b);
+    if (ta == null && tb == null) return 0;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ordem === "desc" ? tb - ta : ta - tb;
+  });
 }
 
 /** Mês (1..12) da data AAAA-MM-DD, sem passar por Date (evita erro de fuso). */
@@ -427,7 +503,11 @@ export function faixaFilhos(n: number | null): string {
   return n >= 3 ? "3+" : String(n);
 }
 
-export function filtrarColaboradores(lista: Colaborador[], f: FiltrosFicha): Colaborador[] {
+export function filtrarColaboradores(
+  lista: Colaborador[],
+  f: FiltrosFicha,
+  agora: Date = new Date(),
+): Colaborador[] {
   const busca = norm(f.busca);
   return lista.filter((c) => {
     if (busca && !norm(c.nome).includes(busca) && !norm(c.email).includes(busca)) return false;
@@ -460,6 +540,7 @@ export function filtrarColaboradores(lista: Colaborador[], f: FiltrosFicha): Col
       return false;
     if (f.papel !== TODOS && !c.papeis.includes(f.papel)) return false;
     if (f.equipe !== TODOS && !c.equipes.includes(f.equipe)) return false;
+    if (!atualizadaNoFiltro(c.updated_at, f, agora)) return false;
     return true;
   });
 }
@@ -574,6 +655,7 @@ export const COLUNAS_EXPORT = [
   "Religião",
   "Preenchida em",
   "Cadastro pendente",
+  "Atualizada em",
 ] as const;
 
 export function linhaExport(c: Colaborador, labels: Record<string, string>): string[] {
@@ -595,6 +677,7 @@ export function linhaExport(c: Colaborador, labels: Record<string, string>): str
     dataHoraSp(c.preenchida_em),
     // No fim, para não mudar as posições usadas pelo PDF.
     textoPendencias(c.cadastro_pendente),
+    dataHoraSp(c.updated_at),
   ];
 }
 
@@ -627,6 +710,22 @@ export function descreverFiltros(f: FiltrosFicha, labels: Record<string, string>
     );
   if (f.papel !== TODOS) partes.push(`Papel: ${labels[f.papel] ?? f.papel}`);
   if (f.equipe !== TODOS) partes.push(`Equipe: ${f.equipe}`);
+  if (f.atualizada === "hoje") partes.push("Atualizada hoje");
+  if (f.atualizada === "7d") partes.push("Atualizada nos últimos 7 dias");
+  if (f.atualizada === "30d") partes.push("Atualizada nos últimos 30 dias");
+  if (f.atualizada === "periodo") {
+    const de = dataBr(f.atualizadaDe);
+    const ate = dataBr(f.atualizadaAte);
+    partes.push(
+      de && ate
+        ? `Atualizada de ${de} a ${ate}`
+        : de
+          ? `Atualizada a partir de ${de}`
+          : ate
+            ? `Atualizada até ${ate}`
+            : "Atualizada (qualquer data)",
+    );
+  }
   if (f.busca.trim()) partes.push(`Busca: "${f.busca.trim()}"`);
   return partes.length ? partes.join(" · ") : "Sem filtros (todos os colaboradores)";
 }

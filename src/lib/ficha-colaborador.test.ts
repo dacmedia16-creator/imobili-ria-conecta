@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  COLUNAS_EXPORT,
   NAO_INFORMADO,
   TODOS,
   camposFichaFaltando,
   descreverFiltros,
+  diaSp,
+  menosDias,
+  ordenarPorAtualizada,
   faixaFilhos,
   filtrarColaboradores,
   filtrosVazios,
@@ -247,6 +251,108 @@ describe("filtros da tela do staff", () => {
     expect(isoParaInputSp("2026-10-30T04:30:00+00:00")).toBe("2026-10-30T01:30");
     expect(inputSpParaIso("2026-10-30T01:30")).toBe("2026-10-30T01:30:00-03:00");
     expect(inputSpParaIso("lixo")).toBeNull();
+  });
+});
+
+describe("filtro e ordenação por 'Atualizada em' (fuso de São Paulo)", () => {
+  // Agora: 03/11/2026 01:30 em SP (= 04:30 UTC). Em UTC já é dia 03; às 02:30 UTC ainda é dia 02 em SP.
+  const AGORA = new Date("2026-11-03T04:30:00Z");
+  const L = [
+    colab({ user_id: "a", nome: "Hoje cedo", updated_at: "2026-11-03T03:05:00+00:00" }), // 03/11 00:05 SP
+    colab({ user_id: "b", nome: "Ontem noite", updated_at: "2026-11-03T02:30:00+00:00" }), // 02/11 23:30 SP
+    colab({ user_id: "c", nome: "Sem data", updated_at: null }),
+    colab({ user_id: "d", nome: "6 dias", updated_at: "2026-10-28T15:00:00+00:00" }), // 28/10 SP
+    colab({ user_id: "e", nome: "7 dias", updated_at: "2026-10-27T15:00:00+00:00" }), // 27/10 SP
+    colab({ user_id: "f", nome: "29 dias", updated_at: "2026-10-05T12:00:00+00:00" }), // 05/10 SP
+    colab({ user_id: "g", nome: "30 dias", updated_at: "2026-10-04T12:00:00+00:00" }), // 04/10 SP
+  ];
+  const nomes = (f: Partial<ReturnType<typeof filtrosVazios>>) =>
+    filtrarColaboradores(L, { ...filtrosVazios(), ...f }, AGORA).map((c) => c.nome);
+
+  it("dia é o de São Paulo, não o UTC (virada de dia)", () => {
+    expect(diaSp("2026-11-03T02:30:00+00:00")).toBe("2026-11-02");
+    expect(diaSp("2026-11-03T03:00:00+00:00")).toBe("2026-11-03");
+    expect(diaSp(null)).toBe("");
+    expect(menosDias("2026-03-01", 1)).toBe("2026-02-28");
+  });
+  it("Todas: inclui quem não tem data", () => {
+    expect(nomes({})).toHaveLength(7);
+  });
+  it("Hoje: só o que é hoje em SP (23:30 de ontem fica fora, mesmo sendo 'hoje' em UTC)", () => {
+    expect(nomes({ atualizada: "hoje" })).toEqual(["Hoje cedo"]);
+  });
+  it("Últimos 7 dias = hoje + 6 dias antes; 30 dias = hoje + 29 antes; sem data nunca entra", () => {
+    expect(nomes({ atualizada: "7d" })).toEqual(["Hoje cedo", "Ontem noite", "6 dias"]);
+    expect(nomes({ atualizada: "30d" })).toEqual([
+      "Hoje cedo",
+      "Ontem noite",
+      "6 dias",
+      "7 dias",
+      "29 dias",
+    ]);
+  });
+  it("Período de/até inclusivo, aceita só um lado e datas invertidas", () => {
+    expect(
+      nomes({ atualizada: "periodo", atualizadaDe: "2026-11-02", atualizadaAte: "2026-11-02" }),
+    ).toEqual(["Ontem noite"]);
+    expect(nomes({ atualizada: "periodo", atualizadaDe: "2026-10-28" })).toEqual([
+      "Hoje cedo",
+      "Ontem noite",
+      "6 dias",
+    ]);
+    expect(nomes({ atualizada: "periodo", atualizadaAte: "2026-10-05" })).toEqual([
+      "29 dias",
+      "30 dias",
+    ]);
+    expect(
+      nomes({ atualizada: "periodo", atualizadaDe: "2026-10-28", atualizadaAte: "2026-10-27" }),
+    ).toEqual(["6 dias", "7 dias"]);
+    // Período sem datas: todas que têm data (sem data continua fora).
+    expect(nomes({ atualizada: "periodo" })).not.toContain("Sem data");
+  });
+  it("ordenação: sem clique mantém a ordem; desc/asc com sem data sempre no fim", () => {
+    expect(ordenarPorAtualizada(L, null)).toBe(L);
+    const desc = ordenarPorAtualizada(L, "desc").map((c) => c.nome);
+    expect(desc).toEqual([
+      "Hoje cedo",
+      "Ontem noite",
+      "6 dias",
+      "7 dias",
+      "29 dias",
+      "30 dias",
+      "Sem data",
+    ]);
+    const asc = ordenarPorAtualizada(L, "asc").map((c) => c.nome);
+    expect(asc).toEqual([
+      "30 dias",
+      "29 dias",
+      "7 dias",
+      "6 dias",
+      "Ontem noite",
+      "Hoje cedo",
+      "Sem data",
+    ]);
+    expect(L.map((c) => c.user_id).join("")).toBe("abcdefg"); // não altera a lista original
+  });
+  it("descrição para o PDF e coluna na exportação", () => {
+    expect(descreverFiltros({ ...filtrosVazios(), atualizada: "7d" }, {})).toBe(
+      "Atualizada nos últimos 7 dias",
+    );
+    expect(
+      descreverFiltros(
+        {
+          ...filtrosVazios(),
+          atualizada: "periodo",
+          atualizadaDe: "2026-10-01",
+          atualizadaAte: "2026-10-31",
+        },
+        {},
+      ),
+    ).toBe("Atualizada de 01/10/2026 a 31/10/2026");
+    const i = COLUNAS_EXPORT.indexOf("Atualizada em");
+    expect(i).toBe(COLUNAS_EXPORT.length - 1);
+    expect(linhaExport(L[1], {})[i]).toBe("02/11/2026, 23:30");
+    expect(linhaExport(L[2], {})[i]).toBe("");
   });
 });
 
