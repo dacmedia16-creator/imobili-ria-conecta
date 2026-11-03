@@ -35,13 +35,14 @@ import {
   isoParaInputSp,
   linhaExport,
   opcoesDistintas,
-  ordenarPorAtualizada,
+  ORDEM_FICHA_PADRAO,
+  ordenarColaboradores,
   rotuloPapeis,
   textoPendencias,
   type Colaborador,
   type FiltroAtualizada,
   type FiltrosFicha,
-  type OrdemAtualizada,
+  type OrdemFicha,
 } from "@/lib/ficha-colaborador";
 import {
   listarFichasColaboradores,
@@ -86,10 +87,12 @@ function FichaColaboradoresPage() {
   };
   useEffect(carregar, []);
 
-  // Sem clique no título "Atualizada em", mantém a ordem que já vinha (ordem = null).
-  const [ordem, setOrdem] = useState<OrdemAtualizada>(null);
+  // Ordem escolhida pelo usuário: seletor "Ordenar por" (padrão "Atualizados recentemente")
+  // ou clique no título "Atualizada em" (inverte desc/asc). Sem data sempre no fim.
+  // "Limpar filtros" volta ao padrão. Excel/PDF usam esta mesma lista ordenada.
+  const [ordem, setOrdem] = useState<OrdemFicha>(ORDEM_FICHA_PADRAO);
   const filtrada = useMemo(
-    () => (lista ? ordenarPorAtualizada(filtrarColaboradores(lista, f), ordem) : []),
+    () => (lista ? ordenarColaboradores(filtrarColaboradores(lista, f), ordem) : []),
     [lista, f, ordem],
   );
   const op = useMemo(() => {
@@ -125,6 +128,8 @@ function FichaColaboradoresPage() {
   const filtrosAtivos = (Object.keys(vazio) as (keyof FiltrosFicha)[]).filter(
     (k) => !PARTE_DE_ATUALIZADA.includes(k) && f[k] !== vazio[k],
   ).length;
+  // Ordem fora do padrão também mostra "Limpar filtros" (que volta tudo ao padrão).
+  const podeLimpar = filtrosAtivos > 0 || ordem !== ORDEM_FICHA_PADRAO;
   const [maisAberto, setMaisAberto] = useState(false);
   const set = <K extends keyof FiltrosFicha>(k: K, v: FiltrosFicha[K]) =>
     setF((x) => ({ ...x, [k]: v }));
@@ -253,6 +258,21 @@ function FichaColaboradoresPage() {
                     ]}
                   />
                 </Filtro>
+                <Filtro id="ff-ordenar" label="Ordenar por">
+                  <select
+                    id="ff-ordenar"
+                    data-testid="ficha-ordenar-por"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    // "Mais antigos" (asc) só vem do clique no título; aqui continua "por data".
+                    value={ordem === "nome" ? "nome" : "desc"}
+                    onChange={(e) => setOrdem(e.target.value === "nome" ? "nome" : "desc")}
+                  >
+                    <option value="desc">
+                      {ordem === "asc" ? "Atualizados (mais antigos)" : "Atualizados recentemente"}
+                    </option>
+                    <option value="nome">Nome (A-Z)</option>
+                  </select>
+                </Filtro>
                 <div className="flex items-end gap-2">
                   <Button
                     type="button"
@@ -269,12 +289,15 @@ function FichaColaboradoresPage() {
                       aria-hidden
                     />
                   </Button>
-                  {filtrosAtivos > 0 && (
+                  {podeLimpar && (
                     <Button
                       type="button"
                       variant="ghost"
                       data-testid="ficha-limpar-filtros"
-                      onClick={() => setF(filtrosVazios())}
+                      onClick={() => {
+                        setF(filtrosVazios());
+                        setOrdem(ORDEM_FICHA_PADRAO);
+                      }}
                     >
                       <RotateCcw className="h-4 w-4" aria-hidden /> Limpar filtros
                     </Button>
@@ -426,22 +449,8 @@ function FichaColaboradoresPage() {
               <table className="w-full min-w-[1220px] text-sm">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
-                    {[
-                      "Nome",
-                      "Papel / Equipe",
-                      "Nascimento",
-                      "Ficha",
-                      "Cadastro pendente",
-                      "Filhos",
-                      "Plano de saúde",
-                      "Hospital",
-                      "Contato de emergência",
-                      "Religião",
-                    ].map((h) => (
-                      <th key={h} className="px-3 py-2 font-medium">
-                        {h}
-                      </th>
-                    ))}
+                    <th className="px-3 py-2 font-medium">Nome</th>
+                    {/* "Atualizada em" logo após o Nome: visível sem rolar a tabela. */}
                     <th
                       className="px-3 py-2 font-medium"
                       aria-sort={
@@ -472,6 +481,21 @@ function FichaColaboradoresPage() {
                         </span>
                       </button>
                     </th>
+                    {[
+                      "Papel / Equipe",
+                      "Nascimento",
+                      "Ficha",
+                      "Cadastro pendente",
+                      "Filhos",
+                      "Plano de saúde",
+                      "Hospital",
+                      "Contato de emergência",
+                      "Religião",
+                    ].map((h) => (
+                      <th key={h} className="px-3 py-2 font-medium">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -489,6 +513,9 @@ function FichaColaboradoresPage() {
                           {c.nome}
                         </button>
                         <div className="text-xs text-muted-foreground">{c.email}</div>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap" data-testid="atualizada-celula">
+                        {dataHoraSp(c.updated_at) || "—"}
                       </td>
                       <td className="px-3 py-2">
                         <div>{rotuloPapeis(c.papeis, LABELS)}</div>
@@ -538,9 +565,6 @@ function FichaColaboradoresPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">{c.religiao ?? "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap" data-testid="atualizada-celula">
-                        {dataHoraSp(c.updated_at) || "—"}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
