@@ -72,4 +72,13 @@ export const SISTEMAS_REMAX: SistemaRemax[] = [
     logoFundo: "#090c2d",
     href: "https://brokers.eemovel.com.br/login",
   },
+  {
+    id: "checkonn",
+    nome: "Checkonn",
+    sigla: "CK",
+    // Ícone do "O" recortado do logo oficial (t_601fa6c9); fundo branco padrão.
+    logo: "/sistemas-remax/checkonn.png",
+    descricao: "Inteligência de dados",
+    href: "https://appbuscacheckonn.com/login.aspx?ReturnUrl=%2fconsultas%2fConsultaCPF.aspx",
+  },
 ];
