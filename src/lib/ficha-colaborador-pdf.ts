@@ -30,6 +30,7 @@ const COLS: { titulo: string; idx: number; peso: number }[] = [
   { titulo: "Contato de emergência", idx: 10, peso: 15 },
   { titulo: "Telefone", idx: 12, peso: 9 },
   { titulo: "Religião", idx: 13, peso: 9.5 },
+  { titulo: "Atualizada em", idx: 16, peso: 9 },
 ];
 
 export function fichasPdfFileName(d = new Date()): string {

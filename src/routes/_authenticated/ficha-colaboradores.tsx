@@ -1,6 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown, FileDown, FileSpreadsheet, HeartPulse, RotateCcw } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronDown,
+  FileDown,
+  FileSpreadsheet,
+  HeartPulse,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABEL } from "@/lib/auth";
@@ -26,10 +35,13 @@ import {
   isoParaInputSp,
   linhaExport,
   opcoesDistintas,
+  ordenarPorAtualizada,
   rotuloPapeis,
   textoPendencias,
   type Colaborador,
+  type FiltroAtualizada,
   type FiltrosFicha,
+  type OrdemAtualizada,
 } from "@/lib/ficha-colaborador";
 import {
   listarFichasColaboradores,
@@ -71,7 +83,12 @@ function FichaColaboradoresPage() {
   };
   useEffect(carregar, []);
 
-  const filtrada = useMemo(() => (lista ? filtrarColaboradores(lista, f) : []), [lista, f]);
+  // Sem clique no título "Atualizada em", mantém a ordem que já vinha (ordem = null).
+  const [ordem, setOrdem] = useState<OrdemAtualizada>(null);
+  const filtrada = useMemo(
+    () => (lista ? ordenarPorAtualizada(filtrarColaboradores(lista, f), ordem) : []),
+    [lista, f, ordem],
+  );
   const op = useMemo(() => {
     const l = lista ?? [];
     return {
@@ -97,10 +114,13 @@ function FichaColaboradoresPage() {
     "hospital",
     "papel",
     "equipe",
+    "atualizada",
   ];
+  // De/até do período fazem parte do filtro "Atualizada" (contam como 1).
+  const PARTE_DE_ATUALIZADA: (keyof FiltrosFicha)[] = ["atualizadaDe", "atualizadaAte"];
   const maisAtivos = CHAVES_MAIS.filter((k) => f[k] !== vazio[k]).length;
   const filtrosAtivos = (Object.keys(vazio) as (keyof FiltrosFicha)[]).filter(
-    (k) => f[k] !== vazio[k],
+    (k) => !PARTE_DE_ATUALIZADA.includes(k) && f[k] !== vazio[k],
   ).length;
   const [maisAberto, setMaisAberto] = useState(false);
   const set = <K extends keyof FiltrosFicha>(k: K, v: FiltrosFicha[K]) =>
@@ -344,6 +364,47 @@ function FichaColaboradoresPage() {
                     opcoes={op.equipes.map((e) => [e, e])}
                   />
                 </Filtro>
+                <Filtro id="ff-atualizada" label="Atualizada">
+                  <Sel
+                    id="ff-atualizada"
+                    value={f.atualizada}
+                    rotuloTodos="Todas"
+                    onChange={(v) =>
+                      setF((x) => ({
+                        ...x,
+                        atualizada: v as FiltroAtualizada,
+                        // Sair de "Período" limpa as datas para não ficarem escondidas.
+                        ...(v === "periodo" ? {} : { atualizadaDe: "", atualizadaAte: "" }),
+                      }))
+                    }
+                    opcoes={[
+                      ["hoje", "Hoje"],
+                      ["7d", "Últimos 7 dias"],
+                      ["30d", "Últimos 30 dias"],
+                      ["periodo", "Período"],
+                    ]}
+                  />
+                </Filtro>
+                {f.atualizada === "periodo" && (
+                  <>
+                    <Filtro id="ff-atualizada-de" label="Atualizada de">
+                      <Input
+                        id="ff-atualizada-de"
+                        type="date"
+                        value={f.atualizadaDe}
+                        onChange={(e) => set("atualizadaDe", e.target.value)}
+                      />
+                    </Filtro>
+                    <Filtro id="ff-atualizada-ate" label="Atualizada até">
+                      <Input
+                        id="ff-atualizada-ate"
+                        type="date"
+                        value={f.atualizadaAte}
+                        onChange={(e) => set("atualizadaAte", e.target.value)}
+                      />
+                    </Filtro>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -352,7 +413,7 @@ function FichaColaboradoresPage() {
             <EmptyState>Nenhum colaborador com esse filtro.</EmptyState>
           ) : (
             <div className="overflow-x-auto rounded-xl border bg-card" data-testid="ficha-tabela">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[1220px] text-sm">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
                     {[
@@ -371,6 +432,36 @@ function FichaColaboradoresPage() {
                         {h}
                       </th>
                     ))}
+                    <th
+                      className="px-3 py-2 font-medium"
+                      aria-sort={
+                        ordem === "desc" ? "descending" : ordem === "asc" ? "ascending" : "none"
+                      }
+                    >
+                      <button
+                        type="button"
+                        data-testid="ficha-ordenar-atualizada"
+                        className="inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground"
+                        title="Ordenar por data de atualização"
+                        onClick={() => setOrdem((o) => (o === "desc" ? "asc" : "desc"))}
+                      >
+                        Atualizada em
+                        {ordem === "desc" ? (
+                          <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                        ) : ordem === "asc" ? (
+                          <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-60" aria-hidden />
+                        )}
+                        <span className="sr-only">
+                          {ordem === "desc"
+                            ? "(mais recente primeiro)"
+                            : ordem === "asc"
+                              ? "(mais antiga primeiro)"
+                              : ""}
+                        </span>
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -428,6 +519,9 @@ function FichaColaboradoresPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">{c.religiao ?? "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap" data-testid="atualizada-celula">
+                        {dataHoraSp(c.updated_at) || "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -514,11 +608,13 @@ function Sel({
   value,
   onChange,
   opcoes,
+  rotuloTodos = "Todos",
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
   opcoes: [string, string][];
+  rotuloTodos?: string;
 }) {
   return (
     <select
@@ -527,7 +623,7 @@ function Sel({
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
-      <option value={TODOS}>Todos</option>
+      <option value={TODOS}>{rotuloTodos}</option>
       {opcoes.map(([v, t]) => (
         <option key={v} value={v}>
           {t}
