@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContaMaxRouteImport } from './routes/conta-max'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
+import { Route as SistemasRemaxRouteImport } from './routes/sistemas-remax'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
 import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/ajuda'
 import { Route as AuthenticatedComissaoCoordenadorRouteImport } from './routes/_authenticated/comissao-coordenador'
@@ -92,6 +93,11 @@ const ContaMaxRoute = ContaMaxRouteImport.update({
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   id: '/redefinir-senha',
   path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SistemasRemaxRoute = SistemasRemaxRouteImport.update({
+  id: '/sistemas-remax',
+  path: '/sistemas-remax',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrocarSenhaRoute = TrocarSenhaRouteImport.update({
@@ -408,6 +414,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
@@ -469,6 +476,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
@@ -532,6 +540,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/_authenticated/ajuda': typeof AuthenticatedAjudaRoute
   '/_authenticated/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
@@ -595,6 +604,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/sistemas-remax'
     | '/trocar-senha'
     | '/ajuda'
     | '/comissao-coordenador'
@@ -656,6 +666,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/sistemas-remax'
     | '/trocar-senha'
     | '/ajuda'
     | '/comissao-coordenador'
@@ -718,6 +729,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/sistemas-remax'
     | '/trocar-senha'
     | '/_authenticated/ajuda'
     | '/_authenticated/comissao-coordenador'
@@ -781,6 +793,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ContaMaxRoute: typeof ContaMaxRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  SistemasRemaxRoute: typeof SistemasRemaxRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
@@ -827,6 +840,13 @@ declare module '@tanstack/react-router' {
       path: '/redefinir-senha'
       fullPath: '/redefinir-senha'
       preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sistemas-remax': {
+      id: '/sistemas-remax'
+      path: '/sistemas-remax'
+      fullPath: '/sistemas-remax'
+      preLoaderRoute: typeof SistemasRemaxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/trocar-senha': {
@@ -1332,6 +1352,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ContaMaxRoute: ContaMaxRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  SistemasRemaxRoute: SistemasRemaxRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
