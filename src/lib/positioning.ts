@@ -82,6 +82,33 @@ export function parseSpecialistRegions(value: unknown): PublicSpecialistRegion[]
   });
 }
 
+const REGION_TYPE_LABEL: Record<string, string> = {
+  bairro: "Bairro",
+  condominio: "Condomínio",
+  cidade: "Cidade",
+  grupo: "Grupo",
+  zona: "Zona",
+};
+
+/** Nome legível do tipo do local (o banco guarda sem acento: "condominio"). */
+export function regionTypeLabel(tipo: string): string {
+  const key = tipo.trim().toLocaleLowerCase("pt-BR");
+  if (REGION_TYPE_LABEL[key]) return REGION_TYPE_LABEL[key];
+  return key ? key.charAt(0).toLocaleUpperCase("pt-BR") + key.slice(1) : "";
+}
+
+/**
+ * Locais escolhidos, na ordem em que foram marcados. Um id que não está mais na lista
+ * (região desativada) volta com `region: null`, para a tela ainda permitir remover.
+ */
+export function pickSelectedRegions(
+  regions: PositioningRegion[],
+  selectedIds: number[],
+): { id: number; region: PositioningRegion | null }[] {
+  const byId = new Map(regions.map((region) => [region.id, region]));
+  return selectedIds.map((id) => ({ id, region: byId.get(id) ?? null }));
+}
+
 export function groupRegions(
   regions: PositioningRegion[],
 ): { label: string; items: PositioningRegion[] }[] {
