@@ -179,6 +179,31 @@ function useAcademiaLigada() {
 
 const ADM_MAX_LOGIN_URL = contaMaxLoginUrl("adm-max", "/reservas-salas");
 
+/** Ícones das pílulas do topo (mesmo traço do botão Reserva de Sala). */
+function ReservaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="17" rx="3" />
+      <path d="M3 9h18M8 2v4M16 2v4" />
+      <circle className="accent" cx="8" cy="14" r="1" />
+      <circle cx="13" cy="14" r="1" />
+      <circle cx="8" cy="18" r="1" />
+      <circle cx="13" cy="18" r="1" />
+    </svg>
+  );
+}
+
+function SistemasRemaxIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect className="accent" x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
 function CardIcon({ card }: { card: ServiceCard }) {
   return (
     <span className={`icon-wrap ${card.color}`}>
@@ -417,10 +442,14 @@ function FrontPage() {
         .hubpage .titleblock h1 { margin: 0.9rem 0 0; font-size: clamp(2.2rem, 5vw, 5rem); }
         .hubpage .titleblock h1 a, .hubpage .mhero h1 a { text-decoration: none; }
         .hubpage .titleblock p:not(.eyebrow) { margin: 0.7rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.3rem); color: var(--gray); font-weight: 400; }
-        .hubpage .reservation-link {
+        /* Botões do topo (Sistemas REMAX Brasil + Reserva de Sala, t_06bb81c4): mesma pílula, lado a lado. */
+        .hubpage .top-actions {
           position: absolute; right: 3.4%; top: 15.5%; z-index: 4;
+          display: flex; align-items: center; gap: clamp(6px, 0.7vw, 10px);
+        }
+        .hubpage .reservation-link {
           display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-          width: 17%; min-width: 154px; max-width: 188px; height: 46px;
+          height: clamp(34px, 3.2vw, 46px); padding: 0 clamp(11px, 1.3vw, 20px); white-space: nowrap;
           border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
           background: rgba(7, 19, 37, 0.55); color: rgba(255, 255, 255, 0.9);
           font-size: clamp(0.68rem, 0.88vw, 0.9rem); font-weight: 600;
@@ -431,7 +460,7 @@ function FrontPage() {
           border-color: rgba(255, 255, 255, 0.4); color: #fff;
           transform: translateY(-1px);
         }
-        .hubpage .reservation-link svg { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .reservation-link svg { width: clamp(16px, 1.6vw, 22px); height: clamp(16px, 1.6vw, 22px); flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .reservation-link svg .accent { stroke: var(--red); }
         /* Roda do MAX HUB no centro do poster (44% da altura; 945/1680 converte para largura). */
         .hubpage .hub { position: absolute; left: 36.5%; top: 25%; width: 24.75%; z-index: 2; }
@@ -517,14 +546,15 @@ function FrontPage() {
         }
         .hubpage .mlogo { height: 38px; width: auto; display: block; margin: 0 auto; transition: opacity 0.15s ease; }
         .hubpage .mheader a:active .mlogo { opacity: 0.7; }
+        /* No celular os botões do topo ficam abaixo do título (t_06bb81c4). */
+        .hubpage .mactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
         .hubpage .mobile-reservation-link {
-          position: absolute; right: 0; top: max(16px, env(safe-area-inset-top));
-          display: inline-flex; align-items: center; gap: 5px;
+          display: inline-flex; align-items: center; gap: 6px; height: 40px; white-space: nowrap;
           border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
           background: rgba(7, 19, 37, 0.55); color: rgba(255, 255, 255, 0.9);
-          padding: 7px 11px; font-size: 0.7rem; font-weight: 600; text-decoration: none;
+          padding: 0 14px; font-size: 0.8rem; font-weight: 600; text-decoration: none;
         }
-        .hubpage .mobile-reservation-link svg { width: 16px; height: 16px; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .hubpage .mobile-reservation-link svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
         .hubpage .mhero { margin-top: 40px; text-align: left; }
         .hubpage .mhero h1 { margin: 0.8rem 0 0; font-size: 3rem; }
@@ -597,21 +627,20 @@ function FrontPage() {
             <p>Todos os sistemas MAX em um só lugar</p>
           </div>
 
-          <a
-            href={ADM_MAX_LOGIN_URL}
-            className="reservation-link"
-            aria-label="Abrir reserva de sala"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="17" rx="3" />
-              <path d="M3 9h18M8 2v4M16 2v4" />
-              <circle className="accent" cx="8" cy="14" r="1" />
-              <circle cx="13" cy="14" r="1" />
-              <circle cx="8" cy="18" r="1" />
-              <circle cx="13" cy="18" r="1" />
-            </svg>
-            <span>Reserva de Sala</span>
-          </a>
+          <div className="top-actions">
+            <Link to="/sistemas-remax" className="reservation-link">
+              <SistemasRemaxIcon />
+              <span>Sistemas REMAX Brasil</span>
+            </Link>
+            <a
+              href={ADM_MAX_LOGIN_URL}
+              className="reservation-link"
+              aria-label="Abrir reserva de sala"
+            >
+              <ReservaIcon />
+              <span>Reserva de Sala</span>
+            </a>
+          </div>
 
           <div className="hub">
             <HubWheel items={rodaItens} />
@@ -677,21 +706,6 @@ function FrontPage() {
           <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
             <MaxHubLogo nome={["Uni", "Hub"]} />
           </Link>
-          <a
-            href={ADM_MAX_LOGIN_URL}
-            className="mobile-reservation-link"
-            aria-label="Abrir reserva de sala"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="17" rx="3" />
-              <path d="M3 9h18M8 2v4M16 2v4" />
-              <circle className="accent" cx="8" cy="14" r="1" />
-              <circle cx="13" cy="14" r="1" />
-              <circle cx="8" cy="18" r="1" />
-              <circle cx="13" cy="18" r="1" />
-            </svg>
-            <span>Reserva de Sala</span>
-          </a>
         </div>
 
         <div className="mhero">
@@ -703,6 +717,20 @@ function FrontPage() {
             </Link>
           </h1>
           <p>Todos os sistemas MAX em um só lugar</p>
+          <div className="mactions">
+            <Link to="/sistemas-remax" className="mobile-reservation-link">
+              <SistemasRemaxIcon />
+              <span>Sistemas REMAX Brasil</span>
+            </Link>
+            <a
+              href={ADM_MAX_LOGIN_URL}
+              className="mobile-reservation-link"
+              aria-label="Abrir reserva de sala"
+            >
+              <ReservaIcon />
+              <span>Reserva de Sala</span>
+            </a>
+          </div>
         </div>
 
         <SingleLoginBanner />
