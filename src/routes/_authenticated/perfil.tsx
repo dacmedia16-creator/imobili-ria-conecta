@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink, Cake } from "lucide-react";
+import { ShieldCheck, MessageCircle, KeyRound, MapPin, ExternalLink, Cake, X } from "lucide-react";
 import { LOGIN_SO_GOOGLE } from "@/lib/login-so-google";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/visual/base";
@@ -46,6 +46,8 @@ import {
   MAX_POSITIONING_REGIONS,
   normalizeExternalUrl,
   normalizeInstagramUrl,
+  pickSelectedRegions,
+  regionTypeLabel,
   type PositioningRegion,
 } from "@/lib/positioning";
 import { listMyPositioningRegions } from "@/lib/positioning-db";
@@ -885,6 +887,74 @@ function MeuAcesso() {
               posicionar. A lista é a da cidade da sua imobiliária. Todos os corretores ativos
               aparecem na página pública da imobiliária, quando ela estiver publicada.
             </p>
+            {/* Locais já escolhidos em destaque, antes da busca (pedido de Denis, t_d1225a8e).
+                O X chama o mesmo alternarRegiao da lista: remover aqui = desmarcar lá. */}
+            {cargaPosicionamento === "ok" && (
+              <section
+                data-testid="posicionamento-escolhidos"
+                aria-label="Seus locais escolhidos"
+                className="space-y-2"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Seus locais escolhidos
+                </div>
+                {selectedRegionIds.length === 0 ? (
+                  <p
+                    data-testid="posicionamento-escolhidos-vazio"
+                    className="rounded-md border border-dashed p-3 text-xs text-muted-foreground"
+                  >
+                    Nenhum local escolhido ainda. Marque até {MAX_POSITIONING_REGIONS} na lista
+                    abaixo.
+                  </p>
+                ) : (
+                  <ul className="grid gap-2 sm:grid-cols-2">
+                    {pickSelectedRegions(positioningRegions, selectedRegionIds).map(
+                      ({ id, region }) => {
+                        const nomeLocal = region?.nome ?? "Local indisponível";
+                        return (
+                          <li
+                            key={id}
+                            data-testid="posicionamento-escolhido"
+                            className="flex min-w-0 items-start gap-2 rounded-md border border-primary/40 bg-primary/10 p-2.5"
+                          >
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                            <span className="min-w-0 flex-1">
+                              <span className="block break-words font-medium text-primary">
+                                {nomeLocal}
+                              </span>
+                              <span className="block break-words text-xs text-muted-foreground">
+                                {region
+                                  ? [
+                                      regionTypeLabel(region.tipo),
+                                      region.zona
+                                        ? `${region.cidade} — ${region.zona}`
+                                        : region.cidade,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")
+                                  : "Não está mais na lista da imobiliária"}
+                              </span>
+                            </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 shrink-0 text-primary hover:bg-primary/15 hover:text-primary"
+                              aria-label={`Remover ${nomeLocal}`}
+                              title="Remover"
+                              data-testid="posicionamento-remover"
+                              onClick={() => alternarRegiao(id, false)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </li>
+                        );
+                      },
+                    )}
+                  </ul>
+                )}
+              </section>
+            )}
             <Input
               aria-label="Buscar bairro, condomínio, cidade ou zona"
               value={positioningSearch}
@@ -912,23 +982,39 @@ function MeuAcesso() {
                     {group.label}
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {group.items.map((region) => (
-                      <label
-                        key={region.id}
-                        className="flex cursor-pointer items-start gap-2 rounded-md border p-2.5 hover:bg-muted/50"
-                      >
-                        <Checkbox
-                          checked={selectedRegionIds.includes(region.id)}
-                          onCheckedChange={(checked) => alternarRegiao(region.id, checked === true)}
-                        />
-                        <span>
-                          <span className="block font-medium">{region.nome}</span>
-                          <span className="text-xs capitalize text-muted-foreground">
-                            {region.tipo}
+                    {group.items.map((region) => {
+                      const marcado = selectedRegionIds.includes(region.id);
+                      return (
+                        <label
+                          key={region.id}
+                          data-selected={marcado ? "true" : undefined}
+                          className={
+                            marcado
+                              ? "flex cursor-pointer items-start gap-2 rounded-md border border-primary/40 bg-primary/10 p-2.5"
+                              : "flex cursor-pointer items-start gap-2 rounded-md border p-2.5 hover:bg-muted/50"
+                          }
+                        >
+                          <Checkbox
+                            checked={marcado}
+                            onCheckedChange={(checked) =>
+                              alternarRegiao(region.id, checked === true)
+                            }
+                          />
+                          <span>
+                            <span
+                              className={
+                                marcado ? "block font-medium text-primary" : "block font-medium"
+                              }
+                            >
+                              {region.nome}
+                            </span>
+                            <span className="text-xs capitalize text-muted-foreground">
+                              {region.tipo}
+                            </span>
                           </span>
-                        </span>
-                      </label>
-                    ))}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
