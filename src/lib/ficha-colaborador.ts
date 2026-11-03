@@ -476,6 +476,21 @@ export function ordenarPorAtualizada(lista: Colaborador[], ordem: OrdemAtualizad
   });
 }
 
+/**
+ * Ordem da lista escolhida pelo usuário (seletor "Ordenar por" + título "Atualizada em").
+ * "desc" = atualizados recentemente (padrão); "asc" = mais antigos (só pelo título);
+ * "nome" = Nome (A-Z). Sem data sempre no fim nas ordens por data.
+ */
+export type OrdemFicha = "desc" | "asc" | "nome";
+export const ORDEM_FICHA_PADRAO: OrdemFicha = "desc";
+
+export function ordenarColaboradores(lista: Colaborador[], ordem: OrdemFicha): Colaborador[] {
+  if (ordem !== "nome") return ordenarPorAtualizada(lista, ordem);
+  return [...lista].sort((a, b) =>
+    (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR", { sensitivity: "base" }),
+  );
+}
+
 /** Mês (1..12) da data AAAA-MM-DD, sem passar por Date (evita erro de fuso). */
 export function mesDaData(d: string | null | undefined): number | null {
   const m = /^\d{4}-(\d{2})-\d{2}/.exec(d ?? "");
