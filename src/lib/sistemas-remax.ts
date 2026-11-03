@@ -63,4 +63,13 @@ export const SISTEMAS_REMAX: SistemaRemax[] = [
     descricao: "EAD",
     href: "https://hub.minharemax.com/universidade",
   },
+  {
+    id: "eemovel",
+    nome: "eemovel",
+    sigla: "EE",
+    // Ícone das barras recortado do logo oficial (t_63a28bd0); fundo = azul-marinho da própria imagem.
+    logo: "/sistemas-remax/eemovel.png",
+    logoFundo: "#090c2d",
+    href: "https://brokers.eemovel.com.br/login",
+  },
 ];
