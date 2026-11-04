@@ -217,6 +217,7 @@ import { papeisDaEquipe } from "@/lib/dados-pagamento";
 import { DocumentsPanel, type DisplayDocument } from "@/components/vendas/DocumentsPanel";
 import { LancamentoDetail } from "@/components/vendas/LancamentoDetail";
 import { OccurrenceReportBody } from "@/components/vendas/OccurrenceReportBody";
+import { ComissaoDivergenciaAviso } from "@/components/vendas/ComissaoDivergenciaAviso";
 import {
   TEXTO_ORIGEM_DATA_ASSINATURA,
   TEXTO_SEM_HISTORICO_ASSINATURA,
@@ -5965,7 +5966,7 @@ function OccurrenceReviewPanel({
   canEdit: boolean;
   onChange: () => void;
 }) {
-  const { user } = useAuth();
+  const { user, hasAny } = useAuth();
   const [occ, setOcc] = useState<OccurrenceRow | null>(null);
   const [commissions, setCommissions] = useState<OccurrenceCommissionRow[]>([]);
   const [partners, setPartners] = useState<OccurrencePartnerRow[]>([]);
@@ -6091,6 +6092,11 @@ function OccurrenceReviewPanel({
 
   return (
     <div className="space-y-4">
+      <ComissaoDivergenciaAviso
+        sale={sale}
+        occ={occ}
+        visivel={hasAny(["financeiro", "admin", "super_admin"])}
+      />
       <div className="print:border print:border-foreground/30 print:p-4">
         <div className="mb-3 flex items-center justify-between border-b pb-2">
           <div>
@@ -7469,6 +7475,7 @@ function OccurrencePanel({
   return (
     <div className="space-y-4 print:hidden">
       {canWrite && <AutosaveStatus saving={saving} dirty={anyDirty} />}
+      <ComissaoDivergenciaAviso sale={sale} occ={occ} visivel={canFinLock} />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Ocorrência de compra e venda</CardTitle>

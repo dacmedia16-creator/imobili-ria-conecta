@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { visibleOccurrenceCommissions } from "@/lib/occurrence-commissions";
+import {
+  DESCRICAO_LADO_REMAX,
+  ROTULO_LADO_REMAX,
+  nossaParteComissao,
+} from "@/lib/comissao-divergencia";
 import { COMISSAO_PAPEIS, PARCERIA_TIPOS } from "@/lib/status";
 import { money, dateBR } from "./shared";
 import type {
@@ -115,8 +120,7 @@ export function OccurrenceReportBody({
   // Valor da comissão total é bruto (inclui a parte da parceria externa, quando houver) — a linha
   // extra abaixo mostra só o que fica pra nossa imobiliária, descontada essa fatia.
   const somaParceria = partners.reduce((s, p) => s + Number(p.valor ?? 0), 0);
-  const totalComissao = Number(occ?.valor_comissao ?? sale.valor_total_comissao ?? 0);
-  const valorNosso = totalComissao - somaParceria;
+  const valorNosso = nossaParteComissao(occ?.valor_comissao ?? sale.valor_total_comissao, partners);
   // Imobiliária = o que sobra depois de pagar todo mundo listado na tabela abaixo (captador,
   // vendedor, indicador, líder de cada lado, gestor/team leader antigo, outro).
   const somaComissoes = visibleCommissions.reduce((s, c) => s + Number(c.valor ?? 0), 0);
@@ -318,10 +322,23 @@ export function OccurrenceReportBody({
             />
           ));
         })}
+        {/* t_59cb12e0: não é mais um recebedor — é a base do lado REMAX (% sobre o valor negociado),
+            de onde saem as linhas acima e a Imobiliária. Estilo informativo para não parecer somado. */}
         {sale.percentual_remax != null && (
-          <FormValueRow
-            cols={["REMAX", "—", `${sale.percentual_remax}%`, money(sale.valor_remax) ?? "R$ 0,00"]}
-          />
+          <tr data-testid="linha-lado-remax" className="text-muted-foreground italic">
+            <td className="border border-foreground/30 px-2 py-1.5 align-top">
+              {ROTULO_LADO_REMAX}
+            </td>
+            <td className="border border-foreground/30 px-2 py-1.5 align-top text-xs">
+              {DESCRICAO_LADO_REMAX}
+            </td>
+            <td className="border border-foreground/30 px-2 py-1.5 align-top">
+              {`${sale.percentual_remax}%`}
+            </td>
+            <td className="border border-foreground/30 px-2 py-1.5 align-top">
+              {money(sale.valor_remax) ?? "R$ 0,00"}
+            </td>
+          </tr>
         )}
         <FormValueRow
           cols={[<b>Imobiliária</b>, "—", "—", <b>{money(valorImobiliaria) ?? "R$ 0,00"}</b>]}
