@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { CompletarPerfilGate } from "@/components/CompletarPerfil";
 import { FichaColaboradorGate } from "@/components/ficha/FichaColaboradorGate";
+import { ComemoraAniversarioPergunta } from "@/components/ComemoraAniversarioPergunta";
 import { consumirRetornoDepoimento, guardarRetornoDepoimento } from "@/lib/depoimentos";
 
 function armazenamento(): Storage | null {
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/_authenticated")({
           <AppShell>
             <Outlet />
           </AppShell>
+          <ComemoraAniversarioPergunta />
         </FichaColaboradorGate>
       </CompletarPerfilGate>
     </AuthProvider>
