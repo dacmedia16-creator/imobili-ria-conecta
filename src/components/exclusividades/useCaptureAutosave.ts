@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAutosave } from "@/components/vendas/shared";
-import { validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
+import { creciSoZeros, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
 import { errorMessage } from "@/lib/errors";
 import type { CaptureForm } from "@/lib/exclusive-captures";
 
@@ -14,7 +14,11 @@ const sameSnapshot = (
 
 /** CPF/CRECI do captador vazio ou válido (o exclusive_save recusa o save INTEIRO se inválido). */
 export function brokerFieldsOk(cpf: string, creci: string): boolean {
-  return (!cpf.trim() || validCpf(cpf.trim())) && (!creci.trim() || validCreci(creci));
+  // CRECI só zeros conta como vazio (saveCapture grava "" — t_77132312).
+  return (
+    (!cpf.trim() || validCpf(cpf.trim())) &&
+    (!creci.trim() || creciSoZeros(creci) || validCreci(creci))
+  );
 }
 
 export const AUTOSAVE_BROKER_INVALIDO =

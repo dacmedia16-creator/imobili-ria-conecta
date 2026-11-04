@@ -936,11 +936,14 @@ const utcDay = (iso: string) => {
   return Date.UTC(y, m - 1, d);
 };
 /** Vigência da exclusividade: conta da DATA DE ASSINATURA (cláusula 1.2) pelo prazo em dias.
- * Sem data de assinatura registrada ainda não há vigência. `today` = data civil em SP. */
+ * Sem data de assinatura registrada ainda não há vigência. `today` = data civil em SP.
+ * Só captação APROVADA tem vigência (t_77132312): rascunho, enviada, em assinatura etc. com
+ * signed_on gravado antes da assinatura de verdade não mostram barra, "Vence em" nem alerta. */
 export function captureValidity(
-  c: Pick<Capture, "signed_on" | "form_data">,
+  c: Pick<Capture, "status" | "signed_on" | "form_data">,
   today: string,
 ): Validity | null {
+  if (c.status !== "aprovada") return null;
   const days = Number.parseInt(c.form_data?.condicoes?.prazo_dias_numero ?? "", 10);
   if (!c.signed_on || !/^\d{4}-\d{2}-\d{2}$/.test(c.signed_on) || !(days > 0)) return null;
   const endMs = utcDay(c.signed_on) + days * dayMs;

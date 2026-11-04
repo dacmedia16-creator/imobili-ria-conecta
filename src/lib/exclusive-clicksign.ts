@@ -13,6 +13,7 @@ import {
   captureOwnerList,
   papelLabel,
 } from "../../supabase/functions/_shared/clicksign.ts";
+import { creciReal } from "./exclusive-captures-ocr";
 
 export { WITNESS_COUNT };
 
@@ -111,8 +112,15 @@ export type TestemunhasCaptacao = {
   /** Corretor do contrato (só no modo sem_creci). */
   contrato?: TestemunhaPessoa | null;
   contratoEscolhido?: boolean;
-  /** Testemunha 2 digitada (só no modo sem_creci e para quem gere). */
+  /** Testemunha 2 digitada (modo sem_creci ou captador proprietário; só para quem gere). */
   manual?: TestemunhaManual | null;
+  /**
+   * Captador também é PROPRIETÁRIO (t_77132312): parte do contrato não é testemunha. As duas
+   * testemunhas são digitadas: `corretor` = testemunha 1 digitada, `gestor` = testemunha 2 digitada.
+   */
+  captadorProprietario?: boolean;
+  /** Testemunha 1 digitada (só com captador proprietário e para quem gere). */
+  manual1?: TestemunhaManual | null;
   /** A imobiliária usa a Clicksign na captação: testemunhas automáticas valem. */
   aplica: boolean;
   corretor: TestemunhaPessoa;
@@ -165,11 +173,14 @@ export function parseTestemunhas(raw: unknown): TestemunhasCaptacao | null {
   if (!corretor) return null;
   const ge = r.gestor_equipe as Record<string, unknown> | null | undefined;
   const semCreci = r.modo === "sem_creci";
+  const prop = r.captador_proprietario === true;
   return {
     modo: semCreci ? "sem_creci" : "padrao",
     contrato: semCreci ? pessoa(r.contrato) : null,
     contratoEscolhido: semCreci && r.contrato_escolhido === true,
-    manual: semCreci ? manualDoBanco(r.manual) : null,
+    manual: semCreci || prop ? manualDoBanco(r.manual) : null,
+    captadorProprietario: prop,
+    manual1: prop ? manualDoBanco(r.manual_1) : null,
     aplica: r.aplica === true,
     corretor,
     gestor: pessoa(r.gestor),
@@ -274,7 +285,10 @@ export function testemunhasParaPdf<
   // Captador sem CRECI: captador + testemunha digitada valem mesmo sem Clicksign (o PDF só sai com
   // elas completas, ver bloqueioContratoSemCreci).
   const semCreci = !!t && t.modo === "sem_creci" && contratoSemCreciOk(t);
-  if (!semCreci && !usarTestemunhasAuto(t)) return form;
+  // Captador proprietário (t_77132312): as duas digitadas, nunca o captador nem as do formulário.
+  if (t?.captadorProprietario) {
+    if (!testemunhasDigitadasOk(t) || (t.modo === "sem_creci" && !semCreci)) return form;
+  } else if (!semCreci && !usarTestemunhasAuto(t)) return form;
   const w = (p: TestemunhaPessoa) => ({ nome: p.nome, rg: "", cpf: p.cpf ?? "" });
   return { ...form, testemunha_1: w(t!.corretor), testemunha_2: w(t!.gestor!) } as F;
 }
@@ -290,6 +304,24 @@ export function usarTestemunhasAuto(t: TestemunhasCaptacao | null): boolean {
     !!t.gestor.cpf &&
     t.corretor.id !== t.gestor.id
   );
+}
+
+// ---------- captador que também é proprietário (t_77132312) ----------
+// Parte do contrato não é testemunha: as duas testemunhas são digitadas e validadas no banco.
+
+/** As duas testemunhas digitadas estão completas (com CPF visível para quem gera). */
+export function testemunhasDigitadasOk(t: TestemunhasCaptacao | null): boolean {
+  return !!t && !!t.captadorProprietario && t.ok && !!t.corretor.cpf && !!t.gestor?.cpf;
+}
+
+/**
+ * Motivo para NÃO gerar o PDF quando o captador também é proprietário (null = pode). Fail-closed:
+ * nunca imprime o captador-proprietário como testemunha.
+ */
+export function bloqueioTestemunhasProprietario(t: TestemunhasCaptacao | null): string | null {
+  if (!t?.captadorProprietario || testemunhasDigitadasOk(t)) return null;
+  const motivos = t.problemas.length ? t.problemas.join(" · ") : "dados incompletos";
+  return `O captador também é proprietário deste imóvel e não pode ser testemunha: as duas testemunhas são digitadas. Falta: ${motivos}`;
 }
 
 // ---------- captador sem CRECI (t_e75b58c5) ----------
@@ -315,7 +347,8 @@ export function bloqueioContratoSemCreci(
   t: TestemunhasCaptacao | null,
   captadorCreci: string,
 ): string | null {
-  if (captadorCreci.trim()) return null;
+  // CRECI só zeros (ex.: 0000000000) = sem CRECI (t_77132312), igual ao banco (creci_real).
+  if (creciReal(captadorCreci)) return null;
   if (!t)
     return "O captador não tem CRECI e não foi possível conferir o corretor do contrato. Atualize a página.";
   if (t.modo !== "sem_creci")
@@ -330,7 +363,7 @@ export function blocoCorretorContrato(
   t: TestemunhasCaptacao | null,
   captador: { nome: string; cpf: string; creci: string },
 ): { broker_name: string; broker_cpf: string; broker_creci: string } {
-  if (captador.creci.trim())
+  if (creciReal(captador.creci))
     return { broker_name: captador.nome, broker_cpf: captador.cpf, broker_creci: captador.creci };
   // Fail-closed: nunca devolve bloco corretor sem CRECI.
   const motivo = bloqueioContratoSemCreci(t, captador.creci);
@@ -372,22 +405,60 @@ export async function escolherCorretorContrato(
   return parseTestemunhas(data);
 }
 
-/** Erros da testemunha 2 digitada, iguais aos do banco (o banco confere de novo). */
+/**
+ * Erros de uma testemunha digitada, iguais aos do banco (o banco confere de novo). `qual` = 1 ou 2;
+ * `donos` = CPFs dos proprietários (parte do contrato não é testemunha, t_77132312).
+ */
 export function testemunhaManualErros(
   m: TestemunhaManual,
   t: TestemunhasCaptacao | null,
+  opts: { qual?: 1 | 2; donos?: string[] } = {},
 ): string[] {
+  const qual = opts.qual ?? 2;
   const erros: string[] = [];
   const nome = m.nome.trim().replace(/\s+/g, " ");
   const cpf = m.cpf.replace(/\D/g, "");
+  const so = (x?: string | null) => (x ?? "").replace(/\D/g, "");
   if (!/^\S+\s+\S+/.test(nome)) erros.push("nome com sobrenome");
   if (!validCpfDigits(cpf)) erros.push("CPF válido");
   if (!validEmail(m.email)) erros.push("e-mail válido");
-  if (cpf && t?.corretor.cpf && cpf === t.corretor.cpf.replace(/\D/g, ""))
+  if (cpf && (opts.donos ?? []).some((d) => so(d) === cpf))
+    erros.push("ser outra pessoa (não pode ser proprietário do imóvel)");
+  if (t?.captadorProprietario) {
+    // A outra testemunha digitada (a 1 para a 2 e vice-versa).
+    const outra = qual === 2 ? t.corretor : t.gestor;
+    if (qual === 2 && cpf && outra?.cpf && cpf === so(outra.cpf))
+      erros.push("ser outra pessoa (não pode ser a testemunha 1)");
+  } else if (cpf && t?.corretor.cpf && cpf === so(t.corretor.cpf))
     erros.push("ser outra pessoa (o captador já é a testemunha 1)");
-  if (cpf && t?.contrato?.cpf && cpf === t.contrato.cpf.replace(/\D/g, ""))
+  if (cpf && t?.contrato?.cpf && cpf === so(t.contrato.cpf))
     erros.push("ser outra pessoa (não pode ser o corretor do contrato)");
   return erros;
+}
+
+/** Grava uma testemunha digitada (1 ou 2; tudo vazio = apaga). O banco valida e recusa com o motivo. */
+export async function salvarTestemunhaManual(
+  db: SupabaseClient,
+  captureId: string,
+  qual: 1 | 2,
+  m: TestemunhaManual,
+): Promise<TestemunhasCaptacao | null> {
+  const { data, error } = await db.rpc("exclusive_testemunha_manual_salvar", {
+    _id: captureId,
+    _qual: qual,
+    _nome: m.nome,
+    _cpf: m.cpf,
+    _email: m.email,
+  });
+  if (error) throw new Error(error.message);
+  return parseTestemunhas(data);
+}
+
+/** CPFs (só dígitos) de todos os proprietários da captação (mesma lista do servidor). */
+export function cpfsProprietarios(form: Record<string, unknown> | null | undefined): string[] {
+  return captureOwnerList(form)
+    .map((o) => String(o.cpf ?? "").replace(/\D/g, ""))
+    .filter(Boolean);
 }
 
 function validCpfDigits(d: string): boolean {

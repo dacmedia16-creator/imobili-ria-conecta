@@ -84,7 +84,8 @@ SELECT jsonb_build_object(
     'foro_comarca','Sorocaba','foro_estado','SP')) AS f \gset
 SELECT pg_temp.ok(public.exclusive_required_fields(:'f'::jsonb, '11144477735', '')
   AND public.exclusive_required_fields(:'f'::jsonb, '11144477735', '12345-F')
-  AND NOT public.exclusive_required_fields(:'f'::jsonb, '11144477735', '#x')
+  -- '#1x' (e não '#x'): sem dígito 1-9 conta como sem CRECI desde 20261104140000 (t_77132312).
+  AND NOT public.exclusive_required_fields(:'f'::jsonb, '11144477735', '#1x')
   AND NOT public.exclusive_required_fields(:'f'::jsonb, '', '12345-F'),
   'envio: CRECI vazio aceito (sem CRECI); CRECI inválido e CPF vazio continuam recusados');
 

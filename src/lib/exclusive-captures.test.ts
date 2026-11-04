@@ -36,18 +36,32 @@ const doc = (kind: CaptureDocument["kind"], owner_index = 0) =>
 describe("captação exclusiva", () => {
   it("vigência conta da data de assinatura pelo prazo em dias", () => {
     const form = emptyForm();
-    expect(captureValidity({ signed_on: null, form_data: form }, "2026-10-03")).toBeNull();
-    const v = captureValidity({ signed_on: "2026-10-01", form_data: form }, "2026-10-03")!;
+    expect(
+      captureValidity({ status: "aprovada", signed_on: null, form_data: form }, "2026-10-03"),
+    ).toBeNull();
+    const v = captureValidity(
+      { status: "aprovada", signed_on: "2026-10-01", form_data: form },
+      "2026-10-03",
+    )!;
     expect(v.end).toBe("2027-03-30");
     expect(v.daysLeft).toBe(178);
     expect(v.level).toBe("ok");
-    expect(captureValidity({ signed_on: "2026-10-01", form_data: form }, "2027-03-05")!.level).toBe(
-      "atencao",
-    );
-    expect(captureValidity({ signed_on: "2026-10-01", form_data: form }, "2027-03-25")!.level).toBe(
-      "urgente",
-    );
-    const late = captureValidity({ signed_on: "2026-10-01", form_data: form }, "2027-04-01")!;
+    expect(
+      captureValidity(
+        { status: "aprovada", signed_on: "2026-10-01", form_data: form },
+        "2027-03-05",
+      )!.level,
+    ).toBe("atencao");
+    expect(
+      captureValidity(
+        { status: "aprovada", signed_on: "2026-10-01", form_data: form },
+        "2027-03-25",
+      )!.level,
+    ).toBe("urgente");
+    const late = captureValidity(
+      { status: "aprovada", signed_on: "2026-10-01", form_data: form },
+      "2027-04-01",
+    )!;
     expect(late.level).toBe("vencida");
     expect(validityText(late)).toBe("Vencida em 30/03/2027");
     expect(validityText(v)).toBe("Vence em 178 dias (30/03/2027)");

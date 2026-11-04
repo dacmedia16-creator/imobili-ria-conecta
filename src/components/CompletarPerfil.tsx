@@ -19,6 +19,7 @@ import {
   erroCampoDataNascimento,
 } from "@/lib/data-nascimento";
 import { minhaDataNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
 import {
   CAMPO_LABEL,
   camposFaltando,
@@ -307,7 +308,8 @@ function CompletarPerfilTela({
         nome: nome.trim().replace(/\s+/g, " "),
         telefone: telefone.trim(),
         cpf: normalizarCpf(cpf),
-        creci: creci.trim() || null, // CRECI opcional (t_5c4bd214): vazio grava null.
+        // CRECI opcional (t_5c4bd214): vazio ou só zeros (t_77132312) grava null.
+        creci: creciReal(creci),
         avatar_url: url,
       };
       if (rid) patch.remax_id = rid;
@@ -434,7 +436,13 @@ function CompletarPerfilTela({
             label="CRECI (opcional)"
             erro={erro("creci")}
             sufixoErro=""
-            dica={erro("creci") ? CRECI_FORMATO_INVALIDO : undefined}
+            dica={
+              erro("creci")
+                ? CRECI_FORMATO_INVALIDO
+                : creciSoZeros(creci)
+                  ? `${CRECI_SO_ZEROS_AVISO}. Ao salvar, fica em branco.`
+                  : undefined
+            }
           >
             <Input
               id="cp-creci"

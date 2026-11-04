@@ -51,6 +51,7 @@ import {
   type PositioningRegion,
 } from "@/lib/positioning";
 import { listMyPositioningRegions } from "@/lib/positioning-db";
+import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -321,13 +322,16 @@ function MeuAcesso() {
       if (mudouRegistro) {
         const { error } = await supabase
           .from("profiles")
-          .update({ cpf: cpf.trim() || null, creci: creci.trim() || null })
+          // Só zeros (ex.: 0000000000) não é CRECI: grava null (t_77132312).
+          .update({ cpf: cpf.trim() || null, creci: creciReal(creci) })
           .eq("id", user.id);
         if (error) {
           toast.error(error.message);
           return;
         }
-        setSalvo((x) => ({ ...x, cpf, creci }));
+        const creciGravado = creciReal(creci) ?? "";
+        setCreci(creciGravado);
+        setSalvo((x) => ({ ...x, cpf, creci: creciGravado }));
       }
       if (mudouRemaxId) {
         const { error } = await supabase
@@ -786,6 +790,14 @@ function MeuAcesso() {
                   disabled={!registrationLoaded}
                   onChange={(e) => setCreci(e.target.value)}
                 />
+                {creciSoZeros(creci) && (
+                  <p
+                    className="mt-1.5 text-xs text-amber-700 dark:text-amber-400"
+                    data-testid="perfil-creci-zeros"
+                  >
+                    {CRECI_SO_ZEROS_AVISO}. Ao salvar, fica em branco.
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <Label
