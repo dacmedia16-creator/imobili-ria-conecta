@@ -63,6 +63,8 @@ export type SituacaoFicha =
       obrigatoria_a_partir_de: string;
       bloqueia: boolean;
       data_nascimento: string | null;
+      /** Ausente na versão anterior do banco: tratado como Sim. */
+      comemora_aniversario?: boolean | null;
       ficha: FichaDados | null;
     };
 
@@ -179,6 +181,8 @@ export function textoFaixas(v: readonly string[] | null | undefined): string {
 
 export type FichaForm = {
   data_nascimento: string;
+  /** "Você comemora aniversário?" (t_2d5f0ab6). Sempre marcado; padrão Sim. */
+  comemora_aniversario: boolean;
   qtd_filhos: string;
   filhos_faixas: FaixaFilhos[];
   tem_plano_saude: "" | "sim" | "nao";
@@ -195,6 +199,7 @@ export type CampoFicha = keyof FichaForm;
 
 export const CAMPO_FICHA_LABEL: Record<CampoFicha, string> = {
   data_nascimento: "Data de nascimento",
+  comemora_aniversario: "Você comemora aniversário?",
   qtd_filhos: "Quantidade de filhos",
   filhos_faixas: "Idade dos filhos",
   tem_plano_saude: "Tem plano de saúde?",
@@ -224,6 +229,7 @@ export const AVISO_FINALIDADE =
 export function formVazio(): FichaForm {
   return {
     data_nascimento: "",
+    comemora_aniversario: true,
     qtd_filhos: "",
     filhos_faixas: [],
     tem_plano_saude: "",
@@ -241,6 +247,8 @@ export function formDaSituacao(s: SituacaoFicha | null | undefined): FichaForm {
   const f = formVazio();
   if (!s || !s.aplica) return f;
   f.data_nascimento = s.data_nascimento ?? "";
+  // Ausente na versão anterior do banco: Sim (o comportamento de antes).
+  f.comemora_aniversario = s.comemora_aniversario ?? true;
   const d = s.ficha;
   if (!d) return f;
   return {
@@ -307,6 +315,7 @@ export function paramsSalvarFicha(f: FichaForm) {
     _hospital_preferencia: limpo(f.hospital_preferencia),
     _religiao: rel || null,
     _data_nascimento: f.data_nascimento,
+    _comemora_aniversario: f.comemora_aniversario,
     _ciente: f.ciente,
     // Opcional. Sem filhos (0) → lista vazia: o banco limpa as faixas salvas.
     _filhos_faixas: temFilhos(f.qtd_filhos) ? normalizarFaixas(f.filhos_faixas) : [],
@@ -347,6 +356,8 @@ export type Colaborador = {
   papeis: string[];
   equipes: string[];
   data_nascimento: string | null;
+  /** null = sem data cadastrada; ausente na versão anterior do banco. */
+  comemora_aniversario?: boolean | null;
   completa: boolean;
   /** Só as chaves do que falta no cadastro (sem valores). */
   cadastro_pendente: PendenciaCadastro[];

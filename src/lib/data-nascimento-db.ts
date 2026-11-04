@@ -1,39 +1,61 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { mensagemErroRpcNascimento } from "@/lib/data-nascimento";
+import { COMEMORA_PADRAO, mensagemErroRpcNascimento } from "@/lib/data-nascimento";
 
 // RPCs/tabela fora do types.ts gerado: isola o cast aqui (mesmo padrão de exclusive-captures-db.ts).
 const db = supabase as unknown as SupabaseClient;
 
-/** A própria data (política da tabela: só o dono lê). null = ainda não preenchida. */
-export async function minhaDataNascimento(userId: string): Promise<string | null> {
+/** Data (AAAA-MM-DD ou null) + "comemora aniversário?" (padrão Sim quando não há registro). */
+export type InfoNascimento = { data: string | null; comemora: boolean };
+
+/** A própria data e escolha (política da tabela: só o dono lê). data null = ainda não preenchida. */
+export async function minhaInfoNascimento(userId: string): Promise<InfoNascimento> {
   const { data, error } = await db
     .from("profile_birthdates")
-    .select("data_nascimento")
+    .select("data_nascimento, comemora_aniversario")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as { data_nascimento: string } | null)?.data_nascimento ?? null;
+  const r = data as { data_nascimento: string; comemora_aniversario?: boolean | null } | null;
+  return { data: r?.data_nascimento ?? null, comemora: r?.comemora_aniversario ?? COMEMORA_PADRAO };
 }
 
-/** Grava (ou apaga com null) a própria data. O banco valida 1900..hoje e 16 anos. */
-export async function salvarMinhaDataNascimento(data: string | null): Promise<void> {
-  const { error } = await db.rpc("profile_set_birthdate", { _data: data });
+/**
+ * Grava (ou apaga com null) a própria data + escolha. O banco valida 1900..hoje e 16 anos.
+ * Apagar a data apaga a escolha junto (a linha some).
+ */
+export async function salvarMinhaDataNascimento(
+  data: string | null,
+  comemora: boolean = COMEMORA_PADRAO,
+): Promise<void> {
+  const { error } = await db.rpc("profile_set_birthdate", {
+    _data: data,
+    _comemora: data ? comemora : null,
+  });
   if (error) throw new Error(mensagemErroRpcNascimento(error));
 }
 
-/** Gestão: lê a data de UM usuário (o banco recusa quem não pode gerenciar esse usuário). */
-export async function dataNascimentoDoUsuario(userId: string): Promise<string | null> {
-  const { data, error } = await db.rpc("profile_birthdate_get_for_user", { _user: userId });
+/** Gestão: lê data + escolha de UM usuário (o banco recusa quem não pode gerenciar esse usuário). */
+export async function infoNascimentoDoUsuario(userId: string): Promise<InfoNascimento> {
+  const { data, error } = await db.rpc("profile_birthdate_info_for_user", { _user: userId });
   if (error) throw new Error(mensagemErroRpcNascimento(error));
-  return (data as string | null) ?? null;
+  const r = data as {
+    data_nascimento?: string | null;
+    comemora_aniversario?: boolean | null;
+  } | null;
+  return { data: r?.data_nascimento ?? null, comemora: r?.comemora_aniversario ?? COMEMORA_PADRAO };
 }
 
-/** Gestão: grava (ou apaga com null) a data de UM usuário. */
+/** Gestão: grava (ou apaga com null) a data + escolha de UM usuário. */
 export async function salvarDataNascimentoDoUsuario(
   userId: string,
   data: string | null,
+  comemora: boolean = COMEMORA_PADRAO,
 ): Promise<void> {
-  const { error } = await db.rpc("profile_birthdate_set_for_user", { _user: userId, _data: data });
+  const { error } = await db.rpc("profile_birthdate_set_for_user", {
+    _user: userId,
+    _data: data,
+    _comemora: data ? comemora : null,
+  });
   if (error) throw new Error(mensagemErroRpcNascimento(error));
 }

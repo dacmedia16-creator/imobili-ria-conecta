@@ -23,6 +23,7 @@ import {
   type SituacaoFicha,
 } from "@/lib/ficha-colaborador";
 import { salvarMinhaFicha } from "@/lib/ficha-colaborador-db";
+import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
 
 const validarNascimento = (d: string) => erroCampoDataNascimento(d, true);
 
@@ -99,6 +100,13 @@ export function FichaColaboradorForm({
             onChange={(e) => set("data_nascimento", e.target.value)}
           />
         </Campo>
+        {f.data_nascimento.trim() && (
+          <ComemoraAniversarioCampo
+            id="fc-comemora"
+            value={f.comemora_aniversario}
+            onChange={(v) => set("comemora_aniversario", v)}
+          />
+        )}
         <Campo
           id="fc-filhos"
           label="Quantidade de filhos"

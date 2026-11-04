@@ -97,11 +97,13 @@ import {
 } from "@/lib/admin-user-filters";
 import { paginate } from "@/lib/pagination";
 import {
+  COMEMORA_PADRAO,
   DATA_NASCIMENTO_MIN,
   dataNascimentoMaxima,
   erroCampoDataNascimento,
 } from "@/lib/data-nascimento";
-import { dataNascimentoDoUsuario, salvarDataNascimentoDoUsuario } from "@/lib/data-nascimento-db";
+import { infoNascimentoDoUsuario, salvarDataNascimentoDoUsuario } from "@/lib/data-nascimento-db";
+import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
 
@@ -1248,15 +1250,19 @@ function EditUserDialog({
   // papel. Se a leitura for recusada (sem permissão), o campo nem aparece.
   const [nascSalva, setNascSalva] = useState<string | null>(null);
   const [nasc, setNasc] = useState("");
+  const [comemoraSalvo, setComemoraSalvo] = useState(COMEMORA_PADRAO);
+  const [comemora, setComemora] = useState(COMEMORA_PADRAO);
   const [nascStatus, setNascStatus] = useState<"carregando" | "ok" | "indisponivel">("carregando");
 
   useEffect(() => {
     let vivo = true;
-    dataNascimentoDoUsuario(target.id)
-      .then((d) => {
+    infoNascimentoDoUsuario(target.id)
+      .then(({ data: d, comemora: c }) => {
         if (!vivo) return;
         setNascSalva(d);
         setNasc(d ?? "");
+        setComemoraSalvo(c);
+        setComemora(c);
         setNascStatus("ok");
       })
       .catch(() => vivo && setNascStatus("indisponivel"));
@@ -1295,8 +1301,11 @@ function EditUserDialog({
         },
       });
       const novaNasc = nasc.trim() || null;
-      if (nascStatus === "ok" && novaNasc !== nascSalva) {
-        await salvarDataNascimentoDoUsuario(target.id, novaNasc);
+      if (
+        nascStatus === "ok" &&
+        (novaNasc !== nascSalva || (novaNasc !== null && comemora !== comemoraSalvo))
+      ) {
+        await salvarDataNascimentoDoUsuario(target.id, novaNasc, comemora);
       }
       toast.success("Dados do usuário atualizados.");
       onDone();
@@ -1416,6 +1425,16 @@ function EditUserDialog({
                   ? "Os colegas veem só o dia e o mês. O ano fica com a pessoa e a gestão."
                   : "Ainda não preenchida. Os colegas verão só o dia e o mês.")}
             </p>
+            {nasc.trim() && (
+              <div className="mt-2">
+                <ComemoraAniversarioCampo
+                  id="eu-comemora"
+                  value={comemora}
+                  onChange={setComemora}
+                  paraGestao
+                />
+              </div>
+            )}
           </div>
         )}
         <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
@@ -1489,6 +1508,7 @@ function NewUserDialog({
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
   const [nasc, setNasc] = useState("");
+  const [comemora, setComemora] = useState(COMEMORA_PADRAO);
   const nascErro = erroCampoDataNascimento(nasc, false);
   const [role, setRole] = useState<AppRole>(allowedRoles[0]);
   const [teamId, setTeamId] = useState<string>(SEM_EQUIPE);
@@ -1524,7 +1544,7 @@ function NewUserDialog({
       } | null;
       if (nasc.trim() && created?.id) {
         try {
-          await salvarDataNascimentoDoUsuario(created.id, nasc.trim());
+          await salvarDataNascimentoDoUsuario(created.id, nasc.trim(), comemora);
         } catch (err: unknown) {
           toast.warning(
             `Usuário criado, mas a data de nascimento não foi salva (${errorMessage(err, "erro")}). Preencha em "Editar dados".`,
@@ -1621,6 +1641,16 @@ function NewUserDialog({
             onChange={(e) => setNasc(e.target.value)}
           />
           {nascErro && <p className="mt-1 text-xs text-destructive">{nascErro}</p>}
+          {nasc.trim() && (
+            <div className="mt-2">
+              <ComemoraAniversarioCampo
+                id="nu-comemora"
+                value={comemora}
+                onChange={setComemora}
+                paraGestao
+              />
+            </div>
+          )}
         </div>
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="flex-1" data-testid="acesso-google">
