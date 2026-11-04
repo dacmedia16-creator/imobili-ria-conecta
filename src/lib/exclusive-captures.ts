@@ -666,7 +666,10 @@ export function missingRequirements(
 ): string[] {
   const missing: string[] = [];
   if (!cpf.trim()) missing.push("CPF do captador");
-  if (!creci.trim()) missing.push("CRECI do captador");
+  // CRECI do captador é opcional (t_e75b58c5): sem ele, o contrato sai com um gestor/TL com CRECI
+  // (bloqueioContratoSemCreci trava a geração do PDF se não houver). `creci` fica na assinatura
+  // para os chamadores não mudarem.
+  void creci;
   // Documentos indexados uma vez: com 30+ proprietários não varre a lista de novo por pessoa.
   const kinds = ownerDocKinds(docs);
   captureOwners(form).forEach((owner, index) => {

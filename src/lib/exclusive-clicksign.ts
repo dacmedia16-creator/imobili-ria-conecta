@@ -91,10 +91,28 @@ export type TestemunhaPessoa = {
   cpf?: string;
   ok: boolean;
   falta: string[];
-  origem?: "equipe" | "escolhido";
+  /** manual = testemunha 2 digitada (captador sem CRECI, t_e75b58c5). */
+  origem?: "equipe" | "escolhido" | "manual";
+  /** Só no corretor do contrato (captador sem CRECI). */
+  creci?: string;
 };
 
+/** Testemunha 2 digitada, como gravada (só para quem gere). */
+export type TestemunhaManual = { nome: string; cpf: string; email: string };
+
 export type TestemunhasCaptacao = {
+  /**
+   * padrao = captador com CRECI (regra de t_e8078685, inalterada).
+   * sem_creci = captador sem CRECI (t_e75b58c5): o bloco corretor do contrato sai com `contrato`
+   * (gestor/TL com CRECI), o captador é a testemunha 1 e a testemunha 2 (`gestor`) é digitada.
+   */
+  /** Ausente = padrao (respostas antigas e fixtures). */
+  modo?: "padrao" | "sem_creci";
+  /** Corretor do contrato (só no modo sem_creci). */
+  contrato?: TestemunhaPessoa | null;
+  contratoEscolhido?: boolean;
+  /** Testemunha 2 digitada (só no modo sem_creci e para quem gere). */
+  manual?: TestemunhaManual | null;
   /** A imobiliária usa a Clicksign na captação: testemunhas automáticas valem. */
   aplica: boolean;
   corretor: TestemunhaPessoa;
@@ -125,8 +143,18 @@ function pessoa(v: unknown): TestemunhaPessoa | null {
     ...(typeof o.cpf === "string" ? { cpf: o.cpf } : {}),
     ok: o.ok === true,
     falta: Array.isArray(o.falta) ? o.falta.filter((x): x is string => typeof x === "string") : [],
-    ...(o.origem === "equipe" || o.origem === "escolhido" ? { origem: o.origem } : {}),
+    ...(o.origem === "equipe" || o.origem === "escolhido" || o.origem === "manual"
+      ? { origem: o.origem }
+      : {}),
+    ...(typeof o.creci === "string" ? { creci: o.creci } : {}),
   };
+}
+
+function manualDoBanco(v: unknown): TestemunhaManual | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const s = (x: unknown) => (typeof x === "string" ? x : "");
+  return { nome: s(o.nome), cpf: s(o.cpf), email: s(o.email) };
 }
 
 /** Converte a resposta de exclusive_testemunhas. Formato inesperado = null (tela trata como falha). */
@@ -136,7 +164,12 @@ export function parseTestemunhas(raw: unknown): TestemunhasCaptacao | null {
   const corretor = pessoa(r.corretor);
   if (!corretor) return null;
   const ge = r.gestor_equipe as Record<string, unknown> | null | undefined;
+  const semCreci = r.modo === "sem_creci";
   return {
+    modo: semCreci ? "sem_creci" : "padrao",
+    contrato: semCreci ? pessoa(r.contrato) : null,
+    contratoEscolhido: semCreci && r.contrato_escolhido === true,
+    manual: semCreci ? manualDoBanco(r.manual) : null,
     aplica: r.aplica === true,
     corretor,
     gestor: pessoa(r.gestor),
@@ -237,7 +270,10 @@ export async function fixarTestemunhasPdf(
 export function testemunhasParaPdf<
   F extends { testemunha_1: Record<string, unknown>; testemunha_2: Record<string, unknown> },
 >(form: F, t: TestemunhasCaptacao | null): F {
-  if (!usarTestemunhasAuto(t)) return form;
+  // Captador sem CRECI: captador + testemunha digitada valem mesmo sem Clicksign (o PDF só sai com
+  // elas completas, ver bloqueioContratoSemCreci).
+  const semCreci = !!t && t.modo === "sem_creci" && contratoSemCreciOk(t);
+  if (!semCreci && !usarTestemunhasAuto(t)) return form;
   const w = (p: TestemunhaPessoa) => ({ nome: p.nome, rg: "", cpf: p.cpf ?? "" });
   return { ...form, testemunha_1: w(t!.corretor), testemunha_2: w(t!.gestor!) } as F;
 }
@@ -253,6 +289,131 @@ export function usarTestemunhasAuto(t: TestemunhasCaptacao | null): boolean {
     !!t.gestor.cpf &&
     t.corretor.id !== t.gestor.id
   );
+}
+
+// ---------- captador sem CRECI (t_e75b58c5) ----------
+// O bloco "corretor" do contrato sai com um gestor/TL com CRECI (padrão: líder da equipe), o captador
+// vira testemunha 1 e a testemunha 2 é digitada. Tudo decidido e validado no banco; aqui só a tela.
+
+function contratoSemCreciOk(t: TestemunhasCaptacao): boolean {
+  return (
+    t.ok &&
+    !!t.contrato?.ok &&
+    !!t.contrato.cpf &&
+    !!t.contrato.creci &&
+    !!t.gestor?.cpf &&
+    !!t.corretor.cpf
+  );
+}
+
+/**
+ * Motivo para NÃO gerar o PDF de um captador sem CRECI (null = pode). Nunca gera contrato sem CRECI
+ * nem sem a testemunha 2 digitada; captador com CRECI nunca é bloqueado aqui.
+ */
+export function bloqueioContratoSemCreci(
+  t: TestemunhasCaptacao | null,
+  captadorCreci: string,
+): string | null {
+  if (captadorCreci.trim()) return null;
+  if (!t)
+    return "O captador não tem CRECI e não foi possível conferir o corretor do contrato. Atualize a página.";
+  if (t.modo !== "sem_creci")
+    return "O CRECI do captador mudou: salve e atualize a página antes de gerar o contrato.";
+  if (contratoSemCreciOk(t)) return null;
+  const motivos = t.problemas.length ? t.problemas.join(" · ") : "dados incompletos";
+  return `O captador não tem CRECI, então o contrato sai com um gestor ou team leader com CRECI e a testemunha 2 é digitada. Falta: ${motivos}`;
+}
+
+/** Bloco "corretor" impresso no contrato (NaGme/kgmf/NameGF). Com CRECI: o captador, como antes. */
+export function blocoCorretorContrato(
+  t: TestemunhasCaptacao | null,
+  captador: { nome: string; cpf: string; creci: string },
+): { broker_name: string; broker_cpf: string; broker_creci: string } {
+  if (captador.creci.trim())
+    return { broker_name: captador.nome, broker_cpf: captador.cpf, broker_creci: captador.creci };
+  // Fail-closed: nunca devolve bloco corretor sem CRECI.
+  const motivo = bloqueioContratoSemCreci(t, captador.creci);
+  if (motivo) throw new Error(motivo);
+  const c = t!.contrato!;
+  return { broker_name: c.nome, broker_cpf: c.cpf ?? "", broker_creci: c.creci ?? "" };
+}
+
+export type CandidatoContrato = CandidatoTestemunha & { creci: string | null };
+
+/** Gestores/TL ativos da MESMA imobiliária para o bloco corretor (o banco filtra). Sem e-mail/CPF. */
+export async function candidatosContrato(
+  db: SupabaseClient,
+  captureId: string,
+): Promise<CandidatoContrato[]> {
+  const { data, error } = await db.rpc("exclusive_contrato_candidatos", { _id: captureId });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((c) => ({
+    id: String(c.id ?? ""),
+    nome: typeof c.nome === "string" ? c.nome : "",
+    creci: typeof c.creci === "string" ? c.creci : null,
+    ok: c.ok === true,
+    falta: typeof c.falta === "string" ? c.falta : null,
+    daEquipe: c.da_equipe === true,
+  }));
+}
+
+/** Escolhe o corretor do contrato (null = volta para o gestor da equipe). O banco confere tudo. */
+export async function escolherCorretorContrato(
+  db: SupabaseClient,
+  captureId: string,
+  userId: string | null,
+): Promise<TestemunhasCaptacao | null> {
+  const { data, error } = await db.rpc("exclusive_contrato_corretor_escolher", {
+    _id: captureId,
+    _user: userId,
+  });
+  if (error) throw new Error(error.message);
+  return parseTestemunhas(data);
+}
+
+/** Erros da testemunha 2 digitada, iguais aos do banco (o banco confere de novo). */
+export function testemunhaManualErros(
+  m: TestemunhaManual,
+  t: TestemunhasCaptacao | null,
+): string[] {
+  const erros: string[] = [];
+  const nome = m.nome.trim().replace(/\s+/g, " ");
+  const cpf = m.cpf.replace(/\D/g, "");
+  if (!/^\S+\s+\S+/.test(nome)) erros.push("nome com sobrenome");
+  if (!validCpfDigits(cpf)) erros.push("CPF válido");
+  if (!validEmail(m.email)) erros.push("e-mail válido");
+  if (cpf && t?.corretor.cpf && cpf === t.corretor.cpf.replace(/\D/g, ""))
+    erros.push("ser outra pessoa (o captador já é a testemunha 1)");
+  if (cpf && t?.contrato?.cpf && cpf === t.contrato.cpf.replace(/\D/g, ""))
+    erros.push("ser outra pessoa (não pode ser o corretor do contrato)");
+  return erros;
+}
+
+function validCpfDigits(d: string): boolean {
+  if (!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
+  for (const n of [9, 10]) {
+    let sum = 0;
+    for (let i = 0; i < n; i += 1) sum += Number(d[i]) * (n + 1 - i);
+    const check = ((sum * 10) % 11) % 10;
+    if (check !== Number(d[n])) return false;
+  }
+  return true;
+}
+
+/** Grava a testemunha 2 digitada (tudo vazio = apaga). O banco valida e recusa com o motivo. */
+export async function salvarTestemunha2Manual(
+  db: SupabaseClient,
+  captureId: string,
+  m: TestemunhaManual,
+): Promise<TestemunhasCaptacao | null> {
+  const { data, error } = await db.rpc("exclusive_testemunha_2_manual_salvar", {
+    _id: captureId,
+    _nome: m.nome,
+    _cpf: m.cpf,
+    _email: m.email,
+  });
+  if (error) throw new Error(error.message);
+  return parseTestemunhas(data);
 }
 
 /** Texto curto de cada testemunha para a tela (sem e-mail nem CPF). */
