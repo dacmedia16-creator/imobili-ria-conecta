@@ -162,6 +162,7 @@ import {
   podeCaptadorInformarData,
   textoAprovacao,
 } from "@/lib/captacoes-painel";
+import { deveGerarPdfAuto, PDF_AUTO_FALHA } from "@/lib/captacao-pdf-auto";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -628,7 +629,12 @@ function ExclusiveDetail() {
   const generate = () => run(() => gerarPdfAssinatura(editable));
   // `salvar`: grava o formulário antes (só enquanto editável). Depois do envio não salva: o
   // exclusive_save só aceita rascunho/devolvida e apagaria o PDF gerado.
-  const gerarPdfAssinatura = async (salvar: boolean) => {
+  // `baixar`: false na geração automática (sem clique o navegador pode bloquear o download; o PDF
+  // fica salvo na captação e aparece em "Documentos").
+  const gerarPdfAssinatura = async (
+    salvar: boolean,
+    { baixar = true }: { baixar?: boolean } = {},
+  ) => {
     if (!capture || !form) return;
     if (dossieMissing) {
       setStep("dossie");
@@ -703,10 +709,45 @@ function ExclusiveDetail() {
         "O PDF saiu com as testemunhas digitadas na captação. Para enviar pela Clicksign, complete as testemunhas automáticas e gere o PDF de novo.";
     }
     setTestemunhas(await testemunhasCaptacao(supabase as unknown as SupabaseClient, id));
-    await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
+    if (baixar) await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
     toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
     if (avisoTw) toast.warning(avisoTw, { duration: 12000 });
   };
+  // PDF automático (t_ef7dc621, opção 1 de Denis 03/11/2026): gestor/TL/ADM abre captação normal
+  // enviada pelo corretor e sem PDF salvo → gera e salva sozinho, uma vez por captação nesta tela
+  // (o ref sobrevive a re-render e ao duplo efeito do StrictMode). Falha: avisa o motivo, fica na
+  // "Revisão e envio" com o botão manual e não tenta de novo sozinho (sem loop).
+  const pdfAutoTentados = useRef<Set<string>>(new Set());
+  const [pdfAutoGerando, setPdfAutoGerando] = useState(false);
+  const gerarPdfAuto = deveGerarPdfAuto({
+    capture: form ? capture : null,
+    routeId: id,
+    manager,
+    docs,
+    dossieLoading,
+    busy,
+    tentados: pdfAutoTentados.current,
+  });
+  useEffect(() => {
+    if (!gerarPdfAuto || !capture) return;
+    pdfAutoTentados.current.add(capture.id);
+    setStep("revisao");
+    setPdfAutoGerando(true);
+    setBusy(true);
+    void (async () => {
+      try {
+        await gerarPdfAssinatura(false, { baixar: false });
+      } catch (e: unknown) {
+        toast.error(PDF_AUTO_FALHA(errorMessage(e, "erro desconhecido")), { duration: 12000 });
+      }
+      // Mesmo com falha (ex.: Plano sem ação), fica na revisão com o botão manual.
+      setStep("revisao");
+      await reload().catch(() => undefined);
+      setPdfAutoGerando(false);
+      setBusy(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispara só pela condição acima
+  }, [gerarPdfAuto]);
   // PDF completo (depois da aprovação): contrato ASSINADO + todos os documentos anexados.
   // O Plano de Marketing já está dentro do contrato assinado, então não é repetido.
   const downloadComplete = () =>
@@ -2182,6 +2223,11 @@ function ExclusiveDetail() {
                     >
                       Revisar Plano de Marketing
                     </button>
+                  </p>
+                )}
+                {pdfAutoGerando && (
+                  <p className="text-primary" data-testid="pdf-auto-gerando">
+                    Gerando o PDF para assinatura automaticamente…
                   </p>
                 )}
                 {docs.some((d) => d.kind === "gerado") && (
