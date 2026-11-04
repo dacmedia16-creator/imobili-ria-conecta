@@ -295,9 +295,10 @@ function CompletarPerfilTela({
     setSalvando(true);
     try {
       // Data primeiro: o banco valida de novo (1900..hoje, 16 anos); se recusar, nada mais é gravado.
+      // Com data, grava sempre: a pessoa viu "Comemora aniversário?" e salvou = respondeu
+      // (t_05a37081; sem isso a janela do login perguntaria de novo logo em seguida).
       const nasc = dataNasc.trim();
-      if (nasc && (nasc !== (nascimento ?? "") || comemora !== comemoraSalvo))
-        await salvarMinhaDataNascimento(nasc, comemora);
+      if (nasc) await salvarMinhaDataNascimento(nasc, comemora);
       let url = avatarUrl;
       if (foto) {
         // Mesmo caminho e bucket da tela "Meu acesso".

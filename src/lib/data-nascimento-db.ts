@@ -49,10 +49,29 @@ export async function perguntaComemoraPendente(): Promise<boolean> {
   }
 }
 
+/** Sem resposta do banco nesse tempo = erro (a janela nunca fica presa). */
+export const TEMPO_LIMITE_RESPOSTA_COMEMORA_MS = 15000;
+
 /** Grava a resposta da janela e marca como respondida (não pergunta de novo). */
-export async function responderComemora(comemora: boolean): Promise<void> {
-  const { error } = await db.rpc("comemora_responder", { _comemora: comemora });
-  if (error) throw new Error(MSG_ERRO_RESPOSTA_COMEMORA);
+export async function responderComemora(
+  comemora: boolean,
+  tempoLimiteMs: number = TEMPO_LIMITE_RESPOSTA_COMEMORA_MS,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const estouro = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(MSG_ERRO_RESPOSTA_COMEMORA)), tempoLimiteMs);
+  });
+  try {
+    const { error } = await Promise.race([
+      Promise.resolve(db.rpc("comemora_responder", { _comemora: comemora })),
+      estouro,
+    ]);
+    if (error) throw new Error(MSG_ERRO_RESPOSTA_COMEMORA);
+  } catch {
+    throw new Error(MSG_ERRO_RESPOSTA_COMEMORA);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export const MSG_ERRO_RESPOSTA_COMEMORA =

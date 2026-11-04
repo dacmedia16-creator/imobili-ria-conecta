@@ -75,6 +75,13 @@ describe("perguntaComemoraPendente / responderComemora", () => {
     expect(rpc).toHaveBeenCalledWith("comemora_responder", { _comemora: false });
     rpc.mockResolvedValue({ data: null, error: { code: "P0002", message: "Sem data" } });
     await expect(responderComemora(true)).rejects.toThrow(MSG_ERRO_RESPOSTA_COMEMORA);
+    rpc.mockRejectedValue(new Error("Failed to fetch"));
+    await expect(responderComemora(true)).rejects.toThrow(MSG_ERRO_RESPOSTA_COMEMORA);
+  });
+
+  it("banco sem resposta: estoura o tempo limite e vira erro (janela não fica presa)", async () => {
+    rpc.mockReturnValue(new Promise(() => {}));
+    await expect(responderComemora(true, 30)).rejects.toThrow(MSG_ERRO_RESPOSTA_COMEMORA);
   });
 });
 

@@ -11,7 +11,10 @@
 --     com data cadastrada e sem resposta. Nunca na visão da plataforma, no "Entrar como" nem para o
 --     dono da plataforma;
 --   * carga inicial: conta como respondido quem gravou a data pela tela nova (depois do deploy do
---     PR #265) ou já está "Não", exceto se a última gravação foi da gestão.
+--     PR #265) ou já está "Não", exceto se a última gravação foi da gestão. Resíduo aceito: quem
+--     mexeu na data depois do deploy por uma aba antiga (sem a escolha) conta como respondido e
+--     segue "Sim" (sem prejuízo; pode mudar em Meu acesso). O banco não guarda se a escolha veio;
+--   * comemora_responder só grava se ainda não houver resposta (janela de outra aba não sobrescreve).
 --
 -- Rollback: docs/sql/rollback/20261104170000_comemora_aniversario_pergunta_login.rollback.sql
 -- Sem BEGIN/COMMIT próprios (o teste a inclui numa transação desfeita).
@@ -205,20 +208,23 @@ GRANT EXECUTE ON FUNCTION public.comemora_pergunta_pendente() TO authenticated;
 -- 6) Resposta da janela (só a própria pessoa; precisa já ter data) --------------------------------------------
 CREATE OR REPLACE FUNCTION public.comemora_responder(_comemora boolean) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE _uid uuid := auth.uid();
+DECLARE _uid uuid := auth.uid(); _atual boolean;
 BEGIN
   IF _uid IS NULL THEN RAISE EXCEPTION 'Sem sessao' USING ERRCODE = '42501'; END IF;
   IF public.ficha_sessao_restrita() THEN
     RAISE EXCEPTION 'So a propria pessoa responde' USING ERRCODE = '42501';
   END IF;
   IF _comemora IS NULL THEN RAISE EXCEPTION 'Resposta invalida' USING ERRCODE = '22023'; END IF;
+  -- Só grava se ainda não respondeu: janela velha (outra aba) não sobrescreve escolha mais nova.
   UPDATE public.profile_birthdates
      SET comemora_aniversario = _comemora, comemora_respondido_em = now(), updated_at = now()
-   WHERE user_id = _uid;
+   WHERE user_id = _uid AND comemora_respondido_em IS NULL;
+  IF FOUND THEN RETURN _comemora; END IF;
+  SELECT b.comemora_aniversario INTO _atual FROM public.profile_birthdates b WHERE b.user_id = _uid;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Sem data de nascimento cadastrada' USING ERRCODE = 'P0002';
   END IF;
-  RETURN _comemora;
+  RETURN _atual;
 END $$;
 REVOKE ALL ON FUNCTION public.comemora_responder(boolean) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.comemora_responder(boolean) TO authenticated;

@@ -142,6 +142,10 @@ SELECT pg_temp.ok((SELECT NOT comemora_aniversario AND comemora_respondido_em IS
                      FROM public.profile_birthdates WHERE user_id = :'c1'), 'Nao gravado + respondido, data intacta');
 SELECT pg_temp.ok(NOT public.comemora_pergunta_pendente(), 'depois de responder: nao pergunta de novo');
 SELECT pg_temp.ok(NOT pg_temp.no_mural(:'c1'::uuid), 'Nao: fora do mural');
+-- Janela velha (outra aba) responde Sim depois: não sobrescreve o Não já gravado.
+SELECT pg_temp.ok(public.comemora_responder(true) = false, 'janela de outra aba: devolve a escolha atual (Nao)');
+SELECT pg_temp.ok((SELECT NOT comemora_aniversario FROM public.profile_birthdates WHERE user_id = :'c1'),
+  'janela de outra aba nao sobrescreve a resposta');
 -- Muda depois no perfil (como hoje) e continua respondido.
 SELECT public.profile_set_birthdate(pg_temp.nasc(1990), true);
 SELECT pg_temp.ok(pg_temp.no_mural(:'c1'::uuid) AND pg_temp.resp(:'c1'::uuid), 'troca no perfil para Sim: volta ao mural, segue respondido');
