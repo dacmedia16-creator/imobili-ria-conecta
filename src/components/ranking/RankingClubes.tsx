@@ -384,7 +384,7 @@ function TabelaCorretores({
               <th className="py-2 pr-2 font-semibold">Clube (ano até o mês)</th>
               <th className="py-2 pr-2 text-right font-semibold">Comissão do período</th>
               <th className="py-2 pr-2 text-right font-semibold">Transações</th>
-              <th className="py-2 font-semibold">Próximo clube</th>
+              <th className="py-2 pl-4 font-semibold">Próximo clube</th>
             </tr>
           </thead>
           <tbody>
@@ -421,7 +421,7 @@ function TabelaCorretores({
                       Capt. {fmtTransacoes(c.capt)} · Venda {fmtTransacoes(c.venda)}
                     </p>
                   </td>
-                  <td className="py-2">
+                  <td className="py-2 pl-4">
                     <ProximoMini valor={ano} faixas={faixas} />
                   </td>
                 </tr>
