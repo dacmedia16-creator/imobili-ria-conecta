@@ -1,74 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { Award, Medal, PartyPopper, Trophy } from "lucide-react";
+import { PartyPopper, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { brl } from "@/lib/exclusive-captures-dashboard";
 import { periodoAtual } from "@/lib/minha-carreira";
 import {
-  normalizarClube,
-  normalizarRanking,
-  periodoRanking,
-  progressoClube,
   textoFaixa,
   validarFaixas,
-  type Clube,
   type Destaque,
   type Faixa,
-  type LinhaRanking,
 } from "@/lib/minha-carreira-conquistas";
+import { RankingClubesPainel } from "@/components/ranking/RankingClubes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState, ListSkeleton, Pill } from "@/components/visual/base";
+import { ListSkeleton, Pill } from "@/components/visual/base";
 
-// Minha carreira, PR 3 (card t_b848f957): bloco "Conquistas" — ranking da imobiliária, meus
-// destaques do Mural e Clube RE/MAX. RPCs e tabela da migração 20261016140000 (fora de types.ts).
-// O banco filtra pela imobiliária ativa e omite VGV/comissão de colegas com a chave desligada.
+// Minha carreira › Conquistas: Clube RE/MAX + Ranking e Clubes (card t_481a3f26, RPC
+// carreira_ranking_clubes) e meus destaques do Mural. Faixas em clube_remax_faixas (editáveis por
+// gestor/admin). O banco filtra pela imobiliária ativa e omite a comissão de colegas quando não pode.
 const db = supabase as unknown as SupabaseClient;
 
 type Estado<T> = { data: T | null; error: string | null };
 const CARREGANDO = { data: null, error: null };
 
 export function Conquistas({ userId }: { userId: string }) {
-  const hoje = useMemo(() => periodoAtual().hoje, []);
-  const [aba, setAba] = useState<"mes" | "ano">("mes");
-  const [rank, setRank] = useState<Estado<LinhaRanking[]>>(CARREGANDO);
   const [dest, setDest] = useState<Estado<Destaque[]>>(CARREGANDO);
-  const [clube, setClube] = useState<Estado<Clube | null>>(CARREGANDO);
-
-  useEffect(() => {
-    let alive = true;
-    setRank(CARREGANDO);
-    const { inicio, fim } = periodoRanking(aba, hoje);
-    db.rpc("carreira_ranking", { _inicio: inicio, _fim: fim }).then(({ data, error }) => {
-      if (!alive) return;
-      setRank(
-        error
-          ? { data: null, error: errorMessage(error, "Não foi possível carregar o ranking.") }
-          : { data: normalizarRanking(data as Record<string, unknown>[]), error: null },
-      );
-    });
-    return () => {
-      alive = false;
-    };
-  }, [aba, hoje, userId]);
-
-  const carregarClube = useCallback(async () => {
-    const { data, error } = await db.rpc("carreira_clube", { _ano: null });
-    setClube(
-      error
-        ? { data: null, error: errorMessage(error, "Não foi possível carregar o Clube RE/MAX.") }
-        : {
-            data: normalizarClube(
-              (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null,
-            ),
-            error: null,
-          },
-    );
-  }, []);
+  const [versao, setVersao] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -80,13 +41,10 @@ export function Conquistas({ userId }: { userId: string }) {
           : { data: (data ?? []) as Destaque[], error: null },
       );
     });
-    void carregarClube();
     return () => {
       alive = false;
     };
-  }, [carregarClube, userId]);
-
-  const valoresVisiveis = rank.data?.some((r) => r.valores_visiveis) ?? false;
+  }, [userId]);
 
   return (
     <Card>
@@ -95,74 +53,13 @@ export function Conquistas({ userId }: { userId: string }) {
           <Trophy className="h-5 w-5" aria-hidden /> Conquistas
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Ranking da imobiliária, seus destaques no Mural e o seu Clube RE/MAX.
+          Seu Clube RE/MAX, o ranking da imobiliária e seus destaques no Mural.
         </p>
       </CardHeader>
       <CardContent className="space-y-6" data-testid="conquistas">
-        <ClubeRemax estado={clube} onFaixasSalvas={carregarClube} />
-
-        <section className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <Medal className="h-4 w-4" aria-hidden /> Ranking
-            </h3>
-            <div className="flex gap-2" role="group" aria-label="Período do ranking">
-              <Button
-                size="sm"
-                variant={aba === "mes" ? "default" : "outline"}
-                onClick={() => setAba("mes")}
-              >
-                Mês
-              </Button>
-              <Button
-                size="sm"
-                variant={aba === "ano" ? "default" : "outline"}
-                onClick={() => setAba("ano")}
-              >
-                Ano
-              </Button>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            1 ponto por captação vendida e 1 por venda.
-            {rank.data && !valoresVisiveis
-              ? " Nesta imobiliária os valores dos colegas não são exibidos; você vê só os seus."
-              : ""}
-          </p>
-          {rank.error ? (
-            <p className="text-sm text-destructive">{rank.error}</p>
-          ) : !rank.data ? (
-            <ListSkeleton />
-          ) : rank.data.length === 0 ? (
-            <EmptyState icon={Medal}>
-              Ninguém pontuou neste período ainda. A primeira venda assinada abre o ranking.
-            </EmptyState>
-          ) : (
-            <ol className="divide-y" data-testid="ranking">
-              {rank.data.map((r) => (
-                <li
-                  key={r.user_id}
-                  className={`flex flex-wrap items-center gap-2 py-2 ${r.eu ? "rounded-md bg-primary/5 px-2" : ""}`}
-                >
-                  <span className="w-7 text-sm font-semibold tabular-nums">{r.posicao}º</span>
-                  <span className="min-w-0 flex-1 text-sm font-medium">
-                    {r.nome}
-                    {r.eu ? <span className="text-muted-foreground"> (você)</span> : null}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {r.captacoes} capt. · {r.vendas} vend.
-                  </span>
-                  <Pill tom={r.eu ? "violet" : "slate"}>{r.pontos} pts</Pill>
-                  {r.vgv != null ? (
-                    <span className="text-xs tabular-nums">
-                      VGV {brl(r.vgv)}
-                      {r.comissao != null ? ` · comissão ${brl(r.comissao)}` : ""}
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          )}
+        <section className="space-y-2" data-testid="clube-remax">
+          <EditarFaixas onFaixasSalvas={() => setVersao((v) => v + 1)} />
+          <RankingClubesPainel key={versao} modo="corretor" userId={userId} />
         </section>
 
         <section className="space-y-2">
@@ -201,87 +98,22 @@ export function Conquistas({ userId }: { userId: string }) {
   );
 }
 
-function ClubeRemax({
-  estado,
-  onFaixasSalvas,
-}: {
-  estado: Estado<Clube | null>;
-  onFaixasSalvas: () => void;
-}) {
+/** Gestor/admin continuam editando as faixas do clube por ano (a tela do clube agora é o painel novo). */
+function EditarFaixas({ onFaixasSalvas }: { onFaixasSalvas: () => void }) {
   const { hasAny } = useAuth();
   const podeEditar = hasAny(["admin", "super_admin", "gestor"]);
   const [editando, setEditando] = useState(false);
-  const c = estado.data;
-
+  const ano = useMemo(() => Number(periodoAtual().hoje.slice(0, 4)), []);
+  if (!podeEditar) return null;
   return (
-    <section className="space-y-2" data-testid="clube-remax">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Award className="h-4 w-4" aria-hidden /> Clube RE/MAX
-        </h3>
-        {podeEditar ? (
-          <Button size="sm" variant="outline" onClick={() => setEditando((x) => !x)}>
-            {editando ? "Fechar faixas" : "Editar faixas"}
-          </Button>
-        ) : null}
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => setEditando((x) => !x)}>
+          {editando ? "Fechar faixas" : "Editar faixas"}
+        </Button>
       </div>
-      {estado.error ? (
-        <p className="text-sm text-destructive">{estado.error}</p>
-      ) : estado.data === null && !estado.error && !editando ? (
-        <ListSkeleton />
-      ) : c ? (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Clube atual (VGC {c.ano - 1})</p>
-              <p className="text-lg font-semibold">{c.clube_atual ?? "Ainda sem clube"}</p>
-              <p className="text-xs text-muted-foreground">{brl(c.vgc_ano_anterior)}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Buscando em {c.ano}</p>
-              <p className="text-lg font-semibold">{c.clube_buscando ?? c.proximo_clube ?? "—"}</p>
-              <p className="text-xs text-muted-foreground">VGC {brl(c.vgc_ano_corrente)}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Falta para o próximo</p>
-              <p className="text-lg font-semibold">
-                {c.falta_proximo != null ? brl(c.falta_proximo) : "Clube máximo"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {c.proximo_clube ? `até ${c.proximo_clube}` : "Parabéns!"}
-              </p>
-            </div>
-          </div>
-          {c.tabela_buscando != null ? (
-            <>
-              <div
-                className="h-2 rounded-full bg-muted"
-                aria-label={`${progressoClube(c).toFixed(0)}% até o próximo clube`}
-              >
-                <div
-                  className="h-2 rounded-full bg-primary"
-                  style={{ width: `${progressoClube(c)}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {c.origem ?? `Tabela de referência ${c.tabela_buscando}`} · VGC = sua comissão nas
-                vendas assinadas do ano.
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              A imobiliária ainda não cadastrou as faixas do Clube RE/MAX.
-            </p>
-          )}
-        </>
-      ) : null}
-      {podeEditar && editando ? (
-        <EditorFaixas
-          ano={c?.tabela_buscando ?? c?.ano ?? new Date().getFullYear()}
-          onSalvo={onFaixasSalvas}
-        />
-      ) : null}
-    </section>
+      {editando ? <EditorFaixas ano={ano} onSalvo={onFaixasSalvas} /> : null}
+    </div>
   );
 }
 

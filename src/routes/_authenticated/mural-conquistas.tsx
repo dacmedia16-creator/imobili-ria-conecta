@@ -12,6 +12,7 @@ import {
   loadCheerers,
   loadFeed,
   loadRanking,
+  loadSelosClube,
 } from "@/lib/mural-conquistas-db";
 import {
   agruparQuemParabenizou,
@@ -45,6 +46,7 @@ function MuralConquistasPage() {
   const [feed, setFeed] = useState<Estado<FeedPost[]>>(CARREGANDO);
   const [quem, setQuem] = useState<Record<string, string[]>>({});
   const [ranking, setRanking] = useState<Estado<RankingRow[]>>(CARREGANDO);
+  const [selos, setSelos] = useState<Record<string, string>>({});
   const [birthdays, setBirthdays] = useState<Estado<BirthdayRow[]>>(CARREGANDO);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const feedRef = useRef<FeedPost[]>([]);
@@ -83,6 +85,9 @@ function MuralConquistasPage() {
 
   const carregarRanking = useCallback(async (p: { ano: number; mes: number }) => {
     setRanking(CARREGANDO);
+    setSelos({});
+    // Selo é complemento: se falhar, o ranking continua sem selo.
+    loadSelosClube(p.ano, p.mes).then(setSelos, () => setSelos({}));
     try {
       setRanking({ data: await loadRanking(p.ano, p.mes), error: null });
     } catch (e) {
@@ -148,6 +153,7 @@ function MuralConquistasPage() {
             meses={meses}
             onPeriodo={setPeriodo}
             onRetry={() => carregarRanking(periodo)}
+            selos={selos}
           />
           <BirthdaysCard birthdays={birthdays} hoje={hoje} onRetry={carregarAniversarios} />
         </div>

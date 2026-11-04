@@ -2,6 +2,7 @@ import { Trophy, Cake, Medal, PartyPopper } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton } from "@/components/visual/base";
+import { SeloClube } from "@/components/ranking/SeloClube";
 import {
   dataVenda,
   descricaoImovel,
@@ -165,12 +166,15 @@ export function RankingCard({
   meses,
   onPeriodo,
   onRetry,
+  selos,
 }: {
   ranking: Estado<RankingRow[]>;
   periodo: { ano: number; mes: number };
   meses: { ano: number; mes: number }[];
   onPeriodo: (p: { ano: number; mes: number }) => void;
   onRetry?: () => void;
+  /** Clube RE/MAX de cada pessoa (comissão de jan até o mês); só vem para quem pode ver. */
+  selos?: Record<string, string>;
 }) {
   const valor = `${periodo.ano}-${periodo.mes}`;
   return (
@@ -214,14 +218,17 @@ export function RankingCard({
                   <span className="w-7 shrink-0 font-semibold text-primary">{r.posicao}º</span>
                   <span className="truncate">{r.nome ?? "—"}</span>
                 </span>
-                <b className="shrink-0">{rotuloPontos(r.pontos)}</b>
+                <span className="flex shrink-0 items-center gap-2">
+                  {selos?.[r.user_id] ? <SeloClube nome={selos[r.user_id]} /> : null}
+                  <b>{rotuloPontos(r.pontos)}</b>
+                </span>
               </li>
             ))}
           </ol>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
           Conta por quantidade de vendas (captador e vendedor contam 1 cada), no horário de São
-          Paulo. Sem valores.
+          Paulo. Sem valores. O selo é o Clube RE/MAX do ano até o mês.
         </p>
       </CardContent>
     </Card>

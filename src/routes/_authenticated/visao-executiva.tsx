@@ -60,6 +60,7 @@ import {
   type VisaoDesempenho,
 } from "@/lib/desempenho-visao";
 import { formatBRL } from "@/lib/formato-moeda";
+import { RankingClubesPainel } from "@/components/ranking/RankingClubes";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -730,6 +731,19 @@ function VisaoExecutiva() {
                 Como corretor: captação e venda próprias. Como equipe: líder, gestor e coordenação
                 de lançamento. Total: soma das duas.
               </p>
+            </CardContent>
+          </Card>
+        )}
+        {(!podeAlternarVisao || visao === "empresa") && (
+          <Card className="mt-3" data-testid="secao-ranking-clubes">
+            <CardHeader>
+              <CardTitle className="text-base">Ranking e Clubes</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Empresa toda, corretores e times. Período próprio (não segue o filtro do topo).
+              </p>
+            </CardHeader>
+            <CardContent>
+              <RankingClubesPainel modo="gestor" userId={user?.id} />
             </CardContent>
           </Card>
         )}

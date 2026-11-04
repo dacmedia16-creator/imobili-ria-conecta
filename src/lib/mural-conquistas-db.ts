@@ -45,6 +45,16 @@ export async function loadRanking(ano: number, mes: number): Promise<RankingRow[
   return ((data ?? []) as RankingRow[]).map((r) => ({ ...r, pontos: Number(r.pontos) || 0 }));
 }
 
+/** Clube RE/MAX (ano até o mês) de quem aparece no ranking; o banco devolve só o que a pessoa pode ver. */
+export async function loadSelosClube(ano: number, mes: number): Promise<Record<string, string>> {
+  const { data, error } = await db.rpc("carreira_clube_selos", { _ano: ano, _mes: mes });
+  if (error) throw error;
+  const out: Record<string, string> = {};
+  for (const r of (data ?? []) as { user_id: string; clube: string | null }[])
+    if (r.clube) out[r.user_id] = r.clube;
+  return out;
+}
+
 export async function loadBirthdays(mes: number): Promise<BirthdayRow[]> {
   const { data, error } = await db.rpc("achievement_birthdays", { _mes: mes });
   if (error) throw error;
