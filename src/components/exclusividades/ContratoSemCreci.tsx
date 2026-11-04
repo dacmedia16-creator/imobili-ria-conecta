@@ -183,6 +183,7 @@ export function ContratoSemCreci({
         <form
           className="grid gap-2 rounded-md border p-3 sm:grid-cols-3"
           data-testid="testemunha-2-manual"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
             setTocado(true);

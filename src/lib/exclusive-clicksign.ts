@@ -254,8 +254,9 @@ export async function fixarTestemunhasPdf(
 ): Promise<void> {
   const { error } = await db.rpc("exclusive_testemunhas_fixar", {
     _id: captureId,
-    _corretor: t.corretor.id,
-    _gestor: t.gestor?.id ?? null,
+    // Testemunha 2 digitada não tem conta (id vazio): vai null, nunca "" (o parâmetro é uuid).
+    _corretor: t.corretor.id || null,
+    _gestor: t.gestor?.id || null,
     _path: path,
     _dados: t.dados ?? null,
   });

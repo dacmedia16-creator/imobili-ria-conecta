@@ -1,4 +1,4 @@
--- Rollback de 20261104120000_captacao_corretor_sem_creci.sql (t_e75b58c5).
+-- Rollback de 20261104130000_captacao_corretor_sem_creci.sql (t_e75b58c5).
 -- Antes de rodar: voltar a tela para a versão anterior. A edge clicksign-send não muda nesta entrega.
 -- ATENÇÃO: captações de captador sem CRECI que já foram enviadas ao gestor continuam "enviada"; depois do
 -- rollback o PDF delas só sai com o CRECI do captador preenchido (comportamento antigo).

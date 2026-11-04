@@ -11,6 +11,7 @@ import {
 import {
   blocoCorretorContrato,
   bloqueioContratoSemCreci,
+  fixarTestemunhasPdf,
   parseTestemunhas,
   sendDialogErrors,
   testemunhaManualErros,
@@ -115,6 +116,26 @@ describe("tela: modo do contrato", () => {
     expect(pdf.testemunha_1).toEqual({ nome: "Carla Semcreci", rg: "", cpf: "11144477735" });
     expect(pdf.testemunha_2).toEqual({ nome: "Paula Exemplo", rg: "", cpf: "98765432100" });
     expect(missingRequirements(emptyForm(), [], "123", "")).not.toContain("CRECI do captador");
+  });
+
+  it("sem CRECI: fixar o PDF manda _gestor null (testemunha digitada não tem id) e _corretor = captador", async () => {
+    const rpc = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
+      data: null,
+      error: null,
+    }));
+    const db = { rpc } as unknown as Parameters<typeof fixarTestemunhasPdf>[0];
+    await fixarTestemunhasPdf(db, CAP, parseTestemunhas(telaSemCreci())!, "org/cap/contrato.pdf");
+    expect(rpc).toHaveBeenCalledWith("exclusive_testemunhas_fixar", {
+      _id: CAP,
+      _corretor: "c1",
+      _gestor: null,
+      _path: "org/cap/contrato.pdf",
+      _dados: "abc",
+    });
+    // Com CRECI segue igual: o gestor da equipe vai com o id dele.
+    rpc.mockClear();
+    await fixarTestemunhasPdf(db, CAP, parseTestemunhas(telaComCreci)!, "p.pdf");
+    expect(rpc.mock.calls[0][1]).toMatchObject({ _corretor: "c2", _gestor: "g1" });
   });
 
   it("sem CRECI e sem Clicksign: vale igual (o PDF usa o gestor/TL e a testemunha digitada)", () => {

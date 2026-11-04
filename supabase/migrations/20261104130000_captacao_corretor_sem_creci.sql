@@ -11,7 +11,7 @@
 -- testemunha). Signatários: proprietários + imobiliária + testemunha 1 (captador) + testemunha 2 (digitada).
 -- A edge clicksign-send não muda: ela usa exclusive_testemunhas_resolver, que agora devolve a testemunha 2
 -- digitada em "gestor" e marca problema (envio 422) se faltar o corretor do contrato.
--- Rollback: supabase/rollback/20261104120000_captacao_corretor_sem_creci.sql
+-- Rollback: supabase/rollback/20261104130000_captacao_corretor_sem_creci.sql
 
 -- 1) Colunas --------------------------------------------------------------------------------------
 ALTER TABLE public.exclusive_captures

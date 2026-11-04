@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Captador sem CRECI (migration 20261104120000, t_e75b58c5) numa ÚNICA transação revertida:
+# Captador sem CRECI (migration 20261104130000, t_e75b58c5) numa ÚNICA transação revertida:
 # aplica 20261029220000 + a nova -> suíte antiga de testemunhas (não pode quebrar) -> suíte nova ->
 # rollback -> suíte antiga de novo (estado anterior íntegro) -> reaplica. Nada fica gravado.
 # Nunca usar com produção.
@@ -9,8 +9,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PSQL="${PSQL:?defina PSQL (banco local descartável ou homologação; nunca produção)}"
 BASE="$ROOT/supabase/migrations/20261029220000_captacao_testemunhas_automaticas.sql"
-MIG="$ROOT/supabase/migrations/20261104120000_captacao_corretor_sem_creci.sql"
-RB="$ROOT/supabase/rollback/20261104120000_captacao_corretor_sem_creci.sql"
+MIG="$ROOT/supabase/migrations/20261104130000_captacao_corretor_sem_creci.sql"
+RB="$ROOT/supabase/rollback/20261104130000_captacao_corretor_sem_creci.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 suite() { echo "SAVEPOINT s;"; echo "\\echo [$2]"; strip "$1"; echo "RESET ROLE;"; echo "ROLLBACK TO SAVEPOINT s;"; }
 {

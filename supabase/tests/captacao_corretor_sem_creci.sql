@@ -1,4 +1,4 @@
--- Suíte: captador SEM CRECI (migration 20261104120000, t_e75b58c5).
+-- Suíte: captador SEM CRECI (migration 20261104130000, t_e75b58c5).
 -- Roda DENTRO de transação revertida (run-captacao-corretor-sem-creci.sh), em banco local descartável
 -- ou homologação; nunca em produção. Dados 100% fictícios, criados aqui.
 -- Imobiliária A: gestor G (líder T1, com CRECI), TL (team leader, com CRECI), G2 (gestor sem CPF/CRECI),
