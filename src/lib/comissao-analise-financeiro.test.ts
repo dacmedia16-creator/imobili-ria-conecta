@@ -105,6 +105,18 @@ describe("divergenciaComissao", () => {
       ),
     ).toBeNull();
   });
+  it("parceria no lado vendedor: total 6% / R$ 10.800 e lado REMAX 3% / R$ 5.400 NÃO é divergência", () => {
+    // Denis (04/11): com parceria, a comissão total é 6% e o lado REMAX 3% — o aviso compara só o
+    // total da venda com o total da ocorrência, nunca o % / valor da REMAX.
+    const vendaParceria = {
+      ...sale,
+      parceria_externa_venda: true,
+      parceria_percentual: 3,
+      parceria_valor: 5400,
+    } as unknown as SaleRow;
+    expect(divergenciaComissao(vendaParceria, occ())).toBeNull();
+    expect(nossaParteComissao(10800, [{ valor: 5400 }])).toBe(5400);
+  });
   it("acusa diferença de 1 centavo no valor", () => {
     expect(
       divergenciaComissao(sale, { percentual_comissao: 6, valor_comissao: 10799.99 })

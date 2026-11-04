@@ -12,8 +12,13 @@
 -- o % ou o valor da comissão DA VENDA mudou nesta gravação. Ela copia só percentual_comissao e
 -- valor_comissao para a ocorrência, e só se a ocorrência estiver 'pendente' e aceita_financeiro = false;
 -- depois recalcula as linhas por papel (sync_occurrence_commissions lê o valor novo).
---   * Só reage a mudança de comissão: editar previsão/parceria na venda nessa etapa não sobrescreve
---     a correção que o Financeiro fez direto na ocorrência.
+--   * Só reage a mudança do VALOR (R$) da comissão: editar previsão/parceria ou só o % de referência
+--     na venda nessa etapa não sobrescreve a correção que o Financeiro fez direto na ocorrência.
+--   * Regra explícita (t_a10304e6): se o Financeiro corrigiu a ocorrência e DEPOIS alguém (só
+--     Financeiro/Admin podem, nessa etapa) grava um NOVO valor de comissão na venda, vale a gravação
+--     mais recente: a ocorrência passa a ter o valor novo da venda. O aviso de divergência mostra os
+--     dois valores antes disso.
+--   * Linhas manuais do Financeiro: o R$ fica igual; só o % é recalculado sobre o total novo.
 --   * Depois do aceite do Financeiro ou da conclusão: continua congelado, como hoje.
 --   * sincronizar_ocorrencia_antes_financeiro() não muda (etapas anteriores seguem iguais).
 --   * Não altera nenhum dado existente: só vale para gravações futuras.
@@ -72,6 +77,19 @@ begin
 
   if v_occ_id is not null then
     perform public.sync_occurrence_commissions(p_sale_id);
+
+    -- t_a10304e6 (revisão adversarial): linhas criadas à mão pelo Financeiro (managed_by_sale=false)
+    -- não passam por sync_occurrence_commissions. O valor em R$ delas é mantido (nunca muda dinheiro
+    -- sem alguém digitar); só o % é recalculado sobre o total novo, para a Revisão não mostrar
+    -- "10%" numa linha que agora é 5% do total.
+    if v_valor > 0 then
+      update public.occurrence_commissions
+      set percentual = round(valor / v_valor * 100, 3)
+      where occurrence_id = v_occ_id
+        and managed_by_sale = false
+        and valor is not null
+        and percentual is distinct from round(valor / v_valor * 100, 3);
+    end if;
   end if;
 end;
 $function$;
@@ -98,11 +116,17 @@ AS $function$
 begin
   perform public.sincronizar_ocorrencia_antes_financeiro(new.id);
 
-  -- t_59cb12e0: em análise do Financeiro, só quando a comissão da venda mudou nesta gravação.
+  -- t_59cb12e0: em análise do Financeiro, só quando o VALOR (R$) da comissão da venda mudou nesta
+  -- gravação. t_a10304e6: o % da venda é só referência (a tela recalcula quando muda o negociado);
+  -- mudar só o % não pode apagar uma correção que o Financeiro fez direto na aba Ocorrência.
+  -- Exceção: venda sem valor em R$ (legado), em que o % é a única informação.
   if new.status::text = 'ocorrencia_analise_financeiro'
      and (
-       new.percentual_comissao is distinct from old.percentual_comissao
-       or new.valor_total_comissao is distinct from old.valor_total_comissao
+       new.valor_total_comissao is distinct from old.valor_total_comissao
+       or (
+         new.valor_total_comissao is null
+         and new.percentual_comissao is distinct from old.percentual_comissao
+       )
      ) then
     perform public.sincronizar_comissao_ocorrencia_em_analise(new.id);
   end if;

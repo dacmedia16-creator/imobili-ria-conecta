@@ -70,7 +70,39 @@ INSERT INTO v VALUES
   ('so_previsao', pg_temp.venda('D', 'ocorrencia_analise_financeiro')),
   ('pendente', pg_temp.venda('E', 'ocorrencia_pendente')),
   ('lancamento', pg_temp.venda('F', 'ocorrencia_analise_financeiro', false, 'pendente', 'lancamento')),
-  ('sem_valor', pg_temp.venda('G', 'ocorrencia_analise_financeiro'));
+  ('sem_valor', pg_temp.venda('G', 'ocorrencia_analise_financeiro')),
+  -- Revisão adversarial (t_a10304e6) ---------------------------------------------------------------
+  ('corrigida', pg_temp.venda('H', 'ocorrencia_analise_financeiro')),
+  ('manual', pg_temp.venda('I', 'ocorrencia_analise_financeiro')),
+  ('parc_vend', pg_temp.venda('J', 'ocorrencia_analise_financeiro')),
+  ('parc_ok', pg_temp.venda('K', 'ocorrencia_analise_financeiro')),
+  ('occ_concl', pg_temp.venda('L', 'ocorrencia_analise_financeiro', false, 'concluida')),
+  ('aceite_mesma_tx', pg_temp.venda('M', 'ocorrencia_analise_financeiro'));
+-- Linha manual do Financeiro (managed_by_sale=false): R$ 540 = 10% de R$ 5.400.
+INSERT INTO public.occurrence_commissions (occurrence_id, organization_id, papel, nome, valor, percentual, managed_by_sale)
+SELECT o.id, :'org', 'outro', 'Bonus Manual Exemplo', 540, 10, false
+  FROM public.occurrences o JOIN v ON v.id = o.sale_id WHERE v.k = 'manual';
+-- Caso confirmado por Denis: parceria no LADO VENDEDOR. Comissão total 6% = R$ 10.800; lado REMAX
+-- 3% = R$ 5.400; parceira 3% = R$ 5.400. Em 'parc_ok' venda e ocorrência já estão certas (6% / 10.800);
+-- em 'parc_vend' a ocorrência ainda está com 3% / 5.400 (o caso do diagnóstico).
+UPDATE public.sales SET parceria_externa_venda = true, parceria_externa_captacao = false,
+       parceria_percentual = 3, parceria_valor = 5400
+ WHERE id IN (SELECT id FROM v WHERE k IN ('parc_vend', 'parc_ok'));
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800
+ WHERE id = (SELECT id FROM v WHERE k = 'parc_ok');
+UPDATE public.occurrences SET percentual_comissao = 6, valor_comissao = 10800
+ WHERE sale_id = (SELECT id FROM v WHERE k = 'parc_ok');
+UPDATE public.occurrence_commissions SET percentual = 30
+ WHERE occurrence_id = (SELECT o.id FROM public.occurrences o JOIN v ON v.id = o.sale_id WHERE v.k = 'parc_ok');
+UPDATE public.occurrence_partners SET percentual = 3
+ WHERE occurrence_id IN (SELECT o.id FROM public.occurrences o JOIN v ON v.id = o.sale_id WHERE v.k IN ('parc_vend', 'parc_ok'));
+-- Aceite exige distribuição fechada: 'aceite_mesma_tx' começa coerente em 6% / R$ 10.800.
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800
+ WHERE id = (SELECT id FROM v WHERE k = 'aceite_mesma_tx');
+UPDATE public.occurrences SET percentual_comissao = 6, valor_comissao = 10800
+ WHERE sale_id = (SELECT id FROM v WHERE k = 'aceite_mesma_tx');
+UPDATE public.occurrence_commissions SET percentual = 30
+ WHERE occurrence_id = (SELECT o.id FROM public.occurrences o JOIN v ON v.id = o.sale_id WHERE v.k = 'aceite_mesma_tx');
 SET LOCAL session_replication_role = origin;
 
 CREATE FUNCTION pg_temp.s(_k text) RETURNS uuid LANGUAGE sql AS $$ SELECT id FROM v WHERE k = _k $$;
@@ -164,6 +196,85 @@ SELECT pg_temp.ok((pg_temp.occ('sem_valor')).valor_comissao = 5400, 'venda sem c
 -- 8) Ninguém chama a função nova direto.
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.sincronizar_comissao_ocorrencia_em_analise(%L)', pg_temp.s('aceita'))) LIKE '42501%',
   'usuário não executa a função nova direto');
+
+-- ==== Revisão adversarial (t_a10304e6) =============================================================
+SELECT pg_temp.as_user(:'fin');
+
+-- 9) FURO A: o Financeiro corrige a OCORRÊNCIA (R$ 9.000 / 5%) e depois mexe só no % de referência da
+--    venda (o R$ da comissão da venda não muda). Antes da correção, isso apagava os R$ 9.000.
+UPDATE public.occurrences SET valor_comissao = 9000, percentual_comissao = 5 WHERE sale_id = pg_temp.s('corrigida');
+UPDATE public.sales SET percentual_comissao = 2.7 WHERE id = pg_temp.s('corrigida');
+SELECT pg_temp.ok((pg_temp.occ('corrigida')).valor_comissao = 9000 AND (pg_temp.occ('corrigida')).percentual_comissao = 5,
+  'furo A: mudar só o % de referência da venda não apaga a correção do Financeiro na ocorrência');
+UPDATE public.sales SET valor_comissao_captador = 3000 WHERE id = pg_temp.s('corrigida');
+SELECT pg_temp.ok((pg_temp.occ('corrigida')).valor_comissao = 9000,
+  'furo A: mudar o captador na venda também não apaga a correção');
+-- Regra explícita: um NOVO valor em R$ gravado na venda depois da correção vale (gravação mais recente).
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800 WHERE id = pg_temp.s('corrigida');
+SELECT pg_temp.ok((pg_temp.occ('corrigida')).valor_comissao = 10800 AND (pg_temp.occ('corrigida')).percentual_comissao = 6,
+  'regra explícita: novo R$ na venda depois da correção substitui a correção (vale a última gravação)');
+
+-- 10) FURO B: linha manual do Financeiro (R$ 540 = 10% de 5.400) depois de 6% / R$ 10.800:
+--     R$ mantido, % recalculado sobre o total novo (5%).
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800 WHERE id = pg_temp.s('manual');
+SELECT pg_temp.ok((SELECT valor = 540 AND percentual = 5 FROM public.occurrence_commissions c
+                    WHERE c.occurrence_id = (pg_temp.occ('manual')).id AND c.managed_by_sale = false),
+  'furo B: linha manual mantém R$ 540 e passa a 5% do novo total');
+SELECT pg_temp.ok((pg_temp.capt('manual')).percentual = 30, 'furo B: linha do captador recalculada (30%)');
+
+-- 11) Ocorrência concluída com venda (inconsistente) ainda em análise e aceita=false: não muda.
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800 WHERE id = pg_temp.s('occ_concl');
+SELECT pg_temp.ok((pg_temp.occ('occ_concl')).valor_comissao = 5400 AND (pg_temp.occ('occ_concl')).status = 'concluida',
+  'ocorrência concluída (mesmo com aceita=false) não acompanha a venda');
+
+-- 12) Aceite e edição na mesma transação: aceita primeiro → a edição seguinte não chega à ocorrência.
+UPDATE public.occurrences SET aceita_financeiro = true, aceita_financeiro_em = now(), aceita_financeiro_por = :'fin'
+ WHERE sale_id = pg_temp.s('aceite_mesma_tx');
+UPDATE public.sales SET percentual_comissao = 7, valor_total_comissao = 12600 WHERE id = pg_temp.s('aceite_mesma_tx');
+SELECT pg_temp.ok((pg_temp.occ('aceite_mesma_tx')).valor_comissao = 10800 AND (pg_temp.occ('aceite_mesma_tx')).aceita_financeiro,
+  'aceite seguido de edição na mesma transação: ocorrência fica congelada em R$ 10.800');
+-- "Liberar edição" (destravar) e editar de novo: volta a acompanhar.
+UPDATE public.occurrences SET aceita_financeiro = false, aceita_financeiro_em = NULL, aceita_financeiro_por = NULL
+ WHERE sale_id = pg_temp.s('aceite_mesma_tx');
+UPDATE public.sales SET percentual_comissao = 5, valor_total_comissao = 9000 WHERE id = pg_temp.s('aceite_mesma_tx');
+SELECT pg_temp.ok((pg_temp.occ('aceite_mesma_tx')).valor_comissao = 9000,
+  'depois de liberar a edição, a ocorrência volta a acompanhar a venda');
+
+-- 13) Parceria no LADO VENDEDOR (Denis): total 6% / R$ 10.800, lado REMAX 3% / R$ 5.400.
+--     a) venda e ocorrência já certas: editar o captador não mexe no total (não é "diferença").
+UPDATE public.sales SET valor_comissao_captador = 3000 WHERE id = pg_temp.s('parc_ok');
+SELECT public.sync_occurrence_commissions(pg_temp.s('parc_ok')); -- como a tela faz depois de salvar
+SELECT pg_temp.ok((pg_temp.occ('parc_ok')).valor_comissao = 10800 AND (pg_temp.occ('parc_ok')).percentual_comissao = 6,
+  'parceria lado vendedor: ocorrência continua 6% / R$ 10.800 (lado REMAX 3% não vira o total)');
+SELECT pg_temp.ok((SELECT valor_total_comissao = (pg_temp.occ('parc_ok')).valor_comissao
+                     AND percentual_comissao = (pg_temp.occ('parc_ok')).percentual_comissao
+                     AND valor_remax = 5400 FROM public.sales WHERE id = pg_temp.s('parc_ok')),
+  'parceria lado vendedor: venda × ocorrência sem divergência (6% / 10.800 nos dois; REMAX 5.400 é só a base)');
+--     b) ocorrência com 3% / 5.400 e Financeiro grava 6% / 10.800 na venda.
+UPDATE public.sales SET percentual_comissao = 6, valor_total_comissao = 10800 WHERE id = pg_temp.s('parc_vend');
+SELECT pg_temp.ok((pg_temp.occ('parc_vend')).valor_comissao = 10800 AND pg_temp.nossa('parc_vend') = 5400,
+  'parceria lado vendedor: ocorrência 6% / R$ 10.800 e nossa parte R$ 5.400');
+SELECT pg_temp.ok((SELECT count(*) = 1 AND min(valor) = 5400 AND min(percentual) = 3 FROM public.occurrence_partners
+                    WHERE occurrence_id = (pg_temp.occ('parc_vend')).id),
+  'parceria lado vendedor: parceira continua 3% / R$ 5.400');
+
+-- 14) Somas: linhas por papel + parceria + imobiliária = comissão da ocorrência (R$ e 100%).
+RESET ROLE;
+CREATE FUNCTION pg_temp.fecha(_k text) RETURNS boolean LANGUAGE sql AS $$
+  WITH d AS (SELECT public.calcular_distribuicao_venda(pg_temp.s(_k)) j),
+       o AS (SELECT (pg_temp.occ(_k)).id id, (pg_temp.occ(_k)).valor_comissao tot)
+  SELECT (d.j->>'calculo_valido')::boolean
+     AND (d.j->>'comissao_bruta')::numeric = o.tot
+     AND abs(coalesce((SELECT sum(valor) FROM public.occurrence_commissions WHERE occurrence_id = o.id), 0)
+           + coalesce((SELECT sum(valor) FROM public.occurrence_partners WHERE occurrence_id = o.id), 0)
+           + (d.j->>'saldo_liquido_imobiliaria')::numeric - o.tot) < 0.01
+     AND abs(coalesce((SELECT sum(percentual) FROM public.occurrence_commissions WHERE occurrence_id = o.id), 0)
+           + coalesce((SELECT sum(valor) FROM public.occurrence_partners WHERE occurrence_id = o.id), 0) / o.tot * 100
+           + (d.j->>'saldo_liquido_imobiliaria')::numeric / o.tot * 100 - 100) < 0.01
+  FROM d, o $$;
+SELECT pg_temp.ok(pg_temp.fecha('analise'), 'soma: análise 10.800 = captador 3.240 (30%) + parceria 5.400 (50%) + imobiliária 2.160 (20%)');
+SELECT pg_temp.ok(pg_temp.fecha('parc_vend'), 'soma: parceria lado vendedor fecha em 100% / R$ 10.800');
+SELECT pg_temp.ok(pg_temp.fecha('parc_ok'), 'soma: parceria lado vendedor (captador editado) fecha em 100%');
 
 RESET ROLE;
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA ' END || msg FROM r;
