@@ -40,6 +40,7 @@ import {
   TrocarParaPapelButton,
 } from "@/components/vendas/AssinaturaManualVenda";
 import { TestemunhasAutomaticas } from "@/components/exclusividades/TestemunhasAutomaticas";
+import { ContratoSemCreci } from "@/components/exclusividades/ContratoSemCreci";
 
 const db = supabase as unknown as SupabaseClient;
 
@@ -250,10 +251,12 @@ export function ClicksignEnvio({
         {podeEnviar && !escolha && !trocarParaClicksign && (
           <>
             <p className="text-sm text-muted-foreground">
-              Assinam ao mesmo tempo, com código por e-mail: proprietário(s), imobiliária e 2
-              testemunhas (o corretor da captação e o gestor da equipe dele). Prazo:{" "}
-              {config.deadline_days} dias. Quando todos assinarem, o PDF assinado é anexado sozinho;
-              a aprovação continua manual.
+              Assinam ao mesmo tempo, com código por e-mail: proprietário(s), imobiliária e 2{" "}
+              {testemunhas?.modo === "sem_creci"
+                ? "testemunhas (o captador, que não tem CRECI, e a testemunha 2 digitada)"
+                : "testemunhas (o corretor da captação e o gestor da equipe dele)"}
+              . Prazo: {config.deadline_days} dias. Quando todos assinarem, o PDF assinado é anexado
+              sozinho; a aprovação continua manual.
             </p>
             <Button disabled={busy || !!bloqueioAbrir} onClick={() => setOpen(true)}>
               Enviar pela Clicksign
@@ -287,8 +290,20 @@ export function ClicksignEnvio({
               ))}
             </fieldset>
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Testemunhas (automáticas)</legend>
-              {testemunhas ? (
+              <legend className="text-sm font-medium">
+                {testemunhas?.modo === "sem_creci"
+                  ? "Corretor no contrato e testemunhas"
+                  : "Testemunhas (automáticas)"}
+              </legend>
+              {testemunhas?.modo === "sem_creci" ? (
+                <ContratoSemCreci
+                  db={db}
+                  captureId={captureId}
+                  testemunhas={testemunhas}
+                  podeTrocar={status === "enviada" && canStartEnvelope(envelope)}
+                  onChange={onTestemunhas}
+                />
+              ) : testemunhas ? (
                 <TestemunhasAutomaticas
                   db={db}
                   captureId={captureId}

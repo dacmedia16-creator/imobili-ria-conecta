@@ -82,6 +82,7 @@ import {
   removerDocumentoCaptacao,
 } from "@/lib/captacao-remover-documento.functions";
 import {
+  blocoCorretorContrato,
   clicksignCaptureSigned,
   clicksignManualInstructions,
   currentSignedDoc,
@@ -94,6 +95,7 @@ import {
   type TestemunhasCaptacao,
 } from "@/lib/exclusive-clicksign";
 import { TestemunhasAutomaticas } from "@/components/exclusividades/TestemunhasAutomaticas";
+import { ContratoSemCreci } from "@/components/exclusividades/ContratoSemCreci";
 import { ClicksignEnvio } from "@/components/exclusividades/ClicksignEnvio";
 import { OwnerBlocks } from "@/components/exclusividades/OwnerBlocks";
 import { useCaptureAutosave } from "@/components/exclusividades/useCaptureAutosave";
@@ -649,7 +651,13 @@ function ExclusiveDetail() {
     // com nome e CPF do corretor e do gestor (RG em branco). Senão, as digitadas, como antes.
     const tw = await testemunhasCaptacao(supabase as unknown as SupabaseClient, id);
     setTestemunhas(tw);
-    const autoTw = usarTestemunhasAuto(tw);
+    // Captador sem CRECI (t_e75b58c5): bloco corretor = gestor/TL com CRECI; sem ele, não gera
+    // (lança com o motivo). Com CRECI: o captador, como antes.
+    const bloco = blocoCorretorContrato(tw, { nome: capture.broker_name, cpf, creci });
+    const semCreci = !creci.trim();
+    // Sem CRECI as testemunhas (captador + digitada) são sempre registradas no PDF, com ou sem
+    // Clicksign: o banco só aceita o envio com o PDF que tem o corretor do contrato atual.
+    const autoTw = semCreci || usarTestemunhasAuto(tw);
     // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
     const source = contractSource(capture, units);
     let bytes = await fillExclusiveTemplate(
@@ -657,8 +665,7 @@ function ExclusiveDetail() {
       {
         ...capture,
         form_data: testemunhasParaPdf(saved, tw),
-        broker_cpf: cpf,
-        broker_creci: creci,
+        ...bloco,
       },
       true,
       hojeSaoPaulo(),
@@ -674,8 +681,9 @@ function ExclusiveDetail() {
         totalSemanas: semanasInfo.total,
         // Até 2: "A e B" (igual a antes). 3+: "A, B e mais N" (a lista completa está no contrato).
         ownerNames: [ownerNamesSummary(saved)],
-        brokerName: capture.broker_name,
-        brokerCreci: creci,
+        // Mesmo corretor do contrato (sem CRECI do captador: o gestor/TL com CRECI).
+        brokerName: bloco.broker_name,
+        brokerCreci: bloco.broker_creci,
         property: {
           tipo: saved.imovel.tipo_imovel,
           endereco: [saved.imovel.endereco, saved.imovel.complemento].filter(Boolean).join(" - "),
@@ -1911,10 +1919,11 @@ function ExclusiveDetail() {
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2">
               {field("CPF do captador", cpf, (v) => updateBroker("cpf", v), true)}
-              {field("CRECI do captador", creci, (v) => updateBroker("creci", v), true)}
+              {field("CRECI do captador", creci, (v) => updateBroker("creci", v))}
               <p className="text-xs text-muted-foreground sm:col-span-2">
                 Dados carregados de Meu acesso; preencha aqui se o perfil ainda não estiver
-                completo.
+                completo. Sem CRECI, o contrato sai com um gestor ou team leader com CRECI e o
+                captador assina como testemunha.
               </p>
             </CardContent>
           </Card>
@@ -2033,7 +2042,24 @@ function ExclusiveDetail() {
               )}
             </CardContent>
           </Card>
-          {testemunhas?.aplica && !manual ? (
+          {testemunhas?.modo === "sem_creci" && !manual && !creci.trim() ? (
+            <Card data-testid="card-contrato-sem-creci">
+              <CardHeader>
+                <CardTitle>Corretor no contrato e testemunhas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContratoSemCreci
+                  db={supabase as unknown as SupabaseClient}
+                  captureId={capture.id}
+                  testemunhas={testemunhas}
+                  podeTrocar={
+                    !archived && ["rascunho", "devolvida", "enviada"].includes(capture.status)
+                  }
+                  onChange={setTestemunhas}
+                />
+              </CardContent>
+            </Card>
+          ) : testemunhas?.aplica && !manual ? (
             <Card data-testid="card-testemunhas-auto">
               <CardHeader>
                 <CardTitle>Testemunhas</CardTitle>
