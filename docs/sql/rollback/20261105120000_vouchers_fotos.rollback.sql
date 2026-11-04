@@ -10,15 +10,6 @@
 
 DROP TRIGGER IF EXISTS trg_zz_photo_vouchers ON public.exclusive_captures;
 
--- Tabelas primeiro (as políticas de RLS dependem das funções photo_eh_*).
-DELETE FROM public.notifications WHERE tipo IN ('foto_marcada', 'foto_confirmada', 'foto_recusada', 'foto_desmarcada');
-DROP TABLE IF EXISTS public.photo_history;
-DROP TABLE IF EXISTS public.photo_penalidades;
-DROP TABLE IF EXISTS public.photo_sessions;
-DROP TABLE IF EXISTS public.photo_agenda;
-DROP TABLE IF EXISTS public.photo_vouchers;
-DROP TABLE IF EXISTS public.photo_settings;
-
 DROP FUNCTION IF EXISTS public.photo_marcar_cobrado(uuid, boolean);
 DROP FUNCTION IF EXISTS public.photo_marcar_feita(uuid);
 DROP FUNCTION IF EXISTS public.photo_aviso_para_envio(uuid, text);
@@ -50,6 +41,16 @@ DROP FUNCTION IF EXISTS public.photo_captacoes_assinadas(uuid, uuid, date);
 DROP FUNCTION IF EXISTS public.photo_hoje();
 DROP FUNCTION IF EXISTS public.photo_voucher_vencimento(date);
 DROP FUNCTION IF EXISTS public.photo_org_ativa();
+-- Tabelas depois das RPCs (funções com parâmetro do tipo da linha dependem delas) e antes de
+-- photo_eh_*/photo_modulo_ligado (as políticas de RLS dependem dessas funções).
+DELETE FROM public.notifications WHERE tipo IN ('foto_marcada', 'foto_confirmada', 'foto_recusada', 'foto_desmarcada');
+DROP TABLE IF EXISTS public.photo_history;
+DROP TABLE IF EXISTS public.photo_penalidades;
+DROP TABLE IF EXISTS public.photo_sessions;
+DROP TABLE IF EXISTS public.photo_agenda;
+DROP TABLE IF EXISTS public.photo_vouchers;
+DROP TABLE IF EXISTS public.photo_settings;
+
 DROP FUNCTION IF EXISTS public.photo_eh_financeiro(uuid);
 DROP FUNCTION IF EXISTS public.photo_eh_admin(uuid);
 DROP FUNCTION IF EXISTS public.photo_eh_fotografo(uuid, uuid);
