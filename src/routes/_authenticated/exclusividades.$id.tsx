@@ -1393,7 +1393,14 @@ function ExclusiveDetail() {
   const signedDoc = currentSigned ?? undefined;
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
-  const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager, !!currentSigned);
+  // Só com o assinado anexado (t_77132312), mesmo critério do banco (exclusive_tem_assinado_valido):
+  // fluxo normal = assinado válido (depois do gerado); manual = qualquer assinado de papel anexado.
+  const podeInformarData = podeCaptadorInformarData(
+    capture,
+    user?.id,
+    manager,
+    manual ? docs.some((d) => d.kind === "assinado") : !!currentSigned,
+  );
   const dicaDataPdf =
     !manual && currentSigned ? (
       <p className="text-xs" data-testid="data-lida-pdf">
