@@ -105,6 +105,7 @@ import {
 import { infoNascimentoDoUsuario, salvarDataNascimentoDoUsuario } from "@/lib/data-nascimento-db";
 import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
 
 type AdminUser = Pick<
   ProfileRow,
@@ -1293,7 +1294,7 @@ function EditUserDialog({
           email,
           telefone,
           cpf: cpf || null,
-          creci: creci || null,
+          creci: creciReal(creci), // só zeros = sem CRECI (t_77132312)
           remax_id: remaxId || null,
           participa_sessenta: participa,
           motivo: requireReason ? motivo.trim() : null,
@@ -1384,6 +1385,14 @@ function EditUserDialog({
             maxLength={50}
             onChange={(e) => setCreci(e.target.value)}
           />
+          {creciSoZeros(creci) && (
+            <p
+              className="mt-1 text-xs text-amber-700 dark:text-amber-400"
+              data-testid="eu-creci-zeros"
+            >
+              {CRECI_SO_ZEROS_AVISO}. Ao salvar, fica em branco.
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor="eu-remax-id">ID RE/MAX</Label>

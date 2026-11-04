@@ -11,6 +11,7 @@ import type {
   UnitField,
 } from "./exclusive-captures";
 import { normalizeForm } from "./exclusive-captures";
+import { creciReal } from "./exclusive-captures-ocr";
 import type { PayloadCorrecao } from "./captacao-correcao";
 import { storageOrganizationPath } from "./storage-org";
 
@@ -100,7 +101,8 @@ export async function saveCapture(id: string, form: CaptureForm, cpf: string, cr
     _id: id,
     _form: form,
     _broker_cpf: cpf,
-    _broker_creci: creci,
+    // Só zeros (ex.: 0000000000) não é CRECI: grava vazio (t_77132312).
+    _broker_creci: creciReal(creci) ?? "",
   });
   check(error);
 }

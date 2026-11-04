@@ -69,7 +69,14 @@ import {
   type PropertyField,
   type TermsField,
 } from "@/lib/exclusive-captures";
-import { suggestFromLocalFile, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
+import {
+  CRECI_SO_ZEROS_AVISO,
+  creciReal,
+  creciSoZeros,
+  suggestFromLocalFile,
+  validCpf,
+  validCreci,
+} from "@/lib/exclusive-captures-ocr";
 import { fieldsFromDocument, isAiReadableKind } from "@/lib/exclusive-captures-ai";
 import { AI_TIMEOUT_MESSAGE } from "@/lib/ai-timeout";
 import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-indisponivel";
@@ -83,6 +90,8 @@ import {
 } from "@/lib/captacao-remover-documento.functions";
 import {
   blocoCorretorContrato,
+  bloqueioTestemunhasProprietario,
+  cpfsProprietarios,
   clicksignCaptureSigned,
   clicksignManualInstructions,
   currentSignedDoc,
@@ -654,10 +663,14 @@ function ExclusiveDetail() {
     // Captador sem CRECI (t_e75b58c5): bloco corretor = gestor/TL com CRECI; sem ele, não gera
     // (lança com o motivo). Com CRECI: o captador, como antes.
     const bloco = blocoCorretorContrato(tw, { nome: capture.broker_name, cpf, creci });
-    const semCreci = !creci.trim();
+    const semCreci = !creciReal(creci);
     // Sem CRECI as testemunhas (captador + digitada) são sempre registradas no PDF, com ou sem
     // Clicksign: o banco só aceita o envio com o PDF que tem o corretor do contrato atual.
-    const autoTw = semCreci || usarTestemunhasAuto(tw);
+    // Captador também proprietário (t_77132312): não é testemunha; as duas digitadas, completas, ou
+    // não gera (lança com o motivo).
+    const motivoProp = bloqueioTestemunhasProprietario(tw);
+    if (motivoProp) throw new Error(motivoProp);
+    const autoTw = semCreci || !!tw?.captadorProprietario || usarTestemunhasAuto(tw);
     // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
     const source = contractSource(capture, units);
     let bytes = await fillExclusiveTemplate(
@@ -1029,7 +1042,8 @@ function ExclusiveDetail() {
   if (dossieMissing && !manual) missing.push(planoFaltaTexto);
   if (cpf.trim() && !validCpf(cpf.trim()))
     missing.push("CPF do captador inválido (dígitos verificadores)");
-  if (creci.trim() && !validCreci(creci))
+  // Só zeros (ex.: 0000000000) não é CRECI (t_77132312): avisa no campo, não bloqueia (vale "sem CRECI").
+  if (creci.trim() && !creciSoZeros(creci) && !validCreci(creci))
     missing.push(
       "CRECI inválido (4 a 50 caracteres, letras, números, espaço, ponto, barra ou hífen)",
     );
@@ -1379,7 +1393,14 @@ function ExclusiveDetail() {
   const signedDoc = currentSigned ?? undefined;
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
-  const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);
+  // Só com o assinado anexado (t_77132312), mesmo critério do banco (exclusive_tem_assinado_valido):
+  // fluxo normal = assinado válido (depois do gerado); manual = qualquer assinado de papel anexado.
+  const podeInformarData = podeCaptadorInformarData(
+    capture,
+    user?.id,
+    manager,
+    manual ? docs.some((d) => d.kind === "assinado") : !!currentSigned,
+  );
   const dicaDataPdf =
     !manual && currentSigned ? (
       <p className="text-xs" data-testid="data-lida-pdf">
@@ -1920,6 +1941,14 @@ function ExclusiveDetail() {
             <CardContent className="grid gap-3 sm:grid-cols-2">
               {field("CPF do captador", cpf, (v) => updateBroker("cpf", v), true)}
               {field("CRECI do captador", creci, (v) => updateBroker("creci", v))}
+              {creciSoZeros(creci) && (
+                <p
+                  className="text-xs text-amber-700 dark:text-amber-400 sm:col-span-2"
+                  data-testid="aviso-creci-zeros"
+                >
+                  {CRECI_SO_ZEROS_AVISO}. Assim, o contrato sai como captador sem CRECI.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground sm:col-span-2">
                 Dados carregados de Meu acesso; preencha aqui se o perfil ainda não estiver
                 completo. Sem CRECI, o contrato sai com um gestor ou team leader com CRECI e o
@@ -2042,7 +2071,10 @@ function ExclusiveDetail() {
               )}
             </CardContent>
           </Card>
-          {testemunhas?.modo === "sem_creci" && !manual && !creci.trim() ? (
+          {testemunhas &&
+          !manual &&
+          ((testemunhas.modo === "sem_creci" && !creciReal(creci)) ||
+            testemunhas.captadorProprietario) ? (
             <Card data-testid="card-contrato-sem-creci">
               <CardHeader>
                 <CardTitle>Corretor no contrato e testemunhas</CardTitle>
@@ -2052,6 +2084,7 @@ function ExclusiveDetail() {
                   db={supabase as unknown as SupabaseClient}
                   captureId={capture.id}
                   testemunhas={testemunhas}
+                  donos={cpfsProprietarios(form as unknown as Record<string, unknown>)}
                   podeTrocar={
                     !archived && ["rascunho", "devolvida", "enviada"].includes(capture.status)
                   }

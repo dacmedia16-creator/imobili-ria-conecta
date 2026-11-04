@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -16,14 +15,15 @@ import {
   candidatosContrato,
   escolherCorretorContrato,
   rotuloTestemunha,
-  salvarTestemunha2Manual,
-  testemunhaManualErros,
   type CandidatoContrato,
-  type TestemunhaManual,
   type TestemunhasCaptacao,
 } from "@/lib/exclusive-clicksign";
+import { TestemunhaDigitadaForm } from "@/components/exclusividades/TestemunhaDigitadaForm";
 
 /**
+ * Também usado quando o captador é PROPRIETÁRIO (t_77132312, com ou sem CRECI): as duas testemunhas
+ * são digitadas; o bloco "corretor do contrato" só aparece sem CRECI.
+ *
  * Captador SEM CRECI (t_e75b58c5): o bloco "corretor" do contrato sai com um gestor/TL com CRECI
  * (padrão: líder da equipe; quem gere pode trocar), o captador assina só como testemunha 1 e a
  * testemunha 2 é digitada aqui. O banco valida tudo de novo. A captação continua do captador.
@@ -33,12 +33,15 @@ export function ContratoSemCreci({
   captureId,
   testemunhas,
   podeTrocar,
+  donos = [],
   onChange,
 }: {
   db: SupabaseClient;
   captureId: string;
   testemunhas: TestemunhasCaptacao;
   podeTrocar: boolean;
+  /** CPFs dos proprietários (parte do contrato não é testemunha, t_77132312). */
+  donos?: string[];
   onChange: (t: TestemunhasCaptacao | null) => void;
 }) {
   const t = testemunhas;
@@ -46,21 +49,10 @@ export function ContratoSemCreci({
   const [lista, setLista] = useState<CandidatoContrato[] | null>(null);
   const [escolha, setEscolha] = useState("");
   const [busy, setBusy] = useState(false);
-  const vazio: TestemunhaManual = { nome: "", cpf: "", email: "" };
-  const [m, setM] = useState<TestemunhaManual>(t.manual ?? vazio);
-  const [tocado, setTocado] = useState(false);
-
   useEffect(() => {
     setLista(null);
     setEscolha("");
   }, [captureId, t.contrato?.id]);
-  // Recarrega o formulário só quando o valor gravado muda (não a cada novo objeto da resposta).
-  const salvo = JSON.stringify(t.manual ?? null);
-  useEffect(() => {
-    setM((JSON.parse(salvo) as TestemunhaManual | null) ?? { nome: "", cpf: "", email: "" });
-    setTocado(false);
-  }, [captureId, salvo]);
-
   const acao = async (fn: () => Promise<TestemunhasCaptacao | null>, ok: string, erro: string) => {
     setBusy(true);
     try {
@@ -93,85 +85,99 @@ export function ContratoSemCreci({
     )
       setLista(null);
   };
-  const erros = testemunhaManualErros(m, t);
-  const mudou =
-    m.nome !== (t.manual?.nome ?? "") ||
-    m.cpf !== (t.manual?.cpf ?? "") ||
-    m.email !== (t.manual?.email ?? "");
-
   const c = t.contrato;
+  const prop = !!t.captadorProprietario;
+  const semCreci = t.modo === "sem_creci";
   return (
     <div className="space-y-3 text-sm" data-testid="contrato-sem-creci">
       <p
         role="note"
         className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sky-900"
-        data-testid="aviso-sem-creci"
+        data-testid={semCreci ? "aviso-sem-creci" : "aviso-captador-proprietario"}
       >
-        O captador não tem CRECI: no contrato, o corretor será um gestor ou team leader com CRECI. O
-        captador assina só como testemunha 1. No sistema a captação continua dele.
+        {semCreci &&
+          "O captador não tem CRECI: no contrato, o corretor será um gestor ou team leader com CRECI. "}
+        {prop
+          ? "O captador também é proprietário deste imóvel: assina como proprietário e não pode ser testemunha, então as duas testemunhas são digitadas."
+          : "O captador assina só como testemunha 1."}{" "}
+        No sistema a captação continua dele.
       </p>
-      <div className="space-y-1 rounded-md border p-3" data-testid="contrato-corretor">
-        <p className="font-medium">Corretor no contrato</p>
-        <p>
-          {c
-            ? `${c.nome || "sem nome no cadastro"}${c.creci ? ` · CRECI ${c.creci}` : ""} (${
-                c.origem === "escolhido" ? "escolhido" : "gestor da equipe"
-              })${c.ok ? "" : ` — falta ${c.falta.join(", ")}`}`
-            : "Não definido"}
-        </p>
-        {gerir &&
-          (lista === null ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void abrirLista()}>
-                {c ? "Trocar corretor do contrato" : "Escolher corretor do contrato"}
-              </Button>
-              {t.contratoEscolhido && t.gestorEquipe && (
+      {semCreci && (
+        <div className="space-y-1 rounded-md border p-3" data-testid="contrato-corretor">
+          <p className="font-medium">Corretor no contrato</p>
+          <p>
+            {c
+              ? `${c.nome || "sem nome no cadastro"}${c.creci ? ` · CRECI ${c.creci}` : ""} (${
+                  c.origem === "escolhido" ? "escolhido" : "gestor da equipe"
+                })${c.ok ? "" : ` — falta ${c.falta.join(", ")}`}`
+              : "Não definido"}
+          </p>
+          {gerir &&
+            (lista === null ? (
+              <div className="flex flex-wrap gap-2 pt-1">
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   disabled={busy}
-                  onClick={() => void escolher(null)}
+                  onClick={() => void abrirLista()}
                 >
-                  Voltar para o gestor da equipe ({t.gestorEquipe.nome})
+                  {c ? "Trocar corretor do contrato" : "Escolher corretor do contrato"}
                 </Button>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-end gap-2 pt-1">
-              <div className="space-y-1">
-                <Label htmlFor="contrato-corretor-escolha">Gestor ou team leader com CRECI</Label>
-                <Select value={escolha} onValueChange={setEscolha}>
-                  <SelectTrigger id="contrato-corretor-escolha" className="w-72 max-w-full">
-                    <SelectValue
-                      placeholder={
-                        lista.length ? "Escolha" : "Ninguém disponível nesta imobiliária"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {lista.map((p) => (
-                      <SelectItem key={p.id} value={p.id} disabled={!p.ok}>
-                        {p.nome}
-                        {p.creci ? ` · CRECI ${p.creci}` : ""}
-                        {p.daEquipe ? " (líder da equipe)" : ""}
-                        {p.ok ? "" : ` — falta ${p.falta ?? "cadastro"}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {t.contratoEscolhido && t.gestorEquipe && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void escolher(null)}
+                  >
+                    Voltar para o gestor da equipe ({t.gestorEquipe.nome})
+                  </Button>
+                )}
               </div>
-              <Button size="sm" disabled={busy || !escolha} onClick={() => void escolher(escolha)}>
-                Usar no contrato
-              </Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setLista(null)}>
-                Cancelar
-              </Button>
-            </div>
-          ))}
-      </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-2 pt-1">
+                <div className="space-y-1">
+                  <Label htmlFor="contrato-corretor-escolha">Gestor ou team leader com CRECI</Label>
+                  <Select value={escolha} onValueChange={setEscolha}>
+                    <SelectTrigger id="contrato-corretor-escolha" className="w-72 max-w-full">
+                      <SelectValue
+                        placeholder={
+                          lista.length ? "Escolha" : "Ninguém disponível nesta imobiliária"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lista.map((p) => (
+                        <SelectItem key={p.id} value={p.id} disabled={!p.ok}>
+                          {p.nome}
+                          {p.creci ? ` · CRECI ${p.creci}` : ""}
+                          {p.daEquipe ? " (líder da equipe)" : ""}
+                          {p.ok ? "" : ` — falta ${p.falta ?? "cadastro"}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={busy || !escolha}
+                  onClick={() => void escolher(escolha)}
+                >
+                  Usar no contrato
+                </Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => setLista(null)}>
+                  Cancelar
+                </Button>
+              </div>
+            ))}
+        </div>
+      )}
       <ul className="space-y-1">
         <li data-testid="testemunha-1">
-          {rotuloTestemunha(t.corretor, "Testemunha 1 (captador)")}
+          {rotuloTestemunha(
+            t.corretor,
+            prop ? "Testemunha 1 (digitada)" : "Testemunha 1 (captador)",
+          )}
         </li>
         <li data-testid="testemunha-2">
           {t.gestor
@@ -179,58 +185,31 @@ export function ContratoSemCreci({
             : "Testemunha 2: não informada"}
         </li>
       </ul>
+      {gerir && prop && (
+        <TestemunhaDigitadaForm
+          db={db}
+          captureId={captureId}
+          qual={1}
+          testemunhas={t}
+          donos={donos}
+          dica="Não pode ser proprietário do imóvel nem o corretor do contrato. O nome e o CPF saem no PDF (RG em branco)."
+          onChange={onChange}
+        />
+      )}
       {gerir && (
-        <form
-          className="grid gap-2 rounded-md border p-3 sm:grid-cols-3"
-          data-testid="testemunha-2-manual"
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault();
-            setTocado(true);
-            if (erros.length) return;
-            void acao(
-              () => salvarTestemunha2Manual(db, captureId, m),
-              "Testemunha 2 salva.",
-              "Não foi possível salvar a testemunha 2",
-            );
-          }}
-        >
-          <p className="font-medium sm:col-span-3">Testemunha 2 (digite)</p>
-          {(
-            [
-              ["nome", "Nome completo", "text"],
-              ["cpf", "CPF", "text"],
-              ["email", "E-mail (recebe o link da Clicksign)", "email"],
-            ] as const
-          ).map(([k, label, type]) => (
-            <div key={k} className="space-y-1">
-              <Label htmlFor={`t2-${k}`}>{label}</Label>
-              <Input
-                id={`t2-${k}`}
-                type={type}
-                inputMode={k === "cpf" ? "numeric" : undefined}
-                maxLength={k === "email" ? 254 : k === "cpf" ? 14 : 200}
-                value={m[k]}
-                disabled={busy}
-                onChange={(e) => setM((cur) => ({ ...cur, [k]: e.target.value }))}
-              />
-            </div>
-          ))}
-          {tocado && erros.length > 0 && (
-            <p role="alert" className="text-amber-900 sm:col-span-3">
-              Falta: {erros.join(", ")}.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2 sm:col-span-3">
-            <Button type="submit" size="sm" disabled={busy || !mudou}>
-              Salvar testemunha 2
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground sm:col-span-3">
-            Não pode ser o captador nem o corretor do contrato. O nome e o CPF saem no PDF (RG em
-            branco).
-          </p>
-        </form>
+        <TestemunhaDigitadaForm
+          db={db}
+          captureId={captureId}
+          qual={2}
+          testemunhas={t}
+          donos={donos}
+          dica={
+            prop
+              ? "Não pode ser proprietário, a testemunha 1 nem o corretor do contrato. O nome e o CPF saem no PDF (RG em branco)."
+              : "Não pode ser o captador, proprietário nem o corretor do contrato. O nome e o CPF saem no PDF (RG em branco)."
+          }
+          onChange={onChange}
+        />
       )}
       {t.problemas.length > 0 && (
         <ul
@@ -245,7 +224,8 @@ export function ContratoSemCreci({
       )}
       {gerir && t.pdfGerado && (
         <p className="text-xs text-muted-foreground">
-          Trocar o corretor do contrato ou a testemunha 2 exige gerar o PDF para assinatura de novo.
+          Trocar o corretor do contrato ou uma testemunha digitada exige gerar o PDF para assinatura
+          de novo.
         </p>
       )}
     </div>

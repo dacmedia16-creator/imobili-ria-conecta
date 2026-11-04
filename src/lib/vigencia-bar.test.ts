@@ -5,7 +5,8 @@ import { captureValidity, validityElapsedPct, type Capture } from "./exclusive-c
 import { VigenciaBar } from "../components/exclusividades/VigenciaBar";
 
 const form = { condicoes: { prazo_dias_numero: "180" } } as unknown as Capture["form_data"];
-const v = (today: string) => captureValidity({ signed_on: "2026-10-01", form_data: form }, today)!;
+const v = (today: string) =>
+  captureValidity({ status: "aprovada", signed_on: "2026-10-01", form_data: form }, today)!;
 const html = (today: string, compact = false) =>
   renderToStaticMarkup(React.createElement(VigenciaBar, { v: v(today), compact }));
 const text = (h: string) => h.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
@@ -42,6 +43,8 @@ describe("barra de Vigência", () => {
   });
 
   it("sem assinatura não há vigência (card não mostra barra)", () => {
-    expect(captureValidity({ signed_on: null, form_data: form }, "2026-10-08")).toBeNull();
+    expect(
+      captureValidity({ status: "aprovada", signed_on: null, form_data: form }, "2026-10-08"),
+    ).toBeNull();
   });
 });

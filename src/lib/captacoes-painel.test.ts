@@ -80,16 +80,22 @@ describe("campo de data de assinatura do captador", () => {
   const cap = (status: string, extra: Record<string, unknown> = {}) =>
     ({ status, captor_id: "u1", archived_at: null, ...extra }) as never;
   it("aparece para o próprio captador antes da aprovação", () => {
-    expect(podeCaptadorInformarData(cap("enviada"), "u1", false)).toBe(true);
-    expect(podeCaptadorInformarData(cap("em_assinatura"), "u1", false)).toBe(true);
+    expect(podeCaptadorInformarData(cap("enviada"), "u1", false, true)).toBe(true);
+    expect(podeCaptadorInformarData(cap("em_assinatura"), "u1", false, true)).toBe(true);
   });
   it("some depois de aprovada, para outro corretor, gestor, rascunho ou arquivada", () => {
-    expect(podeCaptadorInformarData(cap("aprovada"), "u1", false)).toBe(false);
-    expect(podeCaptadorInformarData(cap("enviada"), "u2", false)).toBe(false);
-    expect(podeCaptadorInformarData(cap("enviada"), "u1", true)).toBe(false);
-    expect(podeCaptadorInformarData(cap("rascunho"), "u1", false)).toBe(false);
-    expect(podeCaptadorInformarData(cap("enviada", { archived_at: "x" }), "u1", false)).toBe(false);
-    expect(podeCaptadorInformarData(cap("enviada"), undefined, false)).toBe(false);
+    expect(podeCaptadorInformarData(cap("aprovada"), "u1", false, true)).toBe(false);
+    expect(podeCaptadorInformarData(cap("enviada"), "u2", false, true)).toBe(false);
+    expect(podeCaptadorInformarData(cap("enviada"), "u1", true, true)).toBe(false);
+    expect(podeCaptadorInformarData(cap("rascunho"), "u1", false, true)).toBe(false);
+    expect(podeCaptadorInformarData(cap("enviada", { archived_at: "x" }), "u1", false, true)).toBe(
+      false,
+    );
+    expect(podeCaptadorInformarData(cap("enviada"), undefined, false, true)).toBe(false);
+  });
+  it("não aparece sem o contrato assinado anexado (t_77132312)", () => {
+    expect(podeCaptadorInformarData(cap("enviada"), "u1", false, false)).toBe(false);
+    expect(podeCaptadorInformarData(cap("em_assinatura"), "u1", false, false)).toBe(false);
   });
 });
 
