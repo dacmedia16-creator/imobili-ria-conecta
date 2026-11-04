@@ -101,7 +101,11 @@ DECLARE v_owner text;
 BEGIN
   SELECT pg_get_userbyid(proowner) INTO v_owner FROM pg_proc
    WHERE oid = 'public.sincronizar_ocorrencia_antes_financeiro(uuid)'::regprocedure;
+  -- Mesmo padrão das migrations anteriores (ex.: 20261029200000): CREATE temporário só para o ALTER OWNER,
+  -- revogado em seguida (em produção o dono não tem CREATE no schema public; t_cd2adcf5).
+  EXECUTE format('GRANT CREATE ON SCHEMA public TO %I', v_owner);
   EXECUTE format('ALTER FUNCTION public.sincronizar_comissao_ocorrencia_em_analise(uuid) OWNER TO %I', v_owner);
+  EXECUTE format('REVOKE CREATE ON SCHEMA public FROM %I', v_owner);
 END $$;
 REVOKE ALL ON FUNCTION public.sincronizar_comissao_ocorrencia_em_analise(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sincronizar_comissao_ocorrencia_em_analise(uuid) TO service_role;
