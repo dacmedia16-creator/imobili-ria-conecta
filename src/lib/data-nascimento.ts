@@ -8,6 +8,21 @@
  * (RPCs por pessoa). Colegas continuam vendo só dia/mês no Mural de Conquistas.
  */
 export const DATA_NASCIMENTO_MIN = "1900-01-01";
+
+/**
+ * "Você comemora aniversário?" (t_2d5f0ab6, pedido de Denis em 04/11/2026). Aparece junto da data,
+ * sempre com uma resposta marcada (padrão "Sim"). "Não" tira a pessoa dos Aniversariantes do mês e
+ * de qualquer parabéns de aniversário; a data continua visível para ela e para a gestão.
+ */
+export const PERGUNTA_COMEMORA = "Você comemora aniversário?";
+export const PERGUNTA_COMEMORA_GESTAO = "A pessoa comemora aniversário?";
+export const COMEMORA_PADRAO = true;
+
+/** "Sim" / "Não" / "" (sem data cadastrada = sem escolha). */
+export function textoComemora(v: boolean | null | undefined): string {
+  if (v == null) return "";
+  return v ? "Sim" : "Não";
+}
 export const IDADE_MINIMA = 16;
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;

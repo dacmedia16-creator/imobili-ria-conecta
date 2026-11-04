@@ -14,11 +14,13 @@ import {
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
 import { storageOrganizationPath } from "@/lib/storage-org";
 import {
+  COMEMORA_PADRAO,
   DATA_NASCIMENTO_MIN,
   dataNascimentoMaxima,
   erroCampoDataNascimento,
 } from "@/lib/data-nascimento";
-import { minhaDataNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import { minhaInfoNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
 import {
   CAMPO_LABEL,
   camposFaltando,
@@ -83,6 +85,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
   /** Data já gravada (AAAA-MM-DD) ou null. Falha ao ler = null (o campo aparece, não trava ninguém). */
   const [nascimento, setNascimento] = useState<string | null>(null);
   const [nascimentoLido, setNascimentoLido] = useState(false);
+  const [comemora, setComemora] = useState(COMEMORA_PADRAO);
   const userId = user?.id;
   const createdAt = user?.created_at;
   const forcar =
@@ -118,7 +121,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
             .maybeSingle(),
           profileRegistrations(),
           // undefined = não deu para ler (nunca trava por isso); null = sem data gravada.
-          minhaDataNascimento(userId).catch(() => undefined),
+          minhaInfoNascimento(userId).catch(() => undefined),
         ]);
         if (error || !data) throw error ?? new Error("perfil não encontrado");
         const meu = registros.find((r) => r.user_id === userId);
@@ -131,7 +134,8 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
         };
         if (!vivo) return;
         setPerfil(p);
-        setNascimento(dataNasc ?? null);
+        setNascimento(dataNasc?.data ?? null);
+        setComemora(dataNasc?.comemora ?? COMEMORA_PADRAO);
         setNascimentoLido(dataNasc !== undefined);
         const modo = modoCompletarPerfil({
           roles,
@@ -141,7 +145,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
           createdAt,
           forcar,
           perfil: p,
-          semDataNascimento: dataNasc === null,
+          semDataNascimento: dataNasc !== undefined && dataNasc.data === null,
         });
         if (modo === "obrigatorio") setEstado("completar");
         else if (modo === "lembrete" && !lerAdiado(userId, sessaoAtual)) setEstado("lembrete");
@@ -164,6 +168,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
       <CompletarPerfilTela
         perfil={perfil}
         nascimento={nascimento}
+        comemoraSalvo={comemora}
         nascimentoObrigatorio={nascimentoLido && !nascimento}
         onConcluir={() => setEstado("liberado")}
       />
@@ -174,6 +179,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
       <CompletarPerfilTela
         perfil={perfil}
         nascimento={nascimento}
+        comemoraSalvo={comemora}
         onConcluir={() => setEstado("liberado")}
         onAgoraNao={() => {
           gravarAdiado(userId, sessaoAtual);
@@ -188,6 +194,7 @@ export function CompletarPerfilGate({ children }: { children: ReactNode }) {
 function CompletarPerfilTela({
   perfil,
   nascimento,
+  comemoraSalvo = COMEMORA_PADRAO,
   nascimentoObrigatorio = false,
   onConcluir,
   onAgoraNao,
@@ -195,6 +202,8 @@ function CompletarPerfilTela({
   perfil: PerfilParaCompletar;
   /** Data de nascimento já gravada (AAAA-MM-DD) ou null. */
   nascimento: string | null;
+  /** "Comemora aniversário?" já gravado (padrão Sim). */
+  comemoraSalvo?: boolean;
   /** Só na tela obrigatória (conta nova) de quem ainda não tem data. No lembrete, sempre opcional. */
   nascimentoObrigatorio?: boolean;
   onConcluir: () => void;
@@ -208,6 +217,7 @@ function CompletarPerfilTela({
   const [creci, setCreci] = useState(perfil.creci ?? "");
   const [remaxId, setRemaxId] = useState("");
   const [dataNasc, setDataNasc] = useState(nascimento ?? "");
+  const [comemora, setComemora] = useState(comemoraSalvo);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(perfil.avatar_url);
   const [foto, setFoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -285,7 +295,8 @@ function CompletarPerfilTela({
     try {
       // Data primeiro: o banco valida de novo (1900..hoje, 16 anos); se recusar, nada mais é gravado.
       const nasc = dataNasc.trim();
-      if (nasc && nasc !== (nascimento ?? "")) await salvarMinhaDataNascimento(nasc);
+      if (nasc && (nasc !== (nascimento ?? "") || comemora !== comemoraSalvo))
+        await salvarMinhaDataNascimento(nasc, comemora);
       let url = avatarUrl;
       if (foto) {
         // Mesmo caminho e bucket da tela "Meu acesso".
@@ -466,6 +477,9 @@ function CompletarPerfilTela({
             data-testid="cp-nascimento"
           />
         </Campo>
+        {dataNasc.trim() && (
+          <ComemoraAniversarioCampo id="cp-comemora" value={comemora} onChange={setComemora} />
+        )}
         <Campo
           id="cp-remax"
           label="ID RE/MAX (opcional)"

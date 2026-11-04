@@ -25,6 +25,7 @@ import {
   textoPendencias,
   type Colaborador,
 } from "@/lib/ficha-colaborador";
+import { textoComemora } from "@/lib/data-nascimento";
 
 const VAZIO = "—";
 const ou = (v: string | null | undefined) => (v && v.trim() ? v : VAZIO);
@@ -87,6 +88,9 @@ export function FichaColaboradorCard({
                 <Item rotulo="Papel">{ou(rotuloPapeis(c.papeis, labels))}</Item>
                 <Item rotulo="Equipe">{ou(c.equipes.join(", "))}</Item>
                 <Item rotulo="Nascimento">{ou(dataBr(c.data_nascimento))}</Item>
+                <Item rotulo="Comemora aniversário">
+                  {ou(textoComemora(c.comemora_aniversario))}
+                </Item>
                 <Item rotulo="Pendências do cadastro">
                   {c.cadastro_pendente.length ? (
                     <span className="text-amber-700 dark:text-amber-400">

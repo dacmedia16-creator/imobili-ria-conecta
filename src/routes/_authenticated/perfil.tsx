@@ -30,11 +30,13 @@ import { PageHeader } from "@/components/visual/base";
 import { MuralCelebrationPreference } from "@/components/mural/MuralCelebrationPreference";
 import { MeusDadosPagamento } from "@/components/vendas/DadosPagamento";
 import {
+  COMEMORA_PADRAO,
   DATA_NASCIMENTO_MIN,
   dataNascimentoMaxima,
   erroCampoDataNascimento,
 } from "@/lib/data-nascimento";
-import { minhaDataNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import { minhaInfoNascimento, salvarMinhaDataNascimento } from "@/lib/data-nascimento-db";
+import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
 import { MinhaFichaColaborador } from "@/components/ficha/MinhaFichaColaborador";
 import { agencyCity, loadAgencyProfile } from "@/lib/agency-profile";
 import { profileRegistrations } from "@/lib/exclusive-captures-db";
@@ -90,12 +92,14 @@ function MeuAcesso() {
   const [salvo, setSalvo] = useState({
     telefone: "",
     nascimento: null as string | null,
+    comemora: COMEMORA_PADRAO,
     cpf: "",
     creci: "",
     remaxId: "",
   });
   const [nascimento, setNascimento] = useState("");
   const [nascimentoLido, setNascimentoLido] = useState(false);
+  const [comemora, setComemora] = useState(COMEMORA_PADRAO);
   const [savingPessoais, setSavingPessoais] = useState(false);
   const [cpf, setCpf] = useState("");
   const [creci, setCreci] = useState("");
@@ -165,10 +169,11 @@ function MeuAcesso() {
           setRegistrationLoaded(true);
         })
         .catch(() => setRegistrationLoaded(false));
-      minhaDataNascimento(user.id)
-        .then((d) => {
+      minhaInfoNascimento(user.id)
+        .then(({ data: d, comemora: c }) => {
           setNascimento(d ?? "");
-          setSalvo((x) => ({ ...x, nascimento: d }));
+          setComemora(c);
+          setSalvo((x) => ({ ...x, nascimento: d, comemora: c }));
           setNascimentoLido(true);
         })
         .catch(() => setNascimentoLido(false));
@@ -266,7 +271,11 @@ function MeuAcesso() {
 
   const erroNascimento = nascimento ? erroCampoDataNascimento(nascimento, false) : null;
   const mudouTelefone = perfilPronto && telefone !== salvo.telefone;
-  const mudouNascimento = nascimentoLido && (nascimento.trim() || null) !== salvo.nascimento;
+  // A escolha "comemora?" só conta quando há data (sem data a linha nem existe no banco).
+  const mudouNascimento =
+    nascimentoLido &&
+    ((nascimento.trim() || null) !== salvo.nascimento ||
+      (Boolean(nascimento.trim()) && comemora !== salvo.comemora));
   const pessoaisAlterados = mudouTelefone || mudouNascimento;
   const mudouRegistro = registrationLoaded && (cpf !== salvo.cpf || creci !== salvo.creci);
   const mudouRemaxId = perfilPronto && remaxId !== salvo.remaxId;
@@ -295,12 +304,15 @@ function MeuAcesso() {
       if (mudouNascimento) {
         const nova = nascimento.trim() || null;
         try {
-          await salvarMinhaDataNascimento(nova);
+          await salvarMinhaDataNascimento(nova, comemora);
         } catch (e: unknown) {
           toast.error(e instanceof Error ? e.message : "Não foi possível salvar agora.");
           return;
         }
-        setSalvo((x) => ({ ...x, nascimento: nova }));
+        // Sem data a linha some no banco: a escolha volta ao padrão.
+        const c = nova ? comemora : COMEMORA_PADRAO;
+        if (!nova) setComemora(COMEMORA_PADRAO);
+        setSalvo((x) => ({ ...x, nascimento: nova, comemora: c }));
       }
       toast.success("Contato e aniversário salvos");
     } finally {
@@ -742,6 +754,16 @@ function MeuAcesso() {
                 Os colegas veem só o dia e o mês. O ano e a idade ficam só com você e a gestão da
                 imobiliária.
               </p>
+              {nascimento.trim() && (
+                <div className="mt-3">
+                  <ComemoraAniversarioCampo
+                    id="perfil-comemora"
+                    value={comemora}
+                    onChange={setComemora}
+                    disabled={!nascimentoLido}
+                  />
+                </div>
+              )}
             </div>
             <BarraSalvarSecao
               testId="perfil-salvar-contato"

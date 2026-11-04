@@ -34,6 +34,7 @@ import { FichaColaboradorForm } from "@/components/ficha/FichaColaboradorForm";
 
 const valido = (o: Partial<FichaForm> = {}): FichaForm => ({
   data_nascimento: "1990-05-17",
+  comemora_aniversario: true,
   qtd_filhos: "2",
   filhos_faixas: [],
   tem_plano_saude: "nao",
