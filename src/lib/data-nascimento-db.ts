@@ -35,6 +35,48 @@ export async function salvarMinhaDataNascimento(
   if (error) throw new Error(mensagemErroRpcNascimento(error));
 }
 
+/**
+ * Janela "Você comemora aniversário?" depois do login (t_05a37081): true só quando o banco confirma
+ * que a pessoa tem data e nunca respondeu. Qualquer erro (inclusive RPC ainda não publicada) = false:
+ * nunca pergunta nem trava por falha.
+ */
+export async function perguntaComemoraPendente(): Promise<boolean> {
+  try {
+    const { data, error } = await db.rpc("comemora_pergunta_pendente");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Sem resposta do banco nesse tempo = erro (a janela nunca fica presa). */
+export const TEMPO_LIMITE_RESPOSTA_COMEMORA_MS = 15000;
+
+/** Grava a resposta da janela e marca como respondida (não pergunta de novo). */
+export async function responderComemora(
+  comemora: boolean,
+  tempoLimiteMs: number = TEMPO_LIMITE_RESPOSTA_COMEMORA_MS,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const estouro = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(MSG_ERRO_RESPOSTA_COMEMORA)), tempoLimiteMs);
+  });
+  try {
+    const { error } = await Promise.race([
+      Promise.resolve(db.rpc("comemora_responder", { _comemora: comemora })),
+      estouro,
+    ]);
+    if (error) throw new Error(MSG_ERRO_RESPOSTA_COMEMORA);
+  } catch {
+    throw new Error(MSG_ERRO_RESPOSTA_COMEMORA);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export const MSG_ERRO_RESPOSTA_COMEMORA =
+  "Não foi possível salvar sua resposta agora. Você pode mudar depois em Meu acesso.";
+
 /** Gestão: lê data + escolha de UM usuário (o banco recusa quem não pode gerenciar esse usuário). */
 export async function infoNascimentoDoUsuario(userId: string): Promise<InfoNascimento> {
   const { data, error } = await db.rpc("profile_birthdate_info_for_user", { _user: userId });
