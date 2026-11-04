@@ -24,6 +24,7 @@ import {
   clicksignCaptureConfig,
   envelopeStatusLabel,
   reconcileClicksign,
+  cpfsProprietarios,
   sendDialogErrors,
   sendToClicksign,
   type ClicksignCaptureConfig,
@@ -252,9 +253,11 @@ export function ClicksignEnvio({
           <>
             <p className="text-sm text-muted-foreground">
               Assinam ao mesmo tempo, com código por e-mail: proprietário(s), imobiliária e 2{" "}
-              {testemunhas?.modo === "sem_creci"
-                ? "testemunhas (o captador, que não tem CRECI, e a testemunha 2 digitada)"
-                : "testemunhas (o corretor da captação e o gestor da equipe dele)"}
+              {testemunhas?.captadorProprietario
+                ? "testemunhas digitadas (o captador também é proprietário e assina como proprietário)"
+                : testemunhas?.modo === "sem_creci"
+                  ? "testemunhas (o captador, que não tem CRECI, e a testemunha 2 digitada)"
+                  : "testemunhas (o corretor da captação e o gestor da equipe dele)"}
               . Prazo: {config.deadline_days} dias. Quando todos assinarem, o PDF assinado é anexado
               sozinho; a aprovação continua manual.
             </p>
@@ -293,13 +296,16 @@ export function ClicksignEnvio({
               <legend className="text-sm font-medium">
                 {testemunhas?.modo === "sem_creci"
                   ? "Corretor no contrato e testemunhas"
-                  : "Testemunhas (automáticas)"}
+                  : testemunhas?.captadorProprietario
+                    ? "Testemunhas (digitadas)"
+                    : "Testemunhas (automáticas)"}
               </legend>
-              {testemunhas?.modo === "sem_creci" ? (
+              {testemunhas?.modo === "sem_creci" || testemunhas?.captadorProprietario ? (
                 <ContratoSemCreci
                   db={db}
                   captureId={captureId}
                   testemunhas={testemunhas}
+                  donos={cpfsProprietarios(form)}
                   podeTrocar={status === "enviada" && canStartEnvelope(envelope)}
                   onChange={onTestemunhas}
                 />

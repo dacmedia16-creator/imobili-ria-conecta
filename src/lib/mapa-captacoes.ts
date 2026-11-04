@@ -96,6 +96,7 @@ export const COR_CAPTACAO = "#7c3aed";
 function situacao(r: CaptacaoMapaRow, hoje: string): { s: Situation; v: Validity | null } {
   const v = captureValidity(
     {
+      status: r.status,
       signed_on: r.signed_on,
       form_data: { condicoes: { prazo_dias_numero: r.prazo_dias ?? "" } },
     } as Parameters<typeof captureValidity>[0],

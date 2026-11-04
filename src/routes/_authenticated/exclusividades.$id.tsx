@@ -90,6 +90,8 @@ import {
 } from "@/lib/captacao-remover-documento.functions";
 import {
   blocoCorretorContrato,
+  bloqueioTestemunhasProprietario,
+  cpfsProprietarios,
   clicksignCaptureSigned,
   clicksignManualInstructions,
   currentSignedDoc,
@@ -664,7 +666,11 @@ function ExclusiveDetail() {
     const semCreci = !creciReal(creci);
     // Sem CRECI as testemunhas (captador + digitada) são sempre registradas no PDF, com ou sem
     // Clicksign: o banco só aceita o envio com o PDF que tem o corretor do contrato atual.
-    const autoTw = semCreci || usarTestemunhasAuto(tw);
+    // Captador também proprietário (t_77132312): não é testemunha; as duas digitadas, completas, ou
+    // não gera (lança com o motivo).
+    const motivoProp = bloqueioTestemunhasProprietario(tw);
+    if (motivoProp) throw new Error(motivoProp);
+    const autoTw = semCreci || !!tw?.captadorProprietario || usarTestemunhasAuto(tw);
     // PDF decidido pela unidade agora (contrato-base com os dados dela ou PDF antigo).
     const source = contractSource(capture, units);
     let bytes = await fillExclusiveTemplate(
@@ -1387,7 +1393,7 @@ function ExclusiveDetail() {
   const signedDoc = currentSigned ?? undefined;
   // Captador informa a data da assinatura antes da aprovação (mesma regra de exclusive_set_signed_on);
   // o gestor já tem o campo no cartão de aprovação.
-  const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager);
+  const podeInformarData = podeCaptadorInformarData(capture, user?.id, manager, !!currentSigned);
   const dicaDataPdf =
     !manual && currentSigned ? (
       <p className="text-xs" data-testid="data-lida-pdf">
@@ -2058,7 +2064,10 @@ function ExclusiveDetail() {
               )}
             </CardContent>
           </Card>
-          {testemunhas?.modo === "sem_creci" && !manual && !creciReal(creci) ? (
+          {testemunhas &&
+          !manual &&
+          ((testemunhas.modo === "sem_creci" && !creciReal(creci)) ||
+            testemunhas.captadorProprietario) ? (
             <Card data-testid="card-contrato-sem-creci">
               <CardHeader>
                 <CardTitle>Corretor no contrato e testemunhas</CardTitle>
@@ -2068,6 +2077,7 @@ function ExclusiveDetail() {
                   db={supabase as unknown as SupabaseClient}
                   captureId={capture.id}
                   testemunhas={testemunhas}
+                  donos={cpfsProprietarios(form as unknown as Record<string, unknown>)}
                   podeTrocar={
                     !archived && ["rascunho", "devolvida", "enviada"].includes(capture.status)
                   }

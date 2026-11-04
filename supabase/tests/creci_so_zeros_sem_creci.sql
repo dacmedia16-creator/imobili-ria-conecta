@@ -268,5 +268,45 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_testemunha_manual_
   'captador não digita testemunha (só quem gere)');
 RESET ROLE;
 
+-- 7) signed_on só depois da assinatura de verdade (escopo 2) ------------------------------------------
+-- capr: enviada, com PDF gerado e SEM assinado. Corretor (cr) e gestor (g) não gravam a data.
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'cr');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_confirmar_data_assinatura(%L, current_date, NULL)', :'capr'))
+  LIKE '%depois que o contrato estiver assinado%', 'Salvar data sem contrato assinado: recusado (corretor)');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_set_signed_on(%L, current_date)', :'capr'))
+  LIKE '%depois que o contrato estiver assinado%', 'exclusive_set_signed_on sem contrato assinado: recusado (corretor)');
+SELECT pg_temp.as_user(:'g');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_confirmar_data_assinatura(%L, current_date, NULL)', :'capr'))
+  LIKE '%depois que o contrato estiver assinado%', 'Salvar data sem contrato assinado: recusado (gestor)');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT signed_on IS NULL FROM public.exclusive_captures WHERE id = :'capr'), 'signed_on continua vazio');
+-- assinado anexado ANTES do gerado (antigo) não vale
+SET LOCAL session_replication_role = replica;
+INSERT INTO public.exclusive_documents (capture_id, kind, storage_path, file_name, uploaded_by, organization_id, created_at)
+  VALUES (:'capr', 'assinado', 'x/capr-ass-antigo.pdf', 'a.pdf', :'g', :'org_a', now() - interval '2 minutes');
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.ok(NOT public.exclusive_tem_assinado_valido(:'capr'), 'assinado anterior ao PDF gerado não conta');
+UPDATE public.exclusive_documents SET created_at = now() WHERE capture_id = :'capr' AND kind = 'assinado';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'cr');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_confirmar_data_assinatura(%L, current_date, NULL)', :'capr')) IS NULL,
+  'com o assinado anexado depois do gerado: corretor salva a data (igual hoje)');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT signed_on = current_date FROM public.exclusive_captures WHERE id = :'capr'), 'signed_on gravado após a assinatura');
+-- aprovada: "Corrigir data" do gestor continua igual (sem exigir nada novo)
+UPDATE public.exclusive_captures SET status = 'aprovada' WHERE id = :'capr';
+DELETE FROM public.exclusive_documents WHERE capture_id = :'capr' AND kind = 'assinado';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'g');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_set_signed_on(%L, current_date - 1)', :'capr')) IS NULL,
+  'aprovada: Corrigir data do gestor continua funcionando');
+SELECT pg_temp.as_user(:'cr');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.exclusive_set_signed_on(%L, current_date)', :'capr')) LIKE '%só o gestor%',
+  'aprovada: corretor continua sem poder corrigir');
+RESET ROLE;
+SELECT pg_temp.ok(NOT has_function_privilege('authenticated', 'public.exclusive_tem_assinado_valido(uuid)', 'EXECUTE'),
+  'exclusive_tem_assinado_valido sem EXECUTE para authenticated');
+
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA' END || ' ' || msg FROM r;
 SELECT 'TOTAL=' || count(*) || ' ok=' || count(*) FILTER (WHERE ok) || ' falhas=' || count(*) FILTER (WHERE NOT ok) FROM r;

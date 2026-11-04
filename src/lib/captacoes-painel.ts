@@ -116,15 +116,18 @@ export const DATA_ASSINATURA_MIN = "2000-01-01";
 
 /**
  * Mostra o campo "Informe a data em que o contrato foi assinado" ao captador? Mesma regra do banco:
- * só o próprio captador, antes da aprovação (enviada ou em_assinatura), captação não arquivada.
+ * só o próprio captador, antes da aprovação (enviada ou em_assinatura), captação não arquivada e
+ * com o contrato ASSINADO válido já anexado (t_77132312: sem assinatura não há data de assinatura).
  * Gestor usa o campo do cartão de aprovação (ou "Corrigir data" depois de aprovada).
  */
 export function podeCaptadorInformarData(
   c: Pick<Capture, "status" | "captor_id" | "archived_at">,
   userId: string | null | undefined,
   gestor: boolean,
+  temAssinado: boolean,
 ): boolean {
   return (
+    temAssinado &&
     !gestor &&
     !!userId &&
     c.captor_id === userId &&

@@ -500,4 +500,95 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.exclusive_testemunhas_reset_captor() FROM PUBLIC, anon, authenticated;
 
+-- 12) signed_on só depois da assinatura de verdade (t_77132312, escopo 2) -------------------------
+-- Origem comprovada: "Salvar data" (exclusive_confirmar_data_assinatura) e exclusive_set_signed_on
+-- aceitavam captação enviada/em_assinatura SEM contrato assinado: o corretor gravava a data antes de
+-- qualquer assinatura e a vigência começava a contar. Agora, antes da aprovação, só grava com o
+-- contrato assinado VÁLIDO anexado (mesmo critério do 'aprovar': no fluxo normal, anexado depois do
+-- gerado; no cadastro manual, o assinado de papel). A Clicksign anexa o assinado ao concluir.
+-- "Corrigir data" do gestor depois da aprovação continua igual. Nenhum dado é alterado aqui.
+CREATE OR REPLACE FUNCTION public.exclusive_tem_assinado_valido(_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT CASE WHEN c.manual
+    THEN EXISTS (SELECT 1 FROM public.exclusive_documents a WHERE a.capture_id = c.id AND a.kind = 'assinado')
+    ELSE EXISTS (SELECT 1 FROM public.exclusive_documents g JOIN public.exclusive_documents a
+      ON a.capture_id = g.capture_id AND a.kind = 'assinado' AND a.created_at >= g.created_at
+      WHERE g.capture_id = c.id AND g.kind = 'gerado') END
+  FROM public.exclusive_captures c WHERE c.id = _id
+$$;
+REVOKE ALL ON FUNCTION public.exclusive_tem_assinado_valido(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.exclusive_tem_assinado_valido(uuid) TO service_role;
+-- exclusive_confirmar_data_assinatura roda como mt_1b_definer (dono): precisa executar a checagem.
+GRANT EXECUTE ON FUNCTION public.exclusive_tem_assinado_valido(uuid) TO mt_1b_definer;
+
+CREATE OR REPLACE FUNCTION public.exclusive_confirmar_data_assinatura(_id uuid, _date date, _data_pdf date DEFAULT NULL)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE _c public.exclusive_captures%ROWTYPE; _uid uuid := auth.uid(); _gestor boolean; _captor boolean;
+  _hoje date := (now() AT TIME ZONE 'America/Sao_Paulo')::date; _origem text;
+BEGIN
+  SELECT * INTO _c FROM public.exclusive_captures WHERE id = _id FOR UPDATE;
+  IF NOT FOUND OR _uid IS NULL THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  _gestor := public.exclusive_is_manager(_id, _uid);
+  _captor := _c.captor_id = _uid AND public.exclusive_can_view(_id, _uid);
+  IF NOT (_gestor OR _captor) OR _c.archived_at IS NOT NULL OR _c.discarded_at IS NOT NULL
+  THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  -- Confirmação é antes da aprovação; depois dela o gestor usa "Corrigir data" (exclusive_set_signed_on).
+  IF _c.status NOT IN ('enviada','em_assinatura') THEN
+    RAISE EXCEPTION 'Captação aprovada: só o gestor corrige a data de assinatura';
+  END IF;
+  -- t_77132312: antes da aprovação, só com o contrato assinado válido anexado.
+  IF _c.status <> 'aprovada' AND NOT coalesce(public.exclusive_tem_assinado_valido(_id), false) THEN
+    RAISE EXCEPTION 'A data de assinatura só pode ser informada depois que o contrato estiver assinado e anexado';
+  END IF;
+  IF _date IS NULL OR _date > _hoje OR _date < date '2000-01-01'
+     OR (NOT _c.manual AND _date < _c.created_on_sp)
+  THEN RAISE EXCEPTION 'Data de assinatura inválida (não pode ser futura nem anterior à criação da captação)'; END IF;
+  IF _data_pdf IS NOT NULL AND (_data_pdf > _hoje OR _data_pdf < date '2000-01-01') THEN _data_pdf := NULL; END IF;
+  _origem := CASE WHEN _data_pdf IS NULL THEN 'informada (sem data lida do PDF)'
+                  WHEN _data_pdf = _date THEN 'lida do PDF assinado e confirmada'
+                  ELSE 'corrigida (o PDF indicava ' || to_char(_data_pdf, 'DD/MM/YYYY') || ')' END
+          || CASE WHEN _captor AND NOT _gestor THEN ' pelo corretor' ELSE ' pelo gestor' END;
+  UPDATE public.exclusive_captures SET signed_on = _date, updated_at = now() WHERE id = _id;
+  INSERT INTO public.exclusive_history(capture_id, actor_id, action, detail)
+    VALUES (_id, _uid, 'data_assinatura', to_char(_date, 'DD/MM/YYYY') || ' · ' || _origem);
+END $function$;
+-- Mesmo dono de exclusive_set_signed_on (padrão das RPCs que gravam na captação).
+GRANT CREATE ON SCHEMA public TO mt_1b_definer;
+ALTER FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) OWNER TO mt_1b_definer;
+REVOKE CREATE ON SCHEMA public FROM mt_1b_definer;
+REVOKE ALL ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.exclusive_confirmar_data_assinatura(uuid, date, date) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.exclusive_set_signed_on(_id uuid, _date date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE _c public.exclusive_captures%ROWTYPE; _uid uuid := auth.uid(); _gestor boolean; _captor boolean;
+BEGIN
+  SELECT * INTO _c FROM public.exclusive_captures WHERE id = _id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  _gestor := public.exclusive_is_manager(_id, _uid);
+  _captor := _c.captor_id = _uid AND public.exclusive_can_view(_id, _uid);
+  IF NOT (_gestor OR _captor) THEN RAISE EXCEPTION 'Ação não permitida'; END IF;
+  IF _c.status NOT IN ('enviada','em_assinatura','aprovada') THEN RAISE EXCEPTION 'Captação ainda não foi enviada'; END IF;
+  IF _c.status = 'aprovada' AND NOT _gestor THEN
+    RAISE EXCEPTION 'Captação aprovada: só o gestor corrige a data de assinatura';
+  END IF;
+  -- t_77132312: antes da aprovação, só com o contrato assinado válido anexado.
+  IF _c.status <> 'aprovada' AND NOT coalesce(public.exclusive_tem_assinado_valido(_id), false) THEN
+    RAISE EXCEPTION 'A data de assinatura só pode ser informada depois que o contrato estiver assinado e anexado';
+  END IF;
+  IF _date IS NULL OR _date > (now() AT TIME ZONE 'America/Sao_Paulo')::date OR _date < date '2000-01-01'
+  THEN RAISE EXCEPTION 'Data de assinatura inválida'; END IF;
+  UPDATE public.exclusive_captures SET signed_on = _date, updated_at = now() WHERE id = _id;
+  INSERT INTO public.exclusive_history(capture_id, actor_id, action, detail)
+    VALUES (_id, _uid, 'data_assinatura', to_char(_date, 'DD/MM/YYYY'));
+END $function$;
+
 COMMIT;
