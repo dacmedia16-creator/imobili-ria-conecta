@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { CallerRpcClient, OrgAdminClient } from "@/lib/org-scope";
 import { ALL_MANAGED_ROLES, type ManagedRole } from "@/lib/user-management-policy";
 import { LOGIN_SO_GOOGLE, SENHA_DESATIVADA } from "@/lib/login-so-google";
+import { creciReal } from "@/lib/exclusive-captures-ocr";
 
 /**
  * Gestão de usuários da agência (multiempresa, marco 1e). Toda decisão papel × ação × agência vem
@@ -266,7 +267,8 @@ export const updateUser = createServerFn({ method: "POST" })
         email: data.email,
         telefone: data.telefone,
         cpf: data.cpf || null,
-        creci: data.creci || null,
+        // Só zeros (ex.: 0000000000) não é CRECI: grava null (t_77132312), também no servidor.
+        creci: creciReal(data.creci),
         ...(data.remax_id !== undefined ? { remax_id: data.remax_id || null } : {}),
       })
       .eq("organization_id", orgId)

@@ -1,4 +1,4 @@
-import { validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
+import { creciSoZeros, validCpf, validCreci } from "@/lib/exclusive-captures-ocr";
 
 /**
  * Tela "Complete seu perfil" no primeiro acesso (t_9e90351e, pedido de Denis em 20/10/2026).
@@ -60,7 +60,8 @@ export function camposFaltando(p: PerfilParaCompletar): CampoPerfil[] {
   if (!telefoneValido(p.telefone)) faltando.push("telefone");
   if (!normalizarCpf(p.cpf)) faltando.push("cpf");
   // CRECI é opcional (t_5c4bd214): vazio não falta; preenchido com formato inválido, falta.
-  if (p.creci?.trim() && !validCreci(p.creci)) faltando.push("creci");
+  // Só zeros (ex.: 0000000000) não bloqueia: a tela avisa e grava vazio (t_77132312).
+  if (p.creci?.trim() && !creciSoZeros(p.creci) && !validCreci(p.creci)) faltando.push("creci");
   return faltando;
 }
 

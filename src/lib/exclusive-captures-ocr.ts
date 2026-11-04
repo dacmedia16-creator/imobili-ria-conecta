@@ -25,6 +25,23 @@ export function validCreci(value: string): boolean {
   );
 }
 
+/**
+ * CRECI com valor real (t_77132312): o CRECI aparado, ou null quando está vazio ou não tem nenhum
+ * dígito de 1 a 9 (ex.: "0", "0000000000", "000-0", "00000-F"). null = SEM CRECI em todo o sistema.
+ * Espelho exato de public.creci_real() no banco (migration 20261104140000).
+ */
+export function creciReal(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  return /[1-9]/.test(v) ? v : null;
+}
+
+/** Preenchido, mas sem valor real (só zeros): a tela avisa e grava vazio/null. */
+export function creciSoZeros(value: string | null | undefined): boolean {
+  return !!(value ?? "").trim() && creciReal(value) === null;
+}
+
+export const CRECI_SO_ZEROS_AVISO = "CRECI inválido: deixe em branco se não tiver";
+
 /** OCR is untrusted: return only a few labelled, reviewable hints, never the raw document. */
 export function parseCaptureSuggestions(text: string, scope: "owner" | "property"): Suggestions {
   const lines = text
