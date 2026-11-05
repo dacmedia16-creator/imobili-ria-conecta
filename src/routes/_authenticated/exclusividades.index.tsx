@@ -41,6 +41,7 @@ import {
 import { VigenciaBar } from "@/components/exclusividades/VigenciaBar";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { vouchersFotosEnabled } from "@/lib/vouchers-fotos-module";
 import {
   alternarCard,
   contarPainel,
@@ -56,6 +57,7 @@ import {
   Archive,
   ArrowRight,
   CalendarClock,
+  Camera,
   FileSignature,
   House,
   MapPinned,
@@ -121,6 +123,11 @@ function ExclusiveList() {
         : 0,
     );
   const [removing, setRemoving] = useState<string | null>(null);
+  // Agendar fotos (t_d86ab990): botão só com o módulo ligado; o banco confere imóvel próprio e aprovado.
+  const [fotosLigado, setFotosLigado] = useState(false);
+  useEffect(() => {
+    void vouchersFotosEnabled().then(setFotosLigado);
+  }, []);
   const [summary, setSummary] = useState<Capture | null>(null);
   // "Virou venda": selo Em negociação / Vendida por captação (o banco só devolve as que a pessoa vê).
   const [vendas, setVendas] = useState<Map<string, SituacaoVendaLista>>(new Map());
@@ -338,6 +345,12 @@ function ExclusiveList() {
               // "Excluir" fica FORA do link (item 11 t_532125eb): botão dentro de <a> é HTML inválido e,
               // pelo teclado, Enter no botão podia abrir a captação em vez de excluir o rascunho.
               const podeExcluir = c.status === "rascunho" && !c.archived_at;
+              const podeFotos =
+                fotosLigado &&
+                c.status === "aprovada" &&
+                !c.archived_at &&
+                !!user?.id &&
+                (c.captor_id === user.id || c.captador_original_id === user.id);
               return (
                 <div
                   key={c.id}
@@ -435,6 +448,19 @@ function ExclusiveList() {
                       </p>
                     </div>
                   </Link>
+                  {podeFotos && (
+                    <div className="flex justify-end px-4 pb-3">
+                      <Button asChild variant="outline" size="sm" className="shrink-0">
+                        <Link
+                          to="/agendar-fotos"
+                          search={{ captacao: c.id }}
+                          data-testid="botao-agendar-fotos"
+                        >
+                          <Camera className="mr-1 h-4 w-4" aria-hidden /> Agendar fotos
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
                   {podeExcluir && (
                     <div className="flex justify-end px-4 pb-3">
                       <Button
