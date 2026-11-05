@@ -250,7 +250,10 @@ export function mensagemErroFoto(e: unknown, padrao: string): string {
     [/captado por voce/i, "Só é possível agendar fotos de imóvel captado por você."],
     [/nao escolheu o fotografo/i, "A imobiliária ainda não escolheu o fotógrafo."],
     [/Modulo Agendar fotos desligado/i, "O módulo Agendar fotos está desligado nesta imobiliária."],
-    [/staff ativo/i, "O fotógrafo precisa ser um usuário staff ativo desta imobiliária."],
+    [
+      /staff( ou fotografo)? ativo/i,
+      "O fotógrafo precisa ser um usuário staff ou fotógrafo ativo desta imobiliária.",
+    ],
     [/ainda nao comecou/i, "A sessão ainda não começou."],
   ];
   for (const [re, txt] of mapa) {

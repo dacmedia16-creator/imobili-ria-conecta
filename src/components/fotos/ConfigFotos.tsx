@@ -15,7 +15,7 @@ import { mensagemErroFoto, type ResumoFotos } from "@/lib/vouchers-fotos";
 
 const NENHUM = "__nenhum__";
 
-/** Configurações do módulo (admin): o fotógrafo (staff) e o valor por sessão. */
+/** Configurações do módulo (admin): o fotógrafo (staff ou fotógrafo) e o valor por sessão. */
 export function ConfigFotos({ resumo, onSalvo }: { resumo: ResumoFotos; onSalvo: () => void }) {
   const [staff, setStaff] = useState<{ id: string; nome: string }[] | null>(null);
   const [fotografo, setFotografo] = useState(resumo.fotografo_id ?? NENHUM);
@@ -24,14 +24,18 @@ export function ConfigFotos({ resumo, onSalvo }: { resumo: ResumoFotos; onSalvo:
 
   useEffect(() => {
     void fotosDb.rpc("photo_staff_listar").then(({ data, error }) => {
-      if (error) toast.error(mensagemErroFoto(error, "Não foi possível carregar a equipe staff."));
+      if (error)
+        toast.error(
+          mensagemErroFoto(error, "Não foi possível carregar a equipe (staff ou fotógrafo)."),
+        );
       setStaff((data as { id: string; nome: string }[] | null) ?? []);
     });
   }, []);
 
   const salvar = async () => {
     const v = Number(valor.replace(",", "."));
-    if (!Number.isFinite(v) || v < 0 || v > 100000) return toast.error("Valor por sessão inválido.");
+    if (!Number.isFinite(v) || v < 0 || v > 100000)
+      return toast.error("Valor por sessão inválido.");
     setSalvando(true);
     const { error } = await fotosDb.rpc("photo_configurar", {
       _fotografo: fotografo === NENHUM ? null : fotografo,
@@ -48,8 +52,8 @@ export function ConfigFotos({ resumo, onSalvo }: { resumo: ResumoFotos; onSalvo:
       <CardHeader>
         <CardTitle className="text-base">Configurações do Agendar fotos</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Um fotógrafo por imobiliária (usuário staff). O valor vale para as próximas sessões e fica
-          congelado quando a sessão é marcada como feita.
+          Um fotógrafo por imobiliária (usuário staff ou fotógrafo). O valor vale para as próximas
+          sessões e fica congelado quando a sessão é marcada como feita.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -57,7 +61,7 @@ export function ConfigFotos({ resumo, onSalvo }: { resumo: ResumoFotos; onSalvo:
           <span className="mb-1 block font-medium">Fotógrafo</span>
           <Select value={fotografo} onValueChange={setFotografo} disabled={!staff}>
             <SelectTrigger aria-label="Fotógrafo">
-              <SelectValue placeholder="Escolha um usuário staff" />
+              <SelectValue placeholder="Escolha um usuário staff ou fotógrafo" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NENHUM}>Nenhum (agenda fechada)</SelectItem>
@@ -70,7 +74,8 @@ export function ConfigFotos({ resumo, onSalvo }: { resumo: ResumoFotos; onSalvo:
           </Select>
           {staff && staff.length === 0 && (
             <span className="mt-1 block text-xs text-muted-foreground">
-              Nenhum usuário staff ativo. Dê o papel “staff” ao fotógrafo em Usuários.
+              Nenhum usuário staff ou fotógrafo ativo. Dê o papel “Fotógrafo” (ou “staff”) em
+              Usuários.
             </span>
           )}
         </label>

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -17,7 +17,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fotosDb, guardVouchersFotosRoute } from "@/lib/vouchers-fotos-module";
+import { fotosDb, guardFotografoRoute } from "@/lib/vouchers-fotos-module";
+import { useAuth } from "@/lib/auth";
+import { abaFotografo, ehSoFotografo, type AbaFotografo } from "@/lib/fotografo";
 import { notifyPhotoSession } from "@/lib/photo-notifications.functions";
 import { avisarFoto } from "@/lib/photo-notifications";
 import { EscolhaDataCard } from "@/components/agenda/EscolhaDataCard";
@@ -40,13 +42,38 @@ import {
 
 export const Route = createFileRoute("/_authenticated/fotografo")({
   head: () => ({ meta: [{ title: "Agenda do fotógrafo" }] }),
-  beforeLoad: guardVouchersFotosRoute,
-  component: FotografoPage,
+  validateSearch: (s: Record<string, unknown>): { aba?: AbaFotografo } => ({
+    aba: abaFotografo(s.aba),
+  }),
+  beforeLoad: guardFotografoRoute,
+  component: FotografoGate,
 });
+
+/** Só-fotógrafo com o módulo desligado: aviso simples, sem redirecionar (evita vaivém). */
+function FotografoGate() {
+  const { fotosDesligado } = Route.useRouteContext();
+  if (fotosDesligado)
+    return (
+      <div className="space-y-6">
+        <PageHeader icon={CalendarDays} title="Agenda do fotógrafo" />
+        <EmptyState icon={Camera}>
+          <p className="font-medium text-foreground" data-testid="fotos-desativada">
+            Agenda de fotos desativada
+          </p>
+          <p>O módulo Agendar fotos está desligado nesta imobiliária. Fale com a administração.</p>
+        </EmptyState>
+      </div>
+    );
+  return <FotografoPage />;
+}
 
 type Acao = { tipo: "recusar" | "desmarcar"; sessao: SessaoFoto } | null;
 
 function FotografoPage() {
+  const { aba } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { roles } = useAuth();
+  const soFotografo = ehSoFotografo(roles);
   const notify = useServerFn(notifyPhotoSession);
   const [resumo, setResumo] = useState<ResumoFotos | null>(null);
   const [agenda, setAgenda] = useState<AgendaFotografo | null>(null);
@@ -224,15 +251,20 @@ function FotografoPage() {
         title="Agenda do fotógrafo"
         description={`Fotógrafo: ${resumo.fotografo_nome ?? "não definido"}. Sessões de 2 h com 1 h de intervalo obrigatório.`}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link to="/agendar-fotos">Agendar fotos</Link>
-          </Button>
+          soFotografo ? undefined : (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/agendar-fotos">Agendar fotos</Link>
+            </Button>
+          )
         }
       />
       {!agenda ? (
         <ListSkeleton />
       ) : (
-        <Tabs defaultValue="sessoes">
+        <Tabs
+          value={aba ?? "sessoes"}
+          onValueChange={(v) => void navigate({ search: { aba: abaFotografo(v) }, replace: true })}
+        >
           <TabsList className="h-auto flex-wrap justify-start gap-1">
             <TabsTrigger value="sessoes">
               Sessões{proximas.length ? ` (${proximas.length})` : ""}
