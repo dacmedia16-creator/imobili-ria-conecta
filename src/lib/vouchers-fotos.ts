@@ -82,7 +82,11 @@ const FMT_QUANDO = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
-const FMT_HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+const FMT_HORA = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const FMT_DIA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: TZ,
   weekday: "long",
@@ -171,6 +175,40 @@ export function agruparPorDia(horarios: string[]): { dia: string; horarios: stri
   return [...mapa.entries()].map(([dia, hs]) => ({ dia, horarios: hs }));
 }
 
+/**
+ * Pontinho azul no dia verde que já tem reserva (Denis 05/11). Para tirar, troque para false.
+ */
+export const PONTO_AZUL_DIA_COM_RESERVA = true;
+
+/**
+ * Cores do calendário do Agendar fotos (regra de Denis 05/11):
+ * - verde ("disponivel"): o fotógrafo liberou horário e ainda sobra horário livre;
+ * - azul ("reservado"): tem reserva e não sobra nenhum horário livre;
+ * - sem cor: nada liberado (não dá para reservar).
+ * Dia verde que também tem reserva ganha o pontinho azul ("comIndicadorReserva").
+ * `livres` = inícios livres (ISO); `reservas` = inícios das sessões ativas (ISO).
+ */
+export function coresCalendarioFotos(
+  livres: string[],
+  reservas: string[],
+  pontoAzul = PONTO_AZUL_DIA_COM_RESERVA,
+): { disponivel: string[]; reservado: string[]; comIndicadorReserva: string[] } {
+  const diasLivres = new Set(livres.map(chaveDia));
+  const diasReserva = new Set(reservas.map(chaveDia));
+  const ordenar = (s: Iterable<string>) => [...s].sort();
+  return {
+    disponivel: ordenar(diasLivres),
+    reservado: ordenar([...diasReserva].filter((d) => !diasLivres.has(d))),
+    comIndicadorReserva: pontoAzul
+      ? ordenar([...diasReserva].filter((d) => diasLivres.has(d)))
+      : [],
+  };
+}
+
+/** Sessão que ocupa o horário do fotógrafo (aguardando ou confirmada). */
+export const sessaoAtiva = (s: SessaoFoto) =>
+  s.status === "aguardando" || s.status === "confirmada";
+
 /** O imóvel pode receber agendamento? E com voucher? (o banco repete as regras). */
 export function situacaoImovel(i: ImovelFoto | undefined) {
   if (!i) return { pode: false, comVoucher: false, motivo: "Escolha um imóvel captado por você." };
@@ -201,7 +239,10 @@ export function mensagemErroFoto(e: unknown, padrao: string): string {
   if (!msg) return padrao;
   const mapa: [RegExp, string][] = [
     [/bloqueado ate (.+?) \(/i, "Agendamento bloqueado até $1 (3 desmarcações em 30 dias)."],
-    [/Horario indisponivel/i, "Horário indisponível (sessão de 2 h + 1 h de intervalo). Escolha outro."],
+    [
+      /Horario indisponivel/i,
+      "Horário indisponível (sessão de 2 h + 1 h de intervalo). Escolha outro.",
+    ],
     [/fora da agenda liberada/i, "Esse horário não está liberado na agenda do fotógrafo."],
     [/ja usou um voucher/i, "Este imóvel já usou um voucher (1 por imóvel)."],
     [/ja tem uma sessao marcada/i, "Este imóvel já tem uma sessão marcada."],

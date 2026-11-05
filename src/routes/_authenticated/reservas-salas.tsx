@@ -18,7 +18,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { EscolhaDataCard } from "@/components/agenda/EscolhaDataCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -151,9 +151,6 @@ const formatReservationPeriod = (startDate: string, endDate: string) => {
   const end = dateFromISO(endDate).toLocaleDateString("pt-BR");
   return startDate === endDate ? start : `${start} a ${end}`;
 };
-
-const toISO = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 type RoomReservationRow = Database["public"]["Tables"]["room_reservations"]["Row"];
 
@@ -610,48 +607,36 @@ function RoomReservationsPage() {
         )}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Escolha a data</CardTitle>
-            <CardDescription>Veja a agenda do dia selecionado.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Calendar
-              mode="single"
-              selected={dateFromISO(selectedDate)}
-              onSelect={(date) => date && setSelectedDate(toISO(date))}
-              className="mx-auto rounded-md border"
-            />
-            <div className="space-y-2">
-              <label htmlFor="room-filter" className="text-sm font-medium">
-                Filtrar sala
-              </label>
-              <Select
-                value={roomFilter}
-                onValueChange={(value) => setRoomFilter(value as typeof roomFilter)}
-              >
-                <SelectTrigger id="room-filter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as salas</SelectItem>
-                  {rooms.map((room) => (
-                    <SelectItem key={room} value={room}>
-                      {room}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <EscolhaDataCard selected={selectedDate} onSelect={setSelectedDate}>
+          <div className="space-y-2">
+            <label htmlFor="room-filter" className="text-sm font-medium">
+              Filtrar sala
+            </label>
+            <Select
+              value={roomFilter}
+              onValueChange={(value) => setRoomFilter(value as typeof roomFilter)}
+            >
+              <SelectTrigger id="room-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as salas</SelectItem>
+                {rooms.map((room) => (
+                  <SelectItem key={room} value={room}>
+                    {room}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-lg border bg-primary/5 p-3 text-sm">
+            <div className="font-medium capitalize">{formatDate(selectedDate)}</div>
+            <div className="mt-1 tabular-nums text-muted-foreground">
+              {selectedReservations.length} reserva{selectedReservations.length === 1 ? "" : "s"}{" "}
+              confirmada{selectedReservations.length === 1 ? "" : "s"}
             </div>
-            <div className="rounded-lg border bg-primary/5 p-3 text-sm">
-              <div className="font-medium capitalize">{formatDate(selectedDate)}</div>
-              <div className="mt-1 tabular-nums text-muted-foreground">
-                {selectedReservations.length} reserva{selectedReservations.length === 1 ? "" : "s"}{" "}
-                confirmada{selectedReservations.length === 1 ? "" : "s"}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </EscolhaDataCard>
 
         <Card className="min-w-0">
           <CardHeader>

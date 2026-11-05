@@ -161,7 +161,8 @@ describe("módulo vouchers_fotos", () => {
       const f = readFileSync(`src/routes/_authenticated/${arq}`, "utf8");
       expect(f).toContain("beforeLoad: guardVouchersFotosRoute");
     }
-    const ag = readFileSync("src/routes/_authenticated/agendar-fotos.tsx", "utf8");
+    // A aba "Agendar" mora em AgendarSessao.tsx desde o layout da Reserva de salas (t_9b79f000).
+    const ag = readFileSync("src/components/fotos/AgendarSessao.tsx", "utf8");
     // o aviso vem depois do toast de sucesso (só dispara se a RPC gravou)
     expect(ag.indexOf('avisarFoto(String(data), "marcada"')).toBeGreaterThan(
       ag.indexOf('rpc("photo_agendar"'),

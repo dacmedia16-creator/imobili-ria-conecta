@@ -20,8 +20,11 @@ import {
 import { fotosDb, guardVouchersFotosRoute } from "@/lib/vouchers-fotos-module";
 import { notifyPhotoSession } from "@/lib/photo-notifications.functions";
 import { avisarFoto } from "@/lib/photo-notifications";
+import { EscolhaDataCard } from "@/components/agenda/EscolhaDataCard";
 import {
   chaveDia,
+  coresCalendarioFotos,
+  sessaoAtiva,
   diaLongo,
   hora,
   isoSaoPaulo,
@@ -52,6 +55,7 @@ function FotografoPage() {
   const [acao, setAcao] = useState<Acao>(null);
   const [motivo, setMotivo] = useState("");
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [livres, setLivres] = useState<string[]>([]);
 
   const carregar = useCallback(async () => {
     const r = await fotosDb.rpc("photo_meu_resumo");
@@ -59,12 +63,14 @@ function FotografoPage() {
     const res = r.data as ResumoFotos;
     setResumo(res);
     if (!res.eh_fotografo && !res.eh_admin) return;
-    const [a, h] = await Promise.all([
+    const [a, h, l] = await Promise.all([
       fotosDb.rpc("photo_agenda_listar", { _de: res.hoje, _ate: somarDias(res.hoje, 30) }),
       fotosDb.rpc("photo_agenda_listar", { _de: somarDias(res.hoje, -90), _ate: res.hoje }),
+      fotosDb.rpc("photo_horarios_livres", { _de: res.hoje, _ate: somarDias(res.hoje, 30) }),
     ]);
     if (a.error) setErro(mensagemErroFoto(a.error, "Não foi possível carregar a agenda."));
     else setAgenda(a.data as AgendaFotografo);
+    setLivres(((l.data as string[] | null) ?? []).map(String));
     setHistorico((h.data as AgendaFotografo | null) ?? { faixas: [], sessoes: [] });
   }, []);
   useEffect(() => {
@@ -177,7 +183,12 @@ function FotografoPage() {
               disabled={ocupado === s.id}
               data-testid="botao-feita"
               onClick={() =>
-                void rodar(s.id, "photo_marcar_feita", { _session: s.id }, "Sessão marcada como feita.")
+                void rodar(
+                  s.id,
+                  "photo_marcar_feita",
+                  { _session: s.id },
+                  "Sessão marcada como feita.",
+                )
               }
             >
               Marcar como feita
@@ -253,6 +264,7 @@ function FotografoPage() {
             <Faixas
               hoje={hojeChave}
               agenda={agenda}
+              livres={livres}
               ocupado={ocupado}
               onSalvar={(tipo, dia, ini, fim) =>
                 void rodar(
@@ -345,12 +357,15 @@ function FotografoPage() {
 function Faixas({
   hoje,
   agenda,
+  livres,
   ocupado,
   onSalvar,
   onRemover,
 }: {
   hoje: string;
   agenda: AgendaFotografo;
+  /** Inícios livres (photo_horarios_livres), para pintar o calendário com a mesma regra. */
+  livres: string[];
   ocupado: string | null;
   onSalvar: (tipo: "livre" | "bloqueio", dia: string, ini: string, fim: string) => void;
   onRemover: (id: string) => void;
@@ -359,21 +374,25 @@ function Faixas({
   const [ini, setIni] = useState("09:00");
   const [fim, setFim] = useState("18:00");
   const valido = /^\d{4}-\d{2}-\d{2}$/.test(dia) && dia >= hoje && ini < fim;
+  const cores = useMemo(
+    () =>
+      coresCalendarioFotos(
+        livres,
+        agenda.sessoes.filter(sessaoAtiva).map((s) => s.inicio),
+      ),
+    [livres, agenda.sessoes],
+  );
   return (
-    <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Liberar ou bloquear</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Corretores só conseguem marcar dentro de horários liberados. Um bloqueio vence a faixa
-            liberada.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="block text-sm">
-            <span className="mb-1 block">Dia</span>
-            <Input type="date" min={hoje} value={dia} onChange={(e) => setDia(e.target.value)} />
-          </label>
+    <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      <EscolhaDataCard selected={dia} onSelect={setDia} cores={cores} aPartirDe={hoje}>
+        <div className="space-y-3" data-testid="liberar-bloquear">
+          <div>
+            <div className="text-sm font-medium">Liberar ou bloquear</div>
+            <p className="text-xs text-muted-foreground">
+              Corretores só conseguem marcar dentro de horários liberados. Um bloqueio vence a faixa
+              liberada.
+            </p>
+          </div>
           <div className="flex gap-2">
             <label className="block flex-1 text-sm">
               <span className="mb-1 block">Das</span>
@@ -402,8 +421,8 @@ function Faixas({
               <Lock className="mr-1 h-4 w-4" aria-hidden /> Bloquear
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </EscolhaDataCard>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Próximos 30 dias</CardTitle>
