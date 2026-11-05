@@ -25,6 +25,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "especialistas_publico",
   // "academia" (t_e21b37b6): nasce desligada; a plataforma liga por imobiliária.
   "academia",
+  // "vouchers_fotos" (t_d86ab990): nasce desligado; só o super-admin da plataforma liga.
+  "vouchers_fotos",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {

@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { roomReservationEnabled } from "@/lib/room-reservation-module";
+import { vouchersFotosEnabled } from "@/lib/vouchers-fotos-module";
 import { ownerFeedbackEnabled } from "@/lib/owner-feedback-module";
 import { opportunitiesEnabled } from "@/lib/oportunidades-module";
 import { leadsEnabled } from "@/lib/leads-db";
@@ -315,6 +316,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
   const [roomVisible, setRoomVisible] = useState(false);
+  const [fotosVisible, setFotosVisible] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [opportunitiesVisible, setOpportunitiesVisible] = useState(false);
   const [achievementsVisible, setAchievementsVisible] = useState(false);
@@ -336,6 +338,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       }),
       roomReservationEnabled().then((enabled) => {
         if (alive) setRoomVisible(enabled);
+      }),
+      vouchersFotosEnabled().then((enabled) => {
+        if (alive) setFotosVisible(enabled);
       }),
       ownerFeedbackEnabled().then((enabled) => {
         if (alive) setFeedbackVisible(enabled);
@@ -446,6 +451,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     achievementsVisible,
     leadsVisible,
     crmVisible,
+    fotosVisible,
     carreiraVisible: exclusiveVisible,
     inPlatformContext: Boolean(platformContext),
   });
