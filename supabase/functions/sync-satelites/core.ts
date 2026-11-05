@@ -257,6 +257,48 @@ export async function carregarPlataforma(admin: Admin): Promise<Set<string>> {
   return ids;
 }
 
+/**
+ * Passo 3, etapa 0 (t_1969ae17): chave por imobiliária de cada sistema (organization_modules, módulos
+ * visita/estudo/sessenta; só a plataforma liga e desliga). Devolve adm_org_id -> satélite -> ligado.
+ * Erro na leitura devolve null: aí o robô NÃO manda o campo `acesso` e cada satélite mantém a cópia que tem
+ * (nunca religa nem desliga por engano). Sem linha para a org = ligado (mesmo padrão da cópia no satélite).
+ */
+export async function carregarChaves(
+  admin: Admin,
+): Promise<Map<string, Partial<Record<Satelite, boolean>>> | null> {
+  let r: { data?: unknown; error?: unknown };
+  try {
+    r = await admin
+      .from("organization_modules")
+      .select("organization_id,module,enabled")
+      .in("module", ["visita", "estudo", "sessenta"]);
+  } catch {
+    return null;
+  }
+  if (r.error || !Array.isArray(r.data)) return null;
+  const m = new Map<string, Partial<Record<Satelite, boolean>>>();
+  for (const x of r.data as Array<{
+    organization_id: string;
+    module: Satelite;
+    enabled: boolean;
+  }>) {
+    const o = m.get(x.organization_id) ?? {};
+    o[x.module] = x.enabled === true;
+    m.set(x.organization_id, o);
+  }
+  return m;
+}
+
+/** Valor da chave a enviar; undefined = não enviar (leitura falhou). Sem linha = ligado. */
+export function acessoDaOrg(
+  chaves: Map<string, Partial<Record<Satelite, boolean>>> | null,
+  admOrgId: string,
+  sat: Satelite,
+): boolean | undefined {
+  if (!chaves) return undefined;
+  return chaves.get(admOrgId)?.[sat] !== false;
+}
+
 export function excluido(ex: Map<string, Set<Satelite>>, admUserId: string, sat: Satelite) {
   return ex.get(admUserId)?.has(sat) === true;
 }
@@ -294,6 +336,8 @@ async function enviarLote(
     org_id: string;
     pessoas: unknown[];
     incluir_so_no_satelite?: boolean;
+    /** Cópia da chave do sistema nesta imobiliária (t_1969ae17). Ausente = satélite mantém a que tem. */
+    acesso?: boolean;
   },
 ) {
   const segredo = amb.segredos[sat];
@@ -305,7 +349,12 @@ async function enviarLote(
       `${sat}: http_${r.status}_${String(r.json?.error ?? "resposta_invalida").slice(0, 60)}`,
     );
   }
-  return r.json as { modo: Modo; resultados: Resultado[]; so_no_satelite?: unknown[] };
+  return r.json as {
+    modo: Modo;
+    resultados: Resultado[];
+    so_no_satelite?: unknown[];
+    acesso?: { resultado: string; erro?: string | null } | null;
+  };
 }
 
 /** Processa a caixa de saída: pega pendentes, agrupa por imobiliária e satélite, envia, registra e conclui. */
@@ -330,6 +379,7 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
   const porUser = new Map(estado.map((l) => [l.adm_user_id, l]));
   const mapaPorOrg = new Map(mapas.map((m) => [m.adm_org_id, m]));
   const exclusoes = await carregarExclusoes(admin);
+  const chaves = await carregarChaves(admin);
 
   // desfecho por item da fila: ok | erro | aguardando_humano
   const desfecho = new Map<number, { r: "ok" | "erro" | "aguardando_humano"; erro?: string }>();
@@ -366,12 +416,28 @@ export async function processarFila(admin: Admin, amb: Ambiente, limite = 50) {
       );
       if (!gi.length) continue;
       try {
+        const acesso = acessoDaOrg(chaves, mapa.adm_org_id, sat);
         const resp = await enviarLote(amb, sat, {
           modo,
           allow_deactivate: cfg?.allow_deactivate === true,
           org_id: orgSat,
           pessoas: gi.map(({ l }) => pessoaParaSatelite(l, sat, { tlLider: tlComoLider(mapa) })),
+          ...(acesso === undefined ? {} : { acesso }),
         });
+        // Cópia da chave: só registra quando mudou (ok/simulado) ou deu erro, para não encher o sync_log.
+        const ra = resp.acesso?.resultado;
+        if (ra === "ok" || ra === "simulado" || ra === "erro") {
+          logs.push({
+            adm_user_id: null,
+            adm_org_id: mapa.adm_org_id,
+            satelite: sat,
+            acao: "acesso",
+            modo: resp.modo,
+            resultado: ra,
+            detalhe: { acesso },
+            erro: ra === "erro" ? String(resp.acesso?.erro ?? "erro").slice(0, 300) : null,
+          });
+        }
         const porAdm = new Map(resp.resultados.map((r) => [r.adm_user_id, r]));
         for (const { id, l } of gi) {
           const r = porAdm.get(l.adm_user_id);
@@ -833,6 +899,7 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
   const mapas = await ok<Mapa[]>(admin.from("sync_org_map").select("*"), "mapa");
   const exclusoes = await carregarExclusoes(admin);
   const plataforma = await carregarPlataforma(admin);
+  const chaves = await carregarChaves(admin);
   const relatorios = [];
   for (const mapa of mapas) {
     if (somenteOrg && mapa.adm_org_id !== somenteOrg) continue;
@@ -866,8 +933,12 @@ export async function reconciliar(admin: Admin, amb: Ambiente, somenteOrg?: stri
           org_id: orgSat,
           pessoas: enviar.map((l) => pessoaParaSatelite(l, sat, { tlLider: tlComoLider(mapa) })),
           incluir_so_no_satelite: true,
+          ...(acessoDaOrg(chaves, mapa.adm_org_id, sat) === undefined
+            ? {}
+            : { acesso: acessoDaOrg(chaves, mapa.adm_org_id, sat) }),
         });
         const r = resumir(resp.resultados, resp.so_no_satelite ?? [], resp.modo);
+        (r as Record<string, unknown>).acesso = resp.acesso ?? null;
         // Excluídos: e-mail deles não foi enviado, então a conta deles no satélite aparece em so_no_satelite.
         // Fica registrado só o id do ADM; nenhuma ação é planejada para eles.
         r.contagem.excluidos = excl.length;

@@ -120,9 +120,14 @@ describe("módulos da imobiliária criada pelo convite", () => {
         x !== "crm" &&
         x !== "especialistas_publico" &&
         x !== "academia" &&
-        x !== "vouchers_fotos",
+        x !== "vouchers_fotos" &&
+        x !== "sessenta",
     ))
       expect(m[k]).toBe(true);
+    // t_1969ae17 (decisão 6): Visita e Estudo nascem ligados; 60 Dias desligado.
+    expect(m.visita).toBe(true);
+    expect(m.estudo).toBe(true);
+    expect(m.sessenta).toBe(false);
   });
 
   it("a migration liga exatamente a mesma lista de módulos do sistema", () => {
@@ -138,7 +143,11 @@ describe("módulos da imobiliária criada pelo convite", () => {
             x !== "crm" &&
             x !== "especialistas_publico" &&
             x !== "academia" &&
-            x !== "vouchers_fotos",
+            x !== "vouchers_fotos" &&
+            // t_1969ae17: os 3 sistemas são gravados pelo gatilho trg_zz_org_sistemas_padrao, não pelo convite.
+            x !== "visita" &&
+            x !== "estudo" &&
+            x !== "sessenta",
         )
         .sort(),
     );

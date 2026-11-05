@@ -126,6 +126,11 @@ export const ORGANIZATION_MODULES = [
   "especialistas_publico",
   "academia",
   "vouchers_fotos",
+  // Passo 3, etapa 0 (t_1969ae17): chave por imobiliária de cada sistema. Só a plataforma liga e desliga.
+  // Nesta etapa a chave só é copiada aos satélites (adm_sync_orgs.acesso_ligado); ninguém é bloqueado ainda.
+  "visita",
+  "estudo",
+  "sessenta",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -140,6 +145,9 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   especialistas_publico: 'Página pública "Ache um especialista" (/especialistas)',
   academia: "Academia Única MAX",
   vouchers_fotos: "Agendar fotos (vouchers e agenda do fotógrafo)",
+  visita: "Visita MAX (sistema; ainda sem bloqueio)",
+  estudo: "Estudo de Mercado MAX (sistema; ainda sem bloqueio)",
+  sessenta: "60 Dias MAX (sistema; ainda sem bloqueio)",
 };
 
 export type OrganizationSummary = OrganizationRow & {
