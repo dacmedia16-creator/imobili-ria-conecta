@@ -131,6 +131,7 @@ const ROLES: AppRole[] = [
   "admin",
   "super_admin",
   "staff",
+  "fotografo",
 ];
 
 // Regra única (user-management-policy.ts): a mesma decisão é repetida no servidor e no banco.

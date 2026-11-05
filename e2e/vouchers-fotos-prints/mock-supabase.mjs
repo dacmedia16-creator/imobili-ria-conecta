@@ -1,7 +1,7 @@
 // Mock local de Supabase para os prints do módulo "Agendar fotos" (t_d86ab990 / t_ee532309).
 // Modelo: e2e/comemora-pergunta-login-prints. Dados 100% fictícios (@example.com), nenhuma chamada
 // externa. Imita as regras das RPCs photo_* da migration 20261105120000 (a prova real é a suíte SQL).
-// Usuários: corretora Ana, fotógrafo Fábio (staff), admin e financeiro. /__mock/reset zera o estado.
+// Usuários: corretora Ana, fotógrafo Fábio (staff), Fotógrafa Dois (papel fotografo), admin e financeiro. /__mock/reset zera o estado.
 // /__mock/modulo?on=0 desliga o módulo (nada aparece).
 import http from "node:http";
 
@@ -11,11 +11,13 @@ const ANA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const FABIO = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 const ADMIN = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const FIN = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const FOTO2 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"; // papel fotografo (t_fb0f919b, PR #269)
 const users = {
   "tok-ana": { id: ANA, email: "ana.corretora@example.com", nome: "Ana Corretora Fictícia", role: "corretor", tel: "(15) 99111-0001" },
   "tok-fabio": { id: FABIO, email: "fabio.foto@example.com", nome: "Fábio Fotógrafo Fictício", role: "staff", tel: "(15) 99111-0002" },
   "tok-admin": { id: ADMIN, email: "admin@example.com", nome: "Admin Fictício", role: "admin", tel: "(15) 99111-0003" },
   "tok-fin": { id: FIN, email: "financeiro@example.com", nome: "Financeiro Fictício", role: "financeiro", tel: "(15) 99111-0004" },
+  "tok-foto2": { id: FOTO2, email: "foto2@example.com", nome: "Fotógrafa Dois Fictícia", role: "fotografo", tel: "(15) 99111-0005" },
 };
 const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]));
 
@@ -70,6 +72,32 @@ const reset = () => {
   );
   st.assinadas = 4;
 };
+// Cenário do calendário colorido (t_9b79f000): dia +2 verde com reserva (pontinho azul),
+// dia +4 azul (faixa curta toda tomada), demais sem faixa = neutros. Ligado por /__mock/cenario.
+const cenarioCalendario = () => {
+  const hoje = hojeSP();
+  st.sessoes.push(
+    sessao({ id: "s0000000-0000-4000-8000-000000000003", capture: CAPS[1].id, inicio: em(somar(hoje, 2), "10:00"), voucher: null, status: "confirmada" }),
+  );
+  st.faixas.push({ id: "f0000000-0000-4000-8000-000000000009", tipo: "livre", inicio: em(somar(hoje, 4), "09:00"), fim: em(somar(hoje, 4), "11:00") });
+  st.sessoes.push(
+    sessao({ id: "s0000000-0000-4000-8000-000000000004", capture: CAPS[2].id, inicio: em(somar(hoje, 4), "09:00"), voucher: null, status: "aguardando" }),
+  );
+};
+// Reserva de salas (só para os prints lado a lado): 2 salas e 2 reservas fictícias hoje.
+const SALAS = [{ id: "r1", nome: "Sala de reunião 1", ativo: true, ordem: 1 }, { id: "r2", nome: "Sala de reunião 2", ativo: true, ordem: 2 }];
+const reservasSalas = () => {
+  const hoje = hojeSP();
+  const r = (id, room, ini, fim, quem) => ({
+    id, reservation_group_id: id, room, reserved_date: hoje, start_time: `${ini}:00`, end_time: `${fim}:00`,
+    responsible_id: quem.id, responsible_name: quem.nome, participants: [], participant_user_ids: [],
+    purpose: "Reunião com cliente", notes: "", status: "confirmed", created_at: new Date().toISOString(),
+  });
+  return [
+    r("a0000000-0000-4000-8000-000000000001", SALAS[0].nome, "09:00", "10:00", users["tok-ana"]),
+    r("a0000000-0000-4000-8000-000000000002", SALAS[1].nome, "14:00", "16:00", users["tok-admin"]),
+  ];
+};
 function sessao({ id, capture, inicio, voucher, status = "aguardando", valor = null, cobranca = null }) {
   const ini = new Date(inicio).getTime();
   return {
@@ -88,7 +116,7 @@ const json = (s) => {
 };
 const ativa = (s) => s.status !== "cancelada" && s.status !== "recusada";
 const statusV = (v) => (v.status === "disponivel" && v.vence_em < hojeSP() ? "vencido" : v.status);
-const ehFot = (u) => u?.id === st.settings.fotografo_id && u.role === "staff";
+const ehFot = (u) => u?.id === st.settings.fotografo_id && (u.role === "staff" || u.role === "fotografo");
 const ehAdm = (u) => u?.role === "admin";
 const ehFin = (u) => u?.role === "financeiro" || ehAdm(u);
 const erro = (res, code, message) => send(res, code === "42501" ? 403 : 400, { code, message });
@@ -165,7 +193,10 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname === "/__mock/reset") { reset(); return send(res, 200, { ok: true }); }
   if (url.pathname === "/__mock/state") return send(res, 200, st);
+  if (url.pathname === "/__mock/cenario") { cenarioCalendario(); return send(res, 200, { ok: true }); }
   if (url.pathname === "/__mock/modulo") { st.modulo = url.searchParams.get("on") === "1"; return send(res, 200, { modulo: st.modulo }); }
+  // Escolhe quem é o fotógrafo da imobiliária (ex.: ?id=foto2 para o papel fotografo).
+  if (url.pathname === "/__mock/fotografo") { st.settings.fotografo_id = url.searchParams.get("id") === "foto2" ? FOTO2 : FABIO; return send(res, 200, st.settings); }
   if (url.pathname.startsWith("/auth/v1/user")) {
     if (!u || !u.id) return send(res, 401, { msg: "invalid jwt" });
     return send(res, 200, { id: u.id, aud: "authenticated", role: "authenticated", email: u.email, created_at: "2026-01-01T00:00:00Z", app_metadata: {}, user_metadata: { nome: u.nome } });
@@ -180,6 +211,11 @@ http.createServer(async (req, res) => {
     if (fn === "platform_current_org") return send(res, 200, null);
     if (fn === "exclusive_capture_enabled") return send(res, 200, true);
     if (fn === "vouchers_fotos_enabled") return send(res, 200, st.modulo);
+    if (fn === "room_reservation_enabled") return send(res, 200, true);
+    if (fn === "list_room_occupancy") return send(res, 200, []);
+    if (fn === "list_room_reservation_users") return send(res, 200, Object.values(users).map((x) => ({ id: x.id, nome: x.nome, email: x.email })));
+    if (fn === "get_room_reservation_cancellation_status") return send(res, 200, { late_cancellation_count: 0, remaining_cancellations: 3, blocked_until: null });
+    if (fn === "can_cancel_room_reservation") return send(res, 200, true);
     if (fn === "ficha_minha_situacao") return send(res, 200, { aplica: false, completa: true, bloqueia: false, cadastro_completo: true, cadastro_pendente: [] });
     if (fn === "comemora_pergunta_pendente") return send(res, 200, false);
     if (fn === "exclusive_profile_registration") return send(res, 200, u ? [{ user_id: u.id, cpf: "529.982.247-25", creci: "123456-F" }] : []);
@@ -256,7 +292,7 @@ http.createServer(async (req, res) => {
       s.cobranca_status = a._cobrado === false ? "a_cobrar" : "cobrado";
       return send(res, 200, a._cobrado !== false);
     }
-    if (fn === "photo_staff_listar") return ehAdm(u) ? send(res, 200, [{ id: FABIO, nome: byId[FABIO].nome }]) : erro(res, "42501", "Apenas o admin configura");
+    if (fn === "photo_staff_listar") return ehAdm(u) ? send(res, 200, [{ id: FABIO, nome: byId[FABIO].nome }, { id: FOTO2, nome: byId[FOTO2].nome }]) : erro(res, "42501", "Apenas o admin configura");
     if (fn === "photo_configurar") {
       if (!ehAdm(u)) return erro(res, "42501", "Apenas o admin configura");
       st.settings = { fotografo_id: a._fotografo, valor_sessao: a._valor };
@@ -290,6 +326,8 @@ http.createServer(async (req, res) => {
       if (eqId) rows = rows.filter((r) => r.id === eqId);
     }
     if (table === "organization_members") rows = (todos ? Object.values(users) : u ? [u] : []).map((x) => ({ organization_id: ORG, user_id: x.id, ativo: true, participa_sessenta: false }));
+    if (table === "agency_rooms") rows = SALAS;
+    if (table === "room_reservations") rows = reservasSalas();
     if (table === "organizations") rows = [{ id: ORG, slug: "ficticia", nome: "Imobiliária Fictícia", status: "ativa" }];
     if (table === "exclusive_captures" && u?.id === ANA)
       rows = CAPS.map((c, i) => ({

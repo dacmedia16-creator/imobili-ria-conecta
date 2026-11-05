@@ -749,6 +749,50 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
       configuracoes: NADA_CONFIG,
     },
   },
+  {
+    // Decisão de Denis (05/11/2026, t_0666d3f0): "é só fotógrafo".
+    papel: "fotografo",
+    resumo:
+      "Só a área de fotos: agenda, sessões e histórico. Não abre vendas, captações, financeiro, carreira, salas, mural nem cadastros, e não entra em rankings e metas.",
+    areas: {
+      vendas: area(
+        [it("Vê só as sessões de fotos marcadas com ele (corretor e endereço do imóvel).")],
+        [
+          it("Não abre Vendas, Captações, Feedback, Oportunidades nem o Mapa."),
+          it("Não registra venda.", "registrar_venda"),
+        ],
+      ),
+      aprovacao: area([], [it("Não aprova venda.", "etapas_gestor"), NAO_CANCELA]),
+      contratos: area([], [it("Não monta nem confere contrato.", "etapas_juridico")]),
+      ocorrencias: area(
+        [],
+        [
+          it("Não abre o relatório Ocorrências concluídas.", "ocorrencias_concluidas"),
+          it("Não preenche nem conclui ocorrência.", "concluir_ocorrencia"),
+        ],
+      ),
+      financeiro: area([], [SEM_FINANCEIRO]),
+      relatorios: area(
+        [],
+        [
+          it(
+            "Não abre Desempenho, Produção por pessoa, Painel da Equipe nem Minha carreira, e fica fora de rankings e metas.",
+            "producao_desempenho",
+          ),
+        ],
+      ),
+      leads: SEM_LEADS,
+      usuarios: SEM_USUARIOS,
+      configuracoes: area(
+        [
+          it(
+            "Abre e fecha os próprios horários na agenda de fotos e confirma, recusa, desmarca ou marca como feita as sessões.",
+          ),
+        ],
+        [it("Não acessa as configurações da imobiliária.")],
+      ),
+    },
+  },
 ];
 
 /** Regras gerais que valem para todos. */
@@ -813,7 +857,8 @@ export function menuDoPapel(papel: ManagedRole): string[] {
 
 /** Itens que todos os papéis veem (bloco "Todo mundo logado"). */
 export function menuComum(): string[] {
-  const listas = ALL_MANAGED_ROLES.map(menuDoPapel);
+  // O Fotógrafo (t_0666d3f0) tem menu próprio, só de fotos: fica fora do bloco comum.
+  const listas = ALL_MANAGED_ROLES.filter((r) => r !== "fotografo").map(menuDoPapel);
   return listas[0].filter((l) => listas.every((x) => x.includes(l)));
 }
 

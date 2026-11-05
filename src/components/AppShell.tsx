@@ -198,8 +198,9 @@ function SidebarNav({
                   return withTip(
                     badge ? `${n.label} (${unreadLabel} não lidas)` : n.label,
                     <Link
-                      key={n.to}
+                      key={`${n.to}?${n.search?.aba ?? ""}`}
                       to={n.to}
+                      search={n.search}
                       data-tour={n.to === "/ajuda/wiki" ? "item-guias" : undefined}
                       activeOptions={{ exact: n.to === "/" }}
                       onClick={onNavigate}

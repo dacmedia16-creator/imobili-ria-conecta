@@ -157,11 +157,18 @@ describe("módulo vouchers_fotos", () => {
     expect(sql).toMatch(/_module NOT IN \([^)]*'vouchers_fotos'\)/);
   });
   it("telas: rotas protegidas pela guarda e WhatsApp só depois da ação gravada", () => {
-    for (const arq of ["agendar-fotos.tsx", "fotografo.tsx"]) {
-      const f = readFileSync(`src/routes/_authenticated/${arq}`, "utf8");
-      expect(f).toContain("beforeLoad: guardVouchersFotosRoute");
-    }
-    const ag = readFileSync("src/routes/_authenticated/agendar-fotos.tsx", "utf8");
+    const agendar = readFileSync("src/routes/_authenticated/agendar-fotos.tsx", "utf8");
+    expect(agendar).toContain("beforeLoad: guardVouchersFotosRoute");
+    // /fotografo: mesma guarda, exceto o só-fotógrafo com módulo desligado (aviso, sem vaivém).
+    const foto = readFileSync("src/routes/_authenticated/fotografo.tsx", "utf8");
+    expect(foto).toContain("beforeLoad: guardFotografoRoute");
+    expect(foto).toContain("Agenda de fotos desativada");
+    const mod = readFileSync("src/lib/vouchers-fotos-module.ts", "utf8");
+    const guarda = mod.slice(mod.indexOf("export async function guardFotografoRoute"));
+    expect(guarda).toMatch(/ehSoFotografo\(access\.roles\)\) return \{ fotosDesligado: true \}/);
+    expect(guarda).toMatch(/throw redirect\(\{ to: "\/dashboard" \}\);\n\}/);
+    // A aba "Agendar" mora em AgendarSessao.tsx desde o layout da Reserva de salas (t_9b79f000).
+    const ag = readFileSync("src/components/fotos/AgendarSessao.tsx", "utf8");
     // o aviso vem depois do toast de sucesso (só dispara se a RPC gravou)
     expect(ag.indexOf('avisarFoto(String(data), "marcada"')).toBeGreaterThan(
       ag.indexOf('rpc("photo_agendar"'),

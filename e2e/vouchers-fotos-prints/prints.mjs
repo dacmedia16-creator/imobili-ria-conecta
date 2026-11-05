@@ -68,14 +68,16 @@ try {
     await p.getByTestId("botao-agendar-fotos").first().click();
     await p.waitForURL(/agendar-fotos\?captacao=/, { timeout: 30000 });
     await p.getByTestId("horarios-livres").waitFor({ timeout: 60000 });
+    // Layout da Reserva de salas (t_9b79f000): tocar no horário livre abre o pedido.
+    await p.getByTestId("horarios-livres").getByRole("button").first().click();
+    await p.getByTestId("select-imovel").waitFor({ timeout: 15000 });
     const imovelTxt = await p.getByTestId("select-imovel").innerText();
     check(`${nome}: imóvel já escolhido pela captação`, imovelTxt.includes("Rua das Flores"), imovelTxt);
-    await p.getByTestId("horarios-livres").getByRole("button").first().click();
     const vTxt = await p.getByTestId("select-voucher").innerText();
     check(`${nome}: voucher disponível oferecido`, vTxt.includes("Usar voucher"), vTxt);
     check(`${nome}: barra "3 de 3 (+1)" na tela`, (await p.getByTestId("barra-meta").innerText()).includes("3 de 3"));
     check(`${nome}: sem estouro lateral (agendar)`, await semEstouro(p));
-    await shot(p, `${nome}-2-agendar-com-voucher.png`);
+    await shot(p, `${nome}-2-agendar-com-voucher.png`, false);
     await p.getByTestId("botao-agendar").click();
     await p.waitForTimeout(2500);
     const s1 = await state();
