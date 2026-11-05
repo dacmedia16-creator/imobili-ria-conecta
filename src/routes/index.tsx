@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
 import { contaMaxLoginUrl, contaMaxLogoutUrl } from "@/lib/dominios";
-import { academiaEnabled, aplicarModuloAcademia } from "@/lib/academia-module";
+import { aplicarSistemasLigados, sistemasLigados, type SistemaModulo } from "@/lib/hub-sistemas";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -154,15 +154,16 @@ function wheelItems(cards: ServiceCard[]): WheelItem[] {
     .map((c) => ({ id: c.id as WheelId, title: c.title, href: c.href }));
 }
 
-/** Academia é módulo por imobiliária (t_e21b37b6): só fica ativa se a imobiliária do usuário logado tiver o
- * módulo "academia" ligado. Sem login, carregando ou com erro = desligada ("Em breve"). */
-function useAcademiaLigada() {
-  const [ligada, setLigada] = useState(false);
+/** Passo 3, etapa 1 (t_311cc909): Visita, Estudo, Academia e 60 Dias só aparecem se o módulo estiver ligado
+ * na imobiliária de quem está logado (plataforma vê todos). `null` = sem login, carregando ou erro na leitura:
+ * padrão seguro, nenhum cartão some (ver aplicarSistemasLigados). Reconsulta a cada login/logout. */
+function useSistemasLigados() {
+  const [ligados, setLigados] = useState<ReadonlySet<SistemaModulo> | null>(null);
   useEffect(() => {
     let vivo = true;
     const consultar = () => {
-      void academiaEnabled().then((on) => {
-        if (vivo) setLigada(on);
+      void sistemasLigados().then((r) => {
+        if (vivo) setLigados(r);
       });
     };
     consultar();
@@ -174,8 +175,10 @@ function useAcademiaLigada() {
       sub.subscription.unsubscribe();
     };
   }, []);
-  return ligada;
+  return ligados;
 }
+
+const SESSENTA_DIAS_URL = contaMaxLoginUrl("sessenta-dias-max");
 
 const ADM_MAX_LOGIN_URL = contaMaxLoginUrl("adm-max", "/reservas-salas");
 
@@ -276,8 +279,8 @@ function SingleLoginBanner() {
 }
 
 function FrontPage() {
-  const academiaLigada = useAcademiaLigada();
-  const cards = aplicarModuloAcademia(CARDS, academiaLigada);
+  const ligados = useSistemasLigados();
+  const cards = aplicarSistemasLigados(CARDS, ligados, SESSENTA_DIAS_URL);
   const rodaItens = wheelItems(cards);
   return (
     <div className="hubpage">
