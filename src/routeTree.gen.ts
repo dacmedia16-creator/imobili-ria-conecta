@@ -16,6 +16,7 @@ import { Route as ContaMaxRouteImport } from './routes/conta-max'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as SistemasRemaxRouteImport } from './routes/sistemas-remax'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
+import { Route as AuthenticatedAgendarFotosRouteImport } from './routes/_authenticated/agendar-fotos'
 import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/ajuda'
 import { Route as AuthenticatedComissaoCoordenadorRouteImport } from './routes/_authenticated/comissao-coordenador'
 import { Route as AuthenticatedComissoesAReceberRouteImport } from './routes/_authenticated/comissoes-a-receber'
@@ -27,6 +28,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedFichaColaboradoresRouteImport } from './routes/_authenticated/ficha-colaboradores'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
+import { Route as AuthenticatedFotografoRouteImport } from './routes/_authenticated/fotografo'
 import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
 import { Route as AuthenticatedMeusLeadsRouteImport } from './routes/_authenticated/meus-leads'
 import { Route as AuthenticatedMinhaCarreiraRouteImport } from './routes/_authenticated/minha-carreira'
@@ -105,6 +107,12 @@ const TrocarSenhaRoute = TrocarSenhaRouteImport.update({
   path: '/trocar-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAgendarFotosRoute =
+  AuthenticatedAgendarFotosRouteImport.update({
+    id: '/agendar-fotos',
+    path: '/agendar-fotos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAjudaRoute = AuthenticatedAjudaRouteImport.update({
   id: '/ajuda',
   path: '/ajuda',
@@ -162,6 +170,11 @@ const AuthenticatedFichaColaboradoresRoute =
 const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFotografoRoute = AuthenticatedFotografoRouteImport.update({
+  id: '/fotografo',
+  path: '/fotografo',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMapaCaptacoesRoute =
@@ -416,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
@@ -427,6 +441,7 @@ export interface FileRoutesByFullPath {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/fotografo': typeof AuthenticatedFotografoRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
@@ -478,6 +493,7 @@ export interface FileRoutesByTo {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
   '/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
@@ -489,6 +505,7 @@ export interface FileRoutesByTo {
   '/feedback': typeof AuthenticatedFeedbackRoute
   '/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/fotografo': typeof AuthenticatedFotografoRoute
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
@@ -542,6 +559,7 @@ export interface FileRoutesById {
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
   '/trocar-senha': typeof TrocarSenhaRoute
+  '/_authenticated/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/_authenticated/ajuda': typeof AuthenticatedAjudaRoute
   '/_authenticated/comissao-coordenador': typeof AuthenticatedComissaoCoordenadorRoute
   '/_authenticated/comissoes-a-receber': typeof AuthenticatedComissoesAReceberRoute
@@ -553,6 +571,7 @@ export interface FileRoutesById {
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
   '/_authenticated/ficha-colaboradores': typeof AuthenticatedFichaColaboradoresRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/_authenticated/fotografo': typeof AuthenticatedFotografoRoute
   '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/_authenticated/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/_authenticated/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
@@ -606,6 +625,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/sistemas-remax'
     | '/trocar-senha'
+    | '/agendar-fotos'
     | '/ajuda'
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
@@ -617,6 +637,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/ficha-colaboradores'
     | '/financeiro'
+    | '/fotografo'
     | '/mapa-captacoes'
     | '/meus-leads'
     | '/minha-carreira'
@@ -668,6 +689,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/sistemas-remax'
     | '/trocar-senha'
+    | '/agendar-fotos'
     | '/ajuda'
     | '/comissao-coordenador'
     | '/comissoes-a-receber'
@@ -679,6 +701,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/ficha-colaboradores'
     | '/financeiro'
+    | '/fotografo'
     | '/mapa-captacoes'
     | '/meus-leads'
     | '/minha-carreira'
@@ -731,6 +754,7 @@ export interface FileRouteTypes {
     | '/redefinir-senha'
     | '/sistemas-remax'
     | '/trocar-senha'
+    | '/_authenticated/agendar-fotos'
     | '/_authenticated/ajuda'
     | '/_authenticated/comissao-coordenador'
     | '/_authenticated/comissoes-a-receber'
@@ -742,6 +766,7 @@ export interface FileRouteTypes {
     | '/_authenticated/feedback'
     | '/_authenticated/ficha-colaboradores'
     | '/_authenticated/financeiro'
+    | '/_authenticated/fotografo'
     | '/_authenticated/mapa-captacoes'
     | '/_authenticated/meus-leads'
     | '/_authenticated/minha-carreira'
@@ -856,6 +881,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrocarSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/agendar-fotos': {
+      id: '/_authenticated/agendar-fotos'
+      path: '/agendar-fotos'
+      fullPath: '/agendar-fotos'
+      preLoaderRoute: typeof AuthenticatedAgendarFotosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ajuda': {
       id: '/_authenticated/ajuda'
       path: '/ajuda'
@@ -931,6 +963,13 @@ declare module '@tanstack/react-router' {
       path: '/financeiro'
       fullPath: '/financeiro'
       preLoaderRoute: typeof AuthenticatedFinanceiroRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/fotografo': {
+      id: '/_authenticated/fotografo'
+      path: '/fotografo'
+      fullPath: '/fotografo'
+      preLoaderRoute: typeof AuthenticatedFotografoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/mapa-captacoes': {
@@ -1238,6 +1277,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAgendarFotosRoute: typeof AuthenticatedAgendarFotosRoute
   AuthenticatedAjudaRoute: typeof AuthenticatedAjudaRoute
   AuthenticatedComissaoCoordenadorRoute: typeof AuthenticatedComissaoCoordenadorRoute
   AuthenticatedComissoesAReceberRoute: typeof AuthenticatedComissoesAReceberRoute
@@ -1249,6 +1289,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
   AuthenticatedFichaColaboradoresRoute: typeof AuthenticatedFichaColaboradoresRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
+  AuthenticatedFotografoRoute: typeof AuthenticatedFotografoRoute
   AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
   AuthenticatedMeusLeadsRoute: typeof AuthenticatedMeusLeadsRoute
   AuthenticatedMinhaCarreiraRoute: typeof AuthenticatedMinhaCarreiraRoute
@@ -1287,6 +1328,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAgendarFotosRoute: AuthenticatedAgendarFotosRoute,
   AuthenticatedAjudaRoute: AuthenticatedAjudaRoute,
   AuthenticatedComissaoCoordenadorRoute: AuthenticatedComissaoCoordenadorRoute,
   AuthenticatedComissoesAReceberRoute: AuthenticatedComissoesAReceberRoute,
@@ -1298,6 +1340,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
   AuthenticatedFichaColaboradoresRoute: AuthenticatedFichaColaboradoresRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
+  AuthenticatedFotografoRoute: AuthenticatedFotografoRoute,
   AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
   AuthenticatedMeusLeadsRoute: AuthenticatedMeusLeadsRoute,
   AuthenticatedMinhaCarreiraRoute: AuthenticatedMinhaCarreiraRoute,

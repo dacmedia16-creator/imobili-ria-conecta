@@ -36,6 +36,7 @@ import {
   KanbanSquare,
   Workflow,
   HeartPulse,
+  Camera,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -65,6 +66,8 @@ export type MenuContexto = {
   leadsVisible?: boolean;
   /** Módulo CRM (dois funis, t_188fb282) ligado: crm E leads (opcional: ausente = desligado). */
   crmVisible?: boolean;
+  /** Módulo "Agendar fotos" (vouchers_fotos, t_d86ab990) ligado (opcional: ausente = desligado). */
+  fotosVisible?: boolean;
   /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
   carreiraVisible?: boolean;
   /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
@@ -78,6 +81,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const achievementsVisible = ctx.achievementsVisible === true;
   const carreiraVisible = ctx.carreiraVisible === true;
   const leadsVisible = ctx.leadsVisible === true;
+  const fotosVisible = ctx.fotosVisible === true;
   const crmVisible = leadsVisible && ctx.crmVisible === true;
   const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
@@ -195,6 +199,9 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
         },
         // Item 21 (t_0fa570c7): o grupo "Agenda" tinha só este item; mesma condição de antes.
         { to: "/reservas-salas", label: "Reserva de salas", icon: CalendarDays, show: roomVisible },
+        // Agendar fotos (t_d86ab990): mesmo padrão da Reserva de salas; o banco recusa tudo com o
+        // módulo desligado. A agenda do fotógrafo abre a partir desta tela.
+        { to: "/agendar-fotos", label: "Agendar fotos", icon: Camera, show: fotosVisible },
       ],
     },
     {

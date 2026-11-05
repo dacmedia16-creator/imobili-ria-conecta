@@ -125,6 +125,7 @@ export const ORGANIZATION_MODULES = [
   "crm",
   "especialistas_publico",
   "academia",
+  "vouchers_fotos",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -138,6 +139,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   crm: "CRM (dois funis: venda e captação; precisa do Leads ligado)",
   especialistas_publico: 'Página pública "Ache um especialista" (/especialistas)',
   academia: "Academia Única MAX",
+  vouchers_fotos: "Agendar fotos (vouchers e agenda do fotógrafo)",
 };
 
 export type OrganizationSummary = OrganizationRow & {

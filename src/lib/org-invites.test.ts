@@ -119,7 +119,8 @@ describe("módulos da imobiliária criada pelo convite", () => {
         x !== "leads" &&
         x !== "crm" &&
         x !== "especialistas_publico" &&
-        x !== "academia",
+        x !== "academia" &&
+        x !== "vouchers_fotos",
     ))
       expect(m[k]).toBe(true);
   });
@@ -132,7 +133,12 @@ describe("módulos da imobiliária criada pelo convite", () => {
     expect(mods).toEqual(
       [...ORGANIZATION_MODULES]
         .filter(
-          (x) => x !== "leads" && x !== "crm" && x !== "especialistas_publico" && x !== "academia",
+          (x) =>
+            x !== "leads" &&
+            x !== "crm" &&
+            x !== "especialistas_publico" &&
+            x !== "academia" &&
+            x !== "vouchers_fotos",
         )
         .sort(),
     );

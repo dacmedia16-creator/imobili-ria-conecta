@@ -232,6 +232,27 @@ describe("menu lateral agrupado", () => {
     expect(rotulo.get("/ajuda")).toBe("Meus chamados");
   });
 
+  it("Agendar fotos (t_d86ab990): só com o módulo ligado, no grupo Equipe, para todos os perfis", () => {
+    const base = {
+      platformAdmin: false,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+    };
+    for (const roles of [["corretor"], ["staff"], ["financeiro"], ["admin"]]) {
+      expect(itensVisiveis(montarMenuLateral({ ...base, roles }))).not.toContain("/agendar-fotos");
+      const grupos = montarMenuLateral({ ...base, roles, fotosVisible: true });
+      expect(itensVisiveis(grupos)).toContain("/agendar-fotos");
+      const equipe = grupos.find((g) => g.label === "Equipe");
+      expect(equipe?.items.find((i) => i.to === "/agendar-fotos")?.label).toBe("Agendar fotos");
+    }
+    const fonte = readFileSync(
+      new URL("../routes/_authenticated/agendar-fotos.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(fonte).toContain('title="Agendar fotos"');
+  });
+
   it("Oportunidades só aparece com o módulo ligado e para os mesmos perfis do Feedback", () => {
     const base = {
       platformAdmin: true,
