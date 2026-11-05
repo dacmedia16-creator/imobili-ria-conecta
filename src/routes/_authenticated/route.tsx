@@ -6,6 +6,8 @@ import { CompletarPerfilGate } from "@/components/CompletarPerfil";
 import { FichaColaboradorGate } from "@/components/ficha/FichaColaboradorGate";
 import { ComemoraAniversarioPergunta } from "@/components/ComemoraAniversarioPergunta";
 import { consumirRetornoDepoimento, guardarRetornoDepoimento } from "@/lib/depoimentos";
+import { getRouteAccess } from "@/lib/route-access";
+import { destinoFotografo } from "@/lib/fotografo";
 
 function armazenamento(): Storage | null {
   try {
@@ -30,6 +32,11 @@ export const Route = createFileRoute("/_authenticated")({
     if (voltarParaDepoimento && !naPaginaDepoimento) {
       throw redirect({ to: "/depoimento", replace: true });
     }
+    // Papel Fotógrafo (t_0666d3f0): o só-fotógrafo entra em /fotografo e não abre outras telas
+    // (inclusive o /dashboard do login). O banco (RLS/is_active_user) é a proteção real dos dados.
+    const access = await getRouteAccess();
+    const destino = access ? destinoFotografo(access.roles, location.pathname) : null;
+    if (destino) throw redirect({ to: destino, replace: true });
   },
   component: () => (
     <AuthProvider>

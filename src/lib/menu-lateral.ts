@@ -43,13 +43,21 @@ import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
+import { ehSoFotografo } from "@/lib/fotografo";
 
 // Menu lateral agrupado (maquete aprovada por Denis em 12/10/2026, card t_7f4f77c8).
 // Só organiza e muda ícones: cada condição `show` é a MESMA que existia no AppShell antes
 // (menu-lateral.test.ts compara item a item com a versão anterior). Rotas, RLS e as
 // verificações de servidor continuam sendo a proteção real.
 
-export type NavItem = { to: string; label: string; icon: typeof Home; show: boolean };
+export type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  show: boolean;
+  /** Query da rota (ex.: aba da tela /fotografo). Ausente = sem query. */
+  search?: Record<string, string>;
+};
 export type NavGroup = { label?: string; items: NavItem[]; restricted?: boolean };
 
 export type MenuContexto = {
@@ -85,6 +93,10 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const crmVisible = leadsVisible && ctx.crmVisible === true;
   const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
+
+  // Papel Fotógrafo (t_0666d3f0, Denis 05/11/2026: "é só fotógrafo"): só a área de fotos e a conta.
+  // As rotas (src/routes/_authenticated/route.tsx) e o banco (RLS/is_active_user) repetem o bloqueio.
+  if (ehSoFotografo(roles)) return menuFotografo();
 
   return [
     {
@@ -339,6 +351,40 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: MessageSquareQuote,
           show: platformItems,
         },
+      ],
+    },
+  ];
+}
+
+/** Menu reduzido do só-fotógrafo: agenda, sessões e histórico, mais a conta. */
+export function menuFotografo(): NavGroup[] {
+  return [
+    {
+      label: "Fotos",
+      items: [
+        {
+          to: "/fotografo",
+          label: "Agenda",
+          icon: CalendarDays,
+          show: true,
+          search: { aba: "faixas" },
+        },
+        { to: "/fotografo", label: "Sessões", icon: Camera, show: true, search: { aba: "sessoes" } },
+        {
+          to: "/fotografo",
+          label: "Histórico",
+          icon: CheckCircle2,
+          show: true,
+          search: { aba: "historico" },
+        },
+      ],
+    },
+    {
+      label: "Conta e acesso",
+      items: [
+        { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
+        { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
+        { to: "/ajuda", label: "Meus chamados", icon: LifeBuoy, show: true },
       ],
     },
   ];

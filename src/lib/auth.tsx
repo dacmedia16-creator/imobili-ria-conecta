@@ -31,7 +31,8 @@ export type AppRole =
   | "admin"
   | "super_admin"
   | "lancamento"
-  | "staff";
+  | "staff"
+  | "fotografo";
 
 type AuthCtx = {
   session: Session | null;
@@ -167,4 +168,6 @@ export const ROLE_LABEL: Record<AppRole, string> = {
   super_admin: "Administrador principal",
   lancamento: "Lançamento",
   staff: "Staff",
+  // Só a área de fotos (t_0666d3f0).
+  fotografo: "Fotógrafo",
 };
