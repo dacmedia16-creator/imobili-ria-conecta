@@ -633,7 +633,7 @@ function FrontPage() {
           <div className="top-actions">
             <Link to="/sistemas-remax" className="reservation-link">
               <SistemasRemaxIcon />
-              <span>Sistemas REMAX Brasil</span>
+              <span>Sistemas Gerais / REMAX Brasil</span>
             </Link>
             <a
               href={ADM_MAX_LOGIN_URL}
@@ -723,7 +723,7 @@ function FrontPage() {
           <div className="mactions">
             <Link to="/sistemas-remax" className="mobile-reservation-link">
               <SistemasRemaxIcon />
-              <span>Sistemas REMAX Brasil</span>
+              <span>Sistemas Gerais / REMAX Brasil</span>
             </Link>
             <a
               href={ADM_MAX_LOGIN_URL}
