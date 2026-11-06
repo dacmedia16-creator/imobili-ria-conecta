@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
-import { contaMaxLoginUrl, contaMaxLogoutUrl } from "@/lib/dominios";
+import { contaMaxLoginUrl } from "@/lib/dominios";
 import { aplicarSistemasLigados, sistemasLigados, type SistemaModulo } from "@/lib/hub-sistemas";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
@@ -218,63 +218,6 @@ function CardIcon({ card }: { card: ServiceCard }) {
   );
 }
 
-/** Há sessão do ADM neste navegador? Começa em false (servidor e 1ª pintura sem banner) e só liga
- * depois de ler a sessão local: "Sair da Conta MAX" não faz sentido para quem
- * nem entrou (item 14 t_532125eb). */
-function useTemSessao() {
-  const [tem, setTem] = useState(false);
-  useEffect(() => {
-    let vivo = true;
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (vivo) setTem(!!data.session);
-      })
-      .catch(() => {});
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-      if (vivo) setTem(!!s);
-    });
-    return () => {
-      vivo = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-  return tem;
-}
-
-function SingleLoginBanner() {
-  const temSessao = useTemSessao();
-  if (!temSessao) return null;
-  return (
-    <div
-      className="single-login-banner"
-      role="status"
-      aria-label="Login Único da Conta MAX disponível"
-    >
-      <span className="single-login-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="10" width="18" height="11" rx="3" />
-          <path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10" />
-          <circle cx="12" cy="15.5" r="1.25" />
-        </svg>
-      </span>
-      <span className="single-login-copy">
-        <b>Novidade no Ecossistema MAX</b>
-        <strong>Uma conta. Todos os sistemas MAX.</strong>
-        <span>
-          Com o Login Único, você entra uma vez com o Google e acessa os sistemas liberados para
-          você.
-        </span>
-      </span>
-      <span className="single-login-actions">
-        <a href={contaMaxLogoutUrl()} className="single-login-status">
-          <span aria-hidden="true" /> Sair da Conta MAX
-        </a>
-      </span>
-    </div>
-  );
-}
-
 function FrontPage() {
   const ligados = useSistemasLigados();
   const cards = aplicarSistemasLigados(CARDS, ligados, SESSENTA_DIAS_URL);
@@ -481,48 +424,6 @@ function FrontPage() {
         .hubpage .footbar p { margin: 0; color: rgba(255, 255, 255, 0.85); font-weight: 500; font-size: clamp(0.6rem, 1.15vw, 1.15rem); }
         .hubpage a.card-link { text-decoration: none; }
 
-        .hubpage .single-login-banner {
-          display: flex; align-items: center; gap: 16px;
-          color: #fff; text-decoration: none;
-          background:
-            radial-gradient(420px circle at 85% 0%, rgba(220, 28, 46, 0.18), transparent 60%),
-            #14305a;
-          border: 1px solid rgba(143, 180, 232, 0.35);
-          border-radius: 24px; padding: 16px 20px;
-          box-shadow: 0 30px 80px -30px rgba(42, 79, 134, 0.9);
-          cursor: default;
-        }
-        .hubpage .single-login-icon {
-          display: grid; place-items: center; flex: none;
-          width: 50px; height: 50px; border-radius: 15px;
-          background: var(--red);
-          box-shadow: 0 10px 30px -8px rgba(220, 28, 46, 0.7);
-        }
-        .hubpage .single-login-icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-        .hubpage .single-login-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; }
-        .hubpage .single-login-copy b {
-          color: var(--gray); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-        }
-        .hubpage .single-login-copy strong { margin-top: 4px; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 700; letter-spacing: -0.02em; font-size: 1.1rem; line-height: 1.2; }
-        .hubpage .single-login-copy > span { margin-top: 3px; color: rgba(255, 255, 255, 0.78); font-size: 0.8rem; }
-        .hubpage .single-login-status {
-          display: inline-flex; align-items: center; gap: 7px;
-          flex: none; border-radius: 999px; background: var(--red); color: #fff;
-          padding: 10px 18px; font-size: 0.78rem; font-weight: 600; white-space: nowrap;
-          transition: background 0.2s ease, box-shadow 0.2s ease;
-        }
-        .hubpage .single-login-status:hover {
-          background: var(--red-dark); box-shadow: 0 10px 40px -8px rgba(220, 28, 46, 0.7);
-        }
-        .hubpage .single-login-actions {
-          display: flex; flex: none; align-items: center; gap: 8px;
-        }
-        .hubpage .single-login-actions a { text-decoration: none; }
-        .hubpage .single-login-status > span {
-          width: 8px; height: 8px; border-radius: 999px; background: #6ee7a8;
-          box-shadow: 0 0 0 4px rgba(110, 231, 168, 0.14);
-        }
-        .hubpage .stage > .single-login-banner { max-width: 1120px; margin: 0 auto 20px; }
         .hubpage .topbar { display: none; }
         @media (min-width: 860px) { .hubpage .topbar { max-width: 1680px; margin: 0 auto; height: 64px; display: flex; align-items: center; padding: 0 clamp(1rem, 3vw, 2.5rem); } }
 
@@ -549,17 +450,6 @@ function FrontPage() {
         .hubpage .mhero { margin-top: 40px; text-align: left; }
         .hubpage .mhero h1 { margin: 0.8rem 0 0; font-size: 3rem; }
         .hubpage .mhero p:not(.eyebrow) { margin: 0.6rem 0 0; color: var(--gray); font-size: 0.95rem; }
-
-        .hubpage .mobile-stage .single-login-banner {
-          margin-top: 20px; align-items: flex-start; flex-wrap: wrap; gap: 11px; padding: 14px;
-        }
-        .hubpage .mobile-stage .single-login-icon { width: 44px; height: 44px; border-radius: 13px; }
-        .hubpage .mobile-stage .single-login-copy { min-width: calc(100% - 58px); }
-        .hubpage .mobile-stage .single-login-copy strong { font-size: 1rem; }
-        .hubpage .mobile-stage .single-login-copy > span { font-size: 0.76rem; line-height: 1.3; }
-        .hubpage .mobile-stage .single-login-actions { width: 100%; }
-        .hubpage .mobile-stage .single-login-actions a { flex: 1; }
-        .hubpage .mobile-stage .single-login-status { justify-content: center; padding: 9px 12px; }
 
         .hubpage .mhub { position: relative; width: 100%; max-width: 420px; margin: 22px auto 0; padding: 0 2px; }
         .hubpage .mhub-hint { margin: 6px 0 0; text-align: center; color: var(--gray); font-size: 0.78rem; }
@@ -599,7 +489,6 @@ function FrontPage() {
         </Link>
       </div>
       <div className="stage">
-        <SingleLoginBanner />
         <div className="canvas">
           <div className="dotgrid" />
           <div className="corner-navy" />
@@ -722,8 +611,6 @@ function FrontPage() {
             </a>
           </div>
         </div>
-
-        <SingleLoginBanner />
 
         <div className="mhub">
           <HubWheel items={rodaItens} />
