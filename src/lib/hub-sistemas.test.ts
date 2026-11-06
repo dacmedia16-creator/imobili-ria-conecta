@@ -24,7 +24,9 @@ const CARDS = [
 const ids = (r: { id: string }[]) => r.map((c) => c.id);
 const set = (...m: SistemaModulo[]) => new Set<SistemaModulo>(m);
 
-describe("Hub: cartão some quando o sistema está desligado (t_311cc909)", () => {
+const href = (r: { id: string; href?: string }[], id: string) => r.find((c) => c.id === id)?.href;
+
+describe('Hub: sistema desligado fica "Em breve" sem link, nunca some (t_5ea3c841)', () => {
   it("todos ligados (plataforma ou Única): os 9 cartões, 60 Dias ganha link", () => {
     const r = aplicarSistemasLigados(
       CARDS,
@@ -36,29 +38,37 @@ describe("Hub: cartão some quando o sistema está desligado (t_311cc909)", () =
     expect(r.find((c) => c.id === "academia")?.href).toBe(CARDS[2].href);
   });
 
-  it("só Visita e Estudo (RE/MAX sem Academia/60 Dias): Academia e 60 Dias somem, o resto fica igual", () => {
+  it('só Visita e Estudo (RE/MAX sem Academia/60 Dias): Academia e 60 Dias ficam "Em breve" sem link, o resto igual', () => {
     const r = aplicarSistemasLigados(CARDS, set("visita", "estudo"), SESSENTA);
-    expect(ids(r)).toEqual([
-      "adm",
-      "estudo",
-      "recruta",
-      "locacao",
-      "visita",
-      "especialistas",
-      "obah",
-    ]);
-    expect(r.find((c) => c.id === "visita")?.href).toBe(CARDS[6].href);
+    expect(ids(r)).toEqual(ids(CARDS));
+    expect(href(r, "academia")).toBeUndefined();
+    expect(href(r, "60dias")).toBeUndefined();
+    expect(href(r, "visita")).toBe(CARDS[6].href);
+    expect(href(r, "estudo")).toBe(CARDS[1].href);
   });
 
-  it("Visita desligado: só o cartão do Visita some", () => {
+  it("60 Dias desligado (caso da Única): o cartão continua, sem link; os outros 3 com link", () => {
+    const r = aplicarSistemasLigados(CARDS, set("visita", "estudo", "academia"), SESSENTA);
+    expect(ids(r)).toEqual(ids(CARDS));
+    expect(href(r, "60dias")).toBeUndefined();
+    expect(href(r, "academia")).toBe(CARDS[2].href);
+  });
+
+  it("Visita desligado: o cartão do Visita continua, sem link; nenhum cartão some", () => {
     const r = aplicarSistemasLigados(CARDS, set("estudo", "academia", "sessenta"), SESSENTA);
-    expect(ids(r)).not.toContain("visita");
-    expect(r).toHaveLength(CARDS.length - 1);
+    expect(ids(r)).toEqual(ids(CARDS));
+    expect(href(r, "visita")).toBeUndefined();
+    expect(href(r, "60dias")).toBe(SESSENTA);
   });
 
-  it("nada ligado (sem imobiliária ativa): somem só os 4 sistemas; ADM, Especialistas, Obah e Em breve ficam", () => {
+  it("nada ligado (sem imobiliária ativa): os 4 sistemas ficam sem link; ADM, Especialistas, Obah e Em breve não mudam", () => {
     const r = aplicarSistemasLigados(CARDS, set(), SESSENTA);
-    expect(ids(r)).toEqual(["adm", "recruta", "locacao", "especialistas", "obah"]);
+    expect(ids(r)).toEqual(ids(CARDS));
+    for (const id of ["visita", "estudo", "academia", "60dias"])
+      expect(href(r, id)).toBeUndefined();
+    for (const c of CARDS.filter((c) => !["visita", "estudo", "academia", "60dias"].includes(c.id)))
+      expect(href(r, c.id)).toBe(c.href);
+    expect(CARDS[6].href).toBeDefined(); // não altera a lista original
   });
 
   it("padrão seguro (null = sem login/erro): nenhum cartão some; igual a antes da etapa 1", () => {

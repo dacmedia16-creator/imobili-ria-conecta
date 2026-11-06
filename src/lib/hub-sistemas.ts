@@ -33,11 +33,12 @@ export async function sistemasLigados(): Promise<ReadonlySet<SistemaModulo> | nu
 }
 
 /**
- * Decisão 3 do Denis (t_311cc909): com a chave desligada o cartão SOME do Hub (e da roda).
- * Padrão seguro (`ligados === null`: sem login, carregando ou erro na leitura): nenhum cartão some e o Hub
- * fica igual ao de antes da etapa 1 (Academia e 60 Dias sem link, "Em breve"; Visita e Estudo com link).
+ * Nenhum cartão some (Denis, 06/11/2026, t_5ea3c841; revoga a decisão 3 de t_311cc909).
+ * Desligado: o cartão continua no Hub e na roda, sem link, com o selo "Em breve".
+ * Padrão seguro (`ligados === null`: sem login, carregando ou erro na leitura): igual ao de antes da etapa 1
+ * (Academia e 60 Dias sem link, "Em breve"; Visita e Estudo com link).
  * Ligado: o cartão aparece com link; o 60 Dias ganha o link `sessentaHref` (passe da Conta MAX).
- * Esconder o cartão não bloqueia o sistema: o bloqueio no servidor é das etapas 2 a 4.
+ * Tirar o link não bloqueia o sistema: o bloqueio no servidor é das etapas 2 a 4.
  */
 export function aplicarSistemasLigados<T extends { id: string; href?: string }>(
   itens: readonly T[],
@@ -49,10 +50,10 @@ export function aplicarSistemasLigados<T extends { id: string; href?: string }>(
       c.id === "academia" || c.id === "60dias" ? { ...c, href: undefined } : c,
     );
   }
-  return itens
-    .filter((c) => {
-      const mod = CARD_MODULO[c.id];
-      return !mod || ligados.has(mod);
-    })
-    .map((c) => (c.id === "60dias" ? { ...c, href: sessentaHref } : c));
+  return itens.map((c) => {
+    const mod = CARD_MODULO[c.id];
+    if (!mod) return c;
+    if (!ligados.has(mod)) return { ...c, href: undefined };
+    return c.id === "60dias" ? { ...c, href: sessentaHref } : c;
+  });
 }
