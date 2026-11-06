@@ -14,6 +14,7 @@ import {
   filterSiteListingsMapa,
   siteFiltroInaplicavel,
   sitePin,
+  botaoVerImovel,
   withLinkedListings,
   coordenadaNoBrasil,
   marcarLocalInvalida,
@@ -165,16 +166,43 @@ describe("pinos compartilhados pelas duas telas", () => {
   it("sitePin: vermelho, menor, link só do site RE/MAX", () => {
     const p = sitePin(mk());
     expect(p).toMatchObject({ id: "site:630699001-11", color: SITE_COLOR, radius: 6 });
+    expect(p.links?.[0]).toMatchObject({ text: "Ver imóvel ↗" });
     expect(p.links?.[0]?.href).toMatch(/^https:\/\/www\.remax\.com\.br\//);
-    expect(sitePin(mk({ url: "javascript:alert(1)" })).links).toEqual([]);
+    // Anúncio do site não traz telefone do corretor: WhatsApp aparece desabilitado com dica.
+    expect(p.links?.[1]).toMatchObject({ href: null, disabledHint: "captador sem telefone" });
+    // URL inválida: "Ver imóvel" desabilitado, não some.
+    expect(sitePin(mk({ url: "javascript:alert(1)" })).links?.[0]).toEqual({
+      text: "Ver imóvel",
+      href: null,
+      disabledHint: "sem link cadastrado",
+    });
   });
-  it("withLinkedListings: um marcador só, com contorno, código e link", () => {
-    const base = { id: "c1", lat: -23, lon: -47, color: "#000", lines: [{ text: "Cap" }] };
-    expect(withLinkedListings(base, undefined)).toMatchObject({ id: "c1", lat: -23 });
+  it("botaoVerImovel: só link RE/MAX em https; resto desabilitado", () => {
+    expect(botaoVerImovel("https://www.remax.com.br/pt-br/imoveis/x/1")).toMatchObject({
+      href: "https://www.remax.com.br/pt-br/imoveis/x/1",
+    });
+    expect(botaoVerImovel(null)).toMatchObject({ href: null, disabledHint: "sem link cadastrado" });
+    expect(botaoVerImovel("http://evil.test/x")).toMatchObject({ href: null });
+  });
+  it("withLinkedListings: um marcador só, com contorno, código e 'Ver imóvel' primeiro", () => {
+    const wa = { text: "WhatsApp do captador", href: "https://wa.me/5515999990001" };
+    const base = {
+      id: "c1",
+      lat: -23,
+      lon: -47,
+      color: "#000",
+      lines: [{ text: "Cap" }],
+      links: [wa],
+    };
+    // Captação sem anúncio ligado: "Ver imóvel" desabilitado + WhatsApp mantido.
+    expect(withLinkedListings(base, undefined)!.links).toEqual([
+      { text: "Ver imóvel", href: null, disabledHint: "sem link cadastrado" },
+      wa,
+    ]);
     const p = withLinkedListings(base, [mk({ capture_id: "c1" })])!;
     expect(p.ring).toBe(SITE_COLOR);
     expect(p.lines.map((l) => l.text).join(" ")).toContain("código 630699001-11");
-    expect(p.links).toHaveLength(1);
+    expect(p.links?.map((l) => l.text)).toEqual(["Ver imóvel ↗", "WhatsApp do captador"]);
   });
   it("captação sem coordenada usa a do anúncio ligado; sem nenhuma, fica fora", () => {
     const base = { id: "c1", lat: null, lon: null, color: "#000", lines: [] };

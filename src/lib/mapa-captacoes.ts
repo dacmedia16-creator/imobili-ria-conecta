@@ -18,7 +18,7 @@ import {
   type Validity,
 } from "@/lib/exclusive-captures";
 import { nomeExibicao } from "@/lib/vendas-por-regiao";
-import type { MapPin } from "@/components/mapa/PinsMap";
+import type { MapPin, PinLink } from "@/components/mapa/PinsMap";
 import { precoTexto, whatsappLink } from "@/lib/mapa-captacoes-filtros";
 import { diasEntre, haQuantosDias } from "@/lib/captacao-venda";
 
@@ -135,11 +135,20 @@ export function linhasCaptacao(r: CaptacaoMapaRow, hoje: string): MapPin["lines"
   return linhas;
 }
 
-/** Botões de contato do corretor captador (WhatsApp e e-mail), quando houver no cadastro. */
-export function linksCaptador(r: CaptacaoMapaRow): { text: string; href: string }[] {
-  const out: { text: string; href: string }[] = [];
-  const wa = whatsappLink(r.captador_telefone, r.codigo);
-  if (wa) out.push({ text: "WhatsApp do captador", href: wa });
+export const SEM_TELEFONE = "captador sem telefone";
+
+/** Botão "WhatsApp do captador": wa.me com DDI 55 e mensagem citando a captação; sem telefone
+ * válido no cadastro fica desabilitado com a dica (reunião com broker, 05/11/2026). */
+export function botaoWhatsappCaptador(tel: string | null | undefined, codigo?: string): PinLink {
+  const href = whatsappLink(tel, codigo);
+  return href
+    ? { text: "WhatsApp do captador", href }
+    : { text: "WhatsApp do captador", href: null, disabledHint: SEM_TELEFONE };
+}
+
+/** Botões de contato do corretor captador: WhatsApp (sempre; desabilitado sem telefone) e e-mail. */
+export function linksCaptador(r: CaptacaoMapaRow): PinLink[] {
+  const out: PinLink[] = [botaoWhatsappCaptador(r.captador_telefone, r.codigo)];
   if (r.captador_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.captador_email))
     out.push({ text: "E-mail", href: `mailto:${r.captador_email}` });
   return out;
