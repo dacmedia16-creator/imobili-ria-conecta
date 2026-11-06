@@ -121,7 +121,8 @@ describe("módulos da imobiliária criada pelo convite", () => {
         x !== "especialistas_publico" &&
         x !== "academia" &&
         x !== "vouchers_fotos" &&
-        x !== "sessenta",
+        x !== "sessenta" &&
+        x !== "meu_plano_2027",
     ))
       expect(m[k]).toBe(true);
     // t_1969ae17 (decisão 6): Visita e Estudo nascem ligados; 60 Dias desligado.
@@ -147,7 +148,8 @@ describe("módulos da imobiliária criada pelo convite", () => {
             // t_1969ae17: os 3 sistemas são gravados pelo gatilho trg_zz_org_sistemas_padrao, não pelo convite.
             x !== "visita" &&
             x !== "estudo" &&
-            x !== "sessenta",
+            x !== "sessenta" &&
+            x !== "meu_plano_2027",
         )
         .sort(),
     );

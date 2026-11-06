@@ -131,6 +131,8 @@ export const ORGANIZATION_MODULES = [
   "visita",
   "estudo",
   "sessenta",
+  // Minha carreira → Meu Plano 2027 (t_1ac2e95d). Nasce desligado; Denis liga só na Única Escolha.
+  "meu_plano_2027",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -148,6 +150,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   visita: "Visita MAX (sistema; ainda sem bloqueio)",
   estudo: "Estudo de Mercado MAX (sistema; ainda sem bloqueio)",
   sessenta: "60 Dias MAX (sistema)",
+  meu_plano_2027: "Meu Plano 2027 (book Agent Summit, Minha carreira)",
 };
 
 export type OrganizationSummary = OrganizationRow & {

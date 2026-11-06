@@ -25,6 +25,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "especialistas_publico",
   // "academia" (t_e21b37b6): nasce desligada; a plataforma liga por imobiliária.
   "academia",
+  // "meu_plano_2027" (t_1ac2e95d): nasce desligado; a plataforma liga só na Única Escolha.
+  "meu_plano_2027",
   // "vouchers_fotos" (t_d86ab990): nasce desligado; só o super-admin da plataforma liga.
   "vouchers_fotos",
   // "sessenta" (t_1969ae17, decisão 6 de Denis): nasce desligado. Visita e Estudo nascem ligados

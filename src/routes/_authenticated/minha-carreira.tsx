@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton, PageHeader, Pill, type Tom } from "@/components/visual/base";
 import { MeuMes } from "@/components/minha-carreira/MeuMes";
+import { MeuPlanoCartao } from "@/components/minha-carreira/MeuPlanoCartao";
 import { MeuDinheiro } from "@/components/minha-carreira/MeuDinheiro";
 import { Conquistas } from "@/components/minha-carreira/Conquistas";
 import { Diario } from "@/components/minha-carreira/Diario";
@@ -207,6 +208,9 @@ function MinhaCarreiraPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Meu Plano 2027 (t_1ac2e95d): só com o módulo meu_plano_2027 ligado. */}
+      {userId ? <MeuPlanoCartao userId={userId} /> : null}
 
       {userId ? <MeuMes userId={userId} /> : null}
 
