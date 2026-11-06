@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Capture } from "./exclusive-captures";
 import { bairroLabel, brl, type Filters } from "./exclusive-captures-dashboard";
 import { precoNumero, tipoLabel, type FiltrosMapa } from "./mapa-captacoes-filtros";
-import type { MapPin } from "@/components/mapa/PinsMap";
+import type { MapPin, PinLink } from "@/components/mapa/PinsMap";
 
 /**
  * Camada "anúncios do site RE/MAX" no mapa do painel de captações (pedido de Denis 13/10/2026).
@@ -258,9 +258,20 @@ export function siteFiltroInaplicavel(f: FiltrosMapa): string | null {
 export const safeSiteUrl = (u: string | null) =>
   u && /^https:\/\/(www\.)?remax\.com\.br\//i.test(u) ? u : null;
 
-/** Marcador próprio do anúncio solto: menor e vermelho, popup só com dados públicos. */
+export const SEM_LINK = "sem link cadastrado";
+
+/** Botão "Ver imóvel": abre o anúncio público (site/XML RE/MAX) em nova aba; sem link válido fica
+ * desabilitado com a dica (reunião com broker, 05/11/2026 — "abrir o link do imóvel"). */
+export function botaoVerImovel(url: string | null | undefined): PinLink {
+  const href = safeSiteUrl(url ?? null);
+  return href
+    ? { text: "Ver imóvel ↗", href }
+    : { text: "Ver imóvel", href: null, disabledHint: SEM_LINK };
+}
+
+/** Marcador próprio do anúncio solto: menor e vermelho, popup só com dados públicos. O anúncio
+ * do site/XML não traz telefone do corretor, então o WhatsApp aparece desabilitado com a dica. */
 export function sitePin(l: SiteListing): MapPin {
-  const href = safeSiteUrl(l.url);
   return {
     id: `site:${l.code}`,
     lat: l.lat,
@@ -268,7 +279,10 @@ export function sitePin(l: SiteListing): MapPin {
     color: SITE_COLOR,
     radius: 6,
     lines: siteListingLines(l),
-    links: href ? [{ text: "Ver no site RE/MAX ↗", href }] : [],
+    links: [
+      botaoVerImovel(l.url),
+      { text: "WhatsApp do captador", href: null, disabledHint: "captador sem telefone" },
+    ],
   };
 }
 
@@ -285,7 +299,9 @@ export function withLinkedListings(
   const lat = pin.lat ?? local?.lat ?? null;
   const lon = pin.lon ?? local?.lon ?? null;
   if (lat == null || lon == null) return null;
-  if (!ls.length) return { ...pin, lat, lon };
+  // "Ver imóvel" sempre primeiro: link do anúncio ligado ou desabilitado ("sem link cadastrado").
+  if (!ls.length) return { ...pin, lat, lon, links: [botaoVerImovel(null), ...(pin.links ?? [])] };
+  const urls = ls.map((l) => safeSiteUrl(l.url)).filter((u): u is string => !!u);
   return {
     ...pin,
     lat,
@@ -296,11 +312,8 @@ export function withLinkedListings(
       ...ls.map((l) => ({ text: `Anunciada no site RE/MAX · código ${l.code}` })),
     ],
     links: [
+      ...(urls.length ? urls.map((href) => botaoVerImovel(href)) : [botaoVerImovel(null)]),
       ...(pin.links ?? []),
-      ...ls
-        .map((l) => safeSiteUrl(l.url))
-        .filter((u): u is string => !!u)
-        .map((href) => ({ text: "Ver no site RE/MAX ↗", href })),
     ],
   };
 }

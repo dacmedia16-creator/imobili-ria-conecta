@@ -145,11 +145,8 @@ import {
 } from "@/lib/sale-permissions";
 import { fetchLedMemberIds } from "@/lib/team";
 import { saleManagementCapabilities } from "@/lib/sale-management-capabilities";
-import {
-  CODIGO_INTERNO_ERRO,
-  codigoInternoValido,
-  mascararCodigoInterno,
-} from "@/lib/codigo-interno";
+import { CODIGO_INTERNO_ERRO, codigoInternoValido } from "@/lib/codigo-interno";
+import { podeVerValorImobiliaria } from "@/lib/comissao-valor-imobiliaria";
 import {
   podeSincronizarResumo,
   temEdicaoFinanceiraResumo,
@@ -1503,6 +1500,7 @@ function SaleDetail() {
   // campos ficavam clicáveis pro corretor mas todo save estourava o erro "Somente o gestor/team
   // leader..." vindo direto do trigger, sem nenhum aviso antes de tentar digitar.
   const editableComissao = editable && (isGestor || isFinanceiro || isAdminLike);
+  const verValorImobiliaria = podeVerValorImobiliaria(roles);
   // Única regra da divisão de comissão: captador + vendedor não pode ultrapassar o valor total da
   // comissão. Fora isso o preenchimento é livre — isso só vira bloqueio na hora de avançar pro
   // jurídico (confirmApproveJuridico), nunca trava a digitação em si.
@@ -2467,26 +2465,9 @@ function SaleDetail() {
                           mostrarErros={mostrarErrosFicha}
                           confirmadaPorNome={fichaConfirmadaPor}
                         />
-                        <Field
-                          label="Código interno"
-                          invalid={!codigoInternoValido(formSale.codigo_interno)}
-                          errorText={
-                            codigoInternoValido(formSale.codigo_interno)
-                              ? undefined
-                              : CODIGO_INTERNO_ERRO
-                          }
-                        >
-                          <Input
-                            value={formSale.codigo_interno ?? ""}
-                            disabled={!editable}
-                            inputMode="numeric"
-                            maxLength={13}
-                            placeholder="Ex: 630591023-665"
-                            onChange={(e) =>
-                              updResumo({ codigo_interno: mascararCodigoInterno(e.target.value) })
-                            }
-                          />
-                        </Field>
+                        {/* "Código interno" saiu da tela (Denis, reunião 05/11: "não existe"). A
+                            coluna sales.codigo_interno continua no banco e os valores antigos
+                            seguem nos rótulos/relatórios. */}
                         <Field label="Tempo de venda (dias)">
                           <Input
                             type="number"
@@ -3698,17 +3679,22 @@ function SaleDetail() {
                             </Field>
                           )}
                         </div>
-                        <Field label="Valor para a imobiliária (R$)" colSpan={2}>
-                          <CurrencyInput
-                            value={distribuicao?.saldo_liquido_imobiliaria ?? null}
-                            disabled
-                            onChange={() => {}}
-                          />
-                        </Field>
+                        {/* Só broker (Administrador principal), admin e financeiro veem o que
+                            fica pra imobiliária (Denis 06/11). Só a tela: o cálculo segue igual. */}
+                        {verValorImobiliaria && (
+                          <Field label="Valor para a imobiliária (R$)" colSpan={2}>
+                            <CurrencyInput
+                              value={distribuicao?.saldo_liquido_imobiliaria ?? null}
+                              disabled
+                              onChange={() => {}}
+                            />
+                          </Field>
+                        )}
                         {(dirtyResumo || dirtyExtras) && (
                           <p className="col-span-full text-xs text-muted-foreground">
-                            Líquidos e valor da imobiliária recalculam depois que as alterações
-                            forem salvas.
+                            {verValorImobiliaria
+                              ? "Líquidos e valor da imobiliária recalculam depois que as alterações forem salvas."
+                              : "Líquidos recalculam depois que as alterações forem salvas."}
                           </p>
                         )}
                       </FieldGrid>
@@ -4632,7 +4618,10 @@ function SaleDetail() {
           <div className="space-y-4 text-sm">
             <ReviewGroup title="Imóvel">
               <ReviewItem label="Imóvel" value={sale.imovel_id || sale.codigo_interno} />
-              <ReviewItem label="Código interno" value={sale.codigo_interno} />
+              {/* Campo saiu do formulário; só mostra aqui o valor antigo, se houver. */}
+              {sale.codigo_interno && (
+                <ReviewItem label="Código interno" value={sale.codigo_interno} />
+              )}
               <ReviewItem label="Matrícula" value={sale.matricula} />
               <ReviewItem label="IPTU" value={sale.iptu} />
               <ReviewItem label="Endereço" value={sale.imovel_endereco} />
@@ -6764,7 +6753,7 @@ function OccurrencePanel({
   registerSaver: (fn: Saver | null) => void;
   onDirtyChange: (d: boolean) => void;
 }) {
-  const { user, hasAny } = useAuth();
+  const { user, hasAny, roles } = useAuth();
   const [occ, setOcc] = useState<OccurrenceRow | null>(null);
   const [formOcc, setFormOcc] = useState<Partial<OccurrenceRow>>({});
   const [dirtyOcc, setDirtyOcc] = useState(false);
@@ -7274,6 +7263,7 @@ function OccurrencePanel({
   // Só informativo (não é uma linha de comissão paga a alguém) — vem de calcular_distribuicao_venda()
   // (mesma RPC usada na Resumo), não recalculado aqui pra não divergir entre as duas telas.
   const valorImobiliaria = Number(distribuicao?.saldo_liquido_imobiliaria ?? 0);
+  const verValorImobiliaria = podeVerValorImobiliaria(roles);
 
   const canFinLock = hasAny(["financeiro", "admin", "super_admin"]);
   // Travar (aceitar) só faz sentido depois que a ocorrência de fato chegou ao financeiro —
@@ -7872,9 +7862,14 @@ function OccurrencePanel({
             <CardTitle className="text-base">Divisão de comissão</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               Total: R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · Distribuído:
-              R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ·
-              Imobiliária: R${" "}
-              {valorImobiliaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              R$ {somaComissoes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              {verValorImobiliaria && (
+                <>
+                  {" "}
+                  · Imobiliária: R${" "}
+                  {valorImobiliaria.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </>
+              )}
             </p>
           </div>
           {canWrite && (
