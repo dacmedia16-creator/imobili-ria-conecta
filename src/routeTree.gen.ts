@@ -61,6 +61,7 @@ import { Route as AuthenticatedAjudaWikiRouteImport } from './routes/_authentica
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
+import { Route as AuthenticatedMinhaCarreiraPlanoRouteImport } from './routes/_authenticated/minha-carreira_.plano'
 import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_authenticated/plataforma.chamados'
 import { Route as AuthenticatedPlataformaDepoimentosRouteImport } from './routes/_authenticated/plataforma.depoimentos'
 import { Route as AuthenticatedPlataformaImobiliariasRouteImport } from './routes/_authenticated/plataforma.imobiliarias'
@@ -360,6 +361,12 @@ const AuthenticatedExclusividadesPainelRoute =
     path: '/exclusividades/painel',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMinhaCarreiraPlanoRoute =
+  AuthenticatedMinhaCarreiraPlanoRouteImport.update({
+    id: '/minha-carreira_/plano',
+    path: '/minha-carreira/plano',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlataformaChamadosRoute =
   AuthenticatedPlataformaChamadosRouteImport.update({
     id: '/plataforma/chamados',
@@ -473,6 +480,7 @@ export interface FileRoutesByFullPath {
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
@@ -537,6 +545,7 @@ export interface FileRoutesByTo {
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
@@ -603,6 +612,7 @@ export interface FileRoutesById {
   '/_authenticated/ajuda_/wiki': typeof AuthenticatedAjudaWikiRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/_authenticated/minha-carreira_/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/_authenticated/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/_authenticated/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
@@ -669,6 +679,7 @@ export interface FileRouteTypes {
     | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
@@ -733,6 +744,7 @@ export interface FileRouteTypes {
     | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
@@ -798,6 +810,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ajuda_/wiki'
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
+    | '/_authenticated/minha-carreira_/plano'
     | '/_authenticated/plataforma/chamados'
     | '/_authenticated/plataforma/depoimentos'
     | '/_authenticated/plataforma/imobiliarias'
@@ -1196,6 +1209,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExclusividadesPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/minha-carreira_/plano': {
+      id: '/_authenticated/minha-carreira_/plano'
+      path: '/minha-carreira/plano'
+      fullPath: '/minha-carreira/plano'
+      preLoaderRoute: typeof AuthenticatedMinhaCarreiraPlanoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plataforma/chamados': {
       id: '/_authenticated/plataforma/chamados'
       path: '/plataforma/chamados'
@@ -1316,6 +1336,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAjudaWikiRoute: typeof AuthenticatedAjudaWikiRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
+  AuthenticatedMinhaCarreiraPlanoRoute: typeof AuthenticatedMinhaCarreiraPlanoRoute
   AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
   AuthenticatedPlataformaDepoimentosRoute: typeof AuthenticatedPlataformaDepoimentosRoute
   AuthenticatedPlataformaImobiliariasRoute: typeof AuthenticatedPlataformaImobiliariasRoute
@@ -1372,6 +1393,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,
+  AuthenticatedMinhaCarreiraPlanoRoute: AuthenticatedMinhaCarreiraPlanoRoute,
   AuthenticatedPlataformaChamadosRoute: AuthenticatedPlataformaChamadosRoute,
   AuthenticatedPlataformaDepoimentosRoute:
     AuthenticatedPlataformaDepoimentosRoute,

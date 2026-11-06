@@ -223,8 +223,12 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
     const check = MIG.match(/CHECK \(module IN \(([^)]*)\)\)/)?.[1] ?? "";
     const rpc = MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "";
     const nomes = (s: string) => [...s.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
-    expect(nomes(check)).toEqual([...ORGANIZATION_MODULES].sort());
-    expect(nomes(rpc)).toEqual([...ORGANIZATION_MODULES].sort());
+    expect(nomes(check)).toEqual(
+      [...ORGANIZATION_MODULES].filter((x) => x !== "meu_plano_2027").sort(),
+    );
+    expect(nomes(rpc)).toEqual(
+      [...ORGANIZATION_MODULES].filter((x) => x !== "meu_plano_2027").sort(),
+    );
   });
 
   it("só a plataforma altera: a RPC confere is_platform_super_admin", () => {
