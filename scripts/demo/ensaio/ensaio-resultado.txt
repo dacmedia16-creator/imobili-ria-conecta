@@ -1,0 +1,40 @@
+[ok] schema clonado + fixture
+== 1. carga SEM a trava do rodízio (tem que abortar e não gravar nada)
+exit=3
+ERROR:  trava do rodízio de leads (migration 20261106200000) não aplicada: abortado
+[ok] nada gravado
+== 2. aplica migration da trava + carga
+[ok] migration
+exit=0
+== 3. carga de novo (idempotência)
+exit=0
+[ok] 2a rodada não mudou nada
+== 4. leads DESLIGADO: job de prazos não mexe em nenhum lead
+md5_antes | 5c0af62566d7d4ffbdf4531b7393e79c
+processar_prazos_leads_off | {"papel": 0, "falhas": 0, "sem_interacao": 0, "aceite_vencido": 0, "sem_responsavel": 0, "sem_primeira_interacao": 0}
+md5_depois | 5c0af62566d7d4ffbdf4531b7393e79c
+== 5. leads RELIGADO (simulado, desfeito): fictício nunca recebe lead
+proximo_rodizio_sem_exclusao | 11111111-0000-4000-8000-000000000001
+proximo_rodizio_excluindo_reais | NINGUEM (vai p/ banco)
+ficticio_pode_ser_responsavel | 0
+processar_prazos | {"papel": 0, "falhas": 0, "sem_interacao": 0, "aceite_vencido": 16, "sem_responsavel": 0, "sem_primeira_interacao": 0}
+leads_com_ficticio_apos_prazos | 0
+activity_logs_tipos | role_revoked=11 role_granted=153
+== 6. limpeza
+exit=0
+--- diferença antes da carga x depois da limpeza:
+1c1
+< leads_modulo=true
+---
+> leads_modulo=false
+35c35
+< modulos_zz=crm=true estudo=true leads=true sessenta=false visita=true
+---
+> modulos_zz=captacao_exclusiva=true crm=true estudo=true feedback_proprietario=true leads=false mural_conquistas=true ranking_valores=true reserva_salas=true sessenta=false visita=true
+== 7. religar leads (comando à parte)
+--- diferença antes da carga x depois de religar:
+35c35
+< modulos_zz=crm=true estudo=true leads=true sessenta=false visita=true
+---
+> modulos_zz=captacao_exclusiva=true crm=true estudo=true feedback_proprietario=true leads=true mural_conquistas=true ranking_valores=true reserva_salas=true sessenta=false visita=true
+== fim

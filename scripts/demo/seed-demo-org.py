@@ -220,6 +220,7 @@ def resumo(d, a):
     print(f"Captações exclusivas: {len(d['capts'])} {dict(sorted(cs.items()))} | assinadas/mês ≈ {len(assin)/(len(d['meses'])+1):.1f}")
     print(f"Reservas de sala: {len(d['reservas'])} em {len(SALAS)} salas (futuras com lembrete já marcado como enviado)")
     print("Metas: 1 por corretor ativo por mês (", len(d["ativos"]) * len(d["meses"]), ") | Minhas metas:", len(d["ativos"]))
+    print("PASSO 1: desliga o módulo leads da ZZ (leads existentes ficam intactos); exige a trava do rodízio (migration 20261106200000).")
     print("Módulos a ligar na ZZ: captacao_exclusiva, feedback_proprietario, reserva_salas, mural_conquistas, ranking_valores")
 
 
@@ -233,6 +234,14 @@ def sql_carga(d, a):
       " raise exception 'org errada: abortado'; end if; end $$;")
     w(f"do $$ begin if exists (select 1 from public.sync_org_map where adm_org_id = '{ORG}' and mode <> 'off') then"
       " raise exception 'sync da ZZ não está off: abortado'; end if; end $$;")
+    # PASSO 1 (decisão Denis 06/11, opção 2): desligar o módulo de leads da ZZ ANTES de criar qualquer fictício.
+    # Não apaga nem reatribui nenhum lead existente; o job leads-prazos só age em org com leads ligado.
+    w(f"update public.organization_modules set enabled = false, updated_at = now() where organization_id = '{ORG}'"
+      " and module = 'leads';")
+    # Trava permanente do rodízio (migration 20261106200000): sem ela, a carga aborta.
+    w("do $$ begin if position('de30de30-' in pg_get_functiondef('public.lead_rodizio_proximo(uuid,uuid,uuid[])'::regprocedure)) = 0"
+      " or position('de30de30-' in pg_get_functiondef('public.lead_pode_ser_responsavel(uuid,uuid)'::regprocedure)) = 0 then"
+      " raise exception 'trava do rodízio de leads (migration 20261106200000) não aplicada: abortado'; end if; end $$;")
     w("select set_config('app.virou_venda', 'off', true);")
     w(f"select set_config('app.equipe_vigencia_desde', {esc((d['meses'][0]).isoformat() + 'T03:00:00Z')}, true);")
     # módulos (antes das vendas, para o Mural gerar os posts)
@@ -345,8 +354,20 @@ def sql_carga(d, a):
           " reminder_sent_at, organization_id) values ("
           f"'{r['id']}', {esc(r['sala'])}, '{r['dia']}', '{r['ini']:02d}:00', '{r['fim']:02d}:00', '{r['resp']['id']}', {esc(r['resp']['nome'])},"
           f" {esc(r['fin'])}, {'now()' if futura else 'null'}, '{ORG}') on conflict (id) do nothing;")
+    # conferência final: nenhum lead ficou com fictício
+    w("do $$ begin if exists (select 1 from public.leads where responsavel_id::text like 'de30de30-%'"
+      " or captador_id::text like 'de30de30-%') then raise exception 'lead ligado a fictício: abortado'; end if; end $$;")
     w("commit;")
     return "\n".join(o) + "\n"
+
+
+def sql_religar_leads():
+    return "\n".join([
+        "-- REVERSÃO À PARTE (não faz parte da limpeza): religa o módulo de leads da ZZ. Rodar só com ok do Denis.",
+        "begin;",
+        f"do $$ begin if (select slug from public.organizations where id = '{ORG}') is distinct from '{ORG_SLUG}' then raise exception 'org errada'; end if; end $$;",
+        f"update public.organization_modules set enabled = true, updated_at = now() where organization_id = '{ORG}' and module = 'leads';",
+        "commit;", ""])
 
 
 def sql_limpeza():
@@ -367,10 +388,11 @@ def sql_limpeza():
         f"delete from public.exclusive_units where organization_id = '{ORG}' and id::text like {m};",
         f"delete from public.team_members where organization_id = '{ORG}' and id::text like {m};",
         f"delete from public.teams where organization_id = '{ORG}' and id::text like {m};",
-        f"delete from public.activity_logs where organization_id = '{ORG}' and (payload->>'target_user') like {m};",
         f"delete from public.sync_exclusoes where adm_user_id in {u};",
         f"delete from public.email_outbox where user_id in {u};",
         f"delete from auth.users where id in {u};  -- cascata: profiles, user_roles, organization_members, notifications…",
+        "-- depois do auth: a cascata em user_roles grava logs 'role_revoked' dos fictícios, que também saem aqui",
+        f"delete from public.activity_logs where organization_id = '{ORG}' and (payload->>'target_user') like {m};",
         "commit;", ""])
 
 
@@ -395,6 +417,7 @@ def main():
     ap.add_argument("--hoje", default=None, help="AAAA-MM-DD (padrão: hoje)")
     ap.add_argument("--sql", help="grava o SQL de carga neste arquivo (não executa)")
     ap.add_argument("--cleanup-sql", help="grava o SQL de limpeza neste arquivo (não executa)")
+    ap.add_argument("--religar-leads-sql", help="grava à parte o SQL que religa o módulo de leads (não executa)")
     a = ap.parse_args()
     d = montar(a)
     resumo(d, a)
@@ -402,6 +425,8 @@ def main():
         open(a.sql, "w").write(sql_carga(d, a)); print("SQL de carga gravado (não executado):", a.sql)
     if a.cleanup_sql:
         open(a.cleanup_sql, "w").write(sql_limpeza()); print("SQL de limpeza gravado (não executado):", a.cleanup_sql)
+    if a.religar_leads_sql:
+        open(a.religar_leads_sql, "w").write(sql_religar_leads()); print("SQL de religar leads gravado (não executado):", a.religar_leads_sql)
 
 
 if __name__ == "__main__":

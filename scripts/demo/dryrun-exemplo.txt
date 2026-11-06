@@ -20,6 +20,8 @@ Status das vendas (inclui esteira em andamento): {'aguardando_assinatura': 8, 'a
 Captações exclusivas: 363 {'aprovada': 156, 'em_assinatura': 42, 'enviada': 37, 'rascunho': 128} | assinadas/mês ≈ 12.0
 Reservas de sala: 799 em 4 salas (futuras com lembrete já marcado como enviado)
 Metas: 1 por corretor ativo por mês ( 768 ) | Minhas metas: 64
+PASSO 1: desliga o módulo leads da ZZ (leads existentes ficam intactos); exige a trava do rodízio (migration 20261106200000).
 Módulos a ligar na ZZ: captacao_exclusiva, feedback_proprietario, reserva_salas, mural_conquistas, ranking_valores
-SQL de carga gravado (não executado): ../carga.sql
-SQL de limpeza gravado (não executado): ../limpeza.sql
+SQL de carga gravado (não executado): carga.sql
+SQL de limpeza gravado (não executado): limpeza.sql
+SQL de religar leads gravado (não executado): religar-leads.sql
