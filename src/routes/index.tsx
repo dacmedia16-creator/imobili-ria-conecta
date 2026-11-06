@@ -219,7 +219,7 @@ function CardIcon({ card }: { card: ServiceCard }) {
 }
 
 /** Há sessão do ADM neste navegador? Começa em false (servidor e 1ª pintura sem banner) e só liga
- * depois de ler a sessão local: "Trocar conta" e "Sair da Conta MAX" não fazem sentido para quem
+ * depois de ler a sessão local: "Sair da Conta MAX" não faz sentido para quem
  * nem entrou (item 14 t_532125eb). */
 function useTemSessao() {
   const [tem, setTem] = useState(false);
@@ -267,9 +267,6 @@ function SingleLoginBanner() {
         </span>
       </span>
       <span className="single-login-actions">
-        <a href={contaMaxLogoutUrl()} className="single-login-switch">
-          Trocar conta
-        </a>
         <a href={contaMaxLogoutUrl()} className="single-login-status">
           <span aria-hidden="true" /> Sair da Conta MAX
         </a>
@@ -521,16 +518,6 @@ function FrontPage() {
           display: flex; flex: none; align-items: center; gap: 8px;
         }
         .hubpage .single-login-actions a { text-decoration: none; }
-        .hubpage .single-login-switch {
-          display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px;
-          color: rgba(255, 255, 255, 0.85); font-size: 0.78rem; font-weight: 600; padding: 10px 16px;
-          transition: background 0.15s ease, border-color 0.15s ease;
-        }
-        .hubpage .single-login-switch:hover,
-        .hubpage .single-login-switch:focus-visible {
-          border-color: rgba(255, 255, 255, 0.4); color: #fff;
-        }
         .hubpage .single-login-status > span {
           width: 8px; height: 8px; border-radius: 999px; background: #6ee7a8;
           box-shadow: 0 0 0 4px rgba(110, 231, 168, 0.14);
