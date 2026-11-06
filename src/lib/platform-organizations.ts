@@ -147,7 +147,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   vouchers_fotos: "Agendar fotos (vouchers e agenda do fotógrafo)",
   visita: "Visita MAX (sistema; ainda sem bloqueio)",
   estudo: "Estudo de Mercado MAX (sistema; ainda sem bloqueio)",
-  sessenta: "60 Dias MAX (sistema; ainda sem bloqueio)",
+  sessenta: "60 Dias MAX (sistema)",
 };
 
 export type OrganizationSummary = OrganizationRow & {
