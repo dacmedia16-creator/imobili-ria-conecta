@@ -154,9 +154,9 @@ function wheelItems(cards: ServiceCard[]): WheelItem[] {
     .map((c) => ({ id: c.id as WheelId, title: c.title, href: c.href }));
 }
 
-/** Passo 3, etapa 1 (t_311cc909): Visita, Estudo, Academia e 60 Dias só aparecem se o módulo estiver ligado
- * na imobiliária de quem está logado (plataforma vê todos). `null` = sem login, carregando ou erro na leitura:
- * padrão seguro, nenhum cartão some (ver aplicarSistemasLigados). Reconsulta a cada login/logout. */
+/** Passo 3, etapa 1 (t_311cc909; ajuste t_5ea3c841): Visita, Estudo, Academia e 60 Dias só têm link se o módulo
+ * estiver ligado na imobiliária de quem está logado (plataforma vê todos); desligado = "Em breve", nunca some.
+ * `null` = sem login, carregando ou erro na leitura: padrão seguro (ver aplicarSistemasLigados). Reconsulta a cada login/logout. */
 function useSistemasLigados() {
   const [ligados, setLigados] = useState<ReadonlySet<SistemaModulo> | null>(null);
   useEffect(() => {
