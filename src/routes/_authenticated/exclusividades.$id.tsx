@@ -114,6 +114,8 @@ import { juntarDocumentosEmPdf } from "@/lib/document-actions";
 import { caberNoLimite, compressPdfBytes, formatMB, GERACAO_CONTRATO } from "@/lib/pdf-compress";
 import { browserImageCodec } from "@/lib/pdf-compress-browser";
 import { DocumentoAssinadoResumo } from "@/components/exclusividades/DocumentoAssinadoResumo";
+import { PaginasPdf } from "@/components/exclusividades/PaginasPdf";
+import { marcarPrevia, PREVIA_MARCA } from "@/lib/pdf-paginas";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
 import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
@@ -655,6 +657,35 @@ function ExclusiveDetail() {
     const saved: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
     // Contrato é gerado pelo gestor depois do envio; só salva se ainda for editável.
     if (salvar) await saveCapture(id, saved, cpf, creci);
+    const { bytes, tw, autoTw } = await montarPdfAssinatura(saved);
+    const file = new File([bytes as BlobPart], signaturePdfName(id), {
+      type: "application/pdf",
+    });
+    // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
+    // arquivo salvo na captação e o que o gestor envia ao Clicksign.
+    const geradoPath = await uploadCaptureDocument(id, "gerado", 0, file);
+    // Registra quem saiu impresso: o envio pela Clicksign só aceita o PDF com as testemunhas atuais.
+    let avisoTw: string | null = null;
+    if (autoTw && tw) {
+      try {
+        await fixarTestemunhasPdf(supabase as unknown as SupabaseClient, id, tw, geradoPath);
+      } catch (e) {
+        avisoTw = errorMessage(e, "Não foi possível registrar as testemunhas do PDF");
+      }
+    } else if (tw?.aplica) {
+      avisoTw =
+        "O PDF saiu com as testemunhas digitadas na captação. Para enviar pela Clicksign, complete as testemunhas automáticas e gere o PDF de novo.";
+    }
+    setTestemunhas(await testemunhasCaptacao(supabase as unknown as SupabaseClient, id));
+    if (baixar) await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
+    toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
+    if (avisoTw) toast.warning(avisoTw, { duration: 12000 });
+  };
+  // Monta (sem salvar) o contrato + Plano de Marketing exatamente como sai para assinatura.
+  // Usado pela geração do gestor e pela prévia do corretor (t_41c8f65a).
+  const montarPdfAssinatura = async (saved: CaptureForm) => {
+    if (!capture) throw new Error("Captação indisponível");
+    const catalogReady = dossieCatalog(dossieActions).length > 0;
     // Data impressa no contrato = dia em que ele é gerado (calendário de SP).
     // Testemunhas automáticas (t_e8078685), lidas agora: com Clicksign e cadastro completo, o PDF sai
     // com nome e CPF do corretor e do gestor (RG em branco). Senão, as digitadas, como antes.
@@ -711,28 +742,31 @@ function ExclusiveDetail() {
     }
     // Imagens do modelo em JPEG ~150 dpi: o gerado fica bem abaixo dos 10 MB da Clicksign.
     bytes = (await compressPdfBytes(bytes, browserImageCodec, GERACAO_CONTRATO)).bytes;
-    const file = new File([bytes as BlobPart], signaturePdfName(id), {
-      type: "application/pdf",
-    });
-    // PDF para assinatura: SÓ contrato + Plano de Marketing (sem RG, matrícula etc.). É o mesmo
-    // arquivo salvo na captação e o que o gestor envia ao Clicksign.
-    const geradoPath = await uploadCaptureDocument(id, "gerado", 0, file);
-    // Registra quem saiu impresso: o envio pela Clicksign só aceita o PDF com as testemunhas atuais.
-    let avisoTw: string | null = null;
-    if (autoTw && tw) {
-      try {
-        await fixarTestemunhasPdf(supabase as unknown as SupabaseClient, id, tw, geradoPath);
-      } catch (e) {
-        avisoTw = errorMessage(e, "Não foi possível registrar as testemunhas do PDF");
-      }
-    } else if (tw?.aplica) {
-      avisoTw =
-        "O PDF saiu com as testemunhas digitadas na captação. Para enviar pela Clicksign, complete as testemunhas automáticas e gere o PDF de novo.";
+    return { bytes, tw, autoTw };
+  };
+  // Prévia do corretor (t_41c8f65a): o PDF oficial só é gerado pelo gestor depois do envio (regra
+  // do banco), então antes de enviar o corretor confere uma cópia montada no navegador, com a
+  // marca "PRÉVIA — NÃO ASSINAR". Nada é salvo nem enviado.
+  const [previa, setPrevia] = useState<Uint8Array | null>(null);
+  // Sem `run`: a prévia não grava nada, então não recarrega a captação (não mexe em edição aberta).
+  const verPrevia = async () => {
+    if (!form) return;
+    if (dossieMissing) {
+      setStep("dossie");
+      toast.error("Marque ao menos 1 ação no Plano de Marketing para ver a prévia.");
+      return;
     }
-    setTestemunhas(await testemunhasCaptacao(supabase as unknown as SupabaseClient, id));
-    if (baixar) await baixarDocumentosComoPdf([], signaturePdfName(id), bytes);
-    toast.success("PDF para assinatura gerado e salvo: contrato + Plano de Marketing.");
-    if (avisoTw) toast.warning(avisoTw, { duration: 12000 });
+    setBusy(true);
+    try {
+      const catalogReady = dossieCatalog(dossieActions).length > 0;
+      const atual: CaptureForm = catalogReady ? { ...form, dossie: dossieIds } : form;
+      const { bytes } = await montarPdfAssinatura(atual);
+      setPrevia(await marcarPrevia(bytes));
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Não foi possível montar a prévia do contrato"));
+    } finally {
+      setBusy(false);
+    }
   };
   // PDF automático (t_ef7dc621, opção 1 de Denis 03/11/2026): gestor/TL/ADM abre captação normal
   // enviada pelo corretor e sem PDF salvo → gera e salva sozinho, uma vez por captação nesta tela
@@ -922,7 +956,7 @@ function ExclusiveDetail() {
         ? "Você conferiu os dados lidos do contrato assinado?"
         : proprioGestor
           ? "Você conferiu os dados e todos os documentos? O PDF para assinatura será gerado em seguida."
-          : "Você conferiu o PDF gerado e todos os documentos?";
+          : 'Você conferiu a prévia do contrato + Plano de Marketing e todos os documentos?\n\nSe ainda não viu, clique em Cancelar e use "Ver prévia do contrato + Plano de Marketing", logo acima do botão de envio.';
       // Plano de Marketing obrigatório (mesma regra e navegação da captação normal).
       if (manual && dossieMissing && (name === "enviar" || name === "aprovar")) {
         setStep("dossie");
@@ -2337,6 +2371,29 @@ function ExclusiveDetail() {
                     Há alterações não salvas. Elas serão salvas antes do envio.
                   </p>
                 )}
+                {!manual && (
+                  <div
+                    className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm"
+                    data-testid="previa-contrato"
+                  >
+                    <p>
+                      Antes de enviar, confira como vai ficar o documento que o proprietário assina:
+                      o contrato de exclusividade com os dados preenchidos e o Plano de Marketing no
+                      final. É só uma prévia: nada é salvo nem enviado. O PDF oficial é gerado pelo
+                      gestor depois do envio.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="h-auto w-full whitespace-normal py-2 text-left sm:w-auto"
+                      disabled={busy}
+                      onClick={() => void verPrevia()}
+                      data-testid="ver-previa-contrato"
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Ver prévia do contrato + Plano de Marketing
+                    </Button>
+                  </div>
+                )}
                 <Button disabled={busy || missing.length > 0} onClick={() => action("enviar")}>
                   {proprioGestor
                     ? dirty
@@ -2667,11 +2724,8 @@ function ExclusiveDetail() {
                   className="mx-auto max-h-[70vh] max-w-full"
                 />
               ) : (
-                <iframe
-                  src={preview.url}
-                  title={preview.doc.file_name}
-                  className="h-[70vh] w-full"
-                />
+                // Páginas como imagem (t_41c8f65a): PDF embutido em iframe fica em branco no celular.
+                <PaginasPdf url={preview.url} nome={preview.doc.file_name} />
               )}
             </div>
           )}
@@ -2693,6 +2747,38 @@ function ExclusiveDetail() {
               Baixar
             </Button>
             <Button onClick={() => setPreview(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!previa} onOpenChange={(o) => !o && setPrevia(null)}>
+        <DialogContent className="max-w-3xl" data-testid="previa-dialog">
+          <DialogHeader>
+            <DialogTitle>Prévia: contrato + Plano de Marketing</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Cópia só para conferência, marcada &ldquo;{PREVIA_MARCA}&rdquo;. Se algo estiver errado,
+            feche e corrija nos passos da captação. O PDF oficial é gerado pelo gestor depois do
+            envio.
+          </p>
+          {previa && (
+            <div className="max-h-[65vh] overflow-auto rounded-md border bg-muted/30">
+              <PaginasPdf bytes={previa} nome="Prévia do contrato" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                previa &&
+                baixarDocumentosComoPdf([], `previa-${signaturePdfName(id)}`, previa).catch((e) =>
+                  toast.error(errorMessage(e, "Falha ao baixar")),
+                )
+              }
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Baixar prévia
+            </Button>
+            <Button onClick={() => setPrevia(null)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
