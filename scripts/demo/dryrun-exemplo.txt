@@ -1,0 +1,27 @@
+=== DRY-RUN (nada é gravado) — org zz-teste-provisionamento eb0a260a-db2f-4cbf-b031-f0c2aebb407c
+Usuários fictícios: 120 {'gestor': 12, 'team_leader': 7, 'corretor': 90, 'admin': 3, 'staff': 4, 'financeiro': 2, 'juridico': 2} | equipes: 19
+  Auth: 1 linha por pessoa em auth.users, e-mail @demo.invalid, encrypted_password VAZIO (sem senha utilizável), provider email; só serve para o 'Entrar como' (magic link gerado no servidor). Nenhum login de teste.
+  WhatsApp: notificar_whatsapp=false em todos os papéis; telefones +55 15 90000-XXXX.
+Vendas fechadas (12 meses): 695  VGV total R$ 311,996,000  média/mês R$ 25,999,667  ticket médio R$ 448,915  comissão total R$ 17,854,840
+  2025-11:  54 vendas  R$ 21,839,000
+  2025-12:  56 vendas  R$ 23,402,000
+  2026-01:  58 vendas  R$ 27,560,000
+  2026-02:  50 vendas  R$ 24,700,000
+  2026-03:  62 vendas  R$ 29,121,000
+  2026-04:  58 vendas  R$ 25,998,000
+  2026-05:  46 vendas  R$ 22,878,000
+  2026-06:  70 vendas  R$ 28,597,000
+  2026-07:  66 vendas  R$ 30,679,000
+  2026-08:  47 vendas  R$ 24,960,000
+  2026-09:  68 vendas  R$ 27,821,000
+  2026-10:  60 vendas  R$ 24,441,000
+Vendedores com venda: 64 de 90 corretores | top5 = 34.9% | top10 = 49.4% | maior = R$ 44,599,000 | menor = R$ 724,000
+Status das vendas (inclui esteira em andamento): {'aguardando_assinatura': 8, 'aprovada_gestor': 2, 'contrato_assinado': 9, 'em_elaboracao_contrato': 8, 'enviada_revisao': 5, 'ocorrencia_analise_financeiro': 47, 'ocorrencia_concluida': 627, 'ocorrencia_pendente': 12, 'rascunho': 7}
+Captações exclusivas: 363 {'aprovada': 156, 'em_assinatura': 42, 'enviada': 37, 'rascunho': 128} | assinadas/mês ≈ 12.0
+Reservas de sala: 799 em 4 salas (futuras com lembrete já marcado como enviado)
+Metas: 1 por corretor ativo por mês ( 768 ) | Minhas metas: 64
+PASSO 1: desliga o módulo leads da ZZ (leads existentes ficam intactos); exige a trava do rodízio (migration 20261106200000).
+Módulos a ligar na ZZ: captacao_exclusiva, feedback_proprietario, reserva_salas, mural_conquistas, ranking_valores
+SQL de carga gravado (não executado): carga.sql
+SQL de limpeza gravado (não executado): limpeza.sql
+SQL de religar leads gravado (não executado): religar-leads.sql
