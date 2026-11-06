@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CaptacaoMapaRow } from "@/lib/mapa-captacoes";
-import { linhasCaptacao, linksCaptador } from "@/lib/mapa-captacoes";
+import { botaoWhatsappCaptador, linhasCaptacao, linksCaptador } from "@/lib/mapa-captacoes";
 import {
   FILTROS_VAZIOS,
   filtrarCaptacoes,
@@ -86,7 +86,23 @@ describe("WhatsApp do captador", () => {
     expect(linhas).toContain("Tel.: (15) 99999-0001");
     expect(linhas).toContain("E-mail: ana@example.test");
     expect(linksCaptador(row({})).map((l) => l.text)).toEqual(["WhatsApp do captador", "E-mail"]);
-    expect(linksCaptador(row({ captador_telefone: null, captador_email: null }))).toEqual([]);
+    // Sem telefone o botão não some: fica desabilitado com a dica (reunião broker 05/11).
+    expect(linksCaptador(row({ captador_telefone: null, captador_email: null }))).toEqual([
+      { text: "WhatsApp do captador", href: null, disabledHint: "captador sem telefone" },
+    ]);
+  });
+  it("botaoWhatsappCaptador: wa.me só dígitos com 55; telefone inválido = desabilitado", () => {
+    expect(botaoWhatsappCaptador("(15) 99999-0001", "AB12")).toEqual({
+      text: "WhatsApp do captador",
+      href:
+        "https://wa.me/5515999990001?text=" +
+        encodeURIComponent("Olá! Vi a captação AB12 no mapa de captações."),
+    });
+    expect(botaoWhatsappCaptador("123", "AB12")).toMatchObject({
+      href: null,
+      disabledHint: "captador sem telefone",
+    });
+    expect(botaoWhatsappCaptador(null)).toMatchObject({ href: null });
   });
 });
 

@@ -4,6 +4,9 @@ import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { agencyCity, agencyUf } from "@/lib/agency-profile";
 
+/** Botão externo do popup. Sem href = botão desabilitado com a dica (não some em silêncio). */
+export type PinLink = { text: string; href: string | null; disabledHint?: string };
+
 export type MapPin = {
   id: string;
   lat: number;
@@ -12,8 +15,8 @@ export type MapPin = {
   /** Linhas do popup; a primeira costuma ir em negrito. */
   lines: { text: string; bold?: boolean }[];
   actionLabel?: string;
-  /** Links externos no popup (ex.: WhatsApp/e-mail do captador). Só http(s), mailto e tel. */
-  links?: { text: string; href: string }[];
+  /** Botões externos no popup (Ver imóvel, WhatsApp/e-mail do captador). Só http(s), mailto e tel. */
+  links?: PinLink[];
   /** Cor do contorno (padrão branco) — ex.: captação ligada a anúncio do site. */
   ring?: string;
   /** Raio do círculo (padrão 9). */
@@ -62,19 +65,40 @@ export function PinsMap({
         if (l.bold) d.style.fontWeight = "600";
         box.appendChild(d);
       }
+      const linksBox = document.createElement("div");
+      linksBox.style.display = "flex";
+      linksBox.style.flexWrap = "wrap";
+      linksBox.style.gap = "6px";
+      linksBox.style.marginTop = "6px";
       for (const lk of p.links ?? []) {
-        if (!/^(https?:|mailto:|tel:)/i.test(lk.href)) continue;
-        const a = document.createElement("a");
-        a.href = lk.href;
+        const ok = !!lk.href && /^(https?:|mailto:|tel:)/i.test(lk.href);
+        const a = document.createElement(ok ? "a" : "span");
         a.textContent = lk.text;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
         a.style.display = "inline-block";
-        a.style.marginTop = "4px";
-        a.style.marginRight = "10px";
-        a.style.color = "#16a34a";
-        box.appendChild(a);
+        a.style.padding = "2px 8px";
+        a.style.borderRadius = "6px";
+        a.style.border = "1px solid";
+        a.style.fontSize = "12px";
+        if (ok && a instanceof HTMLAnchorElement) {
+          a.href = lk.href as string;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.style.color = "#15803d";
+          a.style.borderColor = "#86efac";
+        } else {
+          // Sem dado: botão apagado com a dica, nunca some em silêncio.
+          const dica = lk.disabledHint ?? "indisponível";
+          a.setAttribute("aria-disabled", "true");
+          a.setAttribute("data-disabled", "true");
+          a.title = dica;
+          a.textContent = `${lk.text} (${dica})`;
+          a.style.color = "#9ca3af";
+          a.style.borderColor = "#e5e7eb";
+          a.style.cursor = "not-allowed";
+        }
+        linksBox.appendChild(a);
       }
+      if (linksBox.childNodes.length) box.appendChild(linksBox);
       if (p.actionLabel && openRef.current) {
         const a = document.createElement("button");
         a.type = "button";
