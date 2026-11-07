@@ -34,6 +34,7 @@ import {
   type SaleStatus,
   type DocParte,
 } from "@/lib/status";
+import { numerosPartesExtras, removerParteDaVenda } from "@/lib/partes-venda";
 import { toast } from "sonner";
 import {
   Upload,
@@ -152,6 +153,8 @@ export function DocumentsPanel({
   const [extracting, setExtracting] = useState<Record<string, boolean>>({});
   const [pendingDelete, setPendingDelete] = useState<DisplayDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [parteParaRemover, setParteParaRemover] = useState<DocParte | null>(null);
+  const [removendoParte, setRemovendoParte] = useState(false);
   const [preview, setPreview] = useState<{ doc: DisplayDocument; url: string } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [printingAll, setPrintingAll] = useState(false);
@@ -621,16 +624,10 @@ export function DocumentsPanel({
 
   // Blocos por parte da venda. Compradores/vendedores extras (3º, 4º, ...) aparecem sob demanda,
   // em número livre — a IA usa a parte declarada em cada upload para rotear os dados extraídos.
-  const numerosExtras = (tipo: "comprador" | "vendedor") => {
-    const re = new RegExp(`^${tipo}_(\\d+)$`);
-    const nums = docs
-      .map((d) => d.parte?.match(re)?.[1])
-      .filter(Boolean)
-      .map(Number);
-    return Array.from(new Set(nums))
-      .filter((n) => n > 1)
-      .sort((a, b) => a - b);
-  };
+  // Mesma lista da validação de envio (parte com nome OU com documento): toda parte cobrada no
+  // envio tem um bloco visível aqui, com o botão Remover (t_b0d45ab1).
+  const numerosExtras = (tipo: "comprador" | "vendedor") =>
+    numerosPartesExtras(tipo, parties, docs);
   const [compradorExtras, setCompradorExtras] = useState<number[]>(() =>
     numerosExtras("comprador"),
   );
@@ -643,7 +640,7 @@ export function DocumentsPanel({
       Array.from(new Set([...prev, ...numerosExtras("vendedor")])).sort((a, b) => a - b),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docs]);
+  }, [docs, parties]);
   // Adiciona mais um comprador/vendedor (ex.: o cônjuge) e leva direto ao envio de documentos dele:
   // abre o bloco novo, rola até ele e o destaca por alguns segundos.
   const addParte = (tipo: "comprador" | "vendedor") => {
@@ -658,6 +655,42 @@ export function DocumentsPanel({
     const parte = `${tipo}_${novo}` as DocParte;
     setActiveParte(parte);
     irParaBlocoDocumentos(parte);
+  };
+  const tirarBlocoExtra = (parte: DocParte) => {
+    const n = Number(parte.split("_")[1]);
+    if (parte.startsWith("comprador_")) setCompradorExtras((prev) => prev.filter((x) => x !== n));
+    else setVendedorExtras((prev) => prev.filter((x) => x !== n));
+    if (activeParte === parte)
+      setActiveParte(parte.startsWith("comprador_") ? "comprador_1" : "vendedor_1");
+  };
+  // Remover uma parte que já tem algo gravado: arquiva os documentos dela, apaga a parte e a conta
+  // bancária — sem isso o envio continuava cobrando os documentos da parte "removida" (t_b0d45ab1).
+  const confirmarRemocaoParte = async (parte: DocParte) => {
+    setRemovendoParte(true);
+    try {
+      const { error, docsArquivados } = await removerParteDaVenda(supabase, saleId, parte);
+      if (docsArquivados.length) {
+        await supabase.from("activity_logs").insert(
+          docsArquivados.map((doc_id) => ({
+            sale_id: saleId,
+            autor_id: user!.id,
+            acao: "document_archived",
+            payload: { doc_id, parte, motivo: "parte_removida" },
+          })),
+        );
+      }
+      if (error) {
+        toast.error(error);
+        onChange();
+        return;
+      }
+      tirarBlocoExtra(parte);
+      setParteParaRemover(null);
+      toast.success(`${parteLabel(parte)} removido`);
+      onChange();
+    } finally {
+      setRemovendoParte(false);
+    }
   };
   useEffect(() => {
     if (!pedidoNovaParte) return;
@@ -859,12 +892,13 @@ export function DocumentsPanel({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() =>
-                        parte.startsWith("comprador_")
-                          ? setCompradorExtras((prev) => prev.filter((n) => n !== parteNumero))
-                          : setVendedorExtras((prev) => prev.filter((n) => n !== parteNumero))
-                      }
-                      disabled={docs.some((d) => d.parte === parte)}
+                      onClick={() => {
+                        // Bloco vazio (só aberto aqui, sem nada gravado): basta fechar.
+                        const temAlgoGravado =
+                          !!parties[parte] || docs.some((d) => d.parte === parte);
+                        if (temAlgoGravado) setParteParaRemover(parte);
+                        else tirarBlocoExtra(parte);
+                      }}
                     >
                       Remover {parteLabel(parte)}
                     </Button>
@@ -1175,6 +1209,36 @@ export function DocumentsPanel({
         onChange={(k) => setActiveParte(k as DocParte)}
         hideNav
       />
+
+      <AlertDialog
+        open={!!parteParaRemover}
+        onOpenChange={(o) => !o && !removendoParte && setParteParaRemover(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remover {parteParaRemover ? parteLabel(parteParaRemover) : "esta parte"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Os dados desta parte, a conta bancária dela e os documentos enviados neste bloco saem
+              da venda (os arquivos ficam guardados no histórico). Ela deixa de ser cobrada no
+              envio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removendoParte}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removendoParte}
+              onClick={(e) => {
+                e.preventDefault();
+                if (parteParaRemover) void confirmarRemocaoParte(parteParaRemover);
+              }}
+            >
+              {removendoParte ? "Removendo…" : "Remover"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>

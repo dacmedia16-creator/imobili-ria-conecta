@@ -826,7 +826,9 @@ export function partesComExigenciaPessoal(
 ): string[] {
   const base = ["vendedor_1", "comprador_1"];
   const extrasDeParties = Object.keys(parties).filter(
-    (p) => /^(vendedor|comprador)_\d+$/.test(p) && parties[p]?.nome,
+    // Parte vazia (sem nome, ou só espaços) não é cobrada: uma linha criada só com endereço/regime
+    // pelo "Mesmo do 1º" não pode exigir documentos sozinha.
+    (p) => /^(vendedor|comprador)_\d+$/.test(p) && !!parties[p]?.nome?.trim(),
   );
   const extrasDeDocs = docs
     .map((d) => d.parte)
