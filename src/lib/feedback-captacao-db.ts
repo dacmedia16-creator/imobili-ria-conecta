@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { storageOrganizationPath } from "./storage-org";
+import { mapaProprietarios } from "./feedback-captacao";
 import type { ListingCheck, ListingContext, Pendencia, PlanItem } from "./feedback-captacao";
 import type { SiteSuggestions } from "./remax-site";
 
@@ -157,4 +158,14 @@ export async function feedbackCaptacao(code: string): Promise<FeedbackCaptacao |
   const { data, error } = await db.rpc("owner_feedback_captacao", { _code: code });
   if (error) return null;
   return (data ?? null) as FeedbackCaptacao | null;
+}
+
+/**
+ * Nomes dos proprietários de todos os anúncios ligados a captação que o usuário pode ver, numa chamada só
+ * (migration 20261030160000). Chave = codeKey do código. Falha ou banco sem a função = vazio, sem travar a tela.
+ */
+export async function feedbackProprietarios(): Promise<Record<string, string[]>> {
+  const { data, error } = await db.rpc("owner_feedback_proprietarios");
+  if (error) return {};
+  return mapaProprietarios(data as { code_key: string | null; nomes: (string | null)[] | null }[]);
 }
