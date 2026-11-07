@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Search,
   MapPin,
@@ -49,7 +49,7 @@ export function EspecialistasShell({
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071a44] via-[#0d2d6c] to-slate-100">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link to="/" aria-label="Voltar ao UniHub">
+        <Link to="/" aria-label="UniHub — página inicial">
           <img
             src="/remax-logo-white.png"
             width={1600}
@@ -58,9 +58,14 @@ export function EspecialistasShell({
             className="h-11 w-auto"
           />
         </Link>
-        <Button variant="secondary" size="sm" asChild>
-          <Link to="/auth">Área interna</Link>
-        </Button>
+        <nav aria-label="Navegação principal" className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white" asChild>
+            <Link to="/">UniHub</Link>
+          </Button>
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/auth">Área interna</Link>
+          </Button>
+        </nav>
       </header>
       <main>
         <section className="mx-auto max-w-4xl px-4 pb-12 pt-8 text-center text-white sm:px-6 sm:pt-14">
@@ -74,13 +79,13 @@ export function EspecialistasShell({
         <section className="min-h-[45vh] rounded-t-[2rem] bg-slate-100 px-4 py-10 sm:px-6">
           <div className="mx-auto max-w-7xl">
             {children}
-            <div className="mt-10 text-center">
+            <nav aria-label="Voltar" className="mt-10 text-center">
               <Button variant="ghost" asChild>
                 <Link to="/">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao UniHub
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao UniHub — todos os sistemas MAX
                 </Link>
               </Button>
-            </div>
+            </nav>
           </div>
         </section>
       </main>
@@ -95,11 +100,11 @@ export function ImobiliariasLista({ agencies }: { agencies: PublicAgency[] }) {
       {agencies.map((agency) => {
         const local = agencyLocationLabel(agency);
         return (
+          <article key={agency.slug}>
           <Link
-            key={agency.slug}
             to="/especialistas/$slug"
             params={{ slug: agency.slug }}
-            className="group rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a58a8]"
+            className="group block h-full rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a58a8]"
           >
             <Card className="h-full border-0 shadow-md transition-shadow group-hover:shadow-lg">
               <CardContent className="flex items-start gap-4 p-6">
@@ -118,6 +123,7 @@ export function ImobiliariasLista({ agencies }: { agencies: PublicAgency[] }) {
               </CardContent>
             </Card>
           </Link>
+          </article>
         );
       })}
     </div>
@@ -128,19 +134,34 @@ export function ImobiliariasLista({ agencies }: { agencies: PublicAgency[] }) {
 export function EspecialistasDaImobiliaria({
   agency,
   mostrarOutras,
+  titulo,
+  regioesIniciais,
+  especialistasIniciais,
+  rodape,
 }: {
   agency: PublicAgency;
   mostrarOutras: boolean;
+  /** h1 da página (SEO, t_e014564f). Padrão: "Especialistas — <imobiliária>". */
+  titulo?: string;
+  /** Vindos do servidor (SSR): a lista completa já sai no HTML; o navegador só busca ao filtrar. */
+  regioesIniciais?: PositioningRegion[];
+  especialistasIniciais?: PublicSpecialist[];
+  /** Conteúdo depois da lista (ex.: perguntas frequentes). */
+  rodape?: ReactNode;
 }) {
   const slug = agency.slug;
-  const [regions, setRegions] = useState<PositioningRegion[]>([]);
-  const [specialists, setSpecialists] = useState<PublicSpecialist[]>([]);
+  const temInicial = especialistasIniciais !== undefined;
+  const [regions, setRegions] = useState<PositioningRegion[]>(regioesIniciais ?? []);
+  const [specialists, setSpecialists] = useState<PublicSpecialist[]>(especialistasIniciais ?? []);
   const [search, setSearch] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!temInicial);
   const [error, setError] = useState<string | null>(null);
+  // Com dados do servidor, a primeira busca (sem filtro) seria repetida à toa: pula só ela.
+  const pularPrimeiraBusca = useRef(temInicial);
 
   useEffect(() => {
+    if (regioesIniciais !== undefined) return;
     let alive = true;
     listPublicOrgRegions(slug)
       .then((rows) => {
@@ -152,9 +173,13 @@ export function EspecialistasDaImobiliaria({
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, regioesIniciais]);
 
   useEffect(() => {
+    if (pularPrimeiraBusca.current) {
+      pularPrimeiraBusca.current = false;
+      if (!search && selectedRegion === "all") return;
+    }
     let alive = true;
     const timer = window.setTimeout(async () => {
       setLoading(true);
@@ -187,7 +212,7 @@ export function EspecialistasDaImobiliaria({
 
   return (
     <EspecialistasShell
-      titulo={`Especialistas — ${agency.nome}`}
+      titulo={titulo ?? `Especialistas em imóveis — ${agency.nome}`}
       subtitulo="Busque pelo bairro, condomínio, cidade ou nome do corretor e fale diretamente com quem conhece a região."
       topo={
         <div className="mx-auto mt-8 grid max-w-3xl gap-3 rounded-2xl bg-white p-3 text-left shadow-2xl sm:grid-cols-[1fr_1fr]">
@@ -221,7 +246,9 @@ export function EspecialistasDaImobiliaria({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">
-            {activeRegion ? `Especialistas em ${activeRegion.nome}` : "Especialistas disponíveis"}
+            {activeRegion
+              ? `Especialistas em ${activeRegion.nome}`
+              : `Corretores especialistas da ${agency.nome}`}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             {loading
@@ -269,7 +296,8 @@ export function EspecialistasDaImobiliaria({
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {specialists.map((specialist) => (
-          <Card key={specialist.id} className="overflow-hidden border-0 shadow-md">
+          <article key={specialist.id}>
+          <Card className="h-full overflow-hidden border-0 shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16 ring-2 ring-blue-100">
@@ -342,8 +370,31 @@ export function EspecialistasDaImobiliaria({
               )}
             </CardContent>
           </Card>
+          </article>
         ))}
       </div>
+      {rodape}
     </EspecialistasShell>
+  );
+}
+
+/** Perguntas frequentes da página pública (texto em ESPECIALISTAS_FAQ; t_e014564f). Sem JS: <details>. */
+export function EspecialistasFaq({ itens }: { itens: readonly { pergunta: string; resposta: string }[] }) {
+  return (
+    <section aria-labelledby="faq-especialistas" className="mx-auto mt-14 max-w-3xl">
+      <h2 id="faq-especialistas" className="text-xl font-semibold text-slate-900">
+        Perguntas frequentes sobre os especialistas
+      </h2>
+      <div className="mt-4 divide-y rounded-2xl bg-white shadow-sm">
+        {itens.map((item) => (
+          <details key={item.pergunta} className="group p-5">
+            <summary className="cursor-pointer list-none font-medium text-slate-900 marker:hidden">
+              <h3 className="inline text-base">{item.pergunta}</h3>
+            </summary>
+            <p className="mt-2 text-sm text-slate-600">{item.resposta}</p>
+          </details>
+        ))}
+      </div>
+    </section>
   );
 }

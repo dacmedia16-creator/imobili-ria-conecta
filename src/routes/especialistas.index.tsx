@@ -1,85 +1,120 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Building2 } from "lucide-react";
-import { EspecialistasShell, ImobiliariasLista } from "@/components/especialistas-diretorio";
-import { listPublicAgencies, type PublicAgency } from "@/lib/positioning-db";
-import { directAgencySlug } from "@/lib/especialistas-publico";
+import {
+  EspecialistasDaImobiliaria,
+  EspecialistasFaq,
+  EspecialistasShell,
+  ImobiliariasLista,
+} from "@/components/especialistas-diretorio";
+import { loadEspecialistasIndex } from "@/lib/especialistas-publico-dados";
+import {
+  ESPECIALISTAS_FAQ,
+  ESPECIALISTAS_URL,
+  ROBOTS_INDEX,
+  agenciesJsonLd,
+  especialistasDescription,
+  especialistasHeading,
+  especialistasTitle,
+  faqJsonLd,
+  specialistsItemListJsonLd,
+} from "@/lib/seo-publico";
 
-// /especialistas: imobiliárias publicadas (só as ligadas pela plataforma e com ao menos 1 especialista).
-// Com uma única imobiliária publicada, vai direto para a página dela. O link antigo continua valendo.
+const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
+
+// /especialistas (endereço oficial: app.somosunihub.com.br/especialistas).
+// SSR (t_e014564f): nomes, regiões e imobiliária saem no HTML inicial, para busca e citação.
+// Com UMA imobiliária publicada, a própria página mostra os corretores dela (antes o navegador
+// pulava para /especialistas/<slug>). Com várias, mostra a lista de imobiliárias.
 export const Route = createFileRoute("/especialistas/")({
-  ssr: false,
   beforeLoad: () => {
-    if (import.meta.env.VITE_HOMOLOG_ONLY === "true") throw redirect({ to: "/auth" });
+    if (IS_HOMOLOG) throw redirect({ to: "/auth" });
   },
-  head: () => ({
-    meta: [
-      {
-        title:
-          import.meta.env.VITE_HOMOLOG_ONLY === "true"
-            ? "ADM MAX — Homologação"
-            : "Ache um especialista — RE/MAX",
-      },
-      {
-        name: "description",
-        content:
-          import.meta.env.VITE_HOMOLOG_ONLY === "true"
-            ? "Ambiente interno de demonstração do ADM MAX."
-            : "Escolha a imobiliária e encontre corretores por bairro, condomínio ou cidade.",
-      },
-    ],
-  }),
-  component: AgenciesPage,
+  loader: () => loadEspecialistasIndex(),
+  head: ({ loaderData }) => {
+    if (IS_HOMOLOG || !loaderData) {
+      return {
+        meta: [
+          { title: "ADM MAX — Homologação" },
+          { name: "description", content: "Ambiente interno de demonstração do ADM MAX." },
+        ],
+      };
+    }
+    const agencies =
+      loaderData.kind === "single"
+        ? [loaderData.page.agency]
+        : loaderData.kind === "list"
+          ? loaderData.agencies
+          : [];
+    const title = especialistasTitle(agencies);
+    const description = especialistasDescription(agencies);
+    const jsonLd =
+      loaderData.kind === "single"
+        ? specialistsItemListJsonLd(ESPECIALISTAS_URL, especialistasHeading(agencies), [
+            { agency: loaderData.page.agency, specialists: loaderData.page.specialists },
+          ])
+        : loaderData.kind === "list" && agencies.length > 0
+          ? agenciesJsonLd(agencies)
+          : null;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { name: "robots", content: ROBOTS_INDEX },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:url", content: ESPECIALISTAS_URL },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        ...(jsonLd ? [{ "script:ld+json": jsonLd }] : []),
+        { "script:ld+json": faqJsonLd(ESPECIALISTAS_FAQ) },
+      ],
+      links: [{ rel: "canonical", href: ESPECIALISTAS_URL }],
+    };
+  },
+  component: EspecialistasPage,
 });
 
-function AgenciesPage() {
-  const navigate = useNavigate();
-  const [agencies, setAgencies] = useState<PublicAgency[] | null>(null);
-  const [error, setError] = useState(false);
+function EspecialistasPage() {
+  const data = Route.useLoaderData();
+  const faq = <EspecialistasFaq itens={ESPECIALISTAS_FAQ} />;
 
-  useEffect(() => {
-    let alive = true;
-    listPublicAgencies()
-      .then((rows) => {
-        if (!alive) return;
-        const slug = directAgencySlug(rows);
-        if (slug) {
-          void navigate({ to: "/especialistas/$slug", params: { slug }, replace: true });
-          return;
-        }
-        setAgencies(rows);
-      })
-      .catch(() => {
-        if (alive) setError(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [navigate]);
+  if (data.kind === "single") {
+    return (
+      <EspecialistasDaImobiliaria
+        agency={data.page.agency}
+        mostrarOutras={false}
+        titulo={especialistasHeading([data.page.agency])}
+        regioesIniciais={data.page.regions}
+        especialistasIniciais={data.page.specialists}
+        rodape={faq}
+      />
+    );
+  }
 
+  const agencies = data.kind === "list" ? data.agencies : [];
   return (
     <EspecialistasShell
-      titulo="Encontre um especialista"
+      titulo={especialistasHeading(agencies)}
       subtitulo="Escolha a imobiliária para ver os corretores e as regiões em que cada um atua."
     >
-      {error && (
+      {data.kind === "error" && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Não foi possível carregar as imobiliárias agora.
         </div>
       )}
-      {!error && agencies === null && <p className="text-sm text-slate-500">Carregando…</p>}
-      {!error && agencies?.length === 0 && (
+      {data.kind === "list" && agencies.length === 0 && (
         <div className="rounded-2xl border border-dashed bg-white p-10 text-center">
           <Building2 className="mx-auto h-10 w-10 text-slate-300" />
-          <h3 className="mt-3 font-medium text-slate-800">Nenhuma imobiliária disponível</h3>
+          <h2 className="mt-3 font-medium text-slate-800">Nenhuma imobiliária disponível</h2>
         </div>
       )}
-      {agencies && agencies.length > 0 && (
+      {agencies.length > 0 && (
         <>
-          <h2 className="mb-6 text-xl font-semibold text-slate-900">Imobiliárias</h2>
+          <h2 className="mb-6 text-xl font-semibold text-slate-900">Imobiliárias com especialistas</h2>
           <ImobiliariasLista agencies={agencies} />
         </>
       )}
+      {faq}
     </EspecialistasShell>
   );
 }

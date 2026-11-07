@@ -5,6 +5,7 @@ import { MaxHubLogo } from "@/components/MaxHubAuthShell";
 import { HubWheel, type WheelId, type WheelItem } from "@/components/HubWheel";
 import { contaMaxLoginUrl } from "@/lib/dominios";
 import { aplicarSistemasLigados, sistemasLigados, type SistemaModulo } from "@/lib/hub-sistemas";
+import { HUB_DESCRIPTION, HUB_TITLE, HUB_URL, ROBOTS_INDEX, hubJsonLd } from "@/lib/seo-publico";
 
 // O Hub fica visível mesmo pra quem já está logado no ADM -- antes, qualquer sessão ativa era
 // redirecionada direto pro /dashboard, sem chance de escolher outro sistema. O resto do app (login,
@@ -12,11 +13,26 @@ import { aplicarSistemasLigados, sistemasLigados, type SistemaModulo } from "@/l
 // "/dashboard", pra não perder esse comportamento em nenhum desses fluxos.
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 
+// SSR ligado (t_e014564f): o Hub sai pronto no HTML inicial (título, sistemas e link para os
+// especialistas). O que depende de login (sistemas ligados) continua sendo lido só no navegador.
 export const Route = createFileRoute("/")({
-  ssr: false,
-  head: () => ({
-    meta: [{ title: IS_HOMOLOG ? "ADM MAX — Homologação" : "UniHub — Todos os sistemas MAX" }],
-  }),
+  head: () =>
+    IS_HOMOLOG
+      ? { meta: [{ title: "ADM MAX — Homologação" }] }
+      : {
+          meta: [
+            { title: HUB_TITLE },
+            { name: "description", content: HUB_DESCRIPTION },
+            { name: "robots", content: ROBOTS_INDEX },
+            { property: "og:title", content: HUB_TITLE },
+            { property: "og:description", content: HUB_DESCRIPTION },
+            { property: "og:url", content: HUB_URL },
+            { name: "twitter:title", content: HUB_TITLE },
+            { name: "twitter:description", content: HUB_DESCRIPTION },
+            { "script:ld+json": hubJsonLd() },
+          ],
+          links: [{ rel: "canonical", href: HUB_URL }],
+        },
   component: IS_HOMOLOG ? HomologHome : FrontPage,
 });
 
@@ -383,7 +399,7 @@ function FrontPage() {
         .hubpage .logo:hover img { transform: translateY(-1px); opacity: 0.85; }
         .hubpage .titleblock { position: absolute; left: 3.4%; top: 6%; width: 48%; }
         .hubpage .titleblock h1 { margin: 0.9rem 0 0; font-size: clamp(2.2rem, 5vw, 5rem); }
-        .hubpage .titleblock h1 a, .hubpage .mhero h1 a { text-decoration: none; }
+        .hubpage .titleblock h1 a, .hubpage .mhero .mtitle a { text-decoration: none; }
         .hubpage .titleblock p:not(.eyebrow) { margin: 0.7rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.3rem); color: var(--gray); font-weight: 400; }
         /* Botões do topo (Sistemas REMAX Brasil + Reserva de Sala, t_06bb81c4): mesma pílula, lado a lado. */
         .hubpage .top-actions {
@@ -448,7 +464,7 @@ function FrontPage() {
         .hubpage .mobile-reservation-link svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--blue-line); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
         .hubpage .mhero { margin-top: 40px; text-align: left; }
-        .hubpage .mhero h1 { margin: 0.8rem 0 0; font-size: 3rem; }
+        .hubpage .mhero .mtitle { margin: 0.8rem 0 0; font-size: 3rem; }
         .hubpage .mhero p:not(.eyebrow) { margin: 0.6rem 0 0; color: var(--gray); font-size: 0.95rem; }
 
         .hubpage .mhub { position: relative; width: 100%; max-width: 420px; margin: 22px auto 0; padding: 0 2px; }
@@ -483,12 +499,13 @@ function FrontPage() {
       <div className="hub-bg maxhub-grain" aria-hidden="true" />
 
       {/* ---------- poster (tablet/desktop) ---------- */}
-      <div className="topbar">
+      <header className="topbar">
         <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
           <MaxHubLogo nome={["Uni", "Hub"]} />
         </Link>
-      </div>
-      <div className="stage">
+      </header>
+      <main>
+      <section className="stage" aria-label="Sistemas MAX">
         <div className="canvas">
           <div className="dotgrid" />
           <div className="corner-navy" />
@@ -577,10 +594,11 @@ function FrontPage() {
             <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ---------- lista mobile ---------- */}
-      <div className="mobile-stage">
+      {/* Um só h1 na página (SEO, t_e014564f): no celular o título visual é um <p> com o mesmo estilo. */}
+      <section className="mobile-stage" aria-label="Sistemas MAX no celular">
         <div className="mheader">
           <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
             <MaxHubLogo nome={["Uni", "Hub"]} />
@@ -589,12 +607,12 @@ function FrontPage() {
 
         <div className="mhero">
           <p className="eyebrow">Plataforma integrada</p>
-          <h1 className="htitle">
+          <p className="htitle mtitle">
             <Link to="/auth" aria-label="UniHub — entrar no portal">
               Uni<span className="sky">Hub</span>
               <span className="dot">.</span>
             </Link>
-          </h1>
+          </p>
           <p>Todos os sistemas MAX em um só lugar</p>
           <div className="mactions">
             <Link to="/sistemas-remax" className="mobile-reservation-link">
@@ -661,12 +679,20 @@ function FrontPage() {
           </span>
           <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
         </div>
-      </div>
+      </section>
+      </main>
 
-      <p className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-white/60">
-        Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
-        {new Date().getFullYear()} UniHub
-      </p>
+      <footer className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-white/60">
+        <nav aria-label="Páginas públicas" className="mb-3">
+          <Link to="/especialistas" className="underline underline-offset-2 hover:text-white">
+            Ache um especialista: corretores de imóveis por bairro, condomínio e cidade
+          </Link>
+        </nav>
+        <p>
+          Acesso apenas por convite. Peça acesso ao administrador ou ao seu gestor. ©{" "}
+          {new Date().getFullYear()} UniHub
+        </p>
+      </footer>
     </div>
   );
 }
