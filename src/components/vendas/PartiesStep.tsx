@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Wizard } from "@/components/Wizard";
 import { emailValido, parteLabel, parteSortKey } from "@/lib/status";
+import { removerParteDaVenda } from "@/lib/partes-venda";
 import { toast } from "sonner";
 import { ChevronRight, ChevronLeft, UserCheck } from "lucide-react";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./shared";
@@ -270,24 +271,23 @@ export function PartiesStep({
   };
 
   const removePapel = async (papel: string) => {
-    const existing = parties[papel];
-    if (existing?.id) {
-      const { error } = await supabase.from("sale_parties").delete().eq("id", existing.id);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+    // Apaga a parte, a conta bancária e arquiva os documentos dela — senão o envio continuava
+    // cobrando os documentos da parte removida (t_b0d45ab1).
+    const { error, docsArquivados } = await removerParteDaVenda(supabase, saleId, papel);
+    if (docsArquivados.length && user) {
+      await supabase.from("activity_logs").insert(
+        docsArquivados.map((doc_id) => ({
+          sale_id: saleId,
+          autor_id: user.id,
+          acao: "document_archived",
+          payload: { doc_id, parte: papel, motivo: "parte_removida" },
+        })),
+      );
     }
-    const existingBank = banks[papel];
-    if (existingBank?.id) {
-      const { error } = await supabase
-        .from("sale_bank_accounts")
-        .delete()
-        .eq("id", existingBank.id);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+    if (error) {
+      toast.error(error);
+      onSaved();
+      return;
     }
     const idx = papeis.indexOf(papel);
     setPapeis((prev) => prev.filter((p) => p !== papel));
@@ -764,8 +764,9 @@ export function PartiesStep({
               Remover {papelParaRemover ? parteLabel(papelParaRemover) : "esta parte"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Os dados desta parte e a conta bancária vinculada serão apagados desta venda. Essa
-              ação não pode ser desfeita.
+              Os dados desta parte e a conta bancária vinculada serão apagados desta venda, e os
+              documentos dela saem da aba Documentos (os arquivos ficam no histórico). Essa ação não
+              pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
