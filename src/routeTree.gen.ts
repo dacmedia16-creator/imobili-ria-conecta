@@ -14,7 +14,9 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContaMaxRouteImport } from './routes/conta-max'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SistemasRemaxRouteImport } from './routes/sistemas-remax'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TrocarSenhaRouteImport } from './routes/trocar-senha'
 import { Route as AuthenticatedAgendarFotosRouteImport } from './routes/_authenticated/agendar-fotos'
 import { Route as AuthenticatedAjudaRouteImport } from './routes/_authenticated/ajuda'
@@ -98,9 +100,19 @@ const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SistemasRemaxRoute = SistemasRemaxRouteImport.update({
   id: '/sistemas-remax',
   path: '/sistemas-remax',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrocarSenhaRoute = TrocarSenhaRouteImport.update({
@@ -434,7 +446,9 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
@@ -499,7 +513,9 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/ajuda': typeof AuthenticatedAjudaRoute
@@ -566,7 +582,9 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/conta-max': typeof ContaMaxRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sistemas-remax': typeof SistemasRemaxRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/trocar-senha': typeof TrocarSenhaRoute
   '/_authenticated/agendar-fotos': typeof AuthenticatedAgendarFotosRoute
   '/_authenticated/ajuda': typeof AuthenticatedAjudaRoute
@@ -633,7 +651,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/robots.txt'
     | '/sistemas-remax'
+    | '/sitemap.xml'
     | '/trocar-senha'
     | '/agendar-fotos'
     | '/ajuda'
@@ -698,7 +718,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/robots.txt'
     | '/sistemas-remax'
+    | '/sitemap.xml'
     | '/trocar-senha'
     | '/agendar-fotos'
     | '/ajuda'
@@ -764,7 +786,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/conta-max'
     | '/redefinir-senha'
+    | '/robots.txt'
     | '/sistemas-remax'
+    | '/sitemap.xml'
     | '/trocar-senha'
     | '/_authenticated/agendar-fotos'
     | '/_authenticated/ajuda'
@@ -831,7 +855,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ContaMaxRoute: typeof ContaMaxRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   SistemasRemaxRoute: typeof SistemasRemaxRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
@@ -880,11 +906,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sistemas-remax': {
       id: '/sistemas-remax'
       path: '/sistemas-remax'
       fullPath: '/sistemas-remax'
       preLoaderRoute: typeof SistemasRemaxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/trocar-senha': {
@@ -1417,7 +1457,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ContaMaxRoute: ContaMaxRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   SistemasRemaxRoute: SistemasRemaxRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
