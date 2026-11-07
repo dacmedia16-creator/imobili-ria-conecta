@@ -65,15 +65,27 @@ async function setup(
           attributes: { name: "sign", data: { signer: { email: e } } },
         })),
       });
-    if (key === "GET /envelopes/:id/requirements")
+    if (key === "GET /envelopes/:id/requirements") {
+      // Como a v3 real (t_02897a3b): sem include=signer,document, não vem `relationships`.
+      const inc = new URL(url).searchParams.get("include") ?? "";
+      const withRel = inc.includes("signer") && inc.includes("document");
       return Response.json({
         data: [1, 2, 3].flatMap((i) =>
           [`a${i}`, `b${i}`].map((r) => ({
             id: `${r}`,
-            relationships: { signer: { data: { id: S(i) } }, document: { data: { id: DOC } } },
+            attributes: { action: "agree" },
+            ...(withRel
+              ? {
+                  relationships: {
+                    signer: { data: { id: S(i) } },
+                    document: { data: { id: DOC } },
+                  },
+                }
+              : {}),
           })),
         ),
       });
+    }
     if (key === "POST /envelopes/:id/signers")
       return Response.json({ data: { id: S(99) } }, { status: 201 });
     if (init.method === "DELETE") return new Response(null, { status: 204 });

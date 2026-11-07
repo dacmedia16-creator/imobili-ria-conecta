@@ -478,8 +478,15 @@ export class ClicksignClient {
   listSigners(envelopeId: string) {
     return this.listAll("list_signers", `/envelopes/${envelopeId}/signers`);
   }
+  /**
+   * Sem `include=signer,document` a v3 devolve os requisitos SEM `relationships` (conferido na API
+   * real em 07/11, t_02897a3b): aí requirementIdsFor não acha nada e "Editar signatário" falha.
+   */
   listRequirements(envelopeId: string) {
-    return this.listAll("list_requirements", `/envelopes/${envelopeId}/requirements`);
+    return this.listAll(
+      "list_requirements",
+      `/envelopes/${envelopeId}/requirements?include=signer,document`,
+    );
   }
   /**
    * Eventos do envelope filtrados por nome. "signature_started" = o signatário abriu o contrato e
