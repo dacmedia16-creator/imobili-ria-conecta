@@ -159,18 +159,25 @@ export type CaptacaoFarol = {
 /** Até quantos dias antes de vencer acende o amarelo. */
 export const GESTAO_AVISO_DIAS = 15;
 
+/** Captação no formato que captureValidity()/statusReuniao() esperam. null = fora da conta (não aprovada,
+ * vendida ou sem assinatura). */
+export function capturaBase(c: CaptacaoFarol) {
+  if (c.status !== "aprovada" || c.vendida || !c.signed_on) return null;
+  return {
+    status: "aprovada" as const,
+    signed_on: c.signed_on,
+    form_data: { condicoes: { prazo_dias_numero: c.prazo_dias ?? "" } },
+  } as Parameters<typeof captureValidity>[0];
+}
+
 export function resumoGestoes(caps: readonly CaptacaoFarol[], hoje: string) {
   let vencidas = 0;
   let vencem = 0;
   let reunioesAtrasadas = 0;
   let reunioesProximas = 0;
   for (const c of caps) {
-    if (c.status !== "aprovada" || c.vendida || !c.signed_on) continue;
-    const base = {
-      status: "aprovada" as const,
-      signed_on: c.signed_on,
-      form_data: { condicoes: { prazo_dias_numero: c.prazo_dias ?? "" } },
-    } as Parameters<typeof captureValidity>[0];
+    const base = capturaBase(c);
+    if (!base) continue;
     const v = captureValidity(base, hoje);
     if (!v) continue;
     if (v.daysLeft < 0) vencidas++;

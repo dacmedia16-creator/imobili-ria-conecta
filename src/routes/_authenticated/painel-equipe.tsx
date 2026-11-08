@@ -57,6 +57,13 @@ import {
   type VezFunil,
 } from "@/lib/painel-equipe-calc";
 
+import {
+  FarolEquipe,
+  PrevisaoTrimestre,
+  useGestaoPainel,
+  type GestaoPainel,
+} from "@/components/gestao/FarolEquipe";
+
 // painel_equipe_* ainda não consta do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
 
@@ -354,6 +361,7 @@ function PainelEquipePage() {
   const [mes, setMes] = useState(meses[0]);
   const [dados, setDados] = useState<PainelEquipeDados | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const gestao = useGestaoPainel(allowed ? teamId : null, hoje);
 
   useEffect(() => {
     if (!allowed) return;
@@ -485,7 +493,7 @@ function PainelEquipePage() {
       {carregando || !dados ? (
         <PainelSkeleton />
       ) : (
-        <PainelEquipeConteudo dados={dados} mes={mes} hoje={hoje} />
+        <PainelEquipeConteudo dados={dados} mes={mes} hoje={hoje} gestao={gestao} />
       )}
     </div>
   );
@@ -496,10 +504,13 @@ export function PainelEquipeConteudo({
   dados,
   mes,
   hoje,
+  gestao = null,
 }: {
   dados: PainelEquipeDados;
   mes: string;
   hoje: string;
+  /** Inteligência de gestão (t_01d580b6). null = módulo desligado: painel exatamente como antes. */
+  gestao?: GestaoPainel | null;
 }) {
   const [pessoaAberta, setPessoaAberta] = useState<string | null>(null);
   const pontas = useMemo(() => pontasDoPainel(dados), [dados]);
@@ -1088,16 +1099,30 @@ export function PainelEquipeConteudo({
                 cadastrada na tela Equipes.
               </Vazio>
             )}
+            {gestao ? (
+              <PrevisaoTrimestre
+                dados={dados}
+                pontas={pontas}
+                hoje={hoje}
+                meta={gestao.metasTrimestre}
+              />
+            ) : null}
           </CardContent>
         </Card>
-        <Card>
+        <Card className={gestao ? "lg:order-last lg:col-span-3" : undefined}>
           <SecaoTitulo
             icon={Clock}
             titulo="Há quantos dias sem vender"
-            dica="Pela última assinatura. Amarelo acima de 14 dias, vermelho acima de 30."
+            dica={
+              gestao
+                ? "Como está cada corretor hoje: 5 sinais e o farol geral. Dias sem vender pela última assinatura (amarelo acima de 14, vermelho acima de 30)."
+                : "Pela última assinatura. Amarelo acima de 14 dias, vermelho acima de 30."
+            }
           />
           <CardContent>
-            {semVender.length === 0 ? (
+            {gestao ? (
+              <FarolEquipe dados={dados} gestao={gestao} hoje={hoje} />
+            ) : semVender.length === 0 ? (
               <Vazio icon={Users}>Nenhum membro nesta equipe.</Vazio>
             ) : (
               <ul className="divide-y text-sm">

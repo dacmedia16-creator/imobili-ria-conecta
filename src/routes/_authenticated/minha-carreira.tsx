@@ -21,6 +21,7 @@ import {
   filtrarCaptacoes,
   oportunidadesParaMim,
   ordenarPendencias,
+  periodoAtual,
   textoDias,
   textoNumerosPortal,
   type MinhaCaptacao,
@@ -36,6 +37,13 @@ import { MeuDinheiro } from "@/components/minha-carreira/MeuDinheiro";
 import { Conquistas } from "@/components/minha-carreira/Conquistas";
 import { Diario } from "@/components/minha-carreira/Diario";
 import { VouchersCarreira } from "@/components/fotos/VouchersCarreira";
+import {
+  MeuTermometro,
+  MinhaProxima1a1,
+  OndePerdeMais,
+  useMinhaGestao,
+} from "@/components/gestao/MinhaGestao";
+import { ROTULO_EXTRA } from "@/lib/inteligencia-gestao-tela";
 import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 
 // Minha carreira, PR 1 (card t_07d196a7): só leitura. Blocos 1 (O que fazer hoje), 4 (Minhas
@@ -80,6 +88,7 @@ function MinhaCarreiraPage() {
     Estado<{ post: OpportunityPost; capture: CaptureCandidate }[]> & { off?: boolean }
   >(CARREGANDO);
   const [soParadas, setSoParadas] = useState(false);
+  const gestao = useMinhaGestao(userId);
 
   useEffect(() => {
     if (!userId) return;
@@ -180,10 +189,46 @@ function MinhaCarreiraPage() {
             <p className="text-sm text-destructive">{pend.error}</p>
           ) : !pendencias ? (
             <ListSkeleton />
-          ) : pendencias.length === 0 ? (
+          ) : pendencias.length === 0 && gestao.extras.length === 0 ? (
             <EmptyState icon={CheckCircle2}>Nenhuma pendência. Tudo em dia.</EmptyState>
           ) : (
             <ul className="divide-y" data-testid="minhas-pendencias">
+              {/* Inteligência de gestão (t_01d580b6): itens a mais, só com o módulo ligado. */}
+              {gestao.extras.map((x) => {
+                const imovel = x.capture_id
+                  ? (caps.data?.find((c) => c.capture_id === x.capture_id)?.imovel ?? null)
+                  : null;
+                return (
+                  <li
+                    key={x.chave}
+                    className="flex flex-wrap items-center gap-2 py-2.5"
+                    data-kind={x.kind}
+                  >
+                    <Pill tom={x.kind === "reuniao_45" ? "amber" : "violet"}>
+                      {ROTULO_EXTRA[x.kind]}
+                    </Pill>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{x.detalhe}</p>
+                      {x.kind === "reuniao_45" ? (
+                        <p className="text-xs text-muted-foreground">
+                          {imovel ?? "Imóvel sem descrição"}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      {x.capture_id ? (
+                        <Link to="/exclusividades/$id" params={{ id: x.capture_id }}>
+                          Abrir
+                        </Link>
+                      ) : x.kind === "lead_sem_resposta" ? (
+                        <Link to="/meus-leads">Abrir</Link>
+                      ) : (
+                        <Link to="/painel-equipe">Abrir</Link>
+                      )}
+                    </Button>
+                  </li>
+                );
+              })}
               {pendencias.map((p, i) => (
                 <li
                   key={`${p.kind}-${p.capture_id}-${i}`}
@@ -209,6 +254,10 @@ function MinhaCarreiraPage() {
         </CardContent>
       </Card>
 
+      {/* Inteligência de gestão (t_01d580b6): só com o módulo inteligencia_gestao ligado. */}
+      {gestao.on && gestao.linha ? <MeuTermometro linha={gestao.linha} /> : null}
+      {gestao.on ? <MinhaProxima1a1 ultima={gestao.ultima} hoje={periodoAtual().hoje} /> : null}
+
       {/* Meu Plano 2027 (t_1ac2e95d): só com o módulo meu_plano_2027 ligado. */}
       {userId ? <MeuPlanoCartao userId={userId} /> : null}
 
@@ -221,7 +270,12 @@ function MinhaCarreiraPage() {
 
       {userId ? <Conquistas userId={userId} /> : null}
 
-      {userId ? <Diario userId={userId} /> : null}
+      {userId ? (
+        <Diario
+          userId={userId}
+          extraSemana={gestao.gargalo ? <OndePerdeMais g={gestao.gargalo} /> : undefined}
+        />
+      ) : null}
 
       <Card>
         <CardHeader>
