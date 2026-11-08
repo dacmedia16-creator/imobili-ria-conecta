@@ -7,8 +7,9 @@ import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { periodoAtual } from "@/lib/minha-carreira";
 import {
-  ATIVIDADES,
   agruparPorDia,
+  botoesDiario,
+  contagem,
   diaMinimo,
   diaPermitido,
   inicioSemana,
@@ -17,11 +18,17 @@ import {
   normalizarEquipe,
   normalizarRegistro,
   resumoDia,
-  type ContagemDiario,
+  rotuloAtividade,
+  type Contagens,
   type LinhaEquipeDiario,
   type RegistroDiario,
-  type TipoAtividade,
+  type TipoHistorico,
 } from "@/lib/minha-carreira-diario";
+import { meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
+import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
+import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import { metasDoPlano, snapshotMudou } from "@/lib/meta-atividades";
+import { ConvitePlano, EquipeMetas, QuadroSemana } from "./SuaSemana";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,17 +42,79 @@ const db = supabase as unknown as SupabaseClient;
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
+type PlanoSemana = { respostas: Respostas | null; padrao: TaxasFunil | null };
+
+/** Plano 2027 do corretor (respostas) + taxas padrão da imobiliária. Só com o módulo ligado. */
+async function lerPlano(userId: string): Promise<PlanoSemana> {
+  const [p, t] = await Promise.all([
+    planoDb
+      .from("carreira_plano")
+      .select("respostas")
+      .eq("user_id", userId)
+      .eq("ano", ANO_PLANO)
+      .maybeSingle(),
+    planoDb
+      .from("carreira_taxas")
+      .select("funil_v2_cre,funil_v1_v2,funil_folga")
+      .is("user_id", null)
+      .maybeSingle(),
+  ]);
+  const tx = t.data as Record<string, number | null> | null;
+  const num = (v: number | null | undefined) => (v == null ? null : Number(v));
+  return {
+    respostas: ((p.data as { respostas?: Respostas } | null)?.respostas ??
+      null) as Respostas | null,
+    padrao: tx
+      ? { v2cre: num(tx.funil_v2_cre), v1v2: num(tx.funil_v1_v2), folga: num(tx.funil_folga) }
+      : null,
+  };
+}
+
 export function Diario({ userId }: { userId: string }) {
   const { hasAny } = useAuth();
   const gestor = hasAny(["admin", "super_admin", "gestor"]);
+  const tl = hasAny(["team_leader"]);
   const hoje = useMemo(() => periodoAtual().hoje, []);
   const [regs, setRegs] = useState<RegistroDiario[] | null>(null);
-  const [contagens, setContagens] = useState<ContagemDiario[] | null>(null);
+  const [linhasContagem, setLinhasContagem] = useState<Record<string, unknown>[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [dia, setDia] = useState(hoje);
   const [qtd, setQtd] = useState(1);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [verEquipe, setVerEquipe] = useState(false);
+  // null = ainda verificando o módulo Meu Plano 2027 (os botões só aparecem depois).
+  const [novo, setNovo] = useState<boolean | null>(null);
+  const [plano, setPlano] = useState<PlanoSemana | null>(null);
+
+  // Módulo Meu Plano 2027 + plano do corretor. Recarrega ao voltar à aba (o plano pode ter mudado).
+  const carregarPlano = useCallback(async () => {
+    const on = await meuPlanoEnabled();
+    setNovo(on);
+    if (!on) return;
+    const p = await lerPlano(userId);
+    setPlano(p);
+    // Guarda no plano a cópia das metas (campos ms.*) para o team leader, que não lê o plano.
+    const metas = metasDoPlano(p.respostas, p.padrao);
+    const dif = p.respostas ? snapshotMudou(p.respostas, metas) : {};
+    if (Object.keys(dif).length)
+      void planoDb.rpc("carreira_plano_salvar", { _ano: ANO_PLANO, _campos: dif });
+  }, [userId]);
+
+  useEffect(() => {
+    void carregarPlano();
+    const vis = () => document.visibilityState === "visible" && void carregarPlano();
+    document.addEventListener("visibilitychange", vis);
+    return () => document.removeEventListener("visibilitychange", vis);
+  }, [carregarPlano]);
+
+  const contagens: Contagens | null = useMemo(
+    () => (linhasContagem && novo !== null ? normalizarContagens(linhasContagem, novo) : null),
+    [linhasContagem, novo],
+  );
+  const metas = useMemo(
+    () => (plano ? metasDoPlano(plano.respostas, plano.padrao) : null),
+    [plano],
+  );
 
   const carregar = useCallback(async () => {
     const [r, c] = await Promise.all([
@@ -67,7 +136,7 @@ export function Diario({ userId }: { userId: string }) {
     }
     setErro(null);
     setRegs(((r.data ?? []) as Record<string, unknown>[]).map(normalizarRegistro));
-    setContagens(normalizarContagens(c.data as Record<string, unknown>[]));
+    setLinhasContagem((c.data as Record<string, unknown>[]) ?? []);
   }, [userId, hoje]);
 
   useEffect(() => {
@@ -77,7 +146,7 @@ export function Diario({ userId }: { userId: string }) {
   const dias = useMemo(() => (regs ? agruparPorDia(regs) : []), [regs]);
   const deHoje = dias.find((d) => d.dia === hoje);
 
-  async function registrar(tipo: TipoAtividade) {
+  async function registrar(tipo: TipoHistorico) {
     if (!diaPermitido(dia, hoje)) {
       toast.error("Escolha um dia entre hoje e 31 dias atrás.");
       return;
@@ -90,13 +159,17 @@ export function Diario({ userId }: { userId: string }) {
       toast.error(errorMessage(error, "Não foi possível registrar a atividade."));
       return;
     }
-    toast.success(`Registrado: ${quantidade} ${nomeAtividade(tipo, quantidade)}`);
+    toast.success(`Registrado: ${quantidade} ${nomeAtividade(tipo, quantidade, novo ?? false)}`);
     setQtd(1);
     void carregar();
   }
 
   async function apagar(ids: string[], tipo: string, quantidade: number, d: string) {
-    if (!window.confirm(`Apagar ${quantidade} ${nomeAtividade(tipo, quantidade)} de ${dataBR(d)}?`))
+    if (
+      !window.confirm(
+        `Apagar ${quantidade} ${nomeAtividade(tipo, quantidade, novo ?? false)} de ${dataBR(d)}?`,
+      )
+    )
       return;
     const { error } = await db.from("carreira_diario").delete().in("id", ids);
     if (error) {
@@ -113,7 +186,9 @@ export function Diario({ userId }: { userId: string }) {
           <NotebookPen className="h-5 w-5" aria-hidden /> Diário de atividades
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Registre ligações, visitas e ACMs com um toque. Só você e a gestão veem.
+          {novo
+            ? "Registre ligações, V1, V2, ACMs e visitas com comprador com um toque. Só você e a gestão veem."
+            : "Registre ligações, visitas e ACMs com um toque. Só você e a gestão veem."}
         </p>
       </CardHeader>
       <CardContent className="space-y-4" data-testid="diario">
@@ -123,6 +198,37 @@ export function Diario({ userId }: { userId: string }) {
           <ListSkeleton />
         ) : (
           <>
+            {novo ? (
+              <section className="space-y-2" data-testid="sua-semana">
+                <h3 className="text-sm font-semibold">Sua semana</h3>
+                {metas ? (
+                  <QuadroSemana
+                    hoje={hoje}
+                    metas={metas}
+                    semana={{
+                      ligacoes: contagem(contagens, "ligacao", "semana"),
+                      v1: contagem(contagens, "v1", "semana"),
+                      v2: contagem(contagens, "v2", "semana"),
+                      acm: contagem(contagens, "acm", "semana"),
+                      visitaComprador: contagem(contagens, "visita_comprador", "semana"),
+                      captMes: contagens.captacao.mes,
+                    }}
+                    mes={{
+                      ligacoes: contagem(contagens, "ligacao", "mes"),
+                      v1: contagem(contagens, "v1", "mes"),
+                      v2: contagem(contagens, "v2", "mes"),
+                      acm: contagem(contagens, "acm", "mes"),
+                      visitaComprador: contagem(contagens, "visita_comprador", "mes"),
+                    }}
+                  />
+                ) : plano ? (
+                  <ConvitePlano />
+                ) : (
+                  <ListSkeleton />
+                )}
+              </section>
+            ) : null}
+
             <section className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold">Registrar</h3>
@@ -145,17 +251,27 @@ export function Diario({ userId }: { userId: string }) {
                   aria-label="Quantidade"
                 />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {ATIVIDADES.map((a) => (
+              <div className="flex flex-wrap gap-2" data-testid="diario-botoes">
+                {botoesDiario(!!novo).map((a) => (
                   <Button
                     key={a.tipo}
                     size="sm"
                     variant="outline"
-                    disabled={enviando !== null}
+                    className="h-auto min-h-9 flex-col items-start gap-0 py-1.5 text-left"
+                    disabled={enviando !== null || novo === null}
                     onClick={() => void registrar(a.tipo)}
+                    data-testid={`registrar-${a.tipo}`}
+                    title={a.dica}
                   >
-                    <Plus className="mr-1 h-3.5 w-3.5" aria-hidden />
-                    {a.rotulo}
+                    <span className="inline-flex items-center">
+                      <Plus className="mr-1 h-3.5 w-3.5" aria-hidden />
+                      {a.rotulo}
+                    </span>
+                    {novo ? (
+                      <span className="text-[11px] font-normal text-muted-foreground">
+                        {a.dica}
+                      </span>
+                    ) : null}
                   </Button>
                 ))}
               </div>
@@ -172,9 +288,16 @@ export function Diario({ userId }: { userId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {contagens.map((c) => (
-                    <tr key={c.tipo} className="border-t">
-                      <td className="py-1">{ATIVIDADES.find((a) => a.tipo === c.tipo)?.rotulo}</td>
+                  {contagens.atividades.map((c) => (
+                    <tr key={c.tipo} className="border-t" data-tipo={c.tipo}>
+                      <td className="py-1">
+                        {rotuloAtividade(c.tipo, !!novo)}
+                        {novo && c.tipo === "visita" ? (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            (fora das metas)
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-1 text-right font-semibold tabular-nums">{c.hoje}</td>
                       <td className="py-1 text-right tabular-nums">{c.semana}</td>
                       <td className="py-1 text-right tabular-nums">{c.mes}</td>
@@ -185,7 +308,7 @@ export function Diario({ userId }: { userId: string }) {
             </div>
             <p className="text-sm">
               <span className="text-muted-foreground">Hoje: </span>
-              {resumoDia(deHoje)}
+              {resumoDia(deHoje, !!novo)}
             </p>
 
             <section className="space-y-2">
@@ -207,11 +330,11 @@ export function Diario({ userId }: { userId: string }) {
                             key={i.tipo}
                             className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
                           >
-                            {i.quantidade} {nomeAtividade(i.tipo, i.quantidade)}
+                            {i.quantidade} {nomeAtividade(i.tipo, i.quantidade, !!novo)}
                             <button
                               type="button"
                               className="text-muted-foreground hover:text-destructive"
-                              aria-label={`Apagar ${nomeAtividade(i.tipo, i.quantidade)} de ${dataBR(d.dia)}`}
+                              aria-label={`Apagar ${nomeAtividade(i.tipo, i.quantidade, !!novo)} de ${dataBR(d.dia)}`}
                               onClick={() => void apagar(i.ids, i.tipo, i.quantidade, d.dia)}
                             >
                               <Trash2 className="h-3 w-3" aria-hidden />
@@ -225,13 +348,30 @@ export function Diario({ userId }: { userId: string }) {
               )}
             </section>
 
-            {gestor ? (
+            {/* Com o Meu Plano ligado: gestor/admin e team leader veem feito x meta por corretor.
+                Sem o módulo: o diário da equipe de antes (só gestor/admin). */}
+            {novo ? (
+              gestor || tl ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setVerEquipe((v) => !v)}
+                  data-testid="ver-equipe-metas"
+                >
+                  <Users className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  {verEquipe ? "Ocultar equipe" : "Equipe: feito x meta"}
+                </Button>
+              ) : null
+            ) : gestor ? (
               <Button size="sm" variant="outline" onClick={() => setVerEquipe((v) => !v)}>
                 <Users className="mr-1 h-3.5 w-3.5" aria-hidden />
                 {verEquipe ? "Ocultar equipe" : "Diário da equipe"}
               </Button>
             ) : null}
-            {gestor && verEquipe ? <EquipeDiario hoje={hoje} /> : null}
+            {verEquipe && novo && (gestor || tl) ? (
+              <EquipeMetas hoje={hoje} padrao={plano?.padrao ?? null} />
+            ) : null}
+            {verEquipe && !novo && gestor ? <EquipeDiario hoje={hoje} /> : null}
           </>
         )}
       </CardContent>
