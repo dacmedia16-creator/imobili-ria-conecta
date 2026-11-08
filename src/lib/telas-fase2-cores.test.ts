@@ -51,7 +51,11 @@ describe("item 16 — mapa único de cor", () => {
   });
   it("Sua vez e comentários pendentes no azul da marca", () => {
     const inicio = readFileSync("src/routes/_authenticated/dashboard.tsx", "utf8");
-    expect(inicio).toMatch(/bg-primary\/10[^"]*text-primary">\s*Sua vez/);
+    // Início usa a lista compartilhada com Vendas (t_e99f64cb): o selo fica no componente.
+    expect(inicio).toContain("<ListaVendas");
+    expect(readFileSync("src/components/vendas/ListaVendas.tsx", "utf8")).toMatch(
+      /bg-primary\/10[^"]*text-primary">\s*Sua vez/,
+    );
     expect(inicio).not.toContain('tone="red"');
     const venda = readFileSync("src/routes/_authenticated/vendas.$id.tsx", "utf8");
     expect(venda).not.toContain('"border-red-500 text-red-600');

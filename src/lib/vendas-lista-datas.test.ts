@@ -51,7 +51,9 @@ describe("datasDaVendaNaLista (lista de Vendas: Criada em / Assinada em)", () =>
   });
 
   it("tela usa as legendas e não volta à data solta", () => {
-    const tela = readFileSync("src/routes/_authenticated/vendas.index.tsx", "utf8");
+    const rota = readFileSync("src/routes/_authenticated/vendas.index.tsx", "utf8");
+    expect(rota).toContain("<ListaVendas");
+    const tela = readFileSync("src/components/vendas/ListaVendas.tsx", "utf8");
     expect(tela).toContain("Criada em");
     expect(tela).toContain("Assinada em");
     expect(tela).toContain("Ainda não assinada");

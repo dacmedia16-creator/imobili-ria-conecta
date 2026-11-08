@@ -3,7 +3,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const tela = readFileSync("src/routes/_authenticated/vendas.index.tsx", "utf8");
+// A linha/tabela da lista fica no componente compartilhado com o Início (t_e99f64cb).
+const tela =
+  readFileSync("src/routes/_authenticated/vendas.index.tsx", "utf8") +
+  readFileSync("src/components/vendas/ListaVendas.tsx", "utf8");
 
 describe("tela Vendas — melhorias de interface (t_9a7afb5a)", () => {
   it("1. celular: botão mostra quantos filtros estão ligados e há Limpar filtros", () => {
@@ -48,7 +51,8 @@ describe("tela Vendas — melhorias de interface (t_9a7afb5a)", () => {
     expect(tela).toContain("whitespace-nowrap text-right tabular-nums");
     expect(tela).toContain('aria-label="Ordenar por valor"');
     expect(tela).toContain('aria-label="Ordenar por dias nesta etapa"');
-    expect(tela).toContain('aria-sort={ariaSort("valor")}');
+    expect(tela).toContain("ordenacao={{ ariaSort, alternar: alternarOrdem, icone: iconeOrdem }}");
+    expect(tela).toContain('ordenacao.ariaSort("valor")');
   });
 
   it("8. código do imóvel é link de verdade com seta", () => {

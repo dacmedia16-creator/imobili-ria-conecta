@@ -12,14 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -36,8 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StatusBadge } from "@/components/StatusBadge";
-import { AgingBadge } from "@/components/AgingBadge";
 import {
   ESTEIRA_AGING_LIMITES,
   ESTEIRA_FILTER,
@@ -46,9 +36,7 @@ import {
   VENDIDOS_STATUSES,
   STATUS_LABEL,
   VEZ_DE_AGIR_LABEL,
-  proximoResponsavelRoles,
   statusDaVezDeAgir,
-  vezDeAgir,
   type SaleStatus,
   type VezDeAgir,
 } from "@/lib/status";
@@ -61,7 +49,6 @@ import {
   ArrowUp,
   ArrowUpDown,
   Building2,
-  ChevronRight,
   House,
   Info,
   Plus,
@@ -85,7 +72,6 @@ import { resolverResumoOpcional } from "@/lib/vendas-resumo";
 import { criarCacheConsultas, ehErroDePermissao, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { registrarVendaAction } from "@/lib/registrar-venda";
-import { corretoresDaLinha, responsaveisDaLinha } from "@/lib/sale-permissions";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -102,18 +88,12 @@ import {
   pagamentoFilterParam,
   pagamentoFilterValido,
 } from "@/lib/vendas-pagamento-filtro";
-import { FinanciadaBadge } from "@/components/FinanciadaBadge";
-import { datasDaVendaNaLista, type DatasVendaLista } from "@/lib/vendas-lista-datas";
-
-/** "Criada em …" + "Assinada em …" / "Ainda não assinada" (legenda de cada data). */
-function DatasVendaLegenda({ datas, className }: { datas: DatasVendaLista; className?: string }) {
-  return (
-    <div className={className}>
-      <div>Criada em {datas.criadaEm ?? "—"}</div>
-      <div>{datas.assinadaEm ? `Assinada em ${datas.assinadaEm}` : "Ainda não assinada"}</div>
-    </div>
-  );
-}
+import { ListaVendas } from "@/components/vendas/ListaVendas";
+import {
+  PAPEIS_COLUNA_LIDER,
+  mapaLiderPorCorretor,
+  vendaEhMinhaVez,
+} from "@/lib/vendas-lista-linha";
 
 type RawSale = Pick<
   SaleRow,
@@ -138,27 +118,6 @@ type SalesListRow = RawSale & {
   pagamento_correspondente?: string | null;
   pagamento_oba?: boolean | null;
 };
-
-/** Nomes dos corretores participantes (não de quem cadastrou a venda). */
-function nomesCorretores(s: SalesListRow, profileName: Record<string, string>): string {
-  return corretoresDaLinha(s)
-    .map((id) => profileName[id] ?? "—")
-    .join(", ");
-}
-function nomesLideres(
-  s: SalesListRow,
-  profileName: Record<string, string>,
-  liderIdByCorretor: Record<string, string>,
-): string {
-  const ids = [
-    ...new Set(
-      corretoresDaLinha(s)
-        .map((id) => liderIdByCorretor[id])
-        .filter(Boolean),
-    ),
-  ];
-  return ids.map((id) => profileName[id] ?? "—").join(", ");
-}
 
 const brl0 = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -445,25 +404,8 @@ function SalesList() {
       setMemberIdsByTeam(byTeam);
 
       // Corretor → líder da equipe (mesma resolução membro/líder/líder-auxiliar de cima, mas
-      // invertida: de quem é membro para quem lidera) — pra mostrar de qual gestor/team_leader
-      // cada corretor é na coluna "Gestor/Líder", já que quem vê vendas de várias equipes ao mesmo
-      // tempo (jurídico/financeiro/admin) não tem como saber isso de cabeça.
-      const teamIdByCorretor: Record<string, string> = {};
-      (members ?? []).forEach((m) => {
-        if (!teamIdByCorretor[m.membro_id]) teamIdByCorretor[m.membro_id] = m.team_id;
-      });
-      (teams ?? []).forEach((t) => {
-        if (t.lider_id && !teamIdByCorretor[t.lider_id]) teamIdByCorretor[t.lider_id] = t.id;
-      });
-      (coLeaders ?? []).forEach((c) => {
-        if (!teamIdByCorretor[c.user_id]) teamIdByCorretor[c.user_id] = c.team_id;
-      });
-      const liderByCorretor: Record<string, string> = {};
-      for (const [corretorId, teamId] of Object.entries(teamIdByCorretor)) {
-        const liderId = byId[teamId]?.lider_id;
-        if (liderId) liderByCorretor[corretorId] = liderId;
-      }
-      setLiderIdByCorretor(liderByCorretor);
+      // invertida) — coluna "Gestor/Líder". Regra em mapaLiderPorCorretor (lib compartilhada).
+      setLiderIdByCorretor(mapaLiderPorCorretor(teams ?? [], members ?? [], coLeaders ?? []));
     })().finally(() => setTeamOptionsLoaded(true));
   }, [hasAny]);
 
@@ -822,22 +764,8 @@ function SalesList() {
   const podeTerFila =
     !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
   const saleIsMinhaVez = useCallback(
-    (s: SalesListRow) => {
-      if (isOverseer) return false;
-      return proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
-        papel === "corretor"
-          ? !!user?.id && responsaveisDaLinha(s).includes(user.id)
-          : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — sem esse filtro,
-            // quem também é jurídico/financeiro (e por isso enxerga vendas de times que não lidera) via
-            // o badge acender pra toda venda parada numa etapa do gestor, mesmo fora da própria equipe.
-            // "Corretor da venda" = participantes, não quem cadastrou.
-            papel === "gestor"
-            ? hasAny(["gestor", "team_leader"]) &&
-              responsaveisDaLinha(s).some((id) => teamIds.has(id))
-            : hasAny([papel]),
-      );
-    },
-    [isOverseer, user?.id, hasAny, teamIds],
+    (s: SalesListRow) => vendaEhMinhaVez(s, { userId: user?.id, hasAny, teamIds }),
+    [user?.id, hasAny, teamIds],
   );
   // Quando "Só minha vez" está ativo, a RPC já filtra antes da paginação. Não filtre a página
   // novamente no navegador: isso faria a fila voltar a depender apenas das 10 linhas carregadas.
@@ -1359,193 +1287,40 @@ function SalesList() {
                   {listTotal} {listTotal === 1 ? "venda encontrada" : "vendas encontradas"}
                 </p>
               )}
-              {/* Mobile: cards empilhados — a tabela força colunas largas demais e corta o texto
-                  do status numa tela estreita. A partir de md, volta pra tabela (mais densa, melhor
-                  pra comparar várias vendas de uma vez, o que faz sentido numa tela maior). */}
-              <div className="space-y-2 md:hidden">
-                {displayedSales.map((s) => {
-                  const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
-                  const minhaVez = saleIsMinhaVez(s);
-                  return (
-                    <div
-                      key={s.id}
-                      className={`cursor-pointer rounded-md border p-3 ${minhaVez ? "border-primary/40 bg-primary/5" : ""}`}
-                      onClick={() => abrirVenda(s.id)}
+              <ListaVendas
+                vendas={displayedSales}
+                profileName={profileName}
+                liderIdByCorretor={liderIdByCorretor}
+                mostrarLider={hasAny(PAPEIS_COLUNA_LIDER)}
+                ehMinhaVez={saleIsMinhaVez}
+                desdeEtapa={(s) => stageSince[s.id] ?? s.created_at}
+                assinadaNoHistorico={(s) => Boolean(assinadasHist[s.id])}
+                agingLimites={agingLimites}
+                onAbrir={abrirVenda}
+                aoClicarLink={markSalesListForReturn}
+                ordenacao={{ ariaSort, alternar: alternarOrdem, icone: iconeOrdem }}
+                acao={(s, tela) =>
+                  canDeleteSale(user?.id, hasAny, s, teamIds) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={
+                        tela === "celular"
+                          ? "-mr-2 -mt-1 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          : "text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setToDelete(s);
+                      }}
+                      aria-label="Excluir venda"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <LinkVenda s={s} className="truncate" />
-                          <div className="truncate text-sm text-muted-foreground">
-                            {nomesCorretores(s, profileName)}
-                            {hasAny(["juridico", "admin", "super_admin", "financeiro"]) &&
-                              nomesLideres(s, profileName, liderIdByCorretor) && (
-                                <> · {nomesLideres(s, profileName, liderIdByCorretor)}</>
-                              )}
-                          </div>
-                        </div>
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="-mr-2 -mt-1 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setToDelete(s);
-                            }}
-                            aria-label="Excluir venda"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <StatusBadge status={s.status as SaleStatus} />
-                        <VezDeAgirBadge status={s.status as SaleStatus} />
-                        <FinanciadaBadge
-                          tipo={s.pagamento_tipo}
-                          banco={s.pagamento_banco}
-                          correspondente={s.pagamento_correspondente}
-                          obaCredito={s.pagamento_oba}
-                        />
-                        {minhaVez && <SuaVezBadge />}
-                        <AgingBadge
-                          since={stageSince[s.id] ?? s.created_at}
-                          limites={agingLimites}
-                          prefixo="Nesta etapa"
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-sm">
-                        <span className="font-semibold tabular-nums">
-                          {s.valor_negociado
-                            ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
-                            : "Valor pendente"}
-                        </span>
-                        <DatasVendaLegenda
-                          datas={datasDaVendaNaLista(s, Boolean(assinadasHist[s.id]))}
-                          className="text-right text-xs text-muted-foreground"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Imóvel / código</TableHead>
-                      <TableHead>Corretor</TableHead>
-                      {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
-                        <TableHead>Gestor/Líder</TableHead>
-                      )}
-                      <TableHead className="text-right" aria-sort={ariaSort("valor")}>
-                        <button
-                          type="button"
-                          className="-mr-1 inline-flex items-center rounded px-1 py-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => alternarOrdem("valor")}
-                          aria-label="Ordenar por valor"
-                        >
-                          Valor
-                          {iconeOrdem("valor")}
-                        </button>
-                      </TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Vez de agir</TableHead>
-                      <TableHead aria-sort={ariaSort("dias")}>
-                        <button
-                          type="button"
-                          className="-ml-1 inline-flex items-center rounded px-1 py-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => alternarOrdem("dias")}
-                          aria-label="Ordenar por dias nesta etapa"
-                        >
-                          Nesta etapa
-                          {iconeOrdem("dias")}
-                        </button>
-                      </TableHead>
-                      <TableHead>Datas</TableHead>
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedSales.map((s) => {
-                      const canDelete = canDeleteSale(user?.id, hasAny, s, teamIds);
-                      const minhaVez = saleIsMinhaVez(s);
-                      return (
-                        <TableRow
-                          key={s.id}
-                          className={`cursor-pointer ${minhaVez ? "bg-primary/5" : ""}`}
-                          onClick={() => abrirVenda(s.id)}
-                        >
-                          <TableCell>
-                            <LinkVenda s={s} />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {nomesCorretores(s, profileName)}
-                          </TableCell>
-                          {hasAny(["juridico", "admin", "super_admin", "financeiro"]) && (
-                            <TableCell className="text-muted-foreground">
-                              {nomesLideres(s, profileName, liderIdByCorretor) || "—"}
-                            </TableCell>
-                          )}
-                          <TableCell className="whitespace-nowrap text-right tabular-nums">
-                            {s.valor_negociado ? (
-                              <span className="font-semibold">
-                                {`R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">Pendente</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <StatusBadge status={s.status as SaleStatus} />
-                              <FinanciadaBadge
-                                tipo={s.pagamento_tipo}
-                                banco={s.pagamento_banco}
-                                correspondente={s.pagamento_correspondente}
-                                obaCredito={s.pagamento_oba}
-                              />
-                              {minhaVez && <SuaVezBadge />}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <VezDeAgirBadge status={s.status as SaleStatus} />
-                          </TableCell>
-                          <TableCell>
-                            <AgingBadge
-                              since={stageSince[s.id] ?? s.created_at}
-                              limites={agingLimites}
-                            />
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                            <DatasVendaLegenda
-                              datas={datasDaVendaNaLista(s, Boolean(assinadasHist[s.id]))}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {canDelete && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setToDelete(s);
-                                }}
-                                aria-label="Excluir venda"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )
+                }
+              />
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 pt-4">
                   <Button
@@ -1623,42 +1398,6 @@ function useCelular() {
   return celular;
 }
 
-function codigoDaVenda(s: Pick<SalesListRow, "id" | "imovel_id" | "codigo_interno">) {
-  return s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`;
-}
-
-/**
- * Código do imóvel como link de verdade: abre pelo teclado (Tab + Enter) e aceita
- * Ctrl/Cmd+clique ou botão do meio para abrir em nova aba. O clique não chega à linha.
- */
-function LinkVenda({ s, className }: { s: SalesListRow; className?: string }) {
-  const codigo = codigoDaVenda(s);
-  return (
-    <Link
-      to="/vendas/$id"
-      params={{ id: s.id }}
-      onClick={(e) => {
-        e.stopPropagation();
-        markSalesListForReturn();
-      }}
-      aria-label={`Abrir venda ${codigo}`}
-      className={`inline-flex max-w-full items-center gap-0.5 rounded font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className ?? ""}`}
-    >
-      <span className="truncate">{codigo}</span>
-      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-    </Link>
-  );
-}
-
-/** "Sua vez" no azul da marca (vermelho fica só para atraso e exclusão). */
-function SuaVezBadge() {
-  return (
-    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-      Sua vez
-    </span>
-  );
-}
-
 /** Cartão de resumo: nome curto, número, 1 linha de apoio e um "i" com a explicação. */
 function ResumoCartao({
   titulo,
@@ -1701,24 +1440,5 @@ function ResumoCartao({
       <p className="text-sm text-muted-foreground">{linha}</p>
       {aviso && <p className="mt-1 text-xs text-muted-foreground">{aviso}</p>}
     </div>
-  );
-}
-
-const VEZ_DE_AGIR_TONE: Record<VezDeAgir, string> = {
-  corretor: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  financeiro: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
-  juridico: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
-  concluido: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
-};
-
-function VezDeAgirBadge({ status }: { status: SaleStatus }) {
-  const responsavel = vezDeAgir(status);
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VEZ_DE_AGIR_TONE[responsavel]}`}
-    >
-      {VEZ_DE_AGIR_LABEL[responsavel]}
-    </span>
   );
 }
