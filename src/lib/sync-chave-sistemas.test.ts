@@ -227,7 +227,10 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
       [...ORGANIZATION_MODULES]
         .filter(
           (x) =>
-            x !== "meu_plano_2027" && x !== "avisos_exclusividade" && x !== "inteligencia_gestao",
+            x !== "meu_plano_2027" &&
+            x !== "avisos_exclusividade" &&
+            x !== "inteligencia_gestao" &&
+            x !== "link_acompanhamento",
         )
         .sort(),
     );
@@ -235,7 +238,10 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
       [...ORGANIZATION_MODULES]
         .filter(
           (x) =>
-            x !== "meu_plano_2027" && x !== "avisos_exclusividade" && x !== "inteligencia_gestao",
+            x !== "meu_plano_2027" &&
+            x !== "avisos_exclusividade" &&
+            x !== "inteligencia_gestao" &&
+            x !== "link_acompanhamento",
         )
         .sort(),
     );

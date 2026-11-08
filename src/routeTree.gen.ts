@@ -47,6 +47,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authenticated/reservas-salas'
 import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
+import { Route as AcompanharTokenRouteImport } from './routes/acompanhar.$token'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
 import { Route as EspecialistasIndexRouteImport } from './routes/especialistas.index'
@@ -284,6 +285,11 @@ const AuthenticatedVisaoExecutivaRoute =
     path: '/visao-executiva',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AcompanharTokenRoute = AcompanharTokenRouteImport.update({
+  id: '/acompanhar/$token',
+  path: '/acompanhar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConviteTokenRoute = ConviteTokenRouteImport.update({
   id: '/convite/$token',
   path: '/convite/$token',
@@ -486,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/acompanhar/$token': typeof AcompanharTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -554,6 +561,7 @@ export interface FileRoutesByTo {
   '/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/acompanhar/$token': typeof AcompanharTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -624,6 +632,7 @@ export interface FileRoutesById {
   '/_authenticated/reservas-salas': typeof AuthenticatedReservasSalasRoute
   '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
+  '/acompanhar/$token': typeof AcompanharTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -694,6 +703,7 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/acompanhar/$token'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -762,6 +772,7 @@ export interface FileRouteTypes {
     | '/reservas-salas'
     | '/vendas-por-regiao'
     | '/visao-executiva'
+    | '/acompanhar/$token'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -831,6 +842,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reservas-salas'
     | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
+    | '/acompanhar/$token'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -872,6 +884,7 @@ export interface RootRouteChildren {
   SistemasRemaxRoute: typeof SistemasRemaxRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
+  AcompanharTokenRoute: typeof AcompanharTokenRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   EspecialistasSlugRoute: typeof EspecialistasSlugRoute
@@ -1150,6 +1163,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/visao-executiva'
       preLoaderRoute: typeof AuthenticatedVisaoExecutivaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/acompanhar/$token': {
+      id: '/acompanhar/$token'
+      path: '/acompanhar/$token'
+      fullPath: '/acompanhar/$token'
+      preLoaderRoute: typeof AcompanharTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/convite/$token': {
       id: '/convite/$token'
@@ -1482,6 +1502,7 @@ const rootRouteChildren: RootRouteChildren = {
   SistemasRemaxRoute: SistemasRemaxRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
+  AcompanharTokenRoute: AcompanharTokenRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
   EspecialistasSlugRoute: EspecialistasSlugRoute,
