@@ -32,6 +32,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   // "sessenta" (t_1969ae17, decisão 6 de Denis): nasce desligado. Visita e Estudo nascem ligados
   // (gatilho trg_zz_org_sistemas_padrao em organizations).
   "sessenta",
+  // "avisos_exclusividade" (t_c337fc12): nasce desligado; a plataforma liga por imobiliária.
+  "avisos_exclusividade",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {

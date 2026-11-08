@@ -133,6 +133,8 @@ export const ORGANIZATION_MODULES = [
   "sessenta",
   // Minha carreira → Meu Plano 2027 (t_1ac2e95d). Nasce desligado; Denis liga só na Única Escolha.
   "meu_plano_2027",
+  // Avisos de exclusividade + reunião de 45 dias (t_c337fc12). Nasce desligado; teste só na Conferência MAX.
+  "avisos_exclusividade",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -151,6 +153,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   estudo: "Estudo de Mercado MAX (sistema; ainda sem bloqueio)",
   sessenta: "60 Dias MAX (sistema)",
   meu_plano_2027: "Meu Plano 2027 (book Agent Summit, Minha carreira)",
+  avisos_exclusividade: "Avisos de exclusividade e reunião de 45 dias (sino, push, WhatsApp)",
 };
 
 export type OrganizationSummary = OrganizationRow & {
