@@ -123,7 +123,8 @@ describe("módulos da imobiliária criada pelo convite", () => {
         x !== "vouchers_fotos" &&
         x !== "sessenta" &&
         x !== "meu_plano_2027" &&
-        x !== "avisos_exclusividade",
+        x !== "avisos_exclusividade" &&
+        x !== "inteligencia_gestao",
     ))
       expect(m[k]).toBe(true);
     // t_1969ae17 (decisão 6): Visita e Estudo nascem ligados; 60 Dias desligado.
@@ -151,7 +152,8 @@ describe("módulos da imobiliária criada pelo convite", () => {
             x !== "estudo" &&
             x !== "sessenta" &&
             x !== "meu_plano_2027" &&
-        x !== "avisos_exclusividade",
+            x !== "avisos_exclusividade" &&
+            x !== "inteligencia_gestao",
         )
         .sort(),
     );
