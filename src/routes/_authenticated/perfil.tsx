@@ -54,6 +54,7 @@ import {
 } from "@/lib/positioning";
 import { listMyPositioningRegions } from "@/lib/positioning-db";
 import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
+import { AvisosExclusividadePreferencias } from "@/components/perfil/AvisosExclusividadePreferencias";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -1283,6 +1284,8 @@ function MeuAcesso() {
           </CardContent>
         </Card>
       )}
+
+      <AvisosExclusividadePreferencias userId={userId ?? null} />
 
       {userId && <MeusDadosPagamento userId={userId} />}
 

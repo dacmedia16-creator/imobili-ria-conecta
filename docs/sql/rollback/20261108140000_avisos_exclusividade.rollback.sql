@@ -1,4 +1,4 @@
--- Rollback de 20261108120000_avisos_exclusividade (cartão t_c337fc12).
+-- Rollback de 20261108140000_avisos_exclusividade (cartão t_c337fc12).
 -- ATENÇÃO: apaga as reuniões registradas, o registro dos avisos, os aparelhos com push e as preferências.
 -- Notificações do sino já gravadas (tabela notifications) CONTINUAM.
 -- Devolve o CHECK e a RPC platform_set_organization_module ao corpo da 20261107120000.

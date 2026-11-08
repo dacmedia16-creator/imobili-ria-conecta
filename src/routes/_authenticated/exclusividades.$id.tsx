@@ -177,6 +177,7 @@ import {
 } from "@/lib/captacoes-painel";
 import { deveGerarPdfAuto, PDF_AUTO_FALHA } from "@/lib/captacao-pdf-auto";
 import { Button } from "@/components/ui/button";
+import { ReuniaoProprietario } from "@/components/exclusividades/ReuniaoProprietario";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1540,6 +1541,9 @@ function ExclusiveDetail() {
             )}
           </div>
         )}
+        {/* Reunião de 45 dias (t_c337fc12): só com o módulo avisos_exclusividade ligado. Quem vê a
+            captação registra; o banco repete a checagem (exclusive_reuniao_registrar). */}
+        <ReuniaoProprietario capture={capture} podeRegistrar={!corrigindoAtivo} />
         {vendaInfo.venda && <VendaDaCaptacaoAviso venda={vendaInfo.venda} />}
         <div className="mt-3 flex flex-wrap gap-2">
           {podeTransf && !corrigindoAtivo && (

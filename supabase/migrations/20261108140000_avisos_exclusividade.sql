@@ -1,7 +1,7 @@
 -- Avisos de exclusividade vencendo + reunião de 45 dias com o proprietário (cartão t_c337fc12, Denis 08/11/2026,
 -- tópico 6238). CONSTRUÇÃO EM TESTE: aplicar em produção só com o "sim" de Denis.
 --
--- ADITIVA. Rollback: docs/sql/rollback/20261108120000_avisos_exclusividade.rollback.sql
+-- ADITIVA. Rollback: docs/sql/rollback/20261108140000_avisos_exclusividade.rollback.sql
 -- Sem BEGIN/COMMIT próprios: o teste (supabase/tests/avisos_exclusividade.sql) a inclui numa transação desfeita.
 --
 -- O que faz:

@@ -53,3 +53,46 @@ describe("alerta semanal de vencimento", () => {
     expect(weekStart("2026-10-05")).toBe("2026-10-05");
   });
 });
+
+describe("alerta semanal antigo x módulo novo avisos_exclusividade (t_c337fc12)", () => {
+  // Cliente falso encadeável: registra de quais orgs a rotina buscou captações.
+  const fake = (novosLigados: string[]) => {
+    const buscou: string[] = [];
+    const from = (tabela: string) => {
+      const filtros: Record<string, unknown> = {};
+      const q: Record<string, unknown> = {};
+      const resolver = () => {
+        if (tabela === "organization_modules") {
+          const lista =
+            filtros.module === "captacao_exclusiva" ? ["orgA", "orgB"] : novosLigados;
+          return { data: lista.map((organization_id) => ({ organization_id })), error: null };
+        }
+        if (tabela === "organizations")
+          return { data: [{ id: "orgA" }, { id: "orgB" }], error: null };
+        if (tabela === "exclusive_captures") {
+          buscou.push(String(filtros.organization_id));
+          return { data: [], error: null };
+        }
+        return { data: [], error: null };
+      };
+      for (const m of ["select", "eq", "is", "not", "in"])
+        q[m] = (k?: string, v?: unknown) => {
+          if (m === "eq" && k) filtros[k] = v;
+          return q;
+        };
+      q.then = (ok: (r: unknown) => unknown) => Promise.resolve(resolver()).then(ok);
+      return q;
+    };
+    return { admin: { from } as never, buscou };
+  };
+
+  it("pula só a imobiliária com o módulo novo ligado; as demais seguem iguais", async () => {
+    const { runExclusiveExpiryAlerts } = await import("./exclusive-expiry-alerts.server");
+    const f = fake(["orgB"]);
+    await runExclusiveExpiryAlerts(f.admin, async () => true, "https://x", new Date("2026-11-09T11:00:00Z"));
+    expect(f.buscou).toEqual(["orgA"]);
+    const g = fake([]);
+    await runExclusiveExpiryAlerts(g.admin, async () => true, "https://x", new Date("2026-11-09T11:00:00Z"));
+    expect(g.buscou).toEqual(["orgA", "orgB"]);
+  });
+});
