@@ -137,6 +137,8 @@ export const ORGANIZATION_MODULES = [
   "avisos_exclusividade",
   // Inteligência de gestão: farol, gargalo, previsão do trimestre e 1:1 (t_1d3c07b3). Nasce desligado.
   "inteligencia_gestao",
+  // Link de acompanhamento do negócio para comprador e vendedor (t_54c79bdc). Nasce desligado.
+  "link_acompanhamento",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -158,6 +160,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   avisos_exclusividade: "Avisos de exclusividade e reunião de 45 dias (sino, push, WhatsApp)",
   inteligencia_gestao:
     "Inteligência de gestão (farol da equipe, previsão do trimestre e conversa 1:1)",
+  link_acompanhamento: "Link de acompanhamento da venda (comprador e vendedor, sem login)",
 };
 
 export type OrganizationSummary = OrganizationRow & {

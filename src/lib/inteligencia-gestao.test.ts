@@ -461,8 +461,10 @@ describe("migration 20261108180000", () => {
     const nomes = (x: string) => [...x.matchAll(/'([a-z_0-9]+)'/g)].map((m) => m[1]).sort();
     const check = MIG.match(/CHECK \(module IN \(([^)]*)\)\)/)?.[1] ?? "";
     const rpc = MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "";
-    expect(nomes(check)).toEqual([...ORGANIZATION_MODULES].sort());
-    expect(nomes(rpc)).toEqual([...ORGANIZATION_MODULES].sort());
+    // link_acompanhamento (t_54c79bdc) veio depois, na migration 20261108200000.
+    const lista = [...ORGANIZATION_MODULES].filter((x) => x !== "link_acompanhamento").sort();
+    expect(nomes(check)).toEqual(lista);
+    expect(nomes(rpc)).toEqual(lista);
   });
   it("nasce desligado (sem seed) e o rollback tira a chave", () => {
     // O único INSERT em organization_modules é o da RPC do super-admin (valores por parâmetro, sem seed).

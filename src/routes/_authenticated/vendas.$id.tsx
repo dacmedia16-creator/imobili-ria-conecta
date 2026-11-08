@@ -179,6 +179,7 @@ import {
 } from "@/components/vendas/shared";
 import { PartiesStep } from "@/components/vendas/PartiesStep";
 import { ClicksignVenda } from "@/components/vendas/ClicksignVenda";
+import { LinkAcompanhamentoVenda } from "@/components/vendas/LinkAcompanhamentoVenda";
 import {
   AssinaturaManualCard,
   EscolhaAssinaturaVenda,
@@ -5197,6 +5198,16 @@ function SaleDetail() {
           )}
         </CardContent>
       </Card>
+
+      <LinkAcompanhamentoVenda
+        saleId={sale.id}
+        compradores={partiesComNome(parties)
+          .filter((p) => p.startsWith("comprador_"))
+          .map((p) => parties[p].nome ?? "")}
+        vendedores={partiesComNome(parties)
+          .filter((p) => p.startsWith("vendedor_"))
+          .map((p) => parties[p].nome ?? "")}
+      />
 
       {status === "ocorrencia_concluida" ? (
         <SaleReport
