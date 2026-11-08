@@ -1109,7 +1109,8 @@ export function PainelEquipeConteudo({
             ) : null}
           </CardContent>
         </Card>
-        <Card className={gestao ? "lg:order-last lg:col-span-3" : undefined}>
+        {/* min-w-0: no celular a grade não limita o cartão e a tabela do farol (720px) o esticava. */}
+        <Card className={gestao ? "min-w-0 lg:order-last lg:col-span-3" : undefined}>
           <SecaoTitulo
             icon={Clock}
             titulo="Há quantos dias sem vender"

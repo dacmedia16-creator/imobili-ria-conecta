@@ -291,7 +291,8 @@ describe("chave do módulo: desligado = tela exatamente como hoje", () => {
     expect(painel).toMatch(/\) : semVender\.length === 0 \? \(/);
     expect(painel).toMatch(/\{gestao \? \(\s*<PrevisaoTrimestre/);
     expect(painel).toContain(
-      '<Card className={gestao ? "lg:order-last lg:col-span-3" : undefined}>',
+      // min-w-0: sem ele a tabela do farol esticava a página no celular (achado nos prints do cartão 3/3).
+      '<Card className={gestao ? "min-w-0 lg:order-last lg:col-span-3" : undefined}>',
     );
     expect(painel).toContain(
       '"Pela última assinatura. Amarelo acima de 14 dias, vermelho acima de 30."',
