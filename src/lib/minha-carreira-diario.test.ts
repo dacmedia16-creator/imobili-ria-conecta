@@ -17,8 +17,14 @@ const reg = (id: string, dia: string, tipo: string, quantidade: number) =>
   normalizarRegistro({ id, user_id: "u", dia, tipo, quantidade, created_at: "" });
 
 describe("diário: atividades", () => {
-  it("botões da maquete: ligação, visita e ACM, sem pontos", () => {
-    expect(ATIVIDADES.map((a) => a.tipo)).toEqual(["ligacao", "visita", "acm"]);
+  it("botões: ligação, V1, V2, ACM e visita com comprador, sem pontos (t_09c29e96)", () => {
+    expect(ATIVIDADES.map((a) => a.tipo)).toEqual([
+      "ligacao",
+      "v1",
+      "v2",
+      "acm",
+      "visita_comprador",
+    ]);
     expect(ATIVIDADES.some((a) => "pontos" in a)).toBe(false);
   });
 
@@ -54,13 +60,18 @@ describe("diário: datas", () => {
 });
 
 describe("diário: dados do banco", () => {
-  it("contagens sempre trazem as 3 atividades, na ordem, com zero quando faltam", () => {
-    expect(normalizarContagens([{ tipo: "acm", hoje: "1", semana: 2, mes: 3 }])).toEqual([
-      { tipo: "ligacao", hoje: 0, semana: 0, mes: 0 },
-      { tipo: "visita", hoje: 0, semana: 0, mes: 0 },
-      { tipo: "acm", hoje: 1, semana: 2, mes: 3 },
-    ]);
-    expect(normalizarContagens(null)).toHaveLength(3);
+  it("contagens sempre trazem as 5 atividades, na ordem, com zero quando faltam", () => {
+    expect(normalizarContagens([{ tipo: "acm", hoje: "1", semana: 2, mes: 3 }])).toEqual({
+      atividades: [
+        { tipo: "ligacao", hoje: 0, semana: 0, mes: 0 },
+        { tipo: "v1", hoje: 0, semana: 0, mes: 0 },
+        { tipo: "v2", hoje: 0, semana: 0, mes: 0 },
+        { tipo: "acm", hoje: 1, semana: 2, mes: 3 },
+        { tipo: "visita_comprador", hoje: 0, semana: 0, mes: 0 },
+      ],
+      captacao: { semana: 0, mes: 0 },
+    });
+    expect(normalizarContagens(null).atividades).toHaveLength(5);
   });
 
   it("normaliza a equipe com nome padrão e números", () => {
@@ -105,7 +116,8 @@ describe("diário: histórico", () => {
       { tipo: "ligacao", quantidade: 6, ids: ["3", "4"] },
       { tipo: "visita", quantidade: 1, ids: ["2"] },
     ]);
-    expect(resumoDia(dias[0])).toBe("6 ligações · 1 visita");
+    expect(resumoDia(dias[0], false)).toBe("6 ligações · 1 visita");
+    expect(resumoDia(dias[0])).toBe("6 ligações · 1 visita (antiga)");
   });
 
   it("dia sem registro", () => {

@@ -17,6 +17,7 @@ import { calc, fmt, metaOficialDoPlano, type Respostas } from "@/lib/meu-plano-2
 import { ORDEM, TRILHAS, progresso, tela, vizinhos, type Trilha } from "@/lib/meu-plano-2027/telas";
 import { LEIA } from "@/lib/meu-plano-2027/book";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
+import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
 import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
 import { Leitor, PaginaOriginal } from "./Leitor";
@@ -128,6 +129,15 @@ export function MeuPlano({
   const S: Respostas = plano?.respostas ?? {};
   const C = useMemo(() => calc(S, h.taxasPadrao), [S, h.taxasPadrao]);
   const trilha: Trilha = plano?.trilha ?? "planejamento";
+
+  // Meta x atividades (t_09c29e96): cópia das metas da semana (campos ms.*) para o team leader, que não
+  // lê o plano. Atualiza junto com o plano, a partir da mesma calc().
+  useEffect(() => {
+    if (!plano) return;
+    const dif = snapshotMudou(S, metasDoCalc(C));
+    if (Object.keys(dif).length) h.setVarios(dif);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [C, !!plano]);
 
   // Última página do book e última tela ficam no próprio plano (campos internos "ui.*").
   useEffect(() => {
