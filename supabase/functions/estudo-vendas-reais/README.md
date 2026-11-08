@@ -7,8 +7,11 @@ chave, para comparar "Anunciado R$/m² × Vendido R$/m²". Pedido de Denis em 11
 
 - Sai: tipo, área (útil; Terreno = área do terreno), valor de venda, R$/m², mês da assinatura (AAAA-MM),
   rua **sem número**, bairro, cidade, UF, quartos, suítes, banheiros, vagas.
-- Nunca sai: comprador, vendedor, corretor, comissão, documentos, código/ID da venda ou do imóvel,
+- Nunca sai: comprador, vendedor, corretor, comissão, documentos, código interno/ID da venda,
   número, complemento, CEP, data exata, coordenadas.
+- `codigo_remax` (Denis, 08/11/2026, t_caa2f4a0): código público do anúncio RE/MAX (`sales.imovel_id`,
+  ex. `630590123-45`), para o Estudo cruzar sem duplicar com as vendas do site RE/MAX e montar o link.
+  Só sai no formato `9 dígitos-N`; qualquer outro texto do campo sai `null` (trava na RPC e na função).
 - Rua: `estudo_rua_sem_numero` corta número, apto, bloco, lote, quadra, CEP e S/N; se o número da casa
   ainda aparecer, a rua não é enviada (fica só bairro/cidade).
 - Venda sem área: aparece sem R$/m² e fica fora do cálculo de R$/m².

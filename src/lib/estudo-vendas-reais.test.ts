@@ -48,6 +48,9 @@ async function fakeAdmin() {
         geo_lat: -23.5,
         geo_lon: -47.45,
         data_assinatura: "2026-09-14",
+        sale_id: "11111111-2222-4333-8444-555555555555",
+        imovel_id: "630590123-45",
+        codigo_remax: "630590123-45",
       }),
       linha({
         tipo_imovel: "Casa",
@@ -134,7 +137,9 @@ describe("estudo-vendas-reais", () => {
       "comprador",
       "cpf",
       "comissao",
-      "codigo",
+      "codigo_interno",
+      "sale_id",
+      "imovel_id",
       "numero",
       "complemento",
       "geo_",
@@ -150,6 +155,51 @@ describe("estudo-vendas-reais", () => {
   it("sanitizar descarta qualquer campo fora da lista fechada", () => {
     const v = sanitizar({ ...linha({}), cliente_nome: "X", sale_id: "uuid" });
     expect(Object.keys(v).sort()).toEqual([...CAMPOS_PERMITIDOS].sort());
+  });
+
+  it("lista fechada: só codigo_remax foi acrescentado à lista de 11/10/2026", () => {
+    expect([...CAMPOS_PERMITIDOS]).toEqual([
+      "tipo_imovel",
+      "area_m2",
+      "valor_venda",
+      "preco_m2",
+      "mes_assinatura",
+      "rua",
+      "bairro",
+      "cidade",
+      "uf",
+      "quartos",
+      "suites",
+      "banheiros",
+      "vagas",
+      "area_fonte",
+      "codigo_remax",
+    ]);
+  });
+
+  it("codigo_remax: sai o código público RE/MAX; outro texto, vazio ou ausente vira null", async () => {
+    const admin = await fakeAdmin();
+    const r = await handleVendasReais(admin, CHAVE_A, {});
+    const vendas = r.body.vendas as VendaReal[];
+    expect(vendas[0].codigo_remax).toBe("630590123-45");
+    expect(vendas[1].codigo_remax).toBeNull(); // RPC antiga (sem a coluna) continua funcionando
+    const cod = (c: unknown) => sanitizar(linha({ codigo_remax: c })).codigo_remax;
+    expect(cod(" 630601222-25 ")).toBe("630601222-25");
+    expect(cod("630590123-1")).toBe("630590123-1");
+    for (const ruim of [
+      "",
+      "630590123",
+      "630590123-",
+      "63059012-45",
+      "630590123-45 vendido",
+      "Rua das Acácias, 412",
+      "Ap. 31 630590123-45",
+      "630590123-ab",
+      630590123,
+      null,
+    ]) {
+      expect(cod(ruim), `aceitou: ${String(ruim)}`).toBeNull();
+    }
   });
 
   it("filtros: cidade/bairro sem acento e caixa, tipo e faixa de metragem (sem área fica fora da faixa)", () => {

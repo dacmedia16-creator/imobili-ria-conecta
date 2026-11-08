@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Vendas reais para o Estudo (migration 20261011100000) numa ÚNICA transação revertida (homologação ou
-# clone, nunca produção): colunas da ficha se faltarem (só na transação) -> fingerprint A -> up -> suíte
-# -> rollback -> fingerprint == A -> ROLLBACK.
+# Vendas reais para o Estudo (migrations 20261011100000 + 20261108120000) numa ÚNICA transação revertida
+# (homologação ou clone, nunca produção): colunas da ficha se faltarem (só na transação) -> fingerprint A
+# -> up -> suíte -> rollback -> fingerprint == A -> ROLLBACK.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-estudo-vendas-reais.sh
+# Banco que JÁ tem a 20261011100000 (homologação/produção): BASE_APLICADA=1 aplica e reverte só a
+# 20261108120000 (código RE/MAX) por cima da base existente.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
+BASE_APLICADA="${BASE_APLICADA:-0}"
+BASE=20261011100000_estudo_vendas_reais.sql
+COD=20261108120000_estudo_vendas_reais_codigo_remax.sql
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   SELECT 'fn:'||p.oid::regprocedure::text||':'||coalesce(p.proacl::text,'')||':'||md5(p.prosrc) x
@@ -22,12 +27,14 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   echo "  ADD COLUMN IF NOT EXISTS area_confirmada_por uuid;"
   echo "\\echo [pre ok]"
   echo "$FP"
-  strip "$ROOT/supabase/migrations/20261011100000_estudo_vendas_reais.sql"
+  [ "$BASE_APLICADA" = 1 ] || strip "$ROOT/supabase/migrations/$BASE"
+  strip "$ROOT/supabase/migrations/$COD"
   echo "\\echo [migration ok]"
   echo "SAVEPOINT suite;"
   strip "$HERE/estudo_vendas_reais.sql"
   echo "ROLLBACK TO SAVEPOINT suite;"
-  strip "$ROOT/supabase/rollback/20261011100000_estudo_vendas_reais.sql"
+  strip "$ROOT/supabase/rollback/$COD"
+  [ "$BASE_APLICADA" = 1 ] || strip "$ROOT/supabase/rollback/$BASE"
   echo "\\echo [rollback ok]"
   echo "$FP"
   echo "ROLLBACK;"
