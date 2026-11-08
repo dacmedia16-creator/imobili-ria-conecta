@@ -51,7 +51,7 @@ BEGIN
       imovel_endereco, imovel_logradouro, imovel_numero, imovel_complemento, imovel_bairro, imovel_cidade, imovel_uf,
       valor_negociado, valor_total_comissao, data_assinatura, tipo_imovel,
       area_util_m2, area_terreno_m2, quartos, vagas)
-    VALUES (r.org, CASE WHEN r.org = _a THEN _ca ELSE _cb END, r.st::public.sale_status, 'padrao', r.cod, r.cod,
+    VALUES (r.org, CASE WHEN r.org = _a THEN _ca ELSE _cb END, r.st::public.sale_status, 'padrao', NULL, r.cod,
       r.rua, r.rua, r.num, r.compl, r.bairro, r.cidade, 'SP', r.valor, r.valor * 0.06, _hoje - r.dias, r.tipo,
       CASE WHEN r.tipo <> 'Terreno' THEN r.area END, CASE WHEN r.tipo = 'Terreno' THEN r.area END,
       CASE WHEN r.tipo <> 'Terreno' THEN 3 END, CASE WHEN r.tipo <> 'Terreno' THEN 2 END)
@@ -69,6 +69,11 @@ BEGIN
   UPDATE public.sales SET area_origem = 'corretor', area_confirmada_em = now(), area_confirmada_por = _ca
    WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A3');
   UPDATE public.sales SET area_origem = 'captacao' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-B1');
+  -- Código RE/MAX (20261108120000): A1 com código no formato público (fictício); A3 com texto livre que
+  -- contém um código (não pode sair); B1 com código de B. Os demais seguem com o código interno QA-EVR-*.
+  UPDATE public.sales SET imovel_id = ' 999000111-7 ' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A1');
+  UPDATE public.sales SET imovel_id = 'Lote 7 999000222-3' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-A3');
+  UPDATE public.sales SET imovel_id = '999000333-12' WHERE id = (SELECT id FROM fx WHERE cod = 'QA-EVR-B1');
 END $fx$;
 INSERT INTO public.estudo_vendas_api_keys (organization_id, key_hash, label) VALUES
   (:'org_a', pg_temp.h('qa-chave-A-ficticia-0123456789abcdef'), 'QA A'),
@@ -112,8 +117,13 @@ SELECT pg_temp.ok(NOT EXISTS (
   'saída sem nome do corretor');
 SELECT pg_temp.ok((SELECT array_agg(attname::text ORDER BY attnum) FROM pg_attribute
    WHERE attrelid = 'pg_temp.ra'::regclass AND attnum > 0 AND NOT attisdropped)
-  = ARRAY['tipo_imovel','area_m2','valor_venda','preco_m2','mes_assinatura','rua','bairro','cidade','uf','quartos','suites','banheiros','vagas','modalidade','area_fonte'],
-  'contrato de colunas: só a lista permitida (sem id, código, pessoas, comissão, coordenada)');
+  = ARRAY['tipo_imovel','area_m2','valor_venda','preco_m2','mes_assinatura','rua','bairro','cidade','uf','quartos','suites','banheiros','vagas','modalidade','area_fonte','codigo_remax'],
+  'contrato de colunas: só a lista permitida + codigo_remax (sem id, código interno, pessoas, comissão, coordenada)');
+SELECT pg_temp.ok((SELECT codigo_remax FROM ra WHERE bairro = 'Jardim EVR QA') = '999000111-7', 'A1: código RE/MAX sai (sem espaços)');
+SELECT pg_temp.ok((SELECT codigo_remax IS NULL FROM ra WHERE bairro = 'Bairro EVR QA'), 'A3: texto livre com código dentro -> NULL');
+SELECT pg_temp.ok((SELECT codigo_remax IS NULL FROM ra WHERE bairro = 'Centro EVR QA'), 'A2: código interno (fora do formato RE/MAX) -> NULL');
+SELECT pg_temp.ok((SELECT codigo_remax FROM rb WHERE bairro = 'Cambuí EVR QA') = '999000333-12'
+  AND NOT EXISTS (SELECT 1 FROM ra WHERE codigo_remax = '999000333-12'), 'isolamento: código de B só sai para a chave de B');
 
 -- 3) Chave: inválida, revogada, ausente -> erro; sem acesso para anon/authenticated -----------------
 SET LOCAL ROLE service_role;
