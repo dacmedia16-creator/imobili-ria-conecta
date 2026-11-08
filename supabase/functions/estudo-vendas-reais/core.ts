@@ -1,8 +1,9 @@
 // Lógica da função estudo-vendas-reais sem dependências do Deno (testável localmente com vitest).
 // SOMENTE LEITURA. Cada imobiliária tem a própria chave; a organização vem da chave (hash SHA-256
 // conferido no banco por estudo_vendas_reais), nunca de parâmetro do chamador.
-// Saída: só os campos permitidos por Denis (11/10/2026). Nenhum dado pessoal, código, número,
-// complemento, data exata ou coordenada.
+// Saída: só os campos permitidos por Denis (11/10/2026). Nenhum dado pessoal, código interno/ID da venda,
+// número, complemento, data exata ou coordenada. Exceção aprovada em 08/11/2026 (t_caa2f4a0):
+// codigo_remax = código público do anúncio RE/MAX (ex. 630590123-45), para o Estudo cruzar com o site.
 
 // Só a RPC é usada: a função nunca lê tabelas diretamente.
 type AdminClient = {
@@ -40,7 +41,11 @@ export const CAMPOS_PERMITIDOS = [
   "banheiros",
   "vagas",
   "area_fonte",
+  "codigo_remax",
 ] as const;
+
+/** Código público do anúncio RE/MAX: 9 dígitos (escritório + imóvel), hífen, sufixo numérico. */
+const CODIGO_REMAX = /^\d{9}-\d{1,6}$/;
 
 /** De onde veio a área: confirmada pelo corretor ou lida do documento (matrícula/IPTU, sem confirmação). */
 export type AreaFonte = "confirmada" | "documento";
@@ -60,6 +65,8 @@ export type VendaReal = {
   banheiros: number | null;
   vagas: number | null;
   area_fonte: AreaFonte | null;
+  /** Código RE/MAX do anúncio (ex. 630590123-45) ou null quando a venda não tem código nesse formato. */
+  codigo_remax: string | null;
 };
 
 export type Filtros = {
@@ -143,6 +150,11 @@ export function sanitizar(row: Record<string, unknown>): VendaReal {
       area > 0 &&
       (row.area_fonte === "confirmada" || row.area_fonte === "documento")
         ? row.area_fonte
+        : null,
+    // Segunda trava (a RPC já filtra): fora do formato público RE/MAX -> null, nunca outro texto.
+    codigo_remax:
+      typeof row.codigo_remax === "string" && CODIGO_REMAX.test(row.codigo_remax.trim())
+        ? row.codigo_remax.trim()
         : null,
   };
 }
