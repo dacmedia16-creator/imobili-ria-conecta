@@ -34,6 +34,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "sessenta",
   // "avisos_exclusividade" (t_c337fc12): nasce desligado; a plataforma liga por imobiliária.
   "avisos_exclusividade",
+  // "inteligencia_gestao" (t_1d3c07b3): nasce desligado; a plataforma liga por imobiliária.
+  "inteligencia_gestao",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {

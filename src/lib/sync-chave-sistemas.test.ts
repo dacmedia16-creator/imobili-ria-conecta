@@ -224,10 +224,20 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
     const rpc = MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "";
     const nomes = (s: string) => [...s.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
     expect(nomes(check)).toEqual(
-      [...ORGANIZATION_MODULES].filter((x) => x !== "meu_plano_2027" && x !== "avisos_exclusividade").sort(),
+      [...ORGANIZATION_MODULES]
+        .filter(
+          (x) =>
+            x !== "meu_plano_2027" && x !== "avisos_exclusividade" && x !== "inteligencia_gestao",
+        )
+        .sort(),
     );
     expect(nomes(rpc)).toEqual(
-      [...ORGANIZATION_MODULES].filter((x) => x !== "meu_plano_2027" && x !== "avisos_exclusividade").sort(),
+      [...ORGANIZATION_MODULES]
+        .filter(
+          (x) =>
+            x !== "meu_plano_2027" && x !== "avisos_exclusividade" && x !== "inteligencia_gestao",
+        )
+        .sort(),
     );
   });
 

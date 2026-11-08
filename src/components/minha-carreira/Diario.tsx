@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { NotebookPen, Plus, Trash2, Users } from "lucide-react";
@@ -44,33 +44,40 @@ const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
 type PlanoSemana = { respostas: Respostas | null; padrao: TaxasFunil | null };
 
+/** Taxas padrão do funil da imobiliária (as mesmas que o plano usa na calc()). */
+export async function lerTaxasPadrao(): Promise<TaxasFunil | null> {
+  const t = await planoDb
+    .from("carreira_taxas")
+    .select("funil_v2_cre,funil_v1_v2,funil_folga")
+    .is("user_id", null)
+    .maybeSingle();
+  const tx = t.data as Record<string, number | null> | null;
+  const num = (v: number | null | undefined) => (v == null ? null : Number(v));
+  return tx
+    ? { v2cre: num(tx.funil_v2_cre), v1v2: num(tx.funil_v1_v2), folga: num(tx.funil_folga) }
+    : null;
+}
+
 /** Plano 2027 do corretor (respostas) + taxas padrão da imobiliária. Só com o módulo ligado. */
-async function lerPlano(userId: string): Promise<PlanoSemana> {
-  const [p, t] = await Promise.all([
+export async function lerPlano(userId: string): Promise<PlanoSemana> {
+  const [p, padrao] = await Promise.all([
     planoDb
       .from("carreira_plano")
       .select("respostas")
       .eq("user_id", userId)
       .eq("ano", ANO_PLANO)
       .maybeSingle(),
-    planoDb
-      .from("carreira_taxas")
-      .select("funil_v2_cre,funil_v1_v2,funil_folga")
-      .is("user_id", null)
-      .maybeSingle(),
+    lerTaxasPadrao(),
   ]);
-  const tx = t.data as Record<string, number | null> | null;
-  const num = (v: number | null | undefined) => (v == null ? null : Number(v));
   return {
     respostas: ((p.data as { respostas?: Respostas } | null)?.respostas ??
       null) as Respostas | null,
-    padrao: tx
-      ? { v2cre: num(tx.funil_v2_cre), v1v2: num(tx.funil_v1_v2), folga: num(tx.funil_folga) }
-      : null,
+    padrao,
   };
 }
 
-export function Diario({ userId }: { userId: string }) {
+/** `extraSemana`: linha a mais no fim do "Sua semana" (Inteligência de gestão: "Onde você perde mais"). */
+export function Diario({ userId, extraSemana }: { userId: string; extraSemana?: ReactNode }) {
   const { hasAny } = useAuth();
   const gestor = hasAny(["admin", "super_admin", "gestor"]);
   const tl = hasAny(["team_leader"]);
@@ -226,6 +233,7 @@ export function Diario({ userId }: { userId: string }) {
                 ) : (
                   <ListSkeleton />
                 )}
+                {extraSemana}
               </section>
             ) : null}
 
