@@ -27,6 +27,20 @@ import type { PainelEquipeOpcao } from "@/lib/painel-equipe-calc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clicavelPorTeclado } from "@/lib/clicavel";
+import { statusReuniao, textoStatusReuniao, type StatusReuniao } from "@/lib/avisos-exclusividade";
+import { avisosExclusividadeEnabled, listarReunioes } from "@/lib/avisos-exclusividade-module";
+
+/** Reunião de 45 dias (t_c337fc12): status por captação; null = módulo desligado ou fora de vigor. */
+type ReunioesPorCaptacao = Map<string, string[]> | null;
+function reuniaoDaLinha(
+  c: Capture,
+  reunioes: ReunioesPorCaptacao,
+  vendida: boolean,
+  today: string,
+): StatusReuniao | null {
+  if (!reunioes || c.status !== "aprovada" || c.archived_at || vendida) return null;
+  return statusReuniao(c, reunioes.get(c.id) ?? [], today);
+}
 
 // painel_equipe_equipes ainda não consta do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
@@ -97,6 +111,21 @@ export function PorCorretorTab({
   const [teamId, setTeamId] = useState<string>(equipeInicial ?? "");
   const [f, setF] = useState<FiltrosPorCorretor>(FILTROS_POR_CORRETOR_VAZIOS);
   const [aberto, setAberto] = useState<string | null>(null);
+  const [reunioes, setReunioes] = useState<ReunioesPorCaptacao>(null);
+
+  // Reuniões com o proprietário: só com o módulo avisos_exclusividade ligado na imobiliária.
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      if (!(await avisosExclusividadeEnabled())) return;
+      const m = await listarReunioes();
+      if (cancelado) return;
+      setReunioes(new Map([...m].map(([id, rs]) => [id, rs.map((r) => r.met_on)])));
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -185,6 +214,15 @@ export function PorCorretorTab({
     return f.corretor ? base.filter((r) => r.id === f.corretor) : base;
   }, [filtradas, pessoas, f.corretor]);
   const t = useMemo(() => totaisPorCorretor(filtradas), [filtradas]);
+  const pendentesPorCorretor = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!reunioes) return m;
+    for (const l of filtradas)
+      if (reuniaoDaLinha(l.c, reunioes, vendas.get(l.c.id)?.situacao === "vendida", today)?.pendente)
+        m.set(l.c.captor_id, (m.get(l.c.captor_id) ?? 0) + 1);
+    return m;
+  }, [filtradas, reunioes, vendas, today]);
+  const reunioesPendentes = [...pendentesPorCorretor.values()].reduce((a, b) => a + b, 0);
   const bairros = useMemo(
     () => [...new Set(linhasEquipe.map((l) => l.bairro))].sort((a, b) => a.localeCompare(b)),
     [linhasEquipe],
@@ -276,11 +314,19 @@ export function PorCorretorTab({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div
+        className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${reunioes ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}
+      >
         {kpi("Exclusivas em vigor", t.emVigor)}
         {kpi("Valor dos imóveis em vigor", brl(t.valorEmVigor))}
         {kpi("Vencem em até 30 dias", t.vencem30)}
         {kpi("Vencidas", t.vencidas)}
+        {reunioes && (
+          <div className="rounded-md border p-3" data-testid="kpi-reunioes-pendentes">
+            <div className="text-xs text-muted-foreground">Reuniões pendentes</div>
+            <div className="mt-1 text-xl font-semibold">{reunioesPendentes}</div>
+          </div>
+        )}
         {kpi("Aguardando gestor", t.aguardandoGestor)}
         {kpi("Em assinatura / rascunho", t.assinaturaOuRascunho)}
       </div>
@@ -300,6 +346,7 @@ export function PorCorretorTab({
                 <th className="text-right font-medium">Valor em vigor</th>
                 <th className="text-right font-medium">Vencem em 30 dias</th>
                 <th className="text-right font-medium">Vencidas</th>
+                {reunioes && <th className="text-right font-medium">Reuniões pendentes</th>}
                 <th className="text-right font-medium">Aguard. gestor</th>
                 <th className="text-right font-medium">Em assinatura</th>
                 <th className="text-right font-medium">Rascunho / devolvida</th>
@@ -309,7 +356,7 @@ export function PorCorretorTab({
             <tbody>
               {resumo.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-3 text-muted-foreground">
+                  <td colSpan={reunioes ? 10 : 9} className="py-3 text-muted-foreground">
                     Nenhum corretor com captações nestes filtros.
                   </td>
                 </tr>
@@ -336,6 +383,11 @@ export function PorCorretorTab({
                       </td>
                       <td className="text-right">{selo(r.vencem30, "bg-red-100 text-red-800")}</td>
                       <td className="text-right">{selo(r.vencidas, "bg-red-100 text-red-800")}</td>
+                      {reunioes && (
+                        <td className="text-right">
+                          {selo(pendentesPorCorretor.get(r.id) ?? 0, "bg-red-100 text-red-800")}
+                        </td>
+                      )}
                       <td className="text-right">
                         {selo(r.aguardandoGestor, "bg-orange-100 text-orange-800")}
                       </td>
@@ -347,8 +399,8 @@ export function PorCorretorTab({
                     </tr>
                     {on && (
                       <tr>
-                        <td colSpan={9} className="py-2">
-                          <DetalheCorretor r={r} vendas={vendas} today={today} />
+                        <td colSpan={reunioes ? 10 : 9} className="py-2">
+                          <DetalheCorretor r={r} vendas={vendas} today={today} reunioes={reunioes} />
                         </td>
                       </tr>
                     )}
@@ -387,10 +439,12 @@ function DetalheCorretor({
   r,
   vendas,
   today,
+  reunioes,
 }: {
   r: ReturnType<typeof resumoPorCorretor>[number];
   vendas: Map<string, SituacaoVendaLista>;
   today: string;
+  reunioes: ReunioesPorCaptacao;
 }) {
   return (
     <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
@@ -412,6 +466,7 @@ function DetalheCorretor({
               <th className="text-left font-medium">Dias restantes</th>
               <th className="text-left font-medium">Status</th>
               <th className="text-left font-medium">Plano de Marketing</th>
+              {reunioes && <th className="text-left font-medium">Reunião</th>}
               <th />
             </tr>
           </thead>
@@ -422,6 +477,7 @@ function DetalheCorretor({
               const prazo = Number.parseInt(l.c.form_data.condicoes?.prazo_dias_numero ?? "", 10);
               const venda = vendas.get(l.c.id);
               const seloVenda = seloSituacaoCaptacao(venda?.situacao);
+              const reuniao = reuniaoDaLinha(l.c, reunioes, venda?.situacao === "vendida", today);
               return (
                 <tr key={l.c.id} className="border-b last:border-0">
                   <td className="py-1.5 pr-2">{endereco || "Sem endereço"}</td>
@@ -484,6 +540,23 @@ function DetalheCorretor({
                       </span>
                     )}
                   </td>
+                  {reunioes && (
+                    <td data-testid="coluna-reuniao">
+                      {reuniao ? (
+                        <span
+                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            reuniao.pendente
+                              ? "bg-red-100 text-red-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {textoStatusReuniao(reuniao)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="text-right">
                     <Button variant="outline" size="sm" asChild>
                       <Link to="/exclusividades/$id" params={{ id: l.c.id }}>

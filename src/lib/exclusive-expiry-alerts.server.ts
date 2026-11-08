@@ -88,6 +88,15 @@ export async function runExclusiveExpiryAlerts(
   if (modErr) return { sent: 0, failed: 0 };
   const { data: orgs } = await admin.from("organizations").select("id").eq("status", "ativa");
   const active = new Set(((orgs ?? []) as { id: string }[]).map((o) => o.id));
+  // Decisão de Denis (08/11, t_c337fc12): onde o módulo novo avisos_exclusividade está ligado, este
+  // alerta semanal antigo NÃO roda (os avisos diários + resumo de segunda já cobrem; evita aviso em
+  // dobro). Nas demais imobiliárias continua igual. Erro na leitura = mantém o antigo (fail-open).
+  const { data: novos } = await admin
+    .from("organization_modules")
+    .select("organization_id")
+    .eq("module", "avisos_exclusividade")
+    .eq("enabled", true);
+  for (const n of (novos ?? []) as { organization_id: string }[]) active.delete(n.organization_id);
   let sent = 0;
   let failed = 0;
 

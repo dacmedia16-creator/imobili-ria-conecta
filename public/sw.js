@@ -1,4 +1,4 @@
-const CACHE_NAME = "remax-portal-static-v2";
+const CACHE_NAME = "remax-portal-static-v3";
 const STATIC_WHITELIST = [
   "/remax-icon.png",
   "/remax-icon-512.png",
@@ -56,6 +56,43 @@ self.addEventListener("fetch", (event) => {
       const response = await fetch(request);
       if (response.ok) cache.put(request, response.clone());
       return response;
+    }),
+  );
+});
+
+// Avisos de exclusividade (cartão t_c337fc12): web push. O servidor manda JSON
+// {title, body, url, tag}; o clique abre (ou foca) o ADM MAX direto na captação.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { body: event.data ? event.data.text() : "" };
+  }
+  const url = typeof d.url === "string" && d.url.startsWith("/") ? d.url : "/notificacoes";
+  event.waitUntil(
+    self.registration.showNotification(d.title || "ADM MAX", {
+      body: d.body || "",
+      icon: "/pwa-192.png",
+      badge: "/pwa-192.png",
+      tag: d.tag || undefined,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/notificacoes", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((lista) => {
+      for (const c of lista) {
+        if (c.url.startsWith(self.location.origin) && "focus" in c) {
+          c.navigate(url).catch(() => {});
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
     }),
   );
 });
