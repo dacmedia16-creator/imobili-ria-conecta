@@ -68,8 +68,10 @@ SELECT pg_temp.ok(NOT has_function_privilege('authenticated', 'public.proposta_e
 SELECT pg_temp.ok((SELECT count(*) FROM unnest(enum_range(NULL::public.sale_status))) = 17,
   'enum sale_status continua com os 17 status (nenhum status novo de venda)');
 SELECT pg_temp.ok(pg_temp.err($$INSERT INTO public.propostas_compra (organization_id, capture_id, sinal_tipo)
-  VALUES ('00000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-0000000000a1', 'penitenciais')$$) LIKE '23514%',
-  'D7: sinal só arras confirmatórias (outro tipo é recusado pelo banco)');
+  VALUES ('00000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-0000000000a1', 'outro')$$) LIKE '23514%'
+  AND (SELECT column_default FROM information_schema.columns WHERE table_schema = 'public'
+        AND table_name = 'propostas_compra' AND column_name = 'sinal_tipo') LIKE '''confirmatorias''%',
+  'D7 revista: sinal confirmatórias (padrão) ou penitenciais; outro tipo é recusado pelo banco');
 
 -- Dados fictícios (só na transação): captação com 2 proprietários (1º casado), cliente + lead do CRM.
 UPDATE public.exclusive_captures SET form_data = form_data || jsonb_build_object(
@@ -170,8 +172,29 @@ SELECT pg_temp.put('p1', public.proposta_salvar(pg_temp.id('p1'), jsonb_build_ob
                        'estado_civil', 'solteiro', 'telefone', '15988882222')))));
 SELECT pg_temp.ok(pg_temp.j('p1')->'pendencias_envio' = '["PDF da proposta (gere a prévia)"]'::jsonb,
   'rascunho completo: só falta o PDF');
+-- Texto oficial (t_b4e7c368): tipo de sinal, termos em lista fechada, validade padrão e data/cadastro do PDF.
+SELECT pg_temp.ok(pg_temp.j('p1')->>'sinal_tipo' = 'confirmatorias' AND (pg_temp.j('p1')->>'validade_dias')::int = 5,
+  'padrões: sinal em arras confirmatórias e validade de 5 dias corridos');
+SELECT pg_temp.ok(pg_temp.err(format($q$SELECT public.proposta_salvar(%L, '{"sinal_tipo":"outro"}')$q$, pg_temp.id('p1'))) LIKE '23514%',
+  'tipo de sinal fora da lista é recusado');
+SELECT pg_temp.ok(public.proposta_salvar(pg_temp.id('p1'), '{"sinal_tipo":"penitenciais"}'::jsonb)->>'sinal_tipo' = 'penitenciais'
+  AND public.proposta_salvar(pg_temp.id('p1'), '{"sinal_tipo":""}'::jsonb)->>'sinal_tipo' = 'confirmatorias',
+  'tipo de sinal gravado (penitenciais) e vazio volta ao padrão confirmatórias');
+SELECT pg_temp.ok(pg_temp.err(format($q$SELECT public.proposta_salvar(%L, '{"termos":{"senha":"x"}}')$q$, pg_temp.id('p1'))) LIKE '22023%Campo inválido%'
+  AND pg_temp.err(format($q$SELECT public.proposta_salvar(%L, '{"termos":{"fgts_valor":"abc"}}')$q$, pg_temp.id('p1'))) LIKE '22023%Valor inválido%'
+  AND pg_temp.err(format($q$SELECT public.proposta_salvar(%L, '{"termos":{"sinal_forma":"bitcoin"}}')$q$, pg_temp.id('p1'))) LIKE '22023%',
+  'termos do texto: chave fora da lista, valor inválido e opção fora da lista são recusados');
+SELECT pg_temp.put('p1', public.proposta_salvar(pg_temp.id('p1'), '{"termos":{"fgts_valor":"50000.00","itens":"Armários da cozinha.","comprador_rg":"RGX9","vendedor_conta":"CONTA_V1","sinal_forma":"PIX"}}'::jsonb));
+SELECT pg_temp.ok(pg_temp.j('p1')->'termos'->>'itens' = 'Armários da cozinha.' AND (pg_temp.j('p1')->'termos'->>'fgts_valor')::numeric = 50000
+  AND pg_temp.j('p1')->'termos'->>'sinal_forma' = 'PIX', 'termos do texto gravados (FGTS, itens, forma do sinal)');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_registrar_pdf(%L, 99, %L)', pg_temp.id('p1'), repeat('a', 64))) LIKE '40001%',
   'PDF de outra versão é recusado');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_registrar_pdf(%L, 1, %L)', pg_temp.id('p1'), repeat('a', 64))) LIKE '40001%',
+  'PDF sem data/cadastro fixados (sem preparar) é recusado');
+SELECT pg_temp.put('p1', public.proposta_preparar_pdf(pg_temp.id('p1')));
+SELECT pg_temp.ok((pg_temp.j('p1')->>'documento_data')::date = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+  AND pg_temp.j('p1')->'cadastro'->>'nome' IS NOT NULL,
+  'preparar o PDF fixa a data do documento (hoje) e o retrato do cadastro da imobiliária');
 SELECT pg_temp.put('p1', public.proposta_registrar_pdf(pg_temp.id('p1'), 1, repeat('a', 64)));
 SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('p1')->'pendencias_envio') = 0, 'com PDF: pronto para enviar');
 
@@ -222,6 +245,9 @@ SELECT pg_temp.ok((pg_temp.j('l_comp')->>'ok')::boolean AND pg_temp.j('l_comp')-
   'link do comprador abre a proposta inteira (valores, condições, imóvel)');
 SELECT pg_temp.ok(pg_temp.j('l_comp')::text !~ '(11122233344|55566677788|12312312312|32132132132|99988877766|1598888|1597777|example\.com|OBS_INTERNA|RGV1|END_V1)',
   'link não mostra CPF, telefone ou e-mail de ninguém nem dado interno da captação');
+SELECT pg_temp.ok(pg_temp.j('l_comp')::text !~ '(RGX9|CONTA_V1)' AND pg_temp.j('l_comp')->'termos'->>'itens' = 'Armários da cozinha.'
+  AND pg_temp.j('l_comp')->>'documento_data' IS NOT NULL AND pg_temp.j('l_comp')->'cadastro'->>'nome' IS NOT NULL,
+  'link traz o texto oficial (termos, data, cadastro) sem RG nem conta do vendedor');
 SELECT pg_temp.ok(pg_temp.j('l_comp')->'voce'->>'documento_final' = '66' AND jsonb_array_length(pg_temp.j('l_comp')->'partes') = 6
   AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('l_comp')->'partes') x
                    WHERE x ?| ARRAY['cpf_cnpj', 'telefone', 'email', 'id']),
@@ -298,8 +324,13 @@ SELECT pg_temp.ok((SELECT a.nome = 'Comprador Do Lead' AND a.telefone = '1597777
 -- 7) Texto alterado depois de assinar: nova versão invalida as assinaturas ----------------------------------------------
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
+SELECT pg_temp.put('p1t', public.proposta_salvar(pg_temp.id('p1'), '{"sinal_tipo":"penitenciais"}'::jsonb));
+SELECT pg_temp.ok((pg_temp.j('p1t')->>'versao')::int = 2 AND pg_temp.j('p1t')->>'situacao' = 'rascunho'
+  AND pg_temp.j('p1t')->>'sinal_tipo' = 'penitenciais' AND pg_temp.j('p1t')->>'pdf_hash' IS NULL
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('p1t')->'partes') x WHERE x->>'assinado_em' IS NOT NULL),
+  'tipo de sinal trocado depois de alguém assinar: nova versão (2), volta a rascunho e a assinatura deixa de valer');
 SELECT pg_temp.put('p1', public.proposta_salvar(pg_temp.id('p1'), '{"observacoes":"Mesma coisa"}'::jsonb));
-SELECT pg_temp.put('p1', public.proposta_salvar(pg_temp.id('p1'), '{"valor_oferta":470000}'::jsonb));
+SELECT pg_temp.put('p1', public.proposta_salvar(pg_temp.id('p1'), '{"valor_oferta":470000,"sinal_tipo":"confirmatorias"}'::jsonb));
 SELECT pg_temp.ok((pg_temp.j('p1')->>'versao')::int = 2 AND pg_temp.j('p1')->>'situacao' = 'rascunho'
   AND pg_temp.j('p1')->>'pdf_hash' IS NULL, 'valor mudou após assinatura: versão 2, volta a rascunho e pede PDF novo');
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('p1')->'partes') x WHERE x->>'assinado_em' IS NOT NULL),
@@ -318,6 +349,7 @@ SELECT pg_temp.ok(public.proposta_publica_ler(pg_temp.t('comprador1'), pg_temp.i
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
+SELECT public.proposta_preparar_pdf(pg_temp.id('p1'));
 SELECT public.proposta_registrar_pdf(pg_temp.id('p1'), 2, repeat('b', 64));
 RESET ROLE;
 UPDATE public.proposta_codigos SET criado_em = criado_em - interval '2 minutes' WHERE proposta_id = pg_temp.id('p1');
@@ -425,6 +457,7 @@ SELECT public.proposta_salvar(pg_temp.id('p2'), jsonb_build_object('valor_oferta
                        'estado_civil', 'solteiro', 'telefone', '15988881111'))));
 SELECT pg_temp.ok(public.proposta_detalhe(pg_temp.id('p2'))->'pendencias_envio' = '["PDF da proposta (gere a prévia)"]'::jsonb,
   'comprador PJ (CNPJ) sem estado civil/cônjuge; vendedor solteiro sem cônjuge');
+SELECT public.proposta_preparar_pdf(pg_temp.id('p2'));
 SELECT public.proposta_registrar_pdf(pg_temp.id('p2'), 1, repeat('c', 64));
 SELECT public.proposta_envio_preparar(pg_temp.id('p2'));
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_recusar(%L, %L)', pg_temp.id('p2'), '')) LIKE '22023%',
@@ -441,6 +474,7 @@ SELECT pg_temp.ok((SELECT count(*) FROM jsonb_array_elements(public.proposta_lis
   'histórico da captação com as 3 propostas');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_contraproposta(%L)', pg_temp.id('p3'))) LIKE '22023%',
   'contraproposta de rascunho é recusada');
+SELECT public.proposta_preparar_pdf(pg_temp.id('p3'));
 SELECT public.proposta_registrar_pdf(pg_temp.id('p3'), 1, repeat('d', 64));
 SELECT public.proposta_envio_preparar(pg_temp.id('p3'));
 RESET ROLE;
@@ -500,6 +534,22 @@ SET LOCAL ROLE service_role;
 SELECT pg_temp.ok(public.proposta_publica_ler(pg_temp.t('vendedor1'), pg_temp.ip(1))->>'erro' = 'indisponivel',
   'módulo desligado: link indisponível');
 RESET ROLE;
+
+-- 13) Endereço da imobiliária no cadastro (t_b4e7c368) ------------------------------------------------------------------
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.proposta_cadastro('00000000-0000-4000-8000-000000000001', NULL)$$) IS NULL,
+  'retrato do cadastro lê a imobiliária');
+UPDATE public.organizations SET endereco = 'Av. Fictícia, 100 - Campolim' WHERE id = pg_temp.id('orgA');
+SELECT pg_temp.ok(public.proposta_cadastro(pg_temp.id('orgA'), NULL)->>'endereco' = 'Av. Fictícia, 100 - Campolim',
+  'endereço da imobiliária entra no retrato do cadastro');
+SELECT pg_temp.ok(pg_temp.err($$UPDATE public.organizations SET endereco = 'x' WHERE id = '00000000-0000-4000-8000-000000000001'$$) LIKE '23514%',
+  'endereço curto demais é recusado (CHECK)');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('adm')::text);
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.agency_profile_save('{"endereco":"Rua Nova Fictícia, 200"}'::jsonb)$$) IS NULL,
+  'admin salva o endereço em Dados da imobiliária');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT endereco FROM public.organizations WHERE id = pg_temp.id('orgA')) = 'Rua Nova Fictícia, 200',
+  'endereço gravado na imobiliária do admin');
 
 -- Resultado -----------------------------------------------------------------------------------------------------------
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA ' END || msg FROM r;
