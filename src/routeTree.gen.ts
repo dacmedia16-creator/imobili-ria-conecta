@@ -53,6 +53,7 @@ import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
 import { Route as EspecialistasIndexRouteImport } from './routes/especialistas.index'
 import { Route as EspecialistasSlugRouteImport } from './routes/especialistas.$slug'
 import { Route as LeadFormTokenRouteImport } from './routes/lead-form.$token'
+import { Route as PropostaTokenRouteImport } from './routes/proposta.$token'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
@@ -69,6 +70,7 @@ import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_a
 import { Route as AuthenticatedPlataformaDepoimentosRouteImport } from './routes/_authenticated/plataforma.depoimentos'
 import { Route as AuthenticatedPlataformaImobiliariasRouteImport } from './routes/_authenticated/plataforma.imobiliarias'
 import { Route as AuthenticatedPlataformaUsuariosRouteImport } from './routes/_authenticated/plataforma.usuarios'
+import { Route as AuthenticatedPropostasIdRouteImport } from './routes/_authenticated/propostas.$id'
 import { Route as AuthenticatedVendasIndexRouteImport } from './routes/_authenticated/vendas.index'
 import { Route as AuthenticatedVendasIdRouteImport } from './routes/_authenticated/vendas.$id'
 import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authenticated/vendas.nova'
@@ -315,6 +317,11 @@ const LeadFormTokenRoute = LeadFormTokenRouteImport.update({
   path: '/lead-form/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PropostaTokenRoute = PropostaTokenRouteImport.update({
+  id: '/proposta/$token',
+  path: '/proposta/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminAssinaturaDigitalRoute =
   AuthenticatedAdminAssinaturaDigitalRouteImport.update({
     id: '/admin/assinatura-digital',
@@ -410,6 +417,12 @@ const AuthenticatedPlataformaUsuariosRoute =
     path: '/plataforma/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPropostasIdRoute =
+  AuthenticatedPropostasIdRouteImport.update({
+    id: '/propostas/$id',
+    path: '/propostas/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasIndexRoute =
   AuthenticatedVendasIndexRouteImport.update({
     id: '/vendas/',
@@ -497,6 +510,7 @@ export interface FileRoutesByFullPath {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
@@ -513,6 +527,7 @@ export interface FileRoutesByFullPath {
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
+  '/propostas/$id': typeof AuthenticatedPropostasIdRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
@@ -566,6 +581,7 @@ export interface FileRoutesByTo {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
@@ -582,6 +598,7 @@ export interface FileRoutesByTo {
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
+  '/propostas/$id': typeof AuthenticatedPropostasIdRoute
   '/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/vendas/nova': typeof AuthenticatedVendasNovaRoute
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
@@ -637,6 +654,7 @@ export interface FileRoutesById {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
@@ -653,6 +671,7 @@ export interface FileRoutesById {
   '/_authenticated/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
   '/_authenticated/plataforma/imobiliarias': typeof AuthenticatedPlataformaImobiliariasRoute
   '/_authenticated/plataforma/usuarios': typeof AuthenticatedPlataformaUsuariosRoute
+  '/_authenticated/propostas/$id': typeof AuthenticatedPropostasIdRoute
   '/_authenticated/vendas/$id': typeof AuthenticatedVendasIdRoute
   '/_authenticated/vendas/nova': typeof AuthenticatedVendasNovaRoute
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
@@ -708,6 +727,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/proposta/$token'
     | '/especialistas/'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
@@ -724,6 +744,7 @@ export interface FileRouteTypes {
     | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
+    | '/propostas/$id'
     | '/vendas/$id'
     | '/vendas/nova'
     | '/api/avisos-exclusividade/teste'
@@ -777,6 +798,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/proposta/$token'
     | '/especialistas'
     | '/admin/assinatura-digital'
     | '/admin/configuracoes'
@@ -793,6 +815,7 @@ export interface FileRouteTypes {
     | '/plataforma/depoimentos'
     | '/plataforma/imobiliarias'
     | '/plataforma/usuarios'
+    | '/propostas/$id'
     | '/vendas/$id'
     | '/vendas/nova'
     | '/api/avisos-exclusividade/teste'
@@ -847,6 +870,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/proposta/$token'
     | '/especialistas/'
     | '/_authenticated/admin/assinatura-digital'
     | '/_authenticated/admin/configuracoes'
@@ -863,6 +887,7 @@ export interface FileRouteTypes {
     | '/_authenticated/plataforma/depoimentos'
     | '/_authenticated/plataforma/imobiliarias'
     | '/_authenticated/plataforma/usuarios'
+    | '/_authenticated/propostas/$id'
     | '/_authenticated/vendas/$id'
     | '/_authenticated/vendas/nova'
     | '/api/avisos-exclusividade/teste'
@@ -889,6 +914,7 @@ export interface RootRouteChildren {
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   EspecialistasSlugRoute: typeof EspecialistasSlugRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
+  PropostaTokenRoute: typeof PropostaTokenRoute
   EspecialistasIndexRoute: typeof EspecialistasIndexRoute
   ApiAvisosExclusividadeTesteRoute: typeof ApiAvisosExclusividadeTesteRoute
   ApiLeadsReengajarRoute: typeof ApiLeadsReengajarRoute
@@ -1206,6 +1232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeadFormTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/proposta/$token': {
+      id: '/proposta/$token'
+      path: '/proposta/$token'
+      fullPath: '/proposta/$token'
+      preLoaderRoute: typeof PropostaTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/assinatura-digital': {
       id: '/_authenticated/admin/assinatura-digital'
       path: '/admin/assinatura-digital'
@@ -1318,6 +1351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlataformaUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/propostas/$id': {
+      id: '/_authenticated/propostas/$id'
+      path: '/propostas/$id'
+      fullPath: '/propostas/$id'
+      preLoaderRoute: typeof AuthenticatedPropostasIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas/': {
       id: '/_authenticated/vendas/'
       path: '/vendas'
@@ -1422,6 +1462,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlataformaDepoimentosRoute: typeof AuthenticatedPlataformaDepoimentosRoute
   AuthenticatedPlataformaImobiliariasRoute: typeof AuthenticatedPlataformaImobiliariasRoute
   AuthenticatedPlataformaUsuariosRoute: typeof AuthenticatedPlataformaUsuariosRoute
+  AuthenticatedPropostasIdRoute: typeof AuthenticatedPropostasIdRoute
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
   AuthenticatedVendasNovaRoute: typeof AuthenticatedVendasNovaRoute
   AuthenticatedExclusividadesIndexRoute: typeof AuthenticatedExclusividadesIndexRoute
@@ -1481,6 +1522,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPlataformaImobiliariasRoute:
     AuthenticatedPlataformaImobiliariasRoute,
   AuthenticatedPlataformaUsuariosRoute: AuthenticatedPlataformaUsuariosRoute,
+  AuthenticatedPropostasIdRoute: AuthenticatedPropostasIdRoute,
   AuthenticatedVendasIdRoute: AuthenticatedVendasIdRoute,
   AuthenticatedVendasNovaRoute: AuthenticatedVendasNovaRoute,
   AuthenticatedExclusividadesIndexRoute: AuthenticatedExclusividadesIndexRoute,
@@ -1507,6 +1549,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteCadastroRoute: ConviteCadastroRoute,
   EspecialistasSlugRoute: EspecialistasSlugRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
+  PropostaTokenRoute: PropostaTokenRoute,
   EspecialistasIndexRoute: EspecialistasIndexRoute,
   ApiAvisosExclusividadeTesteRoute: ApiAvisosExclusividadeTesteRoute,
   ApiLeadsReengajarRoute: ApiLeadsReengajarRoute,

@@ -462,7 +462,10 @@ describe("migration 20261108180000", () => {
     const check = MIG.match(/CHECK \(module IN \(([^)]*)\)\)/)?.[1] ?? "";
     const rpc = MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "";
     // link_acompanhamento (t_54c79bdc) veio depois, na migration 20261108200000.
-    const lista = [...ORGANIZATION_MODULES].filter((x) => x !== "link_acompanhamento").sort();
+    // proposta_compra (t_4cff61a6) veio depois, na migration 20261109120000.
+    const lista = [...ORGANIZATION_MODULES]
+      .filter((x) => x !== "link_acompanhamento" && x !== "proposta_compra")
+      .sort();
     expect(nomes(check)).toEqual(lista);
     expect(nomes(rpc)).toEqual(lista);
   });

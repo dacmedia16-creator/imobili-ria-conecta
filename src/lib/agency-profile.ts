@@ -11,6 +11,8 @@ export type AgencyProfile = {
   nome: string;
   razao_social: string | null;
   creci: string | null;
+  /** Endereço da imobiliária (usado na proposta de compra; t_b4e7c368). */
+  endereco: string | null;
   cidade: string | null;
   uf: string | null;
   cor_primaria: string | null;
@@ -28,7 +30,7 @@ export async function loadAgencyProfile(): Promise<AgencyProfile> {
   const { data, error } = await db
     .from("organizations")
     .select(
-      "id,slug,nome,razao_social,creci,cidade,uf,cor_primaria,cor_secundaria,logo_path,mapa_site_enabled",
+      "id,slug,nome,razao_social,creci,endereco,cidade,uf,cor_primaria,cor_secundaria,logo_path,mapa_site_enabled",
     )
     .eq("id", id)
     .single();

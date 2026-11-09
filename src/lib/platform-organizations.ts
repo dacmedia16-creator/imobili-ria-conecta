@@ -139,6 +139,8 @@ export const ORGANIZATION_MODULES = [
   "inteligencia_gestao",
   // Link de acompanhamento do negócio para comprador e vendedor (t_54c79bdc). Nasce desligado.
   "link_acompanhamento",
+  // Proposta de compra com assinatura por link + código no WhatsApp (t_4cff61a6). Nasce desligado.
+  "proposta_compra",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -161,6 +163,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   inteligencia_gestao:
     "Inteligência de gestão (farol da equipe, previsão do trimestre e conversa 1:1)",
   link_acompanhamento: "Link de acompanhamento da venda (comprador e vendedor, sem login)",
+  proposta_compra: "Proposta de compra (assinatura por link e código no WhatsApp)",
 };
 
 export type OrganizationSummary = OrganizationRow & {
