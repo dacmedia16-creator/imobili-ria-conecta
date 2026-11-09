@@ -1,10 +1,10 @@
 # ROLLBACK — Proposta de compra (PR feat/proposta-compra, migration 20261109120000)
 
-Cartões t_4cff61a6 (banco), t_da0dac53 (telas) e t_4617a9e9 (homologação). **Nada disto está em produção.**
+Cartões t_4cff61a6 (banco), t_da0dac53 (telas), t_4617a9e9 (homologação) e t_b4e7c368 (texto oficial + tipo de sinal). **Nada disto está em produção.**
 Use este roteiro só depois de uma publicação autorizada por Denis. Comece pelo passo mais leve e pare no primeiro que resolver.
 
-> A publicação também depende do texto jurídico aprovado pelo advogado. Até lá, o PDF mostra o bloco
-> "Texto pendente de revisão".
+> A publicação também depende do texto jurídico aprovado pelo advogado. Até lá, `TEXTO_APROVADO_ADVOGADO = false`
+> (`src/lib/proposta-compra.ts`) e o PDF e as telas mostram "Minuta: texto pendente de aprovação do advogado".
 
 ## 1. Desligar a chave (segundos, sem deploy, sem perder nada)
 
@@ -50,7 +50,10 @@ O rollback faz o seguinte:
 - apaga as 6 tabelas: `propostas_compra`, `proposta_partes`, `proposta_codigos`, `proposta_assinaturas`, `proposta_eventos` e `proposta_tentativas`;
 - apaga a chave HMAC `proposta_compra_chave` do Vault;
 - apaga as linhas `proposta_compra` de `organization_modules`;
-- devolve o CHECK e `platform_set_organization_module` à versão da 20261108200000.
+- devolve o CHECK e `platform_set_organization_module` à versão da 20261108200000;
+- (t_b4e7c368) devolve `agency_profile_save` à versão da 20261004173400 (sem a chave `endereco`) e apaga a coluna
+  `organizations.endereco`. **Atenção:** o endereço digitado em Dados da imobiliária se perde. Se quiser guardar,
+  exporte antes: `SELECT id, nome, endereco FROM public.organizations WHERE endereco IS NOT NULL;`.
 
 **Não toca** em vendas, `sale_parties`, `sale_documents`, captações, leads nem no histórico de liga/desliga.
 A venda criada por "Criar venda em rascunho" continua sendo uma venda normal, e o lead continua na etapa em que está.
@@ -76,3 +79,21 @@ Na homologação `qvhyepwduhlgqwpgmpvh`, com backup prévio `pre-t_4617a9e9-2026
 - depois de reaplicar: `5b869f82…`.
 
 A suíte `supabase/tests/run-proposta-compra.sh` passou 112/112 contra a migration aplicada.
+
+## Texto oficial + tipo de sinal (t_b4e7c368) — provado na homologação, transação desfeita
+
+A própria migration `20261109120000` (nunca aplicada em produção) ganhou: `sinal_tipo` com `confirmatorias` (padrão)
+ou `penitenciais`; `termos jsonb` (lista fechada validada por `proposta_termos_limpar`); `documento_data` e
+`cadastro jsonb` (data e retrato do cadastro fixados por `proposta_preparar_pdf`); `organizations.endereco` e a chave
+`endereco` em `agency_profile_save`. Mudar o tipo de sinal (ou qualquer termo) depois de alguém assinar gera nova
+versão e invalida as assinaturas (mesma regra do restante do texto).
+
+Numa transação desfeita no fim (`ROLLBACK`), na homologação `qvhyepwduhlgqwpgmpvh`:
+- com a migration antiga aplicada: `b0e4b785…` (6 tabelas, 42 funções);
+- depois do rollback antigo: `753e1ef8…` (sem a migration);
+- depois da migration nova: `3baaa796…` (6 tabelas, 45 funções, 1 segredo no Vault);
+- suíte SQL contra a migration nova: **126/126 ok**;
+- depois do rollback novo: `753e1ef8…`, igual ao estado sem a migration.
+
+A homologação **continua com a migration antiga aplicada** (nada foi trocado de verdade). Para trocar, com
+autorização: `bash t_b4e7c368/ciclo.sh aplicar` (rollback antigo + migration nova, com impressão digital antes/depois).
