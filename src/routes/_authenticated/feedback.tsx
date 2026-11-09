@@ -9,11 +9,13 @@ import {
 } from "@/lib/feedback-captacao";
 import {
   feedbackCaptacao,
+  proprietariosDaCaptacao,
   planView,
   siteAgentNames,
   type FeedbackCaptacao,
 } from "@/lib/feedback-captacao-db";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { juntarNomes } from "@/lib/link-acompanhamento";
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -320,6 +322,7 @@ function Review({
   const [saving, setSaving] = useState<string | null>(null);
   const [cap, setCap] = useState<FeedbackCaptacao | null>(null);
   const [plan, setPlan] = useState<PlanItem[]>([]);
+  const [proprietarios, setProprietarios] = useState<string[]>([]);
   // Marca da imobiliária do usuário (os anúncios listados já são só dela, pelo RLS).
   const [agency, setAgency] = useState<AgencyBrandInfo | null>(null);
   useEffect(() => {
@@ -337,7 +340,12 @@ function Review({
       const c = await feedbackCaptacao(listing.code);
       if (!alive) return;
       setCap(c);
+      setProprietarios([]);
       if (c?.proprietario) setOwnerName((o) => o || (c.proprietario as string));
+      if (c) {
+        const nomes = await proprietariosDaCaptacao(c.capture_id);
+        if (alive) setProprietarios(nomes);
+      }
       if (c?.link_status === "ativo") {
         const items = await planView(c.capture_id).catch(() => [] as PlanItem[]);
         if (alive) setPlan(items);
@@ -503,6 +511,15 @@ function Review({
         Imóvel {listing.code}
         {imovel ? <span className="font-normal text-muted-foreground"> · {imovel}</span> : null}
       </h1>
+      {proprietarios.length ? (
+        <p
+          className="break-words text-sm text-muted-foreground"
+          data-testid="feedback-proprietarios"
+        >
+          {proprietarios.length > 1 ? "Proprietários" : "Proprietário"}:{" "}
+          <span className="font-medium text-foreground">{juntarNomes(proprietarios)}</span>
+        </p>
+      ) : null}
       {cap ? (
         <div
           className={`flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm ${cap.link_status === "ativo" ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200" : "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200"}`}

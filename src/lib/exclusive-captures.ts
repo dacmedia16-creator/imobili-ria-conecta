@@ -372,11 +372,15 @@ export function ownerListSuffix(form: Partial<CaptureForm> | null | undefined): 
   if (rest > 0) return `${second ? ` · ${second}` : ""} +${rest}`;
   return second ? ` · ${second}` : "";
 }
-/** Nomes preenchidos: "Maria", "Maria e João", "Maria, João e mais 3". */
-export function ownerNamesSummary(form: Partial<CaptureForm> | null | undefined): string {
-  const names = captureOwners(form)
+/** Nomes preenchidos de todos os proprietários, na ordem do contrato (vazios ficam de fora). */
+export function ownerNames(form: Partial<CaptureForm> | null | undefined): string[] {
+  return captureOwners(form)
     .map((o) => o?.nome_completo?.trim() ?? "")
     .filter(Boolean);
+}
+/** Nomes preenchidos: "Maria", "Maria e João", "Maria, João e mais 3". */
+export function ownerNamesSummary(form: Partial<CaptureForm> | null | undefined): string {
+  const names = ownerNames(form);
   if (names.length <= 2) return names.join(" e ");
   return `${names[0]}, ${names[1]} e mais ${names.length - 2}`;
 }

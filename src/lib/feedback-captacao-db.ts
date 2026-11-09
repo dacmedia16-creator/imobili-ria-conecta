@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { storageOrganizationPath } from "./storage-org";
 import type { ListingCheck, ListingContext, Pendencia, PlanItem } from "./feedback-captacao";
 import type { SiteSuggestions } from "./remax-site";
+import { ownerNames, type CaptureForm } from "./exclusive-captures";
 
 // RPCs das migrations 20261009010000 e 20261009020000 (semanas), ainda fora de types.ts.
 const db = supabase as unknown as SupabaseClient;
@@ -157,4 +158,27 @@ export async function feedbackCaptacao(code: string): Promise<FeedbackCaptacao |
   const { data, error } = await db.rpc("owner_feedback_captacao", { _code: code });
   if (error) return null;
   return (data ?? null) as FeedbackCaptacao | null;
+}
+/**
+ * Nomes de todos os proprietários da captação ligada (topo do Feedback). Leitura pela RLS de
+ * exclusive_captures (exclusive_can_view, a mesma regra de owner_feedback_captacao): quem não pode
+ * ver a captação recebe vazio. Só o nome do 1º e do 2º sai do banco; falha = vazio, sem travar a tela.
+ * shortcut: os extras (3º em diante) vêm como objeto inteiro, porque o PostgREST não recorta dentro do
+ * array; a tela usa só o nome, e quem recebe já pode abrir a captação inteira.
+ */
+export async function proprietariosDaCaptacao(captureId: string): Promise<string[]> {
+  const { data, error } = await db
+    .from("exclusive_captures")
+    .select(
+      "p1:form_data->proprietario_1->>nome_completo,p2:form_data->proprietario_2->>nome_completo,tem_p2:form_data->proprietario_2,extras:form_data->proprietarios_extras",
+    )
+    .eq("id", captureId)
+    .maybeSingle();
+  if (error || !data) return [];
+  const r = data as { p1: string | null; p2: string | null; tem_p2: unknown; extras: unknown };
+  return ownerNames({
+    proprietario_1: { nome_completo: r.p1 ?? "" },
+    ...(r.tem_p2 ? { proprietario_2: { nome_completo: r.p2 ?? "" } } : {}),
+    ...(Array.isArray(r.extras) ? { proprietarios_extras: r.extras } : {}),
+  } as Partial<CaptureForm>);
 }
