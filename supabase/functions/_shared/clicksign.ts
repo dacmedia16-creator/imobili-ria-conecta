@@ -751,6 +751,11 @@ export type SignerState = {
   /** Abriu o contrato (evento signature_started). Sem evento registrado = false. */
   opened: boolean;
   status: SignerStatus;
+  /**
+   * A Clicksign não conseguiu entregar o convite/lembrete ao e-mail ATUAL (evento
+   * tracking_notification_error, ex.: bounce). Só para quem ainda não abriu nem assinou.
+   */
+  undelivered: boolean;
 };
 
 /** Quem tem o evento `name` (sha256 do e-mail ou, sem e-mail, o nome) nas listas de eventos. */
@@ -795,12 +800,15 @@ export async function signerStates(
   );
   const sign = await whoHasEvent("sign", eventsResp);
   const open = await whoHasEvent("signature_started", eventsResp, openedResp);
+  // Só pelo e-mail: o erro de entrega de um e-mail antigo (já trocado) não marca o novo.
+  const bounce = await whoHasEvent("tracking_notification_error", eventsResp);
   return stored.map((s, idx) => {
     const r = remote.find((x) => x.sha === s.email_sha256) ?? null;
     const nm = normName(r?.name ?? s.nome).toLowerCase();
     const signed = sign.emails.has(s.email_sha256) || sign.names.has(nm);
     const opened = signed || open.emails.has(s.email_sha256) || open.names.has(nm);
     return {
+      undelivered: !opened && bounce.emails.has(s.email_sha256),
       idx,
       papel: s.papel,
       nome: s.nome,

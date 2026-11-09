@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleManage } from "./core.ts";
 import { handleReconcile } from "../_shared/clicksign-reconcile.ts";
+import { captureOwnerList } from "../_shared/clicksign.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -125,7 +126,7 @@ Deno.serve(async (req) => {
         const [env, settings, token] = await Promise.all([
           admin
             .from("clicksign_envelopes")
-            .select("envelope_key, document_key, is_test, signers")
+            .select("envelope_key, document_key, is_test, signers, capture_id")
             .eq("id", envelopeRow)
             .eq("organization_id", org)
             .single(),
@@ -140,7 +141,24 @@ Deno.serve(async (req) => {
           throw new Error("context_unavailable");
         }
         if (!env.data.document_key) throw new Error("context_unavailable");
+        // E-mails dos proprietários na captação (t_867f464c): só para comparar com o envelope e
+        // para "Aplicar na Clicksign". Falha aqui = sem comparação (a tela segue como antes).
+        let ownerEmails: string[] | undefined;
+        if (env.data.capture_id) {
+          const cap = await admin
+            .from("exclusive_captures")
+            .select("form_data")
+            .eq("id", env.data.capture_id)
+            .eq("organization_id", org)
+            .maybeSingle();
+          if (!cap.error && cap.data) {
+            ownerEmails = captureOwnerList(cap.data.form_data as Record<string, unknown>).map(
+              (o) => (typeof o.email === "string" ? o.email : ""),
+            );
+          }
+        }
         return {
+          ownerEmails,
           envelopeRow,
           envelopeKey: env.data.envelope_key,
           documentKey: env.data.document_key,
@@ -176,6 +194,16 @@ Deno.serve(async (req) => {
           _actor: who.user.id,
         });
         if (error) throw new Error("cancel_record_failed");
+        return data as string;
+      },
+      async syncCaptureSigner(envelopeRow, idx, email) {
+        const { data, error } = await admin.rpc("clicksign_capture_signer_sync", {
+          _envelope: envelopeRow,
+          _idx: idx,
+          _email: email,
+          _actor: who.user.id,
+        });
+        if (error) throw new Error("capture_sync_failed");
         return data as string;
       },
     },

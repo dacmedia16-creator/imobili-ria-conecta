@@ -62,6 +62,12 @@ export type ManageContext = {
   testMode: boolean;
   allowlistSha256: string[];
   token: string | null;
+  /**
+   * Só captação (t_867f464c): e-mail de cada proprietário como está na captação (form_data), por
+   * número (1 = Proprietário 1). Nunca sai em claro na resposta: só o sha256 é comparado e o
+   * mascarado é mostrado. Ausente = não compara (venda, contexto antigo).
+   */
+  ownerEmails?: string[];
 };
 
 export type ManageDeps = {
@@ -92,6 +98,12 @@ export type ManageDeps = {
    * canceled | already.
    */
   markCanceledPapel?(envelopeRow: string): Promise<string>;
+  /**
+   * Captação (t_867f464c): depois que a troca valeu na Clicksign e foi gravada no envelope, copia o
+   * e-mail novo para o proprietário na captação (clicksign_capture_signer_sync, service_role).
+   * Ausente = não sincroniza (venda).
+   */
+  syncCaptureSigner?(envelopeRow: string, idx: number, email: string): Promise<string>;
   actorId: string;
   fetch: FetchLike;
   clicksignBase?: string;
@@ -125,6 +137,31 @@ export async function readStates(client: ClicksignClient, ctx: ManageContext) {
     client.listEnvelopeEvents(ctx.envelopeKey, "signature_started").catch(() => null),
   ]);
   return signerStates(ctx.signers, signers, events, opened);
+}
+
+/**
+ * Captação (t_867f464c): proprietários cujo e-mail na captação é diferente do que está no envelope.
+ * idx do signatário → e-mail da captação MASCARADO (o claro nunca sai do servidor).
+ */
+export async function captureDiffs(ctx: ManageContext): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (!ctx.ownerEmails) return out;
+  for (let i = 0; i < ctx.signers.length; i++) {
+    const m = /^proprietario_(\d+)$/.exec(ctx.signers[i].papel);
+    if (!m) continue;
+    const email = normEmail(ctx.ownerEmails[Number(m[1]) - 1]);
+    if (!validEmail(email)) continue;
+    if ((await sha256Hex(email)) !== ctx.signers[i].email_sha256) out.set(i, maskEmail(email));
+  }
+  return out;
+}
+
+/** E-mail do proprietário na captação para o signatário idx (null = não é proprietário/sem e-mail). */
+function captureEmailOf(ctx: ManageContext, idx: number): string | null {
+  const m = /^proprietario_(\d+)$/.exec(ctx.signers[idx]?.papel ?? "");
+  if (!m || !ctx.ownerEmails) return null;
+  const email = normEmail(ctx.ownerEmails[Number(m[1]) - 1]);
+  return validEmail(email) ? email : null;
 }
 
 function notEditableMsg(kind: ManageKind, papel: string): string {
@@ -180,11 +217,16 @@ export async function handleManage(
   if (action === "status") {
     try {
       const states = await readStates(client, ctx);
+      const pend = await captureDiffs(ctx);
       return {
         status: 200,
         body: {
           ok: true,
           signers: states.map((s) => ({
+            undelivered: s.undelivered,
+            ...(pend.has(s.idx)
+              ? { capture_email: pend.get(s.idx), capture_differs: !s.signed }
+              : {}),
             idx: s.idx,
             papel: s.papel,
             label: labelOf(ctx.signers, s.idx),
@@ -283,10 +325,26 @@ export async function handleManage(
 
   // ---------- edit_signer ----------
   const idx = typeof b.idx === "number" && Number.isInteger(b.idx) ? b.idx : -1;
-  const nome = normName(typeof b.nome === "string" ? b.nome.slice(0, 200) : "");
-  const email = normEmail(typeof b.email === "string" ? b.email.slice(0, 200) : "");
   const target = ctx.signers[idx];
   if (!target) return fail(422, "Signatário inválido");
+  // "Aplicar na Clicksign" (t_867f464c): usa o e-mail já corrigido na captação, sem a tela conhecer
+  // o endereço em claro. Nome: o do envelope, salvo se vier outro.
+  const usarCaptacao = kind === "captacao" && b.usar_captacao === true;
+  const capEmail = usarCaptacao ? captureEmailOf(ctx, idx) : null;
+  if (usarCaptacao && !capEmail) {
+    return fail(
+      422,
+      "A captação não tem e-mail válido para este signatário. Corrija o contato antes.",
+    );
+  }
+  const nome = normName(
+    typeof b.nome === "string" && b.nome.trim()
+      ? b.nome.slice(0, 200)
+      : usarCaptacao
+        ? target.nome
+        : "",
+  );
+  const email = capEmail ?? normEmail(typeof b.email === "string" ? b.email.slice(0, 200) : "");
   const label = labelOf(ctx.signers, idx);
   if (!editable.has(target.papel)) return fail(422, notEditableMsg(kind, target.papel));
   // Testemunha automática (corretor/gestor, t_e8078685): vem do cadastro, não se edita aqui.
@@ -428,6 +486,7 @@ export async function handleManage(
   ]
     .filter(Boolean)
     .join("; ");
+  let recorded = true;
   try {
     await deps.done(auth.envelope, {
       action: "clicksign_signatario",
@@ -436,9 +495,20 @@ export async function handleManage(
       notified,
     });
   } catch {
+    recorded = false;
     warnings.push(
       "A troca foi feita na Clicksign, mas o registro no ADM MAX falhou. Avise o suporte.",
     );
+  }
+  // Captação: a captação passa a ter o mesmo e-mail do envelope (só se o envelope já registrou).
+  if (recorded && deps.syncCaptureSigner && sha !== target.email_sha256) {
+    try {
+      await deps.syncCaptureSigner(auth.envelope, idx, email);
+    } catch {
+      warnings.push(
+        "A troca valeu na Clicksign, mas o e-mail da captação não foi atualizado. Corrija o contato na captação.",
+      );
+    }
   }
   return {
     status: 200,

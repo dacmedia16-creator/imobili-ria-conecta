@@ -2000,6 +2000,19 @@ function ExclusiveDetail() {
               </p>
             </CardContent>
           </Card>
+          {capture.status === "em_assinatura" && !manual && !archived && (
+            <p
+              role="status"
+              data-testid="aviso-contato-enviado"
+              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+              O documento já foi enviado para assinatura: estes campos ficam travados. E-mail ou
+              telefone de proprietário errado? Vá em “
+              {captureSteps.find((c) => c.key === "revisao")?.label ?? "Revisão e envio"}” →
+              Signatários → “Corrigir contato”. Se você não puder trocar na Clicksign, o gestor é
+              avisado para corrigir lá.
+            </p>
+          )}
           <OwnerBlocks
             {...ownerBlocksCommon}
             badges="fields"
@@ -2472,6 +2485,7 @@ function ExclusiveDetail() {
                 onModo={setClicksignModo}
                 testemunhas={testemunhas}
                 onTestemunhas={setTestemunhas}
+                podeCorrigirContato={capture.captor_id === user?.id || manager}
               />
             )}
           {step === approvalStep &&
@@ -2635,6 +2649,15 @@ function ExclusiveDetail() {
                     <div key={h.id} className="border-b py-1" data-testid="historico-transferida">
                       Em {quando} · {textoTransferencia(lerTransferencia(h.detail))} ·{" "}
                       {autorDoHistorico(h, user?.id)}
+                    </div>
+                  );
+                }
+                if (h.action === "contato_corrigido") {
+                  return (
+                    <div key={h.id} className="border-b py-1" data-testid="historico-contato">
+                      Em {quando} · contato do proprietário corrigido ·{" "}
+                      {autorDoHistorico(h, user?.id)}
+                      {h.detail ? ` · ${h.detail}` : ""}
                     </div>
                   );
                 }
