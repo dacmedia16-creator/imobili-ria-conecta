@@ -113,7 +113,9 @@ CREATE SEQUENCE public.locacao_contratos_numero_seq;
 CREATE TABLE public.locacao_contratos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  locacao_id uuid NOT NULL REFERENCES public.locacoes(id) ON DELETE CASCADE,
+  -- NO ACTION: apagar a locação da esteira não leva junto o histórico financeiro do contrato (a exclusão da
+  -- imobiliária inteira continua em cascata, porque a checagem é no fim do comando).
+  locacao_id uuid NOT NULL REFERENCES public.locacoes(id) ON DELETE NO ACTION,
   numero bigint NOT NULL DEFAULT nextval('public.locacao_contratos_numero_seq'),
   situacao text NOT NULL DEFAULT 'a_completar'
     CONSTRAINT locacao_contratos_situacao_check CHECK (situacao IN ('a_completar', 'ativo', 'encerrado')),
@@ -295,14 +297,19 @@ END $$;
 CREATE OR REPLACE FUNCTION public.locacao_fin_repasse_calc(_c public.locacao_cobrancas) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _cfg public.locacao_fin_config := public.locacao_fin_cfg(_c.organization_id); _l jsonb := '[]'::jsonb;
-  _parte numeric; _total numeric; _d record;
+  _parte numeric; _total numeric; _d record; _r jsonb := coalesce(_c.regra_encargos, '{}'::jsonb); _dif numeric;
 BEGIN
   IF _c.status <> 'paga' THEN RETURN NULL; END IF;
+  -- Regras do repasse CONGELADAS na baixa (gravadas em regra_encargos); mudar a regra depois não altera o já baixado.
+  IF _r ? 'multa_para' THEN _cfg.multa_para := _r->>'multa_para'; END IF;
+  IF _r ? 'retem_primeiro_aluguel' THEN _cfg.retem_primeiro_aluguel := (_r->>'retem_primeiro_aluguel')::boolean; END IF;
+  IF _r ? 'iptu_repassa_proprietario' THEN _cfg.iptu_repassa_proprietario := (_r->>'iptu_repassa_proprietario')::boolean; END IF;
+  IF _r ? 'dias_repasse' THEN _cfg.dias_repasse := (_r->>'dias_repasse')::integer; END IF;
   _l := _l || jsonb_build_array(jsonb_build_object('t', 'Aluguel recebido', 'v', _c.aluguel));
   IF _c.primeiro_aluguel AND _cfg.retem_primeiro_aluguel THEN
     _l := _l || jsonb_build_array(jsonb_build_object('t', 'Retenção do 1º aluguel (taxa de locação)', 'v', -_c.aluguel));
   ELSE
-    _l := _l || jsonb_build_array(jsonb_build_object('t', 'Taxa de administração (' || trim(to_char(_c.taxa_adm, 'FM990.99')) || '%)',
+    _l := _l || jsonb_build_array(jsonb_build_object('t', 'Taxa de administração (' || replace(rtrim(to_char(_c.taxa_adm, 'FM990.99'), '.'), '.', ',') || '%)',
       'v', -round(_c.aluguel * _c.taxa_adm / 100, 2)));
   END IF;
   _parte := CASE _cfg.multa_para WHEN 'proprietario' THEN 1 WHEN 'metade' THEN 0.5 ELSE 0 END;
@@ -317,6 +324,12 @@ BEGIN
              WHERE cobranca_id = _c.id AND removido_em IS NULL ORDER BY criado_em LOOP
     _l := _l || jsonb_build_array(jsonb_build_object('t', 'Desconto: ' || _d.descricao, 'v', -_d.valor));
   END LOOP;
+  -- Pagou diferente do devido (aceito só com observação): a diferença aparece e entra no repasse, sem esconder.
+  _dif := _c.valor_pago - (_c.valor + _c.multa + _c.juros);
+  IF _dif <> 0 THEN
+    _l := _l || jsonb_build_array(jsonb_build_object('t', CASE WHEN _dif < 0 THEN 'Diferença não recebida do inquilino'
+      ELSE 'Valor recebido a mais do inquilino' END, 'v', _dif));
+  END IF;
   SELECT coalesce(sum((x->>'v')::numeric), 0) INTO _total FROM jsonb_array_elements(_l) x;
   RETURN jsonb_build_object('linhas', _l, 'total', round(_total, 2), 'previsto', _c.pago_em + _cfg.dias_repasse,
     'retencao_primeiro', _c.primeiro_aluguel AND _cfg.retem_primeiro_aluguel);
@@ -460,6 +473,11 @@ BEGIN
   IF EXISTS (SELECT 1 FROM jsonb_each(_dados) e WHERE jsonb_typeof(e.value) NOT IN ('string', 'number', 'null')) THEN
     RAISE EXCEPTION 'Campos inválidos' USING ERRCODE = '22023';
   END IF;
+  -- Início define qual competência é o 1º aluguel: não muda depois que já existe cobrança (evita reter 2 vezes).
+  IF _dados ? 'inicio' AND (_dados->>'inicio')::date IS DISTINCT FROM _ct.inicio
+     AND EXISTS (SELECT 1 FROM public.locacao_cobrancas WHERE contrato_id = _ct.id AND status <> 'cancelada') THEN
+    RAISE EXCEPTION 'Contrato já tem cobrança: a data de início não pode mudar.' USING ERRCODE = '22023';
+  END IF;
   UPDATE public.locacao_contratos SET
     endereco = CASE WHEN _dados ? 'endereco' THEN nullif(btrim(_dados->>'endereco'), '') ELSE endereco END,
     inquilino_nome = CASE WHEN _dados ? 'inquilino_nome' THEN nullif(btrim(_dados->>'inquilino_nome'), '') ELSE inquilino_nome END,
@@ -543,7 +561,7 @@ GRANT EXECUTE ON FUNCTION public.locacao_fin_gerar_cobrancas(date) TO authentica
 CREATE OR REPLACE FUNCTION public.locacao_fin_baixa(_cobranca uuid, _pago_em date, _valor_pago numeric, _obs text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _c public.locacao_cobrancas := public.locacao_fin_pega_cob(_cobranca); _e jsonb; _devido numeric;
-  _o text := nullif(btrim(coalesce(_obs, '')), '');
+  _o text := nullif(btrim(coalesce(_obs, '')), ''); _cfg public.locacao_fin_config;
 BEGIN
   IF _c.status <> 'aberta' THEN RAISE EXCEPTION 'Cobrança não está em aberto.' USING ERRCODE = '22023'; END IF;
   IF _pago_em IS NULL OR _pago_em > public.locacao_fin_hoje() OR _pago_em < _c.competencia - 60 THEN
@@ -552,7 +570,10 @@ BEGIN
   IF _valor_pago IS NULL OR _valor_pago <= 0 OR _valor_pago >= 10000000 THEN
     RAISE EXCEPTION 'Valor pago inválido.' USING ERRCODE = '22023';
   END IF;
-  _e := public.locacao_fin_encargos(_c, _pago_em, public.locacao_fin_cfg(_c.organization_id));
+  _cfg := public.locacao_fin_cfg(_c.organization_id);
+  _e := public.locacao_fin_encargos(_c, _pago_em, _cfg) || jsonb_build_object('multa_para', _cfg.multa_para,
+    'retem_primeiro_aluguel', _cfg.retem_primeiro_aluguel, 'iptu_repassa_proprietario', _cfg.iptu_repassa_proprietario,
+    'dias_repasse', _cfg.dias_repasse);
   _devido := _c.valor + (_e->>'multa')::numeric + (_e->>'juros')::numeric;
   IF round(_valor_pago, 2) <> _devido AND (_o IS NULL OR length(_o) < 5) THEN
     RAISE EXCEPTION 'Valor pago (%) diferente do devido (%): explique na observação.', round(_valor_pago, 2), _devido
@@ -640,7 +661,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.locacao_repasses WHERE cobranca_id = _c.id AND desfeito_em IS NULL) THEN
     RAISE EXCEPTION 'Repasse já feito: não dá para remover desconto.' USING ERRCODE = '22023';
   END IF;
-  UPDATE public.locacao_fin_descontos SET removido_em = now() WHERE id = _d.id;
+  UPDATE public.locacao_fin_descontos SET removido_em = now() WHERE id = _d.id AND removido_em IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Desconto já removido.' USING ERRCODE = '22023'; END IF;
   PERFORM public.locacao_fin_evento(_org, _c.contrato_id, _c.id, 'desconto_removido', 'Desconto removido: ' || _d.descricao,
     jsonb_build_object('id', _d.id, 'valor', _d.valor));
   RETURN true;
@@ -661,6 +683,10 @@ BEGIN
     RAISE EXCEPTION 'Data do repasse inválida.' USING ERRCODE = '22023';
   END IF;
   _calc := public.locacao_fin_repasse_calc(_c);
+  IF (_calc->>'total')::numeric < 0 THEN
+    RAISE EXCEPTION 'Saldo do proprietário negativo (%): revise os descontos antes de registrar o repasse.',
+      _calc->>'total' USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO _ct FROM public.locacao_contratos WHERE id = _c.contrato_id;
   INSERT INTO public.locacao_repasses (organization_id, cobranca_id, contrato_id, proprietario_nome, valor, linhas, feito_em,
     comprovante, feito_por)

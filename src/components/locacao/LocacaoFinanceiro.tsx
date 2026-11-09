@@ -342,7 +342,7 @@ function TabelaCobrancas({ cobs, onAbrir }: { cobs: Cobranca[]; onAbrir: (c: Cob
           <th>Inquilino</th>
           <th>Proprietário</th>
           <th>Vencimento</th>
-          <th className="text-right">Valor</th>
+          <th className="pr-4 text-right">Valor</th>
           <th>Situação</th>
           <th>Repasse</th>
         </tr>
@@ -358,7 +358,7 @@ function TabelaCobrancas({ cobs, onAbrir }: { cobs: Cobranca[]; onAbrir: (c: Cob
             <td>{c.inquilinoNome}</td>
             <td className="text-xs">{c.proprietarioNome}</td>
             <td>{dataBr(c.vencimento)}</td>
-            <td className="text-right tabular-nums">{brl(devidoHoje(c) || c.valor)}</td>
+            <td className="pr-4 text-right tabular-nums">{brl(devidoHoje(c) || c.valor)}</td>
             <td>
               <SituacaoPill c={c} />
             </td>
@@ -544,23 +544,21 @@ function CobrancaDialog({
                 Saldo negativo: os descontos passaram do valor a repassar neste mês.
               </p>
             )}
-            {c.descontos.map((d) => (
-              <div key={d.id} className="flex items-center gap-2 text-xs">
-                <span className="flex-1">
-                  Desconto: {d.descricao} — {brl(d.valor)}
-                </span>
-                {!c.repasse && (
+            {/* Descontos já aparecem no cálculo acima; aqui só o botão de remover enquanto o repasse não foi feito. */}
+            {!c.repasse &&
+              c.descontos.map((d) => (
+                <div key={d.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex-1">{d.descricao}</span>
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={busy}
                     onClick={() => void acao(() => removerDescontoFin(d.id), "Desconto removido")}
                   >
-                    remover
+                    remover desconto
                   </Button>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
             {c.repasse ? (
               <div className="space-y-2">
                 <p className="text-sm">

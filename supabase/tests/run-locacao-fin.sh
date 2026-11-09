@@ -40,6 +40,7 @@ EOF
   echo "\\echo [migration ok]"
   # Regressão: a suíte da Fase 1 inteira, agora com a Fase 2 aplicada (sem a locação pré-existente fictícia).
   echo "SAVEPOINT fase1;"
+  echo "DELETE FROM public.locacao_contratos WHERE locacao_id = '7b000000-0000-4000-8000-000000000001';"
   echo "DELETE FROM public.locacoes WHERE id = '7b000000-0000-4000-8000-000000000001';"
   strip "$HERE/locacao.sql" | sed -e "s/^SELECT 'TOTAL=' || /SELECT 'TOTAL=' || 'FASE1 ' || /"
   echo "RESET ROLE;"

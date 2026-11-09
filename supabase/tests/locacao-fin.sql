@@ -148,6 +148,14 @@ SELECT pg_temp.ok((public.locacao_fin_gerar_cobrancas(pg_temp.d('m1'))->>'gerada
 SELECT pg_temp.ok((public.locacao_fin_gerar_cobrancas(pg_temp.d('m0') + 10)->>'geradas')::int = 1, 'gera a do mês atual (qualquer dia vira o mês)');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_fin_gerar_cobrancas(%L)', pg_temp.d('m0') + 400)) LIKE '22023%',
   'competência muito à frente é recusada');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_fin_contrato_salvar(%L, %L)', pg_temp.id('CT'),
+    jsonb_build_object('inicio', pg_temp.d('m0') + 2))) LIKE '22023%início%',
+  'com cobrança gerada, a data de início não muda (evita reter o 1º aluguel duas vezes)');
+RESET ROLE;
+SELECT pg_temp.ok(pg_temp.err(format('DELETE FROM public.locacoes WHERE id = %L', pg_temp.id('L'))) LIKE '23503%',
+  'apagar a locação da esteira não apaga o financeiro (chave estrangeira)');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('ffin')::text);
 RESET ROLE;
 SELECT pg_temp.setid('C1', (pg_temp.cob(pg_temp.id('CT'), pg_temp.d('m1'))).id);
 SELECT pg_temp.setid('C0', (pg_temp.cob(pg_temp.id('CT'), pg_temp.d('m0'))).id);
@@ -180,6 +188,11 @@ SELECT pg_temp.ok((pg_temp.j('B1')->'repasse_calc'->>'total')::numeric = 256.67
   AND (pg_temp.j('B1')->'repasse_calc'->>'retencao_primeiro')::boolean
   AND (pg_temp.j('B1')->'repasse_calc'->>'previsto')::date = pg_temp.d('m1') + 19,
   '1º aluguel: 2.000 − 2.000 (retenção) + 206,67 (multa/juros do proprietário) + 50 (IPTU) = 256,67; previsto D+5');
+SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_fin_brl(1)') LIKE '42501%', 'função interna de formatação não é chamável pelo navegador');
+RESET ROLE;
+SELECT pg_temp.ok(public.locacao_fin_brl(1234.5) = 'R$ 1.234,50' AND public.locacao_fin_brl(0) = 'R$ 0,00',
+  'valor no histórico em formato brasileiro (R$ 1.234,50)');
+SET LOCAL ROLE authenticated;
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_fin_desconto(%L, ''x'', 10)', pg_temp.id('C1'))) LIKE '22023%',
   'desconto sem descrição é recusado');
 SELECT public.locacao_fin_desconto(pg_temp.id('C1'), 'Conserto hidráulico autorizado (fictício)', 180);
@@ -217,9 +230,19 @@ SELECT pg_temp.ok((pg_temp.j('B2')->>'multa')::numeric = 40 AND (pg_temp.j('B2')
   'nova regra (multa 2%) vale na baixa seguinte: multa 40');
 SELECT pg_temp.ok((pg_temp.j('B2')->'repasse_calc'->>'total')::numeric = -130,
   'multa da imobiliária não vai ao proprietário: 2.000 − 2.000 + 50 − 180 = −130 (saldo devedor visível)');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_fin_repasse_feito(%L, %L, NULL)', pg_temp.id('C1'), pg_temp.d('hoje')))
+  LIKE '22023%negativo%', 'repasse com saldo negativo é recusado (revisar descontos)');
 SELECT public.locacao_fin_config_salvar('{"retem_primeiro_aluguel":false}');
-SELECT pg_temp.ok((SELECT (x->'repasse_calc'->>'total')::numeric = 1670 FROM jsonb_array_elements(public.locacao_fin_painel(pg_temp.d('m1'))->'cobrancas') x),
-  'sem retenção do 1º aluguel: 2.000 − 200 (taxa 10%) + 50 − 180 = 1.670');
+SELECT pg_temp.ok((SELECT (x->'repasse_calc'->>'total')::numeric = -130
+   FROM jsonb_array_elements(public.locacao_fin_painel(pg_temp.d('m1'))->'cobrancas') x),
+  'regra congelada na baixa: mudar a retenção depois NÃO altera o repasse já baixado');
+SELECT public.locacao_fin_estornar(pg_temp.id('C1'), 'Refazer baixa com a regra nova (teste)');
+SELECT pg_temp.put('B3', public.locacao_fin_baixa(pg_temp.id('C1'), pg_temp.d('m1') + 14, 2300, 'Pagou a menos (teste)'));
+SELECT pg_temp.ok((pg_temp.j('B3')->'repasse_calc'->>'total')::numeric = 1573.33
+  AND pg_temp.j('B3')->'repasse_calc'->'linhas'->1->>'t' = 'Taxa de administração (10%)'
+  AND EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('B3')->'repasse_calc'->'linhas') l
+               WHERE l->>'t' = 'Diferença não recebida do inquilino' AND (l->>'v')::numeric = -96.67),
+  'pagou a menos: diferença (−96,67) aparece e sai do repasse: 2.000 − 200 + 50 − 180 − 96,67 = 1.573,33');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_fin_config_salvar(''{"multa_pct":5}'')') LIKE '42501%', 'corretor não altera regras financeiras');
 SELECT pg_temp.as_user(pg_temp.id('ffin')::text);
