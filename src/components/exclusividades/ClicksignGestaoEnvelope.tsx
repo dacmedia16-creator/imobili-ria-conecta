@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Pencil, RefreshCw, Send } from "lucide-react";
+import { AlertTriangle, Mail, Pencil, RefreshCw, Send } from "lucide-react";
 import { SignerStatusBadge } from "@/components/clicksign/SignerStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +15,20 @@ import {
 } from "@/components/ui/dialog";
 import { errorMessage } from "@/lib/errors";
 import {
+  applyCaptureContact,
+  AVISO_NAO_ENTREGUE,
+  AVISO_PECA_GESTOR,
   clicksignSignersStatus,
   editClicksignSigner,
   editSignerErrors,
   notifyWaitMinutes,
+  ownerNumberOfPapel,
   resendClicksignNotice,
+  salvarContatoAssinatura,
   type ClicksignEnvelopeInfo,
   type ManagedSigner,
 } from "@/lib/exclusive-clicksign";
+import { ContatoAssinaturaDialog } from "@/components/exclusividades/ContatoAssinaturaDialog";
 
 /**
  * Envelope em assinatura (gestor/jurídico/ADM): mostra quem já assinou, reenvia o aviso a quem falta
@@ -37,6 +43,7 @@ export function ClicksignGestaoEnvelope({
   envelope,
   testMode,
   canManage = true,
+  podeCorrigirContato = false,
   onChanged,
 }: {
   db: SupabaseClient;
@@ -44,8 +51,12 @@ export function ClicksignGestaoEnvelope({
   envelope: ClicksignEnvelopeInfo;
   testMode: boolean;
   canManage?: boolean;
+  /** Corretor captador ou gestor da captação: "Corrigir contato" do proprietário (t_867f464c). */
+  podeCorrigirContato?: boolean;
   onChanged: () => Promise<unknown> | void;
 }) {
+  const [contato, setContato] = useState<ManagedSigner | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [signers, setSigners] = useState<ManagedSigner[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +125,54 @@ export function ClicksignGestaoEnvelope({
     }
   };
 
+  // Troca na Clicksign com o e-mail já gravado na captação (só quem gerencia; o servidor confere).
+  const aplicar = async (s: ManagedSigner, confirmar = true) => {
+    if (
+      confirmar &&
+      !window.confirm(
+        `Aplicar na Clicksign o e-mail corrigido na captação (${s.capture_email ?? ""}) para ${s.label}? O convite vai para o e-mail novo.`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const r = await applyCaptureContact(db, { captureId, idx: s.idx });
+      if (r.warning) toast.warning(r.warning, { duration: 10000 });
+      else toast.success(`${s.label} alterado. A Clicksign enviou o convite ao e-mail novo.`);
+      setAviso(null);
+      await onChanged();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível aplicar na Clicksign"));
+    } finally {
+      setBusy(false);
+      void load();
+    }
+  };
+
+  const salvarContato = async (email: string, telefone: string) => {
+    const s = contato;
+    const owner = s ? ownerNumberOfPapel(s.papel) : null;
+    if (!s || !owner) return;
+    setBusy(true);
+    let aplicarAgora = false;
+    try {
+      const r = await salvarContatoAssinatura(db, { captureId, owner, email, telefone });
+      setContato(null);
+      if (!r.mudou) toast.info("Nada mudou: o contato já estava assim na captação.");
+      if (r.precisa_aplicar && r.pode_aplicar && canManage) aplicarAgora = true;
+      else if (r.precisa_aplicar) {
+        setAviso(AVISO_PECA_GESTOR);
+        toast.warning(AVISO_PECA_GESTOR, { duration: 12000 });
+      } else if (r.mudou) toast.success("Contato corrigido na captação.");
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível corrigir o contato"));
+    } finally {
+      setBusy(false);
+    }
+    if (aplicarAgora) await aplicar(s, false);
+    else void load();
+  };
+
   return (
     <div className="space-y-3 rounded-md border p-3" data-testid="clicksign-gestao">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -144,9 +203,48 @@ export function ClicksignGestaoEnvelope({
                 <div className="text-xs text-muted-foreground">
                   {s.found ? s.email : "não encontrado no envelope da Clicksign"}
                 </div>
+                {s.undelivered && !s.signed && !s.capture_differs && (
+                  <p
+                    role="alert"
+                    data-testid="signer-nao-entregue"
+                    className="mt-1 flex items-start gap-1 text-xs text-red-700"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {AVISO_NAO_ENTREGUE}
+                  </p>
+                )}
+                {s.capture_differs && (
+                  <p data-testid="signer-falta-aplicar" className="mt-1 text-xs text-amber-800">
+                    Corrigido na captação ({s.capture_email}), mas a Clicksign ainda usa o e-mail
+                    antigo.{" "}
+                    {canManage
+                      ? "Use “Aplicar na Clicksign”."
+                      : "O gestor precisa aplicar a troca em Signatários."}
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <SignerStatusBadge signer={s} />
+                {canManage && s.editable && s.capture_differs && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    data-testid="signer-aplicar"
+                    onClick={() => void aplicar(s)}
+                  >
+                    <Send className="mr-1 h-4 w-4" /> Aplicar na Clicksign
+                  </Button>
+                )}
+                {podeCorrigirContato && !s.signed && ownerNumberOfPapel(s.papel) !== null && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    aria-label={`Corrigir contato ${s.label}`}
+                    onClick={() => setContato(s)}
+                  >
+                    <Mail className="mr-1 h-4 w-4" /> Corrigir contato
+                  </Button>
+                )}
                 {canManage && s.editable && (
                   <Button
                     size="sm"
@@ -187,9 +285,31 @@ export function ClicksignGestaoEnvelope({
         </>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Você acompanha quem já abriu e assinou. Reenviar aviso e corrigir signatário ficam com o
-          gestor, o team leader, o jurídico ou o ADM.
+          Você acompanha quem já abriu e assinou. Reenviar aviso e trocar o signatário na Clicksign
+          ficam com o gestor, o team leader, o jurídico ou o ADM.
+          {podeCorrigirContato
+            ? " E-mail errado? Use “Corrigir contato”: a captação é corrigida e o gestor é avisado."
+            : ""}
         </p>
+      )}
+      {aviso && (
+        <p
+          role="status"
+          data-testid="aviso-peca-gestor"
+          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+        >
+          {aviso}
+        </p>
+      )}
+      {contato && (
+        <ContatoAssinaturaDialog
+          label={contato.label}
+          atual={contato.email}
+          canManage={canManage}
+          busy={busy}
+          onCancel={() => setContato(null)}
+          onSave={(email, telefone) => void salvarContato(email, telefone)}
+        />
       )}
       <Dialog open={canManage && !!editing} onOpenChange={(o) => !busy && !o && setEditing(null)}>
         <DialogContent className="max-w-md">

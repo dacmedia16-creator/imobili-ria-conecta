@@ -735,7 +735,80 @@ export type ManagedSigner = {
   status?: "enviado" | "abriu" | "assinou";
   found: boolean;
   editable: boolean;
+  /** A Clicksign não conseguiu entregar o convite ao e-mail atual (tracking_notification_error). */
+  undelivered?: boolean;
+  /** Captação com e-mail diferente do envelope: o da captação, mascarado (t_867f464c). */
+  capture_email?: string;
+  /** true = falta aplicar na Clicksign o e-mail já corrigido na captação. */
+  capture_differs?: boolean;
 };
+
+/** Proprietário N do papel "proprietario_N" (null = não é proprietário). */
+export function ownerNumberOfPapel(papel: string): number | null {
+  const m = /^proprietario_(\d+)$/.exec(papel);
+  return m ? Number(m[1]) : null;
+}
+
+export const AVISO_NAO_ENTREGUE =
+  "A Clicksign não conseguiu entregar o convite: e-mail possivelmente errado. Confirme com o proprietário e corrija o contato.";
+export const AVISO_PECA_GESTOR =
+  "O documento já foi enviado. A captação foi corrigida, mas a troca na Clicksign é do gestor: ele foi avisado para corrigir em Signatários.";
+
+/** Telefone opcional: vazio ou 10 a 13 dígitos (mesma regra do banco). */
+export function contatoErrors(email: string, telefone: string): string[] {
+  const errors: string[] = [];
+  if (!validEmail(email)) errors.push("E-mail ausente ou inválido");
+  const t = telefone.trim();
+  const d = t.replace(/\D/g, "").length;
+  if (t && (d < 10 || d > 13 || !/^[0-9 ()+.-]+$/.test(t))) errors.push("Telefone inválido");
+  return errors;
+}
+
+export type ContatoAssinaturaResult = {
+  mudou: boolean;
+  pode_aplicar: boolean;
+  envelope_ativo: boolean;
+  precisa_aplicar: boolean;
+  avisados: number;
+};
+
+/**
+ * Corrige e-mail/telefone do Proprietário N na captação em assinatura (t_867f464c). Não fala com a
+ * Clicksign: quem pode aplicar chama applyCaptureContact em seguida; quem não pode, o gestor é avisado.
+ */
+export async function salvarContatoAssinatura(
+  db: SupabaseClient,
+  input: { captureId: string; owner: number; email: string; telefone: string },
+): Promise<ContatoAssinaturaResult> {
+  const { data, error } = await db.rpc("exclusive_contato_assinatura_salvar", {
+    _id: input.captureId,
+    _owner: input.owner,
+    _email: input.email.trim(),
+    _telefone: input.telefone.trim() || null,
+  });
+  if (error) throw new Error(error.message || "Não foi possível salvar o contato");
+  const d = (data ?? {}) as Record<string, unknown>;
+  return {
+    mudou: d.mudou === true,
+    pode_aplicar: d.pode_aplicar === true,
+    envelope_ativo: d.envelope_ativo === true,
+    precisa_aplicar: d.precisa_aplicar === true,
+    avisados: typeof d.avisados === "number" ? d.avisados : 0,
+  };
+}
+
+/** "Aplicar na Clicksign": troca o signatário usando o e-mail já gravado na captação. */
+export async function applyCaptureContact(
+  db: SupabaseClient,
+  input: { captureId: string; idx: number },
+): Promise<{ warning?: string }> {
+  const d = await invokeManage(
+    db,
+    { capture_id: input.captureId, action: "edit_signer", idx: input.idx, usar_captacao: true },
+    "Não foi possível aplicar na Clicksign. Atualize a página e confira antes de tentar de novo.",
+  );
+  return typeof d.warning === "string" ? { warning: d.warning } : {};
+}
 
 /** Pode gerenciar (reenviar/editar): gestor/jurídico/ADM com envelope rodando. */
 export function canManageEnvelope(config: ClicksignCaptureConfig): boolean {

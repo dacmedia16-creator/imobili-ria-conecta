@@ -64,7 +64,10 @@ export function ClicksignEnvio({
   onModo,
   testemunhas,
   onTestemunhas,
+  podeCorrigirContato = false,
 }: {
+  /** Corretor captador ou gestor da captação: "Corrigir contato" em Signatários (t_867f464c). */
+  podeCorrigirContato?: boolean;
   captureId: string;
   status: string;
   form: Record<string, unknown> | null;
@@ -216,7 +219,13 @@ export function ClicksignEnvio({
             envelope={envelope}
             testMode={config.test_mode}
             canManage={canManageEnvelope(config)}
-            onChanged={refresh}
+            podeCorrigirContato={
+              status === "em_assinatura" && (podeCorrigirContato || canManageEnvelope(config))
+            }
+            onChanged={async () => {
+              await refresh();
+              await onSent();
+            }}
           />
         )}
         {trocarParaPapel && (
