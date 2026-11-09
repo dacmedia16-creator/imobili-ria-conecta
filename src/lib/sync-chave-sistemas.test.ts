@@ -231,7 +231,8 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
             x !== "avisos_exclusividade" &&
             x !== "inteligencia_gestao" &&
             x !== "link_acompanhamento" &&
-            x !== "proposta_compra",
+            x !== "proposta_compra" &&
+            x !== "locacao",
         )
         .sort(),
     );
@@ -243,7 +244,8 @@ describe("migration 20261105150000 (chave dos sistemas)", () => {
             x !== "avisos_exclusividade" &&
             x !== "inteligencia_gestao" &&
             x !== "link_acompanhamento" &&
-            x !== "proposta_compra",
+            x !== "proposta_compra" &&
+            x !== "locacao",
         )
         .sort(),
     );

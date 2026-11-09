@@ -141,6 +141,8 @@ export const ORGANIZATION_MODULES = [
   "link_acompanhamento",
   // Proposta de compra com assinatura por link + código no WhatsApp (t_4cff61a6). Nasce desligado.
   "proposta_compra",
+  // Módulo de Locação Fase 1: esteira + comissão (t_74426f94). Nasce desligado; liga só na Única Escolha/Conferência.
+  "locacao",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
 export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
@@ -164,6 +166,7 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
     "Inteligência de gestão (farol da equipe, previsão do trimestre e conversa 1:1)",
   link_acompanhamento: "Link de acompanhamento da venda (comprador e vendedor, sem login)",
   proposta_compra: "Proposta de compra (assinatura por link e código no WhatsApp)",
+  locacao: "Locação (esteira do corretor, gestora, contratos, pós-assinatura e comissão)",
 };
 
 export type OrganizationSummary = OrganizationRow & {

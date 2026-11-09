@@ -65,6 +65,8 @@ import { Route as AuthenticatedAjudaWikiRouteImport } from './routes/_authentica
 import { Route as AuthenticatedExclusividadesIndexRouteImport } from './routes/_authenticated/exclusividades.index'
 import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_authenticated/exclusividades.$id'
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
+import { Route as AuthenticatedLocacoesIndexRouteImport } from './routes/_authenticated/locacoes.index'
+import { Route as AuthenticatedLocacoesIdRouteImport } from './routes/_authenticated/locacoes.$id'
 import { Route as AuthenticatedMinhaCarreiraPlanoRouteImport } from './routes/_authenticated/minha-carreira_.plano'
 import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_authenticated/plataforma.chamados'
 import { Route as AuthenticatedPlataformaDepoimentosRouteImport } from './routes/_authenticated/plataforma.depoimentos'
@@ -387,6 +389,17 @@ const AuthenticatedExclusividadesPainelRoute =
     path: '/exclusividades/painel',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLocacoesIndexRoute =
+  AuthenticatedLocacoesIndexRouteImport.update({
+    id: '/locacoes/',
+    path: '/locacoes/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedLocacoesIdRoute = AuthenticatedLocacoesIdRouteImport.update({
+  id: '/locacoes/$id',
+  path: '/locacoes/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMinhaCarreiraPlanoRoute =
   AuthenticatedMinhaCarreiraPlanoRouteImport.update({
     id: '/minha-carreira_/plano',
@@ -522,6 +535,7 @@ export interface FileRoutesByFullPath {
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
   '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -533,6 +547,7 @@ export interface FileRoutesByFullPath {
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
   '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
+  '/locacoes/': typeof AuthenticatedLocacoesIndexRoute
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
@@ -593,6 +608,7 @@ export interface FileRoutesByTo {
   '/ajuda/wiki': typeof AuthenticatedAjudaWikiRoute
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
   '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -604,6 +620,7 @@ export interface FileRoutesByTo {
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
   '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/exclusividades': typeof AuthenticatedExclusividadesIndexRoute
+  '/locacoes': typeof AuthenticatedLocacoesIndexRoute
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
@@ -666,6 +683,7 @@ export interface FileRoutesById {
   '/_authenticated/ajuda_/wiki': typeof AuthenticatedAjudaWikiRoute
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
+  '/_authenticated/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
   '/_authenticated/minha-carreira_/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/_authenticated/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -677,6 +695,7 @@ export interface FileRoutesById {
   '/api/avisos-exclusividade/teste': typeof ApiAvisosExclusividadeTesteRoute
   '/api/leads/reengajar': typeof ApiLeadsReengajarRoute
   '/_authenticated/exclusividades/': typeof AuthenticatedExclusividadesIndexRoute
+  '/_authenticated/locacoes/': typeof AuthenticatedLocacoesIndexRoute
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
@@ -739,6 +758,7 @@ export interface FileRouteTypes {
     | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/locacoes/$id'
     | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
@@ -750,6 +770,7 @@ export interface FileRouteTypes {
     | '/api/avisos-exclusividade/teste'
     | '/api/leads/reengajar'
     | '/exclusividades/'
+    | '/locacoes/'
     | '/vendas/'
     | '/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
@@ -810,6 +831,7 @@ export interface FileRouteTypes {
     | '/ajuda/wiki'
     | '/exclusividades/$id'
     | '/exclusividades/painel'
+    | '/locacoes/$id'
     | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
@@ -821,6 +843,7 @@ export interface FileRouteTypes {
     | '/api/avisos-exclusividade/teste'
     | '/api/leads/reengajar'
     | '/exclusividades'
+    | '/locacoes'
     | '/vendas'
     | '/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
@@ -882,6 +905,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ajuda_/wiki'
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
+    | '/_authenticated/locacoes/$id'
     | '/_authenticated/minha-carreira_/plano'
     | '/_authenticated/plataforma/chamados'
     | '/_authenticated/plataforma/depoimentos'
@@ -893,6 +917,7 @@ export interface FileRouteTypes {
     | '/api/avisos-exclusividade/teste'
     | '/api/leads/reengajar'
     | '/_authenticated/exclusividades/'
+    | '/_authenticated/locacoes/'
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
     | '/api/leads/grupo-olx/$token'
@@ -1316,6 +1341,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedExclusividadesPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/locacoes/': {
+      id: '/_authenticated/locacoes/'
+      path: '/locacoes'
+      fullPath: '/locacoes/'
+      preLoaderRoute: typeof AuthenticatedLocacoesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/locacoes/$id': {
+      id: '/_authenticated/locacoes/$id'
+      path: '/locacoes/$id'
+      fullPath: '/locacoes/$id'
+      preLoaderRoute: typeof AuthenticatedLocacoesIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/minha-carreira_/plano': {
       id: '/_authenticated/minha-carreira_/plano'
       path: '/minha-carreira/plano'
@@ -1457,6 +1496,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAjudaWikiRoute: typeof AuthenticatedAjudaWikiRoute
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
+  AuthenticatedLocacoesIdRoute: typeof AuthenticatedLocacoesIdRoute
   AuthenticatedMinhaCarreiraPlanoRoute: typeof AuthenticatedMinhaCarreiraPlanoRoute
   AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
   AuthenticatedPlataformaDepoimentosRoute: typeof AuthenticatedPlataformaDepoimentosRoute
@@ -1466,6 +1506,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedVendasIdRoute: typeof AuthenticatedVendasIdRoute
   AuthenticatedVendasNovaRoute: typeof AuthenticatedVendasNovaRoute
   AuthenticatedExclusividadesIndexRoute: typeof AuthenticatedExclusividadesIndexRoute
+  AuthenticatedLocacoesIndexRoute: typeof AuthenticatedLocacoesIndexRoute
   AuthenticatedVendasIndexRoute: typeof AuthenticatedVendasIndexRoute
   AuthenticatedVendasLancamentoNovaRoute: typeof AuthenticatedVendasLancamentoNovaRoute
 }
@@ -1515,6 +1556,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedExclusividadesIdRoute: AuthenticatedExclusividadesIdRoute,
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,
+  AuthenticatedLocacoesIdRoute: AuthenticatedLocacoesIdRoute,
   AuthenticatedMinhaCarreiraPlanoRoute: AuthenticatedMinhaCarreiraPlanoRoute,
   AuthenticatedPlataformaChamadosRoute: AuthenticatedPlataformaChamadosRoute,
   AuthenticatedPlataformaDepoimentosRoute:
@@ -1526,6 +1568,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedVendasIdRoute: AuthenticatedVendasIdRoute,
   AuthenticatedVendasNovaRoute: AuthenticatedVendasNovaRoute,
   AuthenticatedExclusividadesIndexRoute: AuthenticatedExclusividadesIndexRoute,
+  AuthenticatedLocacoesIndexRoute: AuthenticatedLocacoesIndexRoute,
   AuthenticatedVendasIndexRoute: AuthenticatedVendasIndexRoute,
   AuthenticatedVendasLancamentoNovaRoute:
     AuthenticatedVendasLancamentoNovaRoute,
