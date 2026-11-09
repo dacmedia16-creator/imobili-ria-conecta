@@ -38,7 +38,7 @@ export const Route = createFileRoute("/_authenticated/admin/dados-imobiliaria")(
 
 type Draft = Pick<
   AgencyProfile,
-  "razao_social" | "creci" | "cidade" | "uf" | "cor_primaria" | "cor_secundaria"
+  "razao_social" | "creci" | "endereco" | "cidade" | "uf" | "cor_primaria" | "cor_secundaria"
 >;
 const emptyRoom = (): AgencyRoom => ({ id: "", nome: "", ativo: true, ordem: 0 });
 function AgencySettings() {
@@ -49,6 +49,7 @@ function AgencySettings() {
   const [draft, setDraft] = useState<Draft>({
     razao_social: "",
     creci: "",
+    endereco: "",
     cidade: "",
     uf: "",
     cor_primaria: "",
@@ -66,6 +67,7 @@ function AgencySettings() {
     setDraft({
       razao_social: agency.razao_social ?? "",
       creci: agency.creci ?? "",
+      endereco: agency.endereco ?? "",
       cidade: agency.cidade ?? "",
       uf: agency.uf ?? "",
       cor_primaria: agency.cor_primaria ?? "",
@@ -178,6 +180,9 @@ function AgencySettings() {
           <div className="grid gap-4 sm:grid-cols-2">
             {field("razao_social", "Razão social")}
             {field("creci", "CRECI", "Ex.: CRECI: 29.886-J")}
+            <div className="sm:col-span-2">
+              {field("endereco", "Endereço", "Rua, número, bairro")}
+            </div>
             {field("cidade", "Cidade")}
             {field("uf", "UF", "SP")}
           </div>
