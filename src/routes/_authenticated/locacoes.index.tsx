@@ -196,7 +196,7 @@ function Tabela({ itens, ctx, vazio }: { itens: Locacao[]; ctx: ContextoLocacao;
   return (
     <Card>
       <CardContent className="overflow-x-auto pt-4">
-        <table className="w-full text-sm" data-testid="locacao-lista">
+        <table className="w-full min-w-[720px] text-sm" data-testid="locacao-lista">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
               <th className="py-1">Locação</th>
@@ -249,7 +249,7 @@ function Fila({ titulo, itens, pos }: { titulo: string; itens: Locacao[]; pos?: 
         {!itens.length ? (
           <p className="text-sm text-muted-foreground">Nenhuma.</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground">
                 <th className="py-1">Locação</th>
@@ -351,7 +351,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
             <Pill tom="slate">Parceiros {brl(tot.pa)}</Pill>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" data-testid="locacao-comissao">
+            <table className="w-full min-w-[960px] text-sm" data-testid="locacao-comissao">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="py-1">Locação</th>

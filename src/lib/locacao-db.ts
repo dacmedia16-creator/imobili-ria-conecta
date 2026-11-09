@@ -86,7 +86,16 @@ export async function anexarDocumento(
 }
 
 export async function abrirDocumento(documentoId: string): Promise<void> {
-  const { linkDocumentoLocacao } = await import("@/lib/locacao.functions");
-  const { url } = await linkDocumentoLocacao({ data: { documentoId } });
-  window.open(url, "_blank", "noopener,noreferrer");
+  // Abre a aba ainda no clique (senão o navegador bloqueia como pop-up) e só depois põe a URL assinada.
+  const aba = window.open("", "_blank");
+  if (aba) aba.opener = null;
+  try {
+    const { linkDocumentoLocacao } = await import("@/lib/locacao.functions");
+    const { url } = await linkDocumentoLocacao({ data: { documentoId } });
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
 }

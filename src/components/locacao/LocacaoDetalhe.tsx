@@ -336,7 +336,7 @@ function PreAnalise({ d, ctx, busy, rodar, editavel }: P & { editavel: boolean }
   );
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Candidato (locatário)</CardTitle>
@@ -482,7 +482,7 @@ function Documentacao({ d, ctx, busy, rodar, editavel }: P & { editavel: boolean
         </div>
         <AConfirmar />
       </div>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         {blocos.map((bl) => (
           <Card key={bl.titulo}>
             <CardHeader className="pb-2">
@@ -581,7 +581,7 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
   const pre = d.etapa === "aprovacao";
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 text-sm md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
         <div>
           <b>Candidato:</b> {d.candidato.nome}
           <br />
@@ -870,7 +870,7 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
               <th className="py-1">Documento</th>
@@ -979,7 +979,7 @@ function PosAssinatura({
   }) => (
     <div className="flex flex-wrap items-center gap-2 py-1 text-sm">
       <span aria-hidden>{ok ? "✅" : "⬜"}</span>
-      <span className="flex-1">{children}</span>
+      <span className="min-w-0 flex-1">{children}</span>
       {extra}
     </div>
   );
@@ -991,7 +991,7 @@ function PosAssinatura({
     ) : null;
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="text-sm">Vistoria</CardTitle>
@@ -1212,6 +1212,7 @@ function PosAssinatura({
             {d.etapa === "pos_assinatura" && vistoria && (
               <Button
                 variant="outline"
+                className="h-auto w-full whitespace-normal py-2 text-left sm:w-auto"
                 disabled={busy}
                 onClick={() => acao("pronto_para_chaves", "Pronto para entregar as chaves")}
               >

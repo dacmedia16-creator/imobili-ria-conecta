@@ -105,7 +105,7 @@ export function LocacaoRegras({ config, onSalvo }: { config: ConfigLocacao; onSa
           {!pessoas ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : (
-            <table className="w-full text-sm" data-testid="locacao-papeis">
+            <table className="w-full min-w-[560px] text-sm" data-testid="locacao-papeis">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="py-1">Pessoa</th>
