@@ -199,7 +199,7 @@ export type PropostaPublica = {
   /** Texto oficial: termos sem dado pessoal/bancário (o banco já tira RG, endereço, CPF do representante e conta). */
   termos: Record<string, string | number>;
   documentoData: string | null;
-  cadastro: Record<string, string>;
+  cadastro: Cadastro;
   valores: {
     oferta: number | null;
     formaPagamento: FormaPagamento | null;

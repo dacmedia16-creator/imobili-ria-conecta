@@ -19,6 +19,7 @@ import {
   type EstadoCivil,
   type FormaPagamento,
   type Papel,
+  type PropostaPublica,
   type SinalTipo,
   type Situacao,
   type TermoNumero,
@@ -427,6 +428,44 @@ export function termosParaSalvar(f: PropostaForm): Record<string, string | numbe
   const fp = inteiro(t.fin_prazo_dias ?? "");
   out.fin_prazo_dias = fp && fp >= 1 && fp <= 365 ? fp : null;
   return out;
+}
+
+/**
+ * Entrada do texto oficial para o link público (t_b4e7c368): a parte lê a proposta INTEIRA antes do
+ * "Li e concordo". O link não recebe CPF/CNPJ, celular, e-mail, RG, endereço do comprador nem conta do
+ * vendedor (lista fechada do banco); nesses campos o texto sai em branco ou "—".
+ */
+export function textoDaPublica(d: PropostaPublica): TextoInput {
+  return {
+    documento: d.documento,
+    versao: d.versao,
+    imovel: d.imovel,
+    valorOferta: d.valores.oferta,
+    formaPagamento: d.valores.formaPagamento,
+    sinalValor: d.valores.sinal,
+    sinalPrazoDias: d.valores.sinalPrazoDias,
+    sinalTipo: d.valores.sinalTipo,
+    financiamentoBanco: d.valores.financiamentoBanco,
+    financiamentoValor: d.valores.financiamentoValor,
+    validadeDias: d.condicoes.validadeDias,
+    prazoContratoDias: d.condicoes.prazoContratoDias,
+    certidoes: d.condicoes.certidoes,
+    observacoes: d.condicoes.observacoes,
+    termos: d.termos as Termos,
+    cadastro: d.cadastro.nome ? d.cadastro : { ...d.cadastro, nome: d.imobiliaria || undefined },
+    documentoData: d.documentoData,
+    corretorNome: d.corretor.nome,
+    partes: d.partes.map((x) => ({
+      papel: x.papel,
+      ordem: x.ordem,
+      tipoPessoa: x.tipoPessoa,
+      nome: x.nome,
+      cpfCnpj: null,
+      estadoCivil: x.estadoCivil,
+      telefone: null,
+      email: null,
+    })),
+  };
 }
 
 /** Entrada do texto oficial a partir do detalhe (o que foi gravado; cadastro fixado ou o de agora na prévia). */

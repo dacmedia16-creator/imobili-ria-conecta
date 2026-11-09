@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  FORMA_LABEL,
   PAPEL_LABEL,
-  SINAL_TIPO_LABEL,
   SITUACAO_LABEL,
   AVISO_TEXTO_ADVOGADO,
   TOKEN_RE,
@@ -12,16 +10,15 @@ import {
   type PropostaPublica,
 } from "@/lib/proposta-compra";
 import { assinarPropostaLink, lerPropostaLink } from "@/lib/proposta-compra.functions";
-import { formatBRL } from "@/lib/formato-moeda";
-import {
-  CERTIDOES_LABEL,
-  dataBr,
-  dataHoraSp,
-} from "@/lib/proposta-compra-tela";
+import { dataBr, dataHoraSp, textoDaPublica } from "@/lib/proposta-compra-tela";
+import { montarTextoProposta } from "@/lib/proposta-compra-texto";
+import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { TextoPropostaView } from "@/components/proposta-compra/TextoPropostaView";
 
 // Página pública do link da proposta de compra (t_da0dac53). Sem login, um link por parte.
 // Mesmo padrão do /acompanhar/$token: ssr:false, noindex e sem referrer. Mostra SÓ a proposta (lista
-// fechada lida pelo servidor) e pede o código de 6 dígitos + "Li e concordo".
+// fechada lida pelo servidor) com o TEXTO OFICIAL inteiro (t_b4e7c368) e pede o código de 6 dígitos +
+// "Li e concordo".
 export const Route = createFileRoute("/proposta/$token")({
   ssr: false,
   head: () => ({
@@ -108,18 +105,6 @@ export function PropostaLink({ token }: { token: string }) {
   );
 }
 
-function Linha({ rotulo, valor }: { rotulo: string; valor: string | null | undefined }) {
-  if (!valor) return null;
-  return (
-    <div className="flex flex-col py-1 sm:flex-row sm:gap-3">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-[#5d6678] sm:w-40 sm:shrink-0 sm:pt-0.5">
-        {rotulo}
-      </dt>
-      <dd className="text-sm">{valor}</dd>
-    </div>
-  );
-}
-
 function Conteudo({
   d,
   token,
@@ -134,19 +119,7 @@ function Conteudo({
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [assinou, setAssinou] = useState<string | null>(d.voce.assinadoEm);
-  const im = d.imovel;
-  const v = d.valores;
-  const c = d.condicoes;
-  const endereco = [
-    im.endereco,
-    im.complemento,
-    im.bairro,
-    [im.cidade, im.uf].filter(Boolean).join("/"),
-  ]
-    .filter((x) => x && x.trim())
-    .join(", ");
-  const temSinal =
-    v.formaPagamento === "sinal_financiamento" || v.formaPagamento === "sinal_parcelas";
+  const texto = useMemo(() => montarTextoProposta(textoDaPublica(d), hojeSaoPaulo()), [d]);
   const totalVend = d.partes.filter((p) => p.papel === "vendedor").length;
   const rot = (papel: PropostaPublica["partes"][number]["papel"], ordem: number) =>
     `${PAPEL_LABEL[papel]}${(papel === "vendedor" || papel === "vendedor_conjuge") && totalVend > 1 ? ` ${ordem}` : ""}`;
@@ -189,17 +162,6 @@ function Conteudo({
       </p>
 
       <section>
-        <h2 className="mb-1 text-sm font-bold text-[#003DA5]">Imóvel</h2>
-        <dl>
-          <Linha rotulo="Imóvel" valor={[im.tipo, endereco].filter(Boolean).join(" · ")} />
-          <Linha
-            rotulo="Matrícula"
-            valor={[im.matricula, im.cartorio].filter(Boolean).join(" · ")}
-          />
-        </dl>
-      </section>
-
-      <section>
         <h2 className="mb-1 text-sm font-bold text-[#003DA5]">Partes</h2>
         <ul className="space-y-1 text-sm" data-testid="partes-publicas">
           {d.partes.map((p) => (
@@ -221,44 +183,14 @@ function Conteudo({
       </section>
 
       <section>
-        <h2 className="mb-1 text-sm font-bold text-[#003DA5]">Valores e pagamento</h2>
-        <dl>
-          <Linha rotulo="Valor oferecido" valor={v.oferta != null ? formatBRL(v.oferta) : null} />
-          <Linha
-            rotulo="Forma de pagamento"
-            valor={v.formaPagamento ? FORMA_LABEL[v.formaPagamento] : null}
-          />
-          {temSinal && (
-            <Linha
-              rotulo="Sinal"
-              valor={`${v.sinal != null ? formatBRL(v.sinal) : "—"}${v.sinalPrazoDias != null ? `, pago em até ${v.sinalPrazoDias} dia(s) após o aceite` : ""} (${SINAL_TIPO_LABEL[v.sinalTipo].toLowerCase()})`}
-            />
-          )}
-          {v.formaPagamento === "sinal_financiamento" && (
-            <Linha
-              rotulo="Financiamento"
-              valor={`${v.financiamentoValor != null ? formatBRL(v.financiamentoValor) : "—"} · ${v.financiamentoBanco ?? "—"}`}
-            />
-          )}
-        </dl>
-      </section>
-
-      <section>
-        <h2 className="mb-1 text-sm font-bold text-[#003DA5]">Condições</h2>
-        <dl>
-          <Linha rotulo="Validade" valor={`${c.validadeDias} dia(s) corridos contados do envio`} />
-          <Linha
-            rotulo="Contrato"
-            valor={
-              c.prazoContratoDias
-                ? `a ser assinado em até ${c.prazoContratoDias} dia(s) após o aceite`
-                : null
-            }
-          />
-          <Linha rotulo="Certidões" valor={c.certidoes ? CERTIDOES_LABEL[c.certidoes] : null} />
-          <Linha rotulo="Observações" valor={c.observacoes} />
-          <Linha rotulo="Corretor" valor={d.corretor.nome} />
-        </dl>
+        <h2 className="mb-2 text-sm font-bold text-[#003DA5]">Leia a proposta inteira</h2>
+        <div
+          className="max-h-[70vh] overflow-y-auto rounded-xl border border-[#e2e5ec] bg-[#fbfcfe] p-4"
+          tabIndex={0}
+          aria-label="Texto da proposta"
+        >
+          <TextoPropostaView texto={texto} />
+        </div>
       </section>
 
       <section
