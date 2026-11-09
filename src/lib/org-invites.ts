@@ -38,6 +38,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "inteligencia_gestao",
   // "link_acompanhamento" (t_54c79bdc): nasce desligado; a plataforma liga por imobiliária.
   "link_acompanhamento",
+  // "proposta_compra" (t_4cff61a6): nasce desligado; a plataforma liga por imobiliária.
+  "proposta_compra",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {
