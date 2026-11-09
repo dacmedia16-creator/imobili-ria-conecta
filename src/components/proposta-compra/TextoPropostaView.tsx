@@ -84,9 +84,7 @@ export function TextoPropostaView({ texto }: { texto: TextoProposta }) {
       <p className="text-sm leading-relaxed">{texto.abertura}</p>
       {texto.secoes.map((s, n) => (
         <section key={n} className="space-y-2">
-          <h3 className="text-sm font-bold text-[#003DA5]">
-            {s.titulo}
-          </h3>
+          <h3 className="text-sm font-bold text-[#003DA5]">{s.titulo}</h3>
           <Itens itens={s.itens} />
         </section>
       ))}

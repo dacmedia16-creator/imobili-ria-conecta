@@ -291,8 +291,7 @@ export function montarTextoProposta(p: TextoInput, hojeIso: string): TextoPropos
   const creciJ = limparCreci(cad.creci);
   const cnpj = formatarDoc(cad.cnpj);
   const data = p.documentoData ?? hojeIso;
-  const local =
-    p.termos.local ?? ([cad.cidade, cad.uf].filter(Boolean).join("/") || null);
+  const local = p.termos.local ?? ([cad.cidade, cad.uf].filter(Boolean).join("/") || null);
   const localData = `${local ? `${local}, ` : ""}${dataExtenso(data)}`;
   const t = p.termos;
 
@@ -301,9 +300,7 @@ export function montarTextoProposta(p: TextoInput, hojeIso: string): TextoPropos
   const compPJ = comprador?.tipoPessoa === "juridica";
   const compConj = partes.find((x) => x.papel === "comprador_conjuge");
   const compCasado = !compPJ && precisaConjuge(comprador?.estadoCivil);
-  const vendedores = partes
-    .filter((x) => x.papel === "vendedor")
-    .sort((a, b) => a.ordem - b.ordem);
+  const vendedores = partes.filter((x) => x.papel === "vendedor").sort((a, b) => a.ordem - b.ordem);
   const conjVend = (o: number) =>
     partes.find((x) => x.papel === "vendedor_conjuge" && x.ordem === o);
   const vendCasado = vendedores.some(
@@ -692,7 +689,13 @@ export function montarTextoProposta(p: TextoInput, hojeIso: string): TextoPropos
 
 /** Texto corrido (para busca nos testes e para a conferência do conteúdo). */
 export function textoPlano(t: TextoProposta): string {
-  const out: string[] = [t.cabecalho.nome, t.cabecalho.linha ?? "", t.titulo, t.subtitulo, t.abertura];
+  const out: string[] = [
+    t.cabecalho.nome,
+    t.cabecalho.linha ?? "",
+    t.titulo,
+    t.subtitulo,
+    t.abertura,
+  ];
   for (const s of t.secoes) {
     out.push(s.titulo);
     for (const i of s.itens) {

@@ -4,7 +4,7 @@
  * - aba "Propostas" da captação: some com o módulo desligado; histórico com data, comprador, valor, corretor,
  *   situação e validade; "Nova proposta" cria o rascunho (captação + lead) pelo banco;
  * - Nova proposta: preenchimento automático (selos), PF/PJ, cônjuge pelo estado civil, validade padrão 5 dias;
- * - PDF: marca da imobiliária, cláusulas como "Texto pendente de revisão" (sem texto inventado), página
+ * - PDF: marca da imobiliária, texto oficial (t_b4e7c368) com a marca "Minuta" do advogado, página
  *   "Comprovação das assinaturas" com o código do documento só no PDF final;
  * - Assinaturas: situação de cada parte, Reenviar, todas as situações, recusa com motivo, contraproposta;
  * - Aceita: "Criar venda em rascunho" só no clique (e confirmação);
@@ -563,9 +563,15 @@ describe("tela da proposta", () => {
     const form = await screen.findByTestId("form-proposta");
     expect(within(form).getAllByText("preenchido pela captação").length).toBeGreaterThanOrEqual(2);
     expect(within(form).getByText("veio do CRM")).toBeTruthy();
-    expect(within(form).getByTestId("sinal-tipo").textContent).toContain("Confirmatório (padrão da lei)");
-    expect((within(form).getByTestId("sinal-tipo-confirmatorias") as HTMLInputElement).checked).toBe(true);
-    expect((within(form).getByTestId("sinal-tipo-penitenciais") as HTMLInputElement).checked).toBe(false);
+    expect(within(form).getByTestId("sinal-tipo").textContent).toContain(
+      "Confirmatório (padrão da lei)",
+    );
+    expect(
+      (within(form).getByTestId("sinal-tipo-confirmatorias") as HTMLInputElement).checked,
+    ).toBe(true);
+    expect((within(form).getByTestId("sinal-tipo-penitenciais") as HTMLInputElement).checked).toBe(
+      false,
+    );
     expect(within(form).queryByLabelText(/tipo do sinal/i)).toBeNull();
     fireEvent.change(screen.getByLabelText("Valor oferecido (R$)"), {
       target: { value: "490.000,00" },

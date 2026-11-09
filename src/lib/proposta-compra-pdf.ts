@@ -122,12 +122,20 @@ export async function buildPropostaPdf(input: PropostaPdfInput): Promise<Uint8Ar
     if (logoImg) {
       const lh = (primeira ? 22 : 11) * MM;
       const lw = Math.min((logoImg.width / logoImg.height) * lh, (primeira ? 54 : 27) * MM);
-      page.drawImage(logoImg, { x: M, y: PH - (primeira ? 6 : 3) * MM - lh, width: lw, height: lh });
+      page.drawImage(logoImg, {
+        x: M,
+        y: PH - (primeira ? 6 : 3) * MM - lh,
+        width: lw,
+        height: lh,
+      });
     } else {
       txt(tx.cabecalho.nome, M, PH - (primeira ? 18 : 12) * MM, primeira ? 13 : 9, bold, WHITE);
     }
     if (primeira) {
-      const linhas = [tx.cabecalho.nome, ...(tx.cabecalho.linha ? wrap(tx.cabecalho.linha, 8, W * 0.62) : [])];
+      const linhas = [
+        tx.cabecalho.nome,
+        ...(tx.cabecalho.linha ? wrap(tx.cabecalho.linha, 8, W * 0.62) : []),
+      ];
       linhas.slice(0, 5).forEach((l, i) => {
         const size = i === 0 ? 9 : 8;
         const f = i === 0 ? bold : font;
@@ -206,13 +214,17 @@ export async function buildPropostaPdf(input: PropostaPdfInput): Promise<Uint8Ar
     cab.forEach((c, i) => txt(c.toUpperCase(), cx[i], y - 7.6, 7.6, bold, CINZA));
     y -= 2 * MM + 7.6;
     for (const l of linhas) {
-      const cols = l.map((t, i) => wrap(t, i === 0 ? 8.8 : 8.2, cw[i], i === 0 ? bold : font).slice(0, 3));
+      const cols = l.map((t, i) =>
+        wrap(t, i === 0 ? 8.8 : 8.2, cw[i], i === 0 ? bold : font).slice(0, 3),
+      );
       const h = Math.max(...cols.map((c) => c.length)) * 3.8 * MM + 3 * MM;
       garantir(h + 2 * MM);
       page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: LINHA });
       y -= 4.2 * MM;
       cols.forEach((c, i) =>
-        c.forEach((t, k) => txt(t, cx[i], y - k * 3.8 * MM, i === 0 ? 8.8 : 8.2, i === 0 ? bold : font)),
+        c.forEach((t, k) =>
+          txt(t, cx[i], y - k * 3.8 * MM, i === 0 ? 8.8 : 8.2, i === 0 ? bold : font),
+        ),
       );
       y -= h - 4.2 * MM + 2.3 * MM;
     }
@@ -271,7 +283,8 @@ export async function buildPropostaPdf(input: PropostaPdfInput): Promise<Uint8Ar
       `${mascararTelefone(a.telefone)} · ${dataHoraSp(a.assinadoEm)}`,
       `IP ${mascararIp(a.ip)} · ${aparelho(a.userAgent)}`,
     ]);
-    if (linhas.length) tabela(["Signatário", "Celular · data e hora", "IP · aparelho/navegador"], linhas);
+    if (linhas.length)
+      tabela(["Signatário", "Celular · data e hora", "IP · aparelho/navegador"], linhas);
     else par("Nenhuma assinatura válida nesta versão.");
     par(
       'Cada parte leu a proposta pelo próprio link, digitou o código de 6 dígitos recebido no WhatsApp e confirmou "Li e concordo". O registro completo (telefone, IP e aparelho) fica guardado no ADM MAX. Qualquer alteração no texto invalida as assinaturas.',

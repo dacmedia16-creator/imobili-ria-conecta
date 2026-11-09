@@ -137,7 +137,9 @@ describe("trechos condicionais do pagamento", () => {
       termos: { parcelas: "10 parcelas de R$ 5.000,00.", proprios_valor: 100000 },
     });
     expect(t).toContain("Parcelas diretas com o(a) vendedor(a): 10 parcelas de R$ 5.000,00.");
-    expect(t).toContain("Recursos próprios: R$ 100.000,00 (cem mil reais), na assinatura da escritura.");
+    expect(t).toContain(
+      "Recursos próprios: R$ 100.000,00 (cem mil reais), na assinatura da escritura.",
+    );
     expect(txt()).not.toContain("Parcelas diretas");
   });
 });
@@ -172,7 +174,12 @@ describe("partes", () => {
   it("comprador pessoa jurídica: razão social, CNPJ, representante", () => {
     const t = txt({
       partes: [
-        parte("comprador", { tipoPessoa: "juridica", nome: "Empresa Fictícia Ltda", cpfCnpj: "11222333000144", estadoCivil: null }),
+        parte("comprador", {
+          tipoPessoa: "juridica",
+          nome: "Empresa Fictícia Ltda",
+          cpfCnpj: "11222333000144",
+          estadoCivil: null,
+        }),
         parte("vendedor"),
       ],
       termos: { comprador_representante: "Sócio Fictício", comprador_cargo: "Sócio-administrador" },
@@ -284,7 +291,11 @@ describe("PDF gerado com cada condicional e os dois tipos de sinal", () => {
   });
   it("trocar o tipo de sinal muda o texto assinável (o banco gera nova versão)", () => {
     const a = txt({ formaPagamento: "sinal_parcelas", sinalValor: 1000 });
-    const b = txt({ formaPagamento: "sinal_parcelas", sinalValor: 1000, sinalTipo: "penitenciais" });
+    const b = txt({
+      formaPagamento: "sinal_parcelas",
+      sinalValor: 1000,
+      sinalTipo: "penitenciais",
+    });
     expect(a).not.toBe(b);
   });
 });

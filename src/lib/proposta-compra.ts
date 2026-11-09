@@ -193,7 +193,15 @@ export type PropostaPublica = {
     assinadoEm: string | null;
   };
   imovel: Record<
-    "tipo" | "endereco" | "complemento" | "bairro" | "cidade" | "uf" | "matricula" | "cartorio" | "iptu",
+    | "tipo"
+    | "endereco"
+    | "complemento"
+    | "bairro"
+    | "cidade"
+    | "uf"
+    | "matricula"
+    | "cartorio"
+    | "iptu",
     string | null
   >;
   /** Texto oficial: termos sem dado pessoal/bancário (o banco já tira RG, endereço, CPF do representante e conta). */
