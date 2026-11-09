@@ -90,6 +90,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NumberTicker } from "@/components/magicui/number-ticker";
+import { EXPLICA_QUADRO } from "@/lib/explicacoes-quadros";
 import { BorderBeam } from "@/components/magicui/border-beam";
 import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
@@ -496,7 +497,8 @@ function Dashboard() {
       />
 
       {!loading && totalGeral > 0 && (
-        <Card>
+        <Card className="relative">
+          <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.situacaoVendas} />
           <CardHeader>
             <CardTitle className="text-base">Situação atual das vendas</CardTitle>
           </CardHeader>
@@ -650,7 +652,8 @@ function Dashboard() {
         </CollapsibleSection>
       )}
 
-      <Card>
+      <Card className="relative">
+        <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.vendasRecentes} />
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Vendas recentes</CardTitle>
           <Button asChild variant="ghost" size="sm">
@@ -712,6 +715,7 @@ function DestaqueComissaoMeta({
       className="group relative block overflow-hidden rounded-xl border bg-card p-5 shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none sm:p-6"
     >
       <BorderBeam />
+      <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.comissaoPrevista} />
       <TrendingUp
         aria-hidden="true"
         className="pointer-events-none absolute right-3 top-4 h-16 w-16 text-primary/10 sm:right-6 sm:h-28 sm:w-28"
@@ -1158,7 +1162,8 @@ function MovimentacaoPeriodoSection() {
     (dado?.semDataFutura ?? 0) + (dado?.semDataConfirmada ?? 0) + (dado?.semDataEncerrada ?? 0);
 
   return (
-    <Card>
+    <Card className="relative">
+      <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.movimentacaoPeriodo} />
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="text-base">Movimentação do período</CardTitle>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { type ChartConfig } from "@/components/ui/chart";
@@ -23,32 +23,53 @@ export const comissaoChartConfig = {
  * `preventDefault` no clique evitam disparar a navegação quando o card inteiro é um <Link>
  * (KpiCard com `to`). Compartilhado entre Dashboard e Visão Executiva — mesmo comportamento nas
  * duas telas. */
-export function InfoDot({ text }: { text: string }) {
+export function InfoDot({
+  text,
+  label = "Como esse número foi calculado",
+  inline = false,
+}: {
+  text: string;
+  /** Nome lido pelo leitor de tela (padrão: explicação de número). */
+  label?: string;
+  /** Ao lado de um selo, em vez do canto do card. A explicação abre embaixo, alinhada à esquerda
+   * do primeiro pai com `relative` (ex.: a linha do selo), para não sair da tela no celular. */
+  inline?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const id = useId();
   return (
-    <div className="group absolute right-1.5 top-1.5">
+    <div className={inline ? "group/info inline-flex align-middle" : "group/info absolute right-1.5 top-1.5"}>
       <button
         type="button"
-        aria-label="Como esse número foi calculado"
+        aria-label={label}
         aria-expanded={open}
+        aria-describedby={id}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setOpen((v) => !v);
         }}
         onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            e.currentTarget.blur();
+          }
+        }}
         // Ícone continua com 16px, mas a área de toque é ampliada para ~40px pelo ::after.
-        className={`relative grid h-4 w-4 place-items-center rounded-full transition-colors after:absolute after:-inset-3 after:content-[''] group-hover:bg-primary group-hover:text-primary-foreground ${
+        // `peer`: com o teclado (Tab), a explicação aparece só de focar o botão.
+        className={`peer relative grid h-4 w-4 place-items-center rounded-full transition-colors after:absolute after:-inset-3 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/info:bg-primary group-hover/info:text-primary-foreground ${
           open ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
         }`}
       >
         <Info className="h-2.5 w-2.5" />
       </button>
       <div
+        id={id}
         role="tooltip"
-        className={`pointer-events-none absolute right-0 top-6 z-10 w-56 max-w-[70vw] rounded-md bg-primary px-2.5 py-2 text-[11px] leading-snug text-primary-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto ${
-          open ? "opacity-100 pointer-events-auto" : ""
-        }`}
+        className={`pointer-events-none absolute z-10 w-56 max-w-[70vw] rounded-md bg-primary px-2.5 py-2 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-primary-foreground opacity-0 shadow-lg transition-opacity group-hover/info:opacity-100 group-hover/info:pointer-events-auto peer-focus-visible:opacity-100 ${
+          inline ? "left-0 top-full mt-1" : "right-0 top-6"
+        } ${open ? "opacity-100 pointer-events-auto" : ""}`}
       >
         {text}
       </div>

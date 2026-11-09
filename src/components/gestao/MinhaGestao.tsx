@@ -22,6 +22,8 @@ import {
 import { carregarFarol, gestaoDb, inteligenciaGestaoEnabled } from "@/lib/inteligencia-gestao-db";
 import { lerPlano } from "@/components/minha-carreira/Diario";
 import { FarolPill, SinalPill } from "./SinalPill";
+import { InfoDot } from "@/components/dashboard/shared";
+import { EXPLICA_FAROL, EXPLICA_QUADRO, explicaSinal } from "@/lib/explicacoes-quadros";
 
 // Minha carreira — Inteligência de gestão (cartão t_01d580b6, Parte 5). O corretor vê só o PRÓPRIO
 // termômetro (a RPC devolve só ele) e a própria próxima 1:1; sem ranking e sem colegas.
@@ -117,7 +119,8 @@ export function useMinhaGestao(userId: string | null): MinhaGestaoEstado {
 export function MeuTermometro({ linha }: { linha: LinhaFarol }) {
   const acesos = linha.acesos.length;
   return (
-    <Card data-testid="meu-termometro">
+    <Card data-testid="meu-termometro" className="relative">
+      <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.meuTermometro} />
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Thermometer className="h-5 w-5" aria-hidden /> Meu termômetro
@@ -127,8 +130,9 @@ export function MeuTermometro({ linha }: { linha: LinhaFarol }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-wrap items-center gap-2">
           <FarolPill farol={linha.farol} />
+          <InfoDot inline label="O que significa esta cor" text={EXPLICA_FAROL[linha.farol]} />
           <span className="text-sm text-muted-foreground">
             {linha.farol === "novo"
               ? "Menos de 60 dias na equipe: ainda sem farol de produção."
@@ -137,8 +141,9 @@ export function MeuTermometro({ linha }: { linha: LinhaFarol }) {
         </div>
         <ul className="space-y-1.5">
           {linha.sinais.map((s) => (
-            <li key={s.chave} className="flex flex-wrap items-center gap-2 text-sm">
+            <li key={s.chave} className="relative flex flex-wrap items-center gap-2 text-sm">
               <SinalPill s={s} />
+              <InfoDot inline label="O que significa este sinal" text={explicaSinal(s)} />
             </li>
           ))}
         </ul>
@@ -149,7 +154,8 @@ export function MeuTermometro({ linha }: { linha: LinhaFarol }) {
 
 export function MinhaProxima1a1({ ultima, hoje }: { ultima: Ultima1a1 | null; hoje: string }) {
   return (
-    <Card data-testid="minha-proxima-1a1">
+    <Card data-testid="minha-proxima-1a1" className="relative">
+      <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.minhaProxima1a1} />
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <CalendarClock className="h-5 w-5" aria-hidden /> Minha próxima 1:1
