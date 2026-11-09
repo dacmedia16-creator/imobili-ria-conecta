@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { AConfirmar } from "@/components/locacao/LocacaoDetalhe";
+import { LocacaoFinanceiro } from "@/components/locacao/LocacaoFinanceiro";
 import { LocacaoRegras } from "@/components/locacao/LocacaoRegras";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -41,7 +42,8 @@ export const Route = createFileRoute("/_authenticated/locacoes/")({
   component: LocacoesPage,
 });
 
-type Aba = "minhas" | "gestora" | "contratos" | "pos" | "comissao" | "visao" | "regras";
+type Aba =
+  "minhas" | "gestora" | "contratos" | "pos" | "comissao" | "financeiro" | "visao" | "regras";
 
 function LocacoesPage() {
   const navigate = useNavigate();
@@ -68,6 +70,7 @@ function LocacoesPage() {
     if (ctx.papeis.includes("gestora")) return "gestora";
     if (ctx.papeis.includes("contratos")) return "contratos";
     if (ctx.papeis.includes("vistoria")) return "pos";
+    if (ctx.papeis.includes("financeiro") && !ctx.gerencia) return "financeiro";
     return "minhas";
   }, [ctx]);
 
@@ -100,7 +103,11 @@ function LocacoesPage() {
   const naEtapa = (...e: EtapaLocacao[]) => ativas.filter((l) => e.includes(l.etapa));
   const vePapel = (p: "gestora" | "contratos" | "vistoria") =>
     ctx.papeis.includes(p) || ctx.gerencia;
-  const atual = aba ?? abaPadrao;
+  // Fase 2: quem só tem o papel Financeiro da locação vê apenas a aba Financeiro (o banco não lhe mostra a esteira).
+  const veFinanceiro = ctx.papeis.includes("financeiro");
+  const soFinanceiro =
+    veFinanceiro && ctx.papeis.length === 1 && !ctx.gerencia && minhas.length === 0;
+  const atual = soFinanceiro ? "financeiro" : (aba ?? abaPadrao);
 
   return (
     <div className="space-y-4">
@@ -109,14 +116,18 @@ function LocacoesPage() {
         title="Locação"
         description="Esteira da locação igual à da venda: o corretor preenche e sobe tudo; nada é enviado ao cliente."
         actions={
-          <Button onClick={() => void nova()} disabled={criando}>
-            <Plus className="mr-1 h-4 w-4" /> Nova locação
-          </Button>
+          soFinanceiro ? undefined : (
+            <Button onClick={() => void nova()} disabled={criando}>
+              <Plus className="mr-1 h-4 w-4" /> Nova locação
+            </Button>
+          )
         }
       />
       <Tabs value={atual} onValueChange={(v) => setAba(v as Aba)}>
         <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="minhas">Minhas locações ({minhas.length})</TabsTrigger>
+          {!soFinanceiro && (
+            <TabsTrigger value="minhas">Minhas locações ({minhas.length})</TabsTrigger>
+          )}
           {vePapel("gestora") && (
             <TabsTrigger value="gestora">
               Gestora ({naEtapa("aprovacao", "conferencia").length})
@@ -133,7 +144,8 @@ function LocacoesPage() {
             </TabsTrigger>
           )}
           {ctx.veComissao && <TabsTrigger value="comissao">Comissão</TabsTrigger>}
-          <TabsTrigger value="visao">Visão geral</TabsTrigger>
+          {veFinanceiro && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
+          {!soFinanceiro && <TabsTrigger value="visao">Visão geral</TabsTrigger>}
           {ctx.gerencia && <TabsTrigger value="regras">Regras e papéis</TabsTrigger>}
         </TabsList>
 
@@ -161,6 +173,7 @@ function LocacoesPage() {
         <TabsContent value="comissao">
           <Comissao itens={ativas.filter((l) => l.etapa === "comissao" && l.chaveEm)} ctx={ctx} />
         </TabsContent>
+        <TabsContent value="financeiro">{veFinanceiro && <LocacaoFinanceiro />}</TabsContent>
         <TabsContent value="visao">
           <Visao itens={ativas} ctx={ctx} />
         </TabsContent>
