@@ -22,7 +22,10 @@ import {
 async function hashIp(ip: string | null): Promise<string | null> {
   const sal = process.env.LEADS_FORM_SAL || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!ip || !sal) return null;
-  const dig = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`proposta|${sal}|${ip}`));
+  const dig = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`proposta|${sal}|${ip}`),
+  );
   return Array.from(new Uint8Array(dig))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -61,7 +64,11 @@ export const enviarProposta = createServerFn({ method: "POST" })
       _partes: data.partes ?? null,
     });
     if (error) throw new Error(error.message);
-    const p = (prep ?? {}) as { codigos?: { codigo_id: string }[]; sem_telefone?: string[]; aguarde?: string[] };
+    const p = (prep ?? {}) as {
+      codigos?: { codigo_id: string }[];
+      sem_telefone?: string[];
+      aguarde?: string[];
+    };
     const ids = (p.codigos ?? []).map((c) => c.codigo_id);
     const adm = await admin();
     const canal = canalDoAmbiente(process.env);
@@ -92,7 +99,9 @@ export const lerPropostaLink = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<LeituraPublica> => {
     const ipHash = await hashIp(requisicao().ip);
     if (!ipHash) return { ok: false, erro: "invalido" };
-    const { data: r, error } = await (await admin()).rpc("proposta_publica_ler", {
+    const { data: r, error } = await (
+      await admin()
+    ).rpc("proposta_publica_ler", {
       _token: data.token,
       _ip_hash: ipHash,
     });
@@ -115,7 +124,9 @@ export const assinarPropostaLink = createServerFn({ method: "POST" })
     const req = requisicao();
     const ipHash = await hashIp(req.ip);
     if (!ipHash) return { ok: false, erro: "invalido" };
-    const { data: r, error } = await (await admin()).rpc("proposta_publica_assinar", {
+    const { data: r, error } = await (
+      await admin()
+    ).rpc("proposta_publica_assinar", {
       _token: data.token,
       _codigo: data.codigo,
       _conteudo_hash: data.conteudoHash,

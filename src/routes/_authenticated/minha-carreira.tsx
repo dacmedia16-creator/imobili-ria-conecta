@@ -44,6 +44,8 @@ import {
   useMinhaGestao,
 } from "@/components/gestao/MinhaGestao";
 import { ROTULO_EXTRA } from "@/lib/inteligencia-gestao-tela";
+import { ItemPendenciaProposta } from "@/components/proposta-compra/PendenciasPropostas";
+import { usePendenciasPropostas } from "@/components/proposta-compra/usePendenciasPropostas";
 import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 
 // Minha carreira, PR 1 (card t_07d196a7): só leitura. Blocos 1 (O que fazer hoje), 4 (Minhas
@@ -89,6 +91,8 @@ function MinhaCarreiraPage() {
   >(CARREGANDO);
   const [soParadas, setSoParadas] = useState(false);
   const gestao = useMinhaGestao(userId);
+  // Proposta de compra (t_da0dac53): só com o módulo proposta_compra ligado (o banco devolve vazio se não).
+  const propostas = usePendenciasPropostas(userId);
 
   useEffect(() => {
     if (!userId) return;
@@ -189,10 +193,13 @@ function MinhaCarreiraPage() {
             <p className="text-sm text-destructive">{pend.error}</p>
           ) : !pendencias ? (
             <ListSkeleton />
-          ) : pendencias.length === 0 && gestao.extras.length === 0 ? (
+          ) : pendencias.length === 0 && gestao.extras.length === 0 && propostas.length === 0 ? (
             <EmptyState icon={CheckCircle2}>Nenhuma pendência. Tudo em dia.</EmptyState>
           ) : (
             <ul className="divide-y" data-testid="minhas-pendencias">
+              {propostas.map((p) => (
+                <ItemPendenciaProposta key={`${p.kind}-${p.propostaId}`} p={p} />
+              ))}
               {/* Inteligência de gestão (t_01d580b6): itens a mais, só com o módulo ligado. */}
               {gestao.extras.map((x) => {
                 const imovel = x.capture_id

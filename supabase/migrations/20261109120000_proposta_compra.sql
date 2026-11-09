@@ -606,6 +606,30 @@ END $$;
 REVOKE ALL ON FUNCTION public.proposta_pendencias() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.proposta_pendencias() TO authenticated;
 
+-- Página "Comprovação das assinaturas" do PDF final (t_da0dac53): só quem vê a proposta; só as assinaturas
+-- válidas da versão atual (nome, telefone, data/hora, IP, aparelho e hashes). A tela mascara telefone e IP.
+CREATE OR REPLACE FUNCTION public.proposta_comprovacao(_id uuid) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _org uuid := public.proposta_ctx(); _p public.propostas_compra;
+BEGIN
+  SELECT * INTO _p FROM public.propostas_compra WHERE id = _id AND organization_id = _org;
+  IF _p.id IS NULL OR NOT public.proposta_pode_ver(_p) THEN
+    RAISE EXCEPTION 'Sem acesso a esta proposta.' USING ERRCODE = '42501';
+  END IF;
+  RETURN jsonb_build_object(
+    'documento', public.proposta_codigo_documento(_p.id), 'versao', _p.versao,
+    'situacao', public.proposta_situacao(_p.situacao, _p.validade_ate), 'pdf_hash', _p.pdf_hash,
+    'conteudo_hash', public.proposta_conteudo_hash(_p.id), 'aceita_em', _p.aceita_em,
+    'assinaturas', coalesce((SELECT jsonb_agg(jsonb_build_object('papel', a.papel, 'ordem', a.ordem, 'nome', a.nome,
+        'telefone', a.telefone, 'assinado_em', a.assinado_em, 'ip', a.ip, 'user_agent', a.user_agent,
+        'conteudo_hash', a.conteudo_hash, 'pdf_hash', a.pdf_hash)
+        ORDER BY array_position(ARRAY['comprador', 'comprador_conjuge', 'vendedor', 'vendedor_conjuge', 'corretor'], a.papel), a.ordem)
+      FROM public.proposta_assinaturas a
+     WHERE a.proposta_id = _p.id AND a.invalidada_em IS NULL AND a.versao = _p.versao), '[]'::jsonb));
+END $$;
+REVOKE ALL ON FUNCTION public.proposta_comprovacao(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.proposta_comprovacao(uuid) TO authenticated;
+
 -- 5) Rascunho ----------------------------------------------------------------------------------------------------
 -- Cria o rascunho a partir da captação (imóvel + vendedores) e, se houver, do lead (comprador).
 CREATE OR REPLACE FUNCTION public.proposta_criar(_capture_id uuid, _lead_id uuid DEFAULT NULL) RETURNS jsonb

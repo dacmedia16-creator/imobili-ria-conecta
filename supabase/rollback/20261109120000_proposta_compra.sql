@@ -20,6 +20,7 @@ DROP FUNCTION IF EXISTS public.proposta_envio_preparar(uuid, uuid[]);
 DROP FUNCTION IF EXISTS public.proposta_registrar_pdf(uuid, integer, text);
 DROP FUNCTION IF EXISTS public.proposta_salvar(uuid, jsonb);
 DROP FUNCTION IF EXISTS public.proposta_criar(uuid, uuid);
+DROP FUNCTION IF EXISTS public.proposta_comprovacao(uuid);
 DROP FUNCTION IF EXISTS public.proposta_pendencias();
 DROP FUNCTION IF EXISTS public.proposta_lista_captacao(uuid);
 DROP FUNCTION IF EXISTS public.proposta_detalhe(uuid);

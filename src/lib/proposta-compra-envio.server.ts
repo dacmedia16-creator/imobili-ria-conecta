@@ -43,19 +43,26 @@ export function chaveDoEnvio(env: EnvEnvio): string | null {
 /** Simulação por padrão. Real só com PROPOSTA_WHATSAPP_REAL=1 e a chave dos avisos configurada. */
 export function canalDoAmbiente(
   env: EnvEnvio,
-  enviarReal: (chave: string, telefone: string, texto: string) => Promise<boolean> = enviarWhatsappZiontalk,
+  enviarReal: (
+    chave: string,
+    telefone: string,
+    texto: string,
+  ) => Promise<boolean> = enviarWhatsappZiontalk,
 ): Canal {
   const chave = chaveDoEnvio(env);
-  if (env.PROPOSTA_WHATSAPP_REAL !== "1" || !chave) return { modo: "simulacao", enviar: async () => false };
+  if (env.PROPOSTA_WHATSAPP_REAL !== "1" || !chave)
+    return { modo: "simulacao", enviar: async () => false };
   const soPara = normalizePhone(env.PROPOSTA_WHATSAPP_SO_PARA ?? null);
   return {
     modo: "real",
-    enviar: async (tel, texto) => (soPara && tel !== soPara ? false : enviarReal(chave, tel, texto)),
+    enviar: async (tel, texto) =>
+      soPara && tel !== soPara ? false : enviarReal(chave, tel, texto),
   };
 }
 
 export function textoDoItem(item: ItemEnvio, origin: string): string {
-  if (!TOKEN_RE.test(item.token) || !CODIGO_RE.test(item.codigo)) throw new Error("Item de envio inválido");
+  if (!TOKEN_RE.test(item.token) || !CODIGO_RE.test(item.codigo))
+    throw new Error("Item de envio inválido");
   return paraWhatsapp(
     montarMensagem({
       imobiliaria: item.imobiliaria,

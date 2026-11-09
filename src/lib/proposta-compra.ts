@@ -76,7 +76,11 @@ export function precisaConjuge(ec: string | null | undefined): boolean {
 }
 
 /** Situação mostrada (cópia da regra do banco proposta_situacao, para testes e telas). */
-export function situacaoVisivel(situacao: string, validadeAte: string | null, hoje: string): Situacao {
+export function situacaoVisivel(
+  situacao: string,
+  validadeAte: string | null,
+  hoje: string,
+): Situacao {
   if (situacao === "aguardando_assinaturas" && validadeAte && validadeAte < hoje) return "vencida";
   return (SITUACOES as readonly string[]).includes(situacao) ? (situacao as Situacao) : "rascunho";
 }
@@ -156,8 +160,17 @@ export type PropostaPublica = {
   situacao: Situacao;
   validadeAte: string | null;
   conteudoHash: string;
-  voce: { papel: Papel; ordem: number; nome: string | null; documentoFinal: string | null; assinadoEm: string | null };
-  imovel: Record<"tipo" | "endereco" | "complemento" | "bairro" | "cidade" | "uf" | "matricula" | "cartorio", string | null>;
+  voce: {
+    papel: Papel;
+    ordem: number;
+    nome: string | null;
+    documentoFinal: string | null;
+    assinadoEm: string | null;
+  };
+  imovel: Record<
+    "tipo" | "endereco" | "complemento" | "bairro" | "cidade" | "uf" | "matricula" | "cartorio",
+    string | null
+  >;
   valores: {
     oferta: number | null;
     formaPagamento: FormaPagamento | null;
@@ -177,7 +190,8 @@ export type PropostaPublica = {
   corretor: { nome: string | null; whatsapp: string | null };
 };
 export type ErroPublico = "indisponivel" | "limite" | "invalido" | "vencida";
-export type LeituraPublica = { ok: true; dados: PropostaPublica } | { ok: false; erro: ErroPublico };
+export type LeituraPublica =
+  { ok: true; dados: PropostaPublica } | { ok: false; erro: ErroPublico };
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const num = (v: unknown): number | null => {
@@ -194,7 +208,10 @@ export function lerPropostaPublica(raw: unknown): LeituraPublica {
   const r = obj(raw);
   if (r.ok !== true) {
     const e = r.erro;
-    return { ok: false, erro: e === "limite" || e === "invalido" || e === "vencida" ? e : "indisponivel" };
+    return {
+      ok: false,
+      erro: e === "limite" || e === "invalido" || e === "vencida" ? e : "indisponivel",
+    };
   }
   const voce = obj(r.voce);
   const vp = papel(voce.papel);
@@ -207,7 +224,8 @@ export function lerPropostaPublica(raw: unknown): LeituraPublica {
   const forma = (FORMAS_PAGAMENTO as readonly string[]).includes(v.forma_pagamento as string)
     ? (v.forma_pagamento as FormaPagamento)
     : null;
-  const cert = c.certidoes === "vendedor_apresenta" || c.certidoes === "dispensadas" ? c.certidoes : null;
+  const cert =
+    c.certidoes === "vendedor_apresenta" || c.certidoes === "dispensadas" ? c.certidoes : null;
   const final = str(voce.documento_final);
   return {
     ok: true,
@@ -301,11 +319,15 @@ export function lerResultadoAssinatura(raw: unknown): ResultadoAssinatura {
     const s = r.situacao as string;
     return {
       ok: true,
-      situacao: (SITUACOES as readonly string[]).includes(s) ? (s as Situacao) : "aguardando_assinaturas",
+      situacao: (SITUACOES as readonly string[]).includes(s)
+        ? (s as Situacao)
+        : "aguardando_assinaturas",
       faltam: Math.max(0, num(r.faltam) ?? 0),
     };
   }
-  const erro = ERROS_ASSINATURA.includes(r.erro as ErroAssinatura) ? (r.erro as ErroAssinatura) : "indisponivel";
+  const erro = ERROS_ASSINATURA.includes(r.erro as ErroAssinatura)
+    ? (r.erro as ErroAssinatura)
+    : "indisponivel";
   const restantes = num(r.restantes);
   return erro === "codigo_errado" && restantes !== null
     ? { ok: false, erro, restantes: Math.max(0, Math.min(LIMITE_TENTATIVAS, restantes)) }

@@ -119,6 +119,7 @@ import { marcarPrevia, PREVIA_MARCA } from "@/lib/pdf-paginas";
 import { CaptureDossieStep } from "@/components/CaptureDossieStep";
 import { AnuncioPortais } from "@/components/exclusividades/AnuncioPortais";
 import { PlanoChecklist } from "@/components/exclusividades/PlanoChecklist";
+import { PropostasCaptacao } from "@/components/proposta-compra/PropostasCaptacao";
 import { passoCompleto, pendenciasPorPasso, type PassoCaptacao } from "@/lib/captacao-pendencias";
 import {
   appendDossieToContract,
@@ -1653,6 +1654,11 @@ function ExclusiveDetail() {
         <>
           <AnuncioPortais captureId={capture.id} />
           <PlanoChecklist captureId={capture.id} editable={!archived} />
+          {/* Proposta de compra (t_da0dac53): só com o módulo proposta_compra ligado. */}
+          <PropostasCaptacao
+            captureId={capture.id}
+            podeCriar={vendaInfo.pode_virar && !vendaInfo.venda && !archived}
+          />
         </>
       )}
       {temPendencias && (

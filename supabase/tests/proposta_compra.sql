@@ -360,6 +360,26 @@ SELECT pg_temp.ok(public.proposta_publica_ler(pg_temp.t('vendedor1'), pg_temp.ip
   'link mostra a proposta aceita');
 RESET ROLE;
 
+-- 8b) Comprovação das assinaturas (página final do PDF, t_da0dac53) ----------------------------------------------------
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('c2')::text);
+SELECT pg_temp.put('comp', public.proposta_comprovacao(pg_temp.id('p1')));
+SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('comp')->'assinaturas') = 6
+  AND (SELECT bool_and(x->>'ip' IS NOT NULL AND x->>'user_agent' = 'UA' AND x->>'conteudo_hash' = pg_temp.t('hash2')
+                       AND x->>'telefone' ~ '^[0-9]{10,13}$')
+         FROM jsonb_array_elements(pg_temp.j('comp')->'assinaturas') x)
+  AND pg_temp.j('comp')->>'documento' LIKE 'PC-%' AND (pg_temp.j('comp')->>'versao')::int = 2,
+  'comprovação: 6 assinaturas válidas da versão 2 com IP, aparelho, telefone e hash');
+SELECT pg_temp.as_user(pg_temp.id('a1')::text);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_comprovacao(%L)', pg_temp.id('p1'))) LIKE '42501%',
+  'comprovação: corretor de outra equipe não lê');
+SELECT pg_temp.as_user(pg_temp.id('b1')::text);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.proposta_comprovacao(%L)', pg_temp.id('p1'))) LIKE '42501%',
+  'comprovação: imobiliária B não lê');
+RESET ROLE;
+SELECT pg_temp.ok(NOT has_function_privilege('anon', 'public.proposta_comprovacao(uuid)', 'EXECUTE'),
+  'comprovação: anon não executa');
+
 -- 9) Venda em rascunho SÓ com o clique -----------------------------------------------------------------------------------
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM public.sales WHERE exclusive_capture_id = pg_temp.id('cap')),
   'aceite sozinho não cria venda');

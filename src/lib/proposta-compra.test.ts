@@ -64,7 +64,9 @@ describe("regras puras", () => {
   });
   it("todas as situações; vencida calculada pela validade", () => {
     expect(situacaoVisivel("aguardando_assinaturas", "2026-11-08", "2026-11-09")).toBe("vencida");
-    expect(situacaoVisivel("aguardando_assinaturas", "2026-11-09", "2026-11-09")).toBe("aguardando_assinaturas");
+    expect(situacaoVisivel("aguardando_assinaturas", "2026-11-09", "2026-11-09")).toBe(
+      "aguardando_assinaturas",
+    );
     for (const s of ["rascunho", "aceita", "recusada", "contraproposta"])
       expect(situacaoVisivel(s, "2026-01-01", "2026-11-09")).toBe(s);
   });
@@ -102,7 +104,15 @@ describe("mensagem individual do WhatsApp", () => {
   });
   it("recusa código inválido", () => {
     expect(() =>
-      montarMensagem({ imobiliaria: "X", endereco: null, link: "l", codigo: "12", parteNome: null, corretorNome: null, corretorTelefone: null }),
+      montarMensagem({
+        imobiliaria: "X",
+        endereco: null,
+        link: "l",
+        codigo: "12",
+        parteNome: null,
+        corretorNome: null,
+        corretorTelefone: null,
+      }),
     ).toThrow();
   });
 });
@@ -124,13 +134,19 @@ describe("envio: só ZIONTALK_API_KEY e simulação por padrão", () => {
     const real = vi.fn(async (_chave: string, _tel: string, _texto: string) => true);
     const canal = canalDoAmbiente(env, real);
     expect(canal.modo).toBe("simulacao");
-    const r = await enviarCodigos([item(), item({ codigo_id: "c2", papel: "vendedor" })], { origin: "https://x", canal });
+    const r = await enviarCodigos([item(), item({ codigo_id: "c2", papel: "vendedor" })], {
+      origin: "https://x",
+      canal,
+    });
     expect(r.map((x) => x.status)).toEqual(["simulado", "simulado"]);
     expect(real).not.toHaveBeenCalled();
   });
   it("real usa a chave dos avisos, uma mensagem por parte, e respeita o 'só para'", async () => {
     const real = vi.fn(async (_chave: string, _tel: string, _texto: string) => true);
-    const canal = canalDoAmbiente({ ...env, PROPOSTA_WHATSAPP_REAL: "1", PROPOSTA_WHATSAPP_SO_PARA: "15999990000" }, real);
+    const canal = canalDoAmbiente(
+      { ...env, PROPOSTA_WHATSAPP_REAL: "1", PROPOSTA_WHATSAPP_SO_PARA: "15999990000" },
+      real,
+    );
     expect(canal.modo).toBe("real");
     const reg = vi.fn(async () => {});
     const r = await enviarCodigos([item(), item({ codigo_id: "c2", telefone: "15911112222" })], {
@@ -143,12 +159,15 @@ describe("envio: só ZIONTALK_API_KEY e simulação por padrão", () => {
     expect(real).toHaveBeenCalledTimes(1);
     expect(real.mock.calls[0][0]).toBe("chave-avisos");
     expect(real.mock.calls[0][1]).toBe("5515999990000");
-    expect(String(real.mock.calls[0][2])).not.toMatch(/[^\x00-\x7E]/); // ZionTalk: sem acento
+    // eslint-disable-next-line no-control-regex -- intencional: confere que só sobrou ASCII (ZionTalk recusa acento)
+    expect(String(real.mock.calls[0][2])).not.toMatch(/[^\x00-\x7E]/);
     expect(reg).toHaveBeenCalledWith("c1", true, null);
     expect(JSON.stringify(r)).not.toMatch(/123456|15999990000/); // retorno sem código nem telefone
   });
   it("sem chave configurada fica em simulação mesmo com REAL=1", () => {
-    expect(canalDoAmbiente({ PROPOSTA_WHATSAPP_REAL: "1", ZIONTALK_MAX_API_KEY: "y" }).modo).toBe("simulacao");
+    expect(canalDoAmbiente({ PROPOSTA_WHATSAPP_REAL: "1", ZIONTALK_MAX_API_KEY: "y" }).modo).toBe(
+      "simulacao",
+    );
   });
 });
 
@@ -160,11 +179,19 @@ describe("leitura pública em lista fechada", () => {
     versao: 2,
     situacao: "aguardando_assinaturas",
     conteudo_hash: "a".repeat(64),
-    voce: { papel: "comprador", ordem: 1, nome: "João", documento_final: "66", cpf_cnpj: "99988877766" },
+    voce: {
+      papel: "comprador",
+      ordem: 1,
+      nome: "João",
+      documento_final: "66",
+      cpf_cnpj: "99988877766",
+    },
     imovel: { endereco: "Rua", matricula: "1", observacoes: "INTERNO" },
     valores: { oferta: "480000.00", forma_pagamento: "a_vista", sinal_tipo: "penitenciais" },
     condicoes: { validade_dias: 5 },
-    partes: [{ papel: "vendedor", ordem: 1, nome: "V", assinou: true, cpf_cnpj: "111", telefone: "159" }],
+    partes: [
+      { papel: "vendedor", ordem: 1, nome: "V", assinou: true, cpf_cnpj: "111", telefone: "159" },
+    ],
     corretor: { nome: "M", telefone: "15988887777" },
     capture_id: "x",
   };
@@ -180,11 +207,16 @@ describe("leitura pública em lista fechada", () => {
     }
   });
   it("erro do banco vira erro conhecido", () => {
-    expect(lerPropostaPublica({ ok: false, erro: "limite" })).toEqual({ ok: false, erro: "limite" });
+    expect(lerPropostaPublica({ ok: false, erro: "limite" })).toEqual({
+      ok: false,
+      erro: "limite",
+    });
     expect(lerPropostaPublica(null)).toEqual({ ok: false, erro: "indisponivel" });
   });
   it("código certo, errado, vencido e limite", () => {
-    expect(lerResultadoAssinatura({ ok: true, resultado: "assinado", situacao: "aceita", faltam: 0 })).toEqual({
+    expect(
+      lerResultadoAssinatura({ ok: true, resultado: "assinado", situacao: "aceita", faltam: 0 }),
+    ).toEqual({
       ok: true,
       situacao: "aceita",
       faltam: 0,
@@ -192,8 +224,14 @@ describe("leitura pública em lista fechada", () => {
     const errado = lerResultadoAssinatura({ ok: false, erro: "codigo_errado", restantes: 4 });
     expect(errado).toEqual({ ok: false, erro: "codigo_errado", restantes: 4 });
     if (!errado.ok) expect(textoErroAssinatura(errado)).toContain("4 tentativa");
-    expect(lerResultadoAssinatura({ ok: false, erro: "codigo_vencido" })).toEqual({ ok: false, erro: "codigo_vencido" });
-    expect(lerResultadoAssinatura({ ok: false, erro: "limite" })).toEqual({ ok: false, erro: "limite" });
+    expect(lerResultadoAssinatura({ ok: false, erro: "codigo_vencido" })).toEqual({
+      ok: false,
+      erro: "codigo_vencido",
+    });
+    expect(lerResultadoAssinatura({ ok: false, erro: "limite" })).toEqual({
+      ok: false,
+      erro: "limite",
+    });
   });
 });
 
@@ -211,16 +249,22 @@ describe("migration 20261109120000", () => {
   });
   it("nasce desligado (sem seed) e o rollback apaga a chave antes do CHECK", () => {
     expect(MIG.match(/INSERT INTO public\.organization_modules/g)).toHaveLength(1);
-    const del = RB.indexOf("DELETE FROM public.organization_modules WHERE module = 'proposta_compra'");
+    const del = RB.indexOf(
+      "DELETE FROM public.organization_modules WHERE module = 'proposta_compra'",
+    );
     expect(del).toBeGreaterThan(0);
     expect(del).toBeLessThan(RB.indexOf("ADD CONSTRAINT organization_modules_module_check"));
   });
   it("aditiva: nenhum status novo, fluxo de status intocado; venda só pela função existente", () => {
-    expect(MIG).not.toMatch(/ALTER TYPE public\.sale_status|change_sale_status|validate_sale_status/);
+    expect(MIG).not.toMatch(
+      /ALTER TYPE public\.sale_status|change_sale_status|validate_sale_status/,
+    );
     expect(MIG).not.toMatch(/INSERT INTO public\.sales\b/);
     expect(MIG).not.toMatch(/UPDATE public\.sales SET status/);
     expect(MIG).toMatch(/public\.exclusive_virar_venda\(_p\.capture_id\)/);
-    expect(MIG).not.toMatch(/DROP TABLE|ALTER TABLE public\.(sales|sale_parties|leads|exclusive_captures)\b/);
+    expect(MIG).not.toMatch(
+      /DROP TABLE|ALTER TABLE public\.(sales|sale_parties|leads|exclusive_captures)\b/,
+    );
   });
   it("guarda só hash de código e de token", () => {
     expect(MIG).toMatch(/codigo_hash text NOT NULL/);
