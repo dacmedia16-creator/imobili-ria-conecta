@@ -22,7 +22,7 @@ import {
 import { INVITE_MODULES_OFF } from "./org-invites";
 import { ORGANIZATION_MODULES, ORGANIZATION_MODULE_LABELS } from "./platform-organizations";
 import { montarMenuLateral } from "./menu-lateral";
-import { docsParaTexto, textoParaDocs } from "./locacao";
+import { docsParaTexto, ordemAssinatura, textoParaDocs } from "./locacao";
 
 const MIG = readFileSync("supabase/migrations/20261110120000_locacao_fase1.sql", "utf8");
 const RB = readFileSync("supabase/rollback/20261110120000_locacao_fase1.sql", "utf8");
@@ -301,9 +301,21 @@ describe("módulo por imobiliária", () => {
       expect(MIG).toContain(`ALTER TABLE public.${t} ENABLE ROW LEVEL SECURITY;`);
     expect(MIG).not.toMatch(/GRANT [A-Z, ]+ ON public\.locac[^;]* TO (authenticated|anon)/);
   });
-  it("Clicksign: registro manual (sem integração nova nesta fase)", () => {
+  it("assinatura: registro manual DocuSign (sem integração nova nesta fase)", () => {
     expect(MIG).toMatch(/'modo', 'manual'/);
-    expect(MIG).not.toMatch(/clicksign_/i);
+    expect(MIG).not.toMatch(/clicksign/i);
+    expect(MIG).toMatch(/registrado \(manual, DocuSign\)/);
+  });
+  it("ordem de assinatura segue o setor de contratos; fiador só com garantia fiador", () => {
+    expect(ordemAssinatura("fiador")).toEqual([
+      "Proprietário (+ cônjuge)",
+      "Locatário (+ cônjuge)",
+      "Fiador(es) (+ cônjuge)",
+      "Testemunhas",
+      "Diretoria RE/MAX",
+    ]);
+    expect(ordemAssinatura("caucao")).not.toContain("Fiador(es) (+ cônjuge)");
+    expect(ordemAssinatura("seguro_fianca").at(-1)).toBe("Diretoria RE/MAX");
   });
 });
 

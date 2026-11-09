@@ -13,6 +13,7 @@ import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import {
   ENVELOPE_LABEL,
+  ordemAssinatura,
   ETAPAS,
   GARANTIA_LABEL,
   MINUTA_LABEL,
@@ -860,10 +861,11 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
     ) : (
       <Pill tom="slate">não enviado</Pill>
     );
+  const ordem = ordemAssinatura(d.garantia);
   const quem = {
-    adm: "Só o proprietário",
-    loc: `Locatário, ${d.garantia === "fiador" ? "fiador(es), " : ""}proprietário, testemunhas`,
-    vist: "Locatário e proprietário",
+    adm: "Proprietário (+ cônjuge)",
+    loc: ordem.join(" → "),
+    vist: "Proprietário e locatário",
   };
   return (
     <div className="space-y-3">
@@ -871,7 +873,7 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
-              <th className="py-1">Envelope Clicksign</th>
+              <th className="py-1">Documento</th>
               <th>Quem assina</th>
               <th>Situação</th>
               {contratos && <th />}
@@ -932,14 +934,15 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
                 )
               }
             >
-              Registrar envio para assinatura (Clicksign)
+              Registrar envio para assinatura (DocuSign)
             </Button>
           </div>
         </div>
       )}
+      <p className="text-xs text-muted-foreground">Ordem de assinatura: {ordem.join(" → ")}.</p>
       <Aviso tom="amber">
-        Fase 1: o envio pelo Clicksign é feito no painel do Clicksign e <b>registrado aqui à mão</b>
-        . A ligação automática com o Clicksign fica para a próxima fase.
+        Fase 1: o envio é feito no <b>DocuSign</b>, fora do sistema, e <b>registrado aqui à mão</b>.
+        A ligação automática fica para a próxima fase.
       </Aviso>
     </div>
   );

@@ -10,8 +10,10 @@
 --   conferencia (gestora) → minuta (setor de contratos) → assinatura (setor de contratos) →
 --   pos_assinatura (vistoria/seguro) → chaves (vistoria/seguro) → comissao (mês seguinte à entrega das chaves).
 -- Reprovar/devolver exige motivo. Comissão: alerta de titularidade NÃO bloqueia.
--- Assinatura: registro MANUAL dos envelopes (administração, locação, vistoria). A integração Clicksign existente é
--- da venda/captação; ligá-la à locação fica como pendência (sem custo novo nesta fase).
+-- Assinatura: registro MANUAL dos envelopes (administração, locação, vistoria). O setor de contratos assina pelo
+-- DocuSign (questionário 09/11), fora do sistema; aqui só se registra envio e assinatura. Ordem informada:
+-- proprietário (+cônjuge) → locatário (+cônjuge) → fiador (se garantia fiador) → testemunhas → diretoria RE/MAX.
+-- Ligação automática com a plataforma de assinatura fica como pendência (sem custo novo nesta fase).
 --
 -- Regras ainda NÃO confirmadas por Denis ficam em locacao_config (por imobiliária), com o padrão da maquete:
 -- % do coordenador, se sai da parte do corretor, parceria, dia de pagamento, pré-análise reprovada (volta/encerra),
@@ -737,7 +739,7 @@ BEGIN
       'vist_junto', coalesce((_dados->>'vist_junto')::boolean, false),
       'vist', CASE WHEN coalesce((_dados->>'vist_junto')::boolean, false) THEN 'pendente' ELSE 'nao' END);
     UPDATE public.locacoes SET assinatura = _a, atualizado_em = now() WHERE id = _id;
-    PERFORM public.locacao_evento(_l, 'contratos', 'Envio para assinatura registrado (Clicksign, manual)'
+    PERFORM public.locacao_evento(_l, 'contratos', 'Envio para assinatura registrado (manual, DocuSign)'
       || CASE WHEN (_a->>'vist_junto')::boolean THEN ' com vistoria junto' ELSE '' END);
     RETURN jsonb_build_object('ok', true, 'etapa', _l.etapa);
   ELSIF _acao = 'marcar_assinado' THEN

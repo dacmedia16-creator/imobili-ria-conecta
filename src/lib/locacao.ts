@@ -56,6 +56,17 @@ export const ENVELOPE_LABEL: Record<"adm" | "loc" | "vist", string> = {
   vist: "3. Laudo de vistoria",
 };
 
+/** Ordem de assinatura informada pelo setor de contratos (DocuSign, registro manual nesta fase). */
+export function ordemAssinatura(garantia: Garantia): string[] {
+  return [
+    "Proprietário (+ cônjuge)",
+    "Locatário (+ cônjuge)",
+    ...(garantia === "fiador" ? ["Fiador(es) (+ cônjuge)"] : []),
+    "Testemunhas",
+    "Diretoria RE/MAX",
+  ];
+}
+
 export const SERVICOS: { key: "cpfl" | "saae" | "gas"; label: string }[] = [
   { key: "cpfl", label: "CPFL (energia)" },
   { key: "saae", label: "SAAE (água)" },
