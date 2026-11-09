@@ -37,6 +37,7 @@ import {
   Workflow,
   HeartPulse,
   Camera,
+  KeyRound,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -78,6 +79,8 @@ export type MenuContexto = {
   fotosVisible?: boolean;
   /** Minha carreira (card t_07d196a7): segue o módulo de captação (opcional: ausente = desligado). */
   carreiraVisible?: boolean;
+  /** Módulo Locação (t_74426f94) ligado na imobiliária (opcional: ausente = desligado). */
+  locacaoVisible?: boolean;
   /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
    * itens da plataforma; a volta é pelo "Sair" da faixa (card t_722085c6). Ausente = fora. */
   inPlatformContext?: boolean;
@@ -91,6 +94,7 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   const leadsVisible = ctx.leadsVisible === true;
   const fotosVisible = ctx.fotosVisible === true;
   const crmVisible = leadsVisible && ctx.crmVisible === true;
+  const locacaoVisible = ctx.locacaoVisible === true;
   const platformItems = platformAdmin && ctx.inPlatformContext !== true;
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
 
@@ -117,6 +121,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
       label: "Vendas e captações",
       items: [
         { to: "/vendas", label: "Vendas", icon: Handshake, show: true },
+        {
+          to: "/locacoes",
+          label: "Locação",
+          icon: KeyRound,
+          // Módulo Locação (t_74426f94): só com o módulo ligado; o banco decide o que cada papel vê e faz.
+          show: locacaoVisible,
+        },
         {
           to: "/exclusividades",
           label: "Captações exclusivas",

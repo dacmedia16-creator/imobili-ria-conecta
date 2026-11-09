@@ -245,7 +245,8 @@ describe("migration 20261109120000", () => {
   it("módulo na lista do código, desligado no convite; CHECK e RPC = lista; rollback volta a anterior", () => {
     expect(ORGANIZATION_MODULES).toContain("proposta_compra");
     expect(INVITE_MODULES_OFF).toContain("proposta_compra");
-    const novo = [...ORGANIZATION_MODULES].sort();
+    // locacao (t_74426f94) veio depois, na migration 20261110120000.
+    const novo = [...ORGANIZATION_MODULES].filter((x) => x !== "locacao").sort();
     expect(nomes(MIG.match(/CHECK \(module IN \(([^)]*)\)\)/)?.[1] ?? "")).toEqual(novo);
     expect(nomes(MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "")).toEqual(novo);
     const anterior = novo.filter((x) => x !== "proposta_compra");
